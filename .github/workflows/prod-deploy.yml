@@ -40,6 +40,44 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v6
 
+            # Per-service change detection so identity-service and identity-webhooks deploy
+            # independently — a webhooks-only change must not rebuild the Docker image or redeploy the
+            # ECS service, and vice versa. A change under packages/infra/global/** (shared VPC/RDS/SGs)
+            # redeploys both consumers; a workflow_dispatch deploys everything.
+            - name: Detect changes
+              uses: dorny/paths-filter@v3
+              id: changes
+              with:
+                  filters: |
+                      global:
+                        - 'packages/infra/global/**'
+                      service:
+                        - 'packages/services/identity/**'
+                        - 'Dockerfile'
+                      webhooks:
+                        - 'packages/services/identity-webhooks/**'
+
+            - name: Compute deploy flags
+              id: flags
+              run: |
+                  deploy_global=false
+                  deploy_service=false
+                  deploy_webhooks=false
+                  if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.global }}" = "true" ]; then
+                    deploy_global=true; deploy_service=true; deploy_webhooks=true
+                  fi
+                  if [ "${{ steps.changes.outputs.service }}" = "true" ]; then deploy_service=true; fi
+                  if [ "${{ steps.changes.outputs.webhooks }}" = "true" ]; then deploy_webhooks=true; fi
+                  run_migrations=false
+                  if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
+                  {
+                    echo "deploy_global=$deploy_global"
+                    echo "deploy_service=$deploy_service"
+                    echo "deploy_webhooks=$deploy_webhooks"
+                    echo "run_migrations=$run_migrations"
+                  } >> "$GITHUB_OUTPUT"
+                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations"
+
             - name: Setup Node.js
               uses: actions/setup-node@v6
               with:
@@ -50,18 +88,21 @@ jobs:
               run: npm ci
 
             - name: Build identity service package
+              if: steps.flags.outputs.deploy_service == 'true'
               run: npm run build --workspace=packages/services/identity
 
             - name: Prepare identity service Docker image
+              if: steps.flags.outputs.deploy_service == 'true'
               run: npm run docker:prepare --workspace=packages/services/identity
 
             - name: Build webhooks package
+              if: steps.flags.outputs.deploy_webhooks == 'true'
               run: npm run build --workspace=packages/services/identity-webhooks
 
             # Upload the tsc-emitted .js.map files so Lambda stack traces symbolicate against the
             # commit-SHA release (U11). Guarded on the token + project so it no-ops until configured.
             - name: Upload webhooks Lambda source maps to Sentry
-              if: ${{ env.SENTRY_AUTH_TOKEN != '' && vars.SENTRY_WEBHOOKS_PROJECT != '' }}
+              if: ${{ steps.flags.outputs.deploy_webhooks == 'true' && env.SENTRY_AUTH_TOKEN != '' && vars.SENTRY_WEBHOOKS_PROJECT != '' }}
               continue-on-error: true
               env:
                   SENTRY_ORG: radicle-co
@@ -71,12 +112,15 @@ jobs:
                   npx @sentry/cli@latest sourcemaps upload --release "${{ github.sha }}" packages/services/identity-webhooks/dist
 
             - name: Build global infra
+              if: steps.flags.outputs.deploy_global == 'true'
               run: npm run build --workspace=packages/infra/global
 
             - name: Build identity service infra
+              if: steps.flags.outputs.deploy_service == 'true'
               run: npm run infra:build --workspace=packages/services/identity
 
             - name: Build identity-webhooks infra
+              if: steps.flags.outputs.deploy_webhooks == 'true'
               run: npm run infra:build --workspace=packages/services/identity-webhooks
 
             - name: Prune dev dependencies
@@ -100,12 +144,15 @@ jobs:
 
             - name: Login to Amazon ECR
               id: login-ecr
+              if: steps.flags.outputs.deploy_service == 'true'
               uses: aws-actions/amazon-ecr-login@v2
 
             - name: Ensure ECR repository exists
+              if: steps.flags.outputs.deploy_service == 'true'
               run: aws ecr describe-repositories --repository-names kitchensink-identity || aws ecr create-repository --repository-name kitchensink-identity
 
             - name: Build, tag, and push identity service Docker image
+              if: steps.flags.outputs.deploy_service == 'true'
               env:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
@@ -116,6 +163,7 @@ jobs:
               run: npx cdk bootstrap aws://${{ steps.account.outputs.id }}/${DEFAULT_AWS_REGION}
 
             - name: CDK Deploy (global infra)
+              if: steps.flags.outputs.deploy_global == 'true'
               run: |
                   STAGE=${{ env.STAGE }} npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
 
@@ -125,10 +173,12 @@ jobs:
                   echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-identity-network-prod:IdentityVpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
 
             - name: CDK Deploy (identity service)
+              if: steps.flags.outputs.deploy_service == 'true'
               run: |
                   STAGE=${{ env.STAGE }} IDENTITY_IMAGE_TAG=${{ github.sha }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
 
             - name: CDK Deploy (identity-webhooks)
+              if: steps.flags.outputs.deploy_webhooks == 'true'
               run: STAGE=${{ env.STAGE }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} SENTRY_RELEASE=${{ github.sha }} npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
 
             # The RDS instance is in private-isolated subnets, unreachable from the runner — so apply
@@ -136,6 +186,7 @@ jobs:
             # schema_migrations). Runs after the webhooks stack (which owns the Lambda) and the global
             # infra deploy (which gives the lambda SG egress to PostgreSQL).
             - name: Run identity DB migrations
+              if: steps.flags.outputs.run_migrations == 'true'
               run: |
                   set -euo pipefail
                   FN=$(aws cloudformation list-exports \

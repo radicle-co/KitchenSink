@@ -148,6 +148,16 @@ export class WebhooksStack extends Stack {
             ...sentryEnv,
         };
 
+        // The deletion-worker + reconciliation Lambdas call the Clerk backend SDK, which needs the
+        // secret key. Embed it at deploy (CFN dynamic reference) like the webhook signing secret, so
+        // identityClient reads IDP_SECRET_KEY directly with no runtime GetSecretValue.
+        const clerkBackendEnv: Record<string, string> = {
+            ...commonEnv,
+            IDP_SECRET_KEY: SecretValue.secretsManager(getAuthSecretName(identityStage), {
+                jsonField: 'SECRET_KEY',
+            }).unsafeUnwrap(),
+        };
+
         const authorizerLogGroup = new logs.LogGroup(this, 'AuthorizerLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });
@@ -245,7 +255,7 @@ export class WebhooksStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(30),
             memorySize: 512,
-            environment: commonEnv,
+            environment: clerkBackendEnv,
             logGroup: webhooksLogGroup,
         });
 
@@ -260,7 +270,7 @@ export class WebhooksStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(30),
             memorySize: 512,
-            environment: commonEnv,
+            environment: clerkBackendEnv,
             logGroup: webhooksLogGroup,
         });
 

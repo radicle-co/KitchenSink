@@ -130,3 +130,18 @@ jobs:
 
             - name: CDK Deploy (identity-webhooks)
               run: STAGE=${{ env.STAGE }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} SENTRY_RELEASE=${{ github.sha }} npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
+
+            # The RDS instance is in private-isolated subnets, unreachable from the runner — so apply
+            # schema migrations by invoking the in-VPC MigrationFunction Lambda (idempotent; tracked in
+            # schema_migrations). Runs after the webhooks stack (which owns the Lambda) and the global
+            # infra deploy (which gives the lambda SG egress to PostgreSQL).
+            - name: Run identity DB migrations
+              run: |
+                  set -euo pipefail
+                  FN=$(aws cloudformation list-exports \
+                    --query "Exports[?Name=='kitchensink-identity-webhooks-${STAGE}:MigrationFunctionName'].Value" \
+                    --output text)
+                  echo "Invoking migration runner: $FN"
+                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
+                  echo "Result: $(cat /tmp/migrate-out.json)"
+                  if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi

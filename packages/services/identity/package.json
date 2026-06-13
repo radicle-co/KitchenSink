@@ -9,7 +9,8 @@
         "./types/*": "./src/types/*.ts",
         "./database/schema": "./src/database/schema/index.ts",
         "./database/dao": "./src/database/dao/index.ts",
-        "./database/ulid": "./src/database/ulid.ts"
+        "./database/ulid": "./src/database/ulid.ts",
+        "./database/migrations/*": "./src/database/migrations/*"
     },
     "scripts": {
         "dev": "nest start --watch",

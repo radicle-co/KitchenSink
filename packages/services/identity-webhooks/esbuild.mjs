@@ -18,6 +18,7 @@ const entryPoints = [
     'src/handlers/deletion-worker.ts',
     'src/handlers/reconciliation.ts',
     'src/handlers/log-forwarder.ts',
+    'src/handlers/migrate.ts',
 ];
 
 await build({
@@ -30,6 +31,8 @@ await build({
     format: 'esm',
     sourcemap: true,
     external: ['@aws-sdk/*'],
+    // Migration .sql files ship inlined as text so the migrate Lambda is self-contained.
+    loader: { '.sql': 'text' },
     // CJS dependencies bundled into an ESM output may reference `require`/`__dirname`; provide shims
     // so esbuild's "Dynamic require of … is not supported" path resolves at runtime.
     banner: {
@@ -46,4 +49,4 @@ await build({
 });
 
 writeFileSync('dist/package.json', `${JSON.stringify({ type: 'module' }, null, 2)}\n`);
-console.log('bundled 5 handlers to dist/ + wrote dist/package.json {"type":"module"}');
+console.log(`bundled ${entryPoints.length} handlers to dist/ + wrote dist/package.json {"type":"module"}`);

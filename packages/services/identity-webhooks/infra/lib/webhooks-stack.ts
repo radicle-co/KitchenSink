@@ -259,6 +259,29 @@ export class WebhooksStack extends Stack {
             }),
         );
 
+        // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the
+        // deploy pipeline (outside the VPC) invokes this Lambda to apply migrations. It reuses the
+        // lambda SG (which has egress to PostgreSQL) and the DB credentials in commonEnv.
+        const migrationFn = new lambda.Function(this, 'MigrationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/migrate.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: webhooksRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            environment: commonEnv,
+            logGroup: webhooksLogGroup,
+        });
+
+        new CfnOutput(this, 'MigrationFunctionName', {
+            value: migrationFn.functionName,
+            exportName: `${this.stackName}:MigrationFunctionName`,
+        });
+
         const apiLogGroup = new logs.LogGroup(this, 'IdentityWebhooksApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });

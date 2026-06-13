@@ -258,12 +258,20 @@ jobs:
               with:
                   path: packages/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
-            - name: Load ${{ inputs.stage }} secrets
+            # The web E2E runs ClerkJS in a browser against the Playwright dev server on
+            # http://localhost:3000. Clerk *production* instances (pk_live) are domain-locked and
+            # refuse to initialize on any origin other than their production domain — ClerkJS aborts
+            # with "Production Keys are only allowed for domain <domain>", so <SignIn> never mounts and
+            # the sign-in page renders without the auth form (only the Next.js <title> survives). A
+            # *development* instance (pk_test) permits localhost, so the web E2E must always use the
+            # sandbox (dev) Clerk keys regardless of the pipeline stage. (Backend/mobile E2E don't run
+            # ClerkJS in a localhost browser, so they keep using the stage's own secrets.)
+            - name: Load sandbox (dev-instance) Clerk secrets for localhost web E2E
               id: secrets
               continue-on-error: true
               uses: ./.github/actions/load-secrets
               with:
-                  stage: ${{ inputs.stage }}
+                  stage: sandbox
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}

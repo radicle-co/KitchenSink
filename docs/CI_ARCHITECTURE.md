@@ -21,6 +21,14 @@ per run-type": the callers supply the only thing that differs — the `stage`.
 - **Pushes to `main`** run `ci-main.yml` → `_ci.yml` with `stage: prod` → the composite reads
   `kitchensink/prod/identity/keys`.
 
+**Exception — the web E2E always uses the sandbox (dev) Clerk keys, even on `main`.** Clerk
+*production* instances (`pk_live`) are domain-locked and refuse to initialize on any origin other than
+their production domain. The web E2E runs ClerkJS in a browser against the Playwright dev server on
+`http://localhost:3000`, so a `pk_live` key aborts with *"Production Keys are only allowed for domain
+…"* and `<SignIn>` never mounts. Only a *development* instance (`pk_test`) permits localhost, so the
+`e2e-web` job pins `load-secrets` to `stage: sandbox` regardless of pipeline stage. Backend/mobile E2E
+don't run ClerkJS in a localhost browser, so they keep using the stage's own secrets.
+
 The pipeline jobs (install, build-ui, lint, format, typecheck, test, build matrix, e2e) are defined
 once in `_ci.yml`. There is no duplicated AWS/Clerk fetch logic — the composite is the single source
 of truth and exports every alias the apps/tests consume (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,

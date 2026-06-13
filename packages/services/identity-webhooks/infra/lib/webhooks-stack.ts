@@ -2,6 +2,7 @@ import {
     CfnOutput,
     Duration,
     Fn,
+    SecretValue,
     Stack,
     type StackProps,
     aws_apigateway as apigw,
@@ -25,7 +26,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { ssmParamPath } from './config.js';
+import { getAuthSecretName, ssmParamPath } from './config.js';
 
 export interface WebhooksStackProps extends StackProps {
     readonly stage: string;
@@ -218,7 +219,17 @@ export class WebhooksStack extends Stack {
             memorySize: 512,
             environment: {
                 ...commonEnv,
-                WEBHOOK_SECRET_ARN: authSecretKey.secretArn,
+                // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
+                // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
+                // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a
+                // per-cold-start GetSecretValue call. The literal never lands in the synthesized
+                // template (only the `{{resolve:secretsmanager:...}}` token does); CloudFormation
+                // resolves it into the function config at deploy. The signing secret does not rotate,
+                // so a stale embedded value is not a concern (unlike the RDS creds, which stay
+                // runtime-fetched via DB_SECRET_ARN).
+                IDP_WEBHOOK_SECRET: SecretValue.secretsManager(getAuthSecretName(identityStage), {
+                    jsonField: 'WEBHOOK_SIGNING_SECRET',
+                }).unsafeUnwrap(),
             },
             logGroup: webhooksLogGroup,
         });

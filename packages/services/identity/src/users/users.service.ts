@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
@@ -6,8 +6,9 @@ import { users, accounts, profiles } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import type { VerifiedClerkClaims } from '../auth/clerk-auth.service.js';
 import { ResolveUserService } from './resolveUser.js';
-import { newUserId } from '../types/index.js';
+import { newUserId, type UserId } from '../types/index.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
 
 @Injectable()
@@ -24,6 +25,21 @@ export class UsersService {
         _ctx: AuthorizerContext,
         input: { identityId: string; email: string; name?: string; picture?: string },
     ): Promise<{ id: string; created: boolean }> {
+        return this.upsertUserRecord(input);
+    }
+
+    /**
+     * Idempotently upsert a user (keyed on the Clerk identity id) and, on first creation, the
+     * companion account + profile rows. Shared by the explicit `/v1/users/upsert` endpoint and the
+     * read-through auth path. Idempotency is anchored on the `users.identityId` unique constraint,
+     * so concurrent callers (webhook + read-through) converge on a single row set.
+     */
+    private async upsertUserRecord(input: {
+        identityId: string;
+        email: string;
+        name?: string;
+        picture?: string;
+    }): Promise<{ id: string; created: boolean }> {
         const now = new Date();
         const id = newUserId();
 
@@ -52,14 +68,62 @@ export class UsersService {
         const created = row.createdAt.getTime() === row.updatedAt.getTime();
 
         if (created) {
-            await this.db.insert(accounts).values({ userId: row.id }).onConflictDoNothing();
-            await this.db
-                .insert(profiles)
-                .values({ userId: row.id, displayName: input.name ?? '' })
-                .onConflictDoNothing();
+            await this.ensureAccountAndProfile(row.id, input.name ?? '');
         }
 
         return { id: row.id, created };
+    }
+
+    /** Idempotently ensure a user's account + profile rows exist. No-op when already present. */
+    private async ensureAccountAndProfile(userId: string, displayName: string): Promise<void> {
+        await this.db.insert(accounts).values({ userId }).onConflictDoNothing();
+        await this.db.insert(profiles).values({ userId, displayName }).onConflictDoNothing();
+    }
+
+    /**
+     * Read-through resolution for an authenticated Clerk session: map the verified token's Clerk
+     * identity id (`sub`) to the app user, creating the user + account + profile on first sight so
+     * the response never depends on the `user.created` webhook having arrived. Returns the
+     * `AuthorizerContext` the rest of the request pipeline expects.
+     *
+     * @sideEffect creates user/account/profile rows on first request for a new identity.
+     */
+    async resolveOrCreateFromClaims(claims: VerifiedClerkClaims): Promise<AuthorizerContext> {
+        const displayName = [claims.firstName, claims.lastName].filter(Boolean).join(' ').trim();
+
+        let [userRow] = await this.db.select().from(users).where(eq(users.identityId, claims.sub)).limit(1);
+
+        if (!userRow) {
+            await this.upsertUserRecord({
+                identityId: claims.sub,
+                email: claims.email ?? '',
+                name: displayName || undefined,
+                picture: claims.picture,
+            });
+
+            [userRow] = await this.db.select().from(users).where(eq(users.identityId, claims.sub)).limit(1);
+        } else {
+            // Heal legacy/partial records (e.g. a webhook-first user created before the account
+            // backstop existed): ensure account + profile without an unconditional per-request write.
+            const [account] = await this.db.select().from(accounts).where(eq(accounts.userId, userRow.id)).limit(1);
+
+            if (!account) {
+                await this.ensureAccountAndProfile(userRow.id, displayName);
+            }
+        }
+
+        if (!userRow) {
+            throw new InternalServerErrorException('Failed to resolve user after read-through creation');
+        }
+
+        return {
+            userId: userRow.id as UserId,
+            email: userRow.email,
+            clerkUserId: claims.sub,
+            scopes: [],
+            permissions: [],
+            tokenType: 'user',
+        };
     }
 
     async getUserMe(ctx: AuthorizerContext) {

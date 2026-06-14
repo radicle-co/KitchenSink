@@ -109,10 +109,14 @@ export const handler = async (): Promise<MigrateResult> => {
         // Both sides are derived (migration files + drizzle schema), so nothing here is hardcoded.
         const recorded = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
         const recordedNames = new Set(recorded.rows.map((row) => row.name));
-        const missingMigrations = migrations.map((migration) => migration.name).filter((name) => !recordedNames.has(name));
+        const missingMigrations = migrations
+            .map((migration) => migration.name)
+            .filter((name) => !recordedNames.has(name));
 
         if (missingMigrations.length > 0) {
-            throw new Error(`Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`);
+            throw new Error(
+                `Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`,
+            );
         }
 
         const present = await client.query<{ table_name: string }>(

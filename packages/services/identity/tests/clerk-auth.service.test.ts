@@ -52,7 +52,26 @@ describe('ClerkAuthService', () => {
         });
     });
 
-    it('extracts scopes and permissions from the signed token (authorization grants)', async () => {
+    it('reads scopes/permissions from the public_metadata claim (the session-token template shape)', async () => {
+        mockVerifyToken.mockResolvedValueOnce({
+            data: {
+                sub: 'user_admin',
+                email: 'admin@example.com',
+                first_name: 'Ad',
+                last_name: 'Min',
+                public_metadata: { scopes: ['admin:users'], permissions: ['admin:users', 'billing:read'] },
+            },
+        });
+
+        const service = await makeService();
+        const claims = await service.verify('t');
+
+        expect(claims.scopes).toEqual(['admin:users']);
+        expect(claims.permissions).toEqual(['admin:users', 'billing:read']);
+        expect(claims.email).toBe('admin@example.com');
+    });
+
+    it('falls back to top-level scopes/permissions when public_metadata does not carry them', async () => {
         mockVerifyToken.mockResolvedValueOnce({
             data: {
                 sub: 'user_admin',

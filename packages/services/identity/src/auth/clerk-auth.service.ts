@@ -30,6 +30,12 @@ function asStringArray(value: unknown): string[] {
     return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+}
+
 function parseAuthorizedParties(raw: string | undefined): string[] {
     return (raw ?? '')
         .split(',')
@@ -91,14 +97,19 @@ export class ClerkAuthService {
             throw new UnauthorizedException();
         }
 
+        // The session-token template surfaces the whole `public_metadata` object as a claim, so
+        // authorization grants live at `public_metadata.scopes` / `.permissions`. Fall back to a
+        // flattened top-level claim if a future template shape provides them there instead.
+        const publicMetadata = asRecord(payload['public_metadata']);
+
         return {
             sub,
             email: asNonEmptyString(payload['email']),
             firstName: asNonEmptyString(payload['first_name']),
             lastName: asNonEmptyString(payload['last_name']),
             picture: asNonEmptyString(payload['image_url']) ?? asNonEmptyString(payload['picture']),
-            scopes: asStringArray(payload['scopes']),
-            permissions: asStringArray(payload['permissions']),
+            scopes: asStringArray(publicMetadata['scopes'] ?? payload['scopes']),
+            permissions: asStringArray(publicMetadata['permissions'] ?? payload['permissions']),
         };
     }
 }

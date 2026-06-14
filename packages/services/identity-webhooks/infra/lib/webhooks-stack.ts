@@ -405,28 +405,31 @@ export class WebhooksStack extends Stack {
 
         const webhookIntegration = new apigw.LambdaIntegration(webhookFn);
 
+        // Every route on this API lives under /v1/webhooks/* (matching across stages:
+        // registration.identity[.sandbox].commise.app/v1/webhooks/*).
         const webhooksResource = api.root.addResource('webhooks');
 
         const usersWebhookResource = webhooksResource.addResource('users');
+        // Clerk user-event webhook — verified by svix signature inside the Lambda (no API GW auth).
         usersWebhookResource.addMethod('POST', webhookIntegration, {
             authorizationType: apigw.AuthorizationType.NONE,
         });
 
-        const usersResource = api.root.addResource('users');
-
-        const upsertResource = usersResource.addResource('upsert');
+        // Authenticated user operations, nested under /webhooks/users/* and gated by the Clerk-JWT
+        // REQUEST authorizer.
+        const upsertResource = usersWebhookResource.addResource('upsert');
         upsertResource.addMethod('POST', webhookIntegration, {
             authorizer: requestAuthorizer,
             authorizationType: apigw.AuthorizationType.CUSTOM,
         });
 
-        const deletionResource = usersResource.addResource('deletion');
+        const deletionResource = usersWebhookResource.addResource('deletion');
         deletionResource.addMethod('POST', webhookIntegration, {
             authorizer: requestAuthorizer,
             authorizationType: apigw.AuthorizationType.CUSTOM,
         });
 
-        const reconciliationResource = usersResource.addResource('reconciliation');
+        const reconciliationResource = usersWebhookResource.addResource('reconciliation');
         reconciliationResource.addMethod('POST', webhookIntegration, {
             authorizer: requestAuthorizer,
             authorizationType: apigw.AuthorizationType.CUSTOM,

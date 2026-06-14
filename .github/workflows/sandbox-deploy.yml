@@ -14,7 +14,8 @@ on:
     pull_request:
         types: [opened, synchronize, reopened, closed]
         # Runs for ALL PRs. Per-service path filters are on each job.
-        # Identity services are global and NEVER sandboxed — skip them here.
+        # This workflow is for ephemeral pr-{N} sandboxes of other services. The identity service +
+        # webhooks have their own *persistent* shared sandbox env — see sandbox-identity-deploy.yml.
 
 permissions:
     id-token: write
@@ -91,8 +92,8 @@ jobs:
     #   2. Deploys with stage=pr-{N} to kitchensink-{service}-*-pr-{N} stacks
     #   3. Uses domain: {service}-pr-{N}.commise.app (fits *.commise.app wildcard cert)
     #
-    # ⚠️  Never add identity services here — they are global.
-    #     Identity deploys via prod-deploy.yml → identity.commise.app only.
+    # ⚠️  Don't add identity services here. Prod deploys via prod-deploy.yml; the persistent shared
+    #     sandbox identity env deploys via sandbox-identity-deploy.yml (STAGE=sandbox).
     # ═══════════════════════════════════════════════════════════════════
     #
     # TEMPLATE:

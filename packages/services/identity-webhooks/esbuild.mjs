@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * Bundle each Lambda handler into a self-contained ESM file under dist/, mirroring the src/ layout so
- * the CDK `handler:` strings (e.g. `handlers/identityWebhook.handler`, `authorizer/handler.handler`)
- * still resolve. The CDK ships `dist/` via `Code.fromAsset`, which carries no node_modules — so every
+ * the CDK `handler:` strings (e.g. `handlers/identityWebhook.handler`) still resolve. The CDK ships
+ * `dist/` via `Code.fromAsset`, which carries no node_modules — so every
  * dependency (svix, drizzle, the @kitchensink/identity-service source, Sentry, …) must be inlined
  * here. `@aws-sdk/*` is left external because the Node 22 Lambda runtime provides it.
  *
@@ -15,7 +15,6 @@ import { fileURLToPath } from 'node:url';
  * outside a module`).
  */
 const entryPoints = [
-    'src/authorizer/handler.ts',
     'src/handlers/identityWebhook.ts',
     'src/handlers/deletion-worker.ts',
     'src/handlers/reconciliation.ts',

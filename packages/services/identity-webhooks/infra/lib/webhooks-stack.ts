@@ -49,7 +49,6 @@ export interface WebhooksStackProps extends StackProps {
 
 export class WebhooksStack extends Stack {
     public readonly apiUrl: string;
-    public readonly authorizerFn!: lambda.Function;
 
     public constructor(scope: Construct, id: string, props: WebhooksStackProps) {
         super(scope, id, props);
@@ -157,45 +156,6 @@ export class WebhooksStack extends Stack {
                 jsonField: 'SECRET_KEY',
             }).unsafeUnwrap(),
         };
-
-        const authorizerLogGroup = new logs.LogGroup(this, 'AuthorizerLogGroup', {
-            retention: logs.RetentionDays.ONE_MONTH,
-        });
-
-        const authorizerRole = new iam.Role(this, 'AuthorizerLambdaRole', {
-            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-            description: 'Least-privilege execution role for identity authorizer Lambda',
-            managedPolicies: [
-                iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-            ],
-        });
-        authorizerLogGroup.grantWrite(authorizerRole);
-        authSecretKey.grantRead(authorizerRole);
-        dbCredentialsSecret.grantRead(authorizerRole);
-
-        this.authorizerFn = new lambda.Function(this, 'AuthorizerFunction', {
-            runtime,
-            architecture,
-            handler: 'authorizer/handler.handler',
-            code: lambda.Code.fromAsset(distPath),
-            role: authorizerRole,
-            vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-            securityGroups: [lambdaSecurityGroup],
-            timeout: Duration.seconds(10),
-            memorySize: 256,
-            environment: {
-                NODE_ENV: 'production',
-                AUTH_SECRET_ARN: authSecretKey.secretArn,
-                DB_SECRET_ARN: dbCredentialsSecret.secretArn,
-                IDP_JWKS_URL: ssmValue('clerk', 'jwks-url'),
-                IDP_ISSUER: ssmValue('clerk', 'issuer'),
-                IDP_AUDIENCE: ssmValue('clerk', 'audience'),
-                WEBHOOK_SECRET_ARN: authSecretKey.secretArn,
-                ...sentryEnv,
-            },
-            logGroup: authorizerLogGroup,
-        });
 
         const webhooksLogGroup = new logs.LogGroup(this, 'WebhooksLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
@@ -348,7 +308,6 @@ export class WebhooksStack extends Stack {
         const drainDestination = new logsDestinations.LambdaDestination(logForwarderFn);
         const drainPattern = logs.FilterPattern.literal('-START -END -REPORT -"_aws"');
         const drainTargets: Array<{ id: string; logGroup: logs.ILogGroup }> = [
-            { id: 'AuthorizerLogDrain', logGroup: authorizerLogGroup },
             { id: 'WebhooksLogDrain', logGroup: webhooksLogGroup },
             { id: 'WebhooksApiLogDrain', logGroup: apiLogGroup },
             // ECS container log group lives in the identity-service stack, which deploys before this
@@ -433,9 +392,6 @@ export class WebhooksStack extends Stack {
 
         new CfnOutput(this, 'WebhooksApiUrl', {
             value: this.apiUrl,
-        });
-        new CfnOutput(this, 'AuthorizerFnArn', {
-            value: this.authorizerFn.functionArn,
         });
     }
 }

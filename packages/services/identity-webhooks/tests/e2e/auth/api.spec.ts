@@ -1,35 +1,19 @@
-import type { APIGatewayProxyEvent, APIGatewayRequestAuthorizerEvent, Context } from 'aws-lambda';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SignJWT, exportJWK, generateKeyPair } from 'jose';
-import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
+import type { APIGatewayProxyEvent, Context } from 'aws-lambda';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * E2E: identity-webhooks Lambdas exercised end-to-end against an in-process
- * JWKS server, mocked AWS SDK clients, and a mocked Postgres pool.
+ * E2E: the identityWebhook Lambda exercised end-to-end against mocked AWS SDK
+ * clients and a mocked Postgres pool.
  *
- * Covers:
- *   - authorizer: JWT verification → Allow / Deny / JIT user creation
- *   - identityWebhook: Svix signature verify → user.created / user.deleted dispatch
+ * Covers: identityWebhook — Svix signature verify → user.created / user.deleted dispatch.
  *
- * @implements REQ-013..REQ-017 REQ-038..REQ-040 FR-013..FR-017 FR-038..FR-040
- *             ARCH-024 ARCH-025 MOD-024 MOD-025
+ * @implements REQ-013..REQ-017 FR-013..FR-017 ARCH-024 ARCH-025 MOD-024 MOD-025
  */
-
-const JWKS_URL = 'https://idp.test/.well-known/jwks.json';
-const ISSUER = 'https://idp.test';
-const KID = 'e2e-key-1';
-
-let privateKey: CryptoKey;
-let publicJwk: Record<string, unknown>;
-
-const jwksServer = setupServer();
 
 const mockUpsert = vi.fn();
 const mockFindByIdentityId = vi.fn();
 const mockRecordOnce = vi.fn();
 const mockSetExternalId = vi.fn();
-const mockGetUser = vi.fn();
 const mockSqsSend = vi.fn().mockResolvedValue({});
 const mockDbInsertReturning = vi.fn().mockResolvedValue([{ id: 'profile-1' }]);
 
@@ -53,7 +37,7 @@ vi.mock('../../../src/common/svix.js', () => ({
 }));
 vi.mock('../../../src/common/identityClient.js', () => ({
     setExternalId: mockSetExternalId,
-    getUser: mockGetUser,
+    getUser: vi.fn(),
     listUsers: vi.fn().mockResolvedValue([]),
     deleteUser: vi.fn().mockResolvedValue(undefined),
 }));
@@ -84,14 +68,6 @@ vi.mock('../../../src/common/observability.js', () => ({
     withObservability: <T, R>(fn: (e: T, c: unknown) => Promise<R>) => fn,
 }));
 
-beforeAll(async () => {
-    const { privateKey: priv, publicKey: pub } = await generateKeyPair('RS256');
-    privateKey = priv;
-    publicJwk = { ...(await exportJWK(pub)), kid: KID, use: 'sig', alg: 'RS256' };
-    jwksServer.use(http.get(JWKS_URL, () => HttpResponse.json({ keys: [publicJwk] })));
-    jwksServer.listen({ onUnhandledRequest: 'bypass' });
-});
-
 afterEach(() => {
     vi.clearAllMocks();
     mockSqsSend.mockResolvedValue({});
@@ -99,91 +75,13 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-    process.env.IDP_JWKS_URL = JWKS_URL;
-    process.env.IDP_ISSUER = ISSUER;
     process.env.AUTH_SECRET_ARN = 'sk_test_dummy';
     process.env.IDP_WEBHOOK_SECRET = 'whsec_dummy';
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
     process.env.DELETION_QUEUE_URL = 'http://localhost:4566/queue/identity-deletions';
 });
 
-const signToken = (claims: Record<string, unknown>): Promise<string> => {
-    const now = Math.floor(Date.now() / 1000);
-
-    return new SignJWT({
-        iat: now,
-        exp: now + 600,
-        nbf: now,
-        iss: ISSUER,
-        ...claims,
-    })
-        .setProtectedHeader({ alg: 'RS256', kid: KID })
-        .sign(privateKey);
-};
-
-const makeAuthorizerEvent = (auth?: string): APIGatewayRequestAuthorizerEvent =>
-    ({
-        type: 'REQUEST',
-        methodArn: 'arn:aws:execute-api:us-east-1:000:api/local/GET/protected',
-        headers: auth ? { Authorization: auth } : {},
-        requestContext: { requestId: `req-${Date.now()}` },
-    }) as unknown as APIGatewayRequestAuthorizerEvent;
-
 const ctx = { getRemainingTimeInMillis: () => 5000 } as Context;
-
-describe('e2e: authorizer Lambda', () => {
-    it('returns Allow policy for a valid JWT with app_user_id', async () => {
-        const TEST_USER_ID = '01HXYZ1234567890ABCDEFGHIJ';
-        const { handler } = await import('../../../src/authorizer/handler.js');
-        const token = await signToken({
-            sub: 'user_e2e_123',
-            app_user_id: TEST_USER_ID,
-            email: 'e2e@example.com',
-        });
-
-        const result = await handler(makeAuthorizerEvent(`Bearer ${token}`), ctx);
-
-        expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
-        expect(result.principalId).toBe('user_e2e_123');
-        expect(result.context?.userId).toBe(TEST_USER_ID);
-        expect(result.context?.clerkUserId).toBe('user_e2e_123');
-    });
-
-    it('JIT-creates a user when token has no app_user_id claim', async () => {
-        const JIT_ID = '01HJIT0123456789ABCDEFGHIJ';
-
-        mockGetUser.mockResolvedValueOnce({
-            id: 'user_e2e_jit',
-            emailAddresses: [{ emailAddress: 'jit@example.com' }],
-            firstName: 'Jit',
-            lastName: 'User',
-            imageUrl: 'https://i.example/p.jpg',
-        });
-        mockUpsert.mockResolvedValueOnce({ id: JIT_ID });
-
-        const { handler } = await import('../../../src/authorizer/handler.js');
-        const token = await signToken({ sub: 'user_e2e_jit', email: 'jit@example.com' });
-
-        const result = await handler(makeAuthorizerEvent(`Bearer ${token}`), ctx);
-
-        expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
-        expect(mockGetUser).toHaveBeenCalledWith('user_e2e_jit');
-        expect(mockUpsert).toHaveBeenCalled();
-        expect(mockSetExternalId).toHaveBeenCalledWith('user_e2e_jit', JIT_ID);
-        expect(result.context?.userId).toBe(JIT_ID);
-    });
-
-    it('throws Unauthorized when Authorization header is missing', async () => {
-        const { handler } = await import('../../../src/authorizer/handler.js');
-        await expect(handler(makeAuthorizerEvent(), ctx)).rejects.toThrow('Unauthorized');
-    });
-
-    it('throws Unauthorized for a token signed by a different issuer', async () => {
-        const { handler } = await import('../../../src/authorizer/handler.js');
-        const badToken = await signToken({ sub: 'attacker', iss: 'https://evil.example' });
-        await expect(handler(makeAuthorizerEvent(`Bearer ${badToken}`), ctx)).rejects.toThrow('Unauthorized');
-    });
-});
 
 const makeWebhookEvent = (svixId: string, body: object): APIGatewayProxyEvent =>
     ({

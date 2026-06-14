@@ -67,9 +67,19 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                     {
                         patterns: [
                             {
-                                group: ['@kitchensink/*/*'],
+                                // Block reaching into another package's internals, but allow its
+                                // *declared* granular export barrels (database/*, types/*). Consumers
+                                // such as the webhook Lambdas import those directly so they don't pull
+                                // the whole package (e.g. the NestJS service) in via the top barrel.
+                                group: [
+                                    '@kitchensink/*/*',
+                                    '!@kitchensink/*/database',
+                                    '!@kitchensink/*/database/*',
+                                    '!@kitchensink/*/types',
+                                    '!@kitchensink/*/types/*',
+                                ],
                                 message:
-                                    "Only import from barrel files using '@kitchensink/<package>' — never from subpaths like '@kitchensink/<package>/subpath'.",
+                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*) — don't reach into other internals.",
                             },
                         ],
                     },

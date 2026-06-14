@@ -1,7 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-// eslint-disable-next-line no-restricted-imports
 import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
 
 import { getJsonSecret } from './secrets.js';

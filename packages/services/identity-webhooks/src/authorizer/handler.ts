@@ -2,7 +2,6 @@ import * as Sentry from '@sentry/aws-serverless';
 import type { APIGatewayRequestAuthorizerEvent, APIGatewayAuthorizerResult, Context } from 'aws-lambda';
 
 import type { AuthorizerContext, ClerkSessionClaims, UserId } from '@kitchensink/identity-service';
-// eslint-disable-next-line no-restricted-imports
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 
 import { requireEnv } from '../common/config.js';
@@ -123,8 +122,8 @@ const innerHandler = async (
 
         // Always deny with a clean, PII-free error. Intentionally NO `cause`: the caught error can
         // carry the bearer token / JWT claims / email, which Sentry would serialize (security P1).
-        // eslint-disable-next-line preserve-caught-error
-        throw new Error('Unauthorized');
+        // `unauthorized()` throws from its own scope, so no caught error is ever attached as `cause`.
+        return unauthorized();
     }
 };
 

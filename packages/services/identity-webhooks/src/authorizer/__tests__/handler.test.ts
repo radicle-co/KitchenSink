@@ -40,7 +40,6 @@ import { handler as rawHandler } from '../handler.js';
 import { verifyClerkJwt } from '../../common/jwt.js';
 import { getUser, setExternalId } from '../../common/identityClient.js';
 import { getDb } from '../../common/db.js';
-// eslint-disable-next-line no-restricted-imports
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 import type { APIGatewayAuthorizerResult } from 'aws-lambda';
 

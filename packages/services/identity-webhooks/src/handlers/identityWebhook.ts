@@ -3,9 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-// eslint-disable-next-line no-restricted-imports
 import { UserDAO, recordOnce } from '@kitchensink/identity-service/database/dao';
-// eslint-disable-next-line no-restricted-imports
 import { profiles, users } from '@kitchensink/identity-service/database/schema';
 
 import { setExternalId } from '../common/identityClient.js';

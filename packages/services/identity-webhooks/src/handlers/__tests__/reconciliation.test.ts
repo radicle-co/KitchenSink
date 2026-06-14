@@ -32,7 +32,6 @@ vi.mock('../../common/observability.js', () => ({
 import { handler as rawHandler } from '../reconciliation.js';
 import { getDb } from '../../common/db.js';
 import { listUsers } from '../../common/identityClient.js';
-// eslint-disable-next-line no-restricted-imports
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 import { emitMetric, logger } from '../../common/observability.js';
 

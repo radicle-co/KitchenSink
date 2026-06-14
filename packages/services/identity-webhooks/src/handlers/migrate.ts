@@ -1,24 +1,35 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { getTableName, is } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
+
+import * as schema from '@kitchensink/identity-service/database/schema';
 
 import { requireEnv } from '../common/config.js';
 import { getJsonSecret } from '../common/secrets.js';
 
-// Ordered raw-SQL migrations (this project applies plain .sql, not drizzle-kit's journal). The .sql
-// is owned by identity-service; esbuild copies it into dist/migrations/ at build (see esbuild.mjs)
-// and it is read here at runtime — no cross-package import. Each runs once, tracked in
-// `schema_migrations`, so re-invoking is a no-op and the destructive reset in 0005 never re-runs.
-const MIGRATION_NAMES = [
-    '0004_users_sub_pk',
-    '0005_identity_reset',
-    '0006_webhook_idempotency',
-    '0007_webhook_events_ttl',
-] as const;
-
+// Migrations are plain ordered .sql (not drizzle-kit's journal). identity-service owns the files;
+// esbuild copies them into dist/migrations/ at build (see esbuild.mjs) and they're read here at
+// runtime — no cross-package import. Each runs once, tracked in `schema_migrations`, so re-invoking
+// is a no-op and the destructive reset in 0005 never re-runs.
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
+
+// Discover migrations from the bundled SQL rather than a hardcoded list — add a .sql file and it is
+// picked up automatically (sorted by the numeric filename prefix for deterministic order).
+const discoverMigrations = (): { name: string; file: string }[] =>
+    readdirSync(migrationsDir)
+        .filter((file) => file.endsWith('.sql'))
+        .sort()
+        .map((file) => ({ name: file.replace(/\.sql$/, ''), file }));
+
+// Expected tables are derived from the drizzle schema definition (every exported pgTable), not
+// hardcoded — so post-migration validation tracks the schema as it evolves.
+const expectedTables = (Object.values(schema) as unknown[])
+    .filter((value): value is PgTable => is(value, PgTable))
+    .map((table) => getTableName(table));
 
 interface DbSecret {
     username: string;
@@ -32,11 +43,13 @@ interface DbSecret {
 interface MigrateResult {
     applied: string[];
     skipped: string[];
+    validated: { migrations: number; tables: number };
 }
 
 /**
- * In-VPC migration runner. Applies the identity schema migrations to RDS in order, idempotently.
- * Invoked from the deploy pipeline (it cannot reach the private-isolated DB from GitHub Actions).
+ * In-VPC migration runner. Applies the identity schema migrations to RDS in order, idempotently,
+ * then validates the result. Invoked from the deploy pipeline (it cannot reach the private-isolated
+ * DB from GitHub Actions); a thrown error surfaces as a Lambda FunctionError and fails the deploy.
  *
  * @sideEffect Connects to PostgreSQL and executes DDL.
  */
@@ -59,6 +72,7 @@ export const handler = async (): Promise<MigrateResult> => {
         max: 1,
     });
 
+    const migrations = discoverMigrations();
     const applied: string[] = [];
     const skipped: string[] = [];
     const client = await pool.connect();
@@ -68,29 +82,51 @@ export const handler = async (): Promise<MigrateResult> => {
             'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
         );
 
-        for (const name of MIGRATION_NAMES) {
-            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [name]);
+        for (const migration of migrations) {
+            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migration.name]);
 
             if ((existing.rowCount ?? 0) > 0) {
-                skipped.push(name);
+                skipped.push(migration.name);
                 continue;
             }
 
-            const sql = readFileSync(join(migrationsDir, `${name}.sql`), 'utf8');
+            const sql = readFileSync(join(migrationsDir, migration.file), 'utf8');
             await client.query('BEGIN');
 
             try {
                 await client.query(sql);
-                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [name]);
+                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
                 await client.query('COMMIT');
-                applied.push(name);
+                applied.push(migration.name);
             } catch (err) {
                 await client.query('ROLLBACK');
-                throw new Error(`Migration ${name} failed`, { cause: err });
+                throw new Error(`Migration ${migration.name} failed`, { cause: err });
             }
         }
 
-        return { applied, skipped };
+        // Post-migration validation. Throwing surfaces as a Lambda FunctionError, which fails the
+        // deploy's migration step — so a partially-applied or drifted schema never passes silently.
+        // Both sides are derived (migration files + drizzle schema), so nothing here is hardcoded.
+        const recorded = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
+        const recordedNames = new Set(recorded.rows.map((row) => row.name));
+        const missingMigrations = migrations.map((migration) => migration.name).filter((name) => !recordedNames.has(name));
+
+        if (missingMigrations.length > 0) {
+            throw new Error(`Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`);
+        }
+
+        const present = await client.query<{ table_name: string }>(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
+            [expectedTables],
+        );
+        const presentTables = new Set(present.rows.map((row) => row.table_name));
+        const missingTables = expectedTables.filter((table) => !presentTables.has(table));
+
+        if (missingTables.length > 0) {
+            throw new Error(`Post-migration validation failed — tables missing: ${missingTables.join(', ')}`);
+        }
+
+        return { applied, skipped, validated: { migrations: migrations.length, tables: expectedTables.length } };
     } finally {
         client.release();
         await pool.end();

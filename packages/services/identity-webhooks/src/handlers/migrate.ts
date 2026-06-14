@@ -1,26 +1,24 @@
-import { Pool } from 'pg';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// The migration SQL is owned by identity-service; import the raw files (esbuild inlines them via the
-// text loader). Subpath import is intentional here, mirroring db.ts importing the shared schema.
-/* eslint-disable no-restricted-imports */
-import sql0004 from '@kitchensink/identity-service/database/migrations/0004_users_sub_pk.sql';
-import sql0005 from '@kitchensink/identity-service/database/migrations/0005_identity_reset.sql';
-import sql0006 from '@kitchensink/identity-service/database/migrations/0006_webhook_idempotency.sql';
-import sql0007 from '@kitchensink/identity-service/database/migrations/0007_webhook_events_ttl.sql';
-/* eslint-enable no-restricted-imports */
+import { Pool } from 'pg';
 
 import { requireEnv } from '../common/config.js';
 import { getJsonSecret } from '../common/secrets.js';
 
-// Ordered raw-SQL migrations (this project applies plain .sql, not drizzle-kit's journal). Each runs
-// once, tracked in `schema_migrations`, so re-invoking is a no-op and the destructive reset in 0005
-// never re-runs. Keep this list in sync with identity-service/src/database/migrations/*.sql.
-const MIGRATIONS = [
-    { name: '0004_users_sub_pk', sql: sql0004 },
-    { name: '0005_identity_reset', sql: sql0005 },
-    { name: '0006_webhook_idempotency', sql: sql0006 },
-    { name: '0007_webhook_events_ttl', sql: sql0007 },
+// Ordered raw-SQL migrations (this project applies plain .sql, not drizzle-kit's journal). The .sql
+// is owned by identity-service; esbuild copies it into dist/migrations/ at build (see esbuild.mjs)
+// and it is read here at runtime — no cross-package import. Each runs once, tracked in
+// `schema_migrations`, so re-invoking is a no-op and the destructive reset in 0005 never re-runs.
+const MIGRATION_NAMES = [
+    '0004_users_sub_pk',
+    '0005_identity_reset',
+    '0006_webhook_idempotency',
+    '0007_webhook_events_ttl',
 ] as const;
+
+const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 
 interface DbSecret {
     username: string;
@@ -70,24 +68,25 @@ export const handler = async (): Promise<MigrateResult> => {
             'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
         );
 
-        for (const migration of MIGRATIONS) {
-            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migration.name]);
+        for (const name of MIGRATION_NAMES) {
+            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [name]);
 
             if ((existing.rowCount ?? 0) > 0) {
-                skipped.push(migration.name);
+                skipped.push(name);
                 continue;
             }
 
+            const sql = readFileSync(join(migrationsDir, `${name}.sql`), 'utf8');
             await client.query('BEGIN');
 
             try {
-                await client.query(migration.sql);
-                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
+                await client.query(sql);
+                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [name]);
                 await client.query('COMMIT');
-                applied.push(migration.name);
+                applied.push(name);
             } catch (err) {
                 await client.query('ROLLBACK');
-                throw new Error(`Migration ${migration.name} failed`, { cause: err });
+                throw new Error(`Migration ${name} failed`, { cause: err });
             }
         }
 

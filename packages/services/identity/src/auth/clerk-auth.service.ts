@@ -6,6 +6,11 @@ import { verifyToken } from '@clerk/backend';
  * `lastName` are present only when the instance's session token is customized to include them
  * (Dashboard → Sessions → Customize session token); they are optional here and the read-through
  * path tolerates their absence.
+ *
+ * `scopes`/`permissions` carry authorization grants (e.g. `admin:users`). They MUST be sourced in
+ * the session-token template from `user.public_metadata` (backend/admin-controlled), never
+ * `unsafe_metadata` (user-editable) — they are trusted only because the token is Clerk-signed.
+ * Default to empty (no privilege) when absent.
  */
 export interface VerifiedClerkClaims {
     sub: string;
@@ -13,10 +18,16 @@ export interface VerifiedClerkClaims {
     firstName?: string;
     lastName?: string;
     picture?: string;
+    scopes?: string[];
+    permissions?: string[];
 }
 
 function asNonEmptyString(value: unknown): string | undefined {
     return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function asStringArray(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
 function parseAuthorizedParties(raw: string | undefined): string[] {
@@ -86,6 +97,8 @@ export class ClerkAuthService {
             firstName: asNonEmptyString(payload['first_name']),
             lastName: asNonEmptyString(payload['last_name']),
             picture: asNonEmptyString(payload['image_url']) ?? asNonEmptyString(payload['picture']),
+            scopes: asStringArray(payload['scopes']),
+            permissions: asStringArray(payload['permissions']),
         };
     }
 }

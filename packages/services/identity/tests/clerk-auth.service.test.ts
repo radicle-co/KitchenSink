@@ -47,7 +47,37 @@ describe('ClerkAuthService', () => {
             firstName: 'Ada',
             lastName: 'Lovelace',
             picture: 'https://img.example/a.png',
+            scopes: [],
+            permissions: [],
         });
+    });
+
+    it('extracts scopes and permissions from the signed token (authorization grants)', async () => {
+        mockVerifyToken.mockResolvedValueOnce({
+            data: {
+                sub: 'user_admin',
+                scopes: ['admin:users'],
+                permissions: ['admin:users', 'billing:read'],
+            },
+        });
+
+        const service = await makeService();
+        const claims = await service.verify('t');
+
+        expect(claims.scopes).toEqual(['admin:users']);
+        expect(claims.permissions).toEqual(['admin:users', 'billing:read']);
+    });
+
+    it('defaults scopes/permissions to empty and ignores non-array/non-string claim values', async () => {
+        mockVerifyToken.mockResolvedValueOnce({
+            data: { sub: 'user_x', scopes: 'admin:users', permissions: [1, 'ok', null] },
+        });
+
+        const service = await makeService();
+        const claims = await service.verify('t');
+
+        expect(claims.scopes).toEqual([]); // string, not array → ignored
+        expect(claims.permissions).toEqual(['ok']); // non-strings filtered out
     });
 
     it('passes jwtKey and authorizedParties to verifyToken', async () => {

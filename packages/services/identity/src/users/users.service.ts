@@ -127,8 +127,10 @@ export class UsersService {
             userId: userRow.id as UserId,
             email: userRow.email,
             clerkUserId: claims.sub,
-            scopes: [],
-            permissions: [],
+            // Authorization grants come from the Clerk-signed token (admin-set public_metadata),
+            // not from any client-suppliable header. Empty when the token grants nothing.
+            scopes: claims.scopes ?? [],
+            permissions: claims.permissions ?? [],
             tokenType: 'user',
         };
     }

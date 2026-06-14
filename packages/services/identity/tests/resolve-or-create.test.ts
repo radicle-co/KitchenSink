@@ -133,4 +133,24 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         // No NOT NULL UNIQUE violation: a deterministic, per-sub placeholder is inserted.
         expect(valuesSpy).toHaveBeenCalledWith(expect.objectContaining({ email: 'user_noemail@no-email.invalid' }));
     });
+
+    it('passes scopes/permissions from the verified token into the authorizer context', async () => {
+        const userRow = { id: '01ADMINUSER000000000000000', email: 'admin@b.com' };
+        const account = { id: 'acc-admin', userId: '01ADMINUSER000000000000000' };
+
+        mockDb.select = vi
+            .fn()
+            .mockReturnValueOnce(selectChain([userRow])) // find user
+            .mockReturnValueOnce(selectChain([account])); // find account
+
+        const ctx = await usersService.resolveOrCreateFromClaims({
+            sub: 'user_admin',
+            email: 'admin@b.com',
+            scopes: ['admin:users'],
+            permissions: ['admin:users'],
+        });
+
+        expect(ctx.scopes).toEqual(['admin:users']);
+        expect(ctx.permissions).toEqual(['admin:users']);
+    });
 });

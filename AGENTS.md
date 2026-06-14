@@ -31,4 +31,11 @@ TypeScript 5.x, Node.js 22.x (Lambda runtime): Follow standard conventions
 - 002-user-auth: Added TypeScript 5.x, Node.js 22.x (Lambda runtime) + `@clerk/nextjs` ^6.39 (web), `@clerk/expo` ^2.4 (mobile, Expo 53+), `@clerk/backend` ^1.27 (webhooks), `expo-secure-store` (mobile token storage), `jwks-rsa` (authorizer JWKS fetch from Clerk Frontend API), `jose` (JWT verification), `svix` (Clerk webhook signature verification), `@aws-sdk/client-sqs` (SQS), `@sentry/aws-serverless`, `@aws-lambda-powertools/logger`, CDK v2 (`aws-cdk-lib`)
 
 <!-- MANUAL ADDITIONS START -->
+
+## Deliberate decisions (looks wrong, isn't)
+
+Before "simplifying" one of these, read the linked ADR and confirm you're not reintroducing the failure it prevents:
+
+- **Sandbox front-ends use path routing (`sandbox.commise.app/pr-{N}`), NOT per-PR subdomains.** Clerk's `azp` check is exact-string (no wildcards) and the sandbox identity service is shared, so per-PR origins would 401 every preview. See `docs/architecture/decisions/0001-sandbox-front-end-addressing.md`.
+
 <!-- MANUAL ADDITIONS END -->

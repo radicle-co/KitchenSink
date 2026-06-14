@@ -71,15 +71,15 @@ This is a TypeScript monorepo using **npm workspaces** and **Turborepo** for the
 
 ### Workspace layout
 
-| Path | Package | Description |
-|---|---|---|
-| `packages/apps/commise/web` | `@commise/web` | Next.js 15 web app (React 19, Tailwind CSS v4) |
-| `packages/apps/commise/mobile` | `@commise/mobile` | Expo 53 / React Native 0.79 mobile app |
-| `packages/ui` | `@kitchensink/ui` | Shared design-system tokens + Clerk components (Tamagui-compatible) |
-| `packages/services/identity` | `@kitchensink/identity-service` | NestJS 11 REST service on ECS/Fargate; Drizzle ORM + RDS PostgreSQL 16 |
-| `packages/services/identity-webhooks` | `@kitchensink/identity-webhooks` | AWS Lambda handlers: Clerk webhook, deletion worker, reconciliation, log forwarder, schema migration runner |
-| `packages/infra/global` | _(CDK app)_ | Shared CDK stacks (VPC, RDS, S3, SQS, IAM foundations) |
-| `packages/tools/*` | `@kitchensink/{eslint,typescript,vitest,prettier,esbuild}` | Shared tooling configs |
+| Path                                  | Package                                                    | Description                                                                                                 |
+| ------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `packages/apps/commise/web`           | `@commise/web`                                             | Next.js 15 web app (React 19, Tailwind CSS v4)                                                              |
+| `packages/apps/commise/mobile`        | `@commise/mobile`                                          | Expo 53 / React Native 0.79 mobile app                                                                      |
+| `packages/ui`                         | `@kitchensink/ui`                                          | Shared design-system tokens + Clerk components (Tamagui-compatible)                                         |
+| `packages/services/identity`          | `@kitchensink/identity-service`                            | NestJS 11 REST service on ECS/Fargate; Drizzle ORM + RDS PostgreSQL 16                                      |
+| `packages/services/identity-webhooks` | `@kitchensink/identity-webhooks`                           | AWS Lambda handlers: Clerk webhook, deletion worker, reconciliation, log forwarder, schema migration runner |
+| `packages/infra/global`               | _(CDK app)_                                                | Shared CDK stacks (VPC, RDS, S3, SQS, IAM foundations)                                                      |
+| `packages/tools/*`                    | `@kitchensink/{eslint,typescript,vitest,prettier,esbuild}` | Shared tooling configs                                                                                      |
 
 ### Authentication architecture
 
@@ -87,7 +87,7 @@ Authentication is built on **Clerk**.
 
 - **Web**: `@clerk/nextjs` — ClerkProvider wraps the Next.js app; `middleware.ts` at the app root protects routes.
 - **Mobile**: `@clerk/expo` — tokens stored in `expo-secure-store`.
-- **Identity Service**: `AuthMiddleware` (`packages/services/identity/src/auth/middleware/auth.middleware.ts`) decodes an `x-authorizer-context` header (base64 JSON `AuthorizerContext`: userId, scopes, permissions, tokenType) when present and populates `req.user`; all routes except `/health` are protected. _Note: a Clerk-JWT API Gateway REQUEST authorizer that would produce this header was removed — no gateway currently fronts the service, so wiring one (or another producer of the header) is a known gap._
+- **Identity Service**: `AuthMiddleware` (`packages/services/identity/src/auth/middleware/auth.middleware.ts`) verifies the Clerk **session token** (Bearer) itself via `ClerkAuthService` → `@clerk/backend` `verifyToken` — networkless (public `CLERK_JWT_KEY`), with `CLERK_AUTHORIZED_PARTIES`/`azp` enforced. On first request it **read-through-creates** the user+account+profile (`UsersService.resolveOrCreateFromClaims`, Clerk `sub` → app ULID) and populates `req.user`; all routes except `/health` are protected. Admin `scopes`/`permissions` come from the signed token's `public_metadata`. There is deliberately **no** trusted-header (`x-authorizer-context`) path — the service is fronted by a public ALB, so a client-suppliable header would be forgeable (PR #39).
 - **Clerk Webhooks**: `packages/services/identity-webhooks/src/handlers/identityWebhook.ts` handles `user.created/updated/deleted` events at the public `POST /v1/webhooks/users` (no gateway auth; verified via `svix` signature inside the Lambda).
 
 ### Identity service (NestJS)
@@ -95,7 +95,7 @@ Authentication is built on **Clerk**.
 `packages/services/identity/src/` is organized by domain:
 
 - `app.module.ts` — root module wiring
-- `auth/` — `AuthMiddleware` (decodes the authorizer context header)
+- `auth/` — `ClerkAuthService` (session-token verification) + `AuthMiddleware` (Bearer auth, read-through user resolution)
 - `users/` — `UsersModule`: user CRUD, avatar upload, profile resolution
 - `admin/` — admin-scoped endpoints
 - `database/` — `DatabaseModule` (global Drizzle provider), schema definitions, DAOs, migrations
@@ -121,6 +121,12 @@ The identity service infra is split across stacks in `packages/services/identity
 ### Cross-platform rule (enforced)
 
 Every user-facing feature ships to **both** web and mobile in the same release. Platform-specific implementations use `.native.ts(x)` suffix (never `.mobile.*`). Shared business logic, types, and API clients live in shared packages. See `docs/CODING_STANDARDS.md §14` for the full rules.
+
+### Deliberate decisions — looks wrong, isn't (read the ADR before changing)
+
+Some choices look like bugs to "fix" but are intentional. Before reverting one, read the linked ADR and confirm you're not reintroducing the failure it prevents.
+
+- **Sandbox front-end addressing — path routing, NOT per-PR subdomains.** Sandbox web previews are served from one stable origin (`sandbox.commise.app`) with the PR in the **URL path** (and static resources selected via a manifest query param), not from `pr-{N}.commise.app` subdomains. This is deliberate: Clerk's `azp` check is exact-string match (no wildcards), and the sandbox identity service is **shared**, so per-PR origins would 401 every preview. Before changing sandbox routing, the web app's serving origin, or `CLERK_AUTHORIZED_PARTIES` / `azp` handling, read **`docs/architecture/decisions/0001-sandbox-front-end-addressing.md`**.
 
 ## Key conventions
 

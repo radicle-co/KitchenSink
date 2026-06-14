@@ -22,6 +22,8 @@ describe('EnvironmentSchema', () => {
             SENTRY_TRACES_SAMPLE_RATE: '0.1',
             SENTRY_RELEASE: 'abc123',
             STAGE: 'prod',
+            CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----',
+            CLERK_AUTHORIZED_PARTIES: 'https://commise.app',
         });
 
         expect(result.SENTRY_DSN).toBe('https://key@o1.ingest.sentry.io/1');
@@ -31,5 +33,42 @@ describe('EnvironmentSchema', () => {
 
     it('rejects a non-URL SENTRY_DSN', () => {
         expect(() => EnvironmentSchema.parse({ ...base, SENTRY_DSN: 'not-a-url' })).toThrow();
+    });
+
+    it('defaults CLERK_AUTHORIZED_PARTIES to an empty list when absent (dev)', () => {
+        const result = EnvironmentSchema.parse(base);
+
+        expect(result.CLERK_AUTHORIZED_PARTIES).toEqual([]);
+        expect(result.CLERK_JWT_KEY).toBeUndefined();
+    });
+
+    it('parses CLERK_AUTHORIZED_PARTIES as a trimmed, comma-split list', () => {
+        const result = EnvironmentSchema.parse({
+            ...base,
+            CLERK_AUTHORIZED_PARTIES: 'https://a.com, https://b.com ,,https://c.com',
+        });
+
+        expect(result.CLERK_AUTHORIZED_PARTIES).toEqual(['https://a.com', 'https://b.com', 'https://c.com']);
+    });
+
+    it('requires CLERK_JWT_KEY on a deployed stage', () => {
+        expect(() =>
+            EnvironmentSchema.parse({ ...base, STAGE: 'prod', CLERK_AUTHORIZED_PARTIES: 'https://commise.app' }),
+        ).toThrow(/CLERK_JWT_KEY is required/);
+    });
+
+    it('requires a non-empty CLERK_AUTHORIZED_PARTIES on a deployed stage', () => {
+        expect(() =>
+            EnvironmentSchema.parse({
+                ...base,
+                STAGE: 'sandbox',
+                CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----',
+            }),
+        ).toThrow(/CLERK_AUTHORIZED_PARTIES/);
+    });
+
+    it('does not require Clerk vars on dev/test stages', () => {
+        expect(() => EnvironmentSchema.parse({ ...base, STAGE: 'test' })).not.toThrow();
+        expect(() => EnvironmentSchema.parse({ ...base, STAGE: 'dev' })).not.toThrow();
     });
 });

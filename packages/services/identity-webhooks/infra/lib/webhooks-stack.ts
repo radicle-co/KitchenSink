@@ -397,42 +397,16 @@ export class WebhooksStack extends Stack {
             target: route53.RecordTarget.fromAlias(new route53_targets.ApiGatewayDomain(customDomain)),
         });
 
-        const requestAuthorizer = new apigw.RequestAuthorizer(this, 'IdentityRequestAuthorizer', {
-            handler: this.authorizerFn,
-            identitySources: [apigw.IdentitySource.header('Authorization')],
-            resultsCacheTtl: Duration.seconds(300),
-        });
-
         const webhookIntegration = new apigw.LambdaIntegration(webhookFn);
 
-        // Every route on this API lives under /v1/webhooks/* (matching across stages:
-        // registration.identity[.sandbox].commise.app/v1/webhooks/*).
+        // The Clerk user-event webhook is the only route on this API: POST /v1/webhooks/users
+        // (registration.identity[.sandbox].commise.app/v1/webhooks/users). Per Clerk's model it is
+        // public (no API GW authorizer) and authenticated by its svix signature inside the Lambda,
+        // which dispatches on the event `type`. Subscribe a Dashboard endpoint's user.* events here.
         const webhooksResource = api.root.addResource('webhooks');
-
         const usersWebhookResource = webhooksResource.addResource('users');
-        // Clerk user-event webhook — verified by svix signature inside the Lambda (no API GW auth).
         usersWebhookResource.addMethod('POST', webhookIntegration, {
             authorizationType: apigw.AuthorizationType.NONE,
-        });
-
-        // Authenticated user operations, nested under /webhooks/users/* and gated by the Clerk-JWT
-        // REQUEST authorizer.
-        const upsertResource = usersWebhookResource.addResource('upsert');
-        upsertResource.addMethod('POST', webhookIntegration, {
-            authorizer: requestAuthorizer,
-            authorizationType: apigw.AuthorizationType.CUSTOM,
-        });
-
-        const deletionResource = usersWebhookResource.addResource('deletion');
-        deletionResource.addMethod('POST', webhookIntegration, {
-            authorizer: requestAuthorizer,
-            authorizationType: apigw.AuthorizationType.CUSTOM,
-        });
-
-        const reconciliationResource = usersWebhookResource.addResource('reconciliation');
-        reconciliationResource.addMethod('POST', webhookIntegration, {
-            authorizer: requestAuthorizer,
-            authorizationType: apigw.AuthorizationType.CUSTOM,
         });
 
         api.addGatewayResponse('Default4xx', {

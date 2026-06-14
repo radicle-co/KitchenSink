@@ -98,13 +98,13 @@ export class WebhooksStack extends Stack {
         });
 
         const isValidStage =
-            ['dev', 'staging', 'prod', 'test'].includes(deployStage) ||
+            ['dev', 'staging', 'prod', 'test', 'sandbox'].includes(deployStage) ||
             deployStage.startsWith('sandbox-') ||
             deployStage.startsWith('mr-') ||
             deployStage.startsWith('pr-');
         if (!isValidStage) {
             throw new Error(
-                `Invalid STAGE="${deployStage}". Must be dev, staging, prod, test, or sandbox-* / mr-* / pr-*.`,
+                `Invalid STAGE="${deployStage}". Must be dev, staging, prod, test, sandbox, or sandbox-* / mr-* / pr-*.`,
             );
         }
 

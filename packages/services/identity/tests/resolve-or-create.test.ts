@@ -71,14 +71,11 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         const createdAt = new Date(1_000);
         const createdRow = { id: '01NEWUSER0000000000000000', email: 'n@b.com', createdAt, updatedAt: createdAt };
 
-        mockDb.select = vi
-            .fn()
-            .mockReturnValueOnce(selectChain([])) // not found
-            .mockReturnValueOnce(selectChain([createdRow])); // re-read after create
+        mockDb.select = vi.fn().mockReturnValueOnce(selectChain([])); // not found → create
 
         mockDb.insert = vi
             .fn()
-            .mockReturnValueOnce(insertUsersReturning([createdRow])) // user upsert
+            .mockReturnValueOnce(insertUsersReturning([createdRow])) // user upsert (returns the row)
             .mockReturnValueOnce(insertNoop) // account
             .mockReturnValueOnce(insertNoop); // profile
 
@@ -108,24 +105,32 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         expect(mockDb.insert).toHaveBeenCalledTimes(2); // no user upsert — user already existed
     });
 
-    it('creates with an empty email when the token carries no email claim', async () => {
+    it('creates with a per-identity placeholder email when the token carries no email claim', async () => {
         const createdAt = new Date(2_000);
-        const createdRow = { id: '01NOEMAIL000000000000000A', email: '', createdAt, updatedAt: createdAt };
+        const createdRow = {
+            id: '01NOEMAIL000000000000000A',
+            email: 'user_noemail@no-email.invalid',
+            createdAt,
+            updatedAt: createdAt,
+        };
 
-        mockDb.select = vi
-            .fn()
-            .mockReturnValueOnce(selectChain([]))
-            .mockReturnValueOnce(selectChain([createdRow]));
+        // Capture the values passed to the user insert so we can assert the placeholder email.
+        const valuesSpy = vi.fn(() => ({
+            onConflictDoUpdate: () => ({ returning: () => Promise.resolve([createdRow]) }),
+        }));
+
+        mockDb.select = vi.fn().mockReturnValueOnce(selectChain([])); // not found → create
 
         mockDb.insert = vi
             .fn()
-            .mockReturnValueOnce(insertUsersReturning([createdRow]))
+            .mockReturnValueOnce({ values: valuesSpy })
             .mockReturnValueOnce(insertNoop)
             .mockReturnValueOnce(insertNoop);
 
         const ctx = await usersService.resolveOrCreateFromClaims({ sub: 'user_noemail' });
 
         expect(ctx.userId).toBe('01NOEMAIL000000000000000A');
-        expect(ctx.email).toBe('');
+        // No NOT NULL UNIQUE violation: a deterministic, per-sub placeholder is inserted.
+        expect(valuesSpy).toHaveBeenCalledWith(expect.objectContaining({ email: 'user_noemail@no-email.invalid' }));
     });
 });

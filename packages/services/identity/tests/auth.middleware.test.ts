@@ -76,35 +76,36 @@ describe('AuthMiddleware', () => {
         expect(next).not.toHaveBeenCalled();
     });
 
-    it('falls back to a valid x-authorizer-context header when no Bearer is present', async () => {
-        const req = makeReq({ headers: { 'x-authorizer-context': encodeHeaderCtx(userCtx) } });
+    it('does NOT authenticate from a client-supplied x-authorizer-context header (no trusted-header path)', async () => {
+        // Security: the service sits behind a public ALB with no upstream authorizer, so a forged
+        // x-authorizer-context must never grant identity/admin. Without a Bearer token → hard 401.
+        const forgedAdminCtx = { ...userCtx, scopes: ['admin:users'], permissions: ['admin:users'] };
+        const req = makeReq({ headers: { 'x-authorizer-context': encodeHeaderCtx(forgedAdminCtx) } });
 
-        await mw.use(req as never, res, next as never);
-
-        expect((req.user as typeof userCtx).userId).toBe(userCtx.userId);
-        expect(clerkAuth.verify).not.toHaveBeenCalled();
-        expect(next).toHaveBeenCalledOnce();
+        await expect(mw.use(req as never, res, next as never)).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(req.user).toBeUndefined();
+        expect(next).not.toHaveBeenCalled();
     });
 
-    it('throws 401 when neither a Bearer token nor a valid header is present', async () => {
+    it('throws 401 when no Bearer token is present', async () => {
         const req = makeReq({ headers: {} });
 
         await expect(mw.use(req as never, res, next as never)).rejects.toBeInstanceOf(UnauthorizedException);
         expect(next).not.toHaveBeenCalled();
     });
 
-    it('prefers the Bearer token over a present header', async () => {
+    it('authenticates from the Bearer token and ignores any x-authorizer-context header', async () => {
         clerkAuth.verify.mockResolvedValue({ sub: 'user_x' });
         users.resolveOrCreateFromClaims.mockResolvedValue(userCtx);
 
-        const staleHeaderCtx = { ...userCtx, userId: '01HEADERSTALE0000000000000' };
+        const forgedHeaderCtx = { ...userCtx, userId: '01HEADERFORGED000000000000', scopes: ['admin:users'] };
         const req = makeReq({
-            headers: { authorization: 'Bearer good', 'x-authorizer-context': encodeHeaderCtx(staleHeaderCtx) },
+            headers: { authorization: 'Bearer good', 'x-authorizer-context': encodeHeaderCtx(forgedHeaderCtx) },
         });
 
         await mw.use(req as never, res, next as never);
 
         expect(clerkAuth.verify).toHaveBeenCalledOnce();
-        expect(req.user).toBe(userCtx);
+        expect(req.user).toBe(userCtx); // from the verified JWT, never the forged header
     });
 });

@@ -28,8 +28,9 @@ function parseAuthorizedParties(raw: string | undefined): string[] {
 
 /**
  * Verifies Clerk session tokens networklessly using the instance's public JWT key (no Clerk secret
- * key, no JWKS network call). Wraps `@clerk/backend`'s `verifyToken`, which validates signature,
- * expiry (5s default clock skew), issuer, and the `azp` claim against `authorizedParties`.
+ * key, no JWKS network call). Wraps `@clerk/backend`'s `verifyToken`, which validates the signature
+ * against the pinned PEM key (so a token from another instance fails on signature, not issuer),
+ * expiry (5s default clock skew), and the `azp` claim against `authorizedParties`.
  *
  * Configuration is read once at construction from `CLERK_JWT_KEY` (PEM public key) and
  * `CLERK_AUTHORIZED_PARTIES` (comma-separated allowed origins). The env schema requires both on

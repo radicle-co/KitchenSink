@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
@@ -25,7 +25,9 @@ export class UsersService {
         _ctx: AuthorizerContext,
         input: { identityId: string; email: string; name?: string; picture?: string },
     ): Promise<{ id: string; created: boolean }> {
-        return this.upsertUserRecord(input);
+        const { id, created } = await this.upsertUserRecord(input);
+
+        return { id, created };
     }
 
     /**
@@ -39,7 +41,7 @@ export class UsersService {
         email: string;
         name?: string;
         picture?: string;
-    }): Promise<{ id: string; created: boolean }> {
+    }): Promise<{ id: string; created: boolean; row: typeof users.$inferSelect }> {
         const now = new Date();
         const id = newUserId();
 
@@ -71,7 +73,7 @@ export class UsersService {
             await this.ensureAccountAndProfile(row.id, input.name ?? '');
         }
 
-        return { id: row.id, created };
+        return { id: row.id, created, row };
     }
 
     /** Idempotently ensure a user's account + profile rows exist. No-op when already present. */
@@ -91,18 +93,27 @@ export class UsersService {
     async resolveOrCreateFromClaims(claims: VerifiedClerkClaims): Promise<AuthorizerContext> {
         const displayName = [claims.firstName, claims.lastName].filter(Boolean).join(' ').trim();
 
-        let [userRow] = await this.db.select().from(users).where(eq(users.identityId, claims.sub)).limit(1);
+        const [existing] = await this.db.select().from(users).where(eq(users.identityId, claims.sub)).limit(1);
 
-        if (!userRow) {
-            await this.upsertUserRecord({
+        let userRow: typeof users.$inferSelect;
+
+        if (!existing) {
+            // Create the user + account + profile on first sight. Use the row returned by the upsert
+            // directly (no re-read): correct even when a concurrent webhook won the insert, since the
+            // identity_id ON CONFLICT clause returns the surviving row.
+            const { row } = await this.upsertUserRecord({
                 identityId: claims.sub,
-                email: claims.email ?? '',
+                // `users.email` is NOT NULL UNIQUE. When the session token carries no email claim
+                // (instance not customized), fall back to a per-identity placeholder so two emailless
+                // users do not collide on the unique index. `.invalid` is reserved (RFC 2606), never
+                // deliverable; the webhook backfills the real email via user.created/updated.
+                email: claims.email ?? `${claims.sub}@no-email.invalid`,
                 name: displayName || undefined,
                 picture: claims.picture,
             });
-
-            [userRow] = await this.db.select().from(users).where(eq(users.identityId, claims.sub)).limit(1);
+            userRow = row;
         } else {
+            userRow = existing;
             // Heal legacy/partial records (e.g. a webhook-first user created before the account
             // backstop existed): ensure account + profile without an unconditional per-request write.
             const [account] = await this.db.select().from(accounts).where(eq(accounts.userId, userRow.id)).limit(1);
@@ -110,10 +121,6 @@ export class UsersService {
             if (!account) {
                 await this.ensureAccountAndProfile(userRow.id, displayName);
             }
-        }
-
-        if (!userRow) {
-            throw new InternalServerErrorException('Failed to resolve user after read-through creation');
         }
 
         return {

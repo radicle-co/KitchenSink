@@ -37,55 +37,19 @@ export class AuthMiddleware implements NestMiddleware {
             return;
         }
 
+        // Bearer-only. There is deliberately NO `x-authorizer-context` header fallback: the service
+        // is fronted by an internet-facing ALB with no upstream authorizer to produce or strip that
+        // header, so trusting it would let any client forge an identity (and admin scopes). The
+        // Clerk session token, verified here, is the sole authentication source.
         const bearer = extractBearerToken(req.headers['authorization']);
 
-        if (bearer) {
-            // Primary path: verify the Clerk session token and read-through resolve/create the user.
-            // A present-but-invalid token is a hard 401 — we do not fall back to the legacy header.
-            const claims = await this.clerkAuth.verify(bearer);
-            req.user = await this.users.resolveOrCreateFromClaims(claims);
-        } else {
-            // Fallback: a base64 `x-authorizer-context` header from an upstream API Gateway
-            // authorizer. No producer exists today; retained for a future edge gateway (KTD5).
-            const header = req.headers['x-authorizer-context'];
-
-            if (typeof header === 'string') {
-                try {
-                    const decoded = Buffer.from(header, 'base64').toString('utf-8');
-                    const ctx = JSON.parse(decoded) as AuthorizerContext;
-
-                    if (isAuthorizerContext(ctx)) {
-                        req.user = {
-                            ...ctx,
-                            scopes: ctx.scopes,
-                            permissions: ctx.permissions,
-                        };
-                    }
-                } catch {
-                    /* no-op — leave req.user undefined */
-                }
-            }
+        if (!bearer) {
+            throw new UnauthorizedException('Missing bearer token');
         }
 
-        if (!req.user) {
-            throw new UnauthorizedException('Missing authorizer context');
-        }
+        const claims = await this.clerkAuth.verify(bearer);
+        req.user = await this.users.resolveOrCreateFromClaims(claims);
 
         next();
     }
-}
-
-function isAuthorizerContext(value: unknown): value is AuthorizerContext {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-
-    const ctx = value as Partial<AuthorizerContext>;
-
-    return (
-        typeof ctx.userId === 'string' &&
-        Array.isArray(ctx.scopes) &&
-        Array.isArray(ctx.permissions) &&
-        ctx.tokenType === 'user'
-    );
 }

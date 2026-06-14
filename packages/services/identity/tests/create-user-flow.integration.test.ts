@@ -133,4 +133,14 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
         expect(first.clerkUserId).toBe(sub);
         expect(await countsFor(sub)).toEqual({ users: 1, accounts: 1, profiles: 1 });
     });
+
+    it('creates two distinct users with no email claim without colliding on users_email_unique', async () => {
+        // email is NOT NULL UNIQUE; a fabricated empty email would make the second emailless user
+        // collide and 500. The per-identity placeholder keeps both inserts distinct.
+        await usersService.resolveOrCreateFromClaims({ sub: 'user_noemail_a', firstName: 'A', lastName: 'One' });
+        await usersService.resolveOrCreateFromClaims({ sub: 'user_noemail_b', firstName: 'B', lastName: 'Two' });
+
+        expect(await countsFor('user_noemail_a')).toEqual({ users: 1, accounts: 1, profiles: 1 });
+        expect(await countsFor('user_noemail_b')).toEqual({ users: 1, accounts: 1, profiles: 1 });
+    });
 });

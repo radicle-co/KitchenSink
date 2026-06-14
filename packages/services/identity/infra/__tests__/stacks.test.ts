@@ -56,13 +56,25 @@ describe('No Auth0 references', () => {
 });
 
 describe('Identity env vars present', () => {
-    it('service task has AUTH_SECRET_ARN env var', () => {
-        const allFunctions = serviceTemplate.findResources('AWS::ECS::TaskDefinition');
-        const hasIdentityKey = Object.values(allFunctions).some((task: any) =>
+    const taskHasEnvVar = (name: string): boolean => {
+        const tasks = serviceTemplate.findResources('AWS::ECS::TaskDefinition');
+
+        return Object.values(tasks).some((task: any) =>
             (task.Properties?.ContainerDefinitions ?? []).some((container: any) =>
-                (container.Environment ?? []).some((env: any) => env.Name === 'AUTH_SECRET_ARN'),
+                (container.Environment ?? []).some((env: any) => env.Name === name),
             ),
         );
-        expect(hasIdentityKey).toBe(true);
+    };
+
+    it('service task has AUTH_SECRET_ARN env var', () => {
+        expect(taskHasEnvVar('AUTH_SECRET_ARN')).toBe(true);
+    });
+
+    it('service task has CLERK_JWT_KEY env var (read-through verification)', () => {
+        expect(taskHasEnvVar('CLERK_JWT_KEY')).toBe(true);
+    });
+
+    it('service task has CLERK_AUTHORIZED_PARTIES env var (azp enforcement)', () => {
+        expect(taskHasEnvVar('CLERK_AUTHORIZED_PARTIES')).toBe(true);
     });
 });

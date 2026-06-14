@@ -176,6 +176,18 @@ export class IdentityServiceStack extends Stack {
                 ),
                 SENTRY_TRACES_SAMPLE_RATE: stage === 'prod' ? '0.1' : '1.0',
                 SENTRY_RELEASE: imageTag,
+                // Clerk session-token verification (read-through auth, U1/U2). The JWT *public* key
+                // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy.
+                // Prod reads prod params; every other stage reads the shared sandbox (dev-instance)
+                // params. These SSM params must exist before deploy (operational prerequisite).
+                CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/jwt-public-key`,
+                ),
+                CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/authorized-parties`,
+                ),
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),

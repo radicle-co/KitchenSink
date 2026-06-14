@@ -1,6 +1,8 @@
 import type { APIGatewayProxyEvent, Context } from 'aws-lambda';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { accounts, profiles } from '@kitchensink/identity-service/database/schema';
+
 /**
  * E2E: the identityWebhook Lambda exercised end-to-end against mocked AWS SDK
  * clients and a mocked Postgres pool.
@@ -16,15 +18,17 @@ const mockRecordOnce = vi.fn();
 const mockSetExternalId = vi.fn();
 const mockSqsSend = vi.fn().mockResolvedValue({});
 const mockDbInsertReturning = vi.fn().mockResolvedValue([{ id: 'profile-1' }]);
+// Shared insert spy so tests can assert which tables the handler writes (e.g. the account backstop).
+const mockDbInsert = vi.fn(() => ({
+    values: () => ({
+        onConflictDoUpdate: () => ({ returning: mockDbInsertReturning }),
+        onConflictDoNothing: () => Promise.resolve(),
+        returning: mockDbInsertReturning,
+    }),
+}));
 
 const buildDb = () => ({
-    insert: vi.fn(() => ({
-        values: () => ({
-            onConflictDoUpdate: () => ({ returning: mockDbInsertReturning }),
-            onConflictDoNothing: () => Promise.resolve(),
-            returning: mockDbInsertReturning,
-        }),
-    })),
+    insert: mockDbInsert,
     update: vi.fn(() => ({ set: () => ({ where: () => Promise.resolve() }) })),
     select: vi.fn(() => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) })),
 });
@@ -103,7 +107,7 @@ const userPayload = (id: string) => ({
 });
 
 describe('e2e: identityWebhook Lambda', () => {
-    it('processes user.created → upserts user, syncs external id, inserts profile', async () => {
+    it('processes user.created → upserts user, syncs external id, inserts profile + account backstop', async () => {
         mockRecordOnce.mockResolvedValueOnce(true);
         mockUpsert.mockResolvedValueOnce({ id: '01USERCREATED0000000000000' });
         const { handler } = await import('../../../src/handlers/identityWebhook.js');
@@ -122,6 +126,10 @@ describe('e2e: identityWebhook Lambda', () => {
             }),
         );
         expect(mockSetExternalId).toHaveBeenCalledWith('user_created_e2e', '01USERCREATED0000000000000');
+        // The webhook is a complete backstop: it writes both the profile and the account so a
+        // webhook-first user (no read-through request yet) is usable.
+        expect(mockDbInsert).toHaveBeenCalledWith(profiles);
+        expect(mockDbInsert).toHaveBeenCalledWith(accounts);
     });
 
     it('processes user.deleted → enqueues deletion job to SQS', async () => {

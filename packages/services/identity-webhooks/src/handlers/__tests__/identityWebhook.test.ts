@@ -93,9 +93,12 @@ const buildMockDb = () => {
 
     const returningProfile = vi.fn().mockResolvedValue([{ id: 'prof_1' }]);
     const onConflictDoUpdateProfile = vi.fn().mockReturnValue({ returning: returningProfile });
-    const valuesProfile = vi
-        .fn()
-        .mockReturnValue({ returning: returningProfile, onConflictDoUpdate: onConflictDoUpdateProfile });
+    const onConflictDoNothing = vi.fn().mockResolvedValue(undefined);
+    const valuesProfile = vi.fn().mockReturnValue({
+        returning: returningProfile,
+        onConflictDoUpdate: onConflictDoUpdateProfile,
+        onConflictDoNothing,
+    });
     const insertProfile = vi.fn().mockReturnValue({ values: valuesProfile });
 
     const db = {

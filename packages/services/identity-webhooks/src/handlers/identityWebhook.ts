@@ -4,7 +4,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
 import { UserDAO, recordOnce } from '@kitchensink/identity-service/database/dao';
-import { profiles, users } from '@kitchensink/identity-service/database/schema';
+import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
 
 import { setExternalId } from '../common/identityClient.js';
 import { requireEnv } from '../common/config.js';
@@ -80,6 +80,11 @@ const handleUserCreated = async (
                 updatedAt: new Date(),
             },
         });
+
+    // Backstop the account row so a webhook-first user (one who never makes a read-through request)
+    // is still complete — getUserMe requires an account. Idempotent: a no-op once read-through or a
+    // prior webhook created it.
+    await db.insert(accounts).values({ userId: user.id }).onConflictDoNothing();
 
     emitMetric('UserCreatedWebhook', 1, { identityId: data.id });
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });

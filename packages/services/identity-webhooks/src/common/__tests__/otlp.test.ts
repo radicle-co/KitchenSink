@@ -39,7 +39,7 @@ describe('otlp', () => {
 
         it('tags the resource and each record with the stage derived from the log group', () => {
             const payload = cloudWatchToOtlp({
-                logGroup: 'kitchensink-identity-webhooks-prod-AuthorizerLogGroup2583BEC8-xNNeI2RNrxWO',
+                logGroup: 'kitchensink-identity-webhooks-prod-WebhooksLogGroupA05F4FC6-mlSeUWgcNEJf',
                 logStream: 'stream-1',
                 logEvents: [{ timestamp: 1000, message: 'hello' }],
             });
@@ -58,7 +58,7 @@ describe('otlp', () => {
                 'prod',
             );
             expect(stageFromLogGroup('kitchensink-identity-webhooks-dev-WebhooksLogGroupA05F4FC6-Rwj')).toBe('dev');
-            expect(stageFromLogGroup('kitchensink-identity-webhooks-pr-15-AuthorizerLogGroup2583BEC8-x')).toBe('pr-15');
+            expect(stageFromLogGroup('kitchensink-identity-webhooks-pr-15-WebhooksLogGroupA05F4FC6-x')).toBe('pr-15');
         });
 
         it('falls back to unknown for unrecognized groups', () => {

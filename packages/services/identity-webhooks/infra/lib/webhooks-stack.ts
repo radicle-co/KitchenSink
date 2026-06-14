@@ -2,6 +2,7 @@ import {
     CfnOutput,
     Duration,
     Fn,
+    SecretValue,
     Stack,
     type StackProps,
     aws_apigateway as apigw,
@@ -25,7 +26,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { ssmParamPath } from './config.js';
+import { getAuthSecretName, ssmParamPath } from './config.js';
 
 export interface WebhooksStackProps extends StackProps {
     readonly stage: string;
@@ -48,7 +49,6 @@ export interface WebhooksStackProps extends StackProps {
 
 export class WebhooksStack extends Stack {
     public readonly apiUrl: string;
-    public readonly authorizerFn!: lambda.Function;
 
     public constructor(scope: Construct, id: string, props: WebhooksStackProps) {
         super(scope, id, props);
@@ -97,13 +97,13 @@ export class WebhooksStack extends Stack {
         });
 
         const isValidStage =
-            ['dev', 'staging', 'prod', 'test'].includes(deployStage) ||
+            ['dev', 'staging', 'prod', 'test', 'sandbox'].includes(deployStage) ||
             deployStage.startsWith('sandbox-') ||
             deployStage.startsWith('mr-') ||
             deployStage.startsWith('pr-');
         if (!isValidStage) {
             throw new Error(
-                `Invalid STAGE="${deployStage}". Must be dev, staging, prod, test, or sandbox-* / mr-* / pr-*.`,
+                `Invalid STAGE="${deployStage}". Must be dev, staging, prod, test, sandbox, or sandbox-* / mr-* / pr-*.`,
             );
         }
 
@@ -147,44 +147,15 @@ export class WebhooksStack extends Stack {
             ...sentryEnv,
         };
 
-        const authorizerLogGroup = new logs.LogGroup(this, 'AuthorizerLogGroup', {
-            retention: logs.RetentionDays.ONE_MONTH,
-        });
-
-        const authorizerRole = new iam.Role(this, 'AuthorizerLambdaRole', {
-            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-            description: 'Least-privilege execution role for identity authorizer Lambda',
-            managedPolicies: [
-                iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-            ],
-        });
-        authorizerLogGroup.grantWrite(authorizerRole);
-        authSecretKey.grantRead(authorizerRole);
-        dbCredentialsSecret.grantRead(authorizerRole);
-
-        this.authorizerFn = new lambda.Function(this, 'AuthorizerFunction', {
-            runtime,
-            architecture,
-            handler: 'authorizer/handler.handler',
-            code: lambda.Code.fromAsset(distPath),
-            role: authorizerRole,
-            vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-            securityGroups: [lambdaSecurityGroup],
-            timeout: Duration.seconds(10),
-            memorySize: 256,
-            environment: {
-                NODE_ENV: 'production',
-                AUTH_SECRET_ARN: authSecretKey.secretArn,
-                DB_SECRET_ARN: dbCredentialsSecret.secretArn,
-                IDP_JWKS_URL: ssmValue('clerk', 'jwks-url'),
-                IDP_ISSUER: ssmValue('clerk', 'issuer'),
-                IDP_AUDIENCE: ssmValue('clerk', 'audience'),
-                WEBHOOK_SECRET_ARN: authSecretKey.secretArn,
-                ...sentryEnv,
-            },
-            logGroup: authorizerLogGroup,
-        });
+        // The deletion-worker + reconciliation Lambdas call the Clerk backend SDK, which needs the
+        // secret key. Embed it at deploy (CFN dynamic reference) like the webhook signing secret, so
+        // identityClient reads IDP_SECRET_KEY directly with no runtime GetSecretValue.
+        const clerkBackendEnv: Record<string, string> = {
+            ...commonEnv,
+            IDP_SECRET_KEY: SecretValue.secretsManager(getAuthSecretName(identityStage), {
+                jsonField: 'SECRET_KEY',
+            }).unsafeUnwrap(),
+        };
 
         const webhooksLogGroup = new logs.LogGroup(this, 'WebhooksLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
@@ -218,7 +189,17 @@ export class WebhooksStack extends Stack {
             memorySize: 512,
             environment: {
                 ...commonEnv,
-                WEBHOOK_SECRET_ARN: authSecretKey.secretArn,
+                // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
+                // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
+                // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a
+                // per-cold-start GetSecretValue call. The literal never lands in the synthesized
+                // template (only the `{{resolve:secretsmanager:...}}` token does); CloudFormation
+                // resolves it into the function config at deploy. The signing secret does not rotate,
+                // so a stale embedded value is not a concern (unlike the RDS creds, which stay
+                // runtime-fetched via DB_SECRET_ARN).
+                IDP_WEBHOOK_SECRET: SecretValue.secretsManager(getAuthSecretName(identityStage), {
+                    jsonField: 'WEBHOOK_SIGNING_SECRET',
+                }).unsafeUnwrap(),
             },
             logGroup: webhooksLogGroup,
         });
@@ -234,7 +215,7 @@ export class WebhooksStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(30),
             memorySize: 512,
-            environment: commonEnv,
+            environment: clerkBackendEnv,
             logGroup: webhooksLogGroup,
         });
 
@@ -249,7 +230,7 @@ export class WebhooksStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(30),
             memorySize: 512,
-            environment: commonEnv,
+            environment: clerkBackendEnv,
             logGroup: webhooksLogGroup,
         });
 
@@ -258,6 +239,29 @@ export class WebhooksStack extends Stack {
                 batchSize: 1,
             }),
         );
+
+        // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the
+        // deploy pipeline (outside the VPC) invokes this Lambda to apply migrations. It reuses the
+        // lambda SG (which has egress to PostgreSQL) and the DB credentials in commonEnv.
+        const migrationFn = new lambda.Function(this, 'MigrationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/migrate.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: webhooksRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            environment: commonEnv,
+            logGroup: webhooksLogGroup,
+        });
+
+        new CfnOutput(this, 'MigrationFunctionName', {
+            value: migrationFn.functionName,
+            exportName: `${this.stackName}:MigrationFunctionName`,
+        });
 
         const apiLogGroup = new logs.LogGroup(this, 'IdentityWebhooksApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
@@ -304,7 +308,6 @@ export class WebhooksStack extends Stack {
         const drainDestination = new logsDestinations.LambdaDestination(logForwarderFn);
         const drainPattern = logs.FilterPattern.literal('-START -END -REPORT -"_aws"');
         const drainTargets: Array<{ id: string; logGroup: logs.ILogGroup }> = [
-            { id: 'AuthorizerLogDrain', logGroup: authorizerLogGroup },
             { id: 'WebhooksLogDrain', logGroup: webhooksLogGroup },
             { id: 'WebhooksApiLogDrain', logGroup: apiLogGroup },
             // ECS container log group lives in the identity-service stack, which deploys before this
@@ -353,39 +356,16 @@ export class WebhooksStack extends Stack {
             target: route53.RecordTarget.fromAlias(new route53_targets.ApiGatewayDomain(customDomain)),
         });
 
-        const requestAuthorizer = new apigw.RequestAuthorizer(this, 'IdentityRequestAuthorizer', {
-            handler: this.authorizerFn,
-            identitySources: [apigw.IdentitySource.header('Authorization')],
-            resultsCacheTtl: Duration.seconds(300),
-        });
-
         const webhookIntegration = new apigw.LambdaIntegration(webhookFn);
 
+        // The Clerk user-event webhook is the only route on this API: POST /v1/webhooks/users
+        // (registration.identity[.sandbox].commise.app/v1/webhooks/users). Per Clerk's model it is
+        // public (no API GW authorizer) and authenticated by its svix signature inside the Lambda,
+        // which dispatches on the event `type`. Subscribe a Dashboard endpoint's user.* events here.
         const webhooksResource = api.root.addResource('webhooks');
-
         const usersWebhookResource = webhooksResource.addResource('users');
         usersWebhookResource.addMethod('POST', webhookIntegration, {
             authorizationType: apigw.AuthorizationType.NONE,
-        });
-
-        const usersResource = api.root.addResource('users');
-
-        const upsertResource = usersResource.addResource('upsert');
-        upsertResource.addMethod('POST', webhookIntegration, {
-            authorizer: requestAuthorizer,
-            authorizationType: apigw.AuthorizationType.CUSTOM,
-        });
-
-        const deletionResource = usersResource.addResource('deletion');
-        deletionResource.addMethod('POST', webhookIntegration, {
-            authorizer: requestAuthorizer,
-            authorizationType: apigw.AuthorizationType.CUSTOM,
-        });
-
-        const reconciliationResource = usersResource.addResource('reconciliation');
-        reconciliationResource.addMethod('POST', webhookIntegration, {
-            authorizer: requestAuthorizer,
-            authorizationType: apigw.AuthorizationType.CUSTOM,
         });
 
         api.addGatewayResponse('Default4xx', {
@@ -412,9 +392,6 @@ export class WebhooksStack extends Stack {
 
         new CfnOutput(this, 'WebhooksApiUrl', {
             value: this.apiUrl,
-        });
-        new CfnOutput(this, 'AuthorizerFnArn', {
-            value: this.authorizerFn.functionArn,
         });
     }
 }

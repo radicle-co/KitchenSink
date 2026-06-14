@@ -93,6 +93,21 @@ export class NetworkStack extends Stack {
             'Allow webhook lambdas to reach PostgreSQL',
         );
 
+        // The app SGs use allowAllOutbound: false, so the DB ingress rules above are not enough —
+        // the source SGs also need explicit *egress* to PostgreSQL or the SYN never leaves the ENI
+        // (ENI_SG_RULES_MISMATCH / connection timeout). Pair every DB ingress with matching egress.
+        this.serviceSecurityGroup.addEgressRule(
+            this.databaseSecurityGroup,
+            ec2.Port.tcp(5432),
+            'Allow identity ECS tasks to reach PostgreSQL',
+        );
+
+        this.lambdaSecurityGroup.addEgressRule(
+            this.databaseSecurityGroup,
+            ec2.Port.tcp(5432),
+            'Allow webhook lambdas to reach PostgreSQL',
+        );
+
         const privateSubnets = this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnetIds;
         const privateDataSubnets = this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }).subnetIds;
 

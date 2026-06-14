@@ -1,16 +1,21 @@
-name: Production Deploy
+name: Sandbox Identity Deploy
+
+# Persistent shared SANDBOX identity environment (STAGE=sandbox) at identity.sandbox.commise.app /
+# registration.identity.sandbox.commise.app. Unlike sandbox-deploy.yml (ephemeral pr-{N} services),
+# this is a single long-lived environment — NOT destroyed on PR close. It deploys per-service,
+# independently, whenever that service's code changes OR its stack doesn't exist yet, so any PR that
+# touches identity converges the sandbox to the PR's code. A global-infra change redeploys both
+# consumers; workflow_dispatch deploys everything.
 
 on:
-    push:
+    pull_request:
         branches: [main]
         paths:
             - 'packages/infra/global/**'
             - 'packages/services/identity/**'
             - 'packages/services/identity-webhooks/**'
-            - 'packages/services/identity-webhooks/infra/**'
-            - 'packages/services/identity/infra/**'
             - 'Dockerfile'
-            - '.github/workflows/prod-deploy.yml'
+            - '.github/workflows/sandbox-identity-deploy.yml'
     workflow_dispatch:
 
 permissions:
@@ -18,7 +23,8 @@ permissions:
     contents: read
 
 concurrency:
-    group: prod-deploy
+    # One shared sandbox env — serialize deploys (no cancel, so an in-flight deploy completes).
+    group: sandbox-identity-deploy
     cancel-in-progress: false
 
 env:
@@ -26,24 +32,19 @@ env:
     DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
     CDK_DEFAULT_REGION: ${{ vars.DEFAULT_AWS_REGION }}
     CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
-    STAGE: prod
+    STAGE: sandbox
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
-    # Source-map upload (U11). The upload step no-ops until this secret is set.
     SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
     deploy:
-        name: Deploy Production
+        name: Deploy Sandbox Identity
         runs-on: ubuntu-latest
 
         steps:
             - name: Checkout
               uses: actions/checkout@v6
 
-            # Per-service change detection so identity-service and identity-webhooks deploy
-            # independently — a webhooks-only change must not rebuild the Docker image or redeploy the
-            # ECS service, and vice versa. A change under packages/infra/global/** (shared VPC/RDS/SGs)
-            # redeploys both consumers; a workflow_dispatch deploys everything.
             - name: Detect changes
               uses: dorny/paths-filter@v3
               id: changes
@@ -57,17 +58,31 @@ jobs:
                       webhooks:
                         - 'packages/services/identity-webhooks/**'
 
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+
+            # Deploy a service when its code changed OR its sandbox stack doesn't exist yet (so the
+            # environment self-heals / bootstraps on the first PR). A global-infra change (or missing
+            # network stack) forces both consumers to redeploy.
             - name: Compute deploy flags
               id: flags
               run: |
-                  deploy_global=false
-                  deploy_service=false
-                  deploy_webhooks=false
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.global }}" = "true" ]; then
+                  stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
+                  global_missing=false; service_missing=false; webhooks_missing=false
+                  stack_exists "kitchensink-identity-network-sandbox" || global_missing=true
+                  stack_exists "kitchensink-identity-service-sandbox" || service_missing=true
+                  stack_exists "kitchensink-identity-webhooks-sandbox" || webhooks_missing=true
+
+                  deploy_global=false; deploy_service=false; deploy_webhooks=false
+                  if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.global }}" = "true" ] || [ "$global_missing" = "true" ]; then
                     deploy_global=true; deploy_service=true; deploy_webhooks=true
                   fi
-                  if [ "${{ steps.changes.outputs.service }}" = "true" ]; then deploy_service=true; fi
-                  if [ "${{ steps.changes.outputs.webhooks }}" = "true" ]; then deploy_webhooks=true; fi
+                  if [ "${{ steps.changes.outputs.service }}" = "true" ] || [ "$service_missing" = "true" ]; then deploy_service=true; fi
+                  if [ "${{ steps.changes.outputs.webhooks }}" = "true" ] || [ "$webhooks_missing" = "true" ]; then deploy_webhooks=true; fi
                   run_migrations=false
                   if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
                   {
@@ -76,7 +91,7 @@ jobs:
                     echo "deploy_webhooks=$deploy_webhooks"
                     echo "run_migrations=$run_migrations"
                   } >> "$GITHUB_OUTPUT"
-                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations"
+                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
 
             - name: Setup Node.js
               uses: actions/setup-node@v6
@@ -99,18 +114,6 @@ jobs:
               if: steps.flags.outputs.deploy_webhooks == 'true'
               run: npm run build --workspace=packages/services/identity-webhooks
 
-            # Upload the tsc-emitted .js.map files so Lambda stack traces symbolicate against the
-            # commit-SHA release (U11). Guarded on the token + project so it no-ops until configured.
-            - name: Upload webhooks Lambda source maps to Sentry
-              if: ${{ steps.flags.outputs.deploy_webhooks == 'true' && env.SENTRY_AUTH_TOKEN != '' && vars.SENTRY_WEBHOOKS_PROJECT != '' }}
-              continue-on-error: true
-              env:
-                  SENTRY_ORG: radicle-co
-                  SENTRY_PROJECT: ${{ vars.SENTRY_WEBHOOKS_PROJECT }}
-              run: |
-                  npx @sentry/cli@latest sourcemaps inject packages/services/identity-webhooks/dist
-                  npx @sentry/cli@latest sourcemaps upload --release "${{ github.sha }}" packages/services/identity-webhooks/dist
-
             - name: Build global infra
               if: steps.flags.outputs.deploy_global == 'true'
               run: npm run build --workspace=packages/infra/global
@@ -130,17 +133,9 @@ jobs:
               run: |
                   node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
 
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
-
             - name: Resolve AWS Account ID
               id: account
-              run: |
-                  echo "id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
+              run: echo "id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
 
             - name: Login to Amazon ECR
               id: login-ecr
@@ -155,7 +150,7 @@ jobs:
               if: steps.flags.outputs.deploy_service == 'true'
               env:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-                  IMAGE_TAG: ${{ github.sha }}
+                  IMAGE_TAG: sandbox-${{ github.sha }}
               run: |
                   docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
 
@@ -164,27 +159,20 @@ jobs:
 
             - name: CDK Deploy (global infra)
               if: steps.flags.outputs.deploy_global == 'true'
-              run: |
-                  STAGE=${{ env.STAGE }} npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
+              run: STAGE=${{ env.STAGE }} npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
 
             - name: Resolve Identity VPC ID
               id: identity-vpc
-              run: |
-                  echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-identity-network-prod:IdentityVpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
+              run: echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-identity-network-sandbox:IdentityVpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
 
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
-              run: |
-                  STAGE=${{ env.STAGE }} IDENTITY_IMAGE_TAG=${{ github.sha }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
+              run: STAGE=${{ env.STAGE }} IDENTITY_IMAGE_TAG=sandbox-${{ github.sha }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
               run: STAGE=${{ env.STAGE }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} SENTRY_RELEASE=${{ github.sha }} npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
 
-            # The RDS instance is in private-isolated subnets, unreachable from the runner — so apply
-            # schema migrations by invoking the in-VPC MigrationFunction Lambda (idempotent; tracked in
-            # schema_migrations). Runs after the webhooks stack (which owns the Lambda) and the global
-            # infra deploy (which gives the lambda SG egress to PostgreSQL).
             - name: Run identity DB migrations
               if: steps.flags.outputs.run_migrations == 'true'
               run: |

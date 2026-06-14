@@ -77,7 +77,7 @@ This is a TypeScript monorepo using **npm workspaces** and **Turborepo** for the
 | `packages/apps/commise/mobile` | `@commise/mobile` | Expo 53 / React Native 0.79 mobile app |
 | `packages/ui` | `@kitchensink/ui` | Shared design-system tokens + Clerk components (Tamagui-compatible) |
 | `packages/services/identity` | `@kitchensink/identity-service` | NestJS 11 REST service on ECS/Fargate; Drizzle ORM + RDS PostgreSQL 16 |
-| `packages/services/identity-webhooks` | `@kitchensink/identity-webhooks` | AWS Lambda handlers: Clerk webhook, deletion worker, reconciliation, API Gateway authorizer |
+| `packages/services/identity-webhooks` | `@kitchensink/identity-webhooks` | AWS Lambda handlers: Clerk webhook, deletion worker, reconciliation, log forwarder, schema migration runner |
 | `packages/infra/global` | _(CDK app)_ | Shared CDK stacks (VPC, RDS, S3, SQS, IAM foundations) |
 | `packages/tools/*` | `@kitchensink/{eslint,typescript,vitest,prettier,esbuild}` | Shared tooling configs |
 
@@ -87,9 +87,8 @@ Authentication is built on **Clerk**.
 
 - **Web**: `@clerk/nextjs` — ClerkProvider wraps the Next.js app; `middleware.ts` at the app root protects routes.
 - **Mobile**: `@clerk/expo` — tokens stored in `expo-secure-store`.
-- **API Gateway**: a Lambda REQUEST authorizer (`packages/services/identity-webhooks/src/authorizer/`) validates Clerk JWTs via JWKS, then encodes a `AuthorizerContext` (userId, scopes, permissions, tokenType) into a base64 JSON `x-authorizer-context` header passed downstream.
-- **Identity Service**: `AuthMiddleware` (`packages/services/identity/src/auth/middleware/auth.middleware.ts`) decodes that header and populates `req.user`; all routes except `/health` are protected.
-- **Clerk Webhooks**: `packages/services/identity-webhooks/src/handlers/identityWebhook.ts` handles `user.created/updated/deleted` events verified via `svix`.
+- **Identity Service**: `AuthMiddleware` (`packages/services/identity/src/auth/middleware/auth.middleware.ts`) decodes an `x-authorizer-context` header (base64 JSON `AuthorizerContext`: userId, scopes, permissions, tokenType) when present and populates `req.user`; all routes except `/health` are protected. _Note: a Clerk-JWT API Gateway REQUEST authorizer that would produce this header was removed — no gateway currently fronts the service, so wiring one (or another producer of the header) is a known gap._
+- **Clerk Webhooks**: `packages/services/identity-webhooks/src/handlers/identityWebhook.ts` handles `user.created/updated/deleted` events at the public `POST /v1/webhooks/users` (no gateway auth; verified via `svix` signature inside the Lambda).
 
 ### Identity service (NestJS)
 
@@ -106,9 +105,8 @@ Authentication is built on **Clerk**.
 
 ### Identity-webhooks (Lambda)
 
-`packages/services/identity-webhooks/src/` contains four raw Lambda handlers (no NestJS):
+`packages/services/identity-webhooks/src/` contains raw Lambda handlers (no NestJS):
 
-- `handlers/authorizer.ts` → `authorizer/` — API Gateway REQUEST authorizer; validates Clerk JWT
 - `handlers/identityWebhook.ts` → Clerk webhook sync (user.created/updated/deleted → RDS)
 - `handlers/deletion-worker.ts` → async SQS-triggered user deletion retries
 - `handlers/reconciliation.ts` → nightly scheduled reconciliation
@@ -118,7 +116,7 @@ Infrastructure lives in `infra/` subfolders of each service package using CDK v2
 ### Infra stack topology
 
 The identity service infra is split across stacks in `packages/services/identity/infra/lib/`:
-`NetworkStack` → `DataStack` → `IdentityServiceStack` (ECS/Fargate, ALB, RDS credentials) plus a separate `ApiStack` (API Gateway + REQUEST authorizer) and `WebhooksStack` in `packages/services/identity-webhooks/infra/lib/`. The `packages/infra/global` package owns shared foundational resources.
+`NetworkStack` → `DataStack` → `IdentityServiceStack` (ECS/Fargate, ALB, RDS credentials) plus the `WebhooksStack` (API Gateway + webhook/worker Lambdas) in `packages/services/identity-webhooks/infra/lib/`. The `packages/infra/global` package owns shared foundational resources.
 
 ### Cross-platform rule (enforced)
 

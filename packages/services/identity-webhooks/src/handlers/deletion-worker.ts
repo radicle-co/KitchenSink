@@ -1,7 +1,6 @@
 import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-// eslint-disable-next-line no-restricted-imports
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 
 import { getDb } from '../common/db.js';

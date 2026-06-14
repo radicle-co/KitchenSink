@@ -16,9 +16,7 @@ let serviceTemplate: Template;
 const distPath = join(__dirname, '../../dist');
 
 beforeAll(() => {
-    mkdirSync(join(distPath, 'authorizer'), { recursive: true });
     mkdirSync(join(distPath, 'handlers'), { recursive: true });
-    writeFileSync(join(distPath, 'authorizer', 'handler.js'), 'exports.handler = () => {};');
     writeFileSync(join(distPath, 'handlers', 'identityWebhook.js'), 'exports.handler = () => {};');
     writeFileSync(join(distPath, 'handlers', 'deletion-worker.js'), 'exports.handler = () => {};');
     writeFileSync(join(distPath, 'handlers', 'reconciliation.js'), 'exports.handler = () => {};');
@@ -115,14 +113,6 @@ describe.skip('No Auth0 references', () => {
 });
 
 describe.skip('Identity env vars present', () => {
-    it('authorizer lambda has AUTH_SECRET_ARN env var', () => {
-        const allFunctions = webhooksTemplate.findResources('AWS::Lambda::Function');
-        const hasIdentityKey = Object.values(allFunctions).some(
-            (fn: any) => 'AUTH_SECRET_ARN' in (fn.Properties?.Environment?.Variables ?? {}),
-        );
-        expect(hasIdentityKey).toBe(true);
-    });
-
     it('webhooks lambda has AUTH_SECRET_ARN env var', () => {
         const allFunctions = webhooksTemplate.findResources('AWS::Lambda::Function');
         const hasIdentityKey = Object.values(allFunctions).some(
@@ -143,14 +133,6 @@ describe.skip('User webhook route', () => {
         webhooksTemplate.hasResourceProperties('AWS::ApiGateway::Method', {
             HttpMethod: 'POST',
             AuthorizationType: 'NONE',
-        });
-    });
-});
-
-describe.skip('Authorizer uses identity handler', () => {
-    it('authorizer lambda handler points to identity authorizer', () => {
-        webhooksTemplate.hasResourceProperties('AWS::Lambda::Function', {
-            Handler: 'authorizer/handler.handler',
         });
     });
 });

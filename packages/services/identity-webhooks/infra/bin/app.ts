@@ -20,7 +20,8 @@ if (!domainName) {
 
 const env = account ? { account, region } : { region };
 const isProd = stage === 'prod';
-const isSandbox = stage.startsWith('sandbox-') || stage.startsWith('mr-') || stage.startsWith('pr-');
+const isSandbox =
+    stage === 'sandbox' || stage.startsWith('sandbox-') || stage.startsWith('mr-') || stage.startsWith('pr-');
 
 const vpcId = process.env.IDENTITY_VPC_ID;
 if (!vpcId) {

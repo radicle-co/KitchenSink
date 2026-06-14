@@ -105,7 +105,7 @@ export const sanitizeAccessLogMessage = (message: string): string => {
 /**
  * Derive the deployment stage from a CloudWatch log group name. Identity log groups are named
  * `kitchensink-identity-<component>-<stage>-<...>` (e.g.
- * `kitchensink-identity-webhooks-prod-AuthorizerLogGroup...`), so the stage is recoverable from the
+ * `kitchensink-identity-webhooks-prod-WebhooksLogGroup...`), so the stage is recoverable from the
  * source group without each service stamping it — which matters because the drain carries AWS infra
  * logs, not the app's own JSON logs. One forwarder serves every stage; this keeps the single
  * log-drain project queryable by `environment`. Falls back to `unknown` for unrecognized groups.

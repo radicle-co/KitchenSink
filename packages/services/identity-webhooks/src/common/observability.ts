@@ -26,9 +26,9 @@ if (sentryDsn) {
         beforeSend: (event) => {
             const scrubbed = scrubEvent(event);
 
-            // Routine API Gateway authorizer denials throw a bare `Unauthorized` and would otherwise
-            // create an Issue per rejected request (bots, expired/missing tokens). Drop them — the
-            // authorizer captures genuine unexpected failures under a distinct message (U3).
+            // Drop bare `Unauthorized` exceptions — routine rejections (bots, bad/missing webhook
+            // signatures, expired tokens) that would otherwise create a Sentry Issue per request.
+            // Genuine unexpected failures surface under distinct messages (U3).
             const firstException = scrubbed.exception?.values?.[0];
 
             if (firstException?.value === 'Unauthorized') {

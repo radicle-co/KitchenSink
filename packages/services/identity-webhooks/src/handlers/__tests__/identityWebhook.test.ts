@@ -30,9 +30,7 @@ vi.mock('../../common/observability.js', () => ({
 }));
 
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
-// eslint-disable-next-line no-restricted-imports
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
-// eslint-disable-next-line no-restricted-imports
 import { recordOnce } from '@kitchensink/identity-service/database/dao';
 
 import { handler as rawHandler } from '../identityWebhook.js';

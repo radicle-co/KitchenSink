@@ -5,17 +5,23 @@ let _client: ReturnType<typeof createClerkClient> | null = null;
 
 const getClient = async () => {
     if (!_client) {
-        const secretArn = process.env.AUTH_SECRET_ARN ?? process.env.IDP_SECRET_KEY;
+        // Prefer the deploy-time-embedded raw key (IDP_SECRET_KEY) — no runtime GetSecretValue.
+        // Fall back to fetching from the auth secret ARN for environments that only set that.
+        const rawKey = process.env['IDP_SECRET_KEY'];
+        const secretArn = process.env['AUTH_SECRET_ARN'];
 
-        if (!secretArn) {
-            throw new Error('AUTH_SECRET_ARN or IDP_SECRET_KEY env var is required');
+        let secretKey: string;
+
+        if (rawKey && !rawKey.startsWith('arn:aws:secretsmanager:')) {
+            secretKey = rawKey;
+        } else if (secretArn) {
+            // JSON field is upper-snake in Secrets Manager (PUBLISHABLE_KEY / SECRET_KEY / …); the
+            // previous lower-camel 'secretKey' lookup always missed and threw.
+            secretKey = await readSecretStringField(secretArn, 'SECRET_KEY');
+        } else {
+            throw new Error('IDP_SECRET_KEY or AUTH_SECRET_ARN env var is required');
         }
 
-        // If the env value looks like an ARN, resolve it from Secrets Manager;
-        // otherwise treat it as the raw secret key (local dev / test).
-        const secretKey = secretArn.startsWith('arn:aws:secretsmanager:')
-            ? await readSecretStringField(secretArn, 'secretKey')
-            : secretArn;
         _client = createClerkClient({ secretKey });
     }
 

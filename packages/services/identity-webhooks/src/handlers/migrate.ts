@@ -1,9 +1,13 @@
 import { Pool } from 'pg';
 
+// The migration SQL is owned by identity-service; import the raw files (esbuild inlines them via the
+// text loader). Subpath import is intentional here, mirroring db.ts importing the shared schema.
+/* eslint-disable no-restricted-imports */
 import sql0004 from '@kitchensink/identity-service/database/migrations/0004_users_sub_pk.sql';
 import sql0005 from '@kitchensink/identity-service/database/migrations/0005_identity_reset.sql';
 import sql0006 from '@kitchensink/identity-service/database/migrations/0006_webhook_idempotency.sql';
 import sql0007 from '@kitchensink/identity-service/database/migrations/0007_webhook_events_ttl.sql';
+/* eslint-enable no-restricted-imports */
 
 import { requireEnv } from '../common/config.js';
 import { getJsonSecret } from '../common/secrets.js';
@@ -83,7 +87,7 @@ export const handler = async (): Promise<MigrateResult> => {
                 applied.push(migration.name);
             } catch (err) {
                 await client.query('ROLLBACK');
-                throw new Error(`Migration ${migration.name} failed: ${(err as Error).message}`);
+                throw new Error(`Migration ${migration.name} failed`, { cause: err });
             }
         }
 

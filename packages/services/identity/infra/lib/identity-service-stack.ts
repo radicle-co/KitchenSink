@@ -329,47 +329,47 @@ export class IdentityServiceStack extends Stack {
 
         new CfnOutput(this, 'IdentityEcrRepositoryUri', {
             value: repository.repositoryUri,
-            exportName: `${this.stackName}:EcrRepositoryUri`,
+            exportName: `${this.stackName}:IdentityEcrRepositoryUri`,
         });
         new CfnOutput(this, 'IdentityClusterArn', {
             value: cluster.clusterArn,
-            exportName: `${this.stackName}:ClusterArn`,
+            exportName: `${this.stackName}:IdentityClusterArn`,
         });
         new CfnOutput(this, 'IdentityServiceArn', {
             value: service.serviceArn,
-            exportName: `${this.stackName}:ServiceArn`,
+            exportName: `${this.stackName}:IdentityServiceArn`,
         });
         new CfnOutput(this, 'IdentityTaskExecutionRoleArn', {
             value: taskExecutionRole.roleArn,
-            exportName: `${this.stackName}:TaskExecutionRoleArn`,
+            exportName: `${this.stackName}:IdentityTaskExecutionRoleArn`,
         });
         new CfnOutput(this, 'IdentityTaskRoleArn', {
             value: taskRole.roleArn,
-            exportName: `${this.stackName}:TaskRoleArn`,
+            exportName: `${this.stackName}:IdentityTaskRoleArn`,
         });
         new CfnOutput(this, 'IdentityAlbArn', {
             value: loadBalancer.loadBalancerArn,
-            exportName: `${this.stackName}:AlbArn`,
+            exportName: `${this.stackName}:IdentityAlbArn`,
         });
         new CfnOutput(this, 'IdentityAlbDnsName', {
             value: loadBalancer.loadBalancerDnsName,
-            exportName: `${this.stackName}:AlbDnsName`,
+            exportName: `${this.stackName}:IdentityAlbDnsName`,
         });
         new CfnOutput(this, 'IdentityAlbListenerArn', {
             value: httpsListener.listenerArn,
-            exportName: `${this.stackName}:AlbListenerArn`,
+            exportName: `${this.stackName}:IdentityAlbListenerArn`,
         });
         new CfnOutput(this, 'IdentityAlbTargetGroupArn', {
             value: targetGroup.targetGroupArn,
-            exportName: `${this.stackName}:AlbTargetGroupArn`,
+            exportName: `${this.stackName}:IdentityAlbTargetGroupArn`,
         });
         new CfnOutput(this, 'IdentityServiceLogGroupName', {
             value: logGroup.logGroupName,
-            exportName: `${this.stackName}:ServiceLogGroupName`,
+            exportName: `${this.stackName}:IdentityServiceLogGroupName`,
         });
         new CfnOutput(this, 'IdentityServiceUrl', {
             value: this.serviceUrl,
-            exportName: `${this.stackName}:ServiceUrl`,
+            exportName: `${this.stackName}:IdentityServiceUrl`,
         });
     }
 }

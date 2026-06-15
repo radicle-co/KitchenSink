@@ -11,14 +11,25 @@ import { ResolveUserService } from './resolveUser.js';
 import { newUserId, type UserId } from '../types/index.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
 
-/** Postgres unique-violation (23505) on a specific named constraint/index. */
+/**
+ * Postgres unique-violation (23505) on a specific named constraint/index. Drizzle wraps the driver
+ * error, so the pg error (carrying `code`/`constraint`) lives on a possibly-nested `.cause` — walk
+ * the chain rather than only inspecting the top-level error.
+ */
 function isUniqueViolation(err: unknown, constraint: string): boolean {
-    return (
-        typeof err === 'object' &&
-        err !== null &&
-        (err as { code?: unknown }).code === '23505' &&
-        (err as { constraint?: unknown }).constraint === constraint
-    );
+    let current: unknown = err;
+
+    for (let depth = 0; current !== null && current !== undefined && depth < 5; depth++) {
+        const e = current as { code?: unknown; constraint?: unknown; cause?: unknown };
+
+        if (e.code === '23505' && e.constraint === constraint) {
+            return true;
+        }
+
+        current = e.cause;
+    }
+
+    return false;
 }
 
 /** Per-identity, never-deliverable placeholder for users whose Clerk token carries no email claim. */

@@ -145,9 +145,13 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
             createdAt,
             updatedAt: createdAt,
         };
-        const uniqueViolation = Object.assign(new Error('duplicate key'), {
-            code: '23505',
-            constraint: 'users_email_unique',
+        // Model how Drizzle surfaces the violation: it wraps the pg error (which carries
+        // code/constraint) in `.cause` — isUniqueViolation must walk the chain, not just the top error.
+        const uniqueViolation = Object.assign(new Error('Failed query: insert into "users"'), {
+            cause: Object.assign(new Error('duplicate key value violates unique constraint "users_email_unique"'), {
+                code: '23505',
+                constraint: 'users_email_unique',
+            }),
         });
 
         mockDb.select = vi.fn().mockReturnValueOnce(selectChain([])); // not found → create

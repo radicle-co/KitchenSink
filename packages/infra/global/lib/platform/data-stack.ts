@@ -37,8 +37,8 @@ export class DataStack extends Stack {
     public constructor(scope: Construct, id: string, props: DataStackProps) {
         super(scope, id, props);
 
-        this.dbCredentialsSecret = new secretsmanager.Secret(this, 'IdentityDatabaseCredentialsSecret', {
-            description: 'Identity PostgreSQL credentials',
+        this.dbCredentialsSecret = new secretsmanager.Secret(this, 'DatabaseCredentialsSecret', {
+            description: ' PostgreSQL credentials',
             generateSecretString: {
                 secretStringTemplate: JSON.stringify({ username: 'identity_app' }),
                 generateStringKey: 'password',
@@ -51,11 +51,11 @@ export class DataStack extends Stack {
 
         this.authSecretKey = secretsmanager.Secret.fromSecretNameV2(
             this,
-            'IdentitySecret',
+            'Secret',
             `kitchensink/${stageTag}/identity/keys`,
         );
 
-        this.migrationPlanSecret = new secretsmanager.Secret(this, 'IdentityMigrationPlanSecret', {
+        this.migrationPlanSecret = new secretsmanager.Secret(this, 'MigrationPlanSecret', {
             description: 'Deployment bootstrap instructions for pg_trgm extension',
             secretObjectValue: {
                 bootstrapSql: SecretValue.unsafePlainText('CREATE EXTENSION IF NOT EXISTS pg_trgm;'),
@@ -65,7 +65,7 @@ export class DataStack extends Stack {
 
         this.databaseName = 'kitchensink_identity';
 
-        const dbSubnetGroup = new rds.SubnetGroup(this, 'IdentityDatabaseSubnetGroup', {
+        const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
             description: 'Isolated subnets for identity PostgreSQL',
             vpc: props.network.vpc,
             removalPolicy: RemovalPolicy.DESTROY,
@@ -74,7 +74,7 @@ export class DataStack extends Stack {
             },
         });
 
-        this.database = new rds.DatabaseInstance(this, 'IdentityDatabase', {
+        this.database = new rds.DatabaseInstance(this, 'Database', {
             vpc: props.network.vpc,
             vpcSubnets: {
                 subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
@@ -97,13 +97,13 @@ export class DataStack extends Stack {
             autoMinorVersionUpgrade: true,
         });
 
-        this.deletionDlq = new sqs.Queue(this, 'IdentityDeletionDlq', {
+        this.deletionDlq = new sqs.Queue(this, 'DeletionDlq', {
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
             visibilityTimeout: Duration.minutes(2),
         });
 
-        this.deletionQueue = new sqs.Queue(this, 'IdentityDeletionQueue', {
+        this.deletionQueue = new sqs.Queue(this, 'DeletionQueue', {
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
             visibilityTimeout: Duration.minutes(2),
@@ -113,7 +113,7 @@ export class DataStack extends Stack {
             },
         });
 
-        this.mediaBucket = new s3.Bucket(this, 'IdentityMediaBucket', {
+        this.mediaBucket = new s3.Bucket(this, 'MediaBucket', {
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             enforceSSL: true,
             encryption: s3.BucketEncryption.S3_MANAGED,
@@ -122,7 +122,7 @@ export class DataStack extends Stack {
             autoDeleteObjects: true,
         });
 
-        this.archiveBucket = new s3.Bucket(this, 'IdentityArchiveBucket', {
+        this.archiveBucket = new s3.Bucket(this, 'ArchiveBucket', {
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             enforceSSL: true,
             encryption: s3.BucketEncryption.S3_MANAGED,
@@ -137,49 +137,49 @@ export class DataStack extends Stack {
             autoDeleteObjects: true,
         });
 
-        new CfnOutput(this, 'IdentityDatabaseEndpoint', {
+        new CfnOutput(this, 'DatabaseEndpoint', {
             value: this.database.dbInstanceEndpointAddress,
-            exportName: `${this.stackName}:IdentityDatabaseEndpoint`,
+            exportName: `${this.stackName}:DatabaseEndpoint`,
         });
-        new CfnOutput(this, 'IdentityDatabasePort', {
+        new CfnOutput(this, 'DatabasePort', {
             value: this.database.dbInstanceEndpointPort,
-            exportName: `${this.stackName}:IdentityDatabasePort`,
+            exportName: `${this.stackName}:DatabasePort`,
         });
-        new CfnOutput(this, 'IdentityDatabaseName', {
+        new CfnOutput(this, 'DatabaseName', {
             value: this.databaseName,
-            exportName: `${this.stackName}:IdentityDatabaseName`,
+            exportName: `${this.stackName}:DatabaseName`,
         });
-        new CfnOutput(this, 'IdentityDatabaseSecretArn', {
+        new CfnOutput(this, 'DatabaseSecretArn', {
             value: this.dbCredentialsSecret.secretArn,
-            exportName: `${this.stackName}:IdentityDatabaseSecretArn`,
+            exportName: `${this.stackName}:DatabaseSecretArn`,
         });
-        new CfnOutput(this, 'IdentitySecretArn', {
+        new CfnOutput(this, 'SecretArn', {
             value: this.authSecretKey.secretArn,
-            exportName: `${this.stackName}:IdentitySecretArn`,
+            exportName: `${this.stackName}:SecretArn`,
         });
-        new CfnOutput(this, 'IdentityMigrationPlanSecretArn', {
+        new CfnOutput(this, 'MigrationPlanSecretArn', {
             value: this.migrationPlanSecret.secretArn,
-            exportName: `${this.stackName}:IdentityMigrationPlanSecretArn`,
+            exportName: `${this.stackName}:MigrationPlanSecretArn`,
         });
-        new CfnOutput(this, 'IdentityDeletionQueueArn', {
+        new CfnOutput(this, 'DeletionQueueArn', {
             value: this.deletionQueue.queueArn,
-            exportName: `${this.stackName}:IdentityDeletionQueueArn`,
+            exportName: `${this.stackName}:DeletionQueueArn`,
         });
-        new CfnOutput(this, 'IdentityDeletionQueueUrl', {
+        new CfnOutput(this, 'DeletionQueueUrl', {
             value: this.deletionQueue.queueUrl,
-            exportName: `${this.stackName}:IdentityDeletionQueueUrl`,
+            exportName: `${this.stackName}:DeletionQueueUrl`,
         });
-        new CfnOutput(this, 'IdentityDeletionDlqArn', {
+        new CfnOutput(this, 'DeletionDlqArn', {
             value: this.deletionDlq.queueArn,
-            exportName: `${this.stackName}:IdentityDeletionDlqArn`,
+            exportName: `${this.stackName}:DeletionDlqArn`,
         });
-        new CfnOutput(this, 'IdentityMediaBucketName', {
+        new CfnOutput(this, 'MediaBucketName', {
             value: this.mediaBucket.bucketName,
-            exportName: `${this.stackName}:IdentityMediaBucketName`,
+            exportName: `${this.stackName}:MediaBucketName`,
         });
-        new CfnOutput(this, 'IdentityArchiveBucketName', {
+        new CfnOutput(this, 'ArchiveBucketName', {
             value: this.archiveBucket.bucketName,
-            exportName: `${this.stackName}:IdentityArchiveBucketName`,
+            exportName: `${this.stackName}:ArchiveBucketName`,
         });
     }
 }

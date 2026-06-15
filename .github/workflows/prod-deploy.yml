@@ -170,7 +170,7 @@ jobs:
             - name: Resolve Identity VPC ID
               id: identity-vpc
               run: |
-                  echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-identity-network-prod:IdentityVpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
+                  echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-network-prod:VpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
 
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'

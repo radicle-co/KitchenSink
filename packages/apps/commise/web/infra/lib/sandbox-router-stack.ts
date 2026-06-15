@@ -47,11 +47,11 @@ export class SandboxRouterStack extends Stack {
         const certificate = acm.Certificate.fromCertificateArn(
             this,
             'ImportedCertificate',
-            Fn.importValue(`kitchensink-identity-domain-${stage}:CertificateArn`),
+            Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
         );
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
-            hostedZoneId: Fn.importValue(`kitchensink-identity-domain-${stage}:HostedZoneId`),
+            hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
             zoneName: domainName,
         });
 

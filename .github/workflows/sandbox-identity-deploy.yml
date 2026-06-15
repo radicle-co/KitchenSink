@@ -73,7 +73,7 @@ jobs:
               run: |
                   stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
                   global_missing=false; service_missing=false; webhooks_missing=false
-                  stack_exists "kitchensink-identity-network-sandbox" || global_missing=true
+                  stack_exists "kitchensink-network-sandbox" || global_missing=true
                   stack_exists "kitchensink-identity-service-sandbox" || service_missing=true
                   stack_exists "kitchensink-identity-webhooks-sandbox" || webhooks_missing=true
 
@@ -163,7 +163,7 @@ jobs:
 
             - name: Resolve Identity VPC ID
               id: identity-vpc
-              run: echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-identity-network-sandbox:IdentityVpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
+              run: echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-network-sandbox:VpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
 
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'

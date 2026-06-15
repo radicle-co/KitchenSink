@@ -40,7 +40,7 @@ export class NetworkStack extends Stack {
     public constructor(scope: Construct, id: string, props: NetworkStackProps) {
         super(scope, id, props);
 
-        this.vpc = new ec2.Vpc(this, 'IdentityVpc', {
+        this.vpc = new ec2.Vpc(this, 'Vpc', {
             ipAddresses: ec2.IpAddresses.cidr(cidrForStage(props.stage)),
             maxAzs: 2,
             natGateways: 1,
@@ -63,7 +63,7 @@ export class NetworkStack extends Stack {
             ],
         });
 
-        // Platform-wide VPC name (no longer Identity-specific) — overrides the CDK
+        // Platform-wide VPC name (shared across services) — overrides the CDK
         // path-derived Name tag. Scoped to the VPC resource only (not its subnets/
         // route tables, which keep their distinct names). Tag-only change; no replacement.
         Tags.of(this.vpc.node.defaultChild as ec2.CfnVPC).add('Name', `KitchenSink-${props.stage}`);
@@ -143,33 +143,33 @@ export class NetworkStack extends Stack {
         const privateSubnets = this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnetIds;
         const privateDataSubnets = this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }).subnetIds;
 
-        new CfnOutput(this, 'IdentityVpcId', {
+        new CfnOutput(this, 'VpcId', {
             value: this.vpc.vpcId,
-            exportName: `${this.stackName}:IdentityVpcId`,
+            exportName: `${this.stackName}:VpcId`,
         });
-        new CfnOutput(this, 'IdentityPrivateAppSubnetIds', {
+        new CfnOutput(this, 'PrivateAppSubnetIds', {
             value: privateSubnets.join(','),
-            exportName: `${this.stackName}:IdentityPrivateAppSubnetIds`,
+            exportName: `${this.stackName}:PrivateAppSubnetIds`,
         });
-        new CfnOutput(this, 'IdentityPrivateDataSubnetIds', {
+        new CfnOutput(this, 'PrivateDataSubnetIds', {
             value: privateDataSubnets.join(','),
-            exportName: `${this.stackName}:IdentityPrivateDataSubnetIds`,
+            exportName: `${this.stackName}:PrivateDataSubnetIds`,
         });
-        new CfnOutput(this, 'IdentityAlbSecurityGroupId', {
+        new CfnOutput(this, 'AlbSecurityGroupId', {
             value: this.albSecurityGroup.securityGroupId,
-            exportName: `${this.stackName}:IdentityAlbSecurityGroupId`,
+            exportName: `${this.stackName}:AlbSecurityGroupId`,
         });
-        new CfnOutput(this, 'IdentityServiceSecurityGroupId', {
+        new CfnOutput(this, 'ServiceSecurityGroupId', {
             value: this.serviceSecurityGroup.securityGroupId,
-            exportName: `${this.stackName}:IdentityServiceSecurityGroupId`,
+            exportName: `${this.stackName}:ServiceSecurityGroupId`,
         });
-        new CfnOutput(this, 'IdentityDatabaseSecurityGroupId', {
+        new CfnOutput(this, 'DatabaseSecurityGroupId', {
             value: this.databaseSecurityGroup.securityGroupId,
-            exportName: `${this.stackName}:IdentityDatabaseSecurityGroupId`,
+            exportName: `${this.stackName}:DatabaseSecurityGroupId`,
         });
-        new CfnOutput(this, 'IdentityLambdaSecurityGroupId', {
+        new CfnOutput(this, 'LambdaSecurityGroupId', {
             value: this.lambdaSecurityGroup.securityGroupId,
-            exportName: `${this.stackName}:IdentityLambdaSecurityGroupId`,
+            exportName: `${this.stackName}:LambdaSecurityGroupId`,
         });
     }
 }

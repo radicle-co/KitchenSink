@@ -15,7 +15,7 @@ Make the AWS network topology exactly one VPC per stage — production and sandb
 
 ## Problem Frame
 
-The account carries more VPCs than it should. Both prod and sandbox VPCs are created from the same `network-stack.ts` with no explicit `ipAddresses`, so both default to `10.0.0.0/16` — an overlap that blocks VPC peering and forced the Tailscale plan into 4via6 site-ID gymnastics. A parentless `IdentityNetwork-dev` VPC plus its `kitchensink-identity-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces. The network stack is also duplicated (byte-identical in the service package; an older copy missing the SG-pairing fix in the webhooks package), where only tests reference it — drift waiting to happen. The identity VPC is confirmed the only VPC-attached prod infrastructure (the web app's `SandboxRouterStack` is CloudFront-based and VPC-independent; the web app is Vercel/edge-hosted) — so "one VPC for all of prod" is already nearly true; the work is making the CIDRs distinct, recreating sandbox, and removing the strays.
+The account carries more VPCs than it should. Both prod and sandbox VPCs are created from the same `network-stack.ts` with no explicit `ipAddresses`, so both default to `10.0.0.0/16` — an overlap that blocks VPC peering and forced the Tailscale plan into 4via6 site-ID gymnastics. A parentless `IdentityNetwork-dev` VPC plus its `kitchensink-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces. The network stack is also duplicated (byte-identical in the service package; an older copy missing the SG-pairing fix in the webhooks package), where only tests reference it — drift waiting to happen. The identity VPC is confirmed the only VPC-attached prod infrastructure (the web app's `SandboxRouterStack` is CloudFront-based and VPC-independent; the web app is Vercel/edge-hosted) — so "one VPC for all of prod" is already nearly true; the work is making the CIDRs distinct, recreating sandbox, and removing the strays.
 
 ---
 
@@ -120,8 +120,8 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
 - **Requirements:** R1, R2
 - **Dependencies:** none
 - **Files:**
-    - `packages/infra/global/lib/identity/network-stack.ts` (add `stage` to props; set `ipAddresses` from `cidrFor(stage)`)
-    - `packages/infra/global/lib/identity/identity-global-stack.ts` (forward `stage` into `new NetworkStack(...)`, which today passes only `{ env, stackName }`)
+    - `packages/infra/global/lib/platform/network-stack.ts` (add `stage` to props; set `ipAddresses` from `cidrFor(stage)`)
+    - `packages/infra/global/lib/platform/global-stack.ts` (forward `stage` into `new NetworkStack(...)`, which today passes only `{ env, stackName }`)
     - `packages/infra/global/bin/app.ts` (confirm `stage` reaches NetworkStack)
     - the relocated infra test from U4 (add a prod-CIDR assertion)
 - **Approach:** Add `stage` to `NetworkStackProps`. Implement `cidrFor(stage)` with a per-stage map (`prod → 10.0.0.0/16`, `sandbox → 10.1.0.0/16`) and a **safe default** for unknown/`dev`/`test` (do not throw). Pass `ipAddresses: ec2.IpAddresses.cidr(cidrFor(stage))`. Keep all construct IDs unchanged to avoid logical-ID drift.
@@ -265,7 +265,7 @@ Pricing verified against AWS's VPC and Transit Gateway pricing pages (April 2025
 
 ## Sources & Research
 
-- Repo topology, CIDR config, export coupling, RDS/bucket removal policies, deploy workflows: `packages/infra/global/lib/identity/network-stack.ts:17-141`, `data-stack.ts:40-183`, `identity-global-stack.ts:33-49`, `bin/app.ts`; `.github/workflows/prod-deploy.yml`, `sandbox-identity-deploy.yml`.
+- Repo topology, CIDR config, export coupling, RDS/bucket removal policies, deploy workflows: `packages/infra/global/lib/platform/network-stack.ts:17-141`, `data-stack.ts:40-183`, `identity-global-stack.ts:33-49`, `bin/app.ts`; `.github/workflows/prod-deploy.yml`, `sandbox-identity-deploy.yml`.
 - VPC reached via `fromLookup` + git-tracked cache: `packages/services/identity/infra/lib/identity-service-stack.ts:44`, `packages/services/identity/cdk.context.json`.
 - CDK default CIDR: `aws-cdk-lib@2.254.0` `Vpc.DEFAULT_CIDR_RANGE = "10.0.0.0/16"`.
 - Migration runner: `packages/services/identity-webhooks/src/handlers/migrate.ts:56-138`; `.sql` files in `packages/services/identity/src/database/migrations/`.

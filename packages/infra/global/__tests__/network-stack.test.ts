@@ -2,8 +2,8 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 
-import { DataStack } from '../lib/identity/data-stack.js';
-import { NetworkStack } from '../lib/identity/network-stack.js';
+import { DataStack } from '../lib/platform/data-stack.js';
+import { NetworkStack } from '../lib/platform/network-stack.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 

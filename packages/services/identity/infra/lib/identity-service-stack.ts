@@ -48,36 +48,36 @@ export class IdentityServiceStack extends Stack {
         const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
             this,
             'ImportedAlbSg',
-            Fn.importValue(`kitchensink-identity-network-${stage}:IdentityAlbSecurityGroupId`),
+            Fn.importValue(`kitchensink-network-${stage}:AlbSecurityGroupId`),
         );
 
         const serviceSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
             this,
             'ImportedServiceSg',
-            Fn.importValue(`kitchensink-identity-network-${stage}:IdentityServiceSecurityGroupId`),
+            Fn.importValue(`kitchensink-network-${stage}:ServiceSecurityGroupId`),
         );
 
         const dbCredentialsSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabaseSecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:DatabaseSecretArn`),
         });
 
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-identity-data-${stage}:IdentitySecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:SecretArn`),
         });
 
         const migrationPlanSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedMigrationSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityMigrationPlanSecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:MigrationPlanSecretArn`),
         });
 
         const database = rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
             instanceIdentifier: `kitchensink-identity-${stage}`,
-            instanceEndpointAddress: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabaseEndpoint`),
-            port: Number(Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabasePort`)),
+            instanceEndpointAddress: Fn.importValue(`kitchensink-data-${stage}:DatabaseEndpoint`),
+            port: Number(Fn.importValue(`kitchensink-data-${stage}:DatabasePort`)),
             securityGroups: [
                 ec2.SecurityGroup.fromSecurityGroupId(
                     this,
                     'ImportedDbSg',
-                    Fn.importValue(`kitchensink-identity-network-${stage}:IdentityDatabaseSecurityGroupId`),
+                    Fn.importValue(`kitchensink-network-${stage}:DatabaseSecurityGroupId`),
                 ),
             ],
         });
@@ -85,19 +85,19 @@ export class IdentityServiceStack extends Stack {
         const deletionQueue = sqs.Queue.fromQueueArn(
             this,
             'ImportedDeletionQueue',
-            Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDeletionQueueArn`),
+            Fn.importValue(`kitchensink-data-${stage}:DeletionQueueArn`),
         );
 
         const mediaBucket = s3.Bucket.fromBucketName(
             this,
             'ImportedMediaBucket',
-            Fn.importValue(`kitchensink-identity-data-${stage}:IdentityMediaBucketName`),
+            Fn.importValue(`kitchensink-data-${stage}:MediaBucketName`),
         );
 
         const archiveBucket = s3.Bucket.fromBucketName(
             this,
             'ImportedArchiveBucket',
-            Fn.importValue(`kitchensink-identity-data-${stage}:IdentityArchiveBucketName`),
+            Fn.importValue(`kitchensink-data-${stage}:ArchiveBucketName`),
         );
 
         const repository = ecr.Repository.fromRepositoryName(this, 'IdentityServiceRepository', 'kitchensink-identity');
@@ -158,8 +158,8 @@ export class IdentityServiceStack extends Stack {
                 NODE_ENV: 'production',
                 PORT: '3000',
                 DB_HOST: database.dbInstanceEndpointAddress,
-                DB_PORT: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabasePort`),
-                DB_NAME: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabaseName`),
+                DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
+                DB_NAME: Fn.importValue(`kitchensink-data-${stage}:DatabaseName`),
                 DELETION_QUEUE_URL: deletionQueue.queueUrl,
                 MEDIA_BUCKET_NAME: mediaBucket.bucketName,
                 ARCHIVE_BUCKET_NAME: archiveBucket.bucketName,
@@ -240,14 +240,14 @@ export class IdentityServiceStack extends Stack {
         const serviceDomain = `${subdomain}.${domainName}`;
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
-            hostedZoneId: Fn.importValue(`kitchensink-identity-domain-${stage}:HostedZoneId`),
+            hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
             zoneName: domainName,
         });
 
         const certificate = acm.Certificate.fromCertificateArn(
             this,
             'ImportedCertificate',
-            Fn.importValue(`kitchensink-identity-domain-${stage}:CertificateArn`),
+            Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
         );
 
         const loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'IdentityServiceAlb', {
@@ -329,47 +329,47 @@ export class IdentityServiceStack extends Stack {
 
         new CfnOutput(this, 'IdentityEcrRepositoryUri', {
             value: repository.repositoryUri,
-            exportName: `${this.stackName}:IdentityEcrRepositoryUri`,
+            exportName: `${this.stackName}:EcrRepositoryUri`,
         });
         new CfnOutput(this, 'IdentityClusterArn', {
             value: cluster.clusterArn,
-            exportName: `${this.stackName}:IdentityClusterArn`,
+            exportName: `${this.stackName}:ClusterArn`,
         });
         new CfnOutput(this, 'IdentityServiceArn', {
             value: service.serviceArn,
-            exportName: `${this.stackName}:IdentityServiceArn`,
+            exportName: `${this.stackName}:ServiceArn`,
         });
         new CfnOutput(this, 'IdentityTaskExecutionRoleArn', {
             value: taskExecutionRole.roleArn,
-            exportName: `${this.stackName}:IdentityTaskExecutionRoleArn`,
+            exportName: `${this.stackName}:TaskExecutionRoleArn`,
         });
         new CfnOutput(this, 'IdentityTaskRoleArn', {
             value: taskRole.roleArn,
-            exportName: `${this.stackName}:IdentityTaskRoleArn`,
+            exportName: `${this.stackName}:TaskRoleArn`,
         });
         new CfnOutput(this, 'IdentityAlbArn', {
             value: loadBalancer.loadBalancerArn,
-            exportName: `${this.stackName}:IdentityAlbArn`,
+            exportName: `${this.stackName}:AlbArn`,
         });
         new CfnOutput(this, 'IdentityAlbDnsName', {
             value: loadBalancer.loadBalancerDnsName,
-            exportName: `${this.stackName}:IdentityAlbDnsName`,
+            exportName: `${this.stackName}:AlbDnsName`,
         });
         new CfnOutput(this, 'IdentityAlbListenerArn', {
             value: httpsListener.listenerArn,
-            exportName: `${this.stackName}:IdentityAlbListenerArn`,
+            exportName: `${this.stackName}:AlbListenerArn`,
         });
         new CfnOutput(this, 'IdentityAlbTargetGroupArn', {
             value: targetGroup.targetGroupArn,
-            exportName: `${this.stackName}:IdentityAlbTargetGroupArn`,
+            exportName: `${this.stackName}:AlbTargetGroupArn`,
         });
         new CfnOutput(this, 'IdentityServiceLogGroupName', {
             value: logGroup.logGroupName,
-            exportName: `${this.stackName}:IdentityServiceLogGroupName`,
+            exportName: `${this.stackName}:ServiceLogGroupName`,
         });
         new CfnOutput(this, 'IdentityServiceUrl', {
             value: this.serviceUrl,
-            exportName: `${this.stackName}:IdentityServiceUrl`,
+            exportName: `${this.stackName}:ServiceUrl`,
         });
     }
 }

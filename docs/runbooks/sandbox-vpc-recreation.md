@@ -56,7 +56,7 @@ The service stack reaches the VPC via `Vpc.fromLookup`, cached in the git-tracke
 
 ```bash
 ! export IDENTITY_VPC_ID=$(aws cloudformation list-exports \
-    --query "Exports[?Name=='kitchensink-identity-network-sandbox:IdentityVpcId'].Value" --output text)
+    --query "Exports[?Name=='kitchensink-network-sandbox:VpcId'].Value" --output text)
 ! echo "new sandbox VPC: $IDENTITY_VPC_ID"
 # remove the stale sandbox vpc-provider entry (and the webhooks copy if present), let CI/next synth regenerate it
 ! npx cdk context --clear   # or hand-edit packages/services/identity/cdk.context.json to drop the dead vpc-id key
@@ -68,7 +68,7 @@ Commit the regenerated context (or confirm CI runs with no stale sandbox entry) 
 
 ```bash
 # the recreated RDS generates a NEW managed secret ARN — confirm it before the consumers read it
-! aws cloudformation list-exports --query "Exports[?contains(Name,'kitchensink-identity-data-sandbox')].{Name:Name,Value:Value}" --output table
+! aws cloudformation list-exports --query "Exports[?contains(Name,'kitchensink-data-sandbox')].{Name:Name,Value:Value}" --output table
 
 ! STAGE=sandbox DOMAIN_NAME=commise.app IDENTITY_VPC_ID=$IDENTITY_VPC_ID \
     npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
@@ -97,7 +97,7 @@ Commit the regenerated context (or confirm CI runs with no stale sandbox entry) 
 
 ## Part B — Retire the legacy `dev` VPC/RDS (U3)
 
-The parentless `IdentityNetwork-dev` VPC + `kitchensink-identity-data-dev` RDS are leftovers from an old `STAGE=dev` deploy no current workflow reproduces. Retire only after confirming nothing live depends on them.
+The parentless `IdentityNetwork-dev` VPC + `kitchensink-data-dev` RDS are leftovers from an old `STAGE=dev` deploy no current workflow reproduces. Retire only after confirming nothing live depends on them.
 
 ### B1. CFN dependency check
 

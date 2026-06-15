@@ -3,11 +3,11 @@
 - **Status:** Accepted — _per-stage CIDR threading implemented_ (`NetworkStack` takes `stage`, `cidrForStage` assigns the range; prod unchanged, sandbox renumbered). The **sandbox VPC/RDS recreation** and **legacy `dev` retirement** are operational steps (see the runbook) and remain to be executed.
 - **Date:** 2026-06-14
 - **Area:** AWS network topology · CDK global infra · RDS · cross-stack exports
-- **Related:** `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`, `docs/runbooks/sandbox-vpc-recreation.md`, `docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md` (depends on this), `packages/infra/global/lib/identity/network-stack.ts`, `.github/workflows/prod-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`
+- **Related:** `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`, `docs/runbooks/sandbox-vpc-recreation.md`, `docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md` (depends on this), `packages/infra/global/lib/platform/network-stack.ts`, `.github/workflows/prod-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`
 
 ## ⚠️ Before you change this — the trap
 
-If you are about to change a stage's VPC CIDR in `cidrForStage`, rename the `IdentityVpc` construct or the `Identity*` stacks, or "just `cdk deploy`" a CIDR change — **stop and read this first.**
+If you are about to change a stage's VPC CIDR in `cidrForStage`, or "just `cdk deploy`" a CIDR change — **stop and read this first.**
 
 - **Changing the prod CIDR (or a construct ID that feeds the VPC) replaces the prod VPC, which replaces the prod RDS.** RDS is `removalPolicy: DESTROY`, `deletionProtection: false` — there is no safety snapshot. Prod data is gone. Prod is kept on `10.0.0.0/16` precisely so the explicit value equals the prior CDK default and produces **no diff**. The gate before any prod deploy is an **empty `cdk diff` for the whole prod network + data stacks**, not just "the VPC looks unchanged."
 - **A CIDR change cannot be a one-shot `cdk deploy --all`.** CloudFormation refuses to change an export while another stack imports it, and the service/webhooks stacks import the network/data exports. The swap is an ordered teardown (see the runbook). A naive deploy deadlocks on export-in-use.
@@ -16,7 +16,7 @@ If you are about to change a stage's VPC CIDR in `cidrForStage`, rename the `Ide
 ## Context
 
 - Both prod and sandbox VPCs were created from one `network-stack.ts` with no explicit `ipAddresses`, so both defaulted to `10.0.0.0/16`. Identical CIDRs block VPC peering and forced the Tailscale router design into 4via6 site-ID gymnastics.
-- A parentless `IdentityNetwork-dev` VPC + `kitchensink-identity-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces.
+- A parentless `IdentityNetwork-dev` VPC + `kitchensink-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces.
 - The network/data/domain stacks were also duplicated (byte-identical in the service package; an older, SG-pairing-missing copy in the webhooks package), referenced only by tests — drift waiting to happen.
 - The identity VPC is the only VPC-attached prod infrastructure (the web app's `SandboxRouterStack` is CloudFront-based and VPC-independent), so "one VPC per stage" was already nearly true.
 
@@ -44,12 +44,12 @@ If you are about to change a stage's VPC CIDR in `cidrForStage`, rename the `Ide
 
 ## Alternatives considered
 
-- **Renumber prod too / rename `Identity*` to neutral naming** — rejected; both force prod VPC+RDS replacement for no functional gain. Neutral naming is deferred.
+- **Renumber prod's CIDR** — rejected; replacing the prod VPC/RDS for no functional gain. (The global stacks were subsequently de-identified to `kitchensink-{network,data,domain,global}-{stage}` with `KitchenSink-{stage}` VPC names during the destroy/recreate — the replacement cost was already being paid, and the shared platform infra should not be Identity-branded.)
 - **Snapshot/restore sandbox RDS** — rejected for recreate-fresh (negligible data), but a pre-destroy snapshot is still taken.
 - **Two routers, one per VPC, no peering (router Option B)** — not chosen; keeps AWS-layer isolation but costs a second instance, and the laptop bridges both VPCs anyway. Reversible, so revisitable.
 - **Transit Gateway** — rejected on cost (~$73/mo attachment fees for a 2-VPC same-region setup) with no benefit at this scale.
 
 ## Implementation guards
 
-- `packages/infra/global/lib/identity/network-stack.ts` — `cidrForStage` carries the prod-stays-10.0.0.0/16 rationale; the prod-CIDR and SG-pairing assertions in `packages/infra/global/__tests__/network-stack.test.ts` guard against accidental prod renumbering and the `ENI_SG_RULES_MISMATCH` regression.
+- `packages/infra/global/lib/platform/network-stack.ts` — `cidrForStage` carries the prod-stays-10.0.0.0/16 rationale; the prod-CIDR and SG-pairing assertions in `packages/infra/global/__tests__/network-stack.test.ts` guard against accidental prod renumbering and the `ENI_SG_RULES_MISMATCH` regression.
 - The ordered-teardown sequence, CI suppression, verified-empty check, and fix-forward recovery live in `docs/runbooks/sandbox-vpc-recreation.md`.

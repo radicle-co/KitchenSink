@@ -5,7 +5,7 @@ import { DataStack } from './data-stack.js';
 import { DomainStack } from './domain-stack.js';
 import { NetworkStack } from './network-stack.js';
 
-export interface IdentityGlobalStackProps extends StackProps {
+export interface GlobalStackProps extends StackProps {
     readonly stage: string;
     readonly domainName: string;
 }
@@ -17,35 +17,35 @@ export interface IdentityGlobalStackProps extends StackProps {
  * Deployed once per environment. Service-specific stacks reference the
  * CloudFormation exports produced by child stacks instead of duplicating resources.
  */
-export class IdentityGlobalStack extends Stack {
+export class GlobalStack extends Stack {
     public readonly network: NetworkStack;
     public readonly data: DataStack;
     public readonly domain: DomainStack;
     public readonly stage: string;
 
-    public constructor(scope: Construct, id: string, props: IdentityGlobalStackProps) {
+    public constructor(scope: Construct, id: string, props: GlobalStackProps) {
         super(scope, id, props);
 
         const { stage, domainName } = props;
 
         this.stage = stage;
 
-        this.network = new NetworkStack(this, `IdentityNetwork-${stage}`, {
+        this.network = new NetworkStack(this, `Network-${stage}`, {
             env: props.env,
-            stackName: `kitchensink-identity-network-${stage}`,
+            stackName: `kitchensink-network-${stage}`,
             stage,
         });
 
-        this.data = new DataStack(this, `IdentityData-${stage}`, {
+        this.data = new DataStack(this, `Data-${stage}`, {
             env: props.env,
-            stackName: `kitchensink-identity-data-${stage}`,
+            stackName: `kitchensink-data-${stage}`,
             network: this.network,
             stage,
         });
 
-        this.domain = new DomainStack(this, `IdentityDomain-${stage}`, {
+        this.domain = new DomainStack(this, `Domain-${stage}`, {
             env: props.env,
-            stackName: `kitchensink-identity-domain-${stage}`,
+            stackName: `kitchensink-domain-${stage}`,
             domainName,
         });
     }

@@ -4,7 +4,10 @@ import { clerkAppearance } from '@kitchensink/ui';
 export default function SignInPage() {
     return (
         <main className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12">
-            <SignIn appearance={clerkAppearance} />
+            {/* hash routing: Clerk derives its path from usePathname() (basePath-STRIPPED), so under a
+                preview basePath (/pr-{N}) path routing can't reconcile and renders an empty widget.
+                Hash routing drives the multi-step flow via the URL fragment, independent of basePath. */}
+            <SignIn routing="hash" appearance={clerkAppearance} />
         </main>
     );
 }

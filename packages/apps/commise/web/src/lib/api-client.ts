@@ -1,4 +1,5 @@
 import { navigateTo } from '@/lib/navigation';
+import { withBasePath } from '@/lib/base-path';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -21,7 +22,9 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
 
     if (!response.ok) {
         if (response.status === 401 && typeof window !== 'undefined') {
-            navigateTo(`/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
+            // Prefix the sign-in target with the base path; `window.location.pathname` already carries
+            // the prefix (the browser is at /pr-{N}/…), so do NOT prefix the redirect_url value.
+            navigateTo(`${withBasePath('/sign-in')}?redirect_url=${encodeURIComponent(window.location.pathname)}`);
         }
 
         const error = await response.json().catch(() => ({ message: 'Request failed' }));

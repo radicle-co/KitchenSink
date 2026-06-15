@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useClerk } from '@clerk/nextjs';
 
+import { withBasePath } from '@/lib/base-path';
+
 interface LogoutButtonProps {
     children?: React.ReactNode;
 }
@@ -13,7 +15,8 @@ export function LogoutButton({ children }: LogoutButtonProps) {
 
     const handleLogout = async () => {
         setIsLoading(true);
-        await signOut({ redirectUrl: '/' });
+        // Clerk's redirectUrl is not basePath-aware (ADR-0001 / U2); prefix it. No-op in production.
+        await signOut({ redirectUrl: withBasePath('/') });
     };
 
     return (

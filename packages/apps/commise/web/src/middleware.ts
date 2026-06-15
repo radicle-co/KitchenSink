@@ -17,12 +17,12 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-    // Static (build-analyzed) and prefix-tolerant: the optional `pr-…/` segment lets this one value
-    // serve both production (no prefix) and previews (/pr-{N}) — it is matched against the full path,
-    // so without the tolerance `/pr-{N}/_next/*` and `/pr-{N}/sentry-tunnel` would not be excluded and
-    // middleware would run on every asset + intercept Sentry's tunnel.
+    // Root-anchored. Next.js compiles `config.matcher` into the middleware manifest and AUTO-PREPENDS
+    // the build-time `basePath`, so under a preview (basePath=/pr-{N}) these patterns match
+    // `/pr-{N}/…` automatically — the asset/tunnel exclusions hold for both production and previews
+    // with no manual `pr-…/` tolerance. (A leading `(?:…)?` is also invalid Next matcher syntax.)
     matcher: [
-        '/((?!(?:pr-[^/]+/)?(?:_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|public/|sentry-tunnel)).*)',
-        '/(?:pr-[^/]+/)?(api|trpc)(.*)',
+        '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|public/|sentry-tunnel).*)',
+        '/(api|trpc)(.*)',
     ],
 };

@@ -75,14 +75,23 @@ describe('middleware under a base path (/pr-{N})', () => {
         expect(protect).toHaveBeenCalled();
     });
 
-    it('config.matcher tolerates the pr-N prefix (matched pre-strip): runs on routes, skips assets + tunnel', async () => {
+    it('config.matcher is root-anchored — Next auto-prepends basePath at build, no manual pr-N tolerance', async () => {
+        // Verified against the compiled middleware-manifest: with basePath=/pr-999, Next compiles
+        // `/((?!_next/static|…).*)` to `^\/pr-999\/((?!_next/static|…).*)` — it prepends the prefix and
+        // applies the asset/tunnel exclusions AFTER it. So the SOURCE stays root-anchored; a leading
+        // `(?:pr-[^/]+/)?` is both redundant AND invalid Next matcher syntax (it broke `next build` with
+        // "Pattern cannot start with ?"). These assertions guard both regressions.
         const { config } = await import('@/middleware');
-        const re = new RegExp(`^${config.matcher[0]}$`);
 
-        expect(re.test('/pr-123/profile')).toBe(true);
-        expect(re.test('/pr-123/_next/static/chunk.js')).toBe(false);
-        expect(re.test('/pr-123/sentry-tunnel')).toBe(false);
+        for (const m of config.matcher) {
+            expect(m.startsWith('/(?:')).toBe(false); // invalid-syntax guard (build-breaker)
+            expect(m).not.toContain('pr-'); // root-anchored guard (rely on Next's basePath prepend)
+        }
+
+        // Root-level exclusions the source must express (Next handles the /pr-{N} prefix itself):
+        const re = new RegExp(`^${config.matcher[0]}$`);
         expect(re.test('/profile')).toBe(true);
         expect(re.test('/_next/static/chunk.js')).toBe(false);
+        expect(re.test('/sentry-tunnel')).toBe(false);
     });
 });

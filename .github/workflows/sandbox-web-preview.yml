@@ -43,14 +43,23 @@ jobs:
             - name: Resolve the router KVS ARN (from the router stack output)
               id: kvs
               run: |
+                  # The router is a SINGLETON deployed separately (sandbox-router-deploy). Until it
+                  # exists, per-PR routing simply can't be wired — that's a missing prerequisite, not a
+                  # PR regression, so warn-and-skip instead of failing this check. (App is pre-launch.)
                   ARN=$(aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox \
-                    --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" --output text)
-                  if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then echo "router stack/KVS not found" >&2; exit 1; fi
-                  echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+                    --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" \
+                    --output text 2>/dev/null || true)
+                  if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
+                    echo "::warning::Router stack 'kitchensink-sandbox-router-sandbox' is not deployed yet — skipping PR route registration. Run sandbox-router-deploy once to enable preview routing."
+                    echo "found=false" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "found=true" >> "$GITHUB_OUTPUT"
+                    echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+                  fi
 
-            # PR closed → remove the route.
+            # PR closed → remove the route (only if the router exists).
             - name: Deregister preview route
-              if: github.event.action == 'closed'
+              if: github.event.action == 'closed' && steps.kvs.outputs.found == 'true'
               env:
                   ACTION: deregister
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}
@@ -58,7 +67,7 @@ jobs:
 
             # PR open/updated → wait for the Vercel preview, capture its host, register the route.
             - name: Wait for the Vercel preview to be READY
-              if: github.event.action != 'closed'
+              if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'
               id: preview
               uses: zentered/vercel-preview-url@v1.4.0
               env:
@@ -67,7 +76,7 @@ jobs:
                   vercel_team_id: ${{ vars.VERCEL_TEAM_ID }}
                   vercel_project_id: ${{ vars.VERCEL_WEB_PROJECT_ID }}
             - name: Register preview route
-              if: github.event.action != 'closed'
+              if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'
               env:
                   ACTION: register
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}

@@ -8,6 +8,10 @@ import { UsersModule } from '../users/users.module.js';
 @Module({
     imports: [UsersModule],
     providers: [AuthMiddleware, ClerkAuthService],
-    exports: [AuthMiddleware],
+    // ClerkAuthService MUST be exported: AuthMiddleware is applied in AppModule.configure(), so Nest
+    // resolves its constructor deps (ClerkAuthService, UsersService) from the EXPORTS of AppModule's
+    // imported modules. Exporting only AuthMiddleware crash-loops the app on boot with
+    // "Nest can't resolve dependencies of the AuthMiddleware (?, UsersService)".
+    exports: [AuthMiddleware, ClerkAuthService],
 })
 export class AuthModule {}

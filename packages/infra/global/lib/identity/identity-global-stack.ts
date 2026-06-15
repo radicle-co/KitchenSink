@@ -33,6 +33,7 @@ export class IdentityGlobalStack extends Stack {
         this.network = new NetworkStack(this, `IdentityNetwork-${stage}`, {
             env: props.env,
             stackName: `kitchensink-identity-network-${stage}`,
+            stage,
         });
 
         this.data = new DataStack(this, `IdentityData-${stage}`, {

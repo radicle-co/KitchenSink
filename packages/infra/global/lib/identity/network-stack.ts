@@ -1,6 +1,26 @@
 import { CfnOutput, Stack, type StackProps, aws_ec2 as ec2 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+export interface NetworkStackProps extends StackProps {
+    readonly stage: string;
+}
+
+/**
+ * Per-stage VPC CIDRs. Prod stays on the historical 10.0.0.0/16 (so setting it
+ * explicitly is a no-op against the deployed VPC — no replacement). Sandbox uses
+ * a distinct range so the two VPCs can be peered (VPC peering rejects overlapping
+ * CIDRs). Unknown/dev/test stages fall back to a throwaway range rather than
+ * throwing, so local synth and the test harness keep working.
+ */
+const STAGE_CIDRS: Record<string, string> = {
+    prod: '10.0.0.0/16',
+    sandbox: '10.1.0.0/16',
+};
+
+export function cidrForStage(stage: string): string {
+    return STAGE_CIDRS[stage] ?? '10.2.0.0/16';
+}
+
 /**
  * @implements REQ-050 REQ-IF-007 REQ-CN-007 FR-038 ARCH-031 MOD-031
  */
@@ -11,10 +31,11 @@ export class NetworkStack extends Stack {
     public readonly databaseSecurityGroup: ec2.SecurityGroup;
     public readonly lambdaSecurityGroup: ec2.SecurityGroup;
 
-    public constructor(scope: Construct, id: string, props?: StackProps) {
+    public constructor(scope: Construct, id: string, props: NetworkStackProps) {
         super(scope, id, props);
 
         this.vpc = new ec2.Vpc(this, 'IdentityVpc', {
+            ipAddresses: ec2.IpAddresses.cidr(cidrForStage(props.stage)),
             maxAzs: 2,
             natGateways: 1,
             subnetConfiguration: [

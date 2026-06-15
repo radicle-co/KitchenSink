@@ -1,6 +1,6 @@
 # 0001 — Sandbox front-end addressing: path-based PR routing, not per-PR subdomains
 
-- **Status:** Accepted — _implementation pending_ (the decision governs how the sandbox front-ends will be built; the routing itself is not yet in the codebase as of this record).
+- **Status:** Accepted — _path routing implemented_ (per-PR `basePath` builds + a singleton CloudFront + CloudFront Function (runtime 2.0) + KeyValueStore router that host-swaps `/pr-{N}/*` to each PR's app, with the project-wide Vercel bypass token injected at the edge). The **manifest/static-resource mechanism** and **native mobile** remain deferred.
 - **Date:** 2026-06-14
 - **Area:** sandbox deploy topology · web/mobile serving · Clerk session-token auth
 - **Related:** service-side Clerk session-token verification (PR #39), `.github/workflows/sandbox-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`, `packages/services/identity/src/auth/clerk-auth.service.ts`, `packages/services/identity/src/config/env.schema.ts`
@@ -40,6 +40,14 @@ If you are about to "simplify" sandbox previews to **per-PR subdomains** (`pr-12
 - **Per-PR subdomains + prod-only `azp` enforcement** (disable `azp` on sandbox; require it only on prod-like stages). Lower app-side complexity and keeps isolated preview URLs. **Rejected** here in favor of keeping `azp` enforced in sandbox — but this remains the natural fallback if path-routing proves too costly. If you switch to it, the change is: relax `CLERK_AUTHORIZED_PARTIES` to be required only on prod-like stages in `env.schema.ts`, keep `CLERK_JWT_KEY` required everywhere (signatures still verified via the shared sandbox key), and update this ADR's status to _Superseded_.
 - **Wildcard / pattern `azp`.** Not possible — Clerk matches `azp` by exact string.
 
-## Implementation guards (add when the code lands)
+## Implementation guards
 
-When the path-routing and manifest-param mechanism are built, add `// ⚠️ DELIBERATE — see docs/architecture/decisions/0001` comments at: the web routing/middleware that parses the PR-from-path, the manifest/static-resource loader, `clerk-auth.service.ts` (azp handling), and `env.schema.ts` (`CLERK_AUTHORIZED_PARTIES`).
+Path-routing guards are in place (`// ⚠️ DELIBERATE — see docs/architecture/decisions/0001`):
+
+- `packages/apps/commise/web/next.config.ts` + `src/lib/base-path.ts` — the per-PR `basePath` derivation (do not drop it / move to subdomains).
+- `packages/apps/commise/web/src/middleware.ts` — the prefix-aware Clerk matcher (do not "simplify" back to root-anchored patterns — it silently makes protected routes public).
+- `packages/apps/commise/web/router/src/*` + `infra/lib/sandbox-router-stack.ts` — the host-swap router (do not switch to a prefix-stripping proxy or per-PR subdomains).
+
+The **azp** tripwires the ADR originally listed — `clerk-auth.service.ts` (azp handling) and `env.schema.ts` (`CLERK_AUTHORIZED_PARTIES`) — are owned by the create-user-flow work (PR #39) and the `CLAUDE.md` "Deliberate decisions" entry; not duplicated here.
+
+The **manifest/static-resource loader** guard lands with that deferred mechanism.

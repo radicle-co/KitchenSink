@@ -12,6 +12,7 @@ export default defineConfig({
             'tests/**/*.test.tsx',
             'router/tests/**/*.test.ts',
             'infra/__tests__/**/*.test.ts',
+            'scripts/__tests__/**/*.test.ts',
         ],
         environment: 'jsdom',
         setupFiles: ['./tests/setup.ts'],

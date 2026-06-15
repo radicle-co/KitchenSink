@@ -1,0 +1,71 @@
+name: Sandbox Web Preview Route
+
+# Per-PR data layer for the singleton sandbox router (U5): when a PR's Vercel preview is ready, write
+# pr-{N} → <preview host> into the router's CloudFront KeyValueStore so https://sandbox.commise.app/
+# pr-{N}/ resolves; on PR close, remove it. The router infra is deployed separately + once
+# (sandbox-router-deploy.yml). See docs/architecture/decisions/0001.
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened, closed]
+
+concurrency:
+    group: sandbox-web-preview-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+env:
+    AWS_REGION: us-east-1
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+
+jobs:
+    route:
+        name: Update PR route in KVS
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+            - name: Resolve the router KVS ARN
+              id: kvs
+              run: |
+                  ARN=$(aws cloudfront list-key-value-stores \
+                    --query "KeyValueStoreList.Items[?Name=='sandbox-pr-router-sandbox'].ARN | [0]" --output text)
+                  echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+            # PR closed → remove the route.
+            - name: Deregister preview route
+              if: github.event.action == 'closed'
+              env:
+                  ACTION: deregister
+                  KVS_ARN: ${{ steps.kvs.outputs.arn }}
+              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts
+
+            # PR open/updated → wait for the Vercel preview, capture its host, register the route.
+            - name: Wait for the Vercel preview to be READY
+              if: github.event.action != 'closed'
+              id: preview
+              uses: zentered/vercel-preview-url@v1.4.0
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+              with:
+                  vercel_team_id: ${{ vars.VERCEL_TEAM_ID }}
+                  vercel_project_id: ${{ vars.VERCEL_WEB_PROJECT_ID }}
+            - name: Register preview route
+              if: github.event.action != 'closed'
+              env:
+                  ACTION: register
+                  KVS_ARN: ${{ steps.kvs.outputs.arn }}
+                  PREVIEW_HOST: ${{ steps.preview.outputs.preview_url }}
+              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts

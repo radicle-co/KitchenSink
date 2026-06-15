@@ -6,7 +6,7 @@
 // NOTE: the `cf` runtime API surface (kvs/updateRequestOrigin) is validated by the U4 deploy smoke.
 import cf from 'cloudfront';
 
-import { buildOriginUpdate, parsePrKey } from './resolve.js';
+import { buildOriginUpdate, resolveRoute } from './resolve.js';
 
 const kvs = cf.kvs();
 
@@ -14,28 +14,18 @@ const notFound = { statusCode: 404, statusDescription: 'Not Found' };
 
 async function handler(event) {
     const request = event.request;
-    const key = parsePrKey(request.uri);
 
-    if (!key) {
-        return notFound;
-    }
+    // Decide via the unit-tested core. KVS.get throws on a missing key; normalize that to undefined so
+    // resolveRoute treats unknown/closed PRs (and malformed paths) uniformly as a 404.
+    const decision = await resolveRoute(request.uri, (key) => kvs.get(key).catch(() => undefined));
 
-    let host;
-
-    try {
-        host = await kvs.get(key);
-    } catch {
-        // Unknown / closed PR — KVS.get throws on a missing key.
-        return notFound;
-    }
-
-    if (!host) {
+    if (decision.kind === 'notfound') {
         return notFound;
     }
 
     // Host-swap to the per-PR app; the /pr-{N} URI is forwarded unchanged (the app owns the prefix).
     // updateRequestOrigin owns Host + SNI (do not set request.headers['host']); see buildOriginUpdate.
-    cf.updateRequestOrigin(buildOriginUpdate(host));
+    cf.updateRequestOrigin(buildOriginUpdate(decision.host));
 
     // Vercel Deployment Protection: inject the project-wide bypass token (one fixed KVS key).
     try {

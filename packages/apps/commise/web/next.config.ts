@@ -30,8 +30,12 @@ export default withSentryConfig(nextConfig, {
     project: 'commise-web',
     // Source-map upload at build (Vercel). Token is a build-time env var, never committed (U11).
     authToken: process.env['SENTRY_AUTH_TOKEN'],
-    // Proxy Sentry through the app to dodge ad blockers. Kept out of the Clerk matcher (see middleware).
-    tunnelRoute: '/sentry-tunnel',
+    // Tunnel Sentry through a same-origin path to dodge ad blockers — PRODUCTION ONLY. Under a preview
+    // basePath the single-origin sandbox router can't route a bare /sentry-tunnel POST (there's no
+    // pr-{N} segment to pick the app), and Sentry's injected rewrite doesn't reliably honor basePath
+    // (getsentry/sentry-javascript#8293). Previews are internal + low-volume, so we skip the tunnel and
+    // let the SDK post direct to Sentry there rather than fight basePath. Kept out of the Clerk matcher.
+    ...(previewBasePath ? {} : { tunnelRoute: '/sentry-tunnel' }),
     widenClientFileUpload: true,
     silent: !process.env['CI'],
 });

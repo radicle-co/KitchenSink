@@ -24,6 +24,9 @@ jobs:
     route:
         name: Update PR route in KVS
         runs-on: ubuntu-latest
+        # Only same-repo PRs may touch AWS/Vercel. Fork PRs get no repo secrets by default, but this
+        # guard also blocks a future `pull_request_target` foot-gun from running fork code with creds.
+        if: github.event.pull_request.head.repo.full_name == github.repository
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6

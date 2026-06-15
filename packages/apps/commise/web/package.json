@@ -7,7 +7,7 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
-        "lint": "eslint 'src/' 'tests/'",
+        "lint": "eslint 'src/' 'tests/' 'router/src/' 'router/tests/' 'scripts/' 'infra/'",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "test": "vitest run",
         "test:e2e": "playwright test",

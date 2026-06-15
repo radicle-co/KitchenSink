@@ -7,6 +7,8 @@ import {
 
 import { deregisterPreview, putKey, registerPreview } from '../register-preview';
 
+const notFound = Object.assign(new Error('missing'), { name: 'ResourceNotFoundException' });
+
 const ARN = 'arn:aws:cloudfront::123456789012:key-value-store/abc';
 
 describe('register-preview KVS lifecycle', () => {
@@ -55,5 +57,33 @@ describe('register-preview KVS lifecycle', () => {
 
         await expect(registerPreview({ send } as never, ARN, '5', '')).rejects.toThrow(/empty preview host/);
         expect(send).not.toHaveBeenCalled();
+    });
+
+    it('register normalizes a host that includes a scheme/path to a bare hostname', async () => {
+        const send = vi.fn().mockResolvedValueOnce({ ETag: 'v1' }).mockResolvedValueOnce({});
+
+        await registerPreview({ send } as never, ARN, '1', 'https://app-x.vercel.app/pr-1/');
+
+        expect(send.mock.calls[1]![0].input.Value).toBe('app-x.vercel.app');
+    });
+
+    it('register rejects a malformed host before writing', async () => {
+        const send = vi.fn();
+
+        await expect(registerPreview({ send } as never, ARN, '1', 'bad host')).rejects.toThrow(/invalid preview host/);
+        expect(send).not.toHaveBeenCalled();
+    });
+
+    it('deregister swallows a not-found (PR closed without a prior register)', async () => {
+        const send = vi.fn().mockResolvedValueOnce({ ETag: 'v1' }).mockRejectedValueOnce(notFound);
+
+        await expect(deregisterPreview({ send } as never, ARN, '5')).resolves.toBeUndefined();
+    });
+
+    it('deregister re-throws non-not-found errors', async () => {
+        const boom = Object.assign(new Error('boom'), { name: 'ThrottlingException' });
+        const send = vi.fn().mockResolvedValueOnce({ ETag: 'v1' }).mockRejectedValueOnce(boom);
+
+        await expect(deregisterPreview({ send } as never, ARN, '5')).rejects.toThrow('boom');
     });
 });

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+    CfnOutput,
     Fn,
     Stack,
     type StackProps,
@@ -86,6 +87,12 @@ export class SandboxRouterStack extends Stack {
             zone: hostedZone,
             recordName: 'sandbox',
             target: route53.RecordTarget.fromAlias(new route53Targets.CloudFrontTarget(distribution)),
+        });
+
+        // CI reads this to write per-PR routes + seed the bypass key (avoids brittle name-matching).
+        new CfnOutput(this, 'RouterKvsArn', {
+            value: keyValueStore.keyValueStoreArn,
+            exportName: `kitchensink-sandbox-router-${stage}:KvsArn`,
         });
     }
 }

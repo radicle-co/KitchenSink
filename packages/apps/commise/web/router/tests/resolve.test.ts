@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { parsePrKey, resolveRoute } from '../src/resolve';
+import { buildOriginUpdate, parsePrKey, resolveRoute } from '../src/resolve';
 
 describe('parsePrKey', () => {
     it('extracts pr-{N} from a deep path', () => {
@@ -42,5 +42,18 @@ describe('resolveRoute', () => {
         expect(await resolveRoute('/', spy)).toEqual({ kind: 'notfound' });
         expect(await resolveRoute('/notapr/x', spy)).toEqual({ kind: 'notfound' });
         expect(spy).not.toHaveBeenCalled();
+    });
+});
+
+describe('buildOriginUpdate', () => {
+    it('uses customOriginConfig (https/443) + hostHeader, not the top-level originSslProtocols field', () => {
+        const update = buildOriginUpdate('app-abc.vercel.app');
+
+        expect(update).toEqual({
+            domainName: 'app-abc.vercel.app',
+            customOriginConfig: { port: 443, protocol: 'https', sslProtocols: ['TLSv1.2'] },
+            hostHeader: 'app-abc.vercel.app',
+        });
+        expect(update).not.toHaveProperty('originSslProtocols');
     });
 });

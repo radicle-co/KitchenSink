@@ -6,7 +6,7 @@
 // NOTE: the `cf` runtime API surface (kvs/updateRequestOrigin) is validated by the U4 deploy smoke.
 import cf from 'cloudfront';
 
-import { parsePrKey } from './resolve.js';
+import { buildOriginUpdate, parsePrKey } from './resolve.js';
 
 const kvs = cf.kvs();
 
@@ -34,8 +34,8 @@ async function handler(event) {
     }
 
     // Host-swap to the per-PR app; the /pr-{N} URI is forwarded unchanged (the app owns the prefix).
-    cf.updateRequestOrigin({ domainName: host, originSslProtocols: ['TLSv1.2'] });
-    request.headers['host'] = { value: host };
+    // updateRequestOrigin owns Host + SNI (do not set request.headers['host']); see buildOriginUpdate.
+    cf.updateRequestOrigin(buildOriginUpdate(host));
 
     // Vercel Deployment Protection: inject the project-wide bypass token (one fixed KVS key).
     try {

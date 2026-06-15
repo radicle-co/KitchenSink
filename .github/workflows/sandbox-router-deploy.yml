@@ -51,8 +51,9 @@ jobs:
               env:
                   VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
               run: |
-                  KVS_ARN=$(aws cloudfront list-key-value-stores \
-                    --query "KeyValueStoreList.Items[?Name=='sandbox-pr-router-sandbox'].ARN | [0]" --output text)
+                  KVS_ARN=$(aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox \
+                    --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" --output text)
+                  if [ -z "$KVS_ARN" ] || [ "$KVS_ARN" = "None" ]; then echo "router KVS ARN not found" >&2; exit 1; fi
                   ETAG=$(aws cloudfront-keyvaluestore describe-key-value-store --kvs-arn "$KVS_ARN" --query ETag --output text)
                   aws cloudfront-keyvaluestore put-key \
                     --kvs-arn "$KVS_ARN" --key vercel-bypass \

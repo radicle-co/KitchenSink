@@ -14,8 +14,25 @@ export interface KvsSender {
     send: CloudFrontKeyValueStoreClient['send'];
 }
 
-const isConflict = (err: unknown): boolean =>
-    typeof err === 'object' && err !== null && (err as { name?: string }).name === 'ConflictException';
+const errName = (err: unknown): string | undefined =>
+    typeof err === 'object' && err !== null ? (err as { name?: string }).name : undefined;
+
+const isConflict = (err: unknown): boolean => errName(err) === 'ConflictException';
+const isNotFound = (err: unknown): boolean => errName(err) === 'ResourceNotFoundException';
+
+/** Normalize + validate a preview host: bare hostname only (no scheme/path/whitespace). */
+function normalizeHost(host: string): string {
+    const normalized = host
+        .trim()
+        .replace(/^https?:\/\//i, '')
+        .replace(/\/.*$/, '');
+
+    if (!normalized || /[\s/]/.test(normalized)) {
+        throw new Error(`register-preview: invalid preview host '${host}' (expected a bare hostname)`);
+    }
+
+    return normalized;
+}
 
 /** Optimistic-concurrency PUT: describe for the current ETag, put, retry on a concurrent-write conflict. */
 export async function putKey(
@@ -71,11 +88,18 @@ export async function registerPreview(
         throw new Error(`register-preview: empty preview host for pr-${prNumber} (preview not READY?)`);
     }
 
-    await putKey(client, kvsArn, `pr-${prNumber}`, host);
+    await putKey(client, kvsArn, `pr-${prNumber}`, normalizeHost(host));
 }
 
+/** Idempotent: a PR closed without a prior successful register (preview never READY) must not fail. */
 export async function deregisterPreview(client: KvsSender, kvsArn: string, prNumber: string): Promise<void> {
-    await deleteKey(client, kvsArn, `pr-${prNumber}`);
+    try {
+        await deleteKey(client, kvsArn, `pr-${prNumber}`);
+    } catch (err) {
+        if (!isNotFound(err)) {
+            throw err;
+        }
+    }
 }
 
 /** CLI entry: ACTION=register|deregister, PR_NUMBER, KVS_ARN, and (register) PREVIEW_HOST from env. */

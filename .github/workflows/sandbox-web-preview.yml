@@ -37,11 +37,12 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.AWS_REGION }}
-            - name: Resolve the router KVS ARN
+            - name: Resolve the router KVS ARN (from the router stack output)
               id: kvs
               run: |
-                  ARN=$(aws cloudfront list-key-value-stores \
-                    --query "KeyValueStoreList.Items[?Name=='sandbox-pr-router-sandbox'].ARN | [0]" --output text)
+                  ARN=$(aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox \
+                    --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" --output text)
+                  if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then echo "router stack/KVS not found" >&2; exit 1; fi
                   echo "arn=$ARN" >> "$GITHUB_OUTPUT"
 
             # PR closed → remove the route.

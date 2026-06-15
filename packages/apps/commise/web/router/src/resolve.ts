@@ -40,3 +40,21 @@ export async function resolveRoute(
 
     return { kind: 'origin', host };
 }
+
+/**
+ * The argument for `cf.updateRequestOrigin` — `customOriginConfig` (port/protocol/SNI), not the
+ * top-level `originSslProtocols` CloudFormation field, and `hostHeader` (which also drives SNI) set
+ * to the target host so Vercel TLS-routes the right deployment. Extracted so the shape is unit-tested
+ * (the live `cf` API surface itself is validated by the U4 deploy smoke).
+ */
+export function buildOriginUpdate(host: string): {
+    domainName: string;
+    customOriginConfig: { port: number; protocol: string; sslProtocols: string[] };
+    hostHeader: string;
+} {
+    return {
+        domainName: host,
+        customOriginConfig: { port: 443, protocol: 'https', sslProtocols: ['TLSv1.2'] },
+        hostHeader: host,
+    };
+}

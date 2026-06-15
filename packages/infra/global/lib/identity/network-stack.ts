@@ -6,11 +6,17 @@ export interface NetworkStackProps extends StackProps {
 }
 
 /**
+ * ⚠️ DELIBERATE — see docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md
+ *
  * Per-stage VPC CIDRs. Prod stays on the historical 10.0.0.0/16 (so setting it
  * explicitly is a no-op against the deployed VPC — no replacement). Sandbox uses
  * a distinct range so the two VPCs can be peered (VPC peering rejects overlapping
  * CIDRs). Unknown/dev/test stages fall back to a throwaway range rather than
  * throwing, so local synth and the test harness keep working.
+ *
+ * Do NOT change the prod value: replacing the prod VPC replaces the prod RDS
+ * (removalPolicy DESTROY, no snapshot). Gate any change on an empty `cdk diff`
+ * for the whole prod network + data stacks.
  */
 const STAGE_CIDRS: Record<string, string> = {
     prod: '10.0.0.0/16',

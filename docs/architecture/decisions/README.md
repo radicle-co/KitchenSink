@@ -18,3 +18,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 ## Index
 
 - [0001 — Sandbox front-end addressing (path routing + Clerk azp)](0001-sandbox-front-end-addressing.md)
+- [0002 — One VPC per stage with distinct CIDRs (prod 10.0.0.0/16, sandbox 10.1.0.0/16)](0002-vpc-consolidation-and-cidr-scheme.md)

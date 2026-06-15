@@ -99,13 +99,13 @@ export class NetworkStack extends Stack {
         this.serviceSecurityGroup.addEgressRule(
             ec2.Peer.anyIpv4(),
             ec2.Port.tcp(443),
-            'Controlled egress for Auth0 Management API and AWS endpoints',
+            'Controlled egress for Clerk API and AWS endpoints',
         );
 
         this.lambdaSecurityGroup.addEgressRule(
             ec2.Peer.anyIpv4(),
             ec2.Port.tcp(443),
-            'Controlled egress for Auth0 Management API and AWS endpoints',
+            'Controlled egress for Clerk API and AWS endpoints',
         );
 
         this.databaseSecurityGroup.addIngressRule(

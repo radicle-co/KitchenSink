@@ -1,4 +1,4 @@
-import { CfnOutput, Stack, type StackProps, aws_ec2 as ec2 } from 'aws-cdk-lib';
+import { CfnOutput, Stack, type StackProps, Tags, aws_ec2 as ec2 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
 export interface NetworkStackProps extends StackProps {
@@ -62,6 +62,11 @@ export class NetworkStack extends Stack {
                 },
             ],
         });
+
+        // Platform-wide VPC name (no longer Identity-specific) — overrides the CDK
+        // path-derived Name tag. Scoped to the VPC resource only (not its subnets/
+        // route tables, which keep their distinct names). Tag-only change; no replacement.
+        Tags.of(this.vpc.node.defaultChild as ec2.CfnVPC).add('Name', `KitchenSink-${props.stage}`);
 
         this.albSecurityGroup = new ec2.SecurityGroup(this, 'AlbSecurityGroup', {
             vpc: this.vpc,

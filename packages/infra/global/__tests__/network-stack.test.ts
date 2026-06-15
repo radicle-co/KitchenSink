@@ -1,5 +1,5 @@
 import { App } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 
 import { DataStack } from '../lib/identity/data-stack.js';
@@ -17,6 +17,17 @@ describe('NetworkStack per-stage CIDRs', () => {
 
     it('sandbox VPC uses a distinct 10.1.0.0/16 so the VPCs can be peered', () => {
         networkTemplate('sandbox').hasResourceProperties('AWS::EC2::VPC', { CidrBlock: '10.1.0.0/16' });
+    });
+});
+
+describe('NetworkStack VPC naming', () => {
+    it('names the VPC KitchenSink-<stage> (platform-wide, not Identity-specific)', () => {
+        networkTemplate('sandbox').hasResourceProperties('AWS::EC2::VPC', {
+            Tags: Match.arrayWith([{ Key: 'Name', Value: 'KitchenSink-sandbox' }]),
+        });
+        networkTemplate('prod').hasResourceProperties('AWS::EC2::VPC', {
+            Tags: Match.arrayWith([{ Key: 'Name', Value: 'KitchenSink-prod' }]),
+        });
     });
 });
 

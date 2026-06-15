@@ -9,6 +9,8 @@ import { config } from '@/middleware';
 
 describe('clerk middleware matcher', () => {
     it('excludes the Sentry tunnel route so Clerk does not intercept it', () => {
-        expect(config.matcher[0]).toContain('sentry-tunnel');
+        // Reference the asset/tunnel matcher by content, not index — the matcher array also carries a
+        // bare `/` root entry (so middleware runs on the no-trailing-slash basePath root).
+        expect(config.matcher.some((m) => m.includes('sentry-tunnel'))).toBe(true);
     });
 });

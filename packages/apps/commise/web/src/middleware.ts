@@ -22,6 +22,12 @@ export const config = {
     // `/pr-{N}/…` automatically — the asset/tunnel exclusions hold for both production and previews
     // with no manual `pr-…/` tolerance. (A leading `(?:…)?` is also invalid Next matcher syntax.)
     matcher: [
+        // The bare root. The pattern below only matches a path WITH a segment after `/`; under a
+        // preview basePath Next compiles it to `^/pr-{N}/(...)`, so the bare prefix `/pr-{N}` (no
+        // trailing slash) would NOT match → clerkMiddleware is skipped → a server `auth()` call throws
+        // "can't detect clerkMiddleware()" → 500. This explicit `/` entry (also in Clerk's recommended
+        // matcher) covers the root in both production (`/`) and previews (`/pr-{N}`).
+        '/',
         '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|public/|sentry-tunnel).*)',
         '/(api|trpc)(.*)',
     ],

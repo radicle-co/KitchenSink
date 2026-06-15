@@ -88,10 +88,21 @@ describe('middleware under a base path (/pr-{N})', () => {
             expect(m).not.toContain('pr-'); // root-anchored guard (rely on Next's basePath prepend)
         }
 
-        // Root-level exclusions the source must express (Next handles the /pr-{N} prefix itself):
-        const re = new RegExp(`^${config.matcher[0]}$`);
+        // Root-level exclusions the asset/tunnel matcher must express (Next handles the /pr-{N} prefix):
+        const assetMatcher = config.matcher.find((m) => m.includes('_next/static'));
+        const re = new RegExp(`^${assetMatcher}$`);
         expect(re.test('/profile')).toBe(true);
         expect(re.test('/_next/static/chunk.js')).toBe(false);
         expect(re.test('/sentry-tunnel')).toBe(false);
+    });
+
+    it('matches the bare root so clerkMiddleware runs on /pr-{N} (no-trailing-slash → auth() 500 guard)', async () => {
+        // The asset/tunnel matcher only matches a path WITH a segment after `/`; under a basePath it
+        // compiles to `^/pr-{N}/(...)`, so the bare prefix `/pr-{N}` (no trailing slash) would skip
+        // middleware → a server auth() call throws "can't detect clerkMiddleware()" → 500. The explicit
+        // `/` entry covers the bare root. (Verified against the compiled manifest: `/` matches /pr-39.)
+        const { config } = await import('@/middleware');
+
+        expect(config.matcher).toContain('/');
     });
 });

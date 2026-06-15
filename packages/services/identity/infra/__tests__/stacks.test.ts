@@ -2,11 +2,12 @@ import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-import { DataStack } from '../lib/data-stack.js';
-import { NetworkStack } from '../lib/network-stack.js';
 import { IdentityServiceStack } from '../lib/identity-service-stack.js';
 
-let dataTemplate: Template;
+// NetworkStack/DataStack assertions live with the deployed (global) definitions in
+// packages/infra/global/__tests__. This suite covers only the service stack, which
+// is what this package owns and deploys.
+
 let serviceTemplate: Template;
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -53,10 +54,6 @@ beforeAll(() => {
         },
     });
 
-    const network = new NetworkStack(app, 'TestNetwork', { env });
-
-    const data = new DataStack(app, 'TestData', { env, network, stage: 'test' });
-
     const service = new IdentityServiceStack(app, 'TestService', {
         env,
         stage: 'test',
@@ -66,7 +63,6 @@ beforeAll(() => {
         vpcId: 'vpc-12345678',
     });
 
-    dataTemplate = Template.fromStack(data);
     serviceTemplate = Template.fromStack(service);
 });
 
@@ -84,11 +80,6 @@ describe('No Auth0 references', () => {
     it('service stack JSON contains no AUTH0_CLIENT_SECRET', () => {
         const json = JSON.stringify(serviceTemplate.toJSON());
         expect(json).not.toContain('AUTH0_CLIENT_SECRET');
-    });
-
-    it('data stack JSON contains no auth0 in secret description', () => {
-        const json = JSON.stringify(dataTemplate.toJSON());
-        expect(json.toLowerCase()).not.toContain('auth0');
     });
 });
 

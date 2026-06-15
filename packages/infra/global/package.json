@@ -7,6 +7,7 @@
         "build": "tsc -p tsconfig.json",
         "lint": "eslint 'lib/**/*.ts'",
         "typecheck": "tsc --noEmit",
+        "test": "vitest run",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "synth": "cdk synth --app 'npx tsx bin/app.ts'",
@@ -22,7 +23,8 @@
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "*",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.0"
     },
     "dependencies": {
         "aws-cdk-lib": "*",

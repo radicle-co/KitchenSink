@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { verifyToken } from '@clerk/backend';
 
+import { parseCommaList } from '../config/env.schema.js';
+
 /**
  * The subset of Clerk session-token claims the identity service reads. `email`/`firstName`/
  * `lastName` are present only when the instance's session token is customized to include them
@@ -36,13 +38,6 @@ function asRecord(value: unknown): Record<string, unknown> {
         : {};
 }
 
-function parseAuthorizedParties(raw: string | undefined): string[] {
-    return (raw ?? '')
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-}
-
 /**
  * Verifies Clerk session tokens networklessly using the instance's public JWT key (no Clerk secret
  * key, no JWKS network call). Wraps `@clerk/backend`'s `verifyToken`, which validates the signature
@@ -60,7 +55,7 @@ export class ClerkAuthService {
 
     constructor() {
         this.jwtKey = process.env['CLERK_JWT_KEY'];
-        this.authorizedParties = parseAuthorizedParties(process.env['CLERK_AUTHORIZED_PARTIES']);
+        this.authorizedParties = parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES']);
     }
 
     /**
@@ -97,9 +92,10 @@ export class ClerkAuthService {
             throw new UnauthorizedException();
         }
 
-        // The session-token template surfaces the whole `public_metadata` object as a claim, so
-        // authorization grants live at `public_metadata.scopes` / `.permissions`. Fall back to a
-        // flattened top-level claim if a future template shape provides them there instead.
+        // Authorization grants come ONLY from `public_metadata` (backend/admin-controlled in the
+        // session-token template). Deliberately no top-level `payload['scopes']` fallback: a top-level
+        // claim could one day be mapped from user-editable `unsafe_metadata`, which would be a
+        // privilege-escalation footgun. Default to empty (no privilege) when public_metadata is absent.
         const publicMetadata = asRecord(payload['public_metadata']);
 
         return {
@@ -108,8 +104,8 @@ export class ClerkAuthService {
             firstName: asNonEmptyString(payload['first_name']),
             lastName: asNonEmptyString(payload['last_name']),
             picture: asNonEmptyString(payload['image_url']) ?? asNonEmptyString(payload['picture']),
-            scopes: asStringArray(publicMetadata['scopes'] ?? payload['scopes']),
-            permissions: asStringArray(publicMetadata['permissions'] ?? payload['permissions']),
+            scopes: asStringArray(publicMetadata['scopes']),
+            permissions: asStringArray(publicMetadata['permissions']),
         };
     }
 }

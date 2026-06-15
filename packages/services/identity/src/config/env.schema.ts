@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+/**
+ * Parse a comma-separated env value into a trimmed, non-empty list. Shared by the
+ * `CLERK_AUTHORIZED_PARTIES` schema transform and `ClerkAuthService` so the two cannot drift.
+ */
+export function parseCommaList(value: string | undefined): string[] {
+    return (value ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+}
+
 const DatabaseConfigSchema = z.union([
     z.object({
         DATABASE_URL: z.string().url(),
@@ -37,14 +48,7 @@ const ClerkConfigSchema = z.object({
     CLERK_AUTHORIZED_PARTIES: z
         .string()
         .optional()
-        .transform((value) =>
-            value
-                ? value
-                      .split(',')
-                      .map((entry) => entry.trim())
-                      .filter(Boolean)
-                : [],
-        ),
+        .transform((value) => parseCommaList(value)),
 });
 
 // Local/test sentinels where Clerk verification is not required (verification is mocked in tests

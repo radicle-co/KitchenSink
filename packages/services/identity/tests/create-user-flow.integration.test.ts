@@ -134,6 +134,43 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
         expect(await countsFor(sub)).toEqual({ users: 1, accounts: 1, profiles: 1 });
     });
 
+    it('a no-email read-through does not clobber the real email/name a webhook already wrote', async () => {
+        const sub = 'user_email_keep';
+
+        // Webhook lands the real email + name first.
+        await webhookCreate(claimsFor(sub)); // email `${sub}@example.com`, name 'Con Current'
+
+        // A read-through with NO email/name claim would synthesize a placeholder email + empty name.
+        // It must NOT overwrite the real values the webhook wrote (the cold-start race this feature
+        // exists to handle).
+        await usersService.resolveOrCreateFromClaims({ sub });
+
+        const [row] = await db.select().from(users).where(eq(users.identityId, sub));
+        expect(row?.email).toBe(`${sub}@example.com`); // real email preserved, not the placeholder
+        expect(row?.name).toBe('Con Current'); // real name preserved, not clobbered to empty
+    });
+
+    it('provisions a colliding-email identity with a placeholder instead of 500ing on users_email_unique', async () => {
+        const subA = 'user_collide_a';
+        const subB = 'user_collide_b';
+
+        // A owns the email.
+        await usersService.resolveOrCreateFromClaims({ sub: subA, email: 'shared@example.com' });
+
+        // B presents the SAME email (Clerk permits shared emails — delete+recreate, social link). This
+        // must not raise an uncaught unique-violation (which would 500 the auth middleware on every
+        // request); B is provisioned with a per-identity placeholder instead.
+        await usersService.resolveOrCreateFromClaims({ sub: subB, email: 'shared@example.com' });
+
+        const [rowB] = await db.select().from(users).where(eq(users.identityId, subB));
+        expect(rowB?.email).toBe(`${subB}@no-email.invalid`);
+        expect(await countsFor(subB)).toEqual({ users: 1, accounts: 1, profiles: 1 });
+
+        // A is untouched.
+        const [rowA] = await db.select().from(users).where(eq(users.identityId, subA));
+        expect(rowA?.email).toBe('shared@example.com');
+    });
+
     it('creates two distinct users with no email claim without colliding on users_email_unique', async () => {
         // email is NOT NULL UNIQUE; a fabricated empty email would make the second emailless user
         // collide and 500. The per-identity placeholder keeps both inserts distinct.

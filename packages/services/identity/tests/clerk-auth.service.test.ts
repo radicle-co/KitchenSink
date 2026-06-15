@@ -71,7 +71,10 @@ describe('ClerkAuthService', () => {
         expect(claims.email).toBe('admin@example.com');
     });
 
-    it('falls back to top-level scopes/permissions when public_metadata does not carry them', async () => {
+    it('ignores top-level scopes/permissions — grants come ONLY from public_metadata', async () => {
+        // Security: a top-level claim must NOT confer privilege. A future session-token template could
+        // map a top-level claim from user-editable unsafe_metadata → self-elevation. Only the
+        // backend-controlled public_metadata is trusted.
         mockVerifyToken.mockResolvedValueOnce({
             data: {
                 sub: 'user_admin',
@@ -83,13 +86,13 @@ describe('ClerkAuthService', () => {
         const service = await makeService();
         const claims = await service.verify('t');
 
-        expect(claims.scopes).toEqual(['admin:users']);
-        expect(claims.permissions).toEqual(['admin:users', 'billing:read']);
+        expect(claims.scopes).toEqual([]);
+        expect(claims.permissions).toEqual([]);
     });
 
-    it('defaults scopes/permissions to empty and ignores non-array/non-string claim values', async () => {
+    it('defaults scopes to empty for a non-array claim and filters non-strings from public_metadata', async () => {
         mockVerifyToken.mockResolvedValueOnce({
-            data: { sub: 'user_x', scopes: 'admin:users', permissions: [1, 'ok', null] },
+            data: { sub: 'user_x', public_metadata: { scopes: 'admin:users', permissions: [1, 'ok', null] } },
         });
 
         const service = await makeService();

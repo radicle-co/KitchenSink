@@ -34,6 +34,9 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
     beforeEach(async () => {
         vi.resetModules();
         mockDb = { select: vi.fn(), insert: vi.fn() };
+        // upsertUserRecord runs in a transaction; delegate the callback to mockDb so the per-test
+        // insert/select stubs apply, and return the callback's result (the upsert returns from in-tx).
+        mockDb.transaction = (cb: (tx: typeof mockDb) => unknown) => cb(mockDb);
 
         const { UsersService } = await import('../src/users/users.service.js');
 
@@ -132,6 +135,58 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         expect(ctx.userId).toBe('01NOEMAIL000000000000000A');
         // No NOT NULL UNIQUE violation: a deterministic, per-sub placeholder is inserted.
         expect(valuesSpy).toHaveBeenCalledWith(expect.objectContaining({ email: 'user_noemail@no-email.invalid' }));
+    });
+
+    it('provisions with a placeholder when the real email collides with another identity (23505)', async () => {
+        const createdAt = new Date(3_000);
+        const placeholderRow = {
+            id: '01COLLIDE0000000000000000',
+            email: 'user_collide@no-email.invalid',
+            createdAt,
+            updatedAt: createdAt,
+        };
+        const uniqueViolation = Object.assign(new Error('duplicate key'), {
+            code: '23505',
+            constraint: 'users_email_unique',
+        });
+
+        mockDb.select = vi.fn().mockReturnValueOnce(selectChain([])); // not found → create
+
+        const placeholderValuesSpy = vi.fn(() => ({
+            onConflictDoUpdate: () => ({ returning: () => Promise.resolve([placeholderRow]) }),
+        }));
+
+        mockDb.insert = vi
+            .fn()
+            // 1st upsert with the real email → email-unique violation (email owned by another identity)
+            .mockReturnValueOnce({
+                values: () => ({ onConflictDoUpdate: () => ({ returning: () => Promise.reject(uniqueViolation) }) }),
+            })
+            // retry: user upsert with the placeholder, then account + profile
+            .mockReturnValueOnce({ values: placeholderValuesSpy })
+            .mockReturnValueOnce(insertNoop)
+            .mockReturnValueOnce(insertNoop);
+
+        const ctx = await usersService.resolveOrCreateFromClaims({ sub: 'user_collide', email: 'taken@b.com' });
+
+        expect(ctx.userId).toBe('01COLLIDE0000000000000000');
+        expect(ctx.email).toBe('user_collide@no-email.invalid');
+        expect(placeholderValuesSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ email: 'user_collide@no-email.invalid' }),
+        );
+    });
+
+    it('rethrows a non-email-collision insert error (does not swallow unrelated failures)', async () => {
+        const otherError = Object.assign(new Error('boom'), { code: '40001' }); // serialization failure
+
+        mockDb.select = vi.fn().mockReturnValueOnce(selectChain([]));
+        mockDb.insert = vi.fn().mockReturnValueOnce({
+            values: () => ({ onConflictDoUpdate: () => ({ returning: () => Promise.reject(otherError) }) }),
+        });
+
+        await expect(usersService.resolveOrCreateFromClaims({ sub: 'user_err', email: 'x@b.com' })).rejects.toThrow(
+            'boom',
+        );
     });
 
     it('passes scopes/permissions from the verified token into the authorizer context', async () => {

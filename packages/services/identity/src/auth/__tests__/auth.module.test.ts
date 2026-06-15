@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { AuthModule } from '../auth.module.js';
 import { AuthMiddleware } from '../middleware/auth.middleware.js';
 import { ClerkAuthService } from '../clerk-auth.service.js';
+import { UsersModule } from '../../users/users.module.js';
 
 // AuthMiddleware is applied in AppModule.configure() (consumer.apply(AuthMiddleware, ...)). NestJS
 // instantiates an applied middleware in the context of the module that applies it, resolving its
@@ -15,6 +16,7 @@ import { ClerkAuthService } from '../clerk-auth.service.js';
 // Unit/E2E tests don't boot the full AppModule middleware graph, so they miss this — this guards it.
 describe('AuthModule', () => {
     const moduleExports = Reflect.getMetadata('exports', AuthModule) as unknown[];
+    const moduleImports = Reflect.getMetadata('imports', AuthModule) as unknown[];
 
     it('exports ClerkAuthService so the applied AuthMiddleware can resolve it', () => {
         expect(moduleExports).toContain(ClerkAuthService);
@@ -22,5 +24,9 @@ describe('AuthModule', () => {
 
     it('exports AuthMiddleware', () => {
         expect(moduleExports).toContain(AuthMiddleware);
+    });
+
+    it('imports UsersModule so AuthMiddleware can resolve UsersService (its other dependency)', () => {
+        expect(moduleImports).toContain(UsersModule);
     });
 });

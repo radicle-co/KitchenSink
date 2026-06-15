@@ -14,6 +14,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
         };
     }),
     recordOnce: vi.fn(),
+    releaseWebhookEvent: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function SQSClient() {
@@ -31,7 +32,7 @@ vi.mock('../../common/observability.js', () => ({
 
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { recordOnce } from '@kitchensink/identity-service/database/dao';
+import { recordOnce, releaseWebhookEvent } from '@kitchensink/identity-service/database/dao';
 
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
@@ -44,6 +45,7 @@ const handler = rawHandler as unknown as TestHandler;
 const mockGetDb = vi.mocked(getDb);
 const mockVerifyWebhook = vi.mocked(verifyWebhook);
 const mockRecordOnce = vi.mocked(recordOnce);
+const mockReleaseWebhookEvent = vi.mocked(releaseWebhookEvent);
 const mockSetExternalId = vi.mocked(setExternalId);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
@@ -246,6 +248,37 @@ describe('identity-webhook handler', () => {
             QueueUrl: process.env.DELETION_QUEUE_URL,
             MessageBody: JSON.stringify({ userId: 'user_abc123' }),
         });
+    });
+
+    it('releases the dedup claim and rethrows when processing fails (so svix retries, not deduped away)', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockRecordOnce.mockResolvedValue(true);
+
+        const daoInstance = {
+            upsertByIdentityId: vi.fn().mockResolvedValue({
+                id: 'usr_ulid',
+                identityId: 'user_abc123',
+                email: 'test@example.com',
+                name: 'John Doe',
+                picture: null,
+            }),
+            findByIdentityId: vi.fn(),
+            updateProfile: vi.fn(),
+        };
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        // Fail AFTER the dedup claim is recorded (recordOnce → true), inside the handler.
+        mockSetExternalId.mockRejectedValue(new Error('clerk unavailable'));
+
+        await expect(
+            handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_fail' }), makeContext()),
+        ).rejects.toThrow('clerk unavailable');
+
+        // The claim is released so the svix retry re-processes instead of short-circuiting to dedup.
+        expect(mockReleaseWebhookEvent).toHaveBeenCalledWith(db, 'msg_fail');
     });
 
     it('invalid signature -> returns 401', async () => {

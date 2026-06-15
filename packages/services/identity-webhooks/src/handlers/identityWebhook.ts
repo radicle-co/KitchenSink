@@ -3,7 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { UserDAO, recordOnce } from '@kitchensink/identity-service/database/dao';
+import { UserDAO, recordOnce, releaseWebhookEvent } from '@kitchensink/identity-service/database/dao';
 import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
 
 import { setExternalId } from '../common/identityClient.js';
@@ -170,28 +170,44 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
         return { statusCode: 200, body: JSON.stringify({ ok: true, dedup: true }) };
     }
 
-    switch (payload.type) {
-        case 'user.created': {
-            await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
-            break;
-        }
+    try {
+        switch (payload.type) {
+            case 'user.created': {
+                await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
+                break;
+            }
 
-        case 'user.updated': {
-            await handleUserUpdated(payload.data as unknown as IdentityUserData, db, requestId);
-            break;
-        }
+            case 'user.updated': {
+                await handleUserUpdated(payload.data as unknown as IdentityUserData, db, requestId);
+                break;
+            }
 
-        case 'user.deleted': {
-            await handleUserDeleted(payload.data as unknown as { id: string }, requestId);
-            break;
-        }
+            case 'user.deleted': {
+                await handleUserDeleted(payload.data as unknown as { id: string }, requestId);
+                break;
+            }
 
-        default: {
-            logger.warn('identity-webhook: unhandled event type', {
+            default: {
+                logger.warn('identity-webhook: unhandled event type', {
+                    requestId,
+                    type: (payload as { type: string }).type,
+                });
+            }
+        }
+    } catch (err) {
+        // The dedup claim (recordOnce) is taken BEFORE processing to serialize concurrent deliveries.
+        // If the handler fails (transient DB error, etc.), release the claim so svix's retry
+        // re-processes — otherwise the retry short-circuits to "dedup" and the event is lost. This
+        // matters most for user.deleted, where a dropped retry leaves a Clerk-deleted user present.
+        await releaseWebhookEvent(db, svixId).catch((releaseErr) =>
+            logger.error('identity-webhook: failed to release dedup claim after handler error', {
                 requestId,
-                type: (payload as { type: string }).type,
-            });
-        }
+                svixId,
+                error: String(releaseErr),
+            }),
+        );
+
+        throw err;
     }
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };

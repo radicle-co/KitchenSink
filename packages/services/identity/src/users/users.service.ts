@@ -79,47 +79,46 @@ export class UsersService {
         const now = new Date();
         const id = newUserId();
 
-        // User + account + profile creation is atomic: a partial row set (user without account) would
-        // 404 getUserMe until the next read-through/webhook heals it. The transaction also rolls back
-        // cleanly if the email-unique insert collides, leaving the placeholder-retry a clean slate.
-        return this.db.transaction(async (tx) => {
-            const [row] = await tx
-                .insert(users)
-                .values({
-                    id,
-                    identityId: input.identityId,
-                    email: input.email,
-                    name: input.name ?? null,
-                    picture: input.picture ?? null,
-                    createdAt: now,
+        // Deliberately NOT wrapped in a transaction. The user insert and the account/profile inserts
+        // run as separate autocommit statements so locks release immediately. A single transaction
+        // holding the users-row lock across the FK-checked account/profile inserts deadlocks against a
+        // concurrent autocommit webhook taking FOR KEY SHARE on the same row in the opposite order
+        // (the exact webhook-vs-read-through race this feature targets). The transient partial state
+        // (user without account) self-heals via the existing-user healing branch + the webhook account
+        // backstop, so atomicity is not worth the deadlock. The email-collision retry still gets a clean
+        // slate because a failed single INSERT is atomically all-or-nothing on its own.
+        const [row] = await this.db
+            .insert(users)
+            .values({
+                id,
+                identityId: input.identityId,
+                email: input.email,
+                name: input.name ?? null,
+                picture: input.picture ?? null,
+                createdAt: now,
+                updatedAt: now,
+            })
+            .onConflictDoUpdate({
+                target: users.identityId,
+                set: {
+                    // Never let a read-through placeholder/empty clobber a real value a concurrent
+                    // webhook may have just written: overwrite email only when it's real, and COALESCE
+                    // name/picture so a null incoming keeps the existing value.
+                    ...(emailIsReal ? { email: input.email } : {}),
+                    name: sql`coalesce(${input.name ?? null}, ${users.name})`,
+                    picture: sql`coalesce(${input.picture ?? null}, ${users.picture})`,
                     updatedAt: now,
-                })
-                .onConflictDoUpdate({
-                    target: users.identityId,
-                    set: {
-                        // Never let a read-through placeholder/empty clobber a real value a concurrent
-                        // webhook may have just written: overwrite email only when it's real, and
-                        // COALESCE name/picture so a null incoming keeps the existing value.
-                        ...(emailIsReal ? { email: input.email } : {}),
-                        name: sql`coalesce(${input.name ?? null}, ${users.name})`,
-                        picture: sql`coalesce(${input.picture ?? null}, ${users.picture})`,
-                        updatedAt: now,
-                    },
-                })
-                .returning();
+                },
+            })
+            .returning();
 
-            const created = row.createdAt.getTime() === row.updatedAt.getTime();
+        const created = row.createdAt.getTime() === row.updatedAt.getTime();
 
-            if (created) {
-                await tx.insert(accounts).values({ userId: row.id }).onConflictDoNothing();
-                await tx
-                    .insert(profiles)
-                    .values({ userId: row.id, displayName: input.name ?? '' })
-                    .onConflictDoNothing();
-            }
+        if (created) {
+            await this.ensureAccountAndProfile(row.id, input.name ?? '');
+        }
 
-            return { id: row.id, created, row };
-        });
+        return { id: row.id, created, row };
     }
 
     /** Idempotently ensure a user's account + profile rows exist. No-op when already present. */

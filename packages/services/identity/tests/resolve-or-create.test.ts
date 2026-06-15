@@ -34,9 +34,6 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
     beforeEach(async () => {
         vi.resetModules();
         mockDb = { select: vi.fn(), insert: vi.fn() };
-        // upsertUserRecord runs in a transaction; delegate the callback to mockDb so the per-test
-        // insert/select stubs apply, and return the callback's result (the upsert returns from in-tx).
-        mockDb.transaction = (cb: (tx: typeof mockDb) => unknown) => cb(mockDb);
 
         const { UsersService } = await import('../src/users/users.service.js');
 

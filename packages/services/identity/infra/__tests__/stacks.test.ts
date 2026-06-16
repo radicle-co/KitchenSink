@@ -106,3 +106,29 @@ describe('Identity env vars present', () => {
         expect(taskHasEnvVar('CLERK_AUTHORIZED_PARTIES')).toBe(true);
     });
 });
+
+describe('Alarms notify via SNS (A4)', () => {
+    it('provisions an SNS alarm topic', () => {
+        serviceTemplate.resourceCountIs('AWS::SNS::Topic', 1);
+    });
+
+    it('wires every CloudWatch alarm to an alarm action (no silent alarms)', () => {
+        const alarms = serviceTemplate.findResources('AWS::CloudWatch::Alarm');
+        const ids = Object.keys(alarms);
+        expect(ids.length).toBeGreaterThanOrEqual(3);
+        for (const id of ids) {
+            const actions = (alarms[id] as any).Properties?.AlarmActions;
+            expect(actions, `${id} has no AlarmActions`).toBeDefined();
+            expect(actions.length).toBeGreaterThan(0);
+        }
+    });
+
+    it('has a boot crash-loop alarm on HealthyHostCount treating missing data as breaching', () => {
+        serviceTemplate.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            MetricName: 'HealthyHostCount',
+            ComparisonOperator: 'LessThanThreshold',
+            Threshold: 1,
+            TreatMissingData: 'breaching',
+        });
+    });
+});

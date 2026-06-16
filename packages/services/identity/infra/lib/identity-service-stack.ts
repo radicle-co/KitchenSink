@@ -6,6 +6,7 @@ import {
     type StackProps,
     aws_certificatemanager as acm,
     aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_ec2 as ec2,
     aws_ecr as ecr,
     aws_ecs as ecs,
@@ -17,6 +18,7 @@ import {
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
     aws_sqs as sqs,
     aws_ssm as ssm,
 } from 'aws-cdk-lib';
@@ -305,7 +307,14 @@ export class IdentityServiceStack extends Stack {
 
         this.serviceUrl = `https://${serviceDomain}`;
 
-        new cloudwatch.Alarm(this, 'IdentityAlb5xxAlarm', {
+        // A4: alarms previously had no action wired, so they fired silently. Route all of them to an
+        // SNS topic so they actually notify (subscriptions managed out-of-band per stage).
+        const alarmTopic = new sns.Topic(this, 'IdentityAlarmTopic', {
+            displayName: `Identity service alarms (${stage})`,
+        });
+        const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
+
+        const alb5xxAlarm = new cloudwatch.Alarm(this, 'IdentityAlb5xxAlarm', {
             metric: loadBalancer.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT, {
                 period: Duration.minutes(5),
                 statistic: 'sum',
@@ -315,8 +324,9 @@ export class IdentityServiceStack extends Stack {
             datapointsToAlarm: 1,
             alarmDescription: 'Identity ALB target 5xx alarm',
         });
+        alb5xxAlarm.addAlarmAction(alarmAction);
 
-        new cloudwatch.Alarm(this, 'IdentityServiceHighCpuAlarm', {
+        const highCpuAlarm = new cloudwatch.Alarm(this, 'IdentityServiceHighCpuAlarm', {
             metric: service.metricCpuUtilization({
                 period: Duration.minutes(5),
                 statistic: 'avg',
@@ -326,6 +336,25 @@ export class IdentityServiceStack extends Stack {
             datapointsToAlarm: 2,
             alarmDescription: 'Identity ECS CPU high-water mark',
         });
+        highCpuAlarm.addAlarmAction(alarmAction);
+
+        // A4: boot crash-loop detector. A NestJS DI/boot failure crash-loops the task, which never
+        // passes the ALB health check, so HealthyHostCount sits at 0 — directly observable here,
+        // unlike a Sentry issue (the process can die before Sentry flushes). treatMissingData=BREACHING
+        // because "no datapoints" during a crash-loop is itself the failure, not an absence of signal.
+        const crashLoopAlarm = new cloudwatch.Alarm(this, 'IdentityServiceCrashLoopAlarm', {
+            metric: targetGroup.metrics.healthyHostCount({
+                period: Duration.minutes(1),
+                statistic: 'min',
+            }),
+            comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
+            threshold: 1,
+            evaluationPeriods: 3,
+            datapointsToAlarm: 3,
+            treatMissingData: cloudwatch.TreatMissingData.BREACHING,
+            alarmDescription: 'Identity ECS has no healthy targets (boot crash-loop / unhealthy tasks)',
+        });
+        crashLoopAlarm.addAlarmAction(alarmAction);
 
         new CfnOutput(this, 'IdentityEcrRepositoryUri', {
             value: repository.repositoryUri,

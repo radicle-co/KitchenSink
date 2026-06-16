@@ -34,8 +34,11 @@ async function handler(event) {
         if (bypass) {
             request.headers['x-vercel-protection-bypass'] = { value: bypass };
         }
-    } catch {
+    } catch (_err) {
         // No bypass seeded (e.g. post-Vercel) — forward without it.
+        // NOTE: the catch MUST bind a parameter. CloudFront Functions JS 2.0 does not support the
+        // optional catch binding (`catch {`), and esbuild's es2020 target preserves it — a bare
+        // `catch {` deploys clean but throws "Token { not supported" at the edge (503 on every route).
     }
 
     return request;

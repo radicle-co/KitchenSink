@@ -74,7 +74,13 @@ export class SandboxRouterStack extends Stack {
                 origin: new origins.HttpOrigin('placeholder.invalid'),
                 // Caching disabled so every request re-selects the per-PR origin at the edge.
                 cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-                originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+                // EXCEPT_HOST_HEADER, not ALL_VIEWER: the function host-swaps the origin to a DIFFERENT
+                // host (the per-PR Vercel deployment), so the origin's own domain must drive the Host
+                // header + TLS SNI. ALL_VIEWER forwards the viewer Host (`sandbox.commise.app`), which
+                // CloudFront then uses as SNI — it won't match the origin's cert (`*.vercel.app`), so the
+                // origin TLS handshake fails and EVERY routed request 502s. Cookies/Authorization (Clerk)
+                // are still forwarded; only Host is dropped. See ADR-0001.
+                originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
                 viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
                 functionAssociations: [

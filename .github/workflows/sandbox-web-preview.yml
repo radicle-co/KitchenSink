@@ -118,7 +118,7 @@ jobs:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
               with:
                   vercel_team_id: ${{ vars.VERCEL_TEAM_ID }}
-                  vercel_project_id: ${{ vars.VERCEL_WEB_PROJECT_ID }}
+                  vercel_project_id: ${{ vars.VERCEL_PROJECT_ID }}
             - name: Register preview route
               if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'
               env:

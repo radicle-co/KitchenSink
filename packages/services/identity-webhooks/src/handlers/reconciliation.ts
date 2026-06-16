@@ -3,6 +3,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 
 import { getDb } from '../common/db.js';
+import { ensureProfileAndAccount } from '../common/provisioning.js';
 import { listUsers } from '../common/identityClient.js';
 import { buildErrorEnvelope, resolveRequestId } from '../common/error-envelope.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
@@ -32,7 +33,8 @@ const innerHandler = async (event: ScheduledEvent, context: Context): Promise<Re
 
     const idpUsers = await listUsers();
     const db = await getDb(dbSecretArn);
-    const userDao = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>);
+    const typedDb = db as unknown as PostgresJsDatabase<Record<string, never>>;
+    const userDao = new UserDAO(typedDb);
 
     let inserted = 0;
     let updated = 0;
@@ -46,12 +48,17 @@ const innerHandler = async (event: ScheduledEvent, context: Context): Promise<Re
 
         const existing = await userDao.findByIdentityId(idpUser.id);
 
-        await userDao.upsertByIdentityId({
+        const user = await userDao.upsertByIdentityId({
             identityId: idpUser.id,
             email: primaryEmail,
             name: idpUser.fullName ?? undefined,
             picture: idpUser.imageUrl ?? undefined,
         });
+
+        // Reconciliation is a full provisioning path, not just a users-table sync: a user it inserts
+        // must get the same account + profile the webhook/read-through create, or getUserMe 500s for a
+        // user whose only successful provisioning was this drift-repair. Idempotent for existing users.
+        await ensureProfileAndAccount(typedDb, user.id, idpUser.fullName ?? '', idpUser.imageUrl ?? null);
 
         if (existing) {
             updated += 1;

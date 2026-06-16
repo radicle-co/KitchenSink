@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
 vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
+vi.mock('../../common/provisioning.js', () => ({ ensureProfileAndAccount: vi.fn() }));
 
 vi.mock('@kitchensink/identity-service/database/dao', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
@@ -37,6 +38,7 @@ import { recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-serv
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
 import { setExternalId } from '../../common/identityClient.js';
+import { ensureProfileAndAccount } from '../../common/provisioning.js';
 import { verifyWebhook } from '../../common/svix.js';
 
 type TestHandler = (event: APIGatewayProxyEvent, ctx: Context) => Promise<APIGatewayProxyResult>;
@@ -47,6 +49,7 @@ const mockVerifyWebhook = vi.mocked(verifyWebhook);
 const mockRecordOnce = vi.mocked(recordOnce);
 const mockHasProcessed = vi.mocked(hasProcessedWebhookEvent);
 const mockSetExternalId = vi.mocked(setExternalId);
+const mockEnsureProfileAndAccount = vi.mocked(ensureProfileAndAccount);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
 
@@ -128,6 +131,7 @@ beforeEach(() => {
     mockHasProcessed.mockResolvedValue(false);
     mockRecordOnce.mockResolvedValue(undefined);
     mockSetExternalId.mockResolvedValue(undefined as never);
+    mockEnsureProfileAndAccount.mockResolvedValue(undefined);
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
     process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
     process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
@@ -152,8 +156,8 @@ describe('identity-webhook handler', () => {
         expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 
-    it('user.created -> upserts user, sets external id, syncs timestamp, inserts profile', async () => {
-        const { db, setUser, valuesProfile, insertProfile, onConflictDoUpdateProfile } = buildMockDb();
+    it('user.created -> upserts user, ensures account+profile, sets external id, syncs timestamp', async () => {
+        const { db, setUser } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
 
@@ -185,15 +189,50 @@ describe('identity-webhook handler', () => {
             name: 'John Doe',
             picture: 'https://example.com/avatar.png',
         });
+        expect(mockEnsureProfileAndAccount).toHaveBeenCalledWith(
+            db,
+            'usr_ulid',
+            'John Doe',
+            'https://example.com/avatar.png',
+        );
         expect(mockSetExternalId).toHaveBeenCalledWith('user_abc123', 'usr_ulid');
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ externalIdSyncedAt: expect.any(Date) }));
-        expect(insertProfile).toHaveBeenCalled();
-        expect(valuesProfile).toHaveBeenCalledWith({
-            userId: 'usr_ulid',
-            displayName: 'John Doe',
-            avatarUrl: 'https://example.com/avatar.png',
+    });
+
+    it('user.created completes account+profile even when setExternalId throws (does not abort, still 200)', async () => {
+        const { db, setUser } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        // The bug class this guards: a non-critical external Clerk call must not block the local user
+        // unit. setExternalId throwing used to abort the handler AFTER the user row, leaving no account.
+        mockSetExternalId.mockRejectedValue(new Error('Clerk 503'));
+
+        const daoInstance = {
+            upsertByIdentityId: vi.fn().mockResolvedValue({ id: 'usr_ulid', identityId: 'user_abc123' }),
+            findByIdentityId: vi.fn(),
+            updateProfile: vi.fn(),
+        };
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
         });
-        expect(onConflictDoUpdateProfile).toHaveBeenCalled();
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        // Account + profile are created before the external call, so they land regardless.
+        expect(mockEnsureProfileAndAccount).toHaveBeenCalledWith(
+            db,
+            'usr_ulid',
+            'John Doe',
+            'https://example.com/avatar.png',
+        );
+        // The webhook is recorded as processed (no retry storm) and the synced timestamp is NOT stamped,
+        // so reconciliation knows external_id still needs backfilling.
+        expect(mockRecordOnce).toHaveBeenCalled();
+        expect(setUser).not.toHaveBeenCalledWith(expect.objectContaining({ externalIdSyncedAt: expect.any(Date) }));
     });
 
     it('user.updated with email and name change -> updates users and profiles', async () => {
@@ -276,11 +315,14 @@ describe('identity-webhook handler', () => {
         vi.mocked(UserDAO).mockImplementation(function () {
             return daoInstance;
         });
-        mockSetExternalId.mockRejectedValue(new Error('clerk unavailable'));
+        // A GENUINE processing failure (the local user unit couldn't be completed). Note this is NOT
+        // setExternalId — that's best-effort now and must not fail the webhook; a DB error writing the
+        // account/profile is the real "processing failed" case that should make svix retry.
+        mockEnsureProfileAndAccount.mockRejectedValue(new Error('db unavailable'));
 
         await expect(
             handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_fail' }), makeContext()),
-        ).rejects.toThrow('clerk unavailable');
+        ).rejects.toThrow('db unavailable');
 
         // Confirm-after-process: the svix-id is NOT recorded on failure, so svix's retry re-processes
         // instead of short-circuiting to dedup (the original A2 event-loss failure mode).

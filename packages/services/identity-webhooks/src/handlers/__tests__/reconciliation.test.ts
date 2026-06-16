@@ -29,11 +29,18 @@ vi.mock('../../common/observability.js', () => ({
     withObservability: <T, R>(fn: (event: T, ctx: unknown) => Promise<R>) => fn,
 }));
 
+vi.mock('../../common/provisioning.js', () => ({
+    ensureProfileAndAccount: vi.fn(),
+}));
+
 import { handler as rawHandler } from '../reconciliation.js';
 import { getDb } from '../../common/db.js';
 import { listUsers } from '../../common/identityClient.js';
+import { ensureProfileAndAccount } from '../../common/provisioning.js';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 import { emitMetric, logger } from '../../common/observability.js';
+
+const mockEnsureProfileAndAccount = vi.mocked(ensureProfileAndAccount);
 
 type TestHandler = (event: ScheduledEvent, ctx: Context) => Promise<unknown>;
 const handler = rawHandler as unknown as TestHandler;
@@ -120,6 +127,28 @@ describe('reconciliation handler', () => {
             name: 'Existing User',
             picture: 'https://example.com/existing.jpg',
         });
+    });
+
+    it('ensures account + profile for every reconciled user (drift-repair completeness)', async () => {
+        mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserExisting] as never);
+
+        await handler(makeEvent(), makeContext());
+
+        // The bug this guards: reconciliation used to write only the users row, leaving a
+        // reconciliation-provisioned user with no account → getUserMe 500s. Both users get the call.
+        expect(mockEnsureProfileAndAccount).toHaveBeenCalledTimes(2);
+        expect(mockEnsureProfileAndAccount).toHaveBeenCalledWith(
+            expect.anything(),
+            'ulid_new',
+            'New User',
+            'https://example.com/new.jpg',
+        );
+        expect(mockEnsureProfileAndAccount).toHaveBeenCalledWith(
+            expect.anything(),
+            'ulid_existing',
+            'Existing User',
+            'https://example.com/existing.jpg',
+        );
     });
 
     it('counts 1 inserted and 1 updated for 2 users (1 new, 1 existing)', async () => {

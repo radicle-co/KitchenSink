@@ -4,9 +4,10 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
 import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
-import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
+import { profiles, users } from '@kitchensink/identity-service/database/schema';
 
 import { setExternalId } from '../common/identityClient.js';
+import { ensureProfileAndAccount } from '../common/provisioning.js';
 import { requireEnv } from '../common/config.js';
 import { getDb } from '../common/db.js';
 import { resolveRequestId } from '../common/error-envelope.js';
@@ -100,32 +101,27 @@ const handleUserCreated = async (
         throw err;
     }
 
-    await setExternalId(data.id, user.id);
+    // Complete the LOCAL user unit first: profile + account. These must never be gated on the external
+    // Clerk call below — getUserMe dereferences the account, so a user without one is locked out of
+    // every authenticated read. (This ordering is the fix for users that were left account-less when
+    // setExternalId threw, or that reconciliation provisioned without auxiliary rows.)
+    await ensureProfileAndAccount(db, user.id, buildDisplayName(data), data.image_url ?? null);
 
-    // mark sync timestamp
-    await db.update(users).set({ externalIdSyncedAt: new Date() }).where(eq(users.identityId, data.id));
-
-    // upsert profile
-    await db
-        .insert(profiles)
-        .values({
-            userId: user.id,
-            displayName: buildDisplayName(data),
-            avatarUrl: data.image_url ?? null,
-        })
-        .onConflictDoUpdate({
-            target: profiles.userId,
-            set: {
-                displayName: buildDisplayName(data),
-                avatarUrl: data.image_url ?? null,
-                updatedAt: new Date(),
-            },
+    // Best-effort: backfill Clerk's external_id (the app user id) so the IdP→app link is bidirectional.
+    // A failure here (Clerk API down, key rotated/again-missing, rate limit) must NOT abort provisioning
+    // — the user/account/profile are already complete. Only stamp externalIdSyncedAt on success, so the
+    // nightly reconciliation retries the ones that didn't land.
+    try {
+        await setExternalId(data.id, user.id);
+        await db.update(users).set({ externalIdSyncedAt: new Date() }).where(eq(users.identityId, data.id));
+    } catch (err) {
+        logger.warn('identity-webhook: setExternalId failed; user is complete, leaving for reconciliation', {
+            requestId,
+            identityId: data.id,
+            error: err instanceof Error ? err.message : String(err),
         });
-
-    // Backstop the account row so a webhook-first user (one who never makes a read-through request)
-    // is still complete — getUserMe requires an account. Idempotent: a no-op once read-through or a
-    // prior webhook created it.
-    await db.insert(accounts).values({ userId: user.id }).onConflictDoNothing();
+        traceAuth('webhook.set_external_id_failed', { identityId: data.id });
+    }
 
     emitMetric('UserCreatedWebhook', 1, { identityId: data.id });
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });

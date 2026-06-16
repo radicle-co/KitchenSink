@@ -137,6 +137,8 @@ export class WebhooksStack extends Stack {
 
         const commonEnv: Record<string, string> = {
             NODE_ENV: 'production',
+            // debug:auth flow tracing — on in sandbox, off in prod (flip to '1' to debug a prod issue).
+            DEBUG_AUTH: deployStage === 'prod' ? '0' : '1',
             DB_SECRET_ARN: dbCredentialsSecret.secretArn,
             AUTH_SECRET_ARN: authSecretKey.secretArn,
             IDP_JWKS_URL: ssmValue('clerk', 'jwks-url'),

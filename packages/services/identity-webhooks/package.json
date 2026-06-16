@@ -47,7 +47,8 @@
         "drizzle-orm": "^0.45.2",
         "jose": "^6.1.0",
         "pg": "^8.16.3",
-        "svix": "^1.95.2"
+        "svix": "^1.95.2",
+        "@kitchensink/tracing": "*"
     },
     "engines": {
         "node": "24.x"

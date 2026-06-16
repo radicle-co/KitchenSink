@@ -11,6 +11,7 @@ import { requireEnv } from '../common/config.js';
 import { getDb } from '../common/db.js';
 import { resolveRequestId } from '../common/error-envelope.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
+import { traceAuth } from '../common/auth-trace.js';
 import { verifyWebhook } from '../common/svix.js';
 
 interface IdentityUserData {
@@ -165,15 +166,17 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
     const db = (await getDb(dbSecretArn)) as unknown as PostgresJsDatabase<Record<string, never>>;
     const svixId = event.headers?.['svix-id'] ?? '';
 
+    const identityId = (payload.data as { id?: string }).id ?? 'unknown';
+    traceAuth('webhook.received', { sub: identityId, type: payload.type, svixId });
+
     // Confirm-after-process dedup: the svix-id is recorded only AFTER its handler succeeds (below),
     // so a delivery already present is a duplicate of a prior success and is short-circuited here.
     if (await hasProcessedWebhookEvent(db, svixId)) {
         logger.info('identity-webhook: duplicate svix-id, returning 200', { requestId, svixId });
+        traceAuth('webhook.dedup_skip', { sub: identityId, svixId });
 
         return { statusCode: 200, body: JSON.stringify({ ok: true, dedup: true }) };
     }
-
-    const identityId = (payload.data as { id?: string }).id ?? 'unknown';
 
     // No pre-claim: if a handler below throws, it propagates and the svix-id is NOT recorded, so
     // svix's (finite) retry schedule re-processes the event — handlers are idempotent (atomic upsert
@@ -207,6 +210,7 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
     // Record only on success, keyed on the svix-id PK (migration 0008). Idempotent under concurrent
     // duplicates via onConflictDoNothing.
     await recordOnce(db, svixId, identityId, payload.type);
+    traceAuth('webhook.done', { sub: identityId, type: payload.type, svixId });
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
 };

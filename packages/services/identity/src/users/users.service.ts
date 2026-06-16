@@ -10,6 +10,7 @@ import type { VerifiedClerkClaims } from '../auth/clerk-auth.service.js';
 import { ResolveUserService } from './resolveUser.js';
 import { newUserId, type UserId } from '../types/index.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
+import { traceAuth } from '../observability/auth-trace.js';
 
 /**
  * Postgres unique-violation (23505) on a specific named constraint/index. Drizzle wraps the driver
@@ -163,6 +164,11 @@ export class UsersService {
                     { emailIsReal: realEmail !== undefined },
                 );
                 userRow = row;
+                traceAuth('provision.created', {
+                    sub: claims.sub,
+                    userId: row.id,
+                    emailIsReal: realEmail !== undefined,
+                });
             } catch (err) {
                 // The user's real email already belongs to a DIFFERENT Clerk identity (Clerk permits
                 // shared emails — delete+recreate, social link). Provisioning runs in AuthMiddleware on
@@ -174,6 +180,7 @@ export class UsersService {
                     this.logger.warn('Email already in use by another identity; provisioning with placeholder', {
                         sub: claims.sub,
                     });
+                    traceAuth('provision.email_conflict_placeholder', { sub: claims.sub });
                     const { row } = await this.upsertUserRecord(
                         {
                             identityId: claims.sub,
@@ -190,6 +197,7 @@ export class UsersService {
             }
         } else {
             userRow = existing;
+            traceAuth('provision.existing', { sub: claims.sub, userId: existing.id });
             // Heal legacy/partial records (e.g. a webhook-first user created before the account
             // backstop existed): ensure account + profile without an unconditional per-request write.
             const [account] = await this.db.select().from(accounts).where(eq(accounts.userId, userRow.id)).limit(1);

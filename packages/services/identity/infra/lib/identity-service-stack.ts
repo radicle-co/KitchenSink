@@ -159,6 +159,9 @@ export class IdentityServiceStack extends Stack {
             environment: {
                 NODE_ENV: 'production',
                 PORT: '3000',
+                // debug:auth flow tracing — on in sandbox, off in prod. Flip to '1' on the task def to
+                // debug a prod signup/auth issue (no code change), then back to '0'.
+                DEBUG_AUTH: stage === 'prod' ? '0' : '1',
                 DB_HOST: database.dbInstanceEndpointAddress,
                 DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
                 DB_NAME: Fn.importValue(`kitchensink-data-${stage}:DatabaseName`),

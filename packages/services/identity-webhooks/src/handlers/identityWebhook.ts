@@ -3,7 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { UserDAO, recordOnce, releaseWebhookEvent } from '@kitchensink/identity-service/database/dao';
+import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
 import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
 
 import { setExternalId } from '../common/identityClient.js';
@@ -165,13 +165,15 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
     const db = (await getDb(dbSecretArn)) as unknown as PostgresJsDatabase<Record<string, never>>;
     const svixId = event.headers?.['svix-id'] ?? '';
 
-    const isFirst = await recordOnce(db, svixId);
-
-    if (!isFirst) {
+    // Confirm-after-process dedup: the svix-id is recorded only AFTER its handler succeeds (below),
+    // so a delivery already present is a duplicate of a prior success and is short-circuited here.
+    if (await hasProcessedWebhookEvent(db, svixId)) {
         logger.info('identity-webhook: duplicate svix-id, returning 200', { requestId, svixId });
 
         return { statusCode: 200, body: JSON.stringify({ ok: true, dedup: true }) };
     }
+
+    const identityId = (payload.data as { id?: string }).id ?? 'unknown';
 
     try {
         switch (payload.type) {
@@ -198,20 +200,17 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
             }
         }
     } catch (err) {
-        // The dedup claim (recordOnce) is taken BEFORE processing to serialize concurrent deliveries.
-        // If the handler fails (transient DB error, etc.), release the claim so svix's retry
-        // re-processes — otherwise the retry short-circuits to "dedup" and the event is lost. This
-        // matters most for user.deleted, where a dropped retry leaves a Clerk-deleted user present.
-        await releaseWebhookEvent(db, svixId).catch((releaseErr) =>
-            logger.error('identity-webhook: failed to release dedup claim after handler error', {
-                requestId,
-                svixId,
-                error: String(releaseErr),
-            }),
-        );
-
+        // No pre-claim to release. The svix-id is NOT recorded on failure, so svix's (finite) retry
+        // schedule re-processes the event — handlers are idempotent (atomic upsert on users.identity_id;
+        // idempotent soft-delete), so a retry that overlaps an in-flight delivery is safe. A
+        // permanently-failing payload retries until svix exhausts its schedule, surfacing the failure
+        // each time rather than being silently dropped (the original A2 failure mode).
         throw err;
     }
+
+    // Record only on success, keyed on the svix-id PK (migration 0008). Idempotent under concurrent
+    // duplicates via onConflictDoNothing.
+    await recordOnce(db, svixId, identityId, payload.type);
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
 };

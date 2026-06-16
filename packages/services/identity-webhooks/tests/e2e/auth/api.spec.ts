@@ -15,6 +15,7 @@ import { accounts, profiles } from '@kitchensink/identity-service/database/schem
 const mockUpsert = vi.fn();
 const mockFindByIdentityId = vi.fn();
 const mockRecordOnce = vi.fn();
+const mockHasProcessed = vi.fn().mockResolvedValue(false);
 const mockSetExternalId = vi.fn();
 const mockSqsSend = vi.fn().mockResolvedValue({});
 const mockDbInsertReturning = vi.fn().mockResolvedValue([{ id: 'profile-1' }]);
@@ -57,6 +58,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
         return {};
     }),
     recordOnce: mockRecordOnce,
+    hasProcessedWebhookEvent: mockHasProcessed,
 }));
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function () {
@@ -146,11 +148,11 @@ describe('e2e: identityWebhook Lambda', () => {
         expect(mockSqsSend).toHaveBeenCalledOnce();
         const sentInput = (mockSqsSend.mock.calls[0][0] as { input: { MessageBody: string; QueueUrl: string } }).input;
         expect(sentInput.QueueUrl).toBe('http://localhost:4566/queue/identity-deletions');
-        expect(JSON.parse(sentInput.MessageBody)).toEqual({ userId: 'user_to_delete_e2e' });
+        expect(JSON.parse(sentInput.MessageBody)).toEqual({ identityId: 'user_to_delete_e2e' });
     });
 
     it('is idempotent on duplicate svix-id (no re-processing)', async () => {
-        mockRecordOnce.mockResolvedValueOnce(false);
+        mockHasProcessed.mockResolvedValueOnce(true);
         const { handler } = await import('../../../src/handlers/identityWebhook.js');
 
         const event = makeWebhookEvent('svix-dup-1', {

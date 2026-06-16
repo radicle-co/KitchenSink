@@ -13,8 +13,8 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
             updateProfile: vi.fn(),
         };
     }),
-    recordOnce: vi.fn(),
-    releaseWebhookEvent: vi.fn().mockResolvedValue(undefined),
+    recordOnce: vi.fn().mockResolvedValue(undefined),
+    hasProcessedWebhookEvent: vi.fn().mockResolvedValue(false),
 }));
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function SQSClient() {
@@ -32,7 +32,7 @@ vi.mock('../../common/observability.js', () => ({
 
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { recordOnce, releaseWebhookEvent } from '@kitchensink/identity-service/database/dao';
+import { recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
 
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
@@ -45,7 +45,7 @@ const handler = rawHandler as unknown as TestHandler;
 const mockGetDb = vi.mocked(getDb);
 const mockVerifyWebhook = vi.mocked(verifyWebhook);
 const mockRecordOnce = vi.mocked(recordOnce);
-const mockReleaseWebhookEvent = vi.mocked(releaseWebhookEvent);
+const mockHasProcessed = vi.mocked(hasProcessedWebhookEvent);
 const mockSetExternalId = vi.mocked(setExternalId);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
@@ -123,17 +123,22 @@ const buildMockDb = () => {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks resets call history but NOT implementations, so re-assert the per-test defaults
+    // to prevent a `hasProcessed → true` set in one test from leaking into the next.
+    mockHasProcessed.mockResolvedValue(false);
+    mockRecordOnce.mockResolvedValue(undefined);
+    mockSetExternalId.mockResolvedValue(undefined as never);
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
     process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
     process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
 });
 
 describe('identity-webhook handler', () => {
-    it('duplicate svix-id returns 200 immediately', async () => {
+    it('already-processed svix-id dedups to 200 without processing or re-recording', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
-        mockRecordOnce.mockResolvedValue(false);
+        mockHasProcessed.mockResolvedValue(true);
 
         const result = await handler(
             makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }),
@@ -141,15 +146,16 @@ describe('identity-webhook handler', () => {
         );
 
         expect(result.statusCode).toBe(200);
-        expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_123');
+        expect(mockHasProcessed).toHaveBeenCalledWith(db, 'msg_123');
+        // Confirm-after-process: a duplicate neither re-processes nor re-records.
         expect(mockSetExternalId).not.toHaveBeenCalled();
+        expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 
     it('user.created -> upserts user, sets external id, syncs timestamp, inserts profile', async () => {
         const { db, setUser, valuesProfile, insertProfile, onConflictDoUpdateProfile } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
-        mockRecordOnce.mockResolvedValue(true);
 
         const daoInstance = {
             upsertByIdentityId: vi.fn().mockResolvedValue({
@@ -172,7 +178,7 @@ describe('identity-webhook handler', () => {
         );
 
         expect(result.statusCode).toBe(200);
-        expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_123');
+        expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_123', 'user_abc123', 'user.created');
         expect(daoInstance.upsertByIdentityId).toHaveBeenCalledWith({
             identityId: 'user_abc123',
             email: 'test@example.com',
@@ -194,7 +200,6 @@ describe('identity-webhook handler', () => {
         const { db, setUser, whereUser } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userUpdatedPayload as never);
-        mockRecordOnce.mockResolvedValue(true);
 
         const daoInstance = {
             upsertByIdentityId: vi.fn(),
@@ -227,7 +232,6 @@ describe('identity-webhook handler', () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userDeletedPayload as never);
-        mockRecordOnce.mockResolvedValue(true);
 
         const daoInstance = {
             upsertByIdentityId: vi.fn(),
@@ -253,11 +257,10 @@ describe('identity-webhook handler', () => {
         });
     });
 
-    it('releases the dedup claim and rethrows when processing fails (so svix retries, not deduped away)', async () => {
+    it('does NOT record the svix-id when processing fails (so svix retries, not deduped away)', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
-        mockRecordOnce.mockResolvedValue(true);
 
         const daoInstance = {
             upsertByIdentityId: vi.fn().mockResolvedValue({
@@ -273,15 +276,44 @@ describe('identity-webhook handler', () => {
         vi.mocked(UserDAO).mockImplementation(function () {
             return daoInstance;
         });
-        // Fail AFTER the dedup claim is recorded (recordOnce → true), inside the handler.
         mockSetExternalId.mockRejectedValue(new Error('clerk unavailable'));
 
         await expect(
             handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_fail' }), makeContext()),
         ).rejects.toThrow('clerk unavailable');
 
-        // The claim is released so the svix retry re-processes instead of short-circuiting to dedup.
-        expect(mockReleaseWebhookEvent).toHaveBeenCalledWith(db, 'msg_fail');
+        // Confirm-after-process: the svix-id is NOT recorded on failure, so svix's retry re-processes
+        // instead of short-circuiting to dedup (the original A2 event-loss failure mode).
+        expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('records the svix-id on the PK only after a successful user.created', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+
+        const daoInstance = {
+            upsertByIdentityId: vi.fn().mockResolvedValue({
+                id: 'usr_ulid',
+                identityId: 'user_abc123',
+                email: 'test@example.com',
+                name: 'John Doe',
+                picture: null,
+            }),
+            findByIdentityId: vi.fn(),
+            updateProfile: vi.fn(),
+        };
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_ok' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_ok', 'user_abc123', 'user.created');
     });
 
     it('invalid signature -> returns 401', async () => {

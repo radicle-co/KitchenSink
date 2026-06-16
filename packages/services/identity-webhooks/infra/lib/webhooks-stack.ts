@@ -192,7 +192,11 @@ export class WebhooksStack extends Stack {
             timeout: Duration.seconds(30),
             memorySize: 512,
             environment: {
-                ...commonEnv,
+                // clerkBackendEnv (not commonEnv): handleUserCreated calls setExternalId via the Clerk
+                // backend SDK, which needs IDP_SECRET_KEY. Without it, identityClient falls through to a
+                // runtime GetSecretValue on the auth secret that the role can't read → AccessDenied →
+                // every user.created 502s.
+                ...clerkBackendEnv,
                 // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
                 // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
                 // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a

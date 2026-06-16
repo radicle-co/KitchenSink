@@ -1,5 +1,5 @@
 import { customType, index, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
-import { type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 
 // citext — case-insensitive text (requires pg extension citext)
 export const citext = customType<{ data: string; driverData: string }>({
@@ -27,7 +27,13 @@ export const users = pgTable(
         externalIdSyncedAt: timestamp('external_id_synced_at', { withTimezone: true }),
     },
     (table) => [
-        uniqueIndex('users_email_unique').on(table.email),
+        // Partial: email is unique only among ACTIVE users. A soft-deleted user (deleted_at set)
+        // keeps its row but no longer reserves the email, so the same person can delete then
+        // re-register with the same address — a NEW Clerk identity then inserts cleanly instead of
+        // colliding on a dead row (which 502'd the user.created webhook). See migration 0009.
+        uniqueIndex('users_email_unique')
+            .on(table.email)
+            .where(sql`${table.deletedAt} is null`),
         uniqueIndex('users_identity_id_unique').on(table.identityId),
         index('users_email_idx').on(table.email),
         index('users_identity_id_idx').on(table.identityId),

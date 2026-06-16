@@ -41,6 +41,23 @@ const enqueueDeletion = async (identityId: string): Promise<void> => {
     );
 };
 
+/** Postgres unique-violation (23505) on `users_email_unique`. The pg error may be nested on `.cause`. */
+const isEmailUniqueViolation = (err: unknown): boolean => {
+    let current: unknown = err;
+
+    for (let depth = 0; current !== null && current !== undefined && depth < 5; depth++) {
+        const e = current as { code?: unknown; constraint?: unknown; cause?: unknown };
+
+        if (e.code === '23505' && e.constraint === 'users_email_unique') {
+            return true;
+        }
+
+        current = e.cause;
+    }
+
+    return false;
+};
+
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 const handleUserCreated = async (
     data: IdentityUserData,
@@ -56,12 +73,32 @@ const handleUserCreated = async (
     }
 
     const userDao = new UserDAO(db);
-    const user = await userDao.upsertByIdentityId({
-        identityId: data.id,
-        email,
-        name: buildDisplayName(data),
-        picture: data.image_url ?? undefined,
-    });
+
+    let user;
+
+    try {
+        user = await userDao.upsertByIdentityId({
+            identityId: data.id,
+            email,
+            name: buildDisplayName(data),
+            picture: data.image_url ?? undefined,
+        });
+    } catch (err) {
+        // Defense in depth: the email already belongs to a DIFFERENT ACTIVE identity (Clerk permits
+        // shared emails). 0009's partial index frees soft-deleted emails, so this is now only the
+        // genuine active-collision case. Don't 502 (which would retry-storm) — log and let the
+        // read-through path provision this user (with its placeholder-email fallback) on first login.
+        if (isEmailUniqueViolation(err)) {
+            logger.warn('identity-webhook: user.created email in use by another active identity; skipping', {
+                requestId,
+                identityId: data.id,
+            });
+
+            return;
+        }
+
+        throw err;
+    }
 
     await setExternalId(data.id, user.id);
 

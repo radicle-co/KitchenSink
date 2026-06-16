@@ -5,6 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 import { buildApiClient } from '@/lib/api-client';
 import type { UserProfile } from '@kitchensink/identity-service';
 import { LogoutButton } from '@/components/auth/LogoutButton';
+import { withBasePath } from '@/lib/base-path';
 
 export const metadata: Metadata = {
     title: 'Profile | Commise',
@@ -50,7 +51,7 @@ export default async function ProfilePage() {
     const { userId, getToken } = await auth();
 
     if (!userId) {
-        redirect('/sign-in' as Route);
+        redirect(withBasePath('/sign-in') as Route);
     }
 
     const token = (await getToken()) ?? '';

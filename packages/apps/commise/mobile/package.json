@@ -35,7 +35,7 @@
         "react-native-safe-area-context": "5.8.0",
         "react-native-screens": "~4.4.0",
         "react-native-web": "^0.20.0",
-        "tamagui": "^2.2.0"
+        "tamagui": "^2.3.0"
     },
     "devDependencies": {
         "@babel/core": "^7.25.0",

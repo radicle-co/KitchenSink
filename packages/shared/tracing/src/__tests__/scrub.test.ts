@@ -33,4 +33,12 @@ describe('scrubAuthAttributes', () => {
         expect(out.userEmail).toBe('[redacted]');
         expect(out.imageUrl).toBe('[redacted]');
     });
+
+    it('keeps boolean/number flags even when the key matches a PII substring', () => {
+        // `emailIsReal: true` is a flag, not an email value — redacting it loses useful debug signal.
+        const out = scrubAuthAttributes({ emailIsReal: true, nameLength: 11 });
+
+        expect(out.emailIsReal).toBe(true);
+        expect(out.nameLength).toBe(11);
+    });
 });

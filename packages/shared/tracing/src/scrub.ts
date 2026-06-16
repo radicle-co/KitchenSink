@@ -26,7 +26,10 @@ export const scrubAuthAttributes = (attributes: Record<string, unknown>): Record
     for (const [key, value] of Object.entries(attributes)) {
         const lowered = key.toLowerCase();
         const isSensitive = PII_DENYLIST_SUBSTRINGS.some((deny) => lowered.includes(deny));
-        out[key] = isSensitive ? '[redacted]' : value;
+        // Only textual/structured values can carry PII — a boolean/number can't be an email or name,
+        // so keep flags like `emailIsReal: true` even though the key matches the denylist.
+        const isSafeScalar = typeof value === 'boolean' || typeof value === 'number';
+        out[key] = isSensitive && !isSafeScalar ? '[redacted]' : value;
     }
 
     return out;

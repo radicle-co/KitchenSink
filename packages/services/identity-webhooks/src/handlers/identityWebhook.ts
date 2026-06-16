@@ -175,37 +175,33 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
 
     const identityId = (payload.data as { id?: string }).id ?? 'unknown';
 
-    try {
-        switch (payload.type) {
-            case 'user.created': {
-                await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
-                break;
-            }
-
-            case 'user.updated': {
-                await handleUserUpdated(payload.data as unknown as IdentityUserData, db, requestId);
-                break;
-            }
-
-            case 'user.deleted': {
-                await handleUserDeleted(payload.data as unknown as { id: string }, requestId);
-                break;
-            }
-
-            default: {
-                logger.warn('identity-webhook: unhandled event type', {
-                    requestId,
-                    type: (payload as { type: string }).type,
-                });
-            }
+    // No pre-claim: if a handler below throws, it propagates and the svix-id is NOT recorded, so
+    // svix's (finite) retry schedule re-processes the event — handlers are idempotent (atomic upsert
+    // on users.identity_id; idempotent soft-delete), so a retry overlapping an in-flight delivery is
+    // safe. A permanently-failing payload retries until svix exhausts, surfacing the failure each
+    // time rather than being silently dropped (the original A2 event-loss mode).
+    switch (payload.type) {
+        case 'user.created': {
+            await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
+            break;
         }
-    } catch (err) {
-        // No pre-claim to release. The svix-id is NOT recorded on failure, so svix's (finite) retry
-        // schedule re-processes the event — handlers are idempotent (atomic upsert on users.identity_id;
-        // idempotent soft-delete), so a retry that overlaps an in-flight delivery is safe. A
-        // permanently-failing payload retries until svix exhausts its schedule, surfacing the failure
-        // each time rather than being silently dropped (the original A2 failure mode).
-        throw err;
+
+        case 'user.updated': {
+            await handleUserUpdated(payload.data as unknown as IdentityUserData, db, requestId);
+            break;
+        }
+
+        case 'user.deleted': {
+            await handleUserDeleted(payload.data as unknown as { id: string }, requestId);
+            break;
+        }
+
+        default: {
+            logger.warn('identity-webhook: unhandled event type', {
+                requestId,
+                type: (payload as { type: string }).type,
+            });
+        }
     }
 
     // Record only on success, keyed on the svix-id PK (migration 0008). Idempotent under concurrent

@@ -3,6 +3,13 @@
 // the router's CloudFront KeyValueStore when a PR's preview is ready, delete it when the PR closes.
 // This is the ONLY Vercel-specific seam — leaving Vercel means feeding ECS hosts here instead; the
 // router + app are unchanged. KVS writes are optimistic-concurrency (IfMatch ETag) → read-modify-retry.
+// CloudFront KeyValueStore is a multi-region service and signs requests with SigV4a, which the AWS
+// SDK does not bundle. This side-effect import registers the pure-JS SigV4a signer into the shared
+// smithy container (the CRT variant needs a native build that isn't installed on CI). Without it,
+// every KVS call throws "Neither CRT nor JS SigV4a implementation is available". Must run before the
+// client is constructed, so keep it first.
+import '@aws-sdk/signature-v4a';
+
 import {
     CloudFrontKeyValueStoreClient,
     DeleteKeyCommand,

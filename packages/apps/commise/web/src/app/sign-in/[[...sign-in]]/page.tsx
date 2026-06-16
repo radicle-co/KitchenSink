@@ -10,13 +10,13 @@ export default function SignInPage() {
                 preview basePath (/pr-{N}) path routing can't reconcile and renders an empty widget.
                 Hash routing drives the multi-step flow via the URL fragment, independent of basePath.
                 Redirect/cross-link URLs must be basePath-prefixed — Clerk's redirects are NOT
-                basePath-aware (ADR-0001); fallbackRedirectUrl honors any ?redirect_url, else lands
-                on the app root instead of stranding the user on /sign-in. */}
+                basePath-aware (ADR-0001). forceRedirectUrl always sends the user to the app home (/)
+                after sign-in (not back to a ?redirect_url), instead of stranding them on /sign-in. */}
             <SignIn
                 routing="hash"
                 appearance={clerkAppearance}
                 signUpUrl={withBasePath('/sign-up')}
-                fallbackRedirectUrl={withBasePath('/')}
+                forceRedirectUrl={withBasePath('/')}
             />
         </main>
     );

@@ -9,13 +9,13 @@ export default function SignUpPage() {
             {/* hash routing — see sign-in: path routing renders an empty widget under a preview basePath
                 because Clerk derives its path from the basePath-stripped usePathname().
                 Redirect/cross-link URLs must be basePath-prefixed — Clerk's redirects are NOT
-                basePath-aware (ADR-0001), so without fallbackRedirectUrl a completed sign-up strands
-                the user on /sign-up instead of landing on the app. */}
+                basePath-aware (ADR-0001). forceRedirectUrl always sends the user to the app home (/)
+                after sign-up; without it a completed sign-up strands them on /sign-up. */}
             <SignUp
                 routing="hash"
                 appearance={clerkAppearance}
                 signInUrl={withBasePath('/sign-in')}
-                fallbackRedirectUrl={withBasePath('/')}
+                forceRedirectUrl={withBasePath('/')}
             />
         </main>
     );

@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { LogoutButton } from '@/components/auth/LogoutButton';
-import { withBasePath } from '@/lib/base-path';
 
 export const metadata: Metadata = {
     title: 'Settings | Commise',
@@ -14,7 +13,7 @@ export default async function SettingsPage() {
     const { userId } = await auth();
 
     if (!userId) {
-        redirect(withBasePath('/sign-in') as Route);
+        redirect('/sign-in' as Route);
     }
 
     return (

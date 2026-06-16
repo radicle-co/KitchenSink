@@ -3,8 +3,6 @@ import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { auth } from '@clerk/nextjs/server';
 
-import { withBasePath } from '@/lib/base-path';
-
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
@@ -16,9 +14,10 @@ export default async function HomePage() {
     const { userId } = await auth();
 
     if (!userId) {
-        // redirect() does NOT apply Next's basePath, so prefix it ourselves (no-op in production).
-        redirect(withBasePath('/sign-in') as Route);
+        // Bare path: Next's server redirect() already applies the configured basePath (prefixing it
+        // here would double it to /pr-{N}/pr-{N}/…). Clerk URL props differ — those DO need withBasePath.
+        redirect('/sign-in' as Route);
     }
 
-    redirect(withBasePath('/profile') as Route);
+    redirect('/profile');
 }

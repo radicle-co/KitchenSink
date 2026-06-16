@@ -6,7 +6,6 @@ import { buildApiClient } from '@/lib/api-client';
 import type { UserProfile } from '@kitchensink/identity-service';
 import { AccountEditForm } from '@/components/auth/AccountEditForm';
 import { AccountDeleteForm } from '@/components/auth/AccountDeleteForm';
-import { withBasePath } from '@/lib/base-path';
 
 export const metadata: Metadata = {
     title: 'Account Settings | Commise',
@@ -41,7 +40,7 @@ export default async function AccountPage() {
     const { userId, getToken } = await auth();
 
     if (!userId) {
-        redirect(withBasePath('/sign-in') as Route);
+        redirect('/sign-in' as Route);
     }
 
     const token = (await getToken()) ?? '';

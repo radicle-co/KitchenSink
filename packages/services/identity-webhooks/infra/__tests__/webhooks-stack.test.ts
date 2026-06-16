@@ -85,4 +85,34 @@ describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolid
         const fnCount = Object.keys(template.findResources('AWS::Lambda::Function')).length;
         expect(fnCount).toBeGreaterThanOrEqual(4);
     });
+
+    it('runs reconciliation on a nightly schedule (NOT off the deletion queue)', () => {
+        // A1: reconciliation must be driven by an EventBridge schedule, not the SQS deletion queue.
+        template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'cron(0 7 * * ? *)' });
+
+        const [reconciliationLogicalId] = Object.entries(
+            template.findResources('AWS::Lambda::Function', {
+                Properties: { Handler: 'handlers/reconciliation.handler' },
+            }),
+        )[0]!;
+
+        // The schedule targets the reconciliation function.
+        template.hasResourceProperties('AWS::Events::Rule', {
+            Targets: [{ Arn: { 'Fn::GetAtt': [reconciliationLogicalId, 'Arn'] } }],
+        });
+    });
+
+    it('routes the SQS deletion queue to the deletion-worker, not reconciliation', () => {
+        // A1: the single SQS event-source mapping must resolve to the deletion-worker function.
+        const [deletionWorkerLogicalId] = Object.entries(
+            template.findResources('AWS::Lambda::Function', {
+                Properties: { Handler: 'handlers/deletion-worker.handler' },
+            }),
+        )[0]!;
+
+        const mappings = template.findResources('AWS::Lambda::EventSourceMapping');
+        expect(Object.keys(mappings)).toHaveLength(1);
+        const mapping = Object.values(mappings)[0]!;
+        expect(mapping.Properties.FunctionName).toEqual({ Ref: deletionWorkerLogicalId });
+    });
 });

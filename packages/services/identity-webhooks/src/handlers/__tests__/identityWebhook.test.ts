@@ -244,9 +244,12 @@ describe('identity-webhook handler', () => {
         );
 
         expect(result.statusCode).toBe(200);
+        // The deletion-worker parses `identityId` from the body — the message MUST carry that key,
+        // not `userId`, or every webhook-driven deletion silently no-ops once the worker consumes
+        // the queue (U1 / A1 deletion-payload alignment).
         expect(SendMessageCommand).toHaveBeenCalledWith({
             QueueUrl: process.env.DELETION_QUEUE_URL,
-            MessageBody: JSON.stringify({ userId: 'user_abc123' }),
+            MessageBody: JSON.stringify({ identityId: 'user_abc123' }),
         });
     });
 

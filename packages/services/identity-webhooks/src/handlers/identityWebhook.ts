@@ -27,12 +27,15 @@ const buildDisplayName = (data: IdentityUserData): string => `${data.first_name 
 
 const sqsClient = new SQSClient({});
 
-const enqueueDeletion = async (userId: string): Promise<void> => {
+const enqueueDeletion = async (identityId: string): Promise<void> => {
     const queueUrl = requireEnv('DELETION_QUEUE_URL');
+    // The deletion-worker's parseMessage reads `identityId`; the message body must carry that field.
+    // Sending `{ userId }` silently no-ops every webhook-driven deletion once the worker actually
+    // consumes the queue (findByIdentityId(undefined) → not found → skip).
     await sqsClient.send(
         new SendMessageCommand({
             QueueUrl: queueUrl,
-            MessageBody: JSON.stringify({ userId }),
+            MessageBody: JSON.stringify({ identityId }),
         }),
     );
 };

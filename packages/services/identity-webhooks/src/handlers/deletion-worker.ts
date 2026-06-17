@@ -32,9 +32,14 @@ const processRecord = async (record: SQSRecord, dbSecretArn: string): Promise<vo
         return;
     }
 
-    await userDao.softDeleteByIdentityId(identityId);
+    // Hard delete (not soft): a `user.deleted` event means we must retain no personal data. The user
+    // row's ON DELETE CASCADE FKs remove the account + profile rows in the same statement.
+    await userDao.hardDeleteByIdentityId(identityId);
 
-    logger.info('user deleted', { identityId, userId: user.id });
+    logger.info('user hard-deleted (account + profile cascade-removed, all PII erased)', {
+        identityId,
+        userId: user.id,
+    });
 };
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */

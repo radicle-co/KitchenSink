@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 
 import { provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { users, accounts, profiles } from '../src/database/index.js';
+import { UserDAO } from '../src/database/dao/index.js';
 import { newUserId } from '../src/database/ulid.js';
 
 /**
@@ -169,5 +170,26 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
         expect(revived!.deletedAt).toBeNull();
         expect(await db.select().from(accounts).where(eq(accounts.userId, revived!.id))).toHaveLength(1);
         expect(await db.select().from(profiles).where(eq(profiles.userId, revived!.id))).toHaveLength(1);
+    });
+
+    it('hardDeleteByIdentityId erases the user AND cascade-removes its account + profile (no PII retained)', async () => {
+        const sub = 'user_hard_delete';
+        await readThrough(sub, `${sub}@example.com`);
+        const [seeded] = await db.select().from(users).where(eq(users.identityId, sub));
+        const userId = seeded!.id;
+        // Precondition: the complete unit exists.
+        expect(await db.select().from(accounts).where(eq(accounts.userId, userId))).toHaveLength(1);
+        expect(await db.select().from(profiles).where(eq(profiles.userId, userId))).toHaveLength(1);
+
+        const dao = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>);
+        const deleted = await dao.hardDeleteByIdentityId(sub);
+        expect(deleted?.identityId).toBe(sub);
+
+        // The user row is GONE (hard delete, not a soft deletedAt flag) and the ON DELETE CASCADE FKs
+        // removed the account + profile — queried by the original userId, so this proves the cascade
+        // rather than just "the user can no longer be found". No email/name/displayName/avatar/bio left.
+        expect(await db.select().from(users).where(eq(users.identityId, sub))).toHaveLength(0);
+        expect(await db.select().from(accounts).where(eq(accounts.userId, userId))).toHaveLength(0);
+        expect(await db.select().from(profiles).where(eq(profiles.userId, userId))).toHaveLength(0);
     });
 });

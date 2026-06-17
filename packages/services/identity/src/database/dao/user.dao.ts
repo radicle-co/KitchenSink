@@ -73,12 +73,12 @@ export class UserDAO {
         return rows[0];
     }
 
-    async softDeleteByIdentityId(identityId: string): Promise<UserRow | undefined> {
-        const rows = await this.db
-            .update(users)
-            .set({ deletedAt: new Date(), updatedAt: new Date() })
-            .where(eq(users.identityId, identityId))
-            .returning();
+    async hardDeleteByIdentityId(identityId: string): Promise<UserRow | undefined> {
+        // A `user.deleted` event requires erasing ALL personal data — a hard delete, not a soft flag.
+        // Deleting the user row cascades to its `accounts` and `profiles` rows via their
+        // `ON DELETE CASCADE` FKs (migration 0005), so no email / name / picture / display name /
+        // avatar / bio is left anywhere in the database.
+        const rows = await this.db.delete(users).where(eq(users.identityId, identityId)).returning();
 
         return rows[0];
     }

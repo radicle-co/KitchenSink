@@ -5,14 +5,14 @@ vi.mock('../../common/db.js', () => ({
     getDb: vi.fn(),
 }));
 
-const mockSoftDeleteByIdentityId = vi.fn();
+const mockHardDeleteByIdentityId = vi.fn();
 const mockFindByIdentityId = vi.fn();
 
 vi.mock('@kitchensink/identity-service/database/dao', () => {
     const UserDAO = vi.fn().mockImplementation(function () {
         return {
             findByIdentityId: mockFindByIdentityId,
-            softDeleteByIdentityId: mockSoftDeleteByIdentityId,
+            hardDeleteByIdentityId: mockHardDeleteByIdentityId,
         };
     });
 
@@ -63,17 +63,17 @@ beforeEach(() => {
 });
 
 describe('deletion-worker handler', () => {
-    it('existing user → soft-deleted, no error thrown', async () => {
+    it('existing user → hard-deleted, no error thrown', async () => {
         const identityId = 'user_abc123';
         const userRow = { id: 'usr_01', identityId, email: 'test@example.com', deletedAt: null };
 
         mockFindByIdentityId.mockResolvedValue(userRow);
-        mockSoftDeleteByIdentityId.mockResolvedValue({ ...userRow, deletedAt: new Date() });
+        mockHardDeleteByIdentityId.mockResolvedValue(userRow);
 
         await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
 
         expect(mockFindByIdentityId).toHaveBeenCalledWith(identityId);
-        expect(mockSoftDeleteByIdentityId).toHaveBeenCalledWith(identityId);
+        expect(mockHardDeleteByIdentityId).toHaveBeenCalledWith(identityId);
     });
 
     it('missing user → no error thrown (idempotent)', async () => {
@@ -84,7 +84,7 @@ describe('deletion-worker handler', () => {
         await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
 
         expect(mockFindByIdentityId).toHaveBeenCalledWith(identityId);
-        expect(mockSoftDeleteByIdentityId).not.toHaveBeenCalled();
+        expect(mockHardDeleteByIdentityId).not.toHaveBeenCalled();
     });
 
     it('missing DB_SECRET_ARN → throws', async () => {

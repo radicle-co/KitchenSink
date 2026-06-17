@@ -52,7 +52,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
         return {
             upsertByIdentityId: mockUpsert,
             findByIdentityId: mockFindByIdentityId,
-            softDeleteByIdentityId: vi.fn(),
+            hardDeleteByIdentityId: vi.fn(),
         };
     }),
     AccountDAO: vi.fn(function () {

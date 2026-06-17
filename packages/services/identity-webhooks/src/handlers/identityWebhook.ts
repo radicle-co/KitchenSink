@@ -6,14 +6,14 @@ import { eq } from 'drizzle-orm';
 import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
 import { profiles, users } from '@kitchensink/identity-service/database/schema';
 import type { UserRow } from '@kitchensink/identity-service/database/schema';
-import { provisionCompleteUser } from '@kitchensink/identity-utils';
+import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 
 import { setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { requireEnv } from '../common/config.js';
 import { getDb } from '../common/db.js';
 import { resolveRequestId } from '../common/error-envelope.js';
-import { emitMetric, logger, withObservability } from '../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
 import { traceAuth } from '../common/auth-trace.js';
 import { verifyWebhook } from '../common/svix.js';
 
@@ -62,18 +62,29 @@ const handleUserCreated = async (
     // the external Clerk call below. `signal-incomplete`: if the email already belongs to a DIFFERENT
     // active identity, don't 502/retry-storm — return and let the read-through path provision this user
     // (with its placeholder-email fallback) on first authenticated request.
-    const result = await provisionCompleteUser<UserRow>(
-        buildProvisionDeps(db),
-        {
-            identityId: data.id,
-            email,
-            name: buildDisplayName(data),
-            displayName: buildDisplayName(data),
-            picture: data.image_url ?? undefined,
-            avatarUrl: data.image_url ?? null,
-        },
-        { onEmailCollision: 'signal-incomplete', emailIsReal: true },
-    );
+    let result: ProvisionResult<UserRow>;
+
+    try {
+        result = await provisionCompleteUser<UserRow>(
+            buildProvisionDeps(db),
+            {
+                identityId: data.id,
+                email,
+                name: buildDisplayName(data),
+                displayName: buildDisplayName(data),
+                picture: data.image_url ?? undefined,
+                avatarUrl: data.image_url ?? null,
+            },
+            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+        );
+    } catch (err) {
+        // Genuine provisioning failure (a DB/constraint error left the user incomplete): emit the
+        // distinct paging signal, then rethrow so svix retries. The expected email-collision case
+        // returns `incomplete` below (never throws), so it does NOT page.
+        captureProvisioningFailure(err, data.id);
+
+        throw err;
+    }
 
     if (result.kind === 'incomplete') {
         logger.warn('identity-webhook: user.created email in use by another active identity; skipping', {

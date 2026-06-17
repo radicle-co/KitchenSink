@@ -28,6 +28,7 @@ vi.mock('@aws-sdk/client-sqs', () => ({
 }));
 vi.mock('../../common/observability.js', () => ({
     emitMetric: vi.fn(),
+    captureProvisioningFailure: vi.fn(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     withObservability: <T, R>(fn: (event: T, ctx: unknown) => Promise<R>) => fn,
 }));
@@ -40,6 +41,7 @@ import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
 import { setExternalId } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
+import { captureProvisioningFailure } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
 
 type TestHandler = (event: APIGatewayProxyEvent, ctx: Context) => Promise<APIGatewayProxyResult>;
@@ -206,6 +208,8 @@ describe('identity-webhook handler', () => {
         expect(result.statusCode).toBe(200);
         expect(mockSetExternalId).not.toHaveBeenCalled();
         expect(mockRecordOnce).toHaveBeenCalled(); // processed (a duplicate redelivery dedups, not retries)
+        // R5 taxonomy: the EXPECTED email-collision fallback must NOT page.
+        expect(vi.mocked(captureProvisioningFailure)).not.toHaveBeenCalled();
     });
 
     it('user.created completes account+profile even when setExternalId throws (does not abort, still 200)', async () => {
@@ -322,6 +326,8 @@ describe('identity-webhook handler', () => {
         // Confirm-after-process: the svix-id is NOT recorded on failure, so svix's retry re-processes
         // instead of short-circuiting to dedup (the original A2 event-loss failure mode).
         expect(mockRecordOnce).not.toHaveBeenCalled();
+        // R5: a genuine failure emits the distinct paging signal (carrying only the Clerk identity id).
+        expect(vi.mocked(captureProvisioningFailure)).toHaveBeenCalledWith(expect.any(Error), 'user_abc123');
     });
 
     it('records the svix-id on the PK only after a successful user.created', async () => {

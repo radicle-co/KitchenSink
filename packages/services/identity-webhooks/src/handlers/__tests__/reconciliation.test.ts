@@ -19,6 +19,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
 
 vi.mock('../../common/observability.js', () => ({
     emitMetric: vi.fn(),
+    captureProvisioningFailure: vi.fn(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     withObservability: <T, R>(fn: (event: T, ctx: unknown) => Promise<R>) => fn,
 }));
@@ -36,7 +37,7 @@ import { getDb } from '../../common/db.js';
 import { listUsers } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { emitMetric, logger } from '../../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
 
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
@@ -139,6 +140,27 @@ describe('reconciliation handler', () => {
         delete process.env.DB_SECRET_ARN;
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
+    });
+
+    it('continues past a genuinely failing user, signals it, and counts it as failed', async () => {
+        mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserExisting] as never);
+        // user_new's provisioning throws a genuine DB error; user_existing succeeds.
+        mockProvisionCompleteUser.mockImplementation((_deps, input) => {
+            if ((input as { identityId: string }).identityId === 'user_new') {
+                return Promise.reject(new Error('db unavailable'));
+            }
+
+            return Promise.resolve({ kind: 'complete', user: { id: 'ulid_x' } }) as never;
+        });
+
+        const res = (await handler(makeEvent(), makeContext())) as { failed: number; updated: number };
+
+        // The whole run is NOT aborted by one bad user — the other still gets repaired.
+        expect(mockProvisionCompleteUser).toHaveBeenCalledTimes(2);
+        expect(res.failed).toBe(1);
+        expect(res.updated).toBe(1);
+        // R5: the genuine failure emits the distinct paging signal carrying the Clerk identity id.
+        expect(vi.mocked(captureProvisioningFailure)).toHaveBeenCalledWith(expect.any(Error), 'user_new');
     });
 
     it('handles an empty IdP user list gracefully', async () => {

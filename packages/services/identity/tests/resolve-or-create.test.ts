@@ -5,12 +5,14 @@ vi.mock('@aws-sdk/client-sqs', () => ({
     SendMessageCommand: vi.fn(),
 }));
 
+// The combined completeness pre-check: select({...}).from().leftJoin().leftJoin().where().limit().
+// Result rows are `{ user, accountId, profileId }` (accountId/profileId null ⇒ that aux row is missing).
 function selectChain<T>(result: T) {
+    const leaf = { where: () => ({ limit: () => Promise.resolve(result) }) };
+
     return {
         from: () => ({
-            where: () => ({
-                limit: () => Promise.resolve(result),
-            }),
+            leftJoin: () => ({ leftJoin: () => leaf }),
         }),
     };
 }
@@ -40,14 +42,13 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         usersService = new UsersService(mockDb, {} as never, {} as never);
     });
 
-    it('returns context for an existing user that already has an account (no writes)', async () => {
+    it('returns context for a complete existing user (no writes)', async () => {
         const userRow = { id: '01EXISTINGUSER000000000000', email: 'a@b.com' };
-        const account = { id: 'acc-1', userId: '01EXISTINGUSER000000000000' };
 
+        // Single combined query — user present, both aux rows present ⇒ complete.
         mockDb.select = vi
             .fn()
-            .mockReturnValueOnce(selectChain([userRow])) // find user by identityId
-            .mockReturnValueOnce(selectChain([account])); // find account
+            .mockReturnValueOnce(selectChain([{ user: userRow, accountId: 'acc-1', profileId: 'prof-1' }]));
 
         const ctx = await usersService.resolveOrCreateFromClaims({
             sub: 'user_x',
@@ -86,23 +87,29 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         expect(mockDb.insert).toHaveBeenCalledTimes(3);
     });
 
-    it('heals a webhook-first user that is missing an account (account + profile only)', async () => {
-        const userRow = { id: '01LEGACYUSER00000000000000', email: 'l@b.com' };
+    it('heals an existing user missing its profile (the old check looked only at accounts)', async () => {
+        const userRow = {
+            id: '01LEGACYUSER00000000000000',
+            email: 'l@b.com',
+            createdAt: new Date(1),
+            updatedAt: new Date(1),
+        };
 
+        // User present + account present but profile MISSING — the old accounts-only check would skip this.
         mockDb.select = vi
             .fn()
-            .mockReturnValueOnce(selectChain([userRow])) // found user
-            .mockReturnValueOnce(selectChain([])); // no account
+            .mockReturnValueOnce(selectChain([{ user: userRow, accountId: 'acc-x', profileId: null }]));
 
         mockDb.insert = vi
             .fn()
+            .mockReturnValueOnce(insertUsersReturning([userRow])) // routine re-upserts the user (idempotent)
             .mockReturnValueOnce(insertNoop) // account
             .mockReturnValueOnce(insertNoop); // profile
 
         const ctx = await usersService.resolveOrCreateFromClaims({ sub: 'user_legacy', firstName: 'Leg' });
 
         expect(ctx.userId).toBe('01LEGACYUSER00000000000000');
-        expect(mockDb.insert).toHaveBeenCalledTimes(2); // no user upsert — user already existed
+        expect(mockDb.insert).toHaveBeenCalledTimes(3); // healed through the shared routine
     });
 
     it('creates with a per-identity placeholder email when the token carries no email claim', async () => {
@@ -114,7 +121,6 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
             updatedAt: createdAt,
         };
 
-        // Capture the values passed to the user insert so we can assert the placeholder email.
         const valuesSpy = vi.fn(() => ({
             onConflictDoUpdate: () => ({ returning: () => Promise.resolve([createdRow]) }),
         }));
@@ -130,7 +136,6 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         const ctx = await usersService.resolveOrCreateFromClaims({ sub: 'user_noemail' });
 
         expect(ctx.userId).toBe('01NOEMAIL000000000000000A');
-        // No NOT NULL UNIQUE violation: a deterministic, per-sub placeholder is inserted.
         expect(valuesSpy).toHaveBeenCalledWith(expect.objectContaining({ email: 'user_noemail@no-email.invalid' }));
     });
 
@@ -142,8 +147,7 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
             createdAt,
             updatedAt: createdAt,
         };
-        // Model how Drizzle surfaces the violation: it wraps the pg error (which carries
-        // code/constraint) in `.cause` — isUniqueViolation must walk the chain, not just the top error.
+        // Drizzle wraps the pg error (code/constraint) in `.cause` — the routine walks the chain.
         const uniqueViolation = Object.assign(new Error('Failed query: insert into "users"'), {
             cause: Object.assign(new Error('duplicate key value violates unique constraint "users_email_unique"'), {
                 code: '23505',
@@ -192,12 +196,10 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
 
     it('passes scopes/permissions from the verified token into the authorizer context', async () => {
         const userRow = { id: '01ADMINUSER000000000000000', email: 'admin@b.com' };
-        const account = { id: 'acc-admin', userId: '01ADMINUSER000000000000000' };
 
         mockDb.select = vi
             .fn()
-            .mockReturnValueOnce(selectChain([userRow])) // find user
-            .mockReturnValueOnce(selectChain([account])); // find account
+            .mockReturnValueOnce(selectChain([{ user: userRow, accountId: 'acc-admin', profileId: 'prof-admin' }]));
 
         const ctx = await usersService.resolveOrCreateFromClaims({
             sub: 'user_admin',

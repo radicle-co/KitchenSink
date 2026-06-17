@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 
 import { users, accounts, profiles } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
@@ -11,27 +12,6 @@ import { ResolveUserService } from './resolveUser.js';
 import { newUserId, type UserId } from '../types/index.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
 import { traceAuth } from '../observability/auth-trace.js';
-
-/**
- * Postgres unique-violation (23505) on a specific named constraint/index. Drizzle wraps the driver
- * error, so the pg error (carrying `code`/`constraint`) lives on a possibly-nested `.cause` — walk
- * the chain rather than only inspecting the top-level error.
- */
-function isUniqueViolation(err: unknown, constraint: string): boolean {
-    let current: unknown = err;
-
-    for (let depth = 0; current !== null && current !== undefined && depth < 5; depth++) {
-        const e = current as { code?: unknown; constraint?: unknown; cause?: unknown };
-
-        if (e.code === '23505' && e.constraint === constraint) {
-            return true;
-        }
-
-        current = e.cause;
-    }
-
-    return false;
-}
 
 /** Per-identity, never-deliverable placeholder for users whose Clerk token carries no email claim. */
 function placeholderEmail(sub: string): string {
@@ -48,84 +28,34 @@ export class UsersService {
         private readonly resolver: ResolveUserService,
     ) {}
 
+    /** Dependency bundle for the shared provisioning routine (KTD2: schema-injected, db cast per repo convention). */
+    private provisionDeps(): ProvisionDeps {
+        return { db: this.db as unknown as Db, schema: { users, accounts, profiles }, newUserId };
+    }
+
     async upsertUser(
         _ctx: AuthorizerContext,
         input: { identityId: string; email: string; name?: string; picture?: string },
     ): Promise<{ id: string; created: boolean }> {
-        const { id, created } = await this.upsertUserRecord(input);
-
-        return { id, created };
-    }
-
-    /**
-     * Idempotently upsert a user (keyed on the Clerk identity id) and, on first creation, the
-     * companion account + profile rows. Shared by the explicit `/v1/users/upsert` endpoint and the
-     * read-through auth path. Idempotency is anchored on the `users.identityId` unique constraint,
-     * so concurrent callers (webhook + read-through) converge on a single row set.
-     */
-    private async upsertUserRecord(
-        input: {
-            identityId: string;
-            email: string;
-            name?: string;
-            picture?: string;
-        },
-        // The read-through path may synthesize a placeholder email when the token carries no email
-        // claim. `emailIsReal: false` means "do NOT overwrite an existing email on conflict" — so a
-        // concurrent user.created webhook that already wrote the real email is never clobbered with the
-        // placeholder. The explicit /upsert endpoint and the webhook always pass real emails (default).
-        opts: { emailIsReal?: boolean } = {},
-    ): Promise<{ id: string; created: boolean; row: typeof users.$inferSelect }> {
-        const emailIsReal = opts.emailIsReal ?? true;
-        const now = new Date();
-        const id = newUserId();
-
-        // Deliberately NOT wrapped in a transaction. The user insert and the account/profile inserts
-        // run as separate autocommit statements so locks release immediately. A single transaction
-        // holding the users-row lock across the FK-checked account/profile inserts deadlocks against a
-        // concurrent autocommit webhook taking FOR KEY SHARE on the same row in the opposite order
-        // (the exact webhook-vs-read-through race this feature targets). The transient partial state
-        // (user without account) self-heals via the existing-user healing branch + the webhook account
-        // backstop, so atomicity is not worth the deadlock. The email-collision retry still gets a clean
-        // slate because a failed single INSERT is atomically all-or-nothing on its own.
-        const [row] = await this.db
-            .insert(users)
-            .values({
-                id,
+        const result = await provisionCompleteUser<typeof users.$inferSelect>(
+            this.provisionDeps(),
+            {
                 identityId: input.identityId,
                 email: input.email,
-                name: input.name ?? null,
-                picture: input.picture ?? null,
-                createdAt: now,
-                updatedAt: now,
-            })
-            .onConflictDoUpdate({
-                target: users.identityId,
-                set: {
-                    // Never let a read-through placeholder/empty clobber a real value a concurrent
-                    // webhook may have just written: overwrite email only when it's real, and COALESCE
-                    // name/picture so a null incoming keeps the existing value.
-                    ...(emailIsReal ? { email: input.email } : {}),
-                    name: sql`coalesce(${input.name ?? null}, ${users.name})`,
-                    picture: sql`coalesce(${input.picture ?? null}, ${users.picture})`,
-                    updatedAt: now,
-                },
-            })
-            .returning();
+                name: input.name,
+                displayName: input.name,
+                picture: input.picture,
+            },
+            { onEmailCollision: 'placeholder', emailIsReal: true },
+        );
 
-        const created = row.createdAt.getTime() === row.updatedAt.getTime();
-
-        if (created) {
-            await this.ensureAccountAndProfile(row.id, input.name ?? '');
+        if (result.kind !== 'complete') {
+            throw new Error('upsertUser: provisioning returned incomplete unexpectedly');
         }
 
-        return { id: row.id, created, row };
-    }
+        const { user } = result;
 
-    /** Idempotently ensure a user's account + profile rows exist. No-op when already present. */
-    private async ensureAccountAndProfile(userId: string, displayName: string): Promise<void> {
-        await this.db.insert(accounts).values({ userId }).onConflictDoNothing();
-        await this.db.insert(profiles).values({ userId, displayName }).onConflictDoNothing();
+        return { id: user.id, created: user.createdAt.getTime() === user.updatedAt.getTime() };
     }
 
     /**
@@ -138,72 +68,68 @@ export class UsersService {
      */
     async resolveOrCreateFromClaims(claims: VerifiedClerkClaims): Promise<AuthorizerContext> {
         const displayName = [claims.firstName, claims.lastName].filter(Boolean).join(' ').trim();
+        const realEmail = claims.email;
 
-        const [existing] = await this.db.select().from(users).where(eq(users.identityId, claims.sub)).limit(1);
+        // One query: fetch the user AND whether its account + profile already exist (the hot-path
+        // completeness pre-check — a complete user takes a single SELECT and no write on every
+        // authenticated request; only an incomplete/new user pays for provisioning).
+        const [found] = await this.db
+            .select({ user: users, accountId: accounts.id, profileId: profiles.id })
+            .from(users)
+            .leftJoin(accounts, eq(accounts.userId, users.id))
+            .leftJoin(profiles, eq(profiles.userId, users.id))
+            .where(eq(users.identityId, claims.sub))
+            .limit(1);
 
         let userRow: typeof users.$inferSelect;
 
-        if (!existing) {
-            // Create the user + account + profile on first sight. Use the row returned by the upsert
-            // directly (no re-read): correct even when a concurrent webhook won the insert, since the
-            // identity_id ON CONFLICT clause returns the surviving row.
-            //
-            // `users.email` is NOT NULL UNIQUE. When the token carries no email claim (instance not
-            // customized), use a per-identity placeholder so two emailless users don't collide on the
-            // unique index. `.invalid` is reserved (RFC 2606), never deliverable; the webhook backfills.
-            const realEmail = claims.email;
+        if (!found) {
+            // Create through the shared routine. `users.email` is NOT NULL: when the token carries no
+            // email claim, pass a per-identity placeholder (`emailIsReal: false`). When a real email
+            // already belongs to a DIFFERENT identity, the routine's `placeholder` policy re-provisions
+            // with the placeholder rather than 500ing (provisioning runs on every authenticated request).
+            const result = await provisionCompleteUser<typeof users.$inferSelect>(
+                this.provisionDeps(),
+                {
+                    identityId: claims.sub,
+                    email: realEmail ?? placeholderEmail(claims.sub),
+                    name: displayName || undefined,
+                    displayName: displayName || undefined,
+                    picture: claims.picture,
+                },
+                { onEmailCollision: 'placeholder', emailIsReal: realEmail !== undefined },
+            );
 
-            try {
-                const { row } = await this.upsertUserRecord(
+            if (result.kind !== 'complete') {
+                // Unreachable under the `placeholder` policy (it always provisions a complete user);
+                // kept so the type stays honest and a future policy change fails loudly here.
+                throw new Error('read-through provisioning returned incomplete unexpectedly');
+            }
+
+            userRow = result.user;
+            traceAuth('provision.created', {
+                sub: claims.sub,
+                userId: userRow.id,
+                emailIsReal: realEmail !== undefined,
+            });
+        } else {
+            userRow = found.user;
+            traceAuth('provision.existing', { sub: claims.sub, userId: userRow.id });
+
+            // Heal an incomplete existing user (missing account OR profile — the old check looked only at
+            // accounts) through the same idempotent routine. Only fires when the pre-check found a gap.
+            if (!found.accountId || !found.profileId) {
+                await provisionCompleteUser(
+                    this.provisionDeps(),
                     {
                         identityId: claims.sub,
-                        email: realEmail ?? placeholderEmail(claims.sub),
+                        email: userRow.email,
                         name: displayName || undefined,
+                        displayName: displayName || undefined,
                         picture: claims.picture,
                     },
-                    { emailIsReal: realEmail !== undefined },
+                    { onEmailCollision: 'placeholder', emailIsReal: true },
                 );
-                userRow = row;
-                traceAuth('provision.created', {
-                    sub: claims.sub,
-                    userId: row.id,
-                    emailIsReal: realEmail !== undefined,
-                });
-            } catch (err) {
-                // The user's real email already belongs to a DIFFERENT Clerk identity (Clerk permits
-                // shared emails — delete+recreate, social link). Provisioning runs in AuthMiddleware on
-                // every request, so a raw unique-violation would 500 and HARD-LOCK the user out of every
-                // route. Provision with the per-identity placeholder instead and let the webhook
-                // reconcile; the placeholder is keyed on `sub`, so it can only conflict on identityId
-                // (handled by the upsert), never on the email index.
-                if (realEmail !== undefined && isUniqueViolation(err, 'users_email_unique')) {
-                    this.logger.warn('Email already in use by another identity; provisioning with placeholder', {
-                        sub: claims.sub,
-                    });
-                    traceAuth('provision.email_conflict_placeholder', { sub: claims.sub });
-                    const { row } = await this.upsertUserRecord(
-                        {
-                            identityId: claims.sub,
-                            email: placeholderEmail(claims.sub),
-                            name: displayName || undefined,
-                            picture: claims.picture,
-                        },
-                        { emailIsReal: false },
-                    );
-                    userRow = row;
-                } else {
-                    throw err;
-                }
-            }
-        } else {
-            userRow = existing;
-            traceAuth('provision.existing', { sub: claims.sub, userId: existing.id });
-            // Heal legacy/partial records (e.g. a webhook-first user created before the account
-            // backstop existed): ensure account + profile without an unconditional per-request write.
-            const [account] = await this.db.select().from(accounts).where(eq(accounts.userId, userRow.id)).limit(1);
-
-            if (!account) {
-                await this.ensureAccountAndProfile(userRow.id, displayName);
             }
         }
 

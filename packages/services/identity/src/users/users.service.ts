@@ -227,10 +227,16 @@ export class UsersService {
 
         const deletedAt = new Date();
 
+        // Same EU data policy as the user.deleted webhook (see UserDAO.purgePrivateDataByIdentityId):
+        // retain the user's PUBLIC attribution data (id/email/name) so their public recipes still show
+        // a creator, but purge everything private — soft-delete + clear the avatar on the user row, and
+        // delete the account + profile rows. Lock the users row first (UPDATE), then delete the
+        // children — matching provisionCompleteUser's lock order so a concurrent provision can't
+        // deadlock (the d59e11c 40P01 class).
         await this.db.transaction(async (tx) => {
+            await tx.update(users).set({ deletedAt, picture: null, updatedAt: deletedAt }).where(eq(users.id, userId));
             await tx.delete(accounts).where(eq(accounts.userId, userId));
             await tx.delete(profiles).where(eq(profiles.userId, userId));
-            await tx.delete(users).where(eq(users.id, userId));
         });
 
         try {

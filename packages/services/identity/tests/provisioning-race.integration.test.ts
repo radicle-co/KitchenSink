@@ -172,23 +172,32 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
         expect(await db.select().from(profiles).where(eq(profiles.userId, revived!.id))).toHaveLength(1);
     });
 
-    it('hardDeleteByIdentityId erases the user AND cascade-removes its account + profile (no PII retained)', async () => {
-        const sub = 'user_hard_delete';
-        await readThrough(sub, `${sub}@example.com`);
+    it('purgePrivateDataByIdentityId deletes account + profile and clears the avatar, but RETAINS id/email/name for attribution', async () => {
+        const sub = 'user_purge';
+        const email = `${sub}@example.com`;
+        await provisionCompleteUser(
+            deps,
+            { identityId: sub, email, name: 'Keep Me', displayName: 'Keep Me', avatarUrl: 'https://img/a.jpg' },
+            { onEmailCollision: 'placeholder', emailIsReal: true },
+        );
         const [seeded] = await db.select().from(users).where(eq(users.identityId, sub));
         const userId = seeded!.id;
-        // Precondition: the complete unit exists.
+        // Precondition: the complete unit exists, with an avatar set.
         expect(await db.select().from(accounts).where(eq(accounts.userId, userId))).toHaveLength(1);
         expect(await db.select().from(profiles).where(eq(profiles.userId, userId))).toHaveLength(1);
 
         const dao = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>);
-        const deleted = await dao.hardDeleteByIdentityId(sub);
-        expect(deleted?.identityId).toBe(sub);
+        const purged = await dao.purgePrivateDataByIdentityId(sub);
+        expect(purged?.id).toBe(userId);
 
-        // The user row is GONE (hard delete, not a soft deletedAt flag) and the ON DELETE CASCADE FKs
-        // removed the account + profile — queried by the original userId, so this proves the cascade
-        // rather than just "the user can no longer be found". No email/name/displayName/avatar/bio left.
-        expect(await db.select().from(users).where(eq(users.identityId, sub))).toHaveLength(0);
+        // PUBLIC attribution data is retained on a soft-deleted user row: id, email, name survive.
+        const [after] = await db.select().from(users).where(eq(users.id, userId));
+        expect(after).toBeDefined();
+        expect(after!.email).toBe(email);
+        expect(after!.name).toBe('Keep Me');
+        expect(after!.deletedAt).not.toBeNull();
+        // PRIVATE data is purged: the avatar is cleared and the account + profile rows are deleted.
+        expect(after!.picture).toBeNull();
         expect(await db.select().from(accounts).where(eq(accounts.userId, userId))).toHaveLength(0);
         expect(await db.select().from(profiles).where(eq(profiles.userId, userId))).toHaveLength(0);
     });

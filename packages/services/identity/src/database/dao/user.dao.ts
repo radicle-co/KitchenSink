@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { users } from '../schema/index.js';
+import { users, accounts, profiles } from '../schema/index.js';
 import type { NewUserRow, UserRow } from '../schema/index.js';
 import { newUserId, type UserId } from '../../types/index.js';
 
@@ -73,13 +73,35 @@ export class UserDAO {
         return rows[0];
     }
 
-    async hardDeleteByIdentityId(identityId: string): Promise<UserRow | undefined> {
-        // A `user.deleted` event requires erasing ALL personal data — a hard delete, not a soft flag.
-        // Deleting the user row cascades to its `accounts` and `profiles` rows via their
-        // `ON DELETE CASCADE` FKs (migration 0005), so no email / name / picture / display name /
-        // avatar / bio is left anywhere in the database.
-        const rows = await this.db.delete(users).where(eq(users.identityId, identityId)).returning();
+    async purgePrivateDataByIdentityId(identityId: string): Promise<UserRow | undefined> {
+        // On a `user.deleted` event we retain only the PUBLIC attribution data the user provided — the
+        // user id, email, and name — so recipes in the public database still show who created them
+        // after the account is gone. Everything private (EU law) is purged: the avatar (picture) is
+        // cleared on the user row, and the account + profile rows (subscription tier, display name,
+        // avatar URL, bio) are deleted outright. The user row is soft-deleted (deleted_at) so it's no
+        // longer an active account but remains as an attribution tombstone — the partial
+        // users_email_unique index (migration 0009) frees the email for re-registration.
+        //
+        // Lock the users row FIRST (the UPDATE), then delete the children — the same lock order as
+        // provisionCompleteUser (users -> accounts -> profiles), so a delete racing a concurrent
+        // provision of the same identity can't deadlock (the d59e11c 40P01 class).
+        return this.db.transaction(async (tx) => {
+            const updated = await tx
+                .update(users)
+                .set({ deletedAt: new Date(), picture: null, updatedAt: new Date() })
+                .where(eq(users.identityId, identityId))
+                .returning();
 
-        return rows[0];
+            const user = updated[0];
+
+            if (!user) {
+                return undefined;
+            }
+
+            await tx.delete(accounts).where(eq(accounts.userId, user.id));
+            await tx.delete(profiles).where(eq(profiles.userId, user.id));
+
+            return user;
+        });
     }
 }

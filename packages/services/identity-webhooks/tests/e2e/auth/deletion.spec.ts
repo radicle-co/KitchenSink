@@ -7,7 +7,8 @@ import { provisionCompleteUser } from '@kitchensink/identity-utils';
  * E2E: identity-webhooks async Lambdas (deletion-worker + reconciliation).
  *
  * Covers:
- *   - deletion-worker: SQS event → DAO hard-delete (cascades account + profile); idempotent on missing user
+ *   - deletion-worker: SQS event → DAO purge of private data (delete account + profile, retain
+ *     soft-deleted user id/email/name for attribution); idempotent on missing user
  *   - reconciliation: ScheduledEvent → IdP list → DAO upsert; returns drift counts
  *
  * @implements REQ-017 REQ-025 REQ-026 REQ-IF-005 REQ-IF-010 REQ-CN-001
@@ -15,7 +16,7 @@ import { provisionCompleteUser } from '@kitchensink/identity-utils';
  */
 
 const mockFindByIdentityId = vi.fn();
-const mockHardDelete = vi.fn().mockResolvedValue(undefined);
+const mockPurgePrivateData = vi.fn().mockResolvedValue(undefined);
 const mockUpsert = vi.fn().mockResolvedValue({ id: '01UPSERTED0000000000000000' });
 const mockListUsers = vi.fn();
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
@@ -33,7 +34,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
     UserDAO: vi.fn(function () {
         return {
             findByIdentityId: mockFindByIdentityId,
-            hardDeleteByIdentityId: mockHardDelete,
+            purgePrivateDataByIdentityId: mockPurgePrivateData,
             upsertByIdentityId: mockUpsert,
         };
     }),
@@ -80,8 +81,8 @@ const makeSqsRecord = (body: object, id = 'msg-1') => ({
 });
 
 describe('e2e: deletion-worker Lambda', () => {
-    it('hard-deletes user when found in DB', async () => {
-        mockFindByIdentityId.mockResolvedValueOnce({
+    it('purges user private data when found in DB', async () => {
+        mockPurgePrivateData.mockResolvedValueOnce({
             id: '01USER000000000000000DELETE',
             identityId: 'user_delete_e2e',
         });
@@ -90,22 +91,21 @@ describe('e2e: deletion-worker Lambda', () => {
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_delete_e2e' })] };
         await handler(event, ctx);
 
-        expect(mockFindByIdentityId).toHaveBeenCalledWith('user_delete_e2e');
-        expect(mockHardDelete).toHaveBeenCalledWith('user_delete_e2e');
+        expect(mockPurgePrivateData).toHaveBeenCalledWith('user_delete_e2e');
     });
 
-    it('is idempotent when user is already absent (no error, no delete)', async () => {
-        mockFindByIdentityId.mockResolvedValueOnce(null);
+    it('is idempotent when user is already absent (no error)', async () => {
+        mockPurgePrivateData.mockResolvedValueOnce(undefined);
         const { handler } = await import('../../../src/handlers/deletion-worker.js');
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_missing_e2e' })] };
         await expect(handler(event, ctx)).resolves.toBeUndefined();
 
-        expect(mockHardDelete).not.toHaveBeenCalled();
+        expect(mockPurgePrivateData).toHaveBeenCalledWith('user_missing_e2e');
     });
 
     it('processes multiple SQS records in one invocation', async () => {
-        mockFindByIdentityId
+        mockPurgePrivateData
             .mockResolvedValueOnce({ id: 'u1', identityId: 'user_a' })
             .mockResolvedValueOnce({ id: 'u2', identityId: 'user_b' })
             .mockResolvedValueOnce({ id: 'u3', identityId: 'user_c' });
@@ -120,9 +120,9 @@ describe('e2e: deletion-worker Lambda', () => {
         };
         await handler(event, ctx);
 
-        expect(mockHardDelete).toHaveBeenCalledTimes(3);
-        expect(mockHardDelete).toHaveBeenNthCalledWith(1, 'user_a');
-        expect(mockHardDelete).toHaveBeenNthCalledWith(3, 'user_c');
+        expect(mockPurgePrivateData).toHaveBeenCalledTimes(3);
+        expect(mockPurgePrivateData).toHaveBeenNthCalledWith(1, 'user_a');
+        expect(mockPurgePrivateData).toHaveBeenNthCalledWith(3, 'user_c');
     });
 
     it('fails fast with an envelope error when DB_SECRET_ARN is missing', async () => {

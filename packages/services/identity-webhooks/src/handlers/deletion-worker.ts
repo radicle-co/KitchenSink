@@ -24,21 +24,20 @@ const processRecord = async (record: SQSRecord, dbSecretArn: string): Promise<vo
     const db = await getDb(dbSecretArn);
     const userDao = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>);
 
-    const user = await userDao.findByIdentityId(identityId);
+    // Purge the user's private data on deletion: delete the account + profile rows and clear the
+    // avatar, but retain the soft-deleted user row's id/email/name for public recipe attribution.
+    // Returns undefined when there's no such user — idempotent on a missing/already-deleted user.
+    const purged = await userDao.purgePrivateDataByIdentityId(identityId);
 
-    if (!user) {
+    if (!purged) {
         logger.warn('deletion-worker: user not found, skipping (idempotent)', { identityId });
 
         return;
     }
 
-    // Hard delete (not soft): a `user.deleted` event means we must retain no personal data. The user
-    // row's ON DELETE CASCADE FKs remove the account + profile rows in the same statement.
-    await userDao.hardDeleteByIdentityId(identityId);
-
-    logger.info('user hard-deleted (account + profile cascade-removed, all PII erased)', {
+    logger.info('user private data purged (account + profile deleted, avatar cleared; id/email/name retained)', {
         identityId,
-        userId: user.id,
+        userId: purged.id,
     });
 };
 

@@ -23,6 +23,16 @@ async function handler(event) {
         return notFound;
     }
 
+    // Advertise the BROWSER's host to the app BEFORE we swap Host to the per-PR deployment below.
+    // The app and Clerk build absolute / redirect URLs from x-forwarded-host (notably Clerk's
+    // dev-instance handshake); without this they'd only ever see the swapped Vercel deployment host
+    // and bounce the user there. Forwarding the real origin is what lets the SAME build serve BOTH
+    // sandbox.commise.app and the raw Vercel preview host — each request advertises its own origin.
+    // (We overwrite any client-supplied value, which also closes a host-header-injection vector.)
+    if (request.headers.host && request.headers.host.value) {
+        request.headers['x-forwarded-host'] = { value: request.headers.host.value };
+    }
+
     // Host-swap to the per-PR app; the /pr-{N} URI is forwarded unchanged (the app owns the prefix).
     // updateRequestOrigin owns Host + SNI (do not set request.headers['host']); see buildOriginUpdate.
     cf.updateRequestOrigin(buildOriginUpdate(decision.host));

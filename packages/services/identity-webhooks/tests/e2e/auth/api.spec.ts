@@ -1,7 +1,7 @@
 import type { APIGatewayProxyEvent, Context } from 'aws-lambda';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { accounts, profiles } from '@kitchensink/identity-service/database/schema';
+import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
 /**
  * E2E: the identityWebhook Lambda exercised end-to-end against mocked AWS SDK
@@ -17,6 +17,7 @@ const mockFindByIdentityId = vi.fn();
 const mockRecordOnce = vi.fn();
 const mockHasProcessed = vi.fn().mockResolvedValue(false);
 const mockSetExternalId = vi.fn();
+const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 const mockSqsSend = vi.fn().mockResolvedValue({});
 const mockDbInsertReturning = vi.fn().mockResolvedValue([{ id: 'profile-1' }]);
 // Shared insert spy so tests can assert which tables the handler writes (e.g. the account backstop).
@@ -60,6 +61,11 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
     recordOnce: mockRecordOnce,
     hasProcessedWebhookEvent: mockHasProcessed,
 }));
+// user.created provisions the complete unit through the shared routine; the handler no longer drives
+// the user/account/profile writes itself, so mock the routine (its real behavior is proven by the
+// identity-service Postgres integration test) and assert the handler delegates with the right policy.
+vi.mock('../../../src/common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
+vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function () {
         return { send: mockSqsSend };
@@ -109,9 +115,12 @@ const userPayload = (id: string) => ({
 });
 
 describe('e2e: identityWebhook Lambda', () => {
-    it('processes user.created → upserts user, syncs external id, inserts profile + account backstop', async () => {
+    it('processes user.created → provisions the complete unit (signal-incomplete policy), syncs external id', async () => {
         mockRecordOnce.mockResolvedValueOnce(true);
-        mockUpsert.mockResolvedValueOnce({ id: '01USERCREATED0000000000000' });
+        mockProvisionCompleteUser.mockResolvedValueOnce({
+            kind: 'complete',
+            user: { id: '01USERCREATED0000000000000' },
+        } as never);
         const { handler } = await import('../../../src/handlers/identityWebhook.js');
 
         const event = makeWebhookEvent('svix-create-1', {
@@ -121,17 +130,17 @@ describe('e2e: identityWebhook Lambda', () => {
         const result = await handler(event, ctx);
 
         expect(result.statusCode).toBe(200);
-        expect(mockUpsert).toHaveBeenCalledWith(
+        // The webhook is a complete backstop: one routine call owns user + account + profile, using the
+        // signal-incomplete policy so a foreign-email collision is skipped rather than retry-stormed.
+        expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
+            expect.anything(),
             expect.objectContaining({
                 identityId: 'user_created_e2e',
                 email: 'user_created_e2e@example.com',
             }),
+            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
         );
         expect(mockSetExternalId).toHaveBeenCalledWith('user_created_e2e', '01USERCREATED0000000000000');
-        // The webhook is a complete backstop: it writes both the profile and the account so a
-        // webhook-first user (no read-through request yet) is usable.
-        expect(mockDbInsert).toHaveBeenCalledWith(profiles);
-        expect(mockDbInsert).toHaveBeenCalledWith(accounts);
     });
 
     it('processes user.deleted → enqueues deletion job to SQS', async () => {
@@ -163,7 +172,7 @@ describe('e2e: identityWebhook Lambda', () => {
 
         expect(result.statusCode).toBe(200);
         expect(JSON.parse(result.body)).toMatchObject({ dedup: true });
-        expect(mockUpsert).not.toHaveBeenCalled();
+        expect(mockProvisionCompleteUser).not.toHaveBeenCalled();
     });
 
     it('rejects requests with invalid Svix signature (401)', async () => {

@@ -28,6 +28,12 @@ async function runMigrations(pool: pg.Pool): Promise<void> {
         .filter((file) => file.endsWith('.sql'))
         .sort();
 
+    // The integration suites share one database and run serially (vitest fileParallelism: false),
+    // so reset to a blank schema before applying migrations. The migration SQL is not idempotent
+    // (bare CREATE TABLE), so a second suite replaying it on an already-migrated DB would otherwise
+    // fail with "relation already exists".
+    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+
     for (const file of files) {
         await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
     }

@@ -1,9 +1,10 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
+import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
 import { getDb } from '../common/db.js';
-import { ensureProfileAndAccount } from '../common/provisioning.js';
+import { buildProvisionDeps } from '../common/provisioning.js';
 import { listUsers } from '../common/identityClient.js';
 import { buildErrorEnvelope, resolveRequestId } from '../common/error-envelope.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
@@ -48,17 +49,21 @@ const innerHandler = async (event: ScheduledEvent, context: Context): Promise<Re
 
         const existing = await userDao.findByIdentityId(idpUser.id);
 
-        const user = await userDao.upsertByIdentityId({
-            identityId: idpUser.id,
-            email: primaryEmail,
-            name: idpUser.fullName ?? undefined,
-            picture: idpUser.imageUrl ?? undefined,
-        });
-
-        // Reconciliation is a full provisioning path, not just a users-table sync: a user it inserts
-        // must get the same account + profile the webhook/read-through create, or getUserMe 500s for a
-        // user whose only successful provisioning was this drift-repair. Idempotent for existing users.
-        await ensureProfileAndAccount(typedDb, user.id, idpUser.fullName ?? '', idpUser.imageUrl ?? null);
+        // Full provisioning through the shared routine — reconciliation is the LAST-RESORT backstop for
+        // users the webhook missed who may never log in (no read-through to heal them), so a collided
+        // email must still produce a complete placeholder-emailed user (`placeholder`), never be skipped.
+        await provisionCompleteUser(
+            buildProvisionDeps(typedDb),
+            {
+                identityId: idpUser.id,
+                email: primaryEmail,
+                name: idpUser.fullName ?? undefined,
+                displayName: idpUser.fullName ?? undefined,
+                picture: idpUser.imageUrl ?? undefined,
+                avatarUrl: idpUser.imageUrl ?? null,
+            },
+            { onEmailCollision: 'placeholder', emailIsReal: true },
+        );
 
         if (existing) {
             updated += 1;

@@ -5,9 +5,11 @@ import { eq } from 'drizzle-orm';
 
 import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
 import { profiles, users } from '@kitchensink/identity-service/database/schema';
+import type { UserRow } from '@kitchensink/identity-service/database/schema';
+import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
 import { setExternalId } from '../common/identityClient.js';
-import { ensureProfileAndAccount } from '../common/provisioning.js';
+import { buildProvisionDeps } from '../common/provisioning.js';
 import { requireEnv } from '../common/config.js';
 import { getDb } from '../common/db.js';
 import { resolveRequestId } from '../common/error-envelope.js';
@@ -42,23 +44,6 @@ const enqueueDeletion = async (identityId: string): Promise<void> => {
     );
 };
 
-/** Postgres unique-violation (23505) on `users_email_unique`. The pg error may be nested on `.cause`. */
-const isEmailUniqueViolation = (err: unknown): boolean => {
-    let current: unknown = err;
-
-    for (let depth = 0; current !== null && current !== undefined && depth < 5; depth++) {
-        const e = current as { code?: unknown; constraint?: unknown; cause?: unknown };
-
-        if (e.code === '23505' && e.constraint === 'users_email_unique') {
-            return true;
-        }
-
-        current = e.cause;
-    }
-
-    return false;
-};
-
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 const handleUserCreated = async (
     data: IdentityUserData,
@@ -73,39 +58,33 @@ const handleUserCreated = async (
         return;
     }
 
-    const userDao = new UserDAO(db);
-
-    let user;
-
-    try {
-        user = await userDao.upsertByIdentityId({
+    // Provision the COMPLETE local unit (user + account + profile) through the shared routine, before
+    // the external Clerk call below. `signal-incomplete`: if the email already belongs to a DIFFERENT
+    // active identity, don't 502/retry-storm — return and let the read-through path provision this user
+    // (with its placeholder-email fallback) on first authenticated request.
+    const result = await provisionCompleteUser<UserRow>(
+        buildProvisionDeps(db),
+        {
             identityId: data.id,
             email,
             name: buildDisplayName(data),
+            displayName: buildDisplayName(data),
             picture: data.image_url ?? undefined,
+            avatarUrl: data.image_url ?? null,
+        },
+        { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+    );
+
+    if (result.kind === 'incomplete') {
+        logger.warn('identity-webhook: user.created email in use by another active identity; skipping', {
+            requestId,
+            identityId: data.id,
         });
-    } catch (err) {
-        // Defense in depth: the email already belongs to a DIFFERENT ACTIVE identity (Clerk permits
-        // shared emails). 0009's partial index frees soft-deleted emails, so this is now only the
-        // genuine active-collision case. Don't 502 (which would retry-storm) — log and let the
-        // read-through path provision this user (with its placeholder-email fallback) on first login.
-        if (isEmailUniqueViolation(err)) {
-            logger.warn('identity-webhook: user.created email in use by another active identity; skipping', {
-                requestId,
-                identityId: data.id,
-            });
 
-            return;
-        }
-
-        throw err;
+        return;
     }
 
-    // Complete the LOCAL user unit first: profile + account. These must never be gated on the external
-    // Clerk call below — getUserMe dereferences the account, so a user without one is locked out of
-    // every authenticated read. (This ordering is the fix for users that were left account-less when
-    // setExternalId threw, or that reconciliation provisioned without auxiliary rows.)
-    await ensureProfileAndAccount(db, user.id, buildDisplayName(data), data.image_url ?? null);
+    const { user } = result;
 
     // Best-effort: backfill Clerk's external_id (the app user id) so the IdP→app link is bidirectional.
     // A failure here (Clerk API down, key rotated/again-missing, rate limit) must NOT abort provisioning

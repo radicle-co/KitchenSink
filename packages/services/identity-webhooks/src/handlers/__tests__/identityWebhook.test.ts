@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
 vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
-vi.mock('../../common/provisioning.js', () => ({ ensureProfileAndAccount: vi.fn() }));
+vi.mock('../../common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
+vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
 
 vi.mock('@kitchensink/identity-service/database/dao', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
@@ -38,7 +39,7 @@ import { recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-serv
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
 import { setExternalId } from '../../common/identityClient.js';
-import { ensureProfileAndAccount } from '../../common/provisioning.js';
+import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { verifyWebhook } from '../../common/svix.js';
 
 type TestHandler = (event: APIGatewayProxyEvent, ctx: Context) => Promise<APIGatewayProxyResult>;
@@ -49,7 +50,7 @@ const mockVerifyWebhook = vi.mocked(verifyWebhook);
 const mockRecordOnce = vi.mocked(recordOnce);
 const mockHasProcessed = vi.mocked(hasProcessedWebhookEvent);
 const mockSetExternalId = vi.mocked(setExternalId);
-const mockEnsureProfileAndAccount = vi.mocked(ensureProfileAndAccount);
+const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
 
@@ -131,7 +132,7 @@ beforeEach(() => {
     mockHasProcessed.mockResolvedValue(false);
     mockRecordOnce.mockResolvedValue(undefined);
     mockSetExternalId.mockResolvedValue(undefined as never);
-    mockEnsureProfileAndAccount.mockResolvedValue(undefined);
+    mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'usr_ulid' } } as never);
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
     process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
     process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
@@ -156,25 +157,14 @@ describe('identity-webhook handler', () => {
         expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 
-    it('user.created -> upserts user, ensures account+profile, sets external id, syncs timestamp', async () => {
+    it('user.created -> provisions the complete user via the shared routine, sets external id, syncs timestamp', async () => {
         const { db, setUser } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
-
-        const daoInstance = {
-            upsertByIdentityId: vi.fn().mockResolvedValue({
-                id: 'usr_ulid',
-                identityId: 'user_abc123',
-                email: 'test@example.com',
-                name: 'John Doe',
-                picture: 'https://example.com/avatar.png',
-            }),
-            findByIdentityId: vi.fn(),
-            updateProfile: vi.fn(),
-        };
-        vi.mocked(UserDAO).mockImplementation(function () {
-            return daoInstance;
-        });
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
 
         const result = await handler(
             makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }),
@@ -183,20 +173,39 @@ describe('identity-webhook handler', () => {
 
         expect(result.statusCode).toBe(200);
         expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_123', 'user_abc123', 'user.created');
-        expect(daoInstance.upsertByIdentityId).toHaveBeenCalledWith({
-            identityId: 'user_abc123',
-            email: 'test@example.com',
-            name: 'John Doe',
-            picture: 'https://example.com/avatar.png',
-        });
-        expect(mockEnsureProfileAndAccount).toHaveBeenCalledWith(
-            db,
-            'usr_ulid',
-            'John Doe',
-            'https://example.com/avatar.png',
+        // One routine call owns user + account + profile; the webhook uses the signal-incomplete policy.
+        expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                identityId: 'user_abc123',
+                email: 'test@example.com',
+                name: 'John Doe',
+                displayName: 'John Doe',
+                avatarUrl: 'https://example.com/avatar.png',
+            }),
+            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
         );
+        // External id backfill runs AFTER the complete local unit, and stamps the sync marker on success.
         expect(mockSetExternalId).toHaveBeenCalledWith('user_abc123', 'usr_ulid');
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ externalIdSyncedAt: expect.any(Date) }));
+    });
+
+    it('user.created with an email owned by another active identity -> skips (no 502), still 200', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        // The routine signals incomplete on a cross-identity email collision; the read-through provisions
+        // this user (with its placeholder fallback) on first login, so the webhook must NOT retry-storm.
+        mockProvisionCompleteUser.mockResolvedValue({ kind: 'incomplete', reason: 'email-collision' } as never);
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(mockSetExternalId).not.toHaveBeenCalled();
+        expect(mockRecordOnce).toHaveBeenCalled(); // processed (a duplicate redelivery dedups, not retries)
     });
 
     it('user.created completes account+profile even when setExternalId throws (does not abort, still 200)', async () => {
@@ -207,28 +216,14 @@ describe('identity-webhook handler', () => {
         // unit. setExternalId throwing used to abort the handler AFTER the user row, leaving no account.
         mockSetExternalId.mockRejectedValue(new Error('Clerk 503'));
 
-        const daoInstance = {
-            upsertByIdentityId: vi.fn().mockResolvedValue({ id: 'usr_ulid', identityId: 'user_abc123' }),
-            findByIdentityId: vi.fn(),
-            updateProfile: vi.fn(),
-        };
-        vi.mocked(UserDAO).mockImplementation(function () {
-            return daoInstance;
-        });
-
         const result = await handler(
             makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }),
             makeContext(),
         );
 
         expect(result.statusCode).toBe(200);
-        // Account + profile are created before the external call, so they land regardless.
-        expect(mockEnsureProfileAndAccount).toHaveBeenCalledWith(
-            db,
-            'usr_ulid',
-            'John Doe',
-            'https://example.com/avatar.png',
-        );
+        // The complete user unit is provisioned by the routine before the external call, so it lands.
+        expect(mockProvisionCompleteUser).toHaveBeenCalled();
         // The webhook is recorded as processed (no retry storm) and the synced timestamp is NOT stamped,
         // so reconciliation knows external_id still needs backfilling.
         expect(mockRecordOnce).toHaveBeenCalled();
@@ -316,9 +311,9 @@ describe('identity-webhook handler', () => {
             return daoInstance;
         });
         // A GENUINE processing failure (the local user unit couldn't be completed). Note this is NOT
-        // setExternalId — that's best-effort now and must not fail the webhook; a DB error writing the
-        // account/profile is the real "processing failed" case that should make svix retry.
-        mockEnsureProfileAndAccount.mockRejectedValue(new Error('db unavailable'));
+        // setExternalId — that's best-effort now and must not fail the webhook; a DB error inside the
+        // provisioning routine is the real "processing failed" case that should make svix retry.
+        mockProvisionCompleteUser.mockRejectedValue(new Error('db unavailable'));
 
         await expect(
             handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_fail' }), makeContext()),

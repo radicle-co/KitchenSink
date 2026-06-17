@@ -5,7 +5,7 @@
 !packages/services/identity/prod.package.json
 # Shared @kitchensink/identity-utils: the root node_modules symlink resolves to this path, so its
 # built dist + dist-pointing manifest must be in the image or `node dist/main.js` crash-loops on the
-# bare specifier (the @kitchensink/tracing failure class). Its package.json already points at dist, so
-# no docker-prepare rewrite is needed.
+# bare specifier (the @kitchensink/tracing failure class). The committed package.json exports ./src
+# for fresh consumers; the image copies prod.package.json (which exports ./dist) over it instead.
 !packages/utils/identity/dist
-!packages/utils/identity/package.json
+!packages/utils/identity/prod.package.json

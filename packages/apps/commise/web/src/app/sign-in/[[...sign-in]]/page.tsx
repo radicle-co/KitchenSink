@@ -13,6 +13,12 @@ export default function SignInPage() {
                 forceRedirectUrl runs through Next's router (which already prepends basePath), so a
                 pre-prefixed value double-prefixes to /pr-{N}/pr-{N}/ and strands the signed-in user —
                 pass a BARE path and let Next add the prefix once. (See the sign-up page note.) */}
+            {/* forceRedirectUrl='/' is ALSO the sole guard against an open redirect: clerkMiddleware's
+                protected-route bounce appends `?redirect_url=<original path>` to this sign-in URL, and
+                forcing '/' ignores it. If you ever add return-to-original-route, validate redirect_url
+                is same-origin before honoring it. Known trade-off today: a deep-linked /profile
+                (bookmark or shared link) → after sign-in the user lands on home, not /profile — an
+                accepted cost while return-to is deferred. */}
             <SignIn
                 routing="hash"
                 appearance={clerkAppearance}

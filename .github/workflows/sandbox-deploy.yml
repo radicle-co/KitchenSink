@@ -34,7 +34,9 @@ env:
 jobs:
     # ── Cleanup: PR closed → destroy all sandbox stacks for this PR ──
     cleanup:
-        name: Destroy sandbox (pr-${{ github.event.pull_request.number }})
+        # Static name (no ${{ }}) so the open-PR skipped state shows a clean title, not a raw
+        # template. This job only runs on PR close; the PR number is in the STAGE env below.
+        name: Destroy sandbox preview
         runs-on: ubuntu-latest
         if: github.event_name == 'pull_request' && github.event.action == 'closed'
         env:

@@ -3,14 +3,18 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { UserDAO, recordOnce } from '@kitchensink/identity-service/database/dao';
+import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
 import { profiles, users } from '@kitchensink/identity-service/database/schema';
+import type { UserRow } from '@kitchensink/identity-service/database/schema';
+import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 
 import { setExternalId } from '../common/identityClient.js';
+import { buildProvisionDeps } from '../common/provisioning.js';
 import { requireEnv } from '../common/config.js';
 import { getDb } from '../common/db.js';
 import { resolveRequestId } from '../common/error-envelope.js';
-import { emitMetric, logger, withObservability } from '../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
+import { traceAuth } from '../common/auth-trace.js';
 import { verifyWebhook } from '../common/svix.js';
 
 interface IdentityUserData {
@@ -27,12 +31,15 @@ const buildDisplayName = (data: IdentityUserData): string => `${data.first_name 
 
 const sqsClient = new SQSClient({});
 
-const enqueueDeletion = async (userId: string): Promise<void> => {
+const enqueueDeletion = async (identityId: string): Promise<void> => {
     const queueUrl = requireEnv('DELETION_QUEUE_URL');
+    // The deletion-worker's parseMessage reads `identityId`; the message body must carry that field.
+    // Sending `{ userId }` silently no-ops every webhook-driven deletion once the worker actually
+    // consumes the queue (findByIdentityId(undefined) → not found → skip).
     await sqsClient.send(
         new SendMessageCommand({
             QueueUrl: queueUrl,
-            MessageBody: JSON.stringify({ userId }),
+            MessageBody: JSON.stringify({ identityId }),
         }),
     );
 };
@@ -51,35 +58,60 @@ const handleUserCreated = async (
         return;
     }
 
-    const userDao = new UserDAO(db);
-    const user = await userDao.upsertByIdentityId({
-        identityId: data.id,
-        email,
-        name: buildDisplayName(data),
-        picture: data.image_url ?? undefined,
-    });
+    // Provision the COMPLETE local unit (user + account + profile) through the shared routine, before
+    // the external Clerk call below. `signal-incomplete`: if the email already belongs to a DIFFERENT
+    // active identity, don't 502/retry-storm — return and let the read-through path provision this user
+    // (with its placeholder-email fallback) on first authenticated request.
+    let result: ProvisionResult<UserRow>;
 
-    await setExternalId(data.id, user.id);
-
-    // mark sync timestamp
-    await db.update(users).set({ externalIdSyncedAt: new Date() }).where(eq(users.identityId, data.id));
-
-    // upsert profile
-    await db
-        .insert(profiles)
-        .values({
-            userId: user.id,
-            displayName: buildDisplayName(data),
-            avatarUrl: data.image_url ?? null,
-        })
-        .onConflictDoUpdate({
-            target: profiles.userId,
-            set: {
+    try {
+        result = await provisionCompleteUser<UserRow>(
+            buildProvisionDeps(db),
+            {
+                identityId: data.id,
+                email,
+                name: buildDisplayName(data),
                 displayName: buildDisplayName(data),
+                picture: data.image_url ?? undefined,
                 avatarUrl: data.image_url ?? null,
-                updatedAt: new Date(),
             },
+            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+        );
+    } catch (err) {
+        // Genuine provisioning failure (a DB/constraint error left the user incomplete): emit the
+        // distinct paging signal, then rethrow so svix retries. The expected email-collision case
+        // returns `incomplete` below (never throws), so it does NOT page.
+        captureProvisioningFailure(err, data.id);
+
+        throw err;
+    }
+
+    if (result.kind === 'incomplete') {
+        logger.warn('identity-webhook: user.created email in use by another active identity; skipping', {
+            requestId,
+            identityId: data.id,
         });
+
+        return;
+    }
+
+    const { user } = result;
+
+    // Best-effort: backfill Clerk's external_id (the app user id) so the IdP→app link is bidirectional.
+    // A failure here (Clerk API down, key rotated/again-missing, rate limit) must NOT abort provisioning
+    // — the user/account/profile are already complete. Only stamp externalIdSyncedAt on success, so the
+    // nightly reconciliation retries the ones that didn't land.
+    try {
+        await setExternalId(data.id, user.id);
+        await db.update(users).set({ externalIdSyncedAt: new Date() }).where(eq(users.identityId, data.id));
+    } catch (err) {
+        logger.warn('identity-webhook: setExternalId failed; user is complete, leaving for reconciliation', {
+            requestId,
+            identityId: data.id,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        traceAuth('webhook.set_external_id_failed', { identityId: data.id });
+    }
 
     emitMetric('UserCreatedWebhook', 1, { identityId: data.id });
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });
@@ -157,14 +189,23 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
     const db = (await getDb(dbSecretArn)) as unknown as PostgresJsDatabase<Record<string, never>>;
     const svixId = event.headers?.['svix-id'] ?? '';
 
-    const isFirst = await recordOnce(db, svixId);
+    const identityId = (payload.data as { id?: string }).id ?? 'unknown';
+    traceAuth('webhook.received', { sub: identityId, type: payload.type, svixId });
 
-    if (!isFirst) {
+    // Confirm-after-process dedup: the svix-id is recorded only AFTER its handler succeeds (below),
+    // so a delivery already present is a duplicate of a prior success and is short-circuited here.
+    if (await hasProcessedWebhookEvent(db, svixId)) {
         logger.info('identity-webhook: duplicate svix-id, returning 200', { requestId, svixId });
+        traceAuth('webhook.dedup_skip', { sub: identityId, svixId });
 
         return { statusCode: 200, body: JSON.stringify({ ok: true, dedup: true }) };
     }
 
+    // No pre-claim: if a handler below throws, it propagates and the svix-id is NOT recorded, so
+    // svix's (finite) retry schedule re-processes the event — handlers are idempotent (atomic upsert
+    // on users.identity_id; idempotent soft-delete), so a retry overlapping an in-flight delivery is
+    // safe. A permanently-failing payload retries until svix exhausts, surfacing the failure each
+    // time rather than being silently dropped (the original A2 event-loss mode).
     switch (payload.type) {
         case 'user.created': {
             await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
@@ -188,6 +229,11 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
             });
         }
     }
+
+    // Record only on success, keyed on the svix-id PK (migration 0008). Idempotent under concurrent
+    // duplicates via onConflictDoNothing.
+    await recordOnce(db, svixId, identityId, payload.type);
+    traceAuth('webhook.done', { sub: identityId, type: payload.type, svixId });
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
 };

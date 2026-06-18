@@ -1,4 +1,11 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    ForbiddenException,
+    Inject,
+    Injectable,
+    InternalServerErrorException,
+    NotFoundException,
+} from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import type { UserId } from '../types/index.js';
 import { AccountDAO, UserDAO } from '../database/dao/index.js';
 import type { AccountRow, UserRow } from '@kitchensink/identity-service/database/schema';
@@ -37,7 +44,18 @@ export class ResolveUserService {
         const account = await this.accountDao.findByUserId(sub as UserId);
 
         if (!account) {
-            throw new NotFoundException('Account not found');
+            // Anomaly, not "user absent": the user exists and isn't suspended but has no account. The
+            // read-through middleware heals both aux rows before any read, so reaching here means a
+            // narrow TOCTOU race (e.g. a concurrent delete) or a heal that didn't land. Fail LOUD with a
+            // distinct, paging Sentry signal (R5 taxonomy) carrying only the app user id — never a bare
+            // 404 that reads as "user not found" and silently never alerts. The middleware self-heals on
+            // the next request; this read fails closed rather than returning a half-user.
+            Sentry.captureException(new Error('Account missing for an existing user'), {
+                tags: { 'auth.provisioning': 'failed' },
+                contexts: { auth: { appUserId: user.id, outcome: 'account_missing' } },
+            });
+
+            throw new InternalServerErrorException('Account not yet provisioned');
         }
 
         return { user, account };

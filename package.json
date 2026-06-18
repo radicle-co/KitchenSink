@@ -18,6 +18,7 @@
         "packages/tools/*",
         "packages/services/*",
         "packages/shared/*",
+        "packages/utils/*",
         "packages/infra/*",
         "packages/apps/commise/web",
         "packages/apps/commise/mobile",

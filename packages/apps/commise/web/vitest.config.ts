@@ -7,7 +7,13 @@ const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 export default defineConfig({
     plugins: [react()],
     test: {
-        include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+        include: [
+            'tests/**/*.test.ts',
+            'tests/**/*.test.tsx',
+            'router/tests/**/*.test.ts',
+            'infra/__tests__/**/*.test.ts',
+            'scripts/__tests__/**/*.test.ts',
+        ],
         environment: 'jsdom',
         setupFiles: ['./tests/setup.ts'],
         globals: true,

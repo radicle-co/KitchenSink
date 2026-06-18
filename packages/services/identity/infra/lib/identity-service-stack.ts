@@ -6,6 +6,7 @@ import {
     type StackProps,
     aws_certificatemanager as acm,
     aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_ec2 as ec2,
     aws_ecr as ecr,
     aws_ecs as ecs,
@@ -17,6 +18,7 @@ import {
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
     aws_sqs as sqs,
     aws_ssm as ssm,
 } from 'aws-cdk-lib';
@@ -48,36 +50,36 @@ export class IdentityServiceStack extends Stack {
         const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
             this,
             'ImportedAlbSg',
-            Fn.importValue(`kitchensink-identity-network-${stage}:IdentityAlbSecurityGroupId`),
+            Fn.importValue(`kitchensink-network-${stage}:AlbSecurityGroupId`),
         );
 
         const serviceSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
             this,
             'ImportedServiceSg',
-            Fn.importValue(`kitchensink-identity-network-${stage}:IdentityServiceSecurityGroupId`),
+            Fn.importValue(`kitchensink-network-${stage}:ServiceSecurityGroupId`),
         );
 
         const dbCredentialsSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabaseSecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:DatabaseSecretArn`),
         });
 
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-identity-data-${stage}:IdentitySecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:SecretArn`),
         });
 
         const migrationPlanSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedMigrationSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityMigrationPlanSecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:MigrationPlanSecretArn`),
         });
 
         const database = rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
             instanceIdentifier: `kitchensink-identity-${stage}`,
-            instanceEndpointAddress: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabaseEndpoint`),
-            port: Number(Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabasePort`)),
+            instanceEndpointAddress: Fn.importValue(`kitchensink-data-${stage}:DatabaseEndpoint`),
+            port: Number(Fn.importValue(`kitchensink-data-${stage}:DatabasePort`)),
             securityGroups: [
                 ec2.SecurityGroup.fromSecurityGroupId(
                     this,
                     'ImportedDbSg',
-                    Fn.importValue(`kitchensink-identity-network-${stage}:IdentityDatabaseSecurityGroupId`),
+                    Fn.importValue(`kitchensink-network-${stage}:DatabaseSecurityGroupId`),
                 ),
             ],
         });
@@ -85,19 +87,19 @@ export class IdentityServiceStack extends Stack {
         const deletionQueue = sqs.Queue.fromQueueArn(
             this,
             'ImportedDeletionQueue',
-            Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDeletionQueueArn`),
+            Fn.importValue(`kitchensink-data-${stage}:DeletionQueueArn`),
         );
 
         const mediaBucket = s3.Bucket.fromBucketName(
             this,
             'ImportedMediaBucket',
-            Fn.importValue(`kitchensink-identity-data-${stage}:IdentityMediaBucketName`),
+            Fn.importValue(`kitchensink-data-${stage}:MediaBucketName`),
         );
 
         const archiveBucket = s3.Bucket.fromBucketName(
             this,
             'ImportedArchiveBucket',
-            Fn.importValue(`kitchensink-identity-data-${stage}:IdentityArchiveBucketName`),
+            Fn.importValue(`kitchensink-data-${stage}:ArchiveBucketName`),
         );
 
         const repository = ecr.Repository.fromRepositoryName(this, 'IdentityServiceRepository', 'kitchensink-identity');
@@ -157,9 +159,12 @@ export class IdentityServiceStack extends Stack {
             environment: {
                 NODE_ENV: 'production',
                 PORT: '3000',
+                // debug:auth flow tracing — on in sandbox, off in prod. Flip to '1' on the task def to
+                // debug a prod signup/auth issue (no code change), then back to '0'.
+                DEBUG_AUTH: stage === 'prod' ? '0' : '1',
                 DB_HOST: database.dbInstanceEndpointAddress,
-                DB_PORT: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabasePort`),
-                DB_NAME: Fn.importValue(`kitchensink-identity-data-${stage}:IdentityDatabaseName`),
+                DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
+                DB_NAME: Fn.importValue(`kitchensink-data-${stage}:DatabaseName`),
                 DELETION_QUEUE_URL: deletionQueue.queueUrl,
                 MEDIA_BUCKET_NAME: mediaBucket.bucketName,
                 ARCHIVE_BUCKET_NAME: archiveBucket.bucketName,
@@ -176,6 +181,18 @@ export class IdentityServiceStack extends Stack {
                 ),
                 SENTRY_TRACES_SAMPLE_RATE: stage === 'prod' ? '0.1' : '1.0',
                 SENTRY_RELEASE: imageTag,
+                // Clerk session-token verification (read-through auth, U1/U2). The JWT *public* key
+                // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy.
+                // Prod reads prod params; every other stage reads the shared sandbox (dev-instance)
+                // params. These SSM params must exist before deploy (operational prerequisite).
+                CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/jwt-public-key`,
+                ),
+                CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
+                    this,
+                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/authorized-parties`,
+                ),
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),
@@ -228,14 +245,14 @@ export class IdentityServiceStack extends Stack {
         const serviceDomain = `${subdomain}.${domainName}`;
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
-            hostedZoneId: Fn.importValue(`kitchensink-identity-domain-${stage}:HostedZoneId`),
+            hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
             zoneName: domainName,
         });
 
         const certificate = acm.Certificate.fromCertificateArn(
             this,
             'ImportedCertificate',
-            Fn.importValue(`kitchensink-identity-domain-${stage}:CertificateArn`),
+            Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
         );
 
         const loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'IdentityServiceAlb', {
@@ -293,7 +310,14 @@ export class IdentityServiceStack extends Stack {
 
         this.serviceUrl = `https://${serviceDomain}`;
 
-        new cloudwatch.Alarm(this, 'IdentityAlb5xxAlarm', {
+        // A4: alarms previously had no action wired, so they fired silently. Route all of them to an
+        // SNS topic so they actually notify (subscriptions managed out-of-band per stage).
+        const alarmTopic = new sns.Topic(this, 'IdentityAlarmTopic', {
+            displayName: `Identity service alarms (${stage})`,
+        });
+        const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
+
+        const alb5xxAlarm = new cloudwatch.Alarm(this, 'IdentityAlb5xxAlarm', {
             metric: loadBalancer.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT, {
                 period: Duration.minutes(5),
                 statistic: 'sum',
@@ -303,8 +327,9 @@ export class IdentityServiceStack extends Stack {
             datapointsToAlarm: 1,
             alarmDescription: 'Identity ALB target 5xx alarm',
         });
+        alb5xxAlarm.addAlarmAction(alarmAction);
 
-        new cloudwatch.Alarm(this, 'IdentityServiceHighCpuAlarm', {
+        const highCpuAlarm = new cloudwatch.Alarm(this, 'IdentityServiceHighCpuAlarm', {
             metric: service.metricCpuUtilization({
                 period: Duration.minutes(5),
                 statistic: 'avg',
@@ -314,6 +339,25 @@ export class IdentityServiceStack extends Stack {
             datapointsToAlarm: 2,
             alarmDescription: 'Identity ECS CPU high-water mark',
         });
+        highCpuAlarm.addAlarmAction(alarmAction);
+
+        // A4: boot crash-loop detector. A NestJS DI/boot failure crash-loops the task, which never
+        // passes the ALB health check, so HealthyHostCount sits at 0 — directly observable here,
+        // unlike a Sentry issue (the process can die before Sentry flushes). treatMissingData=BREACHING
+        // because "no datapoints" during a crash-loop is itself the failure, not an absence of signal.
+        const crashLoopAlarm = new cloudwatch.Alarm(this, 'IdentityServiceCrashLoopAlarm', {
+            metric: targetGroup.metrics.healthyHostCount({
+                period: Duration.minutes(1),
+                statistic: 'min',
+            }),
+            comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
+            threshold: 1,
+            evaluationPeriods: 3,
+            datapointsToAlarm: 3,
+            treatMissingData: cloudwatch.TreatMissingData.BREACHING,
+            alarmDescription: 'Identity ECS has no healthy targets (boot crash-loop / unhealthy tasks)',
+        });
+        crashLoopAlarm.addAlarmAction(alarmAction);
 
         new CfnOutput(this, 'IdentityEcrRepositoryUri', {
             value: repository.repositoryUri,

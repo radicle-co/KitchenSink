@@ -8,6 +8,8 @@ import {
     aws_apigateway as apigw,
     aws_certificatemanager as acm,
     aws_ec2 as ec2,
+    aws_events as events,
+    aws_events_targets as events_targets,
     aws_iam as iam,
     aws_lambda as lambda,
     aws_lambda_event_sources as lambda_event_sources,
@@ -135,6 +137,8 @@ export class WebhooksStack extends Stack {
 
         const commonEnv: Record<string, string> = {
             NODE_ENV: 'production',
+            // debug:auth flow tracing — on in sandbox, off in prod (flip to '1' to debug a prod issue).
+            DEBUG_AUTH: deployStage === 'prod' ? '0' : '1',
             DB_SECRET_ARN: dbCredentialsSecret.secretArn,
             AUTH_SECRET_ARN: authSecretKey.secretArn,
             IDP_JWKS_URL: ssmValue('clerk', 'jwks-url'),
@@ -188,7 +192,11 @@ export class WebhooksStack extends Stack {
             timeout: Duration.seconds(30),
             memorySize: 512,
             environment: {
-                ...commonEnv,
+                // clerkBackendEnv (not commonEnv): handleUserCreated calls setExternalId via the Clerk
+                // backend SDK, which needs IDP_SECRET_KEY. Without it, identityClient falls through to a
+                // runtime GetSecretValue on the auth secret that the role can't read → AccessDenied →
+                // every user.created 502s.
+                ...clerkBackendEnv,
                 // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
                 // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
                 // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a
@@ -204,7 +212,7 @@ export class WebhooksStack extends Stack {
             logGroup: webhooksLogGroup,
         });
 
-        new lambda.Function(this, 'DeletionWorkerFunction', {
+        const deletionWorkerFn = new lambda.Function(this, 'DeletionWorkerFunction', {
             runtime,
             architecture,
             handler: 'handlers/deletion-worker.handler',
@@ -218,6 +226,16 @@ export class WebhooksStack extends Stack {
             environment: clerkBackendEnv,
             logGroup: webhooksLogGroup,
         });
+
+        // The deletion worker drains the SQS deletion queue (handlers/deletion-worker.ts iterates
+        // event.Records). This source previously sat on the reconciliation function — a copy-paste
+        // swap that left deletions running through the reconciliation handler (which ignores SQS
+        // records) and reconciliation never running at all.
+        deletionWorkerFn.addEventSource(
+            new lambda_event_sources.SqsEventSource(deletionQueue, {
+                batchSize: 1,
+            }),
+        );
 
         const reconciliationFn = new lambda.Function(this, 'ReconciliationFunction', {
             runtime,
@@ -234,11 +252,13 @@ export class WebhooksStack extends Stack {
             logGroup: webhooksLogGroup,
         });
 
-        reconciliationFn.addEventSource(
-            new lambda_event_sources.SqsEventSource(deletionQueue, {
-                batchSize: 1,
-            }),
-        );
+        // Nightly Clerk<->DB drift repair, and the primary backfill safety net for users that slip
+        // past both creation paths. handlers/reconciliation.ts is typed for ScheduledEvent; it must
+        // run on a schedule, NOT off the deletion queue. 07:00 UTC = low-traffic window.
+        new events.Rule(this, 'ReconciliationSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '7' }),
+            targets: [new events_targets.LambdaFunction(reconciliationFn)],
+        });
 
         // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the
         // deploy pipeline (outside the VPC) invokes this Lambda to apply migrations. It reuses the

@@ -72,3 +72,25 @@ populated.
 
 The concrete DSN values were provided out-of-band; place them in SSM (backend) / Vercel + EAS env
 (web, mobile) / the apps' `.env.local`, never in source.
+
+## Provisioning-failure alert (`auth.provisioning: failed`)
+
+The create-user flow emits one distinct signal for a **genuine** provisioning failure — a DB/constraint
+error that leaves a user without a complete `user + account + profile`. It is tagged
+`auth.provisioning: failed` and carries only the Clerk identity id / app user id (never PII; a Postgres
+23505 message embeds the email, so the message is run through `scrubText` before it becomes an
+attribute). Emit sites: the read-through `AuthMiddleware`, `resolveUser` (present-but-incomplete
+anomaly), the `user.created` webhook, and nightly reconciliation.
+
+**Must page:** any event with `tags.auth.provisioning = failed`.
+**Must NOT page (by construction, never tagged):** the expected email-collision placeholder fallback
+(the routine returns `incomplete`, the webhook logs and skips), idempotent `onConflictDoNothing` no-ops,
+and best-effort `setExternalId` failures (`webhook.set_external_id_failed`).
+
+Create the alert rule in both projects (`kitchensink-identity`, `kitchensink-identity-webhook`): fire
+on `tags.auth.provisioning = failed` → notify the on-call channel.
+
+**Known gap (accepted):** this is an event-driven signal. A zero-request webhook-Lambda crash-loop
+(a boot failure before any event is processed) emits no event and will not page. The identity **service**
+already has a CloudWatch `healthyHostCount` crash-loop alarm for its own boot; the webhook Lambda has no
+equivalent. Revisit with a CloudWatch metric-filter/no-data alarm if webhook-side boot failures recur.

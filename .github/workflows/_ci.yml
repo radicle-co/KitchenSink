@@ -147,6 +147,45 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run test
 
+    integration-identity:
+        name: Integration (identity — Postgres)
+        runs-on: ubuntu-latest
+        needs: [install]
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: identity_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # Self-contained: the integration suite bootstraps the schema from migrations against the
+            # Postgres service and proves create-user idempotency. No AWS/Clerk secrets required.
+            - name: Run identity integration tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_test
+              run: npm run test:integration --workspace=@kitchensink/identity-service
+
     build:
         name: Build ${{ matrix.workspace }}
         runs-on: ubuntu-latest
@@ -177,6 +216,9 @@ jobs:
               with:
                   path: packages/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
+            - name: Ensure @kitchensink/ui is built (fallback if the per-SHA cache restore missed)
+              if: matrix.workspace == '@commise/web'
+              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@kitchensink/ui'
 
             # The web build statically prerenders Clerk-wrapped pages and needs a real publishable
             # key. Load the stage-scoped key; if creds are unavailable (e.g. fork PRs) the build is
@@ -197,15 +239,11 @@ jobs:
               run: npm run build --workspace=${{ matrix.workspace }}
 
     e2e-backend:
-        name: E2E (${{ matrix.workspace }})
+        # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw
+        # `${{ matrix.* }}` template. Both backend workspaces run sequentially in one job.
+        name: E2E (backend services)
         runs-on: ubuntu-latest
         needs: build
-        strategy:
-            fail-fast: false
-            matrix:
-                workspace:
-                    - '@kitchensink/identity-service'
-                    - '@kitchensink/identity-webhooks'
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -231,7 +269,9 @@ jobs:
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
             - name: Run e2e tests
               if: steps.secrets.outcome == 'success'
-              run: npm run test:e2e --workspace=${{ matrix.workspace }}
+              run: |
+                  npm run test:e2e --workspace=@kitchensink/identity-service
+                  npm run test:e2e --workspace=@kitchensink/identity-webhooks
 
     e2e-web:
         name: E2E (web — Playwright)
@@ -258,6 +298,8 @@ jobs:
               with:
                   path: packages/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
+            - name: Ensure @kitchensink/ui is built (fallback if the per-SHA cache restore missed)
+              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@kitchensink/ui'
             # The web E2E runs ClerkJS in a browser against the Playwright dev server on
             # http://localhost:3000. Clerk *production* instances (pk_live) are domain-locked and
             # refuse to initialize on any origin other than their production domain — ClerkJS aborts

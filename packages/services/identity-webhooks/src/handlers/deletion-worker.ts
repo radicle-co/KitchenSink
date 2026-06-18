@@ -24,17 +24,21 @@ const processRecord = async (record: SQSRecord, dbSecretArn: string): Promise<vo
     const db = await getDb(dbSecretArn);
     const userDao = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>);
 
-    const user = await userDao.findByIdentityId(identityId);
+    // Purge the user's private data on deletion: delete the account + profile rows and clear the
+    // avatar, but retain the soft-deleted user row's id/email/name for public recipe attribution.
+    // Returns undefined when there's no such user — idempotent on a missing/already-deleted user.
+    const purged = await userDao.purgePrivateDataByIdentityId(identityId);
 
-    if (!user) {
+    if (!purged) {
         logger.warn('deletion-worker: user not found, skipping (idempotent)', { identityId });
 
         return;
     }
 
-    await userDao.softDeleteByIdentityId(identityId);
-
-    logger.info('user deleted', { identityId, userId: user.id });
+    logger.info('user private data purged (account + profile deleted, avatar cleared; id/email/name retained)', {
+        identityId,
+        userId: purged.id,
+    });
 };
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */

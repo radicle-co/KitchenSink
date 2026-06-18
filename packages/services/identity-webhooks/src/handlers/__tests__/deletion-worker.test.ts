@@ -5,14 +5,12 @@ vi.mock('../../common/db.js', () => ({
     getDb: vi.fn(),
 }));
 
-const mockSoftDeleteByIdentityId = vi.fn();
-const mockFindByIdentityId = vi.fn();
+const mockPurgePrivateData = vi.fn();
 
 vi.mock('@kitchensink/identity-service/database/dao', () => {
     const UserDAO = vi.fn().mockImplementation(function () {
         return {
-            findByIdentityId: mockFindByIdentityId,
-            softDeleteByIdentityId: mockSoftDeleteByIdentityId,
+            purgePrivateDataByIdentityId: mockPurgePrivateData,
         };
     });
 
@@ -63,28 +61,26 @@ beforeEach(() => {
 });
 
 describe('deletion-worker handler', () => {
-    it('existing user → soft-deleted, no error thrown', async () => {
+    it('existing user → private data purged, no error thrown', async () => {
         const identityId = 'user_abc123';
-        const userRow = { id: 'usr_01', identityId, email: 'test@example.com', deletedAt: null };
+        // The purge keeps the soft-deleted user row (id/email/name) and returns it.
+        const userRow = { id: 'usr_01', identityId, email: 'test@example.com', deletedAt: new Date(), picture: null };
 
-        mockFindByIdentityId.mockResolvedValue(userRow);
-        mockSoftDeleteByIdentityId.mockResolvedValue({ ...userRow, deletedAt: new Date() });
+        mockPurgePrivateData.mockResolvedValue(userRow);
 
         await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
 
-        expect(mockFindByIdentityId).toHaveBeenCalledWith(identityId);
-        expect(mockSoftDeleteByIdentityId).toHaveBeenCalledWith(identityId);
+        expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
     });
 
     it('missing user → no error thrown (idempotent)', async () => {
         const identityId = 'user_nonexistent';
 
-        mockFindByIdentityId.mockResolvedValue(undefined);
+        mockPurgePrivateData.mockResolvedValue(undefined);
 
         await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
 
-        expect(mockFindByIdentityId).toHaveBeenCalledWith(identityId);
-        expect(mockSoftDeleteByIdentityId).not.toHaveBeenCalled();
+        expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
     });
 
     it('missing DB_SECRET_ARN → throws', async () => {

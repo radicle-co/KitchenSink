@@ -8,6 +8,12 @@ COPY node_modules ./node_modules
 COPY packages/services/identity/node_modules ./packages/services/identity/node_modules
 COPY packages/services/identity/prod.package.json ./packages/services/identity/package.json
 COPY packages/services/identity/dist ./packages/services/identity/dist
+# Shared @kitchensink/identity-utils — the root node_modules symlink resolves to this path; its built
+# dist + dist-pointing manifest must exist or the bare-specifier import crash-loops at boot (KTD2a).
+# The dev package.json exports ./src (so consumers typecheck/test/bundle against source without a prior
+# build, like identity-service does); the runtime needs the prod manifest's ./dist exports instead.
+COPY packages/utils/identity/prod.package.json ./packages/utils/identity/package.json
+COPY packages/utils/identity/dist ./packages/utils/identity/dist
 
 EXPOSE 3000
 # Preload Sentry instrumentation before app modules (native ESM — a top-level import is not a

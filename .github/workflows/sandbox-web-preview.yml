@@ -1,0 +1,128 @@
+name: Sandbox Web Preview Route
+
+# Per-PR data layer for the singleton sandbox router (U5): when a PR's Vercel preview is ready, write
+# pr-{N} → <preview host> into the router's CloudFront KeyValueStore so https://sandbox.commise.app/
+# pr-{N}/ resolves; on PR close, remove it. The router infra is deployed separately + once
+# (sandbox-router-deploy.yml). See docs/architecture/decisions/0001.
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened, closed]
+
+concurrency:
+    group: sandbox-web-preview-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    deployments: write
+
+env:
+    AWS_REGION: us-east-1
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+
+jobs:
+    route:
+        name: Update PR route in KVS
+        runs-on: ubuntu-latest
+        # Only same-repo PRs may touch AWS/Vercel. Fork PRs get no repo secrets by default, but this
+        # guard also blocks a future `pull_request_target` foot-gun from running fork code with creds.
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        steps:
+            # Surface the /pr-{N} path-routed preview as a GitHub deployment, so the PR's "View
+            # deployment" button opens the working, azp-matched URL (https://sandbox.commise.app/pr-{N}/).
+            # Vercel's own preview button opens the bare deployment host with no /pr-{N}, which 404s under
+            # the app's basePath. Independent of the router/KVS steps below (pure GitHub API).
+            - name: Publish path-routed preview deployment
+              if: github.event.action != 'closed'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const pr = context.payload.pull_request.number;
+                      const dep = await github.rest.repos.createDeployment({
+                          ...context.repo,
+                          ref: context.payload.pull_request.head.sha,
+                          environment: `sandbox-preview/pr-${pr}`,
+                          transient_environment: true,
+                          auto_merge: false,
+                          required_contexts: [],
+                          description: 'Path-routed sandbox preview',
+                      });
+                      await github.rest.repos.createDeploymentStatus({
+                          ...context.repo,
+                          deployment_id: dep.data.id,
+                          state: 'success',
+                          environment_url: `https://sandbox.commise.app/pr-${pr}/`,
+                          description: 'Open the /pr-{N} path-routed sandbox preview',
+                      });
+            - name: Deactivate path-routed preview deployment on close
+              if: github.event.action == 'closed'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const pr = context.payload.pull_request.number;
+                      const deps = await github.rest.repos.listDeployments({
+                          ...context.repo,
+                          environment: `sandbox-preview/pr-${pr}`,
+                      });
+                      for (const d of deps.data) {
+                          await github.rest.repos.createDeploymentStatus({
+                              ...context.repo,
+                              deployment_id: d.id,
+                              state: 'inactive',
+                          });
+                      }
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+            - name: Resolve the router KVS ARN (from the router stack output)
+              id: kvs
+              run: |
+                  # The router is a SINGLETON deployed separately (sandbox-router-deploy). Until it
+                  # exists, per-PR routing simply can't be wired — that's a missing prerequisite, not a
+                  # PR regression, so warn-and-skip instead of failing this check. (App is pre-launch.)
+                  ARN=$(aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox \
+                    --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" \
+                    --output text 2>/dev/null || true)
+                  if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
+                    echo "::warning::Router stack 'kitchensink-sandbox-router-sandbox' is not deployed yet — skipping PR route registration. Run sandbox-router-deploy once to enable preview routing."
+                    echo "found=false" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "found=true" >> "$GITHUB_OUTPUT"
+                    echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+                  fi
+
+            # PR closed → remove the route (only if the router exists).
+            - name: Deregister preview route
+              if: github.event.action == 'closed' && steps.kvs.outputs.found == 'true'
+              env:
+                  ACTION: deregister
+                  KVS_ARN: ${{ steps.kvs.outputs.arn }}
+              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts
+
+            # PR open/updated → wait for the Vercel preview, capture its host, register the route.
+            - name: Wait for the Vercel preview to be READY
+              if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'
+              id: preview
+              uses: zentered/vercel-preview-url@v1.4.0
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+              with:
+                  vercel_team_id: ${{ vars.VERCEL_TEAM_ID }}
+                  vercel_project_id: ${{ vars.VERCEL_PROJECT_ID }}
+            - name: Register preview route
+              if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'
+              env:
+                  ACTION: register
+                  KVS_ARN: ${{ steps.kvs.outputs.arn }}
+                  PREVIEW_HOST: ${{ steps.preview.outputs.preview_url }}
+              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts

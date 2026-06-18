@@ -1,14 +1,22 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
+import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 
 import { users, accounts, profiles } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import type { VerifiedClerkClaims } from '../auth/clerk-auth.service.js';
 import { ResolveUserService } from './resolveUser.js';
-import { newUserId } from '../types/index.js';
+import { newUserId, type UserId } from '../types/index.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
+import { traceAuth } from '../observability/auth-trace.js';
+
+/** Per-identity, never-deliverable placeholder for users whose Clerk token carries no email claim. */
+function placeholderEmail(sub: string): string {
+    return `${sub}@no-email.invalid`;
+}
 
 @Injectable()
 export class UsersService {
@@ -20,46 +28,121 @@ export class UsersService {
         private readonly resolver: ResolveUserService,
     ) {}
 
+    /** Dependency bundle for the shared provisioning routine (KTD2: schema-injected, db cast per repo convention). */
+    private provisionDeps(): ProvisionDeps {
+        return { db: this.db as unknown as Db, schema: { users, accounts, profiles }, newUserId };
+    }
+
     async upsertUser(
         _ctx: AuthorizerContext,
         input: { identityId: string; email: string; name?: string; picture?: string },
     ): Promise<{ id: string; created: boolean }> {
-        const now = new Date();
-        const id = newUserId();
-
-        const [row] = await this.db
-            .insert(users)
-            .values({
-                id,
+        const result = await provisionCompleteUser<typeof users.$inferSelect>(
+            this.provisionDeps(),
+            {
                 identityId: input.identityId,
                 email: input.email,
-                name: input.name ?? null,
-                picture: input.picture ?? null,
-                createdAt: now,
-                updatedAt: now,
-            })
-            .onConflictDoUpdate({
-                target: users.identityId,
-                set: {
-                    email: input.email,
-                    name: input.name ?? null,
-                    picture: input.picture ?? null,
-                    updatedAt: now,
-                },
-            })
-            .returning();
+                name: input.name,
+                displayName: input.name,
+                picture: input.picture,
+            },
+            { onEmailCollision: 'placeholder', emailIsReal: true },
+        );
 
-        const created = row.createdAt.getTime() === row.updatedAt.getTime();
-
-        if (created) {
-            await this.db.insert(accounts).values({ userId: row.id }).onConflictDoNothing();
-            await this.db
-                .insert(profiles)
-                .values({ userId: row.id, displayName: input.name ?? '' })
-                .onConflictDoNothing();
+        if (result.kind !== 'complete') {
+            throw new Error('upsertUser: provisioning returned incomplete unexpectedly');
         }
 
-        return { id: row.id, created };
+        const { user } = result;
+
+        return { id: user.id, created: user.createdAt.getTime() === user.updatedAt.getTime() };
+    }
+
+    /**
+     * Read-through resolution for an authenticated Clerk session: map the verified token's Clerk
+     * identity id (`sub`) to the app user, creating the user + account + profile on first sight so
+     * the response never depends on the `user.created` webhook having arrived. Returns the
+     * `AuthorizerContext` the rest of the request pipeline expects.
+     *
+     * @sideEffect creates user/account/profile rows on first request for a new identity.
+     */
+    async resolveOrCreateFromClaims(claims: VerifiedClerkClaims): Promise<AuthorizerContext> {
+        const displayName = [claims.firstName, claims.lastName].filter(Boolean).join(' ').trim();
+        const realEmail = claims.email;
+
+        // One query: fetch the user AND whether its account + profile already exist (the hot-path
+        // completeness pre-check — a complete user takes a single SELECT and no write on every
+        // authenticated request; only an incomplete/new user pays for provisioning).
+        const [found] = await this.db
+            .select({ user: users, accountId: accounts.id, profileId: profiles.id })
+            .from(users)
+            .leftJoin(accounts, eq(accounts.userId, users.id))
+            .leftJoin(profiles, eq(profiles.userId, users.id))
+            .where(eq(users.identityId, claims.sub))
+            .limit(1);
+
+        let userRow: typeof users.$inferSelect;
+
+        if (!found) {
+            // Create through the shared routine. `users.email` is NOT NULL: when the token carries no
+            // email claim, pass a per-identity placeholder (`emailIsReal: false`). When a real email
+            // already belongs to a DIFFERENT identity, the routine's `placeholder` policy re-provisions
+            // with the placeholder rather than 500ing (provisioning runs on every authenticated request).
+            const result = await provisionCompleteUser<typeof users.$inferSelect>(
+                this.provisionDeps(),
+                {
+                    identityId: claims.sub,
+                    email: realEmail ?? placeholderEmail(claims.sub),
+                    name: displayName || undefined,
+                    displayName: displayName || undefined,
+                    picture: claims.picture,
+                },
+                { onEmailCollision: 'placeholder', emailIsReal: realEmail !== undefined },
+            );
+
+            if (result.kind !== 'complete') {
+                // Unreachable under the `placeholder` policy (it always provisions a complete user);
+                // kept so the type stays honest and a future policy change fails loudly here.
+                throw new Error('read-through provisioning returned incomplete unexpectedly');
+            }
+
+            userRow = result.user;
+            traceAuth('provision.created', {
+                sub: claims.sub,
+                userId: userRow.id,
+                emailIsReal: realEmail !== undefined,
+            });
+        } else {
+            userRow = found.user;
+            traceAuth('provision.existing', { sub: claims.sub, userId: userRow.id });
+
+            // Heal an incomplete existing user (missing account OR profile — the old check looked only at
+            // accounts) through the same idempotent routine. Only fires when the pre-check found a gap.
+            if (!found.accountId || !found.profileId) {
+                await provisionCompleteUser(
+                    this.provisionDeps(),
+                    {
+                        identityId: claims.sub,
+                        email: userRow.email,
+                        name: displayName || undefined,
+                        displayName: displayName || undefined,
+                        picture: claims.picture,
+                    },
+                    { onEmailCollision: 'placeholder', emailIsReal: true },
+                );
+            }
+        }
+
+        return {
+            userId: userRow.id as UserId,
+            email: userRow.email,
+            clerkUserId: claims.sub,
+            // Authorization grants come from the Clerk-signed token (admin-set public_metadata),
+            // not from any client-suppliable header. Empty when the token grants nothing.
+            scopes: claims.scopes ?? [],
+            permissions: claims.permissions ?? [],
+            tokenType: 'user',
+        };
     }
 
     async getUserMe(ctx: AuthorizerContext) {
@@ -144,10 +227,16 @@ export class UsersService {
 
         const deletedAt = new Date();
 
+        // Same EU data policy as the user.deleted webhook (see UserDAO.purgePrivateDataByIdentityId):
+        // retain the user's PUBLIC attribution data (id/email/name) so their public recipes still show
+        // a creator, but purge everything private — soft-delete + clear the avatar on the user row, and
+        // delete the account + profile rows. Lock the users row first (UPDATE), then delete the
+        // children — matching provisionCompleteUser's lock order so a concurrent provision can't
+        // deadlock (the d59e11c 40P01 class).
         await this.db.transaction(async (tx) => {
+            await tx.update(users).set({ deletedAt, picture: null, updatedAt: deletedAt }).where(eq(users.id, userId));
             await tx.delete(accounts).where(eq(accounts.userId, userId));
             await tx.delete(profiles).where(eq(profiles.userId, userId));
-            await tx.delete(users).where(eq(users.id, userId));
         });
 
         try {

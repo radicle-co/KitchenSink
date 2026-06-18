@@ -62,16 +62,14 @@ describe('UsersService', () => {
 
         mockDb = {
             select: vi.fn(),
+            insert: vi.fn(),
+            delete: vi.fn().mockReturnValue({ where: () => Promise.resolve() }),
             update: vi.fn().mockReturnValue({
                 set: () => ({ where: () => Promise.resolve() }),
             }),
-            transaction: vi.fn(async (cb: (tx: any) => Promise<void>) => {
-                const tx = {
-                    delete: vi.fn().mockReturnValue({ where: () => Promise.resolve() }),
-                };
-
-                await cb(tx);
-            }),
+            // Delegate the transaction callback to mockDb so per-test insert/select/delete stubs apply,
+            // and RETURN its result (upsertUserRecord returns the created row from inside the tx).
+            transaction: vi.fn((cb: (tx: any) => unknown) => cb(mockDb)),
         };
 
         mockSqs = { enqueueDeletion: vi.fn().mockResolvedValue(undefined) };

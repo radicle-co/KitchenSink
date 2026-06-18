@@ -11,29 +11,35 @@ vi.mock('../../common/identityClient.js', () => ({
     listUsers: vi.fn(),
 }));
 
-vi.mock('@kitchensink/identity-service/database/dao', () => {
-    const upsertByIdentityId = vi.fn();
-    const UserDAO = vi.fn().mockImplementation(function () {
-        return { upsertByIdentityId, findByIdentityId: vi.fn() };
-    });
-    const AccountDAO = vi.fn().mockImplementation(function () {
-        return { upsert: vi.fn().mockResolvedValue({ id: 'acct-1', tier: 'free' }) };
-    });
-
-    return { UserDAO, AccountDAO };
-});
+vi.mock('@kitchensink/identity-service/database/dao', () => ({
+    UserDAO: vi.fn().mockImplementation(function () {
+        return { findByIdentityId: vi.fn() };
+    }),
+}));
 
 vi.mock('../../common/observability.js', () => ({
     emitMetric: vi.fn(),
+    captureProvisioningFailure: vi.fn(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     withObservability: <T, R>(fn: (event: T, ctx: unknown) => Promise<R>) => fn,
+}));
+
+vi.mock('../../common/provisioning.js', () => ({
+    buildProvisionDeps: vi.fn(() => ({})),
+}));
+
+vi.mock('@kitchensink/identity-utils', () => ({
+    provisionCompleteUser: vi.fn(),
 }));
 
 import { handler as rawHandler } from '../reconciliation.js';
 import { getDb } from '../../common/db.js';
 import { listUsers } from '../../common/identityClient.js';
+import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { emitMetric, logger } from '../../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
+
+const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
 type TestHandler = (event: ScheduledEvent, ctx: Context) => Promise<unknown>;
 const handler = rawHandler as unknown as TestHandler;
@@ -63,8 +69,6 @@ const idpUserExisting = {
 };
 
 describe('reconciliation handler', () => {
-    let upsertByIdentityIdMock: ReturnType<typeof vi.fn>;
-
     beforeEach(() => {
         vi.clearAllMocks();
         process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
@@ -72,20 +76,9 @@ describe('reconciliation handler', () => {
         process.env.STAGE = 'test';
 
         mockGetDb.mockResolvedValue({} as never);
+        mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'ulid_x' } } as never);
 
-        // user_new → no existing row (upsert returns new row with createdAt === updatedAt)
-        // user_existing → existing row (upsert returns row with createdAt < updatedAt)
-        const now = new Date();
-        const earlier = new Date(now.getTime() - 10_000);
-
-        upsertByIdentityIdMock = vi.fn().mockImplementation(({ identityId }: { identityId: string }) => {
-            if (identityId === 'user_new') {
-                return Promise.resolve({ id: 'ulid_new', identityId, createdAt: now, updatedAt: now });
-            }
-
-            return Promise.resolve({ id: 'ulid_existing', identityId, createdAt: earlier, updatedAt: now });
-        });
-
+        // findByIdentityId drives the inserted-vs-updated count: user_existing already present, user_new not.
         const findByIdentityIdMock = vi.fn().mockImplementation((identityId: string) => {
             if (identityId === 'user_existing') {
                 return Promise.resolve({ id: 'ulid_existing', identityId });
@@ -95,31 +88,32 @@ describe('reconciliation handler', () => {
         });
 
         vi.mocked(UserDAO).mockImplementation(function () {
-            return {
-                upsertByIdentityId: upsertByIdentityIdMock,
-                findByIdentityId: findByIdentityIdMock,
-            } as never;
+            return { findByIdentityId: findByIdentityIdMock } as never;
         });
     });
 
-    it('pages IdP users and upserts each one', async () => {
+    it('provisions every IdP user through the shared routine with the placeholder policy', async () => {
         mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserExisting] as never);
 
         await handler(makeEvent(), makeContext());
 
-        expect(upsertByIdentityIdMock).toHaveBeenCalledTimes(2);
-        expect(upsertByIdentityIdMock).toHaveBeenCalledWith({
-            identityId: 'user_new',
-            email: 'new@example.com',
-            name: 'New User',
-            picture: 'https://example.com/new.jpg',
-        });
-        expect(upsertByIdentityIdMock).toHaveBeenCalledWith({
-            identityId: 'user_existing',
-            email: 'existing@example.com',
-            name: 'Existing User',
-            picture: 'https://example.com/existing.jpg',
-        });
+        expect(mockProvisionCompleteUser).toHaveBeenCalledTimes(2);
+        expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                identityId: 'user_new',
+                email: 'new@example.com',
+                name: 'New User',
+                displayName: 'New User',
+                avatarUrl: 'https://example.com/new.jpg',
+            }),
+            { onEmailCollision: 'placeholder', emailIsReal: true },
+        );
+        expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ identityId: 'user_existing', email: 'existing@example.com' }),
+            { onEmailCollision: 'placeholder', emailIsReal: true },
+        );
     });
 
     it('counts 1 inserted and 1 updated for 2 users (1 new, 1 existing)', async () => {
@@ -134,25 +128,12 @@ describe('reconciliation handler', () => {
         );
     });
 
-    it('emits ReconciliationDrift metric with inserted count', async () => {
+    it('emits ReconciliationDrift metric with the inserted count', async () => {
         mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserExisting] as never);
 
         await handler(makeEvent(), makeContext());
 
         expect(mockEmitMetric).toHaveBeenCalledWith('ReconciliationDrift', expect.any(Number));
-    });
-
-    it('logs reconciliation complete with inserted, updated, total', async () => {
-        mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserExisting] as never);
-
-        await handler(makeEvent(), makeContext());
-
-        expect(mockLogger.info).toHaveBeenCalledWith(
-            'reconciliation complete',
-            expect.objectContaining({
-                total: 2,
-            }),
-        );
     });
 
     it('throws when env vars are missing', async () => {
@@ -161,12 +142,33 @@ describe('reconciliation handler', () => {
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
     });
 
-    it('handles empty IdP user list gracefully', async () => {
+    it('continues past a genuinely failing user, signals it, and counts it as failed', async () => {
+        mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserExisting] as never);
+        // user_new's provisioning throws a genuine DB error; user_existing succeeds.
+        mockProvisionCompleteUser.mockImplementation((_deps, input) => {
+            if ((input as { identityId: string }).identityId === 'user_new') {
+                return Promise.reject(new Error('db unavailable'));
+            }
+
+            return Promise.resolve({ kind: 'complete', user: { id: 'ulid_x' } }) as never;
+        });
+
+        const res = (await handler(makeEvent(), makeContext())) as { failed: number; updated: number };
+
+        // The whole run is NOT aborted by one bad user — the other still gets repaired.
+        expect(mockProvisionCompleteUser).toHaveBeenCalledTimes(2);
+        expect(res.failed).toBe(1);
+        expect(res.updated).toBe(1);
+        // R5: the genuine failure emits the distinct paging signal carrying the Clerk identity id.
+        expect(vi.mocked(captureProvisioningFailure)).toHaveBeenCalledWith(expect.any(Error), 'user_new');
+    });
+
+    it('handles an empty IdP user list gracefully', async () => {
         mockListIdpUsers.mockResolvedValue([] as never);
 
         await handler(makeEvent(), makeContext());
 
-        expect(upsertByIdentityIdMock).not.toHaveBeenCalled();
+        expect(mockProvisionCompleteUser).not.toHaveBeenCalled();
         expect(mockEmitMetric).toHaveBeenCalledWith('ReconciliationDrift', 0);
     });
 });

@@ -1,0 +1,60 @@
+name: Sandbox Router Deploy
+
+# Persistent SINGLETON sandbox PR path router (CloudFront + CloudFront Function + KeyValueStore) at
+# sandbox.commise.app. Deployed once / on change — NOT per-PR. The per-PR KVS data is written by the
+# preview workflow (register-preview); this workflow only owns the long-lived infrastructure and
+# seeds the single project-wide Vercel bypass key. See docs/architecture/decisions/0001.
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'packages/apps/commise/web/infra/**'
+            - 'packages/apps/commise/web/router/**'
+            - '.github/workflows/sandbox-router-deploy.yml'
+    workflow_dispatch: {}
+
+concurrency:
+    # One shared router — serialize so an in-flight deploy completes.
+    group: sandbox-router-deploy
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    STAGE: sandbox
+    DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+    # CloudFront + its ACM cert live in us-east-1 regardless of the default region.
+    AWS_REGION: us-east-1
+
+jobs:
+    deploy:
+        name: Deploy sandbox router
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+            - name: Deploy router stack (bundles the function, then cdk deploy)
+              run: npm run infra:deploy --workspace=@commise/web
+            - name: Seed the project-wide Vercel bypass key into KVS
+              env:
+                  VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+              run: |
+                  KVS_ARN=$(aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox \
+                    --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" --output text)
+                  if [ -z "$KVS_ARN" ] || [ "$KVS_ARN" = "None" ]; then echo "router KVS ARN not found" >&2; exit 1; fi
+                  ETAG=$(aws cloudfront-keyvaluestore describe-key-value-store --kvs-arn "$KVS_ARN" --query ETag --output text)
+                  aws cloudfront-keyvaluestore put-key \
+                    --kvs-arn "$KVS_ARN" --key vercel-bypass \
+                    --value "$VERCEL_AUTOMATION_BYPASS_SECRET" --if-match "$ETAG"

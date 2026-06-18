@@ -27,6 +27,9 @@
         "src/**/*.tsx",
         "tests/**/*.ts",
         "tests/**/*.tsx",
+        "router/src/**/*.ts",
+        "router/tests/**/*.ts",
+        "scripts/**/*.ts",
         ".next/types/**/*.ts"
     ],
     "exclude": ["node_modules"]

@@ -123,3 +123,19 @@ export const emitMetric = (metricName: string, value: number, dimensions: Record
 
     process.stdout.write(`${JSON.stringify(payload)}\n`);
 };
+
+/**
+ * Emit the distinct, paging provisioning-failure signal for a genuine (non-collision) failure in a
+ * sync path (webhook / reconciliation). Mirrors the identity service's `auth.provisioning: failed`
+ * tag so one Sentry alert rule covers all sites. Carries only the Clerk identity id (never PII), and
+ * scrubs the error message (a Postgres 23505 embeds the offending email). The expected email-collision
+ * fallback returns `incomplete` instead of throwing, so it never reaches here — it must not page.
+ *
+ * @sideEffect captures a Sentry exception.
+ */
+export const captureProvisioningFailure = (err: unknown, identityId: string): void => {
+    Sentry.captureException(err, {
+        tags: { 'auth.provisioning': 'failed' },
+        contexts: { auth: { clerkSub: identityId, outcome: 'failed' } },
+    });
+};

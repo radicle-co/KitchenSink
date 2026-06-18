@@ -8,9 +8,13 @@ const PROFILE_KEY = ['user', 'me'] as const;
 export function useUserProfile() {
     const { getToken, isSignedIn } = useIdpAuth();
 
+    // Force a fresh session token for the profile fetch. Clerk session tokens live ~60s; a query
+    // that refetches when the app returns from the background can otherwise send an expired cached
+    // token and 401. skipCache mints a current one. (The web server component gets a fresh token
+    // per request via auth().getToken(), so this guard is mobile-specific.)
     return useQuery({
         queryKey: PROFILE_KEY,
-        queryFn: () => getUserMe(getToken) as Promise<UserProfile>,
+        queryFn: () => getUserMe(() => getToken({ skipCache: true })) as Promise<UserProfile>,
         enabled: Boolean(isSignedIn),
         staleTime: 2 * 60 * 1000,
     });

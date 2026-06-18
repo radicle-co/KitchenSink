@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App } from 'aws-cdk-lib';
 
-import { IdentityGlobalStack } from '../lib/identity/identity-global-stack.js';
+import { GlobalStack } from '../lib/platform/global-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
@@ -20,9 +20,9 @@ if (!domainName) {
 
 const env = account ? { account, region } : { region };
 
-new IdentityGlobalStack(app, `IdentityGlobal-${stage}`, {
+new GlobalStack(app, `Global-${stage}`, {
     env,
-    stackName: `kitchensink-identity-global-${stage}`,
+    stackName: `kitchensink-global-${stage}`,
     stage,
     domainName,
 });

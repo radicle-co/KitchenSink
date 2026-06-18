@@ -287,12 +287,12 @@ The Model Context Protocol (MCP), developed by Anthropic, has become the standar
 3. Use **OAuth 2.1** (PKCE mandatory for all clients, no implicit grant, no resource owner password flow)
 4. Expose tools via JSON-RPC 2.0
 
-**Auth0 integration** (already in the stack from feature 002): Auth0's "Auth for MCP" directly implements this spec:
+**Clerk integration** (already in the stack from feature 002): Clerk acts as the OAuth 2.1 authorization server for this spec:
 
-- Standards-based discovery and client registration
-- Resource-scoped tokens
-- On-Behalf-Of Token Exchange (MCP server calls internal APIs on behalf of the user)
-- Token Vault for third-party API connections
+- Standards-based discovery and OAuth client registration
+- Resource-scoped tokens (scopes/permissions carried in the session token's `public_metadata` claim)
+- The MCP server verifies presented session tokens networklessly via `verifyToken` (`@clerk/backend`) using the public `CLERK_JWT_KEY`, enforcing authorized parties (`azp`) via `CLERK_AUTHORIZED_PARTIES`
+- The Clerk Backend API (`@clerk/backend`) is used off the hot path for any management operations
 
 ```typescript
 // MCP server tool definition example
@@ -323,9 +323,9 @@ const tools = {
 External Agent (Claude Desktop / custom)
   │
   ├─► GET /.well-known/oauth-protected-resource
-  │     ← { authorization_servers: ["https://commise.auth0.com"] }
+  │     ← { authorization_servers: ["https://clerk.commise.app"] }
   │
-  ├─► GET https://commise.auth0.com/.well-known/oauth-authorization-server
+  ├─► GET https://clerk.commise.app/.well-known/oauth-authorization-server
   │     ← { authorization_endpoint, token_endpoint, ... }
   │
   ├─► Authorization Code + PKCE flow (user consents in browser)
@@ -579,7 +579,7 @@ interface AiProvider {
 | BYOK key storage             | AWS Secrets Manager (ARN reference in Postgres)             | Native to existing AWS stack, audit trails, IAM access control          |
 | BYOK business model          | Hybrid: free tier BYOK-only, pro tier platform quota + BYOK | Maximizes TAM while protecting margins                                  |
 | Structured output            | Zod schemas + `generateObject` from Vercel AI SDK           | Provider-agnostic, TypeScript type inference, automatic retry           |
-| External agent protocol      | MCP with OAuth 2.1 + PKCE via Auth0                         | Industry standard, Auth0 already in stack (feature 002)                 |
+| External agent protocol      | MCP with OAuth 2.1 + PKCE via Clerk                         | Industry standard, Clerk already in stack (feature 002)                 |
 | AI generation pattern        | Async (SQS queue) + SSE streaming option                    | Consistent with existing queue infrastructure, handles long generations |
 | PII in prompts               | Sanitization layer + pseudonymization before API calls      | GDPR compliance, ZDR request to OpenAI                                  |
 | Nutrition advice             | Hard guardrails in system prompt, no medical claims         | Liability, EU AI Act limited-risk classification                        |

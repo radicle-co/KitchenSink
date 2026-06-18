@@ -29,7 +29,7 @@ Planned implementation introduces four new packages (`@kitchensink/digitization-
 
 ## Phase 1 Design Notes
 
-- Canonical API contract follows `spec.md` (`/api/v1/recipes/digitize/*`, `/api/v1/circles/*`) with Auth0 auth model inherited from 002.
+- Canonical API contract follows `spec.md` (`/api/v1/recipes/digitize/*`, `/api/v1/circles/*`) with Clerk auth model inherited from 002.
 - OCR path remains provider-pluggable; Textract default in v1 with circuit-breaker and degraded-mode queue retry.
 - Circle invitations follow clarified reusable-link semantics (C-001), idempotent redemption, revocation by rotation.
 - Circle deletion and owner deletion semantics are explicit and transactional (C-002, C-004).
@@ -90,13 +90,13 @@ Two paths require strict isolation:
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x, Node.js 24.x
-**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg`, `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs`, AWS Textract SDK client, `@aws-lambda-powertools/logger`, `@sentry/aws-serverless`, Auth0 JWT verification stack from 002 (`jose`, `jwks-rsa`)
+**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg`, `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs`, AWS Textract SDK client, `@aws-lambda-powertools/logger`, `@sentry/aws-serverless`, Clerk networkless session-token verification stack from 002 (`@clerk/backend` `verifyToken` with `CLERK_JWT_KEY` + `CLERK_AUTHORIZED_PARTIES`)
 **Storage**: RDS PostgreSQL 16, S3 objects (`digitization/...`), SQS + DLQ, CloudFront edge delivery of archived originals
 **Testing**: Vitest (unit/integration/contract), Playwright + accessibility checks for web/mobile flows
 **Target Platform**: AWS Lambda + NestJS APIs, web + mobile clients consuming API
 **Project Type**: Monorepo, multi-package backend/shared + app clients
 **Performance Goals**: NFR-001 p95 OCR latency ≤ 10s (4MB cold start), non-blocking upload/OCR queue behavior (NFR-006)
-**Constraints**: `/api/v1/*` route convention, Auth0 bearer auth, no proxied binary upload, RFC7807 errors, WCAG 2.1 AA
+**Constraints**: `/api/v1/*` route convention, Clerk session-token auth, no proxied binary upload, RFC7807 errors, WCAG 2.1 AA
 **Scale/Scope**: MVP must-have stories + should-have OCR queue/circle management support, with outlier alarms and purge jobs
 
 ---
@@ -183,13 +183,13 @@ packages/
 
 ## API Contracts
 
-Auth model for all endpoints: **Auth0 bearer token required** (feature 002), except invitation token itself is path data and still requires authenticated user to redeem.
+Auth model for all endpoints: **Clerk session token required** (feature 002), verified networklessly by `AuthMiddleware`/`ClerkAuthService` (`@clerk/backend` `verifyToken` against `CLERK_JWT_KEY`, with `azp` enforced via `CLERK_AUTHORIZED_PARTIES`), except the invitation token itself is path data and still requires an authenticated user to redeem.
 
 ### `@kitchensink/digitization-api` (NestJS)
 
 | Method | Path                                           | Auth           | Purpose                                     | FR             |
 | ------ | ---------------------------------------------- | -------------- | ------------------------------------------- | -------------- |
-| POST   | `/api/v1/recipes/digitize/jobs`                | Bearer (Auth0) | Create job + pre-signed PUT URL             | FR-001, FR-027 |
+| POST   | `/api/v1/recipes/digitize/jobs`                | Bearer (Clerk) | Create job + pre-signed PUT URL             | FR-001, FR-027 |
 | GET    | `/api/v1/recipes/digitize/jobs`                | Bearer         | List jobs (cursor pagination, page size 20) | FR-028         |
 | GET    | `/api/v1/recipes/digitize/jobs/:id`            | Bearer         | Job status/result retrieval                 | FR-013, FR-029 |
 | PATCH  | `/api/v1/recipes/digitize/jobs/:id/correction` | Bearer         | Submit inline corrections                   | FR-015         |

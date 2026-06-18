@@ -82,14 +82,14 @@ Each test case identifies its technique by name:
     - **When** the Meal Plan Manager processes the request
     - **Then** the plan is created successfully, all 90 days are persisted, and paginated `GET /meal-plans/{id}/slots` returns complete results across pages
 
-#### Test Case: STP-001-D (Authentication Gate — Auth0 Adapter Failure)
+#### Test Case: STP-001-D (Authentication Gate — Clerk Auth Adapter Failure)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View
-**Description**: Verifies that the Meal Plan Manager blocks all operations when the Auth0 token validation call to SYS-007 fails.
+**Description**: Verifies that the Meal Plan Manager blocks all operations when the Clerk session token validation call to SYS-007 fails.
 
 - **System Scenario: STS-001-D1**
-    - **Given** the Auth0 Token Validation interface in SYS-007 is configured to throw `UnauthorizedException`
+    - **Given** the Clerk session-token verification interface in SYS-007 is configured to throw `UnauthorizedException`
     - **When** `POST /meal-plans` is called with any Bearer token
     - **Then** the response is HTTP 401, no `MealPlan` row is inserted, and the error body contains `{ error: "Unauthorized" }`
 
@@ -302,20 +302,20 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-IF-001, REQ-IF-002, REQ-IF-003, REQ-IF-004, REQ-IF-005, REQ-IF-006
 
-#### Test Case: STP-007-A (Auth0 Token Validation Interface Contract)
+#### Test Case: STP-007-A (Clerk session-token verification Interface Contract)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that the Auth0 Token Validation adapter correctly resolves a Bearer JWT to `AuthContext { userId, tier }` and throws `UnauthorizedException` for invalid tokens.
+**Description**: Verifies that the Clerk session-token verification adapter correctly resolves a Bearer JWT to `AuthContext { userId, tier }` and throws `UnauthorizedException` for invalid tokens.
 
 - **System Scenario: STS-007-A1**
-    - **Given** a valid, non-expired Auth0 JWT with claims `{ sub: "u1", "app/tier": "premium" }` is presented
-    - **When** the Auth0 Token Validation interface is invoked
+    - **Given** a valid, non-expired Clerk session token with claims `{ sub: "u1", "app/tier": "premium" }` is presented
+    - **When** the Clerk session-token verification interface is invoked
     - **Then** it returns `AuthContext { userId: "u1", tier: "premium" }` without error
 
 - **System Scenario: STS-007-A2**
     - **Given** an expired or malformed JWT is presented
-    - **When** the Auth0 Token Validation interface is invoked
+    - **When** the Clerk session-token verification interface is invoked
     - **Then** it throws `UnauthorizedException`; no `AuthContext` is returned
 
 #### Test Case: STP-007-B (Recipe API Fetch Interface Contract)

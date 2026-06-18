@@ -108,10 +108,13 @@ S3_ENDPOINT=http://localhost:4566
 S3_BUCKET_PHOTOS=commise-photos
 S3_BUCKET_VERSIONS=commise-versions
 
-# Auth0 — replace with your dev tenant values
-AUTH0_DOMAIN=dev-yourtenant.us.auth0.com
-AUTH0_CLIENT_ID=your-client-id-here
-AUTH0_AUDIENCE=https://api.commise.local
+# Clerk — replace with your dev instance values
+# API (networkless session-token verification — both non-secret)
+CLERK_JWT_KEY=-----BEGIN PUBLIC KEY-----...your-pem-public-key...-----END PUBLIC KEY-----
+CLERK_AUTHORIZED_PARTIES=http://localhost:5173,http://localhost:3000
+# Frontend publishable keys (web + mobile)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your-key-here
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your-key-here
 
 # CloudFront — LocalStack stand-in for local dev
 CLOUDFRONT_URL=http://localhost:4566/commise-photos
@@ -121,7 +124,7 @@ NODE_ENV=development
 PORT=3000
 ```
 
-Auth0 values won't affect most API behavior in dev mode, but JWT verification middleware will reject requests without a valid token unless you configure the API to bypass auth in `NODE_ENV=development`. Check `packages/api/recipe/src/auth/auth.guard.ts` for the local bypass flag.
+Clerk values won't affect most API behavior in dev mode, but the `AuthMiddleware` (networkless session-token verification via `CLERK_JWT_KEY` plus `azp` enforcement from `CLERK_AUTHORIZED_PARTIES`) will reject requests without a valid Clerk session token unless you configure the API to bypass auth in `NODE_ENV=development`. Check `packages/api/recipe/src/auth/auth.middleware.ts` for the local bypass flag.
 
 ---
 

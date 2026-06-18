@@ -445,35 +445,35 @@ Each test case MUST identify its technique by name and anchor to a specific arch
 
 ---
 
-### Module Verification: ARCH-014 (Auth0JwtGuard)
+### Module Verification: ARCH-014 (AuthMiddleware)
 
 **Parent System Components**: SYS-008
 
-#### Test Case: ITP-014-A (Auth0JwtGuard allows authenticated requests to reach ARCH-002)
+#### Test Case: ITP-014-A (AuthMiddleware allows authenticated requests to reach ARCH-002)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that ARCH-014 validates a well-formed Auth0 JWT and allows the request to proceed to ARCH-002.
+**Description**: Verifies that ARCH-014 validates a well-formed Clerk session token and allows the request to proceed to ARCH-002.
 
 - **Integration Scenario: ITS-014-A1**
-    - **Given** the request carries a valid `Authorization: Bearer <JWT>` header with a current Auth0 signature
-    - **When** ARCH-014 evaluates `canActivate()` for any import endpoint
-    - **Then** ARCH-014 returns `true` and the request proceeds to ARCH-002
+    - **Given** the request carries a valid `Authorization: Bearer <token>` header with a current Clerk signature
+    - **When** ARCH-014 evaluates `use(req, res, next)` for any import endpoint
+    - **Then** ARCH-014 calls `next()` and the request proceeds to ARCH-002
 
-#### Test Case: ITP-014-B (Auth0JwtGuard rejects expired or tampered JWTs before ARCH-002 is invoked)
+#### Test Case: ITP-014-B (AuthMiddleware rejects expired or tampered tokens before ARCH-002 is invoked)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
 **Description**: Verifies that ARCH-014 rejects invalid JWTs with HTTP 401 without invoking ARCH-002 or any downstream module.
 
 - **Integration Scenario: ITS-014-B1**
-    - **Given** the request carries an expired JWT
-    - **When** ARCH-014 evaluates `canActivate()` for `POST /import/url`
+    - **Given** the request carries an expired token
+    - **When** ARCH-014 evaluates `use(req, res, next)` for `POST /import/url`
     - **Then** ARCH-014 throws `UnauthorizedException` (HTTP 401) and ARCH-002 is not invoked
 
 - **Integration Scenario: ITS-014-B2**
-    - **Given** the request carries a JWT with a tampered signature
-    - **When** ARCH-014 evaluates `canActivate()` for `POST /import/url`
+    - **Given** the request carries a token with a tampered signature
+    - **When** ARCH-014 evaluates `use(req, res, next)` for `POST /import/url`
     - **Then** ARCH-014 throws `UnauthorizedException` (HTTP 401) and ARCH-002 is not invoked
 
 ---
@@ -633,8 +633,8 @@ Each test case MUST identify its technique by name and anchor to a specific arch
 | ITP-012-B | ARCH-015                                         | Stub ARCH-015 returning null                                                             | Verifies NotFoundError propagation                            |
 | ITP-013-A | ARCH-015 (Drizzle + PostgreSQL)                  | Test database (pg-mem or real Postgres in Docker)                                        | Persistence adapter requires real ORM behaviour               |
 | ITP-013-B | ARCH-015 (Drizzle + PostgreSQL)                  | Test database configured to throw on insert                                              | Verifies PersistenceError wrapping                            |
-| ITP-014-A | Auth0 JWKS endpoint                              | Stub JWKS endpoint returning test public key                                             | Avoids real Auth0 network calls                               |
-| ITP-014-B | Auth0 JWKS endpoint                              | Stub JWKS endpoint; expired/tampered JWT fixtures                                        | Verifies rejection without real Auth0                         |
+| ITP-014-A | `CLERK_JWT_KEY` (public key)                     | Test PEM public key + tokens signed by the matching test private key                     | Verification is networkless; no external call to stub         |
+| ITP-014-B | `CLERK_JWT_KEY` (public key)                     | Test PEM public key; expired/tampered token fixtures                                     | Verifies rejection networklessly (no external call)           |
 | ITP-015-A | PostgreSQL                                       | Test database (Docker Postgres)                                                          | Repository requires real Drizzle ORM + DB                     |
 | ITP-015-B | PostgreSQL                                       | Test database with concurrent connection pool                                            | Verifies row-level isolation                                  |
 | ITP-016-A | TypeScript compiler                              | `tsc --strict` compilation check in CI                                                   | Type contract verification is compile-time                    |

@@ -26,99 +26,99 @@ Feature 011's module decomposition translates each of the 47 `ARCH-NNN` modules 
 
 The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-MOD bodies (Algorithmic/Logic, State Machine, Internal Data Structures, Error Handling) are deferred to chunks MD-2..MD-4 per §4 of the command.
 
-| MOD ID  | Name                                                          | Parent ARCH        | Type          | Notes                                                                                    |
-| ------- | ------------------------------------------------------------- | ------------------ | ------------- | ---------------------------------------------------------------------------------------- |
-| MOD-001 | `CapturePicker` web component                                 | ARCH-001           | UI Component  | File-picker UI; client-side MIME/size pre-check; emits `BatchSelected`.                  |
-| MOD-002 | `useBatchUploadState` web hook                                | ARCH-001           | Function      | React state machine for batch lifecycle (`idle → selecting → ready → uploading → done`). |
-| MOD-003 | `CapturePickerNative` Expo screen                             | ARCH-002           | UI Component  | Camera + library picker with native permission handling.                                 |
-| MOD-004 | `useNativePermissions` hook                                   | ARCH-002           | Function      | Wraps Expo permission API with deny/limited fallbacks.                                   |
-| MOD-005 | `presignedUpload(file, opts)`                                 | ARCH-003           | Public API    | Streams file bytes via PUT; integrates `Idempotency-Key`.                                |
-| MOD-006 | `withRetryEnvelope(fn, policy)`                               | ARCH-003           | Function      | Bounded retry with exponential backoff + jitter for transient PUT failures.              |
-| MOD-007 | `OfflineQueueStore` (web SQLite/IDB / mobile SQLite)          | ARCH-004           | Class         | Persistent FIFO of unsent uploads keyed by `batch_id`.                                   |
-| MOD-008 | `OfflineQueueDrainer`                                         | ARCH-004           | Worker        | Background flusher that resumes pending PUTs on connectivity restore.                    |
-| MOD-009 | `POST /jobs` handler                                          | ARCH-005           | Handler       | Validates payload, mints `job_id`s, returns pre-signed PUT URLs.                         |
-| MOD-010 | `mintPresignedPutUrl(jobId, key)`                             | ARCH-005, ARCH-007 | Function      | Calls `@aws-sdk/s3-request-presigner`; binds `Idempotency-Key` header.                   |
-| MOD-011 | `validateJobIntakeDto`                                        | ARCH-005           | Validator     | `class-validator` DTO check (batch size, MIME hint, count).                              |
-| MOD-012 | `validateImagePreflight(meta)`                                | ARCH-006           | Validator     | Enforces 300×300 px min, 20 MB max, MIME ∈ {jpeg,png,heic}.                              |
-| MOD-013 | `PreflightError` taxonomy                                     | ARCH-006           | Class         | Typed errors with stable `error_code` strings consumed by ARCH-028.                      |
-| MOD-014 | `s3.putObjectMetadata(key, meta)` adapter op                  | ARCH-007           | Adapter Op    | Persists checksum + content-length on `digitization_jobs` after PUT.                     |
-| MOD-015 | `s3.getCdnUrl(key)` adapter op                                | ARCH-007           | Adapter Op    | Returns CloudFront-fronted GET URL.                                                      |
-| MOD-016 | `s3.softDeleteObject(key, retentionDays)` adapter op          | ARCH-007           | Adapter Op    | Tags object with 30-day retention; relies on bucket lifecycle policy.                    |
-| MOD-017 | `OcrJobDispatcher.send(jobId)`                                | ARCH-008           | Function      | Builds SQS message and publishes within 30s of upload commit.                            |
-| MOD-018 | `concurrencyTokenBucket(userId)`                              | ARCH-008           | Function      | Per-user concurrency control supporting ≥20 concurrent jobs.                             |
-| MOD-019 | `ocrWorker.handler(event)` Lambda entry                       | ARCH-009           | Handler       | SQS event source; orchestrates fetch → invoke → parse → persist.                         |
-| MOD-020 | `ocrWorker.dispatchToProvider(payload)`                       | ARCH-009           | Function      | Calls `OcrProvider` with timeout + structured logging.                                   |
-| MOD-021 | `ocrWorker.handleFailure(err)`                                | ARCH-009           | Function      | Classifies retriable vs terminal; routes terminal to DLQ.                                |
-| MOD-022 | `OcrProvider` interface (`@kitchensink/digitization-ocr`)     | ARCH-010           | Public API    | TS interface: input shape, confidences, language, error taxonomy, timeout.               |
-| MOD-023 | `OcrRawResult` + `OcrError` types                             | ARCH-010           | Public API    | Shared DTOs for raw payload and error envelope.                                          |
-| MOD-024 | `DefaultOcrProviderAdapter.recognize(input)`                  | ARCH-011           | Adapter Op    | Vendor SDK call mapped to `OcrProvider.recognize`.                                       |
-| MOD-025 | `DefaultOcrProviderAdapter.mapVendorError(err)`               | ARCH-011           | Function      | Translates vendor SDK errors to `OcrError` taxonomy.                                     |
-| MOD-026 | `parseRawToFields(raw)`                                       | ARCH-012           | Function      | Normalizes provider output into `{title,ingredients,steps,yield,prep_time,cook_time}`.   |
-| MOD-027 | `attachConfidences(parsed, raw)`                              | ARCH-012           | Function      | Decorates parsed fields with per-token confidences + language code.                      |
-| MOD-028 | `persistOcrPayload(jobId, raw, parsed)`                       | ARCH-013           | Function      | Writes `raw_ocr_json` and `parsed_json` columns within ARCH-039 transaction.             |
-| MOD-029 | `enforceRawRetention(jobId)`                                  | ARCH-013, ARCH-033 | Function      | Lifetime contract guard: raw purged at 90d, parsed retained for row lifetime.            |
-| MOD-030 | `GET /jobs/:id/correction` handler                            | ARCH-014           | Handler       | Projects `parsed_json` to `CorrectionView`.                                              |
-| MOD-031 | `PATCH /jobs/:id/correction` handler                          | ARCH-014           | Handler       | Validates patch paths; merges into `parsed_json`.                                        |
-| MOD-032 | `mergeCorrectionPatch(parsed, patch)`                         | ARCH-014           | Function      | Pure merge function with per-field `accepted_at` capture.                                |
-| MOD-033 | `evaluateAcceptAllEligibility(parsed, accepted)`              | ARCH-015           | Function      | Returns `{eligible:boolean, missing:string[]}`.                                          |
-| MOD-034 | `CorrectionScreen` web component                              | ARCH-016           | UI Component  | Side-by-side photo + parsed-fields editor.                                               |
-| MOD-035 | `useCorrectionForm` web hook                                  | ARCH-016           | Function      | Form state + dirty-field tracking; emits PATCH deltas.                                   |
-| MOD-036 | `CorrectionScreen` mobile component                           | ARCH-017           | UI Component  | Native side-by-side editor with keyboard-avoiding layout.                                |
-| MOD-037 | `useCorrectionFormNative` hook                                | ARCH-017           | Function      | Mobile form state mirror of MOD-035.                                                     |
-| MOD-038 | `POST /jobs/:id/save` handler                                 | ARCH-018           | Handler       | Save bridge: creates `recipes` row + outbox event in one TX.                             |
-| MOD-039 | `buildRecipeFromParsed(parsed, ownerId)`                      | ARCH-018           | Function      | Deterministic projection from `parsed_json` to `recipes` insert payload.                 |
-| MOD-040 | `GET /jobs/:id` handler                                       | ARCH-019           | Handler       | Returns job lifecycle state + last-event timestamp.                                      |
-| MOD-041 | `DELETE /jobs/:id` handler                                    | ARCH-019           | Handler       | Cancels job; transitions to `cancelled`; preserves audit.                                |
-| MOD-042 | `GET /jobs` handler                                           | ARCH-020           | Handler       | Paginated list filtered by `state` and `batch_id`.                                       |
-| MOD-043 | `JobListProjection.toView(rows)`                              | ARCH-020           | Function      | Projects DB rows to `JobListItemView`.                                                   |
-| MOD-044 | `POST /circles` handler                                       | ARCH-021           | Handler       | Creates circle; assigns owner; emits `circle.created`.                                   |
-| MOD-045 | `POST /circles/:id/members` handler                           | ARCH-021           | Handler       | Adds member; idempotent on `(circle_id,user_id)`.                                        |
-| MOD-046 | `DELETE /circles/:id/members/:userId` handler                 | ARCH-021           | Handler       | Removes member; emits `circle.member.removed`.                                           |
-| MOD-047 | `circleAccessGuard(viewerId, circleId)`                       | ARCH-021           | Function      | Membership/ownership check used by other handlers.                                       |
-| MOD-048 | `rewriteAudiencesOnMembershipChange(circleId, removedUserId)` | ARCH-022           | Function      | Compacts audience grants when a member is removed.                                       |
-| MOD-049 | `softDeleteRecipe(recipeId, actorId)`                         | ARCH-023           | Function      | Sets `deleted_at`; enqueues archive request via outbox.                                  |
-| MOD-050 | `restoreRecipe(recipeId, actorId)`                            | ARCH-023           | Function      | Clears `deleted_at` within retention window; emits `recipe.restored`.                    |
-| MOD-051 | `archiveRecipeVersion(message)` worker handler                | ARCH-023           | Worker        | SQS consumer that PUTs JSON snapshot to `s3://recipes/.../archive/...`.                  |
-| MOD-052 | `appendCircleAuditEntry(entry)`                               | ARCH-024           | Function      | Append-only insert into `audit_log`; rejects updates.                                    |
-| MOD-053 | `circleOutlierMonitor.run()`                                  | ARCH-025           | Job           | Scheduled aggregator emitting `circle.size.outlier` events.                              |
-| MOD-054 | `POST /circles/:id/invitation/rotate` handler                 | ARCH-026           | Handler       | Owner-only; rotates active invite token.                                                 |
-| MOD-055 | `POST /circles/join/:token` handler                           | ARCH-026           | Handler       | Redeems invite token; idempotent membership add.                                         |
-| MOD-056 | `Auth0BearerGuard.canActivate(ctx)`                           | ARCH-027           | Class         | NestJS guard verifying JWT via `jose` + cached JWKS.                                     |
-| MOD-057 | `JwksKeyCache`                                                | ARCH-027           | Class         | In-process JWKS cache with kid-miss refresh.                                             |
-| MOD-058 | `Rfc7807ExceptionFilter.catch(err, host)`                     | ARCH-028           | Class         | Global NestJS exception filter; emits `application/problem+json`.                        |
-| MOD-059 | `mapErrorToProblem(err)`                                      | ARCH-028           | Function      | Pure mapping from typed errors to RFC 7807 envelopes with stable `error_code`.           |
-| MOD-060 | `Audience` types + `AudienceScope` union                      | ARCH-029           | Public API    | Pure TS types exported from `@kitchensink/shared-audience`.                              |
-| MOD-061 | `assertCircleRefIdPresent(audience)`                          | ARCH-029           | Function      | Consumer-side guard enforcing `ref_id` when `scope='circle'`.                            |
-| MOD-062 | `applyApiV1Prefix(app)` bootstrap step                        | ARCH-030           | Configuration | Sets global prefix `api/v1` on the Nest application.                                     |
-| MOD-063 | `routePrefixLintRule`                                         | ARCH-030           | Configuration | ESLint rule enforcing `/api/v1/*` route prefix in CI.                                    |
-| MOD-064 | `resolveAudience(viewerId, audience, health)`                 | ARCH-031           | Function      | Returns `'allow' \| 'deny' \| 'circles_unavailable'` (no silent allow on outage).        |
-| MOD-065 | `InvitationAcceptanceScreen`                                  | ARCH-032           | UI Component  | Accessible WCAG 2.1 AA confirmation surface for `/circles/join/:token`.                  |
-| MOD-066 | `rawOcrPurgeJob.run()`                                        | ARCH-033           | Job           | Daily scheduled purge of `raw_ocr_json` older than 90 days.                              |
-| MOD-067 | `metrics.emit(name, value, dims)`                             | ARCH-034           | Function      | Async fire-and-forget metric publisher.                                                  |
-| MOD-068 | `cdkAlarmDefinitions`                                         | ARCH-034           | Configuration | CDK alarm specs for queue depth, DLQ, OCR p95 latency.                                   |
-| MOD-069 | `POST /internal/canary/promote` handler                       | ARCH-035           | Handler       | Evaluates gate signals; returns promotion verdict.                                       |
-| MOD-070 | `evaluateCanaryGates(window)`                                 | ARCH-035           | Function      | Pure evaluator over telemetry window; default-deny on insufficient signal.               |
-| MOD-071 | `flags.isEnabled(name, ctx)`                                  | ARCH-036           | Function      | Cached feature-flag lookup with last-known-good fallback.                                |
-| MOD-072 | `FlagWebhookHandler`                                          | ARCH-036           | Handler       | Invalidates cache on provider webhook.                                                   |
-| MOD-073 | `testConventionLintRules`                                     | ARCH-037           | Configuration | ESLint rule pack enforcing test naming + colocation.                                     |
-| MOD-074 | `workspaceGuardrailsCi`                                       | ARCH-038           | Configuration | CI job config: project references, schema isolation, generated types ordering.           |
-| MOD-075 | `withSerializable(fn)` wrapper                                | ARCH-039           | Function      | Wraps callbacks in `BEGIN ISOLATION LEVEL SERIALIZABLE`; retries on `40001`.             |
-| MOD-076 | `txWrapperLintRule`                                           | ARCH-039           | Configuration | AST rule ensuring critical-path mutations use `withSerializable`.                        |
-| MOD-077 | `uiPrimitiveReuseLintRule`                                    | ARCH-040           | Configuration | Custom ESLint rule flagging duplicated primitives outside `packages/ui`.                 |
-| MOD-078 | `primitivesRationaleDoc` enforcer                             | ARCH-040           | Configuration | Verifies `packages/ui/PRIMITIVES.md` row exists for each new primitive.                  |
-| MOD-079 | `logger.info/warn/error(msg, ctx)` [CROSS-CUTTING]            | ARCH-041           | Function      | Request-scoped structured logger bound to OTel trace context.                            |
-| MOD-080 | `logger.bind(scope)` [CROSS-CUTTING]                          | ARCH-041           | Function      | Attaches `{user_id, job_id, circle_id}` to subsequent log lines.                         |
-| MOD-081 | `loadAppConfig()` [CROSS-CUTTING]                             | ARCH-042           | Function      | Boot-time Zod-validated config loader; fail-fast on invalid env.                         |
-| MOD-082 | `SecretsResolver.get(arn)` [CROSS-CUTTING]                    | ARCH-042           | Class         | First-use AWS Secrets Manager resolver with in-process cache.                            |
-| MOD-083 | `sentry.bootstrap()` [CROSS-CUTTING]                          | ARCH-043           | Function      | Initializes `@sentry/aws-serverless` + Nest adapter.                                     |
-| MOD-084 | `sentry.captureException(err, ctx)` [CROSS-CUTTING]           | ARCH-043           | Function      | Forwards to Sentry; mirrors to `logger.error` for local visibility.                      |
-| MOD-085 | `idempotency.run(key, payloadHash, fn)` [CROSS-CUTTING]       | ARCH-044           | Function      | TX-aware idempotency wrapper backed by `idempotency_keys`.                               |
-| MOD-086 | `outbox.publish(event, tx)` [CROSS-CUTTING]                   | ARCH-045           | Function      | Inserts outbox row inside caller TX.                                                     |
-| MOD-087 | `outboxDrainer.run()` [CROSS-CUTTING]                         | ARCH-045           | Worker        | Scheduled drain → SNS/SQS publish → `dispatched_at` ack.                                 |
-| MOD-088 | `tracing.init({serviceName, exporter})` [CROSS-CUTTING]       | ARCH-046           | Function      | Bootstraps OTel SDK; installs auto-instrumentation.                                      |
-| MOD-089 | `tracing.withSpan(name, fn)` [CROSS-CUTTING]                  | ARCH-046           | Function      | Helper that wraps callbacks in a child span.                                             |
-| MOD-090 | `db` Drizzle client factory [CROSS-CUTTING]                   | ARCH-047           | Function      | Singleton pool factory + typed schema binding.                                           |
-| MOD-091 | `db.transaction(async (tx) => ...)` [CROSS-CUTTING]           | ARCH-047           | Function      | Drizzle TX helper used by ARCH-005, 014, 018, 021, 022, 023, 044, 045.                   |
+| MOD ID  | Name                                                          | Parent ARCH        | Type          | Notes                                                                                     |
+| ------- | ------------------------------------------------------------- | ------------------ | ------------- | ----------------------------------------------------------------------------------------- |
+| MOD-001 | `CapturePicker` web component                                 | ARCH-001           | UI Component  | File-picker UI; client-side MIME/size pre-check; emits `BatchSelected`.                   |
+| MOD-002 | `useBatchUploadState` web hook                                | ARCH-001           | Function      | React state machine for batch lifecycle (`idle → selecting → ready → uploading → done`).  |
+| MOD-003 | `CapturePickerNative` Expo screen                             | ARCH-002           | UI Component  | Camera + library picker with native permission handling.                                  |
+| MOD-004 | `useNativePermissions` hook                                   | ARCH-002           | Function      | Wraps Expo permission API with deny/limited fallbacks.                                    |
+| MOD-005 | `presignedUpload(file, opts)`                                 | ARCH-003           | Public API    | Streams file bytes via PUT; integrates `Idempotency-Key`.                                 |
+| MOD-006 | `withRetryEnvelope(fn, policy)`                               | ARCH-003           | Function      | Bounded retry with exponential backoff + jitter for transient PUT failures.               |
+| MOD-007 | `OfflineQueueStore` (web SQLite/IDB / mobile SQLite)          | ARCH-004           | Class         | Persistent FIFO of unsent uploads keyed by `batch_id`.                                    |
+| MOD-008 | `OfflineQueueDrainer`                                         | ARCH-004           | Worker        | Background flusher that resumes pending PUTs on connectivity restore.                     |
+| MOD-009 | `POST /jobs` handler                                          | ARCH-005           | Handler       | Validates payload, mints `job_id`s, returns pre-signed PUT URLs.                          |
+| MOD-010 | `mintPresignedPutUrl(jobId, key)`                             | ARCH-005, ARCH-007 | Function      | Calls `@aws-sdk/s3-request-presigner`; binds `Idempotency-Key` header.                    |
+| MOD-011 | `validateJobIntakeDto`                                        | ARCH-005           | Validator     | `class-validator` DTO check (batch size, MIME hint, count).                               |
+| MOD-012 | `validateImagePreflight(meta)`                                | ARCH-006           | Validator     | Enforces 300×300 px min, 20 MB max, MIME ∈ {jpeg,png,heic}.                               |
+| MOD-013 | `PreflightError` taxonomy                                     | ARCH-006           | Class         | Typed errors with stable `error_code` strings consumed by ARCH-028.                       |
+| MOD-014 | `s3.putObjectMetadata(key, meta)` adapter op                  | ARCH-007           | Adapter Op    | Persists checksum + content-length on `digitization_jobs` after PUT.                      |
+| MOD-015 | `s3.getCdnUrl(key)` adapter op                                | ARCH-007           | Adapter Op    | Returns CloudFront-fronted GET URL.                                                       |
+| MOD-016 | `s3.softDeleteObject(key, retentionDays)` adapter op          | ARCH-007           | Adapter Op    | Tags object with 30-day retention; relies on bucket lifecycle policy.                     |
+| MOD-017 | `OcrJobDispatcher.send(jobId)`                                | ARCH-008           | Function      | Builds SQS message and publishes within 30s of upload commit.                             |
+| MOD-018 | `concurrencyTokenBucket(userId)`                              | ARCH-008           | Function      | Per-user concurrency control supporting ≥20 concurrent jobs.                              |
+| MOD-019 | `ocrWorker.handler(event)` Lambda entry                       | ARCH-009           | Handler       | SQS event source; orchestrates fetch → invoke → parse → persist.                          |
+| MOD-020 | `ocrWorker.dispatchToProvider(payload)`                       | ARCH-009           | Function      | Calls `OcrProvider` with timeout + structured logging.                                    |
+| MOD-021 | `ocrWorker.handleFailure(err)`                                | ARCH-009           | Function      | Classifies retriable vs terminal; routes terminal to DLQ.                                 |
+| MOD-022 | `OcrProvider` interface (`@kitchensink/digitization-ocr`)     | ARCH-010           | Public API    | TS interface: input shape, confidences, language, error taxonomy, timeout.                |
+| MOD-023 | `OcrRawResult` + `OcrError` types                             | ARCH-010           | Public API    | Shared DTOs for raw payload and error envelope.                                           |
+| MOD-024 | `DefaultOcrProviderAdapter.recognize(input)`                  | ARCH-011           | Adapter Op    | Vendor SDK call mapped to `OcrProvider.recognize`.                                        |
+| MOD-025 | `DefaultOcrProviderAdapter.mapVendorError(err)`               | ARCH-011           | Function      | Translates vendor SDK errors to `OcrError` taxonomy.                                      |
+| MOD-026 | `parseRawToFields(raw)`                                       | ARCH-012           | Function      | Normalizes provider output into `{title,ingredients,steps,yield,prep_time,cook_time}`.    |
+| MOD-027 | `attachConfidences(parsed, raw)`                              | ARCH-012           | Function      | Decorates parsed fields with per-token confidences + language code.                       |
+| MOD-028 | `persistOcrPayload(jobId, raw, parsed)`                       | ARCH-013           | Function      | Writes `raw_ocr_json` and `parsed_json` columns within ARCH-039 transaction.              |
+| MOD-029 | `enforceRawRetention(jobId)`                                  | ARCH-013, ARCH-033 | Function      | Lifetime contract guard: raw purged at 90d, parsed retained for row lifetime.             |
+| MOD-030 | `GET /jobs/:id/correction` handler                            | ARCH-014           | Handler       | Projects `parsed_json` to `CorrectionView`.                                               |
+| MOD-031 | `PATCH /jobs/:id/correction` handler                          | ARCH-014           | Handler       | Validates patch paths; merges into `parsed_json`.                                         |
+| MOD-032 | `mergeCorrectionPatch(parsed, patch)`                         | ARCH-014           | Function      | Pure merge function with per-field `accepted_at` capture.                                 |
+| MOD-033 | `evaluateAcceptAllEligibility(parsed, accepted)`              | ARCH-015           | Function      | Returns `{eligible:boolean, missing:string[]}`.                                           |
+| MOD-034 | `CorrectionScreen` web component                              | ARCH-016           | UI Component  | Side-by-side photo + parsed-fields editor.                                                |
+| MOD-035 | `useCorrectionForm` web hook                                  | ARCH-016           | Function      | Form state + dirty-field tracking; emits PATCH deltas.                                    |
+| MOD-036 | `CorrectionScreen` mobile component                           | ARCH-017           | UI Component  | Native side-by-side editor with keyboard-avoiding layout.                                 |
+| MOD-037 | `useCorrectionFormNative` hook                                | ARCH-017           | Function      | Mobile form state mirror of MOD-035.                                                      |
+| MOD-038 | `POST /jobs/:id/save` handler                                 | ARCH-018           | Handler       | Save bridge: creates `recipes` row + outbox event in one TX.                              |
+| MOD-039 | `buildRecipeFromParsed(parsed, ownerId)`                      | ARCH-018           | Function      | Deterministic projection from `parsed_json` to `recipes` insert payload.                  |
+| MOD-040 | `GET /jobs/:id` handler                                       | ARCH-019           | Handler       | Returns job lifecycle state + last-event timestamp.                                       |
+| MOD-041 | `DELETE /jobs/:id` handler                                    | ARCH-019           | Handler       | Cancels job; transitions to `cancelled`; preserves audit.                                 |
+| MOD-042 | `GET /jobs` handler                                           | ARCH-020           | Handler       | Paginated list filtered by `state` and `batch_id`.                                        |
+| MOD-043 | `JobListProjection.toView(rows)`                              | ARCH-020           | Function      | Projects DB rows to `JobListItemView`.                                                    |
+| MOD-044 | `POST /circles` handler                                       | ARCH-021           | Handler       | Creates circle; assigns owner; emits `circle.created`.                                    |
+| MOD-045 | `POST /circles/:id/members` handler                           | ARCH-021           | Handler       | Adds member; idempotent on `(circle_id,user_id)`.                                         |
+| MOD-046 | `DELETE /circles/:id/members/:userId` handler                 | ARCH-021           | Handler       | Removes member; emits `circle.member.removed`.                                            |
+| MOD-047 | `circleAccessGuard(viewerId, circleId)`                       | ARCH-021           | Function      | Membership/ownership check used by other handlers.                                        |
+| MOD-048 | `rewriteAudiencesOnMembershipChange(circleId, removedUserId)` | ARCH-022           | Function      | Compacts audience grants when a member is removed.                                        |
+| MOD-049 | `softDeleteRecipe(recipeId, actorId)`                         | ARCH-023           | Function      | Sets `deleted_at`; enqueues archive request via outbox.                                   |
+| MOD-050 | `restoreRecipe(recipeId, actorId)`                            | ARCH-023           | Function      | Clears `deleted_at` within retention window; emits `recipe.restored`.                     |
+| MOD-051 | `archiveRecipeVersion(message)` worker handler                | ARCH-023           | Worker        | SQS consumer that PUTs JSON snapshot to `s3://recipes/.../archive/...`.                   |
+| MOD-052 | `appendCircleAuditEntry(entry)`                               | ARCH-024           | Function      | Append-only insert into `audit_log`; rejects updates.                                     |
+| MOD-053 | `circleOutlierMonitor.run()`                                  | ARCH-025           | Job           | Scheduled aggregator emitting `circle.size.outlier` events.                               |
+| MOD-054 | `POST /circles/:id/invitation/rotate` handler                 | ARCH-026           | Handler       | Owner-only; rotates active invite token.                                                  |
+| MOD-055 | `POST /circles/join/:token` handler                           | ARCH-026           | Handler       | Redeems invite token; idempotent membership add.                                          |
+| MOD-056 | `AuthMiddleware.use(req, res, next)`                          | ARCH-027           | Class         | NestJS middleware verifying the Clerk session token networklessly via `ClerkAuthService`. |
+| MOD-057 | `ClerkAuthService`                                            | ARCH-027           | Class         | Wraps `@clerk/backend` `verifyToken` against `CLERK_JWT_KEY`; enforces `azp`.             |
+| MOD-058 | `Rfc7807ExceptionFilter.catch(err, host)`                     | ARCH-028           | Class         | Global NestJS exception filter; emits `application/problem+json`.                         |
+| MOD-059 | `mapErrorToProblem(err)`                                      | ARCH-028           | Function      | Pure mapping from typed errors to RFC 7807 envelopes with stable `error_code`.            |
+| MOD-060 | `Audience` types + `AudienceScope` union                      | ARCH-029           | Public API    | Pure TS types exported from `@kitchensink/shared-audience`.                               |
+| MOD-061 | `assertCircleRefIdPresent(audience)`                          | ARCH-029           | Function      | Consumer-side guard enforcing `ref_id` when `scope='circle'`.                             |
+| MOD-062 | `applyApiV1Prefix(app)` bootstrap step                        | ARCH-030           | Configuration | Sets global prefix `api/v1` on the Nest application.                                      |
+| MOD-063 | `routePrefixLintRule`                                         | ARCH-030           | Configuration | ESLint rule enforcing `/api/v1/*` route prefix in CI.                                     |
+| MOD-064 | `resolveAudience(viewerId, audience, health)`                 | ARCH-031           | Function      | Returns `'allow' \| 'deny' \| 'circles_unavailable'` (no silent allow on outage).         |
+| MOD-065 | `InvitationAcceptanceScreen`                                  | ARCH-032           | UI Component  | Accessible WCAG 2.1 AA confirmation surface for `/circles/join/:token`.                   |
+| MOD-066 | `rawOcrPurgeJob.run()`                                        | ARCH-033           | Job           | Daily scheduled purge of `raw_ocr_json` older than 90 days.                               |
+| MOD-067 | `metrics.emit(name, value, dims)`                             | ARCH-034           | Function      | Async fire-and-forget metric publisher.                                                   |
+| MOD-068 | `cdkAlarmDefinitions`                                         | ARCH-034           | Configuration | CDK alarm specs for queue depth, DLQ, OCR p95 latency.                                    |
+| MOD-069 | `POST /internal/canary/promote` handler                       | ARCH-035           | Handler       | Evaluates gate signals; returns promotion verdict.                                        |
+| MOD-070 | `evaluateCanaryGates(window)`                                 | ARCH-035           | Function      | Pure evaluator over telemetry window; default-deny on insufficient signal.                |
+| MOD-071 | `flags.isEnabled(name, ctx)`                                  | ARCH-036           | Function      | Cached feature-flag lookup with last-known-good fallback.                                 |
+| MOD-072 | `FlagWebhookHandler`                                          | ARCH-036           | Handler       | Invalidates cache on provider webhook.                                                    |
+| MOD-073 | `testConventionLintRules`                                     | ARCH-037           | Configuration | ESLint rule pack enforcing test naming + colocation.                                      |
+| MOD-074 | `workspaceGuardrailsCi`                                       | ARCH-038           | Configuration | CI job config: project references, schema isolation, generated types ordering.            |
+| MOD-075 | `withSerializable(fn)` wrapper                                | ARCH-039           | Function      | Wraps callbacks in `BEGIN ISOLATION LEVEL SERIALIZABLE`; retries on `40001`.              |
+| MOD-076 | `txWrapperLintRule`                                           | ARCH-039           | Configuration | AST rule ensuring critical-path mutations use `withSerializable`.                         |
+| MOD-077 | `uiPrimitiveReuseLintRule`                                    | ARCH-040           | Configuration | Custom ESLint rule flagging duplicated primitives outside `packages/ui`.                  |
+| MOD-078 | `primitivesRationaleDoc` enforcer                             | ARCH-040           | Configuration | Verifies `packages/ui/PRIMITIVES.md` row exists for each new primitive.                   |
+| MOD-079 | `logger.info/warn/error(msg, ctx)` [CROSS-CUTTING]            | ARCH-041           | Function      | Request-scoped structured logger bound to OTel trace context.                             |
+| MOD-080 | `logger.bind(scope)` [CROSS-CUTTING]                          | ARCH-041           | Function      | Attaches `{user_id, job_id, circle_id}` to subsequent log lines.                          |
+| MOD-081 | `loadAppConfig()` [CROSS-CUTTING]                             | ARCH-042           | Function      | Boot-time Zod-validated config loader; fail-fast on invalid env.                          |
+| MOD-082 | `SecretsResolver.get(arn)` [CROSS-CUTTING]                    | ARCH-042           | Class         | First-use AWS Secrets Manager resolver with in-process cache.                             |
+| MOD-083 | `sentry.bootstrap()` [CROSS-CUTTING]                          | ARCH-043           | Function      | Initializes `@sentry/aws-serverless` + Nest adapter.                                      |
+| MOD-084 | `sentry.captureException(err, ctx)` [CROSS-CUTTING]           | ARCH-043           | Function      | Forwards to Sentry; mirrors to `logger.error` for local visibility.                       |
+| MOD-085 | `idempotency.run(key, payloadHash, fn)` [CROSS-CUTTING]       | ARCH-044           | Function      | TX-aware idempotency wrapper backed by `idempotency_keys`.                                |
+| MOD-086 | `outbox.publish(event, tx)` [CROSS-CUTTING]                   | ARCH-045           | Function      | Inserts outbox row inside caller TX.                                                      |
+| MOD-087 | `outboxDrainer.run()` [CROSS-CUTTING]                         | ARCH-045           | Worker        | Scheduled drain → SNS/SQS publish → `dispatched_at` ack.                                  |
+| MOD-088 | `tracing.init({serviceName, exporter})` [CROSS-CUTTING]       | ARCH-046           | Function      | Bootstraps OTel SDK; installs auto-instrumentation.                                       |
+| MOD-089 | `tracing.withSpan(name, fn)` [CROSS-CUTTING]                  | ARCH-046           | Function      | Helper that wraps callbacks in a child span.                                              |
+| MOD-090 | `db` Drizzle client factory [CROSS-CUTTING]                   | ARCH-047           | Function      | Singleton pool factory + typed schema binding.                                            |
+| MOD-091 | `db.transaction(async (tx) => ...)` [CROSS-CUTTING]           | ARCH-047           | Function      | Drizzle TX helper used by ARCH-005, 014, 018, 021, 022, 023, 044, 045.                    |
 
 > Inventory totals (verified during MD-1):
 >
@@ -630,7 +630,7 @@ DrainerEvent =
 
 ```text
 @Post('/jobs')
-@UseGuards(Auth0JwtGuard)
+# Protected by AuthMiddleware (MOD-056) wired in the module's configure(); req.user is already populated
 @UseInterceptors(IdempotencyInterceptor)                # MOD-085 wrapper
 async function handleCreateDigitizationJobs(req, dto: JobIntakeDto):
   validateJobIntakeDto(dto)                             # MOD-011 throws on bad input
@@ -678,7 +678,7 @@ JobIntakeResponse = {
 | Condition                                       | Code                     | HTTP                | Recovery                             |
 | ----------------------------------------------- | ------------------------ | ------------------- | ------------------------------------ |
 | DTO validation fails                            | `INTAKE_DTO_INVALID`     | 400                 | client surfaces field errors         |
-| Auth0 JWT missing/expired                       | `AUTH_REQUIRED`          | 401                 | client refreshes token, retries      |
+| Clerk session token missing/expired             | `AUTH_REQUIRED`          | 401                 | client refreshes token, retries      |
 | Concurrency bucket exhausted                    | `RATE_LIMIT_USER`        | 429 + `Retry-After` | client backs off                     |
 | Idempotency replay with mismatched payload hash | `IDEMPOTENCY_CONFLICT`   | 409                 | client regenerates `Idempotency-Key` |
 | Pre-sign service unavailable                    | `S3_PRESIGN_UNAVAILABLE` | 503                 | client retries with same key         |
@@ -3056,60 +3056,58 @@ Hashed token lookup; idempotent membership insert.
 
 ---
 
-### MOD-056 — `Auth0BearerGuard.canActivate(ctx)`
+### MOD-056 — `AuthMiddleware.use(req, res, next)`
 
 - **Parent ARCH**: ARCH-027
-- **Type**: Class (NestJS guard)
+- **Type**: Class (NestJS middleware)
 
 **Algorithmic / Logic**
 
 ```text
-class Auth0BearerGuard implements CanActivate:
-  constructor(jwks: JwksKeyCache, cfg: { issuer, audience }):
-    this.jwks   = jwks
-    this.issuer = cfg.issuer
-    this.aud    = cfg.audience
+class AuthMiddleware implements NestMiddleware:
+  constructor(clerk: ClerkAuthService):                  # MOD-057
+    this.clerk = clerk
 
-  async canActivate(ctx):
-    req   = ctx.switchToHttp().getRequest()
+  async use(req, res, next):
     token = extractBearer(req.headers.authorization)
     if !token: throw new UnauthorizedException("MISSING_BEARER")
 
     try:
-      { payload } = await jose.jwtVerify(token,
-                       async (header) => this.jwks.getKey(header.kid),
-                       { issuer: this.issuer, audience: this.aud })
-      req.auth = {
-        userId:    payload.sub,
-        scope:     (payload.scope ?? "").split(" ").filter(Boolean),
-        claims:    payload
+      claims = await this.clerk.verify(token)            # VerifiedClerkClaims; networkless verifyToken + azp check
+      req.user = {
+        userId:      claims.sub,
+        scope:       claims.public_metadata?.scopes ?? [],
+        permissions: claims.public_metadata?.permissions ?? [],
+        tier:        claims.public_metadata?.tier,
+        claims
       }
-      return true
+      next()
     catch (err):
-      if err.code == "ERR_JWT_EXPIRED": throw new UnauthorizedException("TOKEN_EXPIRED")
-      if err.code == "ERR_JWS_SIGNATURE_VERIFICATION_FAILED":
+      if isClerkAuthError(err) && err.code == "TOKEN_EXPIRED":
+                                          throw new UnauthorizedException("TOKEN_EXPIRED")
+      if isClerkAuthError(err) && err.code == "BAD_SIGNATURE":
                                           throw new UnauthorizedException("BAD_SIGNATURE")
-      logger.warn("jwt_verify_failed", { code: err.code })
+      logger.warn("clerk_verify_failed", { code: err.code })
       throw new UnauthorizedException("TOKEN_INVALID")
 ```
 
 **State Machine**
 
-`N/A — Per-request guard`.
+`N/A — Per-request middleware`.
 
 **Internal Data Structures**
 
-`req.auth = { userId, scope[], claims }` (consumed by every handler).
+`req.user = { userId, scope[], permissions[], tier, claims }` (consumed by every handler; admin scopes/permissions and subscription tier come from the signed token's `public_metadata`).
 
 **Error Handling**
 
 - All failure modes collapse to `401`; reason code surfaces in `WWW-Authenticate` header (set by `Rfc7807ExceptionFilter` MOD-058).
-- JWKS failures bubble to MOD-057's retry/cache logic; guard never silently allows.
+- Verification failures bubble from MOD-057's `ClerkAuthService`; middleware never silently allows.
 - `extractBearer` rejects `Bearer ` with empty token (defence vs misconfigured proxies).
 
 ---
 
-### MOD-057 — `JwksKeyCache`
+### MOD-057 — `ClerkAuthService`
 
 - **Parent ARCH**: ARCH-027
 - **Type**: Class
@@ -3117,46 +3115,35 @@ class Auth0BearerGuard implements CanActivate:
 **Algorithmic / Logic**
 
 ```text
-class JwksKeyCache:
-  constructor(jwksUri, opts = { ttlMs: 10*60_000, cooldownMs: 30_000, timeoutMs: 2_000 }):
-    this.jwksUri   = jwksUri
-    this.client    = jwksRsa({ jwksUri, cache: false, requestHeaders: {}, timeout: opts.timeoutMs })
-    this.byKid     = new Map()        # kid -> { key, fetchedAt }
-    this.lastMiss  = 0                # epoch ms; throttles refresh on unknown kid
-    this.opts      = opts
+class ClerkAuthService:
+  constructor(cfg: { jwtKey: CLERK_JWT_KEY, authorizedParties: CLERK_AUTHORIZED_PARTIES }):
+    this.jwtKey            = cfg.jwtKey               # PEM public key (non-secret); no JWKS fetch
+    this.authorizedParties = cfg.authorizedParties    # comma-separated azp allowlist (non-secret)
 
-  async getKey(kid):
-    hit = this.byKid.get(kid)
-    if hit && (now() - hit.fetchedAt) < this.opts.ttlMs:
-      return hit.key
-
-    # kid miss OR expired — refresh, but throttle to prevent JWKS stampede
-    if (now() - this.lastMiss) < this.opts.cooldownMs:
-      throw new Error("JWKS_REFRESH_COOLDOWN")
-    this.lastMiss = now()
-
-    signingKey = await this.client.getSigningKey(kid)     # network call
-    key        = signingKey.getPublicKey()
-    this.byKid.set(kid, { key, fetchedAt: now() })
-    metrics.emit("auth.jwks.refresh", 1, { kid })         # MOD-067
-    return key
+  async verify(token) -> VerifiedClerkClaims:
+    # Networkless: no JWKS round trip, no client secret, no audience, no Clerk Backend API call on the hot path.
+    payload = await verifyToken(token, {               # @clerk/backend
+      jwtKey:            this.jwtKey,
+      authorizedParties: this.authorizedParties        # azp enforcement
+    })
+    return payload                                     # includes sub + public_metadata (scopes/permissions/tier)
 ```
 
 **State Machine**
 
-`unknown-kid → refreshing → cached`; cached entries expire after `ttlMs` and re-enter `unknown-kid`.
+`N/A — Stateless`. Verification is purely cryptographic against the configured public key; there is no key-cache lifecycle (Clerk's networkless model carries the key in config, rotated by redeploy/config update — no per-request refresh).
 
 **Internal Data Structures**
 
-- `Map<kid, { key, fetchedAt }>` — bounded by Auth0 tenant signing-key set (typically <5 entries).
-- `lastMiss` epoch — single number, dampens refresh storms during rotation incidents.
+- `jwtKey` — single PEM public key string (`CLERK_JWT_KEY`), non-secret; replaces any JWKS key set.
+- `authorizedParties` — `azp` allowlist (`CLERK_AUTHORIZED_PARTIES`), exact-string match (no wildcards).
 
 **Error Handling**
 
-- `JWKS_REFRESH_COOLDOWN` surfaces to `Auth0BearerGuard` (MOD-056) as `TOKEN_INVALID` (401) — never as 5xx; clients retry idempotently.
-- Network timeout (`opts.timeoutMs = 2s`) prevents request-thread starvation.
-- Cache is process-local; horizontal scale = N caches (acceptable; each cold-starts independently).
-- No silent allow on JWKS outage — guard rejects until cache is warm.
+- Verification failures surface to `AuthMiddleware` (MOD-056) as `TOKEN_INVALID` / `TOKEN_EXPIRED` / `BAD_SIGNATURE` (401) — never as 5xx; clients retry idempotently after refreshing the token.
+- No network dependency on the hot path, so no JWKS-outage failure mode and no request-thread starvation from key fetches.
+- Stateless and process-local; horizontal scale is trivial (each instance holds the same public key from config).
+- No silent allow — middleware rejects whenever `verifyToken` throws.
 
 ---
 
@@ -3702,7 +3689,7 @@ export function attachAlarms(scope: Construct, snsTopic: ITopic): void {
 
 ```text
 async function promoteCanary(req, res):
-  # Internal endpoint — no Auth0 guard; perimeter handled by VPC + ALB target rule
+  # Internal endpoint — no Clerk auth middleware; perimeter handled by VPC + ALB target rule
   windowMin = req.body.window_minutes ?? 15
   if windowMin < 5 || windowMin > 60:
     throw httpError(400, "WINDOW_OUT_OF_RANGE")
@@ -4246,8 +4233,8 @@ const AppConfigSchema = z.object({
     S3_BUCKET_VERSIONS: z.string().min(3),
     SQS_OCR_QUEUE_URL: z.string().url(),
     SQS_VERSION_QUEUE_URL: z.string().url(),
-    AUTH0_DOMAIN: z.string().min(1),
-    AUTH0_AUDIENCE: z.string().min(1),
+    CLERK_JWT_KEY: z.string().min(1),
+    CLERK_AUTHORIZED_PARTIES: z.string().min(1),
     SENTRY_DSN: z.string().url().optional(),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     OCR_PROVIDER: z.enum(['textract', 'mock']).default('textract'),

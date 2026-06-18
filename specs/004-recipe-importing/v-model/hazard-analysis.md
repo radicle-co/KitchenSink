@@ -128,9 +128,9 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Re
 
 ### SYS-008 — Auth Enforcement Middleware
 
-| HAZ ID  | Component | Failure Mode                                                             | Operational State | Effect                                                   | Severity     | Likelihood | Risk Level  | Mitigation                                                                                      | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------ | ----------------- | -------------------------------------------------------- | ------------ | ---------- | ----------- | ----------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-025 | SYS-008   | JWT validation bypass or misconfiguration allows unauthenticated import. | NORMAL            | Unauthorized recipe creation/modification path exposure. | Catastrophic | Improbable | Undesirable | REQ-IF-004; SYS-008 Auth0 guard on all import endpoints; ARCH-014 strict token validation path. | Tolerable     |
+| HAZ ID  | Component | Failure Mode                                                             | Operational State | Effect                                                   | Severity     | Likelihood | Risk Level  | Mitigation                                                                                                | Residual Risk |
+| ------- | --------- | ------------------------------------------------------------------------ | ----------------- | -------------------------------------------------------- | ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- | ------------- |
+| HAZ-025 | SYS-008   | JWT validation bypass or misconfiguration allows unauthenticated import. | NORMAL            | Unauthorized recipe creation/modification path exposure. | Catastrophic | Improbable | Undesirable | REQ-IF-004; SYS-008 Clerk auth middleware on all import endpoints; ARCH-014 strict token validation path. | Tolerable     |
 
 ### SYS-009 — Import Orchestrator
 

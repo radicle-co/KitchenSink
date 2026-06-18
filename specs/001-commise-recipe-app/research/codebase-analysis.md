@@ -41,7 +41,7 @@ Glob for tooling packages under `packages/tools/`. Expected to contain shared bu
 The Next.js 15 web application workspace. This is the primary frontend. [plan.md](../plan.md) specifies:
 
 - Next.js 15 App Router
-- `@auth0/nextjs-auth0` v4.x for authentication
+- `@clerk/nextjs` for authentication
 - Server-side rendering for SEO-sensitive recipe pages
 
 ### `packages/apps/commise/mobile`
@@ -49,7 +49,7 @@ The Next.js 15 web application workspace. This is the primary frontend. [plan.md
 The Expo 53 / React Native mobile application. [plan.md](../plan.md) specifies:
 
 - Expo 53+
-- `react-native-auth0` v5.5 for authentication
+- `@clerk/expo` for authentication
 - `expo-secure-store` for token storage
 
 ### `packages/ui`
@@ -62,8 +62,8 @@ Shared UI component library. Consumed by both web and mobile workspaces. Should 
 
 Based on [plan.md](../plan.md) Section "Where this fits":
 
-| New Workspace                           | Purpose                        | Location                                |
-| --------------------------------------- | ------------------------------ | --------------------------------------- |
+| New Workspace                         | Purpose                        | Location                              |
+| ------------------------------------- | ------------------------------ | ------------------------------------- |
 | `packages/apps/commise/api`           | NestJS backend on Fargate      | `packages/apps/commise/api`           |
 | `packages/apps/commise/lambda-photos` | Lambda photo processor (Sharp) | `packages/apps/commise/lambda-photos` |
 
@@ -97,7 +97,7 @@ TBD — no test framework declared in root. [plan.md](../plan.md) does not docum
 ### Environment Management
 
 - `@nestjs/config` with Zod for env validation
-- Auth: Auth0 for both web and mobile (separate SDKs per platform)
+- Auth: Clerk for both web and mobile (separate SDKs per platform)
 - AWS: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs`
 
 ---
@@ -124,10 +124,10 @@ TBD — no test framework declared in root. [plan.md](../plan.md) does not docum
 
 ## Auth Architecture
 
-- **Web**: `@auth0/nextjs-auth0` v4.x (Next.js App Router integration)
-- **Mobile**: `react-native-auth0` v5.5 + `expo-secure-store`
-- Both use Auth0 as the OIDC provider
-- API validates JWTs via `@auth0/nextjs-auth0` or `jose` / `jwks-rsa`
+- **Web**: `@clerk/nextjs` (Next.js App Router integration)
+- **Mobile**: `@clerk/expo` + `expo-secure-store`
+- Both use Clerk as the identity provider
+- API verifies the Clerk session token networklessly via `@clerk/backend` `verifyToken` using the public `CLERK_JWT_KEY`, with `azp` enforced from `CLERK_AUTHORIZED_PARTIES`
 
 ---
 

@@ -178,7 +178,7 @@ All digitization and Circle flows meet WCAG 2.1 AA standards, with large-text su
 
 ### API
 
-- **FR-027**: All digitization endpoints MUST be prefixed `/api/v1/recipes/digitize/*` and require a valid Auth0 bearer token (supports US-001, US-002, US-007).
+- **FR-027**: All digitization endpoints MUST be prefixed `/api/v1/recipes/digitize/*` and require a valid Clerk session token (supports US-001, US-002, US-007).
 - **FR-028**: `GET /api/v1/recipes/digitize/jobs` MUST support cursor-based pagination with a default page size of 20 (supports US-007).
 - **FR-029**: The API MUST return a `job_status` field on every job response with one of: `pending`, `processing`, `awaiting-correction`, `saved`, `discarded` (supports US-001, US-002).
 - **FR-030**: The API MUST return structured error responses (RFC 7807 Problem Details) for all 4xx and 5xx responses, including a machine-readable `error_code` (supports US-001).
@@ -237,13 +237,13 @@ All paths under `/api/v1/` (S-001). Auth required on all endpoints (002).
 ```
 circles
   id            uuid PK
-  owner_user_id uuid NOT NULL  -- FK → auth0 sub
+  owner_user_id uuid NOT NULL  -- FK → Clerk sub
   name          text NOT NULL
   created_at    timestamptz NOT NULL DEFAULT now()
 
 circle_members
   circle_id     uuid NOT NULL  -- FK → circles.id
-  user_id       uuid NOT NULL  -- FK → auth0 sub
+  user_id       uuid NOT NULL  -- FK → Clerk sub
   role          text NOT NULL  -- 'owner' | 'member'
   invited_at    timestamptz NOT NULL
   accepted_at   timestamptz

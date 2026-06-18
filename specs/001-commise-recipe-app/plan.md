@@ -19,7 +19,7 @@ Cross-cutting reliability behaviors driven by the 2026-04-30 spec clarifications
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x, Node.js 24.x (per `.nvmrc` + `package.json` engines)
-**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg` (node-postgres), `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs` (version-archive queue), Sharp (Lambda photo processor), `class-validator` + `class-transformer` (DTO validation), `@nestjs/config` (Zod env), `@auth0/nextjs-auth0` v4.x (web), `react-native-auth0` v5.5 (mobile)
+**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg` (node-postgres), `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs` (version-archive queue), Sharp (Lambda photo processor), `class-validator` + `class-transformer` (DTO validation), `@nestjs/config` (Zod env), `@clerk/nextjs` (web), `@clerk/expo` (mobile), `@clerk/backend` (API session-token verification)
 **Storage**: RDS PostgreSQL 16 (`db.t4g.small`, ~$25/mo) — pg_trgm, JSONB, tsvector FTS; S3 (photo objects + version archives) + CloudFront (CDN); SQS (version-archive queue + DLQ)
 **Testing**: Vitest (unit + integration), Playwright (web E2E), Maestro (mobile E2E); TDD red-green-refactor; LocalStack for AWS emulation (S3 + SQS); pyramid target ≥70% unit / ≤20% integration / ≤10% E2E
 **Target Platform**: AWS Fargate (ECS) for NestJS API, Lambda for photo processor, Lambda for version-archive worker (SQS-triggered), CloudFront CDN, RDS PostgreSQL
@@ -66,7 +66,7 @@ specs/001-commise-recipe-app/
 packages/
 ├── apps/
 │   └── commise/
-│       ├── web/                        # Next.js 15 App Router (Auth0 web SDK)
+│       ├── web/                        # Next.js 15 App Router (Clerk web SDK, @clerk/nextjs)
 │       │   ├── src/
 │   │   │   ├── app/                # Next.js app directory (routes)
 │   │   │   │   └── (home)/         # Post-login Home screen route (FR-046)
@@ -79,7 +79,7 @@ packages/
 │       │   └── tests/
 │       │       ├── unit/
 │       │       └── e2e/                # Playwright E2E tests
-│       └── mobile/                     # Expo 53 + React Native (Auth0 native SDK)
+│       └── mobile/                     # Expo 53 + React Native (Clerk native SDK, @clerk/expo)
 │           ├── src/
 │           │   ├── screens/            # Screen components
 │           │   │   └── HomeScreen.tsx  # Post-login Home screen (FR-046)
@@ -104,7 +104,7 @@ packages/
 │   │   │   ├── search/                  # Search module (PostgreSQL FTS, deleted_at filter)
 │   │   │   ├── users/                   # User module
 │   │   │   │   └── erasure/             # GDPR "Erase my data" service (C-007)
-│   │   │   ├── auth/                    # Auth module (Auth0 JWT guard)
+│   │   │   ├── auth/                    # Auth module (Clerk session-token AuthMiddleware)
 │   │   │   ├── health/                  # Health check endpoint
 │   │   │   └── common/                  # Shared utilities (filters, pagination, errors)
 │   │   └── tests/
@@ -235,7 +235,7 @@ GDPR hard purge ("Erase my data"):
       DELETE FROM recipe_photos WHERE recipe_id = $r
       DELETE FROM recipes WHERE id = $r
     Audit-log the erasure event (separate immutable audit table).
-  Irreversible. Confirmation step in UI (typed confirmation + Auth0 step-up).
+  Irreversible. Confirmation step in UI (typed confirmation + Clerk step-up).
 ```
 
 - Every recipe read path (`GET /recipes`, `GET /recipes/:id`, `GET /search/recipes`, `POST /recipes/:id/clone`, collection membership reads) MUST add `WHERE deleted_at IS NULL` (enforced at DAL layer, not in callers).
@@ -285,13 +285,13 @@ Every implementation task in `tasks.md` is paired with a corresponding test task
 
 ### Test Infrastructure
 
-| Layer       | Tool           | File Pattern            | Location                                    |
-| ----------- | -------------- | ----------------------- | ------------------------------------------- |
-| Unit        | Vitest         | `*.test.ts`             | `__tests__/` co-located with source         |
-| Integration | Vitest         | `*.integration.test.ts` | `__tests__/integration/`                    |
+| Layer       | Tool           | File Pattern            | Location                                  |
+| ----------- | -------------- | ----------------------- | ----------------------------------------- |
+| Unit        | Vitest         | `*.test.ts`             | `__tests__/` co-located with source       |
+| Integration | Vitest         | `*.integration.test.ts` | `__tests__/integration/`                  |
 | Web E2E     | Playwright     | `*.spec.ts`             | `packages/apps/commise/web/tests/e2e/`    |
 | Mobile E2E  | Maestro        | `*.yaml`                | `packages/apps/commise/mobile/tests/e2e/` |
-| Load        | k6 / Artillery | `*.load.ts`             | `packages/api/recipe/tests/load/`           |
+| Load        | k6 / Artillery | `*.load.ts`             | `packages/api/recipe/tests/load/`         |
 
 ### LocalStack in Tests (NFR-007)
 
@@ -392,7 +392,7 @@ new_jobs: # ADD these
 
 ## Post-Login Home Screen (FR-046)
 
-The Home screen is the first screen rendered after the Auth0 post-login redirect. It is a client-side composed view: the frontend makes parallel API calls to assemble the six sections. No new backend endpoint is required for v1 — the Home screen consumes existing endpoints.
+The Home screen is the first screen rendered after the Clerk post-login redirect. It is a client-side composed view: the frontend makes parallel API calls to assemble the six sections. No new backend endpoint is required for v1 — the Home screen consumes existing endpoints.
 
 ### Data Sources (existing endpoints)
 
@@ -445,7 +445,7 @@ A task that covers only one platform without a documented exception is a **block
 
 | Exception                                     | Reason                                               |
 | --------------------------------------------- | ---------------------------------------------------- |
-| Auth0 SDK integration (web vs. mobile)        | Covered by spec 002; different SDKs are expected     |
+| Clerk SDK integration (web vs. mobile)        | Covered by spec 002; different SDKs are expected     |
 | Expo device APIs (camera, haptics, push)      | No web equivalent; noted per feature                 |
 | Playwright (web E2E) vs. Maestro (mobile E2E) | Different tools for the same flow; both are required |
 

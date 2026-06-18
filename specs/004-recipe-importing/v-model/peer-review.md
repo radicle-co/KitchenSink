@@ -36,11 +36,11 @@
 **Severity**: CRITICAL
 **Standard**: ISO 29119-4 §6.4 — Integration testing must be planned as a distinct test level with its own test cases.
 
-**Evidence**: Matrix C in `trace.md` (lines 110–131) correctly identifies 13 integration points requiring dedicated integration tests (e.g., `ImportController → ImportOrchestrator`, `OcrPipelineService → AWS Textract`, `Auth0JwtGuard → Auth0 JWKS endpoint`). Every row is marked `⬜` with the note "Integration test needed." However, no `integration-test.md` artifact exists in the v-model directory. The unit test plan explicitly states it does NOT test module boundaries.
+**Evidence**: Matrix C in `trace.md` (lines 110–131) correctly identifies 13 integration points requiring dedicated integration tests (e.g., `ImportController → ImportOrchestrator`, `OcrPipelineService → AWS Textract`, `AuthMiddleware → ClerkAuthService (networkless verifyToken)`). Every row is marked `⬜` with the note "Integration test needed." However, no `integration-test.md` artifact exists in the v-model directory. The unit test plan explicitly states it does NOT test module boundaries.
 
-**Impact**: All 13 integration boundaries are unplanned. Cross-module contracts — including the critical `ImportOrchestrator → PaywallBlocklistService` and `Auth0JwtGuard → Auth0 JWKS` paths — have zero test coverage at the integration level. Defects at these seams will not be caught before system test.
+**Impact**: All 13 integration boundaries are unplanned. Cross-module contracts — including the critical `ImportOrchestrator → PaywallBlocklistService` and `AuthMiddleware → ClerkAuthService` paths — have zero test coverage at the integration level. Defects at these seams will not be caught before system test.
 
-**Resolution**: Create `specs/004-recipe-importing/v-model/integration-test.md` covering all 13 integration points in Matrix C. Each integration test case must specify: real vs. stubbed dependencies, environment requirements (DB, S3, Textract sandbox, Auth0 staging), and pass/fail criteria.
+**Resolution**: Create `specs/004-recipe-importing/v-model/integration-test.md` covering all 13 integration points in Matrix C. Each integration test case must specify: real vs. stubbed dependencies, environment requirements (DB, S3, Textract sandbox, Clerk test instance / `CLERK_JWT_KEY`), and pass/fail criteria.
 
 ---
 
@@ -260,7 +260,7 @@ Every UTP case identifies its technique by name from the defined vocabulary tabl
 
 ### PRF-004-P6 — Strict Isolation Is Applied to All Unit Tests
 
-All unit test scenarios mock external dependencies (database, S3, Textract, Instagram oEmbed, Auth0 JWKS). No unit test scenario makes real network or database calls. Mock isolation is explicitly documented in every scenario. **PASSED.**
+All unit test scenarios mock external dependencies (database, S3, Textract, Instagram oEmbed, Clerk token verification). No unit test scenario makes real network or database calls. Mock isolation is explicitly documented in every scenario. **PASSED.**
 
 ---
 

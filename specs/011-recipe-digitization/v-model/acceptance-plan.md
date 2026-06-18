@@ -422,9 +422,9 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 **Description:** Validates via **Test** that object keys are partitioned by user identifier.
 
 - **User Scenario: SCN-019-A1**
-    - **Given** user `auth0|u_123` uploads a photo for job creation
+    - **Given** user `user_2u123` uploads a photo for job creation
     - **When** object key is generated
-    - **Then** S3 key begins with `users/auth0|u_123/digitization/` and is not shared with other users
+    - **Then** S3 key begins with `users/user_2u123/digitization/` and is not shared with other users
 
 #### Test Case: ATP-019-B (CloudFront URL access denied for non-owner)
 
@@ -591,14 +591,14 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 
 ---
 
-### Requirement Validation: REQ-027 (Auth0 bearer auth on all 011 endpoints)
+### Requirement Validation: REQ-027 (Clerk session-token auth on all 011 endpoints)
 
-#### Test Case: ATP-027-A (Authorized request succeeds with valid bearer token)
+#### Test Case: ATP-027-A (Authorized request succeeds with valid session token)
 
-**Description:** Validates via **Test** that 011 routes require and accept valid Auth0 bearer tokens.
+**Description:** Validates via **Test** that 011 routes require and accept valid Clerk session tokens.
 
 - **User Scenario: SCN-027-A1**
-    - **Given** a valid Auth0 access token with required audience and scopes
+    - **Given** a valid Clerk session token with an allowed `azp` and the required `public_metadata` scopes
     - **When** client calls `GET /api/v1/recipes/digitize/jobs/:id`
     - **Then** endpoint authorizes request and returns job response data
 

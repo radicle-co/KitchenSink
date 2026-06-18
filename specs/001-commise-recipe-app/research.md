@@ -310,7 +310,7 @@ User directive: "backend services should use nestjs unless it doesn't make archi
 - **CRUD-heavy**: 7 resource modules (recipes, ingredients, versions, photos, collections, search, auth) — NestJS module/controller/service pattern is purpose-built for this
 - **DI container**: Clean dependency injection for service → DAL → DB layering
 - **Validation**: `class-validator` decorators on DTOs provide declarative input validation
-- **Guards**: Auth0 JWT validation via NestJS Guards — cleaner than raw Lambda authorizer wrappers
+- **Middleware**: Clerk session-token verification via a NestJS `AuthMiddleware` (Bearer token, networkless via `@clerk/backend` `verifyToken` + `CLERK_JWT_KEY`) — cleaner than raw Lambda authorizer wrappers
 - **Monorepo fit**: NestJS modules import shared `@kitchensink/recipe-core` types cleanly via workspace deps
 
 ### Why Fargate over Lambda
@@ -402,7 +402,7 @@ Single NestJS app with 7 resource modules (flat imports in `AppModule`):
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
         DbModule, // @Global() Drizzle provider (DB_TOKEN)
-        AuthModule, // Auth0 JWT Guards
+        AuthModule, // Clerk session-token AuthMiddleware
         RecipesModule, // CRUD
         IngredientsModule, // DB-backed + freeform
         VersionsModule, // Snapshot versioning + 3-way merge

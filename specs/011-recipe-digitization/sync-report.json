@@ -1,144 +1,144 @@
 {
-  "meta": {
-    "feature": "011-recipe-digitization",
-    "worktree": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth",
-    "scanDate": "2026-06-02T00:00:00Z",
-    "layersChecked": ["L1", "L2", "L3", "L4", "L7"],
-    "layersSkipped": ["L5"],
-    "layersInfo": ["L6"],
-    "verdict": "DRIFT DETECTED",
-    "totalFindings": 9,
-    "criticalCount": 1,
-    "warningCount": 6,
-    "infoCount": 2,
-    "cleanCount": 6
-  },
-  "findings": [
-    {
-      "id": "L1-FWD",
-      "layer": "L1",
-      "direction": "Forward",
-      "name": "Research → Product-spec consistency",
-      "verdict": "PASS",
-      "severity": "CLEAN",
-      "evidence": "Research themes (OCR+correction differentiator, Circle sharing, bulk queue, persona coverage) reflected in product-spec problem statement, epics, stories, and FR sections."
+    "meta": {
+        "feature": "011-recipe-digitization",
+        "worktree": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth",
+        "scanDate": "2026-06-02T00:00:00Z",
+        "layersChecked": ["L1", "L2", "L3", "L4", "L7"],
+        "layersSkipped": ["L5"],
+        "layersInfo": ["L6"],
+        "verdict": "DRIFT DETECTED",
+        "totalFindings": 9,
+        "criticalCount": 0,
+        "warningCount": 6,
+        "infoCount": 2,
+        "cleanCount": 7
     },
-    {
-      "id": "L1-BWD",
-      "layer": "L1",
-      "direction": "Backward",
-      "name": "Product-spec → Research consistency",
-      "verdict": "PASS",
-      "severity": "CLEAN",
-      "evidence": "Product decisions align with research; no contradiction without rationale found."
-    },
-    {
-      "id": "L2-FWD",
-      "layer": "L2",
-      "direction": "Forward",
-      "name": "Product-spec Must Have → spec.md",
-      "verdict": "PASS",
-      "severity": "CLEAN",
-      "evidence": "Must Have stories US-001..US-006 exist in spec.md with explicit acceptance criteria."
-    },
-    {
-      "id": "L2-BWD",
-      "layer": "L2",
-      "direction": "Backward",
-      "name": "spec.md US set → product-spec",
-      "verdict": "PASS",
-      "severity": "CLEAN",
-      "evidence": "spec.md stories trace to product-spec story set (US-001..US-011)."
-    },
-    {
-      "id": "L3-FWD",
-      "layer": "L3",
-      "direction": "Forward",
-      "name": "spec.md Must Have FR/US → plan coverage",
-      "verdict": "PASS",
-      "severity": "CLEAN",
-      "evidence": "Plan covers US-001..US-006 and FR groups; FR/NFR coverage matrices present."
-    },
-    {
-      "id": "L3-BWD-gap",
-      "layer": "L3",
-      "direction": "Backward",
-      "name": "Plan scope → spec traceability gap",
-      "verdict": "WARNING",
-      "severity": "WARNING",
-      "evidence": "spec.md defines 33 FR IDs; plan.md references 23 FR IDs; 10 FR IDs are not explicitly cited by plan (e.g., FR-023..FR-026 a11y, FR-018 archive retention)."
-    },
-    {
-      "id": "L4-FWD-gap",
-      "layer": "L4",
-      "direction": "Forward",
-      "name": "Plan architectural slices → tasks coverage",
-      "verdict": "WARNING",
-      "severity": "WARNING",
-      "evidence": "4 analyze-report issues (I1, I2, I3, G1) show plan↔tasks drift: circle_invitations vs circle_invites naming, FR-027 route scope incorrect for circle endpoints, and missing Circle deletion audience revert coverage in FR/NFR matrices."
-    },
-    {
-      "id": "L4-BWD",
-      "layer": "L4",
-      "direction": "Backward",
-      "name": "Tasks scope → plan traceability",
-      "verdict": "PASS",
-      "severity": "CLEAN",
-      "evidence": "Tasks T001..T100 map to plan architectural slices; traceability matrix and dependency graph present."
-    },
-    {
-      "id": "L7-Auth0-Clerk",
-      "layer": "L7",
-      "direction": null,
-      "name": "Cross-feature auth drift (backward)",
-      "verdict": "CRITICAL",
-      "severity": "CRITICAL",
-      "evidence": "spec.md line 50 and plan.md line 186 declare 'Auth0 bearer token required', but 002-user-auth worktree migrated to Clerk (commits rename auth0Id→clerkId, remove auth0 env vars). Web/mobile packages use @clerk/nextjs and @clerk/expo. 011 artifacts must be updated to Clerk before implementation."
-    },
-    {
-      "id": "L7-table-naming",
-      "layer": "L7",
-      "direction": null,
-      "name": "Internal artifact naming drift",
-      "verdict": "WARNING",
-      "severity": "WARNING",
-      "evidence": "analyze-report I1: spec.md uses 'circle_invitations' while plan.md/tasks.md use 'circle_invites'. Same entity (rotation/audit history) but divergent terminology risks ORM/table mismatch."
-    },
-    {
-      "id": "L7-broken-link",
-      "layer": "L7",
-      "direction": null,
-      "name": "Broken cross-feature markdown link",
-      "verdict": "WARNING",
-      "severity": "WARNING",
-      "evidence": "spec.md line 53 links to '../010-monetisation/spec.md'; actual sibling directory is '010-subscriptions'. verify-report.md confirms."
-    },
-    {
-      "id": "L6-missing-impl",
-      "layer": "L6",
-      "direction": null,
-      "name": "Implementation readiness (INFO)",
-      "verdict": "INFO",
-      "severity": "INFO",
-      "evidence": "implement phase is not-started. 0/100 tasks complete. Code evidence found only for T001 (workspace globs added to root package.json workspaces?) and T006 (tsconfig path aliases). No packages/api/* or packages/shared/audience packages exist yet. No implementation code to verify against spec."
-    },
-    {
-      "id": "L6-apps-ref",
-      "layer": "L6",
-      "direction": null,
-      "name": "Monorepo apps/X ref check (INFO)",
-      "verdict": "INFO",
-      "severity": "INFO",
-      "evidence": "Tasks T057-T062 reference paths under packages/apps/commise/{web,mobile}/ only. No disallowed apps/X refs detected."
-    },
-    {
-      "id": "L2-Constitution",
-      "layer": "L2",
-      "direction": null,
-      "name": "Constitution alignment pre-impl audit",
-      "verdict": "WARNING",
-      "severity": "WARNING",
-      "evidence": "analyze-report C1-C4: test naming conflicts (*.spec.ts vs constitution *.test.ts), missing test-header traceability task, missing per-PR schema isolation for Aurora DSQL, and missing generate:types ordering gate."
-    }
-  ]
+    "findings": [
+        {
+            "id": "L1-FWD",
+            "layer": "L1",
+            "direction": "Forward",
+            "name": "Research → Product-spec consistency",
+            "verdict": "PASS",
+            "severity": "CLEAN",
+            "evidence": "Research themes (OCR+correction differentiator, Circle sharing, bulk queue, persona coverage) reflected in product-spec problem statement, epics, stories, and FR sections."
+        },
+        {
+            "id": "L1-BWD",
+            "layer": "L1",
+            "direction": "Backward",
+            "name": "Product-spec → Research consistency",
+            "verdict": "PASS",
+            "severity": "CLEAN",
+            "evidence": "Product decisions align with research; no contradiction without rationale found."
+        },
+        {
+            "id": "L2-FWD",
+            "layer": "L2",
+            "direction": "Forward",
+            "name": "Product-spec Must Have → spec.md",
+            "verdict": "PASS",
+            "severity": "CLEAN",
+            "evidence": "Must Have stories US-001..US-006 exist in spec.md with explicit acceptance criteria."
+        },
+        {
+            "id": "L2-BWD",
+            "layer": "L2",
+            "direction": "Backward",
+            "name": "spec.md US set → product-spec",
+            "verdict": "PASS",
+            "severity": "CLEAN",
+            "evidence": "spec.md stories trace to product-spec story set (US-001..US-011)."
+        },
+        {
+            "id": "L3-FWD",
+            "layer": "L3",
+            "direction": "Forward",
+            "name": "spec.md Must Have FR/US → plan coverage",
+            "verdict": "PASS",
+            "severity": "CLEAN",
+            "evidence": "Plan covers US-001..US-006 and FR groups; FR/NFR coverage matrices present."
+        },
+        {
+            "id": "L3-BWD-gap",
+            "layer": "L3",
+            "direction": "Backward",
+            "name": "Plan scope → spec traceability gap",
+            "verdict": "WARNING",
+            "severity": "WARNING",
+            "evidence": "spec.md defines 33 FR IDs; plan.md references 23 FR IDs; 10 FR IDs are not explicitly cited by plan (e.g., FR-023..FR-026 a11y, FR-018 archive retention)."
+        },
+        {
+            "id": "L4-FWD-gap",
+            "layer": "L4",
+            "direction": "Forward",
+            "name": "Plan architectural slices → tasks coverage",
+            "verdict": "WARNING",
+            "severity": "WARNING",
+            "evidence": "4 analyze-report issues (I1, I2, I3, G1) show plan↔tasks drift: circle_invitations vs circle_invites naming, FR-027 route scope incorrect for circle endpoints, and missing Circle deletion audience revert coverage in FR/NFR matrices."
+        },
+        {
+            "id": "L4-BWD",
+            "layer": "L4",
+            "direction": "Backward",
+            "name": "Tasks scope → plan traceability",
+            "verdict": "PASS",
+            "severity": "CLEAN",
+            "evidence": "Tasks T001..T100 map to plan architectural slices; traceability matrix and dependency graph present."
+        },
+        {
+            "id": "L7-auth-provider-drift",
+            "layer": "L7",
+            "direction": null,
+            "name": "Cross-feature auth drift (backward) — RESOLVED",
+            "verdict": "RESOLVED",
+            "severity": "CLEAN",
+            "evidence": "RESOLVED: 011 artifacts have been corrected to Clerk. spec.md and plan.md now declare 'Clerk session token required' (networkless verifyToken via CLERK_JWT_KEY + azp/CLERK_AUTHORIZED_PARTIES, enforced by AuthMiddleware), matching the 002-user-auth Clerk migration (clerkId user identifiers, CLERK_* env vars). Web uses @clerk/nextjs; mobile uses @clerk/expo. No stale auth-provider references remain in 011."
+        },
+        {
+            "id": "L7-table-naming",
+            "layer": "L7",
+            "direction": null,
+            "name": "Internal artifact naming drift",
+            "verdict": "WARNING",
+            "severity": "WARNING",
+            "evidence": "analyze-report I1: spec.md uses 'circle_invitations' while plan.md/tasks.md use 'circle_invites'. Same entity (rotation/audit history) but divergent terminology risks ORM/table mismatch."
+        },
+        {
+            "id": "L7-broken-link",
+            "layer": "L7",
+            "direction": null,
+            "name": "Broken cross-feature markdown link",
+            "verdict": "WARNING",
+            "severity": "WARNING",
+            "evidence": "spec.md line 53 links to '../010-monetisation/spec.md'; actual sibling directory is '010-subscriptions'. verify-report.md confirms."
+        },
+        {
+            "id": "L6-missing-impl",
+            "layer": "L6",
+            "direction": null,
+            "name": "Implementation readiness (INFO)",
+            "verdict": "INFO",
+            "severity": "INFO",
+            "evidence": "implement phase is not-started. 0/100 tasks complete. Code evidence found only for T001 (workspace globs added to root package.json workspaces?) and T006 (tsconfig path aliases). No packages/api/* or packages/shared/audience packages exist yet. No implementation code to verify against spec."
+        },
+        {
+            "id": "L6-apps-ref",
+            "layer": "L6",
+            "direction": null,
+            "name": "Monorepo apps/X ref check (INFO)",
+            "verdict": "INFO",
+            "severity": "INFO",
+            "evidence": "Tasks T057-T062 reference paths under packages/apps/commise/{web,mobile}/ only. No disallowed apps/X refs detected."
+        },
+        {
+            "id": "L2-Constitution",
+            "layer": "L2",
+            "direction": null,
+            "name": "Constitution alignment pre-impl audit",
+            "verdict": "WARNING",
+            "severity": "WARNING",
+            "evidence": "analyze-report C1-C4: test naming conflicts (*.spec.ts vs constitution *.test.ts), missing test-header traceability task, missing per-PR schema isolation for Aurora DSQL, and missing generate:types ordering gate."
+        }
+    ]
 }

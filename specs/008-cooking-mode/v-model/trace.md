@@ -49,7 +49,7 @@
 | REQ-ID     | Requirement                                                        | ATP-ID   | Acceptance Test        | Verification | Status               |
 | ---------- | ------------------------------------------------------------------ | -------- | ---------------------- | ------------ | -------------------- |
 | REQ-IF-001 | Integrates with Recipe App feature (001) for recipe data           | AT-008-H | Recipe App Integration | Test         | ⬜ Pending Execution |
-| REQ-IF-002 | Integrates with Auth0 feature (002) for authentication             | AT-008-H | Auth0 Integration      | Test         | ⬜ Pending Execution |
+| REQ-IF-002 | Integrates with Clerk feature (002) for authentication             | AT-008-H | Clerk Integration      | Test         | ⬜ Pending Execution |
 | REQ-IF-003 | Cooking Mode session state persists across app lifecycle events    | AT-008-I | Session Persistence    | Test         | ⬜ Pending Execution |
 | REQ-IF-004 | Timer events scheduled via reactive layer (React Native Alert API) | AT-008-D | Timer Integration      | Test         | ⬜ Pending Execution |
 
@@ -57,7 +57,7 @@
 
 | REQ-ID     | Requirement                                                                       | ATP-ID   | Acceptance Test          | Verification | Status               |
 | ---------- | --------------------------------------------------------------------------------- | -------- | ------------------------ | ------------ | -------------------- |
-| REQ-CN-001 | Cooking Mode cannot be deployed independently of Recipe App (001) and Auth0 (002) | AT-008-L | Co-deployment Constraint | Inspection   | ⬜ Pending Execution |
+| REQ-CN-001 | Cooking Mode cannot be deployed independently of Recipe App (001) and Clerk (002) | AT-008-L | Co-deployment Constraint | Inspection   | ⬜ Pending Execution |
 | REQ-CN-002 | Timer alerts use React Native Alert API; no third-party timer libraries           | AT-008-D | Timer Integration        | Inspection   | ⬜ Pending Execution |
 | REQ-CN-003 | Screen wake lock released on exit; implicit timeout prevents orphan wake locks    | AT-008-F | Screen Wake Lock         | Test         | ⬜ Pending Execution |
 
@@ -80,7 +80,7 @@
 | AT-008-F | Screen Wake Lock         | REQ-CN-003                                                    | Wake lock released on exit                 | Constraint: orphan wake locks must be prevented                               |
 | AT-008-G | Offline Resilience       | REQ-011                                                       | Offline after recipe loaded                | Intermittent kitchen connectivity requires loaded-recipe offline access       |
 | AT-008-H | Recipe App Integration   | REQ-IF-001                                                    | Recipe data from 001                       | Dependency: recipe content sourced from feature 001                           |
-| AT-008-H | Auth0 Integration        | REQ-IF-002                                                    | Authentication from 002                    | Dependency: all features require Auth0 authentication                         |
+| AT-008-H | Clerk Integration        | REQ-IF-002                                                    | Authentication from 002                    | Dependency: all features require Clerk authentication                         |
 | AT-008-I | Session Persistence      | REQ-IF-003                                                    | Session state across lifecycle events      | Cooking sessions must survive app background/foreground transitions           |
 | AT-008-J | Type Safety              | REQ-NF-001                                                    | TypeScript strict mode                     | NFR: type safety across the codebase                                          |
 | AT-008-J | Type Safety              | REQ-NF-002                                                    | JSDoc on exported symbols                  | NFR: maintainability and developer experience                                 |
@@ -104,7 +104,7 @@
 | MOD-006 ↔ MOD-008                 | OfflineRecipeCache → CookingModeState recipe hydration                  | Logic → State    | UTP-006-A/B     | ⚠️ Gap: no integration test              |
 | MOD-009 ↔ MOD-001                 | SessionPersistence → CookingModeScreen lifecycle recovery               | Logic → UI       | UTP-009-A/B/C   | ⚠️ Gap: no integration test              |
 | MOD-001 ↔ EXTERNAL (001)          | CookingModeScreen → Recipe App feature (recipe data)                    | UI → External    | —               | ⚠️ Gap: no integration test              |
-| MOD-001 ↔ EXTERNAL (002)          | CookingModeScreen → Auth0 feature (auth)                                | UI → External    | —               | ⚠️ Gap: no integration test              |
+| MOD-001 ↔ EXTERNAL (002)          | CookingModeScreen → Clerk feature (auth)                                | UI → External    | —               | ⚠️ Gap: no integration test              |
 | MOD-001 ↔ EXTERNAL (RN)           | CookingModeScreen → React Native platform APIs (Alert, Screen, NetInfo) | UI → Platform    | —               | ⚠️ Gap: no integration test              |
 | MOD-002 ↔ EXTERNAL (001)          | CookingModeState → Recipe data layer                                    | State → External | UTP-002-D       | ⚠️ Gap: no integration test              |
 | MOD-011 ↔ MOD-001                 | TypeSafetyConfig → CookingModeScreen compile-time checks                | Config → UI      | —               | ⚠️ Gap: no integration test              |

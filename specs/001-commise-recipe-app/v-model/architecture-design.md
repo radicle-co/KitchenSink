@@ -36,7 +36,7 @@ This architecture decomposes the 20 system components from `system-design.md` in
 
 | ARCH ID                  | Name                             | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Parent System Components                             | Type      |
 | ------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------- |
-| ARCH-001                 | Auth0 JWT Verifier               | Validates incoming bearer tokens against Auth0 JWKS, decodes claims, and produces a typed `Principal` for downstream guards.                                                                                                                                                                                                                                                                                                                                                                         | SYS-001                                              | Service   |
+| ARCH-001                 | Clerk Auth Service               | Verifies incoming Clerk session tokens networklessly via `@clerk/backend` `verifyToken` using the public `CLERK_JWT_KEY`, enforces authorized parties (`azp` via `CLERK_AUTHORIZED_PARTIES`), decodes claims (including `public_metadata`), and produces a typed `Principal` for the auth middleware.                                                                                                                                                                                                | SYS-001                                              | Service   |
 | ARCH-002                 | Owner & Tier Authorization Guard | Enforces per-resource ownership and subscription-tier checks (free/premium) on protected NestJS routes.                                                                                                                                                                                                                                                                                                                                                                                              | SYS-001                                              | Component |
 | ARCH-003                 | Recipe HTTP Controller           | NestJS controller exposing `/api/v1/recipes`, `/api/v1/recipes/{id}`, `/api/v1/recipes/{id}/clone`, `/api/v1/recipes/{id}/visibility`; binds DTOs to service.                                                                                                                                                                                                                                                                                                                                        | SYS-002                                              | Component |
 | ARCH-004                 | Recipe Command Service           | Application service orchestrating create/update/delete/clone, transactional save, version snapshot creation, and archive enqueue.                                                                                                                                                                                                                                                                                                                                                                    | SYS-002, SYS-008                                     | Service   |
@@ -61,7 +61,7 @@ This architecture decomposes the 20 system components from `system-design.md` in
 | ARCH-023                 | Erasure Storage Purger           | Lists user-owned object prefixes in S3 (photos + version archives) and performs batched deletes with retries.                                                                                                                                                                                                                                                                                                                                                                                        | SYS-013, SYS-015                                     | Adapter   |
 | ARCH-024                 | Drizzle Repository Layer         | Encapsulates all PostgreSQL access (recipes, ingredients, photos, versions, pending archives, collections, erasure ledger) via Drizzle ORM.                                                                                                                                                                                                                                                                                                                                                          | SYS-014                                              | Adapter   |
 | ARCH-025                 | S3 & CloudFront Adapter          | Wraps `@aws-sdk/client-s3` and presigner SDKs, owns bucket/key conventions, signs URLs, and exposes object lifecycle helpers.                                                                                                                                                                                                                                                                                                                                                                        | SYS-015                                              | Adapter   |
-| ARCH-026                 | Web Recipe & Collection UI       | Next.js App Router pages, client-side validation, conflict UI, accessibility primitives, and Auth0 web SDK session integration.                                                                                                                                                                                                                                                                                                                                                                      | SYS-016                                              | Component |
+| ARCH-026                 | Web Recipe & Collection UI       | Next.js App Router pages, client-side validation, conflict UI, accessibility primitives, and `@clerk/nextjs` session integration (`<ClerkProvider>` + `middleware.ts`).                                                                                                                                                                                                                                                                                                                              | SYS-016                                              | Component |
 | ARCH-027                 | Mobile Recipe & Collection UI    | Expo React Native screens, client-side validation, conflict UI, accessibility props, secure-store token persistence, and mobile API base URL.                                                                                                                                                                                                                                                                                                                                                        | SYS-017                                              | Component |
 | ARCH-028                 | API Error Mapper                 | NestJS exception filter translating domain errors (validation, conflict, policy denial, not-found) into structured HTTP responses with codes.                                                                                                                                                                                                                                                                                                                                                        | SYS-002                                              | Library   |
 | ARCH-029                 | Config Loader                    | `@nestjs/config` + Zod-validated environment loader exposing typed config tokens to all modules; resolves API/web/mobile defaults and ports.                                                                                                                                                                                                                                                                                                                                                         | SYS-018                                              | Utility   |
@@ -74,7 +74,7 @@ This architecture decomposes the 20 system components from `system-design.md` in
 
 | SYS ID  | SYS Name                                       | Implementing ARCH IDs                            | ARCH Count |
 | ------- | ---------------------------------------------- | ------------------------------------------------ | ---------- |
-| SYS-001 | Auth0 Identity and Access Guard                | ARCH-001, ARCH-002, ARCH-033                     | 3          |
+| SYS-001 | Clerk Identity and Access Guard                | ARCH-001, ARCH-002, ARCH-033                     | 3          |
 | SYS-002 | Recipe Command Service                         | ARCH-003, ARCH-004, ARCH-005, ARCH-028, ARCH-033 | 5          |
 | SYS-003 | Visibility and Source Policy Engine            | ARCH-006, ARCH-007                               | 2          |
 | SYS-004 | Ingredient Catalog and Nutrition Resolver      | ARCH-008, ARCH-009                               | 2          |
@@ -297,7 +297,7 @@ sequenceDiagram
     - **Version-archive worker Lambda** consumes SQS archive jobs and writes version objects to S3 (ARCH-018).
     - **Scheduled reconciler Lambda/cron compute** re-enqueues stale pending archives (ARCH-019).
 - **Clients (outside VPC)**:
-    - **Web app** (ARCH-026) served via CloudFront/Next.js deployment surface; calls API over HTTPS with Auth0 bearer tokens.
+    - **Web app** (ARCH-026) served via CloudFront/Next.js deployment surface; calls API over HTTPS with Clerk session tokens.
     - **Mobile app** (ARCH-027, Expo React Native) communicates directly with API and presigned S3 upload targets.
 
 ### Runtime Allocation Matrix
@@ -337,8 +337,8 @@ sequenceDiagram
 
 ### Development Allocation Matrix
 
-| Repository Area                                     | Primary Modules (ARCH)                                                                   | Responsibility                                                     |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Repository Area                                   | Primary Modules (ARCH)                                                                   | Responsibility                                                     |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `packages/apps/commise/api/v1/src/auth`           | ARCH-001, ARCH-002                                                                       | AuthN/AuthZ pipeline and route guards                              |
 | `packages/apps/commise/api/v1/src/recipes`        | ARCH-003, ARCH-004, ARCH-005, ARCH-010, ARCH-011, ARCH-028                               | Recipe command/query endpoints and validation/error contracts      |
 | `packages/apps/commise/api/v1/src/domain`         | ARCH-006, ARCH-007, ARCH-008, ARCH-009, ARCH-015, ARCH-016, ARCH-020, ARCH-021, ARCH-022 | Domain policies and orchestrators                                  |
@@ -346,20 +346,19 @@ sequenceDiagram
 | `packages/apps/commise/workers/*`                 | ARCH-014, ARCH-018, ARCH-019                                                             | Event/schedule-driven worker runtimes                              |
 | `packages/apps/commise/web`                       | ARCH-026                                                                                 | Web user interface and client orchestration                        |
 | `packages/apps/commise/mobile`                    | ARCH-027                                                                                 | Mobile user interface and secure token/API handling                |
-| `infra/` + CI workflows (`.github/workflows`)       | ARCH-031, ARCH-032                                                                       | Deployment topology definitions, alarms, and governance gates      |
+| `infra/` + CI workflows (`.github/workflows`)     | ARCH-031, ARCH-032                                                                       | Deployment topology definitions, alarms, and governance gates      |
 
 ## Interface View — API Contracts (IEEE 42010 §8 Extension)
 
 This section is an **IEEE 42010 interface-specification extension** and is not one of the five named Kruchten 4+1 views. It is cross-referenced by the Logical View module list and used by integration/contract testing.
 
-### ARCH-001: Auth0 JWT Verifier
+### ARCH-001: Clerk Auth Service
 
-| Direction | Name             | Type   | Format                           | Constraints                                                         |
-| --------- | ---------------- | ------ | -------------------------------- | ------------------------------------------------------------------- |
-| Input     | bearerToken      | string | JWT compact serialization        | Required; non-empty; signed by configured Auth0 tenant; not expired |
-| Output    | principal        | object | `{ sub, email, tier, iat, exp }` | `sub` non-empty; `tier ∈ {"free","premium"}`; `exp` > now           |
-| Exception | INVALID_TOKEN    | 401    | `{ code, message }`              | Thrown on signature/claim/expiry/issuer/audience failure            |
-| Exception | JWKS_UNAVAILABLE | 503    | `{ code, message, retryAfter }`  | Thrown when JWKS endpoint unreachable after retries                 |
+| Direction | Name          | Type   | Format                           | Constraints                                                                                                                                  |
+| --------- | ------------- | ------ | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input     | bearerToken   | string | JWT compact serialization        | Required; non-empty; valid Clerk session token; signature verifies against `CLERK_JWT_KEY`; `azp` in `CLERK_AUTHORIZED_PARTIES`; not expired |
+| Output    | principal     | object | `{ sub, email, tier, iat, exp }` | `sub` non-empty; `tier ∈ {"free","premium"}` read from `public_metadata`; `exp` > now                                                        |
+| Exception | INVALID_TOKEN | 401    | `{ code, message }`              | Thrown on signature/claim/expiry/`azp` failure (networkless — no JWKS fetch)                                                                 |
 
 ### ARCH-002: Owner & Tier Authorization Guard
 
@@ -574,19 +573,19 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 | --------- | --------------- | --------- | ------------------------------- | --------------------------------------- |
 | Input     | userInteraction | DOM event | form submit, click, file pick   | Client-side DTO validation before fetch |
 | Input     | apiResponse     | HTTP      | JSON                            | Renders error mapper output             |
-| Output    | apiRequest      | HTTP      | JSON + Bearer JWT               | Auth0 web SDK session attached          |
+| Output    | apiRequest      | HTTP      | JSON + Bearer JWT               | `@clerk/nextjs` session token attached  |
 | Exception | NETWORK_ERROR   | UI toast  | `{ code }`                      | Non-blocking; retry affordance          |
 | Exception | CONFLICT_VIEW   | UI modal  | shows ARCH-016 conflict payload | User chooses overwrite or reload        |
 
 ### ARCH-027: Mobile Recipe & Collection UI
 
-| Direction | Name            | Type             | Format                  | Constraints                                         |
-| --------- | --------------- | ---------------- | ----------------------- | --------------------------------------------------- |
-| Input     | userInteraction | RN gesture/event | form submit, image pick | Client-side validation parity with web              |
-| Input     | apiResponse     | HTTP             | JSON                    | Renders identical error mapping                     |
-| Output    | apiRequest      | HTTP             | JSON + Bearer JWT       | `react-native-auth0` token from `expo-secure-store` |
-| Exception | NETWORK_ERROR   | UI toast         | `{ code }`              | Non-blocking                                        |
-| Exception | CONFLICT_VIEW   | UI modal         | conflict payload        | Parity with web behavior                            |
+| Direction | Name            | Type             | Format                  | Constraints                                          |
+| --------- | --------------- | ---------------- | ----------------------- | ---------------------------------------------------- |
+| Input     | userInteraction | RN gesture/event | form submit, image pick | Client-side validation parity with web               |
+| Input     | apiResponse     | HTTP             | JSON                    | Renders identical error mapping                      |
+| Output    | apiRequest      | HTTP             | JSON + Bearer JWT       | `@clerk/expo` session token from `expo-secure-store` |
+| Exception | NETWORK_ERROR   | UI toast         | `{ code }`              | Non-blocking                                         |
+| Exception | CONFLICT_VIEW   | UI modal         | conflict payload        | Parity with web behavior                             |
 
 ### ARCH-028: API Error Mapper
 
@@ -601,7 +600,6 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 | Domain Error Code     | Source Module(s)   | HTTP Status | Response Body Shape                                              |
 | --------------------- | ------------------ | ----------- | ---------------------------------------------------------------- |
 | INVALID_TOKEN         | ARCH-001           | 401         | `{ code, message, traceId }`                                     |
-| JWKS_UNAVAILABLE      | ARCH-001           | 503         | `{ code, message, retryAfter, traceId }`                         |
 | FORBIDDEN_OWNER       | ARCH-002           | 403         | `{ code, message, ruleId, traceId }`                             |
 | FORBIDDEN_TIER        | ARCH-002           | 403         | `{ code, message, ruleId, requiredTier, traceId }`               |
 | RECIPE_NOT_FOUND      | ARCH-003           | 404         | `{ code, message, details?, traceId }`                           |

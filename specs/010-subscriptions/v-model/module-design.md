@@ -246,7 +246,7 @@ N/A — Stateless (pure function; reads from static registry; no retained state)
 
 ```pseudocode
 CLASS FeatureGateMiddleware IMPLEMENTS NestJS Middleware:
-  DEPENDS ON: Auth0TierClaimAdapter (MOD-010), FeatureGateRegistry (MOD-006)
+  DEPENDS ON: ClerkTierClaimAdapter (MOD-010), FeatureGateRegistry (MOD-006)
 
   FUNCTION use(req: Request, res: Response, next: NextFunction) -> void:
     featureId = EXTRACT featureId FROM req.headers['x-feature-id'] OR req.route.meta.featureId
@@ -254,13 +254,13 @@ CLASS FeatureGateMiddleware IMPLEMENTS NestJS Middleware:
       CALL next()  // no gate required for this route
       RETURN
 
-    userId = EXTRACT userId FROM req.auth.sub  // Auth0 JWT claim
+    userId = EXTRACT userId FROM req.user.sub  // Clerk session token `sub` claim (populated by AuthMiddleware)
     IF userId IS null:
       RESPOND 401 { error: 'Unauthorized' }
       RETURN
 
     TRY:
-      userTier = CALL Auth0TierClaimAdapter.getUserTier(userId)
+      userTier = CALL ClerkTierClaimAdapter.getUserTier(userId)
     CATCH AuthIdentityError:
       RESPOND 403 { error: 'Cannot resolve user tier' }
       RETURN
@@ -537,62 +537,57 @@ stateDiagram-v2
 
 ---
 
-### Module: MOD-010 (Auth0TierClaimAdapter)
+### Module: MOD-010 (ClerkTierClaimAdapter)
 
 **Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `src/subscriptions/adapters/auth0-tier-claim.adapter.ts`
+**Target Source File(s)**: `src/subscriptions/adapters/clerk-tier-claim.adapter.ts` (reads `public_metadata` via `ClerkAuthService`)
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-CLASS Auth0TierClaimAdapter:
-  DEPENDS ON: Auth0 session SDK (@auth0/nextjs-auth0 v4.x)
+CLASS ClerkTierClaimAdapter:
+  DEPENDS ON: ClerkAuthService (networkless verifyToken via @clerk/backend)
 
   FUNCTION getUserTier(userId: string) -> 'free' | 'premium':
     VALIDATE userId IS non-empty string
     IF invalid: THROW AuthIdentityError({ code: 'AUTH_IDENTITY_FAILED', userId })
 
     TRY:
-      session = CALL Auth0.getSession()  // reads current Auth0 session
-      IF session IS null:
+      claims = CALL ClerkAuthService.getVerifiedClaims()  // VerifiedClerkClaims from the verified session token
+      IF claims IS null:
         THROW AuthIdentityError({ code: 'AUTH_IDENTITY_FAILED', userId })
-      claims = session.user
-      subscriptionTier = claims['https://commise.app/subscriptionTier']
+      subscriptionTier = claims.public_metadata?.subscriptionTier
       IF subscriptionTier IS null OR subscriptionTier NOT IN ['free', 'premium']:
         // Claim missing or invalid — default to 'free' (fail-safe)
         RETURN 'free'
       RETURN subscriptionTier
-    CATCH Auth0Error:
+    CATCH ClerkAuthError:
       THROW AuthIdentityError({ code: 'AUTH_IDENTITY_FAILED', userId })
 
-  FUNCTION injectTierClaim(userId: string, tier: 'free' | 'premium') -> void:
-    // Called after tier assignment to update Auth0 custom claim
-    // Uses Auth0 Management API to patch user metadata
-    TRY:
-      CALL Auth0ManagementAPI.updateUserMetadata(userId, { subscriptionTier: tier })
-    CATCH error:
-      LOG "Failed to inject tier claim for userId=${userId}: ${error.message}"
-      // Non-fatal: claim will be refreshed on next login
+  // NOTE: Tier is written to `public_metadata` out-of-band by the tier-assignment
+  // service via the Clerk Backend API (`@clerk/backend`). The verified session
+  // token then carries `public_metadata.subscriptionTier` on the hot path with no
+  // management round trip; this adapter is read-only against the verified claims.
 ```
 
 #### State Machine View
 
-N/A — Stateless (reads from Auth0 session per call; no retained state)
+N/A — Stateless (reads `public_metadata` from the verified Clerk claims per call; no retained state)
 
 #### Internal Data Structures
 
-| Name                | Type                                                  | Size/Constraints | Initialization    | Description                             |
-| ------------------- | ----------------------------------------------------- | ---------------- | ----------------- | --------------------------------------- |
-| `AuthIdentityError` | `Error & { code: string; userId: string }`            | —                | Thrown on failure | Typed error for Auth0 identity failures |
-| `CLAIM_NAMESPACE`   | `string` = `'https://commise.app/subscriptionTier'` | Static constant  | Module load       | Auth0 custom claim namespace key        |
+| Name                | Type                                       | Size/Constraints | Initialization    | Description                             |
+| ------------------- | ------------------------------------------ | ---------------- | ----------------- | --------------------------------------- |
+| `AuthIdentityError` | `Error & { code: string; userId: string }` | —                | Thrown on failure | Typed error for Clerk identity failures |
+| `TIER_CLAIM_KEY`    | `string` = `'subscriptionTier'`            | Static constant  | Module load       | `public_metadata` key holding the tier  |
 
 #### Error Handling & Return Codes
 
-| Error Condition                        | Error Code / Exception                               | Architecture Contract                  | Recovery                                    |
-| -------------------------------------- | ---------------------------------------------------- | -------------------------------------- | ------------------------------------------- |
-| No Auth0 session                       | `AuthIdentityError { code: 'AUTH_IDENTITY_FAILED' }` | ARCH-010 Interface View: Exception row | Caller (FeatureGateMiddleware) responds 403 |
-| Missing/invalid tier claim             | Returns `'free'` (fail-safe default)                 | ARCH-010 Interface View: Output row    | User treated as free tier                   |
-| Auth0 Management API failure on inject | Logged; non-fatal                                    | ARCH-010 Interface View: Exception row | Claim refreshed on next login               |
+| Error Condition                      | Error Code / Exception                               | Architecture Contract                  | Recovery                                    |
+| ------------------------------------ | ---------------------------------------------------- | -------------------------------------- | ------------------------------------------- |
+| No verified Clerk claims             | `AuthIdentityError { code: 'AUTH_IDENTITY_FAILED' }` | ARCH-010 Interface View: Exception row | Caller (FeatureGateMiddleware) responds 403 |
+| Missing/invalid tier claim           | Returns `'free'` (fail-safe default)                 | ARCH-010 Interface View: Output row    | User treated as free tier                   |
+| `ClerkAuthError` during verification | Wrapped in `AuthIdentityError`; access denied        | ARCH-010 Interface View: Exception row | Request rejected; fail-closed               |
 
 ---
 
@@ -1044,7 +1039,7 @@ N/A — Stateless (pure presentational component; no internal state)
 | ARCH-007 | RecipeVisibilityEnforcer         | MOD-007 | RecipeVisibilityEnforcer         |
 | ARCH-008 | UpgradePromptComponent           | MOD-008 | UpgradePromptComponent           |
 | ARCH-009 | SubscriptionLifecycleManager     | MOD-009 | SubscriptionLifecycleManager     |
-| ARCH-010 | Auth0TierClaimAdapter            | MOD-010 | Auth0TierClaimAdapter            |
+| ARCH-010 | ClerkTierClaimAdapter            | MOD-010 | ClerkTierClaimAdapter            |
 | ARCH-011 | SubscriptionWebhookController    | MOD-011 | SubscriptionWebhookController    |
 | ARCH-012 | WebhookSignatureValidator        | MOD-012 | WebhookSignatureValidator        |
 | ARCH-013 | DataRetentionGuard               | MOD-013 | DataRetentionGuard               |

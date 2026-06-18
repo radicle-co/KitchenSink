@@ -188,7 +188,7 @@ Instrument queue health, latency, and failure signals with optional real-time cl
 
 ## API Surface
 
-> All endpoints conform to S-001 (`/api/v1/*` prefix, JSON, Auth0 JWT). See `specs/cross-feature-consistency-report.md` §S-001.
+> All endpoints conform to S-001 (`/api/v1/*` prefix, JSON, Clerk session token). See `specs/cross-feature-consistency-report.md` §S-001.
 
 | Method | Path                                | Purpose                                                                                                   | Persona                    |
 | ------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------- |

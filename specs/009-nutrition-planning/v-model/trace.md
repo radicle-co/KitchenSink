@@ -49,7 +49,7 @@
 | REQ-IF-001 | Integrate with Meal Planning (006) for meal plan data                          | AC-007         | Correct meal plan data in compliance view | Test         | ⬜ Pending Execution |
 | REQ-IF-002 | Integrate with USDA Food Data (003) for nutritional values                     | AC-008         | USDA values in calculations               | Test         | ⬜ Pending Execution |
 | REQ-IF-003 | Integrate with Recipe App (001) for recipe nutritional data                    | AC-009         | Recipe data as calculation basis          | Test         | ⬜ Pending Execution |
-| REQ-IF-004 | Integrate with Auth0 (002) for authentication and trainer-client relationships | AC-010         | Auth required; relationship enforced      | Test         | ⬜ Pending Execution |
+| REQ-IF-004 | Integrate with Clerk (002) for authentication and trainer-client relationships | AC-010         | Auth required; relationship enforced      | Test         | ⬜ Pending Execution |
 | REQ-IF-005 | Integrate with Subscriptions (010) to gate premium features                    | AC-015, AC-016 | Premium features gated                    | Test         | ⬜ Pending Execution |
 
 ### Constraint Requirements
@@ -74,7 +74,7 @@
 | AC-007 | Meal plan data integration        | REQ-IF-001             | Meal Planning (006) integration                   | Dependency: meal plan data required for compliance                 |
 | AC-008 | USDA values integration           | REQ-IF-002             | USDA Food Data (003) integration                  | Dependency: nutritional values sourced from food database          |
 | AC-009 | Recipe nutritional data           | REQ-IF-003             | Recipe App (001) integration                      | Dependency: recipe data underpins per-meal compliance              |
-| AC-010 | Auth required                     | REQ-IF-004             | Auth0 (002) integration                           | All features require authentication                                |
+| AC-010 | Auth required                     | REQ-IF-004             | Clerk (002) integration                           | All features require authentication                                |
 | AC-011 | Premium trainer creates           | REQ-005, REQ-CN-002    | Trainer creates for clients (Premium)             | Trainer-client workflow with subscription gate                     |
 | AC-012 | Client views trainer plan         | REQ-006                | Client views trainer-created plans                | Completes the trainer-client loop                                  |
 | AC-013 | Consent prompt                    | REQ-008                | Explicit client consent required                  | Privacy and consent enforcement                                    |
@@ -98,7 +98,7 @@
 | MOD-002 ↔ EXTERNAL (006) | NutritionPlanState → Meal Planning service                         | State → External | UTP-002-D     | ⚠️ Gap: no integration test |
 | MOD-002 ↔ EXTERNAL (003) | NutritionPlanState → USDA Food Data service                        | State → External | UTP-002-E     | ⚠️ Gap: no integration test |
 | MOD-002 ↔ EXTERNAL (001) | NutritionPlanState → Recipe App service                            | State → External | UTP-002-F     | ⚠️ Gap: no integration test |
-| MOD-002 ↔ EXTERNAL (002) | NutritionPlanState → Auth0 service                                 | State → External | UTP-002-G     | ⚠️ Gap: no integration test |
+| MOD-002 ↔ EXTERNAL (002) | NutritionPlanState → ClerkAuthService (002)                        | State → External | UTP-002-G     | ⚠️ Gap: no integration test |
 | MOD-002 ↔ EXTERNAL (010) | NutritionPlanState → Subscriptions service (premium check)         | State → External | UTP-002-H     | ⚠️ Gap: no integration test |
 | MOD-005 ↔ MOD-001        | TrainerPlanCreator → NutritionPlanScreen (plan created for client) | Logic → UI       | UTP-005-A/B   | ⚠️ Gap: no integration test |
 | MOD-006 ↔ MOD-001        | ClientPlanViewer → NutritionPlanScreen (view trainer plan)         | Logic → UI       | UTP-006-A/B   | ⚠️ Gap: no integration test |
@@ -168,7 +168,7 @@
 | HAZ-004 | Compliance calculation uses stale recipe data after recipe edit         | REQ-IF-003             | REQ-IF-001 (meal plan refresh), MOD-002                     | AC-007         |
 | HAZ-005 | Color-only gap/excess indicator not visible to color-blind user         | REQ-NF-004             | REQ-NF-004 (icon+text), UTP-007-C                           | AC-005         |
 | HAZ-006 | Nutrition plan deployed without Meal Planning (006) → runtime crash     | REQ-CN-001             | REQ-CN-001 (co-deployment inspection), MOD-002              | AC-020         |
-| HAZ-007 | Client sees another client's nutrition plan → data leak                 | REQ-IF-004             | REQ-IF-004 (Auth0 relationship enforcement)                 | AC-010         |
+| HAZ-007 | Client sees another client's nutrition plan → data leak                 | REQ-IF-004             | REQ-IF-004 (Clerk relationship enforcement)                 | AC-010         |
 | HAZ-008 | Trainer plan created but client subscription lapses → orphaned plan     | REQ-006, REQ-CN-002    | REQ-022, REQ-023 (subscription lapse handling)              | AC-022, AC-023 |
 | HAZ-009 | Swap suggestion leads to recipe with incompatible allergens             | REQ-007                | ConsentHandler (client consent includes allergen awareness) | AC-013         |
 | HAZ-010 | TypeScript `any` leaks into production → wrong macro calculation        | REQ-NF-001             | REQ-NF-001 (`strict: true`), MOD-011                        | AC-017         |
@@ -221,7 +221,7 @@
 | Priority | Integration Point                         | Risk                                                 |
 | -------- | ----------------------------------------- | ---------------------------------------------------- |
 | P1       | MOD-002 ↔ EXTERNAL (006) (Meal Planning)  | Compliance calculations wrong without meal plan data |
-| P1       | MOD-002 ↔ EXTERNAL (002) (Auth0)          | Not authenticated; cannot enforce relationships      |
+| P1       | MOD-002 ↔ EXTERNAL (002) (Clerk)          | Not authenticated; cannot enforce relationships      |
 | P2       | MOD-002 ↔ EXTERNAL (003) (USDA)           | Nutritional values wrong; compliance inaccurate      |
 | P2       | MOD-005 ↔ MOD-001 (Trainer plan creation) | Trainer cannot create plans for clients              |
 | P3       | MOD-008 ↔ MOD-001 (AI swap suggestions)   | Suggestions not displayed to user                    |

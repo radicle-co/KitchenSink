@@ -36,7 +36,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ### ARCH-001: GroceryListController
 
-#### ITP-001-A — Controller → AuthGuard JWT Handshake (Interface Contract Testing)
+#### ITP-001-A — Controller → AuthMiddleware JWT Handshake (Interface Contract Testing)
 
 **Technique**: Interface Contract Testing
 **Architecture View**: Interface View (ARCH-001 ↔ ARCH-012)
@@ -46,7 +46,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ```gherkin
 Given ARCH-001 GroceryListController receives POST /grocery-lists/generate with a valid Bearer JWT and body {mealPlanId: "<uuid>"}
-When ARCH-001 delegates token validation to ARCH-012 AuthGuard
+When ARCH-001 delegates token validation to ARCH-012 AuthMiddleware
 Then ARCH-012 returns userId attached to request context
 And ARCH-001 passes {mealPlanId, userId} to ARCH-002 GroceryListService
 And the downstream call carries the correct userId extracted from the JWT sub claim
@@ -56,7 +56,7 @@ And the downstream call carries the correct userId extracted from the JWT sub cl
 
 ```gherkin
 Given ARCH-001 GroceryListController receives POST /grocery-lists/generate with no Authorization header
-When ARCH-001 invokes ARCH-012 AuthGuard
+When ARCH-001 invokes ARCH-012 AuthMiddleware
 Then ARCH-012 returns UnauthorizedError {statusCode: 401, message: "Unauthorized"}
 And ARCH-001 serialises the error as HTTP 401 without calling ARCH-002
 ```
@@ -220,7 +220,7 @@ Then ARCH-003 returns GroceryListItem[] with exactly one entry for "CX" with qua
 
 ### ARCH-004: ListStateController
 
-#### ITP-004-A — Controller → AuthGuard → ListStateService Chain (Interface Contract Testing)
+#### ITP-004-A — Controller → AuthMiddleware → ListStateService Chain (Interface Contract Testing)
 
 **Technique**: Interface Contract Testing
 **Architecture View**: Interface View (ARCH-004 ↔ ARCH-012 ↔ ARCH-005)
@@ -230,7 +230,7 @@ Then ARCH-003 returns GroceryListItem[] with exactly one entry for "CX" with qua
 
 ```gherkin
 Given ARCH-004 ListStateController receives PATCH /grocery-lists/:id/items/:itemId with valid JWT and body {alreadyHave: true}
-When ARCH-004 invokes ARCH-012 AuthGuard and receives userId
+When ARCH-004 invokes ARCH-012 AuthMiddleware and receives userId
 Then ARCH-004 calls ARCH-005 ListStateService.markAlreadyHave(listId, itemId, userId, true)
 And ARCH-005 returns updated GroceryListItem
 And ARCH-004 serialises it as HTTP 200 {id, ingredientId, alreadyHave: true, ...}
@@ -381,7 +381,7 @@ And item "B" is excluded from the result set
 
 ### ARCH-007: OnlineOrderingController
 
-#### ITP-007-A — Controller → AuthGuard + SubscriptionGuard Chain (Interface Contract Testing)
+#### ITP-007-A — Controller → AuthMiddleware + SubscriptionGuard Chain (Interface Contract Testing)
 
 **Technique**: Interface Contract Testing
 **Architecture View**: Interface View (ARCH-007 ↔ ARCH-012 ↔ ARCH-013)
@@ -391,7 +391,7 @@ And item "B" is excluded from the result set
 
 ```gherkin
 Given ARCH-007 OnlineOrderingController receives POST /grocery-lists/:id/order with a valid premium-user JWT
-When ARCH-007 invokes ARCH-012 AuthGuard then ARCH-013 SubscriptionGuard in sequence
+When ARCH-007 invokes ARCH-012 AuthMiddleware then ARCH-013 SubscriptionGuard in sequence
 Then ARCH-012 returns userId and ARCH-013 confirms premium tier
 And ARCH-007 calls ARCH-008 OnlineOrderingService.submitOrder(listId, userId)
 ```
@@ -580,44 +580,44 @@ And returns StoreConfig[] with the decrypted credential shape to ARCH-010 StoreC
 
 ---
 
-### ARCH-012: AuthGuard [CROSS-CUTTING]
+### ARCH-012: AuthMiddleware [CROSS-CUTTING]
 
-#### ITP-012-A — AuthGuard → JwksAdapter JWT Verification (Interface Contract Testing)
+#### ITP-012-A — AuthMiddleware → ClerkAuthService Token Verification (Interface Contract Testing)
 
 **Technique**: Interface Contract Testing
-**Architecture View**: Interface View (ARCH-012 ↔ ARCH-014 JwksAdapter)
+**Architecture View**: Interface View (ARCH-012 ↔ ARCH-014 ClerkAuthService)
 **Requirement Refs**: REQ-CN-001
 
-**ITS-012-A1** — Valid JWT verified against JWKS; userId extracted and attached to context
+**ITS-012-A1** — Valid Clerk session token verified networklessly (CLERK_JWT_KEY); userId extracted and attached to context
 
 ```gherkin
-Given ARCH-012 AuthGuard receives a Bearer JWT from the request Authorization header
-When ARCH-012 calls ARCH-014 JwksAdapter.verify(token)
+Given ARCH-012 AuthMiddleware receives a Bearer JWT from the request Authorization header
+When ARCH-012 calls ARCH-014 ClerkAuthService.verifyToken(token)
 Then ARCH-014 returns {userId} decoded from the JWT sub claim
 And ARCH-012 attaches userId to request.user.id
 And control returns to the calling controller (ARCH-001, ARCH-004, or ARCH-007)
 ```
 
-**ITS-012-A2** — Expired JWT causes JwksAdapter to reject; AuthGuard returns 401
+**ITS-012-A2** — Expired token causes ClerkAuthService to reject; AuthMiddleware returns 401
 
 ```gherkin
-Given ARCH-014 JwksAdapter.verify(token) throws a JWT expiry error
-When ARCH-012 AuthGuard receives the error
+Given ARCH-014 ClerkAuthService.verifyToken(token) throws a token-expiry error
+When ARCH-012 AuthMiddleware receives the error
 Then ARCH-012 returns UnauthorizedError {statusCode: 401, message: "Unauthorized"}
 And the downstream controller never receives a userId
 ```
 
-#### ITP-012-B — AuthGuard Fault Injection: JWKS Endpoint Unavailable (Interface Fault Injection)
+#### ITP-012-B — AuthMiddleware Fault Injection: Token Verification Failure (Interface Fault Injection)
 
 **Technique**: Interface Fault Injection
-**Architecture View**: Interface View + Process View (ARCH-012 ↔ ARCH-014 JwksAdapter)
+**Architecture View**: Interface View + Process View (ARCH-012 ↔ ARCH-014 ClerkAuthService)
 **Requirement Refs**: REQ-CN-001
 
-**ITS-012-B1** — JwksAdapter network failure causes AuthGuard to return 401
+**ITS-012-B1** — Disallowed azp (or malformed/invalid token) causes ClerkAuthService to reject; AuthMiddleware returns 401
 
 ```gherkin
-Given ARCH-014 JwksAdapter.verify(token) throws a network error (JWKS endpoint unreachable)
-When ARCH-012 AuthGuard catches the error
+Given ARCH-014 ClerkAuthService.verifyToken(token) rejects the token (disallowed azp / bad signature)
+When ARCH-012 AuthMiddleware catches the error
 Then ARCH-012 returns UnauthorizedError {statusCode: 401, message: "Unauthorized"}
 And no userId is propagated to any downstream module
 ```
@@ -635,7 +635,7 @@ And no userId is propagated to any downstream module
 **ITS-013-A1** — Premium userId confirmed by SubscriptionsAdapter; guard passes
 
 ```gherkin
-Given ARCH-012 AuthGuard has already attached userId to request context
+Given ARCH-012 AuthMiddleware has already attached userId to request context
 When ARCH-013 SubscriptionGuard calls ARCH-014 SubscriptionsAdapter.isPremium(userId)
 Then ARCH-014 returns {premium: true}
 And ARCH-013 allows the request to proceed to ARCH-007 OnlineOrderingController
@@ -714,18 +714,18 @@ Then the provider API returns a confirmation with providerOrderId
 And ARCH-014 returns OrderSubmission {providerOrderId, status: "submitted"} to ARCH-008
 ```
 
-#### ITP-014-D — JwksAdapter Concurrency: Parallel JWT Verifications (Concurrency & Race Condition Testing)
+#### ITP-014-D — ClerkAuthService Concurrency: Parallel Token Verifications (Concurrency & Race Condition Testing)
 
 **Technique**: Concurrency & Race Condition Testing
-**Architecture View**: Process View (ARCH-014 JwksAdapter concurrent calls)
+**Architecture View**: Process View (ARCH-014 ClerkAuthService concurrent calls)
 **Requirement Refs**: REQ-CN-001
 
-**ITS-014-D1** — Concurrent JWT verifications do not produce race conditions in JWKS key cache
+**ITS-014-D1** — Concurrent networkless token verifications produce no race conditions (no shared mutable cache)
 
 ```gherkin
-Given 10 concurrent requests each invoke ARCH-014 JwksAdapter.verify(token) simultaneously
-When JwksAdapter processes all verifications using its JWKS key cache
-Then all 10 verifications complete without cache corruption or key mismatch errors
+Given 10 concurrent requests each invoke ARCH-014 ClerkAuthService.verifyToken(token) simultaneously
+When ClerkAuthService verifies all tokens statelessly and networklessly against the public CLERK_JWT_KEY
+Then all 10 verifications complete with no shared mutable state to corrupt and no cross-request interference
 And each returns the correct userId for its respective token
 ```
 
@@ -746,7 +746,7 @@ And each returns the correct userId for its respective token
 | ARCH-009  | StoreConfigController             | 2         | 3         | Interface Contract, Interface Fault Injection               |
 | ARCH-010  | StoreConfigService                | 1         | 2         | Interface Contract                                          |
 | ARCH-011  | StoreConfigRepository             | 1         | 2         | Interface Contract                                          |
-| ARCH-012  | AuthGuard [CROSS-CUTTING]         | 2         | 3         | Interface Contract, Interface Fault Injection               |
+| ARCH-012  | AuthMiddleware [CROSS-CUTTING]    | 2         | 3         | Interface Contract, Interface Fault Injection               |
 | ARCH-013  | SubscriptionGuard [CROSS-CUTTING] | 2         | 3         | Interface Contract, Interface Fault Injection               |
 | ARCH-014  | ExternalAdapters [CROSS-CUTTING]  | 4         | 5         | Interface Contract, Data Flow, Concurrency & Race Condition |
 | **Total** |                                   | **33**    | **49**    |                                                             |

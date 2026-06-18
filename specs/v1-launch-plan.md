@@ -29,22 +29,22 @@ If anything in this document conflicts with a per-feature `review.md`, **this do
 
 All 14 features are in v1 scope. No features are deferred to v2.
 
-| Feature | Title                       | Owner Milestone   | Public Launch    |
-| ------- | --------------------------- | ----------------- | ---------------- |
+| Feature | Title                     | Owner Milestone   | Public Launch    |
+| ------- | ------------------------- | ----------------- | ---------------- |
 | `001`   | Commise Recipe App (core) | `M1` Rivendell    | Beta             |
-| `002`   | Auth0 User Auth             | `M0` Shire        | Beta             |
-| `003`   | USDA Food Data              | `M1` Rivendell    | Beta             |
-| `004`   | Recipe Importing            | `M1` Rivendell    | Beta             |
-| `005`   | AI Integration              | `M5` Isengard     | 1.0              |
-| `006`   | Meal Planning               | `M4` Helm's Deep  | Beta             |
-| `007`   | Grocery Lists               | `M3` Rohan        | Beta             |
-| `008`   | Cooking Mode                | `M3` Rohan        | Beta             |
-| `009`   | Nutrition Planning          | `M5` Isengard     | 1.0              |
-| `010`   | Subscriptions               | `M6` Gondor       | 1.0              |
-| `011`   | Recipe Digitization         | `M2` Moria        | Beta             |
-| `012`   | Creator Profiles            | `M7` Minas Tirith | Post-1.0 (in v1) |
-| `013`   | Cooking School              | `M7` Minas Tirith | Post-1.0 (in v1) |
-| `014`   | Notification Service        | `M8` Mordor       | Post-1.0 (in v1) |
+| `002`   | Clerk User Auth           | `M0` Shire        | Beta             |
+| `003`   | USDA Food Data            | `M1` Rivendell    | Beta             |
+| `004`   | Recipe Importing          | `M1` Rivendell    | Beta             |
+| `005`   | AI Integration            | `M5` Isengard     | 1.0              |
+| `006`   | Meal Planning             | `M4` Helm's Deep  | Beta             |
+| `007`   | Grocery Lists             | `M3` Rohan        | Beta             |
+| `008`   | Cooking Mode              | `M3` Rohan        | Beta             |
+| `009`   | Nutrition Planning        | `M5` Isengard     | 1.0              |
+| `010`   | Subscriptions             | `M6` Gondor       | 1.0              |
+| `011`   | Recipe Digitization       | `M2` Moria        | Beta             |
+| `012`   | Creator Profiles          | `M7` Minas Tirith | Post-1.0 (in v1) |
+| `013`   | Cooking School            | `M7` Minas Tirith | Post-1.0 (in v1) |
+| `014`   | Notification Service      | `M8` Mordor       | Post-1.0 (in v1) |
 
 ---
 
@@ -56,7 +56,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 ### 3.1 `M0` — Milestone Shire
 
-**Features**: `002` Auth0 User Auth
+**Features**: `002` Clerk User Auth
 **Theme**: Foundational identity. Nothing else can be built without this.
 
 **Entry**:
@@ -74,7 +74,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 - `002/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
 - `002/v-model/release-audit-report.md` is no longer blocked under [GR-001](./governance-rules.md#gr-001-release-readiness-gate).
-- Auth0 Authorization Code + PKCE flow demonstrably works on web and mobile in `dev` and `staging`.
+- Clerk hosted sign-in/sign-up flow demonstrably works on web and mobile in `dev` and `staging`.
 
 ---
 
@@ -330,8 +330,8 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 | 2026-05-12 | Auth (`002`) ships first; recipes/ingredients (`001`, `003`, `004`) ship next.               | Director of Product |
 | 2026-05-12 | `005` AI work is concentrated in `M5`, after Beta — no AI carve-out into earlier milestones. | Director of Product |
 | 2026-05-12 | `011` Recipe Digitization assigned to `M2`, runs in parallel with `M3`.                      | Director of Product |
-| 2026-05-12 | Commise Beta is the public-launch event at end of `M4`; `006` is in Beta.                  | Director of Product |
-| 2026-05-12 | Commise 1.0 is the public-launch event at end of `M6`; gated by Beta exit criteria.        | Director of Product |
+| 2026-05-12 | Commise Beta is the public-launch event at end of `M4`; `006` is in Beta.                    | Director of Product |
+| 2026-05-12 | Commise 1.0 is the public-launch event at end of `M6`; gated by Beta exit criteria.          | Director of Product |
 | 2026-05-12 | Internal milestone naming convention adopted: `Milestone <Cool Name>` (Tolkien locations).   | Director of Product |
 
 ---
@@ -357,5 +357,5 @@ If sequencing changes, this document is updated first; per-feature `review.md` f
 
 - [ ] Numerical thresholds in [`beta-exit-criteria.md`](./beta-exit-criteria.md) (DAU/WAU floor, crash-free %, NPS target, retention curve, AI cost-per-active-user band) — owned by Engineering Leadership + Product, due before `M4` exit.
 - [ ] Engineering capacity confirmation for `M2`/`M3` parallel execution — owned by Engineering Leadership, due before `M1` exit.
-- [ ] Beta invite/waitlist mechanism (Auth0 user-pool segmentation vs feature-flag) — owned by Engineering Leadership, due before `M4` exit.
+- [ ] Beta invite/waitlist mechanism (Clerk instance/allowlist segmentation vs feature-flag) — owned by Engineering Leadership, due before `M4` exit.
 - [ ] Payments compliance review scope (PCI level, tax jurisdictions, refund policy) — owned by Legal + Engineering Leadership, due before `M6` entry.

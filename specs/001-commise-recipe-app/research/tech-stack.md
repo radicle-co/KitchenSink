@@ -135,26 +135,26 @@ Per [data-model.md](../data-model.md):
 
 ---
 
-## Auth: Auth0
+## Auth: Clerk
 
 ### Choice
 
-**Auth0** as the identity provider for both web and mobile.
+**Clerk** as the identity provider for both web and mobile.
 
 ### Rationale
 
-- Per [plan.md](../plan.md): `@auth0/nextjs-auth0` v4.x (web), `react-native-auth0` v5.5 (mobile)
-- Auth0 handles OIDC flows, JWT issuance, and user management
-- Web: Next.js App Router integration via `@auth0/nextjs-auth0` v4.x
-- Mobile: Expo 53 + React Native with `react-native-auth0` + `expo-secure-store`
-- API validates JWTs via `@auth0/nextjs-auth0` or `jose` / `jwks-rsa`
+- Per [plan.md](../plan.md): `@clerk/nextjs` (web), `@clerk/expo` (mobile)
+- Clerk handles sign-in/sign-up, session-token issuance, and user management via its hosted UI
+- Web: Next.js App Router integration via `@clerk/nextjs` (`<ClerkProvider>`, `middleware.ts`)
+- Mobile: Expo 53 + React Native with `@clerk/expo` + `expo-secure-store`
+- API verifies the Clerk session token networklessly via `@clerk/backend` `verifyToken` using the public `CLERK_JWT_KEY`, enforcing authorized parties (`azp`) from `CLERK_AUTHORIZED_PARTIES` — no client secret, no audience check, no JWKS round trip
 
 ### Trade-offs
 
-| Trade-off                                       | Mitigated By                                                      |
-| ----------------------------------------------- | ----------------------------------------------------------------- |
-| Auth0 is a third-party SaaS (availability risk) | Auth0 SLA is 99.99%; fallback to login page with retry            |
-| Auth0 pricing at scale                          | Free up to 7,500 MAU; $0.023/MAU beyond (reasonable until growth) |
+| Trade-off                                       | Mitigated By                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------- |
+| Clerk is a third-party SaaS (availability risk) | Clerk SLA is 99.99%; fallback to hosted UI with retry               |
+| Clerk pricing at scale                          | Free up to 10,000 MAU; usage-based beyond (reasonable until growth) |
 
 ---
 
@@ -195,13 +195,13 @@ Per [data-model.md](../data-model.md):
 - Per [plan.md](../plan.md): Expo 53+ for mobile
 - Expo avoids native module complexity for S3 upload, camera, notifications
 - `expo-secure-store` for token storage
-- `react-native-auth0` v5.5 for authentication
+- `@clerk/expo` for authentication
 
 ### Trade-offs
 
 | Trade-off                                                  | Mitigated By                                                                                                |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Expo SDK lag (may lag React Native latest by 1–2 releases) | Expo 53 confirmed compatible with `react-native-auth0` v5.5.0 (per [plan.md](../plan.md))                   |
+| Expo SDK lag (may lag React Native latest by 1–2 releases) | Expo 53 confirmed compatible with `@clerk/expo` (per [plan.md](../plan.md))                                 |
 | Limited native code access                                 | Most features (S3, camera, notifications) are available via Expo modules; custom native code only if needed |
 
 ### Workspace Location

@@ -44,7 +44,7 @@ Each test case MUST identify its technique by name and anchor to a specific arch
 - **Technique**: Interface Contract Testing
 - **Architecture View**: Interface View (External-Facing Module Interfaces)
 - **Modules Under Test**: ARCH-001 ↔ ARCH-012
-- **Preconditions**: Auth0 session context is injectable; `CookingModeScreen` receives `recipeId: string` prop.
+- **Preconditions**: Clerk session context is injectable; `CookingModeScreen` receives `recipeId: string` prop.
 
 ##### ITS-001-A1 — Authenticated session propagates userId to screen lifecycle
 
@@ -517,12 +517,12 @@ And ARCH-001 renders an appropriate error UI
 - **Technique**: Interface Contract Testing
 - **Architecture View**: Interface View (External-Facing Module Interfaces)
 - **Modules Under Test**: ARCH-012 ↔ ARCH-001
-- **Preconditions**: Auth0 SDK session context is injectable.
+- **Preconditions**: Clerk session context is injectable.
 
-##### ITS-012-A1 — checkSession() returns { userId } for a valid Auth0 session
+##### ITS-012-A1 — checkSession() returns { userId } for a valid Clerk session
 
 ```
-Given ARCH-012 AuthGuard has access to a valid Auth0 session context
+Given ARCH-012 AuthGuard has access to a valid Clerk session context
 When ARCH-001 CookingModeScreen calls ARCH-012.checkSession()
 Then ARCH-012 returns { userId: "user-123" } to ARCH-001
 And ARCH-001 proceeds with recipe loading
@@ -531,23 +531,23 @@ And ARCH-001 proceeds with recipe loading
 ##### ITS-012-A2 — checkSession() throws AuthError for an expired or missing session
 
 ```
-Given ARCH-012 AuthGuard has access to an expired Auth0 session context
+Given ARCH-012 AuthGuard has access to an expired Clerk session context
 When ARCH-001 CookingModeScreen calls ARCH-012.checkSession()
 Then ARCH-012 throws AuthError
 And ARCH-001 does NOT proceed with recipe loading
 ```
 
-#### ITP-012-B: AuthGuard fault injection — Auth0 SDK timeout (Interface Fault Injection)
+#### ITP-012-B: AuthGuard fault injection — Clerk session read failure (Interface Fault Injection)
 
 - **Technique**: Interface Fault Injection
 - **Architecture View**: Interface View + Process View
 - **Modules Under Test**: ARCH-012 ↔ ARCH-001
-- **Preconditions**: Auth0 SDK is injectable; network timeout is simulatable.
+- **Preconditions**: Clerk session read is injectable; a session-read failure is simulatable.
 
-##### ITS-012-B1 — checkSession() throws AuthError on Auth0 SDK network timeout
+##### ITS-012-B1 — checkSession() throws AuthError on Clerk session read failure
 
 ```
-Given ARCH-012 AuthGuard's Auth0 SDK call times out after the configured threshold
+Given ARCH-012 AuthGuard's Clerk session read throws (e.g. corrupt/unreadable token)
 When ARCH-001 CookingModeScreen calls ARCH-012.checkSession()
 Then ARCH-012 throws AuthError (not an unhandled promise rejection)
 And ARCH-001 redirects to the login screen

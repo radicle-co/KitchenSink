@@ -117,7 +117,7 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Su
 | HAZ-013 | SYS-007   | Failed-payment grace period miscount triggers early downgrade or delayed lock.            | LAPSE-GRACE       | Legitimate premium user lockout or prolonged unauthorized premium access.     | Critical | Occasional | Undesirable | REQ-021, REQ-022, REQ-023, REQ-025; SYS-007, SYS-010; ARCH-009 deterministic state machine + ARCH-013 timestamp integrity checks.           | Tolerable     |
 | HAZ-014 | SYS-007   | Stripe/DB state desynchronization leaves lifecycle in wrong terminal state after retries. | WEBHOOK-INGEST    | Subscription state desync between provider and DB; inconsistent entitlements. | Critical | Occasional | Undesirable | REQ-020, REQ-023; SYS-007, SYS-009; ARCH-009 reconciliation + ARCH-001 source-of-truth persistence + ARCH-016 replay-safe event publishing. | Tolerable     |
 
-### SYS-008 — Auth0 Identity Integration
+### SYS-008 — Clerk Identity Integration
 
 | HAZ ID  | Component | Failure Mode                                                                   | Operational State | Effect                                         | Severity | Likelihood | Risk Level  | Mitigation                                                                                               | Residual Risk |
 | ------- | --------- | ------------------------------------------------------------------------------ | ----------------- | ---------------------------------------------- | -------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------- | ------------- |

@@ -72,15 +72,15 @@ This document defines the Acceptance Test Plan for the AI Integration feature. I
 
 **Requirement**: REQ-008, REQ-009, REQ-010, REQ-IF-001, REQ-IF-002
 
-| ATS ID     | Scenario                                       | Given                                        | When                                                           | Then                                                                                                  |
-| ---------- | ---------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| ATS-005-C1 | Agent initiates OAuth flow                     | External agent platform begins authorization | Agent redirects user to Commise OAuth authorization endpoint | System redirects to Auth0 with `code_challenge`, `state`, `nonce` parameters                          |
-| ATS-005-C2 | User grants consent                            | Auth0 callback received with valid state     | User approves agent access                                     | System exchanges code for tokens; stores consent grant with scope and expiry; redirects back to agent |
-| ATS-005-C3 | User denies consent                            | Auth0 callback received                      | User rejects authorization                                     | System redirects with error `access_denied`; no tokens or consent stored                              |
-| ATS-005-C4 | Consent granted with `recipes:read` scope only | Consent stored for agent                     | Agent makes API call with `recipes:read` token                 | System returns recipe collection; `recipes:create` calls return 403                                   |
-| ATS-005-C5 | Consent with both scopes                       | Consent stored for agent                     | Agent calls `recipes:create` endpoint                          | Recipe created on user's behalf; returned as 201                                                      |
-| ATS-005-C6 | State mismatch on callback                     | Tampered state value submitted               | Callback handler receives mismatched state                     | System throws `Error('State mismatch')`; no tokens exchanged                                          |
-| ATS-005-C7 | Code verifier mismatch                         | Valid state, tampered verifier               | Exchange code with wrong verifier                              | System throws `Error`; no tokens exchanged                                                            |
+| ATS ID     | Scenario                                       | Given                                        | When                                                         | Then                                                                                                  |
+| ---------- | ---------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| ATS-005-C1 | Agent initiates OAuth flow                     | External agent platform begins authorization | Agent redirects user to Commise OAuth authorization endpoint | System redirects to Clerk with `code_challenge`, `state`, `nonce` parameters                          |
+| ATS-005-C2 | User grants consent                            | Clerk callback received with valid state     | User approves agent access                                   | System exchanges code for tokens; stores consent grant with scope and expiry; redirects back to agent |
+| ATS-005-C3 | User denies consent                            | Clerk callback received                      | User rejects authorization                                   | System redirects with error `access_denied`; no tokens or consent stored                              |
+| ATS-005-C4 | Consent granted with `recipes:read` scope only | Consent stored for agent                     | Agent makes API call with `recipes:read` token               | System returns recipe collection; `recipes:create` calls return 403                                   |
+| ATS-005-C5 | Consent with both scopes                       | Consent stored for agent                     | Agent calls `recipes:create` endpoint                        | Recipe created on user's behalf; returned as 201                                                      |
+| ATS-005-C6 | State mismatch on callback                     | Tampered state value submitted               | Callback handler receives mismatched state                   | System throws `Error('State mismatch')`; no tokens exchanged                                          |
+| ATS-005-C7 | Code verifier mismatch                         | Valid state, tampered verifier               | Exchange code with wrong verifier                            | System throws `Error`; no tokens exchanged                                                            |
 
 ---
 
@@ -105,7 +105,7 @@ This document defines the Acceptance Test Plan for the AI Integration feature. I
 | ATS ID     | Scenario                            | Given                                           | When                                               | Then                                                                                          |
 | ---------- | ----------------------------------- | ----------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | ATS-005-E1 | User revokes agent consent          | Agent consent record exists for user-agent pair | User clicks "Revoke" in account settings           | System marks consent as revoked in `agent_consent_records`; subsequent agent calls return 403 |
-| ATS-005-E2 | Revoked agent presents new token    | Consent is revoked                              | Agent presents newly issued token for same agentId | System checks denylist first → 403; even a fresh token from Auth0 is rejected                 |
+| ATS-005-E2 | Revoked agent presents new token    | Consent is revoked                              | Agent presents newly issued token for same agentId | System checks denylist first → 403; even a fresh token from Clerk is rejected                 |
 | ATS-005-E3 | User re-authorizes after revocation | Consent was revoked                             | User completes new OAuth consent flow              | New consent record created; agent gains access again                                          |
 
 ---
@@ -149,7 +149,7 @@ This document defines the Acceptance Test Plan for the AI Integration feature. I
 | REQ-007    | No provider configured                     | 422 returned with `setupRequired: true` and setup guide                              | Equivalence Partitioning                      |
 | REQ-008    | Valid agent token + user consent           | Recipe collection returned                                                           | Statement Coverage                            |
 | REQ-009    | Valid agent token + `recipes:create` scope | Recipe created on user's behalf                                                      | Statement Coverage                            |
-| REQ-010    | Agent initiates OAuth                      | Auth0 authorization URL with code_challenge returned                                 | Statement Coverage                            |
+| REQ-010    | Agent initiates OAuth                      | Clerk authorization URL with code_challenge returned                                 | Statement Coverage                            |
 | REQ-011    | Unauthorized agent request                 | 403 returned; no data exposed                                                        | Branch Coverage                               |
 | REQ-012    | AI-generated recipe saved                  | `isPrivate: true`, `source: 'ai'`, ownerId set                                       | Statement Coverage                            |
 | REQ-013    | Consent exists                             | Revocation marks record; subsequent calls 403                                        | State Transition Testing                      |
@@ -160,7 +160,7 @@ This document defines the Acceptance Test Plan for the AI Integration feature. I
 | REQ-NF-003 | New UI components                          | `getByRole`/`getByLabel` queries succeed                                             | Playwright Integration Test                   |
 | REQ-NF-004 | New UI with color state                    | Icon + text pairing on all color-gated states                                        | Accessibility Inspection                      |
 | REQ-NF-005 | API key written to DB                      | Stored value is AES-256-GCM ciphertext; plaintext never in DB                        | Inspection (code review + DB dump check)      |
-| REQ-IF-001 | Agent OAuth initiation                     | Auth0 URL contains code_challenge, state, nonce                                      | Interface Contract Test                       |
+| REQ-IF-001 | Agent OAuth initiation                     | Clerk URL contains code_challenge, state, nonce                                      | Interface Contract Test                       |
 | REQ-IF-002 | Consent grant                              | Stored scopes include `recipes:read` and `recipes:create`                            | Statement Coverage                            |
 | REQ-CN-001 | Recipe entity storage                      | AI-saved recipe stored as Recipe entity in 001 schema                                | Inspection                                    |
 | REQ-CN-002 | Unauthenticated request                    | All `/ai/*` and `/agent/*` endpoints return 401                                      | Fault Injection                               |
@@ -181,7 +181,7 @@ This document defines the Acceptance Test Plan for the AI Integration feature. I
 | REQ-007    | 1                 | Unit                     | 422 + setup guide on missing provider                   |
 | REQ-008    | 1                 | Agent E2E                | Recipe collection returned on authorized call           |
 | REQ-009    | 1                 | Agent E2E                | 201 returned, recipe created                            |
-| REQ-010    | 1                 | OAuth Flow               | Auth0 URL correct, state stored                         |
+| REQ-010    | 1                 | OAuth Flow               | Clerk URL correct, state stored                         |
 | REQ-011    | 4                 | Security Fault Injection | 403 on unauthorized, 401 on missing token               |
 | REQ-012    | 1                 | Unit                     | Ownership and privacy enforced                          |
 | REQ-013    | 3                 | State Transition         | Revocation blocks all subsequent calls                  |

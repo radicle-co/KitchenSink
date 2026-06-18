@@ -231,7 +231,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
 **Target View**: Interface View
 **Inputs/Preconditions**:
 
-- Pre-signed URL generated for key `users/auth0|u123/digitization/job-004a/original.jpg`.
+- Pre-signed URL generated for key `users/user_2u123/digitization/job-004a/original.jpg`.
 - Valid image bytes and Content-Type `image/jpeg`.
   **Steps**:
 
@@ -246,12 +246,12 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
   **Trace**: REQ-018, REQ-019, REQ-046
 
 - **System Scenario: STS-004-A1**
-    - **Given** upload key scoped to `users/auth0|u123/...`
+    - **Given** upload key scoped to `users/user_2u123/...`
     - **When** object is uploaded and fetched
     - **Then** only scoped CloudFront route resolves the image
 
 - **System Scenario: STS-004-A2**
-    - **Given** another user context `auth0|u999`
+    - **Given** another user context `user_2u999`
     - **When** it attempts to access `u123` path
     - **Then** access is denied by storage policy
 
@@ -1157,7 +1157,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
     - **When** join endpoint runs
     - **Then** join/revocation semantics remain identical
 
-### System Component Validation: SYS-019 (Auth0 Bearer Authenticator)
+### System Component Validation: SYS-019 (Clerk Session-Token Authenticator)
 
 **Parent Requirements**: REQ-027, REQ-031, REQ-032, REQ-049
 
@@ -1180,7 +1180,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
   **Trace**: REQ-027, REQ-031, REQ-032
 
 - **System Scenario: STS-019-A1**
-    - **Given** valid bearer token signed by configured issuer
+    - **Given** valid Clerk session token verifiable against the configured `CLERK_JWT_KEY` with an allowed `azp`
     - **When** `GET /api/v1/recipes/digitize/jobs?limit=20` is called
     - **Then** request passes guard and reaches handler
 

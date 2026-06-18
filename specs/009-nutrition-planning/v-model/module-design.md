@@ -31,7 +31,7 @@ The Nutrition Planning module design decomposes all 20 architecture modules (ARC
 ```pseudocode
 // POST /nutrition-plans
 FUNCTION createPlan(req: Request, body: CreateNutritionPlanDto) -> NutritionPlanResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)  // throws 401 if invalid
+    user = ClerkAuthService.verifyToken(req.headers.authorization)  // throws 401 if invalid
     IF user IS NULL:
         THROW UnauthorizedException("Valid JWT required")
     plan = NutritionPlanService.createPlan(user.userId, body)
@@ -39,7 +39,7 @@ FUNCTION createPlan(req: Request, body: CreateNutritionPlanDto) -> NutritionPlan
 
 // GET /nutrition-plans/:id
 FUNCTION getPlan(req: Request, id: string) -> NutritionPlanResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(id):
         THROW BadRequestException("Invalid plan ID format")
     plan = NutritionPlanService.getPlan(id, user.userId)
@@ -49,7 +49,7 @@ FUNCTION getPlan(req: Request, id: string) -> NutritionPlanResponseDto:
 
 // PATCH /nutrition-plans/:id
 FUNCTION updatePlan(req: Request, id: string, body: UpdateNutritionPlanDto) -> NutritionPlanResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(id):
         THROW BadRequestException("Invalid plan ID format")
     plan = NutritionPlanService.updatePlan(id, user.userId, body)
@@ -59,7 +59,7 @@ FUNCTION updatePlan(req: Request, id: string, body: UpdateNutritionPlanDto) -> N
 
 // DELETE /nutrition-plans/:id
 FUNCTION deletePlan(req: Request, id: string) -> void:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(id):
         THROW BadRequestException("Invalid plan ID format")
     deleted = NutritionPlanService.deletePlan(id, user.userId)
@@ -246,7 +246,7 @@ N/A — Stateless (each method is an independent DB transaction; no repository-l
 ```pseudocode
 // GET /nutrition-plans (user dashboard listing)
 FUNCTION listPlans(req: Request) -> NutritionPlanListResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF user IS NULL:
         THROW UnauthorizedException("Valid JWT required")
     plans = NutritionPlanService.listPlansByUser(user.userId)
@@ -294,7 +294,7 @@ N/A — Stateless
 ```pseudocode
 // POST /nutrition-plans/:id/meal-plans/:mealPlanId
 FUNCTION linkMealPlan(req: Request, planId: string, mealPlanId: string) -> LinkResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId) OR NOT isValidUUID(mealPlanId):
         THROW BadRequestException("Invalid ID format")
     result = MealPlanLinkerService.link(planId, mealPlanId, user.userId)
@@ -308,7 +308,7 @@ FUNCTION linkMealPlan(req: Request, planId: string, mealPlanId: string) -> LinkR
 
 // DELETE /nutrition-plans/:id/meal-plans/:mealPlanId
 FUNCTION unlinkMealPlan(req: Request, planId: string, mealPlanId: string) -> void:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId) OR NOT isValidUUID(mealPlanId):
         THROW BadRequestException("Invalid ID format")
     deleted = MealPlanLinkerService.unlink(planId, mealPlanId, user.userId)
@@ -552,7 +552,7 @@ N/A — Stateless (pure computation per request; no persistent service state)
 ```pseudocode
 // GET /nutrition-plans/:id/compliance
 FUNCTION getCompliance(req: Request, planId: string) -> ComplianceResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId):
         THROW BadRequestException("Invalid plan ID format")
     result = ComplianceAnalyserService.analyse(planId, user.userId)
@@ -599,7 +599,7 @@ N/A — Stateless
 ```pseudocode
 // POST /trainer/nutrition-plans (trainer creates plan for client)
 FUNCTION createClientPlan(req: Request, body: CreateClientPlanDto) -> NutritionPlanResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT user.roles.includes("trainer"):
         THROW ForbiddenException("Trainer role required")
     IF NOT isValidUUID(body.clientId):
@@ -613,7 +613,7 @@ FUNCTION createClientPlan(req: Request, body: CreateClientPlanDto) -> NutritionP
 
 // GET /trainer/clients/:clientId/nutrition-plans (trainer views client plans)
 FUNCTION getClientPlans(req: Request, clientId: string) -> NutritionPlanListResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT user.roles.includes("trainer"):
         THROW ForbiddenException("Trainer role required")
     IF NOT isValidUUID(clientId):
@@ -784,7 +784,7 @@ stateDiagram-v2
 ```pseudocode
 // POST /nutrition-plans/:id/recipe-swap
 FUNCTION suggestSwap(req: Request, planId: string, body: RecipeSwapRequestDto) -> RecipeSwapResponseDto:
-    user = AuthAdapter.verifyJWT(req.headers.authorization)
+    user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId):
         THROW BadRequestException("Invalid plan ID format")
     result = AIRecipeSwapService.suggestSwap(planId, user.userId, body.currentRecipeId)
@@ -1072,12 +1072,12 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Name                   | Type         | Size/Constraints | Initialization | Description                                           |
-| ---------------------- | ------------ | ---------------- | -------------- | ----------------------------------------------------- |
+| Name                   | Type         | Size/Constraints | Initialization | Description                                         |
+| ---------------------- | ------------ | ---------------- | -------------- | --------------------------------------------------- |
 | `RECIPE_APP_BASE_URL`  | `string`     | URL              | Config/env     | Base URL of the 001-commise-recipe-app internal API |
-| `INTERNAL_SERVICE_KEY` | `string`     | Secret           | Config/env     | Shared secret for internal service authentication     |
-| `RecipeNutritionData`  | Plain object | —                | Per-call       | Parsed per-recipe nutrition totals                    |
-| `Recipe`               | Plain object | —                | Per-call       | Full recipe with nutrition for swap suggestions       |
+| `INTERNAL_SERVICE_KEY` | `string`     | Secret           | Config/env     | Shared secret for internal service authentication   |
+| `RecipeNutritionData`  | Plain object | —                | Per-call       | Parsed per-recipe nutrition totals                  |
+| `Recipe`               | Plain object | —                | Per-call       | Full recipe with nutrition for swap suggestions     |
 
 #### Error Handling & Return Codes
 
@@ -1089,28 +1089,30 @@ N/A — Stateless
 
 ---
 
-### Module: MOD-018 (AuthAdapter)
+### Module: MOD-018 (ClerkAuthService)
 
 **Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/nutrition-planning/adapters/auth.adapter.ts`
+**Target Source File(s)**: `src/nutrition-planning/adapters/clerk-auth.service.ts`
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-FUNCTION verifyJWT(authorizationHeader: string) -> AuthenticatedUser:
+FUNCTION verifyToken(authorizationHeader: string) -> AuthenticatedUser:
     IF authorizationHeader IS NULL OR NOT startsWith("Bearer "):
         THROW UnauthorizedException("Missing or malformed Authorization header")
     token = authorizationHeader.slice(7)  // strip "Bearer "
 
-    // Verify signature using JWKS from Auth0
-    decoded = joseVerify(token, jwksClient, {
-        issuer: AUTH0_ISSUER,
-        audience: AUTH0_AUDIENCE
+    // Networkless verification with @clerk/backend verifyToken:
+    // uses the public CLERK_JWT_KEY and enforces authorized parties (azp)
+    decoded = clerkVerifyToken(token, {
+        jwtKey: CLERK_JWT_KEY,
+        authorizedParties: CLERK_AUTHORIZED_PARTIES
     })
     IF decoded IS NULL OR decoded.sub IS NULL:
-        THROW UnauthorizedException("Invalid JWT")
+        THROW UnauthorizedException("Invalid token")
 
-    roles = decoded["https://app.example.com/roles"] ?? []
+    // Admin scopes / roles come from the signed token's public_metadata claim
+    roles = decoded.public_metadata?.roles ?? []
     RETURN {
         userId: decoded.sub,
         email: decoded.email,
@@ -1118,7 +1120,7 @@ FUNCTION verifyJWT(authorizationHeader: string) -> AuthenticatedUser:
     }
 
 FUNCTION resolveUserRelationship(trainerId: string, clientId: string) -> RelationshipStatus:
-    // Delegates to Auth0 Management API or internal user service
+    // Delegates to the Clerk Backend API (@clerk/backend) or internal user service
     url = AUTH_SERVICE_BASE_URL + "/relationships/" + trainerId + "/" + clientId
     response = httpClient.get(url, {
         headers: { "X-Internal-Service-Key": INTERNAL_SERVICE_KEY },
@@ -1133,22 +1135,21 @@ FUNCTION resolveUserRelationship(trainerId: string, clientId: string) -> Relatio
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unverified : JWT received
-    Unverified --> Verified : joseVerify() succeeds
-    Unverified --> Rejected : joseVerify() fails / missing header
+    [*] --> Unverified : token received
+    Unverified --> Verified : verifyToken() succeeds
+    Unverified --> Rejected : verifyToken() fails / missing header
     Verified --> [*] : AuthenticatedUser returned
     Rejected --> [*] : UnauthorizedException thrown
 ```
 
 #### Internal Data Structures
 
-| Name                    | Type         | Size/Constraints | Initialization | Description                                          |
-| ----------------------- | ------------ | ---------------- | -------------- | ---------------------------------------------------- |
-| `AUTH0_ISSUER`          | `string`     | URL              | Config/env     | Auth0 tenant issuer URL                              |
-| `AUTH0_AUDIENCE`        | `string`     | String           | Config/env     | Auth0 API audience identifier                        |
-| `AUTH_SERVICE_BASE_URL` | `string`     | URL              | Config/env     | Base URL of the 002-user-auth internal API     |
-| `jwksClient`            | JWKS client  | —                | Module init    | Cached JWKS client for public key retrieval          |
-| `AuthenticatedUser`     | Plain object | —                | Per-call       | `{ userId: string, email: string, roles: string[] }` |
+| Name                       | Type         | Size/Constraints | Initialization | Description                                                    |
+| -------------------------- | ------------ | ---------------- | -------------- | -------------------------------------------------------------- |
+| `CLERK_JWT_KEY`            | `string`     | PEM public key   | Config/env     | Clerk public JWT key (non-secret) for networkless verification |
+| `CLERK_AUTHORIZED_PARTIES` | `string`     | comma-separated  | Config/env     | Allowed `azp` values (non-secret)                              |
+| `AUTH_SERVICE_BASE_URL`    | `string`     | URL              | Config/env     | Base URL of the 002-user-auth internal API                     |
+| `AuthenticatedUser`        | Plain object | —                | Per-call       | `{ userId: string, email: string, roles: string[] }`           |
 
 #### Error Handling & Return Codes
 
@@ -1156,7 +1157,7 @@ stateDiagram-v2
 | ---------------------------- | ----------------------- | ------------------------------------------- | -------------------------------- |
 | Missing Authorization header | `UnauthorizedException` | ARCH-018 Interface: 401 on missing header   | Client adds Authorization header |
 | Invalid / expired JWT        | `UnauthorizedException` | ARCH-018 Interface: 401 on invalid token    | Client re-authenticates          |
-| JWKS fetch failure           | `AdapterException`      | ARCH-018 Interface: propagate to controller | Controller maps to 503           |
+| Unauthorized party (`azp`)   | `ClerkAuthError`        | ARCH-018 Interface: 401 on disallowed `azp` | Client uses an authorized origin |
 | Auth service HTTP error      | `AdapterException`      | ARCH-018 Interface: propagate to caller     | Caller maps to 502               |
 
 ---
@@ -1280,7 +1281,7 @@ N/A — Stateless (build-time static analysis; no runtime state)
 | ARCH-015 | MealPlanningAdapter       | MOD-015 | MealPlanningAdapter       |
 | ARCH-016 | USDAFoodDataAdapter       | MOD-016 | USDAFoodDataAdapter       |
 | ARCH-017 | RecipeAppAdapter          | MOD-017 | RecipeAppAdapter          |
-| ARCH-018 | AuthAdapter               | MOD-018 | AuthAdapter               |
+| ARCH-018 | ClerkAuthService          | MOD-018 | ClerkAuthService          |
 | ARCH-019 | SubscriptionGate          | MOD-019 | SubscriptionGate          |
 | ARCH-020 | TypeSafetyAndDocsEnforcer | MOD-020 | TypeSafetyAndDocsEnforcer |
 

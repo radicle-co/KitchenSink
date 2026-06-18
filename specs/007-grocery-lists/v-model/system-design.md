@@ -17,14 +17,14 @@ The Grocery Lists & Online Ordering system is decomposed into six system compone
 
 ## Decomposition View (IEEE 1016 §5.1)
 
-| SYS ID  | Name                         | Description                                                                                                                                                                                                                                       | Parent Requirements                                                                | Type      |
-| ------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------- |
-| SYS-001 | Grocery List Generator       | Consumes meal plan data and recipe ingredient lists to produce a consolidated, deduplicated grocery list. Aggregates quantities across recipes, normalises units via USDA Food Data, and returns a structured list of canonical ingredient items. | REQ-001, REQ-002, REQ-003, REQ-009, REQ-IF-002, REQ-IF-003, REQ-IF-004             | Subsystem |
-| SYS-002 | List State Manager           | Persists grocery list state per user, tracks "already have" item flags, and enforces exclusion of flagged items from shopping view and order submission. Provides CRUD operations on list items.                                                  | REQ-004, REQ-005, REQ-011                                                          | Module    |
-| SYS-003 | Online Ordering Orchestrator | Maps grocery list items to store product SKUs, constructs and submits orders to the configured grocery store API, and handles API outage scenarios with graceful degradation and state preservation.                                              | REQ-008, REQ-010, REQ-IF-001                                                       | Subsystem |
-| SYS-004 | Store Configuration Manager  | Allows users to configure, connect, and manage grocery store integrations. Guides unconfigured users through store setup when they attempt online ordering without a configured store.                                                            | REQ-006, REQ-007                                                                   | Module    |
-| SYS-005 | Auth & Subscription Enforcer | Validates Auth0 JWT on all grocery list and ordering endpoints. Enforces premium subscription gate for online ordering. Rejects unauthenticated and unauthorised requests before any domain logic executes.                                       | REQ-CN-001, REQ-CN-002, REQ-IF-005, REQ-IF-006                                     | Service   |
-| SYS-006 | External Dependency Adapters | Provides typed adapter interfaces for upstream systems: MealPlan API (006), Recipe API (001), USDA Food Data (003), Auth0 (002), Subscriptions (010), and Grocery Store APIs. Isolates domain logic from third-party contracts.                   | REQ-IF-001, REQ-IF-002, REQ-IF-003, REQ-IF-004, REQ-IF-005, REQ-IF-006, REQ-CN-003 | Library   |
+| SYS ID  | Name                         | Description                                                                                                                                                                                                                                                                                                     | Parent Requirements                                                                | Type      |
+| ------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------- |
+| SYS-001 | Grocery List Generator       | Consumes meal plan data and recipe ingredient lists to produce a consolidated, deduplicated grocery list. Aggregates quantities across recipes, normalises units via USDA Food Data, and returns a structured list of canonical ingredient items.                                                               | REQ-001, REQ-002, REQ-003, REQ-009, REQ-IF-002, REQ-IF-003, REQ-IF-004             | Subsystem |
+| SYS-002 | List State Manager           | Persists grocery list state per user, tracks "already have" item flags, and enforces exclusion of flagged items from shopping view and order submission. Provides CRUD operations on list items.                                                                                                                | REQ-004, REQ-005, REQ-011                                                          | Module    |
+| SYS-003 | Online Ordering Orchestrator | Maps grocery list items to store product SKUs, constructs and submits orders to the configured grocery store API, and handles API outage scenarios with graceful degradation and state preservation.                                                                                                            | REQ-008, REQ-010, REQ-IF-001                                                       | Subsystem |
+| SYS-004 | Store Configuration Manager  | Allows users to configure, connect, and manage grocery store integrations. Guides unconfigured users through store setup when they attempt online ordering without a configured store.                                                                                                                          | REQ-006, REQ-007                                                                   | Module    |
+| SYS-005 | Auth & Subscription Enforcer | Verifies the Clerk session token networklessly (`CLERK_JWT_KEY` + `azp`) on all grocery list and ordering endpoints. Enforces the premium subscription gate (from the token's `public_metadata` claim) for online ordering. Rejects unauthenticated and unauthorised requests before any domain logic executes. | REQ-CN-001, REQ-CN-002, REQ-IF-005, REQ-IF-006                                     | Service   |
+| SYS-006 | External Dependency Adapters | Provides typed adapter interfaces for upstream systems: MealPlan API (006), Recipe API (001), USDA Food Data (003), Clerk (002), Subscriptions (010), and Grocery Store APIs. Isolates domain logic from third-party contracts.                                                                                 | REQ-IF-001, REQ-IF-002, REQ-IF-003, REQ-IF-004, REQ-IF-005, REQ-IF-006, REQ-CN-003 | Library   |
 
 ## Dependency View (IEEE 1016 §5.2)
 
@@ -57,7 +57,7 @@ The Grocery Lists & Online Ordering system is decomposed into six system compone
            ▼                            ▼                               │
 ┌─────────────────────────────────────────────────────────────────────┐│
 │                    SYS-006: External Dependency Adapters             ││
-│  (MealPlan, Recipe, USDA, Auth0, Subscriptions, Grocery Store APIs) │◄┘
+│  (MealPlan, Recipe, USDA, Clerk, Subscriptions, Grocery Store APIs) │◄┘
 └─────────────────────────────────────────────────────────────────────┘
                                            ▲
                     ┌──────────────────────┘
@@ -72,17 +72,17 @@ The Grocery Lists & Online Ordering system is decomposed into six system compone
 
 ### External Interfaces
 
-| Interface ID | Name                        | Direction | Protocol   | Format | Consumers           |
-| ------------ | --------------------------- | --------- | ---------- | ------ | ------------------- |
-| IF-EXT-001   | Grocery List REST API       | Inbound   | HTTPS/REST | JSON   | Web, Mobile         |
-| IF-EXT-002   | Online Ordering REST API    | Inbound   | HTTPS/REST | JSON   | Web, Mobile         |
-| IF-EXT-003   | Store Config REST API       | Inbound   | HTTPS/REST | JSON   | Web, Mobile         |
-| IF-EXT-004   | Grocery Store Provider APIs | Outbound  | HTTPS/REST | JSON   | SYS-003 via SYS-006 |
-| IF-EXT-005   | MealPlan API (006)          | Outbound  | HTTPS/REST | JSON   | SYS-001 via SYS-006 |
-| IF-EXT-006   | Recipe API (001)            | Outbound  | HTTPS/REST | JSON   | SYS-001 via SYS-006 |
-| IF-EXT-007   | USDA Food Data API (003)    | Outbound  | HTTPS/REST | JSON   | SYS-001 via SYS-006 |
-| IF-EXT-008   | Auth0 JWKS Endpoint (002)   | Outbound  | HTTPS      | JSON   | SYS-005 via SYS-006 |
-| IF-EXT-009   | Subscriptions API (010)     | Outbound  | HTTPS/REST | JSON   | SYS-005 via SYS-006 |
+| Interface ID | Name                                   | Direction         | Protocol                                                  | Format | Consumers           |
+| ------------ | -------------------------------------- | ----------------- | --------------------------------------------------------- | ------ | ------------------- |
+| IF-EXT-001   | Grocery List REST API                  | Inbound           | HTTPS/REST                                                | JSON   | Web, Mobile         |
+| IF-EXT-002   | Online Ordering REST API               | Inbound           | HTTPS/REST                                                | JSON   | Web, Mobile         |
+| IF-EXT-003   | Store Config REST API                  | Inbound           | HTTPS/REST                                                | JSON   | Web, Mobile         |
+| IF-EXT-004   | Grocery Store Provider APIs            | Outbound          | HTTPS/REST                                                | JSON   | SYS-003 via SYS-006 |
+| IF-EXT-005   | MealPlan API (006)                     | Outbound          | HTTPS/REST                                                | JSON   | SYS-001 via SYS-006 |
+| IF-EXT-006   | Recipe API (001)                       | Outbound          | HTTPS/REST                                                | JSON   | SYS-001 via SYS-006 |
+| IF-EXT-007   | USDA Food Data API (003)               | Outbound          | HTTPS/REST                                                | JSON   | SYS-001 via SYS-006 |
+| IF-EXT-008   | Clerk session-token verification (002) | Local/networkless | None (in-process; `CLERK_JWT_KEY` + `azp`, no round trip) | JWT    | SYS-005             |
+| IF-EXT-009   | Subscriptions API (010)                | Outbound          | HTTPS/REST                                                | JSON   | SYS-005 via SYS-006 |
 
 ### Internal Interfaces
 

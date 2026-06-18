@@ -19,7 +19,7 @@
 - Tasks: 92 (`T001`–`T092`).
 - UI tasks present (Phase 7 — Frontend, `T057`–`T067`) → Design Review included.
 - API + Backend + Lambda tasks present → Architecture Review included.
-- External integrations (Auth0, Textract, S3, SQS, CloudFront, RDS) → Risk Assessment includes integration risks.
+- External integrations (Clerk, Textract, S3, SQS, CloudFront, RDS) → Risk Assessment includes integration risks.
 
 ---
 
@@ -73,13 +73,13 @@
 
 ### Component Reuse
 
-| Existing Component / Pattern               | Applicable For                                     |                         Reuse Planned?                         |
-| ------------------------------------------ | -------------------------------------------------- | :------------------------------------------------------------: |
-| Auth0 bearer middleware (from feature 002) | All `circles-api` + `digitization-api` controllers |                      ✅ T003, T026, T037                       |
-| Drizzle migration tooling                  | Schema changes (T008–T018)                         |                               ✅                               |
-| `packages/ui` shared components            | Web correction screen, audience picker, Circle UI  |   ⚠️ Implicit; not explicitly enumerated in tasks. **D-004**   |
-| RFC7807 error filter                       | All new API surfaces                               | ✅ T039 implied via NestJS conventions; verify in code-review. |
-| `@aws-lambda-powertools/logger` + Sentry   | OCR Lambda observability                           |                          ✅ T077–T080                          |
+| Existing Component / Pattern                      | Applicable For                                     |                         Reuse Planned?                         |
+| ------------------------------------------------- | -------------------------------------------------- | :------------------------------------------------------------: |
+| Clerk session-token middleware (from feature 002) | All `circles-api` + `digitization-api` controllers |                      ✅ T003, T026, T037                       |
+| Drizzle migration tooling                         | Schema changes (T008–T018)                         |                               ✅                               |
+| `packages/ui` shared components                   | Web correction screen, audience picker, Circle UI  |   ⚠️ Implicit; not explicitly enumerated in tasks. **D-004**   |
+| RFC7807 error filter                              | All new API surfaces                               | ✅ T039 implied via NestJS conventions; verify in code-review. |
+| `@aws-lambda-powertools/logger` + Sentry          | OCR Lambda observability                           |                          ✅ T077–T080                          |
 
 ### Design Findings
 
@@ -104,22 +104,22 @@
 | Data model consistent with `spec.md` entities           |   ✅   | `circles`, `circle_members`, `circle_invites`, `digitization_jobs`, recipe `audience` JSONB, `recipe_versions` all map to FR-006…FR-036.             |
 | Migration strategy defined                              |   ✅   | T008–T018 enumerate Drizzle migrations with explicit indexes and transactional boundaries for FR-033 / FR-035.                                       |
 | Error handling patterns defined                         |   ✅   | RFC7807 mandated by spec; circuit-breaker + DLQ for OCR (FR-013, NFR-001).                                                                           |
-| Authentication/authorization approach defined           |   ✅   | Auth0 bearer (002 inheritance) on every endpoint; invitation token redemption requires authenticated user.                                           |
+| Authentication/authorization approach defined           |   ✅   | Clerk session token (002 inheritance) on every endpoint; invitation token redemption requires authenticated user.                                    |
 | Caching strategy defined                                |   ✅   | CloudFront for archived originals; no application-tier cache required at v1.                                                                         |
 
 ### Integration Point Validation
 
-| Integration Point                                              |                              Plan Coverage                               | Risk Level |
-| -------------------------------------------------------------- | :----------------------------------------------------------------------: | :--------: |
-| Auth0 (web + mobile + API authorizer, from 002)                |                          ✅ Covered (inherited)                          |     L      |
-| AWS Textract (OCR provider)                                    |            ✅ Covered (T050 adapter, provider-pluggable seam)            |   **H**    |
-| AWS S3 (presigned PUT for upload, archive originals)           |                         ✅ Covered (T039 + T086)                         |     M      |
-| AWS SQS + DLQ (job dispatch + version-archive queue)           |                         ✅ Covered (T049, T085)                          |     M      |
-| AWS CloudFront (CDN for archived originals)                    |                            ✅ Covered (T086)                             |     L      |
-| AWS RDS PostgreSQL 16 (pg_trgm, JSONB, tsvector)               |                          ✅ Covered (T008–T018)                          |     M      |
-| Feature 001 recipe persistence (`audience`, `recipe_versions`) |               ✅ Covered (T015, T016, smoke test in spec)                |   **H**    |
-| `@kitchensink/shared-audience` consumed by 001/006/007         | ✅ Covered (T019–T025); contract published before consumers depend on it |     M      |
-| Feature 010 entitlement flag (Q-002 deferred)                  |              ⚠️ Partial — not implemented in v1; soft-gated              |     L      |
+| Integration Point                                               |                              Plan Coverage                               | Risk Level |
+| --------------------------------------------------------------- | :----------------------------------------------------------------------: | :--------: |
+| Clerk (web + mobile + API session-token verification, from 002) |                          ✅ Covered (inherited)                          |     L      |
+| AWS Textract (OCR provider)                                     |            ✅ Covered (T050 adapter, provider-pluggable seam)            |   **H**    |
+| AWS S3 (presigned PUT for upload, archive originals)            |                         ✅ Covered (T039 + T086)                         |     M      |
+| AWS SQS + DLQ (job dispatch + version-archive queue)            |                         ✅ Covered (T049, T085)                          |     M      |
+| AWS CloudFront (CDN for archived originals)                     |                            ✅ Covered (T086)                             |     L      |
+| AWS RDS PostgreSQL 16 (pg_trgm, JSONB, tsvector)                |                          ✅ Covered (T008–T018)                          |     M      |
+| Feature 001 recipe persistence (`audience`, `recipe_versions`)  |               ✅ Covered (T015, T016, smoke test in spec)                |   **H**    |
+| `@kitchensink/shared-audience` consumed by 001/006/007          | ✅ Covered (T019–T025); contract published before consumers depend on it |     M      |
+| Feature 010 entitlement flag (Q-002 deferred)                   |              ⚠️ Partial — not implemented in v1; soft-gated              |     L      |
 
 ### NFR Coverage
 

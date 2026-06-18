@@ -54,7 +54,7 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** ARCH-001 attempts DTO validation before delegating to ARCH-002
     - **Then** ARCH-001 rejects the payload and returns a 400 `{ message, errors[] }` to the caller without invoking ARCH-002
 
-#### Test Case: ITP-001-B (NutritionPlanController → AuthAdapter fault injection)
+#### Test Case: ITP-001-B (NutritionPlanController → ClerkAuthService fault injection)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
@@ -62,7 +62,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 - **Integration Scenario: ITS-001-B1**
     - **Given** ARCH-018 is configured to return `UnauthorizedError` for an expired JWT
-    - **When** ARCH-001 sends the JWT to ARCH-018 `verifyJWT`
+    - **When** ARCH-001 sends the token to ARCH-018 `verifyToken`
     - **Then** ARCH-001 receives `UnauthorizedError` from ARCH-018, returns HTTP 401 to the caller, and does not invoke ARCH-002
 
 ---
@@ -138,7 +138,7 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** ARCH-004 delegates to ARCH-002 with the extracted `userId`
     - **Then** ARCH-004 receives `NutritionPlan[]` from ARCH-002 and emits an HTTP 200 response with the array ordered by `createdAt` descending
 
-#### Test Case: ITP-004-B (DashboardController → AuthAdapter fault injection)
+#### Test Case: ITP-004-B (DashboardController → ClerkAuthService fault injection)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
@@ -146,7 +146,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 - **Integration Scenario: ITS-004-B1**
     - **Given** ARCH-018 returns `UnauthorizedError` for the provided JWT
-    - **When** ARCH-004 sends the JWT to ARCH-018 `verifyJWT`
+    - **When** ARCH-004 sends the token to ARCH-018 `verifyToken`
     - **Then** ARCH-004 returns HTTP 401 to the caller and does not invoke ARCH-002
 
 ---
@@ -311,7 +311,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 **Parent System Components**: SYS-005, SYS-006
 
-#### Test Case: ITP-010-A (TrainerClientController → AuthAdapter + SubscriptionGate contract)
+#### Test Case: ITP-010-A (TrainerClientController → ClerkAuthService + SubscriptionGate contract)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
@@ -400,7 +400,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 **Parent System Components**: SYS-007
 
-#### Test Case: ITP-013-A (AIRecipeSwapController → AuthAdapter + SubscriptionGate + AIRecipeSwapService contract)
+#### Test Case: ITP-013-A (AIRecipeSwapController → ClerkAuthService + SubscriptionGate + AIRecipeSwapService contract)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
@@ -541,36 +541,36 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ---
 
-### Module Verification: ARCH-018 (AuthAdapter)
+### Module Verification: ARCH-018 (ClerkAuthService)
 
 **Parent System Components**: SYS-011
 
-#### Test Case: ITP-018-A (AuthAdapter → Auth0 JWT verification contract)
+#### Test Case: ITP-018-A (ClerkAuthService → Clerk session token verification contract)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that ARCH-018 accepts a Bearer JWT string and returns a typed `AuthenticatedUser { userId, roles, email }` to the calling controller.
+**Description**: Verifies that ARCH-018 accepts a Bearer Clerk session token string and, via `verifyToken` (networkless verification using the `CLERK_JWT_KEY` public key with `azp`/`CLERK_AUTHORIZED_PARTIES` enforcement), returns a typed `AuthenticatedUser { userId, roles, email }` to the calling controller.
 
 - **Integration Scenario: ITS-018-A1**
-    - **Given** ARCH-018 receives a valid, non-expired Auth0 JWT from ARCH-001, ARCH-004, ARCH-005, ARCH-009, ARCH-010, or ARCH-013
-    - **When** ARCH-018 verifies the JWT signature and claims
+    - **Given** ARCH-018 receives a valid, non-expired Clerk session token from ARCH-001, ARCH-004, ARCH-005, ARCH-009, ARCH-010, or ARCH-013
+    - **When** ARCH-018 verifies the token signature and claims via `verifyToken` against the `CLERK_JWT_KEY` public key (no network round trip), enforcing the authorized party
     - **Then** ARCH-018 returns `AuthenticatedUser { userId, roles, email }` to the calling module
 
-#### Test Case: ITP-018-B (AuthAdapter → Auth0 JWT fault injection)
+#### Test Case: ITP-018-B (ClerkAuthService → Clerk session token fault injection)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-018 propagates `UnauthorizedError` for expired, malformed, or missing JWTs to all consuming controllers.
+**Description**: Verifies that ARCH-018 propagates `UnauthorizedError` for expired, malformed, or missing Clerk session tokens to all consuming controllers.
 
 - **Integration Scenario: ITS-018-B1**
-    - **Given** ARCH-018 receives an expired JWT from any consuming controller
-    - **When** ARCH-018 attempts JWT verification
+    - **Given** ARCH-018 receives an expired Clerk session token from any consuming controller
+    - **When** ARCH-018 attempts `verifyToken` verification
     - **Then** ARCH-018 returns `UnauthorizedError` to the calling module
 
 - **Integration Scenario: ITS-018-B2**
-    - **Given** ARCH-018 receives a malformed (non-JWT) string from a consuming controller
+    - **Given** ARCH-018 receives a malformed (non-token) string from a consuming controller
     - **When** ARCH-018 attempts to parse the token
-    - **Then** ARCH-018 returns `UnauthorizedError` to the calling module without invoking the Auth0 JWKS endpoint
+    - **Then** ARCH-018 returns `UnauthorizedError` to the calling module purely from the networkless `verifyToken` check against the `CLERK_JWT_KEY` public key — with no external network call, since Clerk verification fetches no remote signing keys and performs no outbound round trip
 
 ---
 
@@ -686,6 +686,6 @@ Each test case identifies its technique by name and anchors to a specific archit
 | ARCH-015 | MealPlanningAdapter       | ITP-015-A, ITP-015-B            | Interface Contract Testing, Interface Fault Injection                      |
 | ARCH-016 | USDAFoodDataAdapter       | ITP-016-A, ITP-016-B            | Interface Contract Testing, Interface Fault Injection                      |
 | ARCH-017 | RecipeAppAdapter          | ITP-017-A, ITP-017-B            | Interface Contract Testing, Interface Fault Injection                      |
-| ARCH-018 | AuthAdapter               | ITP-018-A, ITP-018-B            | Interface Contract Testing, Interface Fault Injection                      |
+| ARCH-018 | ClerkAuthService          | ITP-018-A, ITP-018-B            | Interface Contract Testing, Interface Fault Injection                      |
 | ARCH-019 | SubscriptionGate          | ITP-019-A, ITP-019-B, ITP-019-C | Interface Contract Testing, Concurrency Testing, Interface Fault Injection |
 | ARCH-020 | TypeSafetyAndDocsEnforcer | ITP-020-A, ITP-020-B            | Interface Contract Testing (×2)                                            |

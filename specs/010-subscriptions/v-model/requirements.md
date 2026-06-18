@@ -60,7 +60,7 @@ The Subscriptions & Monetization feature defines the free and premium tier model
 
 | ID         | Description                                                                                                                                                                       | Priority | Rationale                                                                                                                                 | Verification Method |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| REQ-IF-001 | The system SHALL expose the authenticated user's current subscription tier (free/premium) as a property on the user identity object provided by the Auth0 integration (spec 002). | P1       | Subscription tier is a property of the authenticated user per the dependency on spec 002. Feature-gating logic depends on this interface. | Test                |
+| REQ-IF-001 | The system SHALL expose the authenticated user's current subscription tier (free/premium) as a property on the user identity object provided by the Clerk integration (spec 002). | P1       | Subscription tier is a property of the authenticated user per the dependency on spec 002. Feature-gating logic depends on this interface. | Test                |
 | REQ-IF-002 | The system SHALL provide a feature-gate check interface (function / middleware) that accepts a feature identifier, the current user's tier,, returns a boolean indicating access. | P1       | All premium-gated features across specs 001, 004, 005, 006, 007, and 009 must use a consistent gate interface to avoid duplicated logic.  | Test                |
 | REQ-IF-003 | The system SHALL provide an upgrade-prompt interface that accepts a feature identifier, renders the appropriate upgrade prompt UI for that feature.                               | P2       | Consistent upgrade prompt rendering across all gated features requires a shared interface.                                                | Demonstration       |
 
@@ -77,12 +77,12 @@ The Subscriptions & Monetization feature defines the free and premium tier model
 
 - The free tier is designed as a conversion funnel — features are gated to demonstrate premium value, not to cripple the free experience.
 - Stripe is the billing and payment processing mechanism; Stripe Checkout (hosted) and Stripe Customer Portal are used for web billing. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1.
-- Auth0 (spec 002) is the authoritative source of user identity; subscription tier will be stored as a user attribute accessible via the Auth0 integration.
+- Clerk (spec 002) is the authoritative source of user identity; subscription tier will be stored in the user's `public_metadata` and surfaced on the verified Clerk session token claims.
 - Family/household multi-seat subscriptions are out of scope for v1; a dedicated spec change is required before any family-plan work begins.
 
 ## Dependencies
 
-- **spec 002 (auth0-user-auth)**: Required — subscription tier is a property of the authenticated user; the Auth0 user identity object must carry tier information.
+- **spec 002 (user-auth)**: Required — subscription tier is a property of the authenticated user; the Clerk session token's `public_metadata` must carry tier information.
 - **spec 001 (commise-recipe-app)**: Referenced — gates private recipe visibility (FR-003).
 - **spec 004 (recipe-importing)**: Referenced — gates clone-to-private for imported recipes (FR-011).
 - **spec 005 (ai-integration)**: Referenced — gates AI recipe generation (FR-016) and AI instruction optimization (FR-019).

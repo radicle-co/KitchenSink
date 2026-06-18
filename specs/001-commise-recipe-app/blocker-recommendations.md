@@ -102,7 +102,7 @@ Create `packages/shared/recipe-core` as an internal workspace package named `@ki
 - NestJS DTO classes and `class-validator` decorators.
 - Drizzle table row types, migrations, and DAL-only persistence models.
 - S3/SQS/Lambda event payloads for photo processing or version archiving.
-- Non-recipe contracts owned by other bounded contexts (Auth0 user/account, USDA food, meal plans, grocery lists, nutrition) unless they later warrant their own sibling shared package.
+- Non-recipe contracts owned by other bounded contexts (Clerk user/account, USDA food, meal plans, grocery lists, nutrition) unless they later warrant their own sibling shared package.
 
 ### Publishing strategy
 

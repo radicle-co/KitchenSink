@@ -446,7 +446,7 @@ Each test case MUST identify its technique by name:
 **Description**: Verifies that SYS-011 correctly validates JWTs via the 002-user-auth service and returns an `AuthenticatedUser`.
 
 - **System Scenario: STS-011-A1**
-    - **Given** a valid, non-expired JWT signed by the Auth0 tenant
+    - **Given** a valid, non-expired Clerk session token issued by the Clerk instance
     - **When** SYS-011 `authenticateRequest(jwt)` is called
     - **Then** the returned `AuthenticatedUser` contains `{ userId, role, email }` matching the JWT claims
 
@@ -462,7 +462,7 @@ Each test case MUST identify its technique by name:
 **Description**: Verifies that SYS-011 resolves trainer-client relationships for all valid relationship classes.
 
 - **System Scenario: STS-011-B1**
-    - **Given** `userId = "t-1"` has an active trainer-client relationship with `clientId = "c-1"` in Auth0
+    - **Given** `userId = "t-1"` has an active trainer-client relationship with `clientId = "c-1"` in the user/identity service
     - **When** SYS-011 `resolveTrainerClientRelationship({ trainerId: "t-1", clientId: "c-1" })` is called
     - **Then** the relationship is confirmed and the call returns successfully
 

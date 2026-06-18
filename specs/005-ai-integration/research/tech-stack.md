@@ -62,7 +62,7 @@ Store user BYOK API keys in AWS Secrets Manager; persist only metadata/ARN refer
 
 ### Choice
 
-Use Auth0-backed OAuth 2.1 for consent and token issuance; expose MCP-compatible JSON-RPC tools via protected endpoint.
+Use Clerk-backed OAuth 2.1 for consent and token issuance; expose MCP-compatible JSON-RPC tools via protected endpoint.
 
 ### Rationale
 

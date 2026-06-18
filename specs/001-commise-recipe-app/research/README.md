@@ -19,11 +19,11 @@ UX pattern reference for recipe CRUD, search, versioning, sharing, and collectio
 
 ### [codebase-analysis.md](./codebase-analysis.md)
 
-Monorepo structure analysis grounded in root `package.json` and `turbo.json`. Covers: existing workspaces (`packages/tools/*`, `packages/apps/commise/web`, `packages/apps/commise/mobile`, `packages/ui`), new workspaces required (`api` for NestJS, `lambda-photos` for Sharp), TypeScript conventions, auth architecture (Auth0 web + mobile), data model summary, and workspace dependency graph. Gaps flagged: no test framework declared in root, E2E approach TBD, CDK stack structure TBD.
+Monorepo structure analysis grounded in root `package.json` and `turbo.json`. Covers: existing workspaces (`packages/tools/*`, `packages/apps/commise/web`, `packages/apps/commise/mobile`, `packages/ui`), new workspaces required (`api` for NestJS, `lambda-photos` for Sharp), TypeScript conventions, auth architecture (Clerk web + mobile), data model summary, and workspace dependency graph. Gaps flagged: no test framework declared in root, E2E approach TBD, CDK stack structure TBD.
 
 ### [tech-stack.md](./tech-stack.md)
 
-Full technology stack rationale extracted from [research.md](../research.md) RQ-1 through RQ-9 and [plan.md](../plan.md). Sections for: NestJS on Fargate, RDS PostgreSQL 16 (tsvector GIN + pg_trgm), S3 + CloudFront + Lambda Sharp photo pipeline, SQS version-archive queue + DLQ, Auth0, Next.js 15, Expo 53, Drizzle ORM, CDK v2. Each choice includes documented trade-offs from the source artifacts. RQ-to-technology mapping table included.
+Full technology stack rationale extracted from [research.md](../research.md) RQ-1 through RQ-9 and [plan.md](../plan.md). Sections for: NestJS on Fargate, RDS PostgreSQL 16 (tsvector GIN + pg_trgm), S3 + CloudFront + Lambda Sharp photo pipeline, SQS version-archive queue + DLQ, Clerk, Next.js 15, Expo 53, Drizzle ORM, CDK v2. Each choice includes documented trade-offs from the source artifacts. RQ-to-technology mapping table included.
 
 ### [metrics-roi.md](./metrics-roi.md)
 

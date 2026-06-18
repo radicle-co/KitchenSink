@@ -14,7 +14,7 @@ There is no existing notification module. References are scattered across featur
 
 | Feature                  | Reference                                                                                                                                                                                                 |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 001 — Commise          | `product-spec/product-spec.md` mentions notifications in vision/principles. No transport defined.                                                                                                         |
+| 001 — Commise            | `product-spec/product-spec.md` mentions notifications in vision/principles. No transport defined.                                                                                                         |
 | 003 — USDA Food Data     | `plan.md` mentions "email/webhook notifications" for fetch failures. `product-spec/product-spec.md` US-005 (Rev 1) explicitly depends on an in-app notification when a backfilled food becomes available. |
 | 005 — AI Integration     | `plan.md` mentions transparency disclosures on AI-generated content. No transport defined.                                                                                                                |
 | 008 — Cooking Mode       | `plan.md` mentions timer alerts. No transport defined.                                                                                                                                                    |
@@ -42,7 +42,7 @@ These are the constraints implied by the consuming features as currently specced
 
 > Names below are repo-wide context; nothing in this folder constrains the implementation choice.
 
-- **Auth (002 — Auth0)**: Provides authenticated identity that subscribers must carry. Group membership semantics are not yet specced in 002 — see Q-002 in the product spec.
+- **Auth (002 — Clerk)**: Provides authenticated identity that subscribers must carry. Group membership semantics are not yet specced in 002 — see Q-002 in the product spec.
 - **AWS account**: Repo already uses AWS (per 001/003 plans for S3, SQS, RDS, CloudFront). SQS + SNS are available for backend-side fan-out without introducing a new dependency. WebSocket termination on AWS API Gateway is also available. None of these are mandated by this spec.
 - **Sentry + Lambda Powertools (per 002)**: Operational visibility primitives already used in the repo; the operational counters story (US-007) can build on these conventions.
 

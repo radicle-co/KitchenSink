@@ -2256,85 +2256,85 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-056 — `Auth0BearerGuard.canActivate(ctx)`
+### Module Validation: MOD-056 — `AuthMiddleware.use(req, res, next)`
 
 - **Parent ARCH**: ARCH-027
 - **Type**: Class
-- **Signature Trace**: `Auth0BearerGuard.canActivate(ctx)`
+- **Signature Trace**: `AuthMiddleware.use(req, res, next)`
 
 #### Test Case: UTP-056-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `Auth0BearerGuard.canActivate(ctx)` with concrete IDs (jobId `00000000-0000-4000-8000-000000000056`, userId `00000000-0000-4000-8000-000000001056`, circleId `circle-056`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `AuthMiddleware.use(req, res, next)` with concrete IDs (jobId `00000000-0000-4000-8000-000000000056`, userId `00000000-0000-4000-8000-000000001056`, circleId `circle-056`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-056-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `Auth0BearerGuard.canActivate(ctx)` using the same identifiers (`00000000-0000-4000-8000-000000000056`, `00000000-0000-4000-8000-000000001056`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `AuthMiddleware.use(req, res, next)` using the same identifiers (`00000000-0000-4000-8000-000000000056`, `00000000-0000-4000-8000-000000001056`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-056-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `Auth0BearerGuard.canActivate(ctx)`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `AuthMiddleware.use(req, res, next)`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-056-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `Auth0BearerGuard.canActivate(ctx)` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `AuthMiddleware.use(req, res, next)` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-056-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `Auth0BearerGuard.canActivate(ctx)` with representative partitions: token partitions: valid jwt, expired jwt, bad audience, bad signature.
+- **Function inputs**: `AuthMiddleware.use(req, res, next)` with representative partitions: token partitions: valid token, expired token, disallowed `azp`, bad signature.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-057 — `JwksKeyCache`
+### Module Validation: MOD-057 — `ClerkAuthService`
 
 - **Parent ARCH**: ARCH-027
 - **Type**: Class
-- **Signature Trace**: `JwksKeyCache`
+- **Signature Trace**: `ClerkAuthService`
 
 #### Test Case: UTP-057-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `JwksKeyCache` with concrete IDs (jobId `00000000-0000-4000-8000-000000000057`, userId `00000000-0000-4000-8000-000000001057`, circleId `circle-057`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `ClerkAuthService` with concrete IDs (jobId `00000000-0000-4000-8000-000000000057`, userId `00000000-0000-4000-8000-000000001057`, circleId `circle-057`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-057-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `JwksKeyCache` using the same identifiers (`00000000-0000-4000-8000-000000000057`, `00000000-0000-4000-8000-000000001057`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `ClerkAuthService` using the same identifiers (`00000000-0000-4000-8000-000000000057`, `00000000-0000-4000-8000-000000001057`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-057-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `JwksKeyCache`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `ClerkAuthService`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-057-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `JwksKeyCache` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `ClerkAuthService` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-057-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `JwksKeyCache` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `ClerkAuthService` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 

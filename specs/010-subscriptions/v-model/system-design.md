@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Subscriptions & Monetization system decomposes into components that manage tier assignment, entitlement enforcement, feature gating, upgrade prompting, subscription lifecycle, and data retention. The design is a cross-cutting concern that integrates with Auth0 identity (spec 002) and gates capabilities across recipe management (001), AI features (005), meal planning (006), grocery ordering (007), and trainer nutrition (009).
+The Subscriptions & Monetization system decomposes into components that manage tier assignment, entitlement enforcement, feature gating, upgrade prompting, subscription lifecycle, and data retention. The design is a cross-cutting concern that integrates with Clerk identity (spec 002) and gates capabilities across recipe management (001), AI features (005), meal planning (006), grocery ordering (007), and trainer nutrition (009).
 
 ## ID Schema
 
@@ -26,7 +26,7 @@ The Subscriptions & Monetization system decomposes into components that manage t
 | SYS-005 | Recipe Visibility Enforcement      | Enforces public-by-default for free-tier recipes; prevents free-tier users from setting recipes private; preserves privacy state on subscription lapse per source TOS rules.                                                        | REQ-008, REQ-024, REQ-025                                                       | Module    |
 | SYS-006 | Upgrade Prompt Component           | Displays a contextual upgrade prompt with feature preview/tease when a free-tier user attempts to access a premium-gated feature. Implements the three-tier hierarchy: (1) inline teaser, (2) modal/bottom-sheet, (3) pricing page. | REQ-018, REQ-019, REQ-029, REQ-NF-003, REQ-NF-004                               | Module    |
 | SYS-007 | Subscription Lifecycle Manager     | Manages subscription state machine: trial, active, past_due (7-day grace), lapsed, renewed. Handles lapse events (lock premium features, retain data), renewal events (re-enable features), and grace period expiry.                | REQ-021, REQ-022, REQ-023, REQ-024, REQ-025, REQ-028                            | Service   |
-| SYS-008 | Auth0 Identity Integration         | Exposes the authenticated user's current subscription tier (free/premium) as a property on the user identity object via Auth0 integration.                                                                                          | REQ-IF-001                                                                      | Service   |
+| SYS-008 | Clerk Identity Integration         | Exposes the authenticated user's current subscription tier (free/premium) via the `public_metadata.subscriptionTier` claim on the verified Clerk session token.                                                                     | REQ-IF-001                                                                      | Service   |
 | SYS-009 | Subscription Webhook Receiver      | Receives subscription lifecycle events from the payment provider (upgrade, lapse, renewal) and triggers SYS-001 and SYS-007 state transitions.                                                                                      | REQ-IF-003                                                                      | Service   |
 | SYS-010 | Data Retention Guard               | Ensures all user data is retained when a premium subscription lapses; prevents data loss on tier downgrade.                                                                                                                         | REQ-021, REQ-022                                                                | Module    |
 | SYS-011 | TypeScript Strict Compliance Layer | Cross-cutting: enforces `strict: true` TypeScript compilation, prohibits `any` outside test doubles, mandates JSDoc on all exported functions/interfaces.                                                                           | REQ-NF-001, REQ-NF-002                                                          | Utility   |
@@ -71,7 +71,7 @@ The Subscriptions & Monetization system decomposes into components that manage t
   SYS-007 (Lifecycle Manager) ──calls──► SYS-010 (Data Retention Guard)
        │ calls                           SYS-005 (Recipe Visibility)
        ▼
-  SYS-001 (Tier Assignment) ──writes──► SYS-008 (Auth0 Identity Integration)
+  SYS-001 (Tier Assignment) ──writes──► SYS-008 (Clerk Identity Integration)
                                                │ reads
                                                ▼
 [User Request] ──────────────────────► SYS-004 (Feature Gate Middleware)
@@ -89,11 +89,11 @@ Cross-cutting: SYS-011 (TS Strict) ──uses──► SYS-001, SYS-004, SYS-007
 
 ### External Interfaces
 
-| Component | Interface Name       | Protocol        | Input                                                                                         | Output                                                 | Error Handling                                          |
-| --------- | -------------------- | --------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------- |
-| SYS-009   | Subscription Webhook | HTTPS POST      | Derived — supports cross-cutting implementation constraints for traced parent system behavior | 200 OK or 4xx/5xx (Derived)                            | Retry with exponential backoff; DLQ on repeated failure |
-| SYS-008   | Auth0 User Identity  | Auth0 SDK       | Derived — supports cross-cutting implementation constraints for traced parent system behavior | User object with `subscriptionTier: 'free' \ (Derived) | 'premium'`                                              | Throw `AuthIdentityError`; deny access |
-| SYS-006   | Upgrade Prompt UI    | React component | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Rendered upgrade prompt with feature preview (Derived) | Fallback to generic upgrade CTA                         |
+| Component | Interface Name       | Protocol         | Input                                                                                         | Output                                                 | Error Handling                                          |
+| --------- | -------------------- | ---------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------- |
+| SYS-009   | Subscription Webhook | HTTPS POST       | Derived — supports cross-cutting implementation constraints for traced parent system behavior | 200 OK or 4xx/5xx (Derived)                            | Retry with exponential backoff; DLQ on repeated failure |
+| SYS-008   | Clerk User Identity  | `@clerk/backend` | Derived — supports cross-cutting implementation constraints for traced parent system behavior | User object with `subscriptionTier: 'free' \ (Derived) | 'premium'`                                              | Throw `AuthIdentityError`; deny access |
+| SYS-006   | Upgrade Prompt UI    | React component  | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Rendered upgrade prompt with feature preview (Derived) | Fallback to generic upgrade CTA                         |
 
 ### Internal Interfaces
 
@@ -108,13 +108,13 @@ Cross-cutting: SYS-011 (TS Strict) ──uses──► SYS-001, SYS-004, SYS-007
 
 ## Data Design View (IEEE 1016 §5.4)
 
-| Entity                 | Component | Storage            | Protection at Rest          | Protection in Transit | Retention                                           |
-| ---------------------- | --------- | ------------------ | --------------------------- | --------------------- | --------------------------------------------------- |
-| UserSubscriptionRecord | SYS-001   | PostgreSQL         | Row-level security, AES-256 | TLS 1.3               | Retained indefinitely; tier field updated on change |
-| FeatureGateRegistry    | SYS-013   | In-memory (config) | N/A (static config)         | N/A                   | Reloaded on deploy                                  |
-| SubscriptionWebhookLog | SYS-009   | PostgreSQL         | AES-256                     | TLS 1.3               | 90-day rolling retention                            |
-| Auth0UserClaims        | SYS-008   | Auth0 (external)   | Auth0-managed               | TLS 1.3               | Managed by Auth0; synced on login                   |
-| RecipeVisibilityState  | SYS-005   | PostgreSQL         | Row-level security, AES-256 | TLS 1.3               | Retained on lapse; not reset                        |
+| Entity                 | Component | Storage            | Protection at Rest          | Protection in Transit | Retention                                               |
+| ---------------------- | --------- | ------------------ | --------------------------- | --------------------- | ------------------------------------------------------- |
+| UserSubscriptionRecord | SYS-001   | PostgreSQL         | Row-level security, AES-256 | TLS 1.3               | Retained indefinitely; tier field updated on change     |
+| FeatureGateRegistry    | SYS-013   | In-memory (config) | N/A (static config)         | N/A                   | Reloaded on deploy                                      |
+| SubscriptionWebhookLog | SYS-009   | PostgreSQL         | AES-256                     | TLS 1.3               | 90-day rolling retention                                |
+| VerifiedClerkClaims    | SYS-008   | Clerk (external)   | Clerk-managed               | TLS 1.3               | Managed by Clerk; carried in the verified session token |
+| RecipeVisibilityState  | SYS-005   | PostgreSQL         | Row-level security, AES-256 | TLS 1.3               | Retained on lapse; not reset                            |
 
 ---
 

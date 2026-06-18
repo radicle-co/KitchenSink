@@ -37,7 +37,7 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
 - Technique: **Interface Testing**
 - Modules Under Test: `ARCH-001`, `ARCH-003`
 - Preconditions:
-    - Authenticated web session via `@auth0/nextjs-auth0`
+    - Authenticated web session via `@clerk/nextjs`
     - Browser file-picker access
     - Candidate files include valid `jpeg/png/heic` and invalid MIME sample
 - Test Steps:
@@ -58,7 +58,7 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
 - Technique: **Interface Testing**
 - Modules Under Test: `ARCH-002`, `ARCH-003`
 - Preconditions:
-    - Authenticated mobile credentials via `react-native-auth0`
+    - Authenticated mobile credentials via `@clerk/expo`
     - `expo-secure-store` contains valid token
     - Camera/library permission granted
 - Test Steps:
@@ -81,7 +81,7 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
 - Preconditions:
     - `POST /api/v1/recipes/digitize/jobs` returns `upload_url` and `expires_at`
     - Test object bytes prepared
-    - Valid Auth0 bearer token
+    - Valid Clerk session token
 - Test Steps:
     1. Call intake endpoint and capture returned `upload_url`.
     2. Execute HTTP PUT to S3 pre-signed URL with file bytes.
@@ -884,39 +884,39 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
     - Table maintains one-active-token invariant.
 - Trace to SYS-NNN: `SYS-018`
 
-### Architecture Module Integration: ARCH-027 — Auth0 Bearer Authenticator (NestJS Guard) (View: Interface)
+### Architecture Module Integration: ARCH-027 — Clerk Session-Token Authenticator (NestJS Middleware) (View: Interface)
 
-#### Test Case: ITP-027-A — Bearer auth guard contract
+#### Test Case: ITP-027-A — Session-token middleware contract
 
 - Technique: **Interface Testing**
 - Modules Under Test: `ARCH-027`, `ARCH-028`, `ARCH-042`
 - Preconditions:
-    - Guard applied to `/api/v1/*`
-    - JWKS endpoint configured
+    - `AuthMiddleware` applied to `/api/v1/*`
+    - `CLERK_JWT_KEY` + `CLERK_AUTHORIZED_PARTIES` configured (networkless verification)
 - Test Steps:
-    1. Request protected endpoint with valid JWT.
+    1. Request protected endpoint with valid Clerk session token.
     2. Request with missing/invalid token.
     3. Request with expired token.
 - Expected Interactions:
-    - Valid token injects `RequestUser` with `sub`, optional `email`, `scopes`.
+    - Valid token injects `RequestUser` with `sub`, `scopes`/`permissions` and `tier` from `public_metadata`.
     - Missing/invalid returns `401 auth.token.invalid` Problem Details.
     - Expired returns `401 auth.token.expired` Problem Details.
 - Trace to SYS-NNN: `SYS-019`
 
-#### Test Case: ITP-027-B — JWKS communication-path degradation handling
+#### Test Case: ITP-027-B — `azp` / key-misconfiguration rejection handling
 
 - Technique: **Communication Path Testing**
 - Modules Under Test: `ARCH-027`, `ARCH-043`, `ARCH-034`
 - Preconditions:
-    - JWKS endpoint outage simulation
+    - Token whose `azp` is absent from `CLERK_AUTHORIZED_PARTIES`; and a separate run with a `CLERK_JWT_KEY` that does not match the token signature
 - Test Steps:
-    1. Trigger protected request during JWKS outage.
-    2. Capture response and error instrumentation.
-    3. Restore JWKS and re-run.
+    1. Trigger protected request with a disallowed `azp`.
+    2. Trigger protected request whose signature does not verify against the configured `CLERK_JWT_KEY`.
+    3. Capture response and error instrumentation.
 - Expected Interactions:
-    - Outage returns `503` Problem Details.
-    - Failure is captured in Sentry/log/metrics channels.
-    - Recovery path resumes normal auth behavior.
+    - Both cases return `401 auth.token.invalid` Problem Details (never `5xx` — verification is networkless, so there is no JWKS-outage path).
+    - Rejection is captured in Sentry/log/metrics channels.
+    - A correctly-signed token with an allowed `azp` resumes normal auth behavior.
 - Trace to SYS-NNN: `SYS-019`, `SYS-026`
 
 ### Architecture Module Integration: ARCH-028 — RFC 7807 Error Envelope Filter (View: Interface)

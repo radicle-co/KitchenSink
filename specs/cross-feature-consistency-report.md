@@ -12,7 +12,7 @@ Matrix of which features explicitly touch each cross-cutting domain. "●" = fea
 
 | Domain                         | 001 | 002 | 003 | 004 | 005 | 006 | 007 | 008 | 009 | 010 |
 | ------------------------------ | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Auth / Auth0**               | ●   | ●   | ●   | ●   | ●   | ●   | ●   | ●   | ●   | ●   |
+| **Auth / Clerk**               | ●   | ●   | ●   | ●   | ●   | ●   | ●   | ●   | ●   | ●   |
 | **USDA / Food Data**           | ●   |     | ●   | ○   |     | ●   | ●   |     | ●   |     |
 | **AI / LLM**                   |     |     |     |     | ●   | ○   |     |     |     |     |
 | **Photo Storage (S3/CDN)**     | ●   |     |     | ○   |     |     |     |     |     |     |
@@ -24,7 +24,7 @@ Matrix of which features explicitly touch each cross-cutting domain. "●" = fea
 
 **Key observations**:
 
-- Auth/Auth0 is the most pervasive concern — every feature lists 002 as a **Required** or **Referenced** dependency. This is the expected foundational dependency.
+- Auth/Clerk is the most pervasive concern — every feature lists 002 as a **Required** or **Referenced** dependency. This is the expected foundational dependency.
 - USDA food data is the second most pervasive, touching 001 (ingredient backing), 003 (owner), 006, 007, and 009.
 - Photo storage is owned by 001; 004 (recipe importing) is the only other feature that references it (for OCR imports).
 - Notifications, offline mode, and sync are the thinnest — each covered by only 1–2 features with scattered references.
@@ -37,17 +37,17 @@ Matrix of which features explicitly touch each cross-cutting domain. "●" = fea
 
 Each feature's spec defines its own FR number sequence starting from FR-001. There is **no system-wide unique FR identifier** — `FR-001` means different things in every spec. Cross-feature FR references (e.g., `001 FR-045` in 002's spec) use the source feature's numbering.
 
-| FR Number | Used In         | Meaning                                       |
-| --------- | --------------- | --------------------------------------------- |
-| `FR-001`  | 001 spec.md:77  | Recipe creation with full fields              |
-| `FR-001`  | 002 spec.md:206 | Auth0 auth via Authorization Code Flow + PKCE |
-| `FR-001`  | 003 spec.md     | (USDA food lookup — different section)        |
-| `FR-001`  | 005 spec.md     | (AI provider config — different section)      |
-| `FR-001`  | 006 spec.md     | (Meal plan creation — different section)      |
-| `FR-001`  | 007 spec.md     | (Grocery list generation — different section) |
-| `FR-001`  | 008 spec.md:42  | Cooking Mode step display                     |
-| `FR-001`  | 009 spec.md     | (Nutrition plan creation — different section) |
-| `FR-001`  | 010 spec.md     | (Free tier definition — different section)    |
+| FR Number | Used In         | Meaning                                        |
+| --------- | --------------- | ---------------------------------------------- |
+| `FR-001`  | 001 spec.md:77  | Recipe creation with full fields               |
+| `FR-001`  | 002 spec.md:206 | Clerk auth via hosted sign-in (session tokens) |
+| `FR-001`  | 003 spec.md     | (USDA food lookup — different section)         |
+| `FR-001`  | 005 spec.md     | (AI provider config — different section)       |
+| `FR-001`  | 006 spec.md     | (Meal plan creation — different section)       |
+| `FR-001`  | 007 spec.md     | (Grocery list generation — different section)  |
+| `FR-001`  | 008 spec.md:42  | Cooking Mode step display                      |
+| `FR-001`  | 009 spec.md     | (Nutrition plan creation — different section)  |
+| `FR-001`  | 010 spec.md     | (Free tier definition — different section)     |
 
 **Severity**: ⚠️ **WARNING** — Ambiguous in cross-feature references. When features reference "FR-045" from another spec they must qualify it as `<feature>-FR-045`. All existing cross-references do this correctly (`001 FR-045`, `003 FR-035`, etc.). However, no canonical cross-reference index exists to validate these references.
 
@@ -63,7 +63,7 @@ Each feature's spec defines its own FR number sequence starting from FR-001. The
 | 002     | `/v1/auth/*`, `/v1/profile`, `/v1/account`                 | `plan.md:todo` (section 3, API contracts)                                                |
 | 003     | `/v1/foods/*` (URL prefix versioning)                      | `spec.md:23` ("Q: versioning strategy → A: URL prefix versioning — `/v1/foods/{fdcId}`") |
 | 004     | `/v1/recipes/import`                                       | `plan.md:15` (`POST /v1/recipes/import`)                                                 |
-| 005     | `/v1/ai/*` (implied)                                       | `tasks.md:103` (`401 if unauthenticated — Auth0 guard`)                                  |
+| 005     | `/v1/ai/*` (implied)                                       | `tasks.md:103` (`401 if unauthenticated — Clerk AuthMiddleware`)                         |
 | 006     | `/v1/meal-plans/*`                                         | `plan.md:85-95`                                                                          |
 | 007     | `/v1/grocery-lists/*`                                      | `plan.md` (section 3)                                                                    |
 | 008     | `/v1/recipes/{id}/instructions` (consumed from 001)        | `plan.md:77`                                                                             |
@@ -156,11 +156,11 @@ Each feature's spec defines its own FR number sequence starting from FR-001. The
  ├── 009 (Consumes nutritional data via meal plans)
  └── 010 (Gates premium features)
 
-002 (foundational — Auth0)
+002 (foundational — Clerk)
  └── (all features depend on it indirectly)
 
 003 (USDA food data — feeds 001, 006, 007, 009)
- └── 002 (Required — API Gateway authorizer)
+ └── 002 (Required — Clerk session-token verification)
 
 004 (Recipe importing — extends 001)
  ├── 001 (Required)
@@ -260,7 +260,7 @@ The following gaps are not owned by any single feature spec and require a cross-
 
 ### 5.2 No Shared Error Taxonomy
 
-**Question**: Is there a system-wide error code convention? 002 plan.md mentions `401` from Auth0 guard, 003 plan.md mentions `not_found / failed / pending` fetch statuses, 005 plan.md mentions `401` from Auth0 guard. 001 plan.md mentions `400` for validation.
+**Question**: Is there a system-wide error code convention? 002 plan.md mentions `401` from Clerk AuthMiddleware, 003 plan.md mentions `not_found / failed / pending` fetch statuses, 005 plan.md mentions `401` from Clerk AuthMiddleware. 001 plan.md mentions `400` for validation.
 
 **Impact**: Each feature may define its own error code semantics. A cross-feature API error handling convention is needed before 006+007 are implemented.
 
@@ -541,21 +541,21 @@ Announced by user during sequential revalidation of feature `002-user-auth`. **T
 
 User-approved canonical personas for the entire portfolio. **All product-specs MUST source personas from this library — no per-feature one-offs.** Internal/operational roles MUST be moved to a separate `## Internal Stakeholders` section in each spec.
 
-| ID      | Name       | Archetype                | Core Motivation                                                                           |
-| ------- | ---------- | ------------------------ | ----------------------------------------------------------------------------------------- |
-| **P1**  | **Casey**  | Beginner Cook            | Build confidence, guided cooking, accessible UX                                           |
-| **P2**  | **Taylor** | Aspiring Chef            | Technique mastery, fancy/advanced dishes                                                  |
-| **P3**  | **Riley**  | Family Meal Planner      | Quick, kid-friendly, weekly rotation, household scale                                     |
-| **P4**  | **Sam**    | Nutrition & Diet Planner | Macros, diet protocols, goal tracking                                                     |
-| **P5**  | **Morgan** | Discovery Seeker         | New cuisines, inspiration, expanding repertoire                                           |
-| **P6**  | **Avery**  | Waste Optimizer          | Use-the-fridge, ingredient chaining, cost reduction                                       |
-| **P7**  | **Quinn**  | AI Companion User        | Conversational kitchen brain, hands-free assistance                                       |
-| **P8**  | **Alex**   | Commise Power User     | Multi-feature daily power use, integrations, automation                                   |
-| **P9**  | **Drew**   | Professional Chef        | Restaurant prep, scaled batches, brand presence                                           |
-| **P10** | **Sage**   | Heritage Archivist       | Digitize hard-copy recipes (cards, cookbooks); share with family circle                   |
+| ID      | Name       | Archetype                | Core Motivation                                                                          |
+| ------- | ---------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| **P1**  | **Casey**  | Beginner Cook            | Build confidence, guided cooking, accessible UX                                          |
+| **P2**  | **Taylor** | Aspiring Chef            | Technique mastery, fancy/advanced dishes                                                 |
+| **P3**  | **Riley**  | Family Meal Planner      | Quick, kid-friendly, weekly rotation, household scale                                    |
+| **P4**  | **Sam**    | Nutrition & Diet Planner | Macros, diet protocols, goal tracking                                                    |
+| **P5**  | **Morgan** | Discovery Seeker         | New cuisines, inspiration, expanding repertoire                                          |
+| **P6**  | **Avery**  | Waste Optimizer          | Use-the-fridge, ingredient chaining, cost reduction                                      |
+| **P7**  | **Quinn**  | AI Companion User        | Conversational kitchen brain, hands-free assistance                                      |
+| **P8**  | **Alex**   | Commise Power User       | Multi-feature daily power use, integrations, automation                                  |
+| **P9**  | **Drew**   | Professional Chef        | Restaurant prep, scaled batches, brand presence                                          |
+| **P10** | **Sage**   | Heritage Archivist       | Digitize hard-copy recipes (cards, cookbooks); share with family circle                  |
 | **P11** | **Robin**  | Recipe Creator           | Public creator profile (`commise.com/@robin`); food-blogger brand; audience monetization |
-| **P12** | **Jamie**  | Cooking Student          | Learn technique from videos (knife skills, food science)                                  |
-| **P13** | **Reese**  | Cooking Educator         | Teach via video; build a "school" of subscribers                                          |
+| **P12** | **Jamie**  | Cooking Student          | Learn technique from videos (knife skills, food science)                                 |
+| **P13** | **Reese**  | Cooking Educator         | Teach via video; build a "school" of subscribers                                         |
 
 **Internal stakeholders** (NOT user personas — for ops/support sections only): Support/Admin Operator, Operations Engineer, External-Agent Integrator, Coach/Trainer (when supporting P4 Sam), Compliance Reviewer.
 
@@ -619,8 +619,8 @@ Mandatory remap from current per-feature personas to the canonical library (§9)
 
 | Feature                               | Primary                   | Secondary | Tertiary  | Internal Stakeholders                              |
 | ------------------------------------- | ------------------------- | --------- | --------- | -------------------------------------------------- |
-| 001 Commise Recipe App              | P8 Alex                   | P3 Riley  | P5 Morgan | Support Operator                                   |
-| 002 Auth0 User Auth                   | P1 Casey                  | P8 Alex   | P9 Drew   | Support/Admin Operator                             |
+| 001 Commise Recipe App                | P8 Alex                   | P3 Riley  | P5 Morgan | Support Operator                                   |
+| 002 Clerk User Auth                   | P1 Casey                  | P8 Alex   | P9 Drew   | Support/Admin Operator                             |
 | 003 USDA Food Data                    | P4 Sam                    | P6 Avery  | P3 Riley  | Operations Engineer                                |
 | 004 Recipe Importing (web/structured) | P5 Morgan                 | P3 Riley  | P11 Robin | —                                                  |
 | 005 AI Integration                    | P7 Quinn                  | P1 Casey  | P8 Alex   | External-Agent Integrator                          |

@@ -363,7 +363,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 | MOD-011 | AttributionVisibilityService | 2 (A, B)  | 5 (A1-A3, B1-B2) |
 | MOD-012 | CloneService                 | 2 (A, B)  | 6 (A1-A3, B1-B3) |
 | MOD-013 | RecipePersistenceAdapter     | 2 (A, B)  | 5 (A1-A3, B1-B2) |
-| MOD-014 | Auth0JwtGuard                | 2 (A, B)  | 6 (A1-A3, B1-B3) |
+| MOD-014 | AuthMiddleware               | 2 (A, B)  | 6 (A1-A3, B1-B3) |
 | MOD-015 | RecipeRepository             | 2 (A, B)  | 6 (A1-A3, B1-B3) |
 | MOD-016 | ImportDtoTypes               | 1 (A)     | 3 (A1-A3)        |
 | MOD-017 | ImportErrorNormalizer        | 2 (A, B)  | 7 (A1-A4, B1-B3) |
@@ -810,67 +810,67 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-### Module: MOD-014 (Auth0JwtGuard)
+### Module: MOD-014 (AuthMiddleware)
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/auth/auth0-jwt.guard.ts`
+**Target Source File(s)**: `src/auth/middleware/auth.middleware.ts` (backed by `src/auth/clerk-auth.service.ts`)
 
 ---
 
-#### Test Case: UTP-014-A (canActivate — happy path JWT verification)
+#### Test Case: UTP-014-A (use — happy path token verification)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies guard decodes header, fetches JWKS key, verifies JWT signature/claims, and attaches user to request.
+**Description**: Verifies the middleware delegates to `ClerkAuthService.verifyToken` (networkless), attaches the verified claims to the request, and calls `next()`.
 
 **Scenarios:**
 
-**UTS-014-A1** — Valid token → user attached, returns true
+**UTS-014-A1** — Valid token → user attached, `next()` called
 
-- Arrange: mock decodeJwtHeader(token) → { kid: 'key-id' }; mock jwksClient.getSigningKey('key-id') → mockKey; mockKey.getPublicKey() → 'public-key'; mock jwtVerify() → { payload: { sub: 'user-123', email: 'test@example.com' } }
-- Act: result = await guard.canActivate(mockExecutionContext)
-- Assert: result === true; verify request.user = { sub: 'user-123', email: 'test@example.com' }
-- Mock isolation: JwksClient stubbed; jwtVerify stubbed; decodeJwtHeader stubbed
+- Arrange: mock clerkAuthService.verifyToken(token) → { sub: 'user-123', email: 'test@example.com', public_metadata: {} }
+- Act: await middleware.use(req, res, next)
+- Assert: next called with no error; verify req.user = { sub: 'user-123', email: 'test@example.com', publicMetadata: {} }
+- Mock isolation: ClerkAuthService.verifyToken stubbed (no network)
 
 **UTS-014-A2** — Missing Authorization header → 401 UnauthorizedException
 
-- Arrange: request = { headers: {} }
-- Act/Assert: guard.canActivate(context) throws UnauthorizedException with message 'Missing Bearer token'
+- Arrange: req = { headers: {} }
+- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException with message 'Missing Bearer token'
 - Mock isolation: none
 
 **UTS-014-A3** — Malformed Bearer token (no 'Bearer ' prefix) → 401
 
-- Arrange: request = { headers: { authorization: 'Basic abc123' } }
-- Act/Assert: guard.canActivate(context) throws UnauthorizedException
+- Arrange: req = { headers: { authorization: 'Basic abc123' } }
+- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
 - Mock isolation: none
 
 ---
 
-#### Test Case: UTP-014-B (canActivate — error cases)
+#### Test Case: UTP-014-B (use — error cases)
 
 **Technique**: Branch Coverage + Equivalence Partitioning
 **Target View**: Error Handling & Return Codes View
-**Description**: Verifies JWKS failure, invalid signature, wrong issuer, and wrong audience all return 401.
+**Description**: Verifies expired token, invalid signature, and unauthorized party (`azp`) all return 401.
 
 **Scenarios:**
 
-**UTS-014-B1** — JWKS fetch failure → 401
+**UTS-014-B1** — Expired token → 401
 
-- Arrange: mock jwksClient.getSigningKey() → throws new Error('jwks unavailable')
-- Act/Assert: guard.canActivate(context) throws UnauthorizedException
-- Mock isolation: JwksClient stubbed
+- Arrange: mock clerkAuthService.verifyToken() → throws new Error('token expired')
+- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
+- Mock isolation: ClerkAuthService.verifyToken stubbed
 
-**UTS-014-B2** — Invalid JWT signature → 401
+**UTS-014-B2** — Invalid token signature → 401
 
-- Arrange: mock jwtVerify() → throws new Error('signature verification failed')
-- Act/Assert: guard.canActivate(context) throws UnauthorizedException
-- Mock isolation: JwksClient stubbed; jwtVerify stubbed
+- Arrange: mock clerkAuthService.verifyToken() → throws new Error('signature verification failed')
+- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
+- Mock isolation: ClerkAuthService.verifyToken stubbed
 
-**UTS-014-B3** — Wrong issuer → 401
+**UTS-014-B3** — Unauthorized party (`azp` not in `CLERK_AUTHORIZED_PARTIES`) → 401
 
-- Arrange: mock jwtVerify() → throws Error('issuer mismatch')
-- Act/Assert: guard.canActivate(context) throws UnauthorizedException
-- Mock isolation: JwksClient stubbed; jwtVerify stubbed
+- Arrange: mock clerkAuthService.verifyToken() → throws Error('Invalid authorized party')
+- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
+- Mock isolation: ClerkAuthService.verifyToken stubbed
 
 ---
 

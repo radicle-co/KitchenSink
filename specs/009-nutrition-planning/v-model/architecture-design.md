@@ -19,28 +19,28 @@ The Nutrition Planning architecture decomposes 14 system components (SYS-001–S
 
 ## Logical View — Component Breakdown (IEEE 42010 / Kruchten 4+1)
 
-| ARCH ID  | Name                      | Description                                                                                                                                                                                                                                             | Parent System Components | Type      |
-| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------- |
-| ARCH-001 | NutritionPlanController   | REST API controller exposing CRUD endpoints for nutrition plans. Validates incoming DTOs, delegates to NutritionPlanService, and serialises responses.                                                                                                  | SYS-001                  | Component |
-| ARCH-002 | NutritionPlanService      | Domain service implementing plan creation, retrieval, update, and deletion. Enforces ownership rules and coordinates with the auth adapter.                                                                                                             | SYS-001                  | Service   |
-| ARCH-003 | NutritionPlanRepository   | Drizzle ORM repository for `nutrition_plans` table. Provides typed CRUD operations with row-level security enforcement.                                                                                                                                 | SYS-001                  | Component |
-| ARCH-004 | DashboardController       | REST API controller exposing the user's nutrition plan listing endpoint. Delegates to NutritionPlanService for plan retrieval and ordering.                                                                                                             | SYS-004                  | Component |
-| ARCH-005 | MealPlanLinkerController  | REST API controller exposing link/unlink endpoints for associating meal plans with nutrition plans. Validates request DTOs and delegates to MealPlanLinkerService.                                                                                      | SYS-002                  | Component |
-| ARCH-006 | MealPlanLinkerService     | Domain service managing the meal-plan ↔ nutrition-plan link lifecycle. Validates existence of both plans via the Meal Planning adapter before persisting the link.                                                                                      | SYS-002                  | Service   |
-| ARCH-007 | MealPlanLinkRepository    | Drizzle ORM repository for `meal_plan_links` table. Provides typed link CRUD with RLS enforcement.                                                                                                                                                      | SYS-002                  | Component |
-| ARCH-008 | ComplianceAnalyserService | Domain service computing gap/excess between a linked meal plan's nutritional totals and the nutrition plan's targets. Aggregates data from Meal Planning, USDA, and Recipe adapters.                                                                    | SYS-003                  | Service   |
-| ARCH-009 | ComplianceController      | REST API controller exposing the compliance analysis endpoint. Delegates to ComplianceAnalyserService and serialises `ComplianceResult`.                                                                                                                | SYS-003                  | Component |
-| ARCH-010 | TrainerClientController   | REST API controller exposing trainer-specific plan creation and client plan viewing endpoints. Enforces trainer role via auth adapter before delegating to TrainerClientService.                                                                        | SYS-005, SYS-006         | Component |
-| ARCH-011 | TrainerClientService      | Domain service orchestrating trainer-on-behalf-of-client plan creation. Checks consent via ConsentRepository, verifies premium subscription, then delegates to NutritionPlanService.                                                                    | SYS-005, SYS-006         | Service   |
-| ARCH-012 | ConsentRepository         | Drizzle ORM repository for `trainer_client_consents` table. Provides consent grant/revoke/query operations with RLS.                                                                                                                                    | SYS-006                  | Component |
-| ARCH-013 | AIRecipeSwapController    | REST API controller exposing the recipe swap suggestion endpoint. Validates premium subscription and delegates to AIRecipeSwapService.                                                                                                                  | SYS-007                  | Component |
-| ARCH-014 | AIRecipeSwapService       | Domain service generating recipe swap suggestions by reading compliance gaps and querying the Recipe App adapter for alternative recipes.                                                                                                               | SYS-007                  | Service   |
-| ARCH-015 | MealPlanningAdapter       | HTTP adapter wrapping the 006-meal-planning internal API. Fetches meal plan nutritional totals for compliance analysis and link validation.                                                                                                             | SYS-008                  | Adapter   |
-| ARCH-016 | USDAFoodDataAdapter       | HTTP adapter wrapping the 003-usda-food-data internal API. Fetches per-food nutritional values for compliance calculations.                                                                                                                             | SYS-009                  | Adapter   |
-| ARCH-017 | RecipeAppAdapter          | HTTP adapter wrapping the 001-commise-recipe-app internal API. Fetches recipe-level nutritional data and alternative recipes for swap suggestions.                                                                                                    | SYS-010                  | Adapter   |
-| ARCH-018 | AuthAdapter               | Wraps the 002-user-auth JWT verification and user-relationship resolution. Used by all controllers and services requiring identity or role information.                                                                                           | SYS-011                  | Adapter   |
-| ARCH-019 | SubscriptionGate          | Module checking active premium subscription status via the 010-subscriptions API. Used by TrainerClientService and AIRecipeSwapService to gate premium operations.                                                                                      | SYS-012                  | Component |
-| ARCH-020 | TypeSafetyAndDocsEnforcer | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — ESLint + TypeScript compiler configuration enforcing `strict: true`, no `any`, and JSDoc on all exports. Also enforces accessible UI component naming conventions. | SYS-013, SYS-014         | Utility   |
+| ARCH ID  | Name                      | Description                                                                                                                                                                                                                                                                            | Parent System Components | Type      |
+| -------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------- |
+| ARCH-001 | NutritionPlanController   | REST API controller exposing CRUD endpoints for nutrition plans. Validates incoming DTOs, delegates to NutritionPlanService, and serialises responses.                                                                                                                                 | SYS-001                  | Component |
+| ARCH-002 | NutritionPlanService      | Domain service implementing plan creation, retrieval, update, and deletion. Enforces ownership rules and coordinates with the auth adapter.                                                                                                                                            | SYS-001                  | Service   |
+| ARCH-003 | NutritionPlanRepository   | Drizzle ORM repository for `nutrition_plans` table. Provides typed CRUD operations with row-level security enforcement.                                                                                                                                                                | SYS-001                  | Component |
+| ARCH-004 | DashboardController       | REST API controller exposing the user's nutrition plan listing endpoint. Delegates to NutritionPlanService for plan retrieval and ordering.                                                                                                                                            | SYS-004                  | Component |
+| ARCH-005 | MealPlanLinkerController  | REST API controller exposing link/unlink endpoints for associating meal plans with nutrition plans. Validates request DTOs and delegates to MealPlanLinkerService.                                                                                                                     | SYS-002                  | Component |
+| ARCH-006 | MealPlanLinkerService     | Domain service managing the meal-plan ↔ nutrition-plan link lifecycle. Validates existence of both plans via the Meal Planning adapter before persisting the link.                                                                                                                     | SYS-002                  | Service   |
+| ARCH-007 | MealPlanLinkRepository    | Drizzle ORM repository for `meal_plan_links` table. Provides typed link CRUD with RLS enforcement.                                                                                                                                                                                     | SYS-002                  | Component |
+| ARCH-008 | ComplianceAnalyserService | Domain service computing gap/excess between a linked meal plan's nutritional totals and the nutrition plan's targets. Aggregates data from Meal Planning, USDA, and Recipe adapters.                                                                                                   | SYS-003                  | Service   |
+| ARCH-009 | ComplianceController      | REST API controller exposing the compliance analysis endpoint. Delegates to ComplianceAnalyserService and serialises `ComplianceResult`.                                                                                                                                               | SYS-003                  | Component |
+| ARCH-010 | TrainerClientController   | REST API controller exposing trainer-specific plan creation and client plan viewing endpoints. Enforces trainer role via auth adapter before delegating to TrainerClientService.                                                                                                       | SYS-005, SYS-006         | Component |
+| ARCH-011 | TrainerClientService      | Domain service orchestrating trainer-on-behalf-of-client plan creation. Checks consent via ConsentRepository, verifies premium subscription, then delegates to NutritionPlanService.                                                                                                   | SYS-005, SYS-006         | Service   |
+| ARCH-012 | ConsentRepository         | Drizzle ORM repository for `trainer_client_consents` table. Provides consent grant/revoke/query operations with RLS.                                                                                                                                                                   | SYS-006                  | Component |
+| ARCH-013 | AIRecipeSwapController    | REST API controller exposing the recipe swap suggestion endpoint. Validates premium subscription and delegates to AIRecipeSwapService.                                                                                                                                                 | SYS-007                  | Component |
+| ARCH-014 | AIRecipeSwapService       | Domain service generating recipe swap suggestions by reading compliance gaps and querying the Recipe App adapter for alternative recipes.                                                                                                                                              | SYS-007                  | Service   |
+| ARCH-015 | MealPlanningAdapter       | HTTP adapter wrapping the 006-meal-planning internal API. Fetches meal plan nutritional totals for compliance analysis and link validation.                                                                                                                                            | SYS-008                  | Adapter   |
+| ARCH-016 | USDAFoodDataAdapter       | HTTP adapter wrapping the 003-usda-food-data internal API. Fetches per-food nutritional values for compliance calculations.                                                                                                                                                            | SYS-009                  | Adapter   |
+| ARCH-017 | RecipeAppAdapter          | HTTP adapter wrapping the 001-commise-recipe-app internal API. Fetches recipe-level nutritional data and alternative recipes for swap suggestions.                                                                                                                                     | SYS-010                  | Adapter   |
+| ARCH-018 | ClerkAuthService          | Performs networkless Clerk session-token verification (public `CLERK_JWT_KEY` + authorized-parties `azp` enforcement) and user-relationship resolution via the Clerk Backend API / 002-user-auth service. Used by all controllers and services requiring identity or role information. | SYS-011                  | Adapter   |
+| ARCH-019 | SubscriptionGate          | Module checking active premium subscription status via the 010-subscriptions API. Used by TrainerClientService and AIRecipeSwapService to gate premium operations.                                                                                                                     | SYS-012                  | Component |
+| ARCH-020 | TypeSafetyAndDocsEnforcer | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — ESLint + TypeScript compiler configuration enforcing `strict: true`, no `any`, and JSDoc on all exports. Also enforces accessible UI component naming conventions.                                | SYS-013, SYS-014         | Utility   |
 
 ## Process View — Dynamic Behavior (Kruchten 4+1)
 
@@ -50,12 +50,12 @@ The Nutrition Planning architecture decomposes 14 system components (SYS-001–S
 sequenceDiagram
     participant Client as HTTP Client
     participant C as ARCH-001 NutritionPlanController
-    participant Auth as ARCH-018 AuthAdapter
+    participant Auth as ARCH-018 ClerkAuthService
     participant S as ARCH-002 NutritionPlanService
     participant R as ARCH-003 NutritionPlanRepository
 
     Client->>C: POST /nutrition-plans { name, dailyCalories, protein, carbs, fat }
-    C->>Auth: verifyJWT(token) → AuthenticatedUser
+    C->>Auth: verifyToken(token) → AuthenticatedUser
     Auth-->>C: { userId, roles }
     C->>S: createPlan(userId, planData)
     S->>R: insert(nutritionPlan)
@@ -75,14 +75,14 @@ sequenceDiagram
 sequenceDiagram
     participant Client as HTTP Client
     participant CC as ARCH-009 ComplianceController
-    participant Auth as ARCH-018 AuthAdapter
+    participant Auth as ARCH-018 ClerkAuthService
     participant CS as ARCH-008 ComplianceAnalyserService
     participant MPA as ARCH-015 MealPlanningAdapter
     participant USDA as ARCH-016 USDAFoodDataAdapter
     participant RA as ARCH-017 RecipeAppAdapter
 
     Client->>CC: GET /nutrition-plans/:id/compliance
-    CC->>Auth: verifyJWT(token) → AuthenticatedUser
+    CC->>Auth: verifyToken(token) → AuthenticatedUser
     Auth-->>CC: { userId }
     CC->>CS: analyse(nutritionPlanId, userId)
     CS->>MPA: fetchMealPlanTotals(mealPlanId)
@@ -107,14 +107,14 @@ sequenceDiagram
 sequenceDiagram
     participant Trainer as HTTP Client (Trainer)
     participant TC as ARCH-010 TrainerClientController
-    participant Auth as ARCH-018 AuthAdapter
+    participant Auth as ARCH-018 ClerkAuthService
     participant Sub as ARCH-019 SubscriptionGate
     participant TCS as ARCH-011 TrainerClientService
     participant CR as ARCH-012 ConsentRepository
     participant PS as ARCH-002 NutritionPlanService
 
     Trainer->>TC: POST /trainer/clients/:clientId/nutrition-plans
-    TC->>Auth: verifyJWT(token) → { userId, roles }
+    TC->>Auth: verifyToken(token) → { userId, roles }
     Auth-->>TC: { userId: trainerId, roles: [trainer] }
     TC->>Sub: checkPremium(trainerId)
     Sub-->>TC: { active: true }
@@ -138,14 +138,14 @@ sequenceDiagram
 sequenceDiagram
     participant Client as HTTP Client
     participant AC as ARCH-013 AIRecipeSwapController
-    participant Auth as ARCH-018 AuthAdapter
+    participant Auth as ARCH-018 ClerkAuthService
     participant Sub as ARCH-019 SubscriptionGate
     participant AS as ARCH-014 AIRecipeSwapService
     participant CS as ARCH-008 ComplianceAnalyserService
     participant RA as ARCH-017 RecipeAppAdapter
 
     Client->>AC: GET /nutrition-plans/:id/swap-suggestions
-    AC->>Auth: verifyJWT(token) → { userId }
+    AC->>Auth: verifyToken(token) → { userId }
     Auth-->>AC: { userId }
     AC->>Sub: checkPremium(userId)
     Sub-->>AC: { active: true }
@@ -319,13 +319,13 @@ sequenceDiagram
 | Output    | RecipeNutritionMap         | `RecipeNutritionMap`         | `Record<string, RecipeNutrition>` | All requested IDs present or error  |
 | Exception | RecipeDataUnavailableError | `RecipeDataUnavailableError` | Typed error                       | When recipe app service unavailable |
 
-### ARCH-018: AuthAdapter
+### ARCH-018: ClerkAuthService
 
-| Direction | Name              | Type                | Format                     | Constraints                       |
-| --------- | ----------------- | ------------------- | -------------------------- | --------------------------------- |
-| Input     | jwt               | `string`            | Bearer token               | Required; must be valid Auth0 JWT |
-| Output    | AuthenticatedUser | `AuthenticatedUser` | `{ userId, roles, email }` | Non-null on success               |
-| Exception | UnauthorizedError | `UnauthorizedError` | Typed error                | On invalid/expired JWT            |
+| Direction | Name              | Type                | Format                     | Constraints                                   |
+| --------- | ----------------- | ------------------- | -------------------------- | --------------------------------------------- |
+| Input     | jwt               | `string`            | Bearer token               | Required; must be a valid Clerk session token |
+| Output    | AuthenticatedUser | `AuthenticatedUser` | `{ userId, roles, email }` | Non-null on success                           |
+| Exception | UnauthorizedError | `UnauthorizedError` | Typed error                | On invalid/expired JWT                        |
 
 ### ARCH-019: SubscriptionGate
 
@@ -364,7 +364,7 @@ sequenceDiagram
 | 2     | ARCH-008 ComplianceAnalyserService | `nutritionPlanId`, `userId`         | Parallel fetch from adapters             | Raw nutrition totals (3 sources) |
 | 3     | ARCH-015 MealPlanningAdapter       | `mealPlanId`                        | HTTP call to 006-meal-planning           | `MealPlanNutritionTotals`        |
 | 4     | ARCH-016 USDAFoodDataAdapter       | `foodIds[]`                         | HTTP call to 003-usda-food-data          | `FoodNutritionMap`               |
-| 5     | ARCH-017 RecipeAppAdapter          | `recipeIds[]`                       | HTTP call to 001-commise-recipe-app    | `RecipeNutritionMap`             |
+| 5     | ARCH-017 RecipeAppAdapter          | `recipeIds[]`                       | HTTP call to 001-commise-recipe-app      | `RecipeNutritionMap`             |
 | 6     | ARCH-008 ComplianceAnalyserService | Aggregated nutrition data           | Gap/excess calculation (target − actual) | `ComplianceResult`               |
 | 7     | ARCH-009 ComplianceController      | `ComplianceResult`                  | JSON serialisation                       | HTTP 200 response                |
 
@@ -372,13 +372,13 @@ sequenceDiagram
 
 ### Data Flow: AI Recipe Swap Suggestions
 
-| Stage | Module                          | Input Format                        | Transformation                                     | Output Format               |
-| ----- | ------------------------------- | ----------------------------------- | -------------------------------------------------- | --------------------------- |
-| 1     | ARCH-013 AIRecipeSwapController | HTTP request (nutritionPlanId, JWT) | Auth + premium subscription check                  | `nutritionPlanId`, `userId` |
-| 2     | ARCH-014 AIRecipeSwapService    | `nutritionPlanId`, `userId`         | Compliance gap retrieval                           | `ComplianceResult { gaps }` |
+| Stage | Module                          | Input Format                        | Transformation                                   | Output Format               |
+| ----- | ------------------------------- | ----------------------------------- | ------------------------------------------------ | --------------------------- |
+| 1     | ARCH-013 AIRecipeSwapController | HTTP request (nutritionPlanId, JWT) | Auth + premium subscription check                | `nutritionPlanId`, `userId` |
+| 2     | ARCH-014 AIRecipeSwapService    | `nutritionPlanId`, `userId`         | Compliance gap retrieval                         | `ComplianceResult { gaps }` |
 | 3     | ARCH-017 RecipeAppAdapter       | Gap nutrient profile                | HTTP call to 001-commise-recipe-app alternatives | `RecipeAlternative[]`       |
-| 4     | ARCH-014 AIRecipeSwapService    | `RecipeAlternative[]` + gap data    | Swap suggestion ranking and formatting             | `SwapSuggestion[]`          |
-| 5     | ARCH-013 AIRecipeSwapController | `SwapSuggestion[]`                  | JSON serialisation                                 | HTTP 200 response           |
+| 4     | ARCH-014 AIRecipeSwapService    | `RecipeAlternative[]` + gap data    | Swap suggestion ranking and formatting           | `SwapSuggestion[]`          |
+| 5     | ARCH-013 AIRecipeSwapController | `SwapSuggestion[]`                  | JSON serialisation                               | HTTP 200 response           |
 
 ---
 

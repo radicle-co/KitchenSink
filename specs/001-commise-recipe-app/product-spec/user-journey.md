@@ -27,8 +27,8 @@ sequenceDiagram
 
     Note over A, FoodDB: P1 — Create & Manage
 
-    A->>API: POST /auth/login (Auth0)
-    API->>A: JWT access token
+    A->>API: Authenticated request (Clerk session token via hosted UI)
+    API->>A: Verified principal (networkless via CLERK_JWT_KEY)
 
     A->>API: POST /recipes (title, description, ingredients[], steps[], times, servings, tags)
     Note right: FR-001, FR-001a, FR-007, FR-007a, FR-044, FR-045
@@ -165,7 +165,7 @@ sequenceDiagram
 
     Note over M, API: P1 — Create & Manage
 
-    M->>API: POST /auth/login (Auth0 premium)
+    M->>API: Authenticated request (Clerk session token, premium tier in public_metadata)
     M->>API: POST /recipes (original recipe, all fields)
     Note right: FR-001, FR-001a, FR-007, FR-007a, FR-044, FR-045
 

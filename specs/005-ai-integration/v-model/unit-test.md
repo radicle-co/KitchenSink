@@ -405,11 +405,11 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-#### Test Case: UTP-008-A (initiateAuthorization — build Auth0 URL, store state)
+#### Test Case: UTP-008-A (initiateAuthorization — build Clerk authorization URL, store state)
 
 **Technique**: Statement Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies initiateAuthorization builds correct Auth0 URL with code_challenge, state, and nonce; stores state in memory for callback verification.
+**Description**: Verifies initiateAuthorization builds correct Clerk authorization URL with code_challenge, state, and nonce; stores state in memory for callback verification.
 
 **Scenarios:**
 
@@ -417,8 +417,8 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 - Arrange: mock crypto.randomBytes(32) → Buffer.alloc(32).fill(1)
 - Act: result = await server.initiateAuthorization('uid', 'http://localhost/callback')
-- Assert: result.authorizationUrl includes 'https://AUTH0_DOMAIN/authorize'; verify result.authorizationUrl includes 'code_challenge='; verify result.state is 64-char hex string; verify state stored in server.stateStore
-- Mock isolation: crypto stubbed; Auth0 client stubbed
+- Assert: result.authorizationUrl includes 'https://clerk.commise.app/oauth/authorize'; verify result.authorizationUrl includes 'code_challenge='; verify result.state is 64-char hex string; verify state stored in server.stateStore
+- Mock isolation: crypto stubbed; Clerk OAuth client stubbed
 
 **UTS-008-A2** — State mismatch in callback → Error thrown
 
@@ -438,10 +438,10 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 **UTS-008-B1** — Valid callback → tokens stored, user returned
 
-- Arrange: storedState = 'valid-state'; codeVerifier = 'correct-verifier'; mock auth0Client.exchangeCode() → { accessToken: 'at', refreshToken: 'rt', idToken: 'idt' }; mock jwtDecode() → { sub: 'auth0|123', email: 'test@example.com' }
+- Arrange: storedState = 'valid-state'; codeVerifier = 'correct-verifier'; mock clerkOAuthClient.exchangeCode() → { accessToken: 'at', refreshToken: 'rt', idToken: 'idt' }; mock jwtDecode() → { sub: 'user_2abc123', email: 'test@example.com' }
 - Act: result = await server.handleCallback('valid-state', 'auth-code', 'correct-verifier')
-- Assert: result.sub === 'auth0|123'; verify tokens stored in tokenStore under result.sub
-- Mock isolation: Auth0Client stubbed; jwtDecode stubbed
+- Assert: result.sub === 'user_2abc123'; verify tokens stored in tokenStore under result.sub
+- Mock isolation: Clerk OAuth client stubbed; jwtDecode stubbed
 
 **UTS-008-B2** — Code verifier mismatch → Error thrown
 
@@ -513,39 +513,39 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-### Module: MOD-010 (AgentTokenValidator — RS256 JWT Verification)
+### Module: MOD-010 (AgentTokenValidator — app-issued RS256 JWT verification)
 
 **Parent Architecture Modules**: ARCH-010
 **Target Source File(s)**: `src/ai/auth/agent-token-validator.ts`
 
 ---
 
-#### Test Case: UTP-010-A (validateToken — JWKS fetch + JWT verification)
+#### Test Case: UTP-010-A (validateToken — app-issued RS256 agent-token verification)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies validateToken fetches JWKS from Auth0, verifies JWT signature using RS256, validates issuer/audience, and returns agent identity or throws.
+**Description**: Verifies validateToken verifies the app-issued OAuth 2.1 agent access token (signed by MOD-008 OAuthAuthorizationServer with the app's own RS256 key pair) using the local public key `OAUTH_RS256_PUBLIC_KEY`, enforces the app's own issuer (`commise`), checks the shared revocation denylist, and returns `{ userId, scopes }` or throws. No Clerk involvement — these are the app's own authorization-server tokens, not Clerk session tokens (those are MOD-015).
 
 **Scenarios:**
 
 **UTS-010-A1** — Valid agent token → decoded agent identity returned
 
-- Arrange: mock jwksClient.getSigningKey() → mockKey; mockKey.getPublicKey() → 'pem-key'; mock jwtVerify() → { payload: { sub: 'agent-id', aud: 'kitchensink-api', iss: 'https://AUTH_DOMAIN/' } }
-- Act: result = await validator.validateToken('valid-agent-jwt')
-- Assert: result.sub === 'agent-id'; verify jwtVerify called with algorithms: ['RS256']
-- Mock isolation: JwksClient stubbed; jwtVerify stubbed
+- Arrange: mock jwt.verify() → { sub: 'agent-id', scopes: ['recipes:read'], iss: 'commise' }; TokenDenylist.contains() → false
+- Act: result = await validator.validateToken('Bearer valid-agent-jwt')
+- Assert: result.userId === 'agent-id'; result.scopes === ['recipes:read']; verify jwt.verify called with the public OAUTH_RS256_PUBLIC_KEY, algorithms: ['RS256'], issuer: 'commise'
+- Mock isolation: jwt.verify stubbed; TokenDenylist stubbed
 
 **UTS-010-A2** — Expired token → Error thrown
 
-- Arrange: mock jwtVerify() → throws Error('Token expired')
-- Act/Assert: validator.validateToken('expired-jwt') throws Error
-- Mock isolation: JwksClient stubbed; jwtVerify stubbed
+- Arrange: mock jwt.verify() → throws TokenExpiredError('Token expired')
+- Act/Assert: validator.validateToken('Bearer expired-jwt') throws UnauthorizedError
+- Mock isolation: jwt.verify stubbed; TokenDenylist stubbed
 
-**UTS-010-A3** — Invalid audience → Error thrown
+**UTS-010-A3** — Wrong issuer (not the app's own AS) → Error thrown
 
-- Arrange: mock jwtVerify() → throws Error('Invalid audience')
-- Act/Assert: validator.validateToken('bad-aud-jwt') throws Error
-- Mock isolation: JwksClient stubbed; jwtVerify stubbed
+- Arrange: mock jwt.verify() → throws JsonWebTokenError('jwt issuer invalid')
+- Act/Assert: validator.validateToken('Bearer bad-iss-jwt') throws UnauthorizedError
+- Mock isolation: jwt.verify stubbed; TokenDenylist stubbed
 
 ---
 
@@ -686,12 +686,12 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-### Module: MOD-015 (AuthGuardMiddleware — Auth0 JWT Enforcement) [CROSS-CUTTING]
+### Module: MOD-015 (AuthMiddleware — Clerk Session-Token Enforcement) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `src/shared/middleware/auth-guard.middleware.ts` [EXTERNAL]
+**Target Source File(s)**: `src/auth/middleware/auth.middleware.ts` [EXTERNAL]
 
-No unit tests — third-party Auth0 SDK wrapper. Integration tests cover end-to-end token validation.
+No unit tests — thin wrapper over `ClerkAuthService` (`@clerk/backend` `verifyToken`). Integration tests cover end-to-end token validation.
 
 ---
 

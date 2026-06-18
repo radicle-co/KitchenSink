@@ -105,7 +105,7 @@ This document defines the Acceptance Test Plan for the Cooking Mode feature. It 
 
 | ATS ID     | Scenario                             | Given                     | When                                  | Then                                            |
 | ---------- | ------------------------------------ | ------------------------- | ------------------------------------- | ----------------------------------------------- |
-| ATS-008-G1 | Valid session → Cooking Mode allowed | Valid Auth0 session token | User calls `POST /cooking-mode/start` | System proceeds to load recipe                  |
+| ATS-008-G1 | Valid session → Cooking Mode allowed | Valid Clerk session token | User calls `POST /cooking-mode/start` | System proceeds to load recipe                  |
 | ATS-008-G2 | No session → 401 returned            | No session token          | User calls `POST /cooking-mode/start` | System returns 401; Cooking Mode not accessible |
 
 ---

@@ -35,42 +35,41 @@ isolation, and state transitions where applicable). They do not verify user jour
 
 ## Unit Tests
 
-### Module: MOD-001 (Auth0 JWT Verifier)
+### Module: MOD-001 (Clerk Auth Service)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `packages/api/src/auth/auth0-jwt.verifier.ts`
+**Target Source File(s)**: `packages/api/src/auth/clerk-auth.service.ts`
 
-#### Test Case: UTP-001-A (JWT verification branch paths)
+#### Test Case: UTP-001-A (session token verification branch paths)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Covers missing token, missing JWK, expired token, invalid tier claim, and success return path.
+**Description**: Covers missing token, bad signature / unauthorized `azp`, expired token, invalid tier claim, and success return path.
 
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
-| `jose.decodeProtectedHeader` | MOD-001 Interface View | Stub header decode | Deterministic `kid` branching |
-| `jwksCache.getKey` | MOD-001 Algorithmic View | Stub cache hit/miss | Drive `JWKS_UNAVAILABLE` path |
-| `jose.jwtVerify` | MOD-001 Algorithmic View | Stub payload/error | Exercise claim validation branches |
+| `@clerk/backend` `verifyToken` | MOD-001 Algorithmic View | Stub verified claims / throw | Exercise signature/`azp`/expiry and claim branches |
+| `config.clerkJwtKey` | MOD-001 Interface View | In-memory fake PEM key | Deterministic networkless verification |
 
 - **Unit Scenario: UTS-001-A1**
-    - **Arrange**: Set `bearerToken` to empty string and initialize verifier with mock cache.
+    - **Arrange**: Set `bearerToken` to empty string and initialize the service with a fake `CLERK_JWT_KEY`.
     - **Act**: Call `verify(bearerToken)`.
-    - **Assert**: Throws `INVALID_TOKEN("missing")` before any JWK lookup.
+    - **Assert**: Throws `INVALID_TOKEN("missing")` before any `verifyToken` call.
 
 #### Test Case: UTP-001-B (tier claim partitions)
 
 **Technique**: Equivalence Partitioning
 **Target View**: Internal Data Structures
-**Description**: Partitions tier claim values: `free`, `premium`, and invalid claim.
+**Description**: Partitions `public_metadata.tier` claim values: `free`, `premium`, and invalid claim.
 
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
-| `jwtVerify` payload | Internal Data Structures (`Principal`) | Stub payload variants | Validate enum partitioning |
+| `verifyToken` claims | Internal Data Structures (`VerifiedClerkClaims`) | Stub claim variants | Validate enum partitioning |
 
 - **Unit Scenario: UTS-001-B1**
-    - **Arrange**: Mock payload claim `https://kitchensink/tier = "enterprise"`.
+    - **Arrange**: Mock verified claims `public_metadata.tier = "enterprise"`.
     - **Act**: Call `verify(validSignedToken)`.
     - **Assert**: Throws `INVALID_TOKEN("tier claim missing/invalid")`.
 
@@ -78,18 +77,18 @@ isolation, and state transitions where applicable). They do not verify user jour
 
 **Technique**: Strict Isolation
 **Target View**: Architecture Interface View
-**Description**: Verifies that token verification uses only mocked crypto/cache dependencies and never real JWKS network.
+**Description**: Verifies that token verification is networkless — it uses only the local `CLERK_JWT_KEY` public key and never performs any outbound network I/O (no JWKS fetch, no Backend API round trip).
 
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
-| Auth0 JWKS endpoint | ARCH-001 Interface View | Fake JWKS transport | Block network I/O in unit tests |
-| `jwksCache` | MOD-001 Algorithmic View | In-memory fake cache | Deterministic hit/miss behavior |
-| `jose` verifier | MOD-001 Algorithmic View | Spy + stub result | Verify invocation contract |
+| `@clerk/backend` `verifyToken` | ARCH-001 Interface View | Spy + stub verified claims | Verify invocation contract |
+| `config.clerkJwtKey` | MOD-001 Algorithmic View | In-memory fake PEM key | Deterministic local verification |
+| outbound HTTP transport | ARCH-001 Interface View | Spy on network function | Block + assert zero network I/O |
 
 - **Unit Scenario: UTS-001-C1**
-    - **Arrange**: Inject fake JWKS client and spy on outbound HTTP function.
-    - **Act**: Call `verify(tokenWithKnownKid)`.
+    - **Arrange**: Inject the fake `CLERK_JWT_KEY` and spy on the outbound HTTP function.
+    - **Act**: Call `verify(validSignedToken)`.
     - **Assert**: Returns `Principal` and outbound HTTP spy invocation count remains `0`.
 
 ---
@@ -1694,7 +1693,7 @@ None — module is self-contained
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
 | `fetch` API client | MOD-026 Algorithmic View | Stub response codes/bodies | Control network outcomes |
-| Auth0 session provider | MOD-026 Interface View | Stub authenticated/unauthenticated | Drive redirect branch |
+| Clerk session provider (`@clerk/nextjs`) | MOD-026 Interface View | Stub authenticated/unauthenticated | Drive redirect branch |
 
 - **Unit Scenario: UTS-026-A1**
     - **Arrange**: Stub PATCH response `409` with conflict payload and local `rowVersion`.
@@ -1724,7 +1723,7 @@ None — module is self-contained
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
-| Auth0 web SDK | ARCH-026 Interface View | Stub session hook | No live auth interactions |
+| `@clerk/nextjs` SDK | ARCH-026 Interface View | Stub session hook | No live auth interactions |
 | API fetch layer | ARCH-026 Interface View | Stub fetch responses | No real HTTP calls |
 | Presign/confirm endpoints | MOD-026 Algorithmic View | Stub deterministic responses | Isolate upload state machine |
 
@@ -1767,7 +1766,7 @@ None — module is self-contained
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
 | `SecureStore.getItem` | MOD-027 Algorithmic View | Stub token/empty | Drive auth bootstrap branches |
-| `react-native-auth0` login | MOD-027 Algorithmic View | Stub login result | Avoid auth network |
+| `@clerk/expo` login | MOD-027 Algorithmic View | Stub login result | Avoid auth network |
 | API fetch client | MOD-027 Algorithmic View | Stub responses | Control flow outcomes |
 
 - **Unit Scenario: UTS-027-A1**
@@ -1793,13 +1792,13 @@ None — module is self-contained
 
 **Technique**: Strict Isolation
 **Target View**: Architecture Interface View
-**Description**: Ensures mobile unit tests fully mock SecureStore, Auth0 SDK, and network adapter.
+**Description**: Ensures mobile unit tests fully mock SecureStore, Clerk SDK (`@clerk/expo`), and network adapter.
 
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
 | Expo SecureStore | ARCH-027 Interface View | Stub get/set/remove | No device keychain access |
-| `react-native-auth0` | ARCH-027 Interface View | Stub login/token methods | No OAuth network |
+| `@clerk/expo` | ARCH-027 Interface View | Stub login/token methods | No OAuth network |
 | API fetch layer | ARCH-027 Interface View | Stub HTTP client | No backend calls |
 
 - **Unit Scenario: UTS-027-C1**
@@ -1816,7 +1815,7 @@ None — module is self-contained
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
-| SecureStore/Auth0 bootstrap dependencies | MOD-027 State Machine View | Stub token present/expired/missing and login outcomes | Deterministically drive auth transition graph |
+| SecureStore/Clerk (`@clerk/expo`) bootstrap dependencies | MOD-027 State Machine View | Stub token present/expired/missing and login outcomes | Deterministically drive auth transition graph |
 
 - **Unit Scenario: UTS-027-D1**
     - **Arrange**: Run bootstrap with three variants: valid token, expired token with successful login, and missing token with login failure.
@@ -2202,18 +2201,18 @@ None — module is self-contained
 
 **Technique**: Error Guessing
 **Target View**: Error Handling & Return Codes
-**Description**: Verifies defensive handling when protected header decode returns no `kid`, forcing JWKS lookup failure path. (Closes: MOD-001 error-guessing gap)
+**Description**: Verifies defensive handling when a token's protected header is malformed, so networkless signature verification against the local `CLERK_JWT_KEY` cannot proceed and the verifier fails closed. (Closes: MOD-001 error-guessing gap)
 
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
 | `jose.decodeProtectedHeader` | MOD-001 Algorithmic View | Stub malformed header `{}` | Simulate real-world malformed token metadata |
-| `jwksCache.getKey` | MOD-001 State Machine View | Stub `null` for missing kid | Drive `JWKS_UNAVAILABLE` error path |
+| `@clerk/backend.verifyToken` | MOD-001 Algorithmic View | Stub reject on malformed/unverifiable token | Drive networkless fail-closed `INVALID_TOKEN` error path |
 
 - **Unit Scenario: UTS-001-D1**
-    - **Arrange**: Use non-empty bearer token, stub header decode to return object without `kid`, and stub JWKS cache miss.
+    - **Arrange**: Use non-empty bearer token, stub header decode to return a malformed object, and stub `verifyToken` to reject because the local-key signature check cannot complete.
     - **Act**: Call `verify(bearerToken)`.
-    - **Assert**: Throws `JWKS_UNAVAILABLE("kid not found")` with retry metadata and no `Principal` return.
+    - **Assert**: Throws `INVALID_TOKEN` (HTTP 401) with no `Principal` return and no outbound network I/O (no JWKS fetch attempted).
 
 #### Test Case: UTP-005-D (MOD-005 validator error guessing for null ingredients element)
 
@@ -2264,27 +2263,27 @@ None — module is self-contained
     - **Act**: Call repository `insert(tx, row)`.
     - **Assert**: Throws `UNIQUE_VIOLATION` with `constraint="recipes_owner_title_key"`.
 
-#### Test Case: UTP-001-E (MOD-001 JWKS cache lifecycle transitions)
+#### Test Case: UTP-001-E (MOD-001 networkless verification and key-rotation handling)
 
 **Technique**: State Transition Testing
 **Target View**: State Machine View
-**Description**: Validates cache lifecycle transitions `EMPTY → POPULATED → STALE → REFRESHING → POPULATED` under TTL expiry and successful refresh. (Closes: MOD-001 state-transition gap)
+**Description**: Validates that networkless verification holds no key cache and performs no key-refresh state transitions — there is no `EMPTY → POPULATED → STALE → REFRESHING` lifecycle because the verifier reads the local `CLERK_JWT_KEY` directly. Key rotation is handled by configuration (overlapping old/new key acceptance during cutover) and boot-time key validation, not by a runtime cache. (Closes: MOD-001 state-transition gap)
 
 **Dependency & Mock Registry:**
 | Dependency | Source | Mock/Stub Strategy | Rationale |
 | --- | --- | --- | --- |
-| JWKS cache clock/TTL | MOD-001 State Machine View | Fake clock advance + cache fixture | Deterministic stale transition timing |
-| JWKS fetch adapter | MOD-001 State Machine View | Stub successful refresh response | Verify refresh to populated transition |
+| Network I/O (fetch) | MOD-001 Algorithmic View | Spy/assert no outbound calls | Prove verification is networkless (no JWKS round trip) |
+| `CLERK_JWT_KEY` config | MOD-001 Algorithmic View | Provide valid then rotated key fixtures | Verify rotation handled at config/boot, not via runtime cache |
 
 - **Unit Scenario: UTS-001-E1**
-    - **Arrange**: Initialize cache `EMPTY`, perform first lookup to populate, then advance fake clock past 10-minute TTL.
-    - **Act**: Trigger second lookup that marks entry stale and starts refresh, then complete refresh successfully.
-    - **Assert**: Observed state sequence is `EMPTY → POPULATED → STALE → REFRESHING → POPULATED`; no `JWKS_UNAVAILABLE` thrown.
+    - **Arrange**: Configure a valid local `CLERK_JWT_KEY` and a token signed by the corresponding signing key; install a network spy.
+    - **Act**: Verify the token multiple times in sequence.
+    - **Assert**: Each verification succeeds using only the local key, the network spy records zero outbound calls (no JWKS fetch), and no key-cache state transition is observable.
 
 - **Unit Scenario: UTS-001-E2**
-    - **Arrange**: Initialize cache in `REFRESHING` after TTL expiry and stub JWKS refresh fetch to fail after configured retries.
-    - **Act**: Trigger refresh completion path.
-    - **Assert**: Transition follows `REFRESHING → JWKS_UNAVAILABLE`, throws `JWKS_UNAVAILABLE`, and includes `retryAfter` metadata.
+    - **Arrange**: Simulate Clerk key rotation by configuring an overlapping-key set (old + new `CLERK_JWT_KEY` accepted during cutover); present tokens signed by each.
+    - **Act**: Verify a token signed by the old key and one signed by the new key during the overlap window.
+    - **Assert**: Both verify successfully via local keys with no network I/O; a token signed by neither configured key fails closed with `INVALID_TOKEN` (HTTP 401).
 
 #### Test Case: UTP-024-E (MOD-024 connection-pool lifecycle transitions)
 
@@ -2345,20 +2344,20 @@ None — full coverage achieved.
 
 ## Peer-Review Remediation Log
 
-| Finding ID  | Action Taken                                                                                                                                                                                                                             |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PRF-UTP-001 | Renumbered addendum IDs to schema-compliant IDs: `UTP-094→UTP-001-D`, `UTP-095→UTP-005-D`, `UTP-096→UTP-013-D`, `UTP-097→UTP-024-D`, `UTP-098→UTP-001-E`, `UTP-099→UTP-024-E`; updated all scenario IDs and coverage summary references. |
-| PRF-UTP-002 | Added state transition test cases for all missing stateful modules: `UTP-013-E`, `UTP-022-E`, `UTP-026-D`, `UTP-027-D`, `UTP-033-D` with valid/invalid/terminal transition assertions.                                                   |
-| PRF-UTP-003 | Added `Coverage Adequacy` notes to MOD-027 and MOD-028 module headers documenting that UTP-A/B/C/D provide full coverage per module-design.md — addresses observation that MOD-027 and MOD-028 have only 4 test cases each.              |
-| PRF-UTP-003 | Added Dependency & Mock Registry tables to `UTP-002-B` and `UTP-003-B` with explicit stubs for repository/controller collaborators.                                                                                                      |
-| PRF-UTP-004 | Added targeted Error Guessing cases across high-risk modules: `UTP-004-D`, `UTP-008-D`, `UTP-016-D`, `UTP-017-D`, `UTP-018-D`, `UTP-022-F`, `UTP-028-D` (plus renumbered addendum error-guessing cases).                                 |
-| PRF-UTP-005 | Added Boundary Value Analysis where missing: `UTP-002-D`, `UTP-006-D`, `UTP-007-C`, `UTP-022-D`.                                                                                                                                         |
-| PRF-UTP-006 | Raised MOD-006 and MOD-007 above minimum technique coverage by adding `UTP-006-C`, `UTP-006-D`, and `UTP-007-C`.                                                                                                                         |
-| PRF-UTP-007 | Updated `UTP-008-B` description to minimum-boundary wording and added below-minimum scenario `UTS-008-B2` (`quantity=-0.001`).                                                                                                           |
-| PRF-UTP-008 | Removed unresolved forward-reference heading by renaming section to `## Peer-Review Remediation Addendum` and added inline closure notes to addendum descriptions.                                                                       |
-| PRF-UTP-009 | Recounted actual `UTP` headings and updated Coverage Summary totals/percentages to match current artifact contents.                                                                                                                      |
-| PRF-UTP-010 | Added accurate Dependency & Mock Registry for `UTP-024-B`, reusing fake pool/UUID stubs from `UTP-024-A`.                                                                                                                                |
-| PRF-UTP-011 | Documented intentional pure-function deviation for MOD-011 via explicit strict-isolation applicability note under MOD-011 section.                                                                                                       |
-| PRF-UTP-012 | Added JWKS failure-path state-transition scenario `UTS-001-E2` for `REFRESHING → JWKS_UNAVAILABLE` with retry metadata assertions.                                                                                                       |
-| PRF-UTP-013 | Clarified MOD-032 unit scope to TypeScript governance scripts only and moved workflow/YAML validation to integration scope note.                                                                                                         |
-| PRF-UTP-014 | Added Technique Distribution footnote explaining strict-isolation applicability for pure-function modules and recalculated percentages against corrected totals.                                                                         |
+| Finding ID  | Action Taken                                                                                                                                                                                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRF-UTP-001 | Renumbered addendum IDs to schema-compliant IDs: `UTP-094→UTP-001-D`, `UTP-095→UTP-005-D`, `UTP-096→UTP-013-D`, `UTP-097→UTP-024-D`, `UTP-098→UTP-001-E`, `UTP-099→UTP-024-E`; updated all scenario IDs and coverage summary references.                                                                       |
+| PRF-UTP-002 | Added state transition test cases for all missing stateful modules: `UTP-013-E`, `UTP-022-E`, `UTP-026-D`, `UTP-027-D`, `UTP-033-D` with valid/invalid/terminal transition assertions.                                                                                                                         |
+| PRF-UTP-003 | Added `Coverage Adequacy` notes to MOD-027 and MOD-028 module headers documenting that UTP-A/B/C/D provide full coverage per module-design.md — addresses observation that MOD-027 and MOD-028 have only 4 test cases each.                                                                                    |
+| PRF-UTP-003 | Added Dependency & Mock Registry tables to `UTP-002-B` and `UTP-003-B` with explicit stubs for repository/controller collaborators.                                                                                                                                                                            |
+| PRF-UTP-004 | Added targeted Error Guessing cases across high-risk modules: `UTP-004-D`, `UTP-008-D`, `UTP-016-D`, `UTP-017-D`, `UTP-018-D`, `UTP-022-F`, `UTP-028-D` (plus renumbered addendum error-guessing cases).                                                                                                       |
+| PRF-UTP-005 | Added Boundary Value Analysis where missing: `UTP-002-D`, `UTP-006-D`, `UTP-007-C`, `UTP-022-D`.                                                                                                                                                                                                               |
+| PRF-UTP-006 | Raised MOD-006 and MOD-007 above minimum technique coverage by adding `UTP-006-C`, `UTP-006-D`, and `UTP-007-C`.                                                                                                                                                                                               |
+| PRF-UTP-007 | Updated `UTP-008-B` description to minimum-boundary wording and added below-minimum scenario `UTS-008-B2` (`quantity=-0.001`).                                                                                                                                                                                 |
+| PRF-UTP-008 | Removed unresolved forward-reference heading by renaming section to `## Peer-Review Remediation Addendum` and added inline closure notes to addendum descriptions.                                                                                                                                             |
+| PRF-UTP-009 | Recounted actual `UTP` headings and updated Coverage Summary totals/percentages to match current artifact contents.                                                                                                                                                                                            |
+| PRF-UTP-010 | Added accurate Dependency & Mock Registry for `UTP-024-B`, reusing fake pool/UUID stubs from `UTP-024-A`.                                                                                                                                                                                                      |
+| PRF-UTP-011 | Documented intentional pure-function deviation for MOD-011 via explicit strict-isolation applicability note under MOD-011 section.                                                                                                                                                                             |
+| PRF-UTP-012 | Added networkless verification state-transition scenario `UTS-001-E2` covering key-rotation via overlapping `CLERK_JWT_KEY` acceptance with fail-closed `INVALID_TOKEN` assertions and no outbound network I/O. (Re-grounded from the prior JWKS cache-refresh scenario to match the networkless Clerk model.) |
+| PRF-UTP-013 | Clarified MOD-032 unit scope to TypeScript governance scripts only and moved workflow/YAML validation to integration scope note.                                                                                                                                                                               |
+| PRF-UTP-014 | Added Technique Distribution footnote explaining strict-isolation applicability for pure-function modules and recalculated percentages against corrected totals.                                                                                                                                               |

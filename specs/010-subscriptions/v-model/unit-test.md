@@ -368,10 +368,10 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 ---
 
-### Module: MOD-010 (Auth0TierClaimAdapter)
+### Module: MOD-010 (ClerkTierClaimAdapter)
 
 **Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `src/subscriptions/adapters/auth0-tier-claim.adapter.ts`
+**Target Source File(s)**: `src/subscriptions/adapters/clerk-tier-claim.adapter.ts`
 
 ---
 
@@ -379,7 +379,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies reading tier claim from Auth0 access token and setting updated tier claim.
+**Description**: Verifies reading the `public_metadata.subscriptionTier` tier claim from the verified Clerk session token and resolving the user's tier.
 
 **Scenarios:**
 
@@ -410,7 +410,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies webhook controller validates Auth0 signing key, dispatches to lifecycle manager.
+**Description**: Verifies webhook controller validates the webhook signing key (HMAC-SHA256), dispatches to lifecycle manager.
 
 **Scenarios:**
 
@@ -613,7 +613,7 @@ No unit tests — automated axe-core accessibility scanning. Integration tests c
 | MOD-007 | RecipeVisibilityEnforcer         | 1 (A)      | 3 (A1-A3)        |
 | MOD-008 | UpgradePromptComponent           | 1 (A)      | 2 (A1-A2)        |
 | MOD-009 | SubscriptionLifecycleManager     | 2 (A, B)   | 4 (A1-A3, B1-B1) |
-| MOD-010 | Auth0TierClaimAdapter            | 1 (A)      | 2 (A1-A2)        |
+| MOD-010 | ClerkTierClaimAdapter            | 1 (A)      | 2 (A1-A2)        |
 | MOD-011 | SubscriptionWebhookController    | 1 (A)      | 2 (A1-A2)        |
 | MOD-012 | WebhookSignatureValidator        | 1 (A)      | 2 (A1-A2)        |
 | MOD-013 | DataRetentionGuard               | 1 (A)      | 2 (A1-A2)        |

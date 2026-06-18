@@ -50,10 +50,10 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 **Dependency & Mock Registry:**
 
-| Dependency           | Source               | Mock/Stub Strategy                                      | Rationale                                      |
-| -------------------- | -------------------- | ------------------------------------------------------- | ---------------------------------------------- |
-| `groceryListService` | ARCH-001 Interface   | Stub: `generateList` returns a fixed `GroceryList` stub | Isolate controller from service logic          |
-| `req.user.id`        | AuthGuard (ARCH-012) | Stub: set `req.user = { id: "user-uuid-1" }`            | AuthGuard runs before handler; pre-set in test |
+| Dependency           | Source                    | Mock/Stub Strategy                                      | Rationale                                           |
+| -------------------- | ------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
+| `groceryListService` | ARCH-001 Interface        | Stub: `generateList` returns a fixed `GroceryList` stub | Isolate controller from service logic               |
+| `req.user.id`        | AuthMiddleware (ARCH-012) | Stub: set `req.user = { id: "user-uuid-1" }`            | AuthMiddleware runs before handler; pre-set in test |
 
 - **Unit Scenario: UTS-001-A1** — Valid UUID body, service succeeds
     - **Arrange**: Set `req.user.id = "user-uuid-1"`. Set `body.mealPlanId = "550e8400-e29b-41d4-a716-446655440000"` (valid UUID). Stub `groceryListService.generateList` to resolve with `{ id: "list-1", items: [] }`.
@@ -751,50 +751,50 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-### Module: MOD-013 (AuthGuard)
+### Module: MOD-013 (AuthMiddleware)
 
 **Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `src/auth/auth.guard.ts`
+**Target Source File(s)**: `src/auth/middleware/auth.middleware.ts`
 
-#### Test Case: UTP-013-A (canActivate — state transition coverage)
+#### Test Case: UTP-013-A (use — state transition coverage)
 
 **Technique**: State Transition Testing
 **Target View**: State Machine View
-**Description**: Verifies all state transitions: `ExtractToken → Rejected` (missing/malformed header); `ValidateJWT → Rejected` (invalid/expired JWT); `ValidateJWT → Attached` (valid JWT, `request.user` set).
+**Description**: Verifies all state transitions: `ExtractToken → Rejected` (missing/malformed header); `VerifyToken → Rejected` (invalid/expired token or disallowed `azp`); `VerifyToken → Attached` (valid token, `request.user` set).
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source             | Mock/Stub Strategy                                                   | Rationale                         |
-| ------------- | ------------------ | -------------------------------------------------------------------- | --------------------------------- |
-| `jwksAdapter` | ARCH-014 Interface | Stub: `verify` returns decoded payload or throws                     | Isolate from real JWKS HTTP calls |
-| `context`     | NestJS             | Stub: `switchToHttp().getRequest()` returns configurable request obj | Isolate from NestJS runtime       |
+| Dependency         | Source           | Mock/Stub Strategy                                   | Rationale                            |
+| ------------------ | ---------------- | ---------------------------------------------------- | ------------------------------------ |
+| `clerkAuth`        | ClerkAuthService | Stub: `verifyToken` returns decoded claims or throws | Isolate from real token verification |
+| `req`/`res`/`next` | NestJS / Express | Stub: configurable request object; spy on `next`     | Isolate from NestJS runtime          |
 
 - **Unit Scenario: UTS-013-A1** — Missing Authorization header (ExtractToken → Rejected)
     - **Arrange**: Set `request.headers = {}` (no `authorization` key).
-    - **Act**: Call `canActivate(context)`.
-    - **Assert**: Throws `UnauthorizedException` with message `"missing_token"`. `jwksAdapter.verify` never called.
+    - **Act**: Call `use(req, res, next)`.
+    - **Assert**: Throws `UnauthorizedException` with message `"missing_token"`. `clerkAuth.verifyToken` never called.
 
 - **Unit Scenario: UTS-013-A2** — Header present but does not start with "Bearer " (ExtractToken → Rejected)
     - **Arrange**: Set `request.headers.authorization = "Basic abc123"`.
-    - **Act**: Call `canActivate(context)`.
+    - **Act**: Call `use(req, res, next)`.
     - **Assert**: Throws `UnauthorizedException` with message `"missing_token"`.
 
-- **Unit Scenario: UTS-013-A3** — Valid Bearer token, JWKS verify returns null (ValidateJWT → Rejected)
-    - **Arrange**: Set `request.headers.authorization = "Bearer valid.jwt.token"`. Stub `jwksAdapter.verify` to resolve `null`.
-    - **Act**: Call `canActivate(context)`.
+- **Unit Scenario: UTS-013-A3** — Valid Bearer token, verification rejects (VerifyToken → Rejected)
+    - **Arrange**: Set `request.headers.authorization = "Bearer valid.jwt.token"`. Stub `clerkAuth.verifyToken` to reject (invalid signature / disallowed `azp`).
+    - **Act**: Call `use(req, res, next)`.
     - **Assert**: Throws `UnauthorizedException` with message `"invalid_token"`. `request.user` not set.
 
-- **Unit Scenario: UTS-013-A4** — Valid Bearer token, decoded.sub missing (ValidateJWT → Rejected)
-    - **Arrange**: Set `request.headers.authorization = "Bearer valid.jwt.token"`. Stub `jwksAdapter.verify` to resolve `{ sub: null }`.
-    - **Act**: Call `canActivate(context)`.
+- **Unit Scenario: UTS-013-A4** — Valid Bearer token, claims.sub missing (VerifyToken → Rejected)
+    - **Arrange**: Set `request.headers.authorization = "Bearer valid.jwt.token"`. Stub `clerkAuth.verifyToken` to resolve `{ sub: null }`.
+    - **Act**: Call `use(req, res, next)`.
     - **Assert**: Throws `UnauthorizedException` with message `"invalid_token"`.
 
-- **Unit Scenario: UTS-013-A5** — Valid Bearer token, valid decoded payload (ValidateJWT → Attached)
-    - **Arrange**: Set `request.headers.authorization = "Bearer valid.jwt.token"`. Stub `jwksAdapter.verify` to resolve `{ sub: "auth0|user123" }`.
-    - **Act**: Call `canActivate(context)`.
-    - **Assert**: Returns `true`. `request.user` equals `{ id: "auth0|user123" }`.
+- **Unit Scenario: UTS-013-A5** — Valid Bearer token, valid claims (VerifyToken → Attached)
+    - **Arrange**: Set `request.headers.authorization = "Bearer valid.jwt.token"`. Stub `clerkAuth.verifyToken` to resolve `{ sub: "user_2abc123" }`.
+    - **Act**: Call `use(req, res, next)`.
+    - **Assert**: Calls `next()`. `request.user` is the resolved app user for sub `"user_2abc123"`.
 
-#### Test Case: UTP-013-B (canActivate — token extraction boundary)
+#### Test Case: UTP-013-B (use — token extraction boundary)
 
 **Technique**: Boundary Value Analysis
 **Target View**: Internal Data Structures
@@ -802,14 +802,14 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source             | Mock/Stub Strategy                                   | Rationale                         |
-| ------------- | ------------------ | ---------------------------------------------------- | --------------------------------- |
-| `jwksAdapter` | ARCH-014 Interface | Stub: `verify` returns `{ sub: "user-1" }` or throws | Isolate from real JWKS HTTP calls |
+| Dependency  | Source           | Mock/Stub Strategy                                    | Rationale                            |
+| ----------- | ---------------- | ----------------------------------------------------- | ------------------------------------ |
+| `clerkAuth` | ClerkAuthService | Stub: `verifyToken` returns `{ sub: "user_2abc123" }` | Isolate from real token verification |
 
 - **Unit Scenario: UTS-013-B1** — "Bearer " prefix (7 chars) stripped, remaining token passed to verify
-    - **Arrange**: Set `request.headers.authorization = "Bearer eyJhbGciOiJSUzI1NiJ9"`. Stub `jwksAdapter.verify` to resolve `{ sub: "user-1" }`.
-    - **Act**: Call `canActivate(context)`.
-    - **Assert**: `jwksAdapter.verify` called with `"eyJhbGciOiJSUzI1NiJ9"` (no "Bearer " prefix). Returns `true`.
+    - **Arrange**: Set `request.headers.authorization = "Bearer eyJhbGciOiJSUzI1NiJ9"`. Stub `clerkAuth.verifyToken` to resolve `{ sub: "user_2abc123" }`.
+    - **Act**: Call `use(req, res, next)`.
+    - **Assert**: `clerkAuth.verifyToken` called with `"eyJhbGciOiJSUzI1NiJ9"` (no "Bearer " prefix). Calls `next()`.
 
 ---
 
@@ -832,7 +832,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 | `context`              | NestJS             | Stub: `switchToHttp().getRequest()` returns configurable request obj | Isolate from NestJS runtime         |
 
 - **Unit Scenario: UTS-014-A1** — userId missing (CheckUserId → InternalError)
-    - **Arrange**: Set `request.user = undefined` (AuthGuard not applied).
+    - **Arrange**: Set `request.user = undefined` (AuthMiddleware not applied).
     - **Act**: Call `canActivate(context)`.
     - **Assert**: Throws `InternalServerErrorException` with `statusCode: 500`. `subscriptionsAdapter.checkSubscription` never called.
 
@@ -905,27 +905,27 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ## Coverage Summary
 
-| Module    | Name                                                        | UTP Count | UTS Count | Techniques Applied                                         |
-| --------- | ----------------------------------------------------------- | --------- | --------- | ---------------------------------------------------------- |
-| MOD-001   | GroceryListController                                       | 2         | 5         | Statement & Branch Coverage                                |
-| MOD-002   | GroceryListService — generateList                           | 2         | 4         | Statement & Branch Coverage, Boundary Value Analysis       |
-| MOD-003   | IngredientAggregator                                        | 2         | 4         | Statement & Branch Coverage, Boundary Value Analysis       |
-| MOD-004   | ListStateController                                         | 2         | 4         | Statement & Branch Coverage, Equivalence Partitioning      |
-| MOD-005   | ListStateService                                            | 3         | 7         | Statement & Branch Coverage, Boundary Value Analysis       |
-| MOD-006   | GroceryListRepository — grocery_lists table                 | 3         | 7         | Statement & Branch Coverage                                |
-| MOD-007   | GroceryListRepository — updateItemFlag                      | 2         | 5         | State Transition Testing, Boundary Value Analysis          |
-| MOD-008   | OnlineOrderingController                                    | 1         | 2         | Statement & Branch Coverage                                |
-| MOD-009   | OnlineOrderingService                                       | 3         | 7         | Statement & Branch Coverage, State Transition Testing, BVA |
-| MOD-010   | StoreConfigController                                       | 2         | 4         | Statement & Branch Coverage, Equivalence Partitioning      |
-| MOD-011   | StoreConfigService                                          | 3         | 7         | Statement & Branch Coverage                                |
-| MOD-012   | StoreConfigRepository                                       | 2         | 4         | Statement & Branch Coverage, Equivalence Partitioning      |
-| MOD-013   | AuthGuard                                                   | 2         | 6         | State Transition Testing, Boundary Value Analysis          |
-| MOD-014   | SubscriptionGuard                                           | 3         | 7         | State Transition Testing, Equivalence Partitioning, BVA    |
-| MOD-015   | MealPlanAdapter [EXTERNAL]                                  | —         | —         | Skipped                                                    |
-| MOD-016   | RecipeAdapter [EXTERNAL]                                    | —         | —         | Skipped                                                    |
-| MOD-017   | UsdaAdapter + JwksAdapter + SubscriptionsAdapter [EXTERNAL] | —         | —         | Skipped                                                    |
-| MOD-018   | GroceryStoreAdapter [EXTERNAL]                              | —         | —         | Skipped                                                    |
-| **Total** |                                                             | **32**    | **73**    |                                                            |
+| Module    | Name                                                               | UTP Count | UTS Count | Techniques Applied                                         |
+| --------- | ------------------------------------------------------------------ | --------- | --------- | ---------------------------------------------------------- |
+| MOD-001   | GroceryListController                                              | 2         | 5         | Statement & Branch Coverage                                |
+| MOD-002   | GroceryListService — generateList                                  | 2         | 4         | Statement & Branch Coverage, Boundary Value Analysis       |
+| MOD-003   | IngredientAggregator                                               | 2         | 4         | Statement & Branch Coverage, Boundary Value Analysis       |
+| MOD-004   | ListStateController                                                | 2         | 4         | Statement & Branch Coverage, Equivalence Partitioning      |
+| MOD-005   | ListStateService                                                   | 3         | 7         | Statement & Branch Coverage, Boundary Value Analysis       |
+| MOD-006   | GroceryListRepository — grocery_lists table                        | 3         | 7         | Statement & Branch Coverage                                |
+| MOD-007   | GroceryListRepository — updateItemFlag                             | 2         | 5         | State Transition Testing, Boundary Value Analysis          |
+| MOD-008   | OnlineOrderingController                                           | 1         | 2         | Statement & Branch Coverage                                |
+| MOD-009   | OnlineOrderingService                                              | 3         | 7         | Statement & Branch Coverage, State Transition Testing, BVA |
+| MOD-010   | StoreConfigController                                              | 2         | 4         | Statement & Branch Coverage, Equivalence Partitioning      |
+| MOD-011   | StoreConfigService                                                 | 3         | 7         | Statement & Branch Coverage                                |
+| MOD-012   | StoreConfigRepository                                              | 2         | 4         | Statement & Branch Coverage, Equivalence Partitioning      |
+| MOD-013   | AuthMiddleware                                                     | 2         | 6         | State Transition Testing, Boundary Value Analysis          |
+| MOD-014   | SubscriptionGuard                                                  | 3         | 7         | State Transition Testing, Equivalence Partitioning, BVA    |
+| MOD-015   | MealPlanAdapter [EXTERNAL]                                         | —         | —         | Skipped                                                    |
+| MOD-016   | RecipeAdapter [EXTERNAL]                                           | —         | —         | Skipped                                                    |
+| MOD-017   | UsdaAdapter + Clerk verification + SubscriptionsAdapter [EXTERNAL] | —         | —         | Skipped                                                    |
+| MOD-018   | GroceryStoreAdapter [EXTERNAL]                                     | —         | —         | Skipped                                                    |
+| **Total** |                                                                    | **32**    | **73**    |                                                            |
 
 **All 14 non-`[EXTERNAL]` modules covered. All 5 ISO 29119-4 white-box techniques applied.**
 

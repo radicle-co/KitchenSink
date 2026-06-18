@@ -58,7 +58,7 @@ element via the traceability matrix (`v-model/traceability-matrix.md`).
 - **Equivalence Partitioning**: Recipe visibility (private/public), collection membership
 - **State Transition Testing**: Recipe versioning (draft→published→archived), photo upload state machine
 - **Error Guessing**: Photo upload failures, S3 archive failures, JWT validation failures
-- **Strict Isolation**: All modules mock external dependencies (DB, S3, Auth0)
+- **Strict Isolation**: All modules mock external dependencies (DB, S3, Clerk)
 
 ### 2.2 Integration Tests (v-model/integration-test.md)
 
@@ -80,8 +80,8 @@ element via the traceability matrix (`v-model/traceability-matrix.md`).
 
 - `ITS-001-A1`: JWT token flows through authorizer → principal injected into request context
 - `ITS-004-B1`: Recipe create → DAL insert → version snapshot created in same transaction
-- `ITS-018-E1`: SQS message received → Auth0 delete → success → message deleted
-- `ITS-018-E2`: SQS message received → Auth0 delete → failure → visibility timeout extended with backoff
+- `ITS-018-E1`: SQS message received → Clerk delete → success → message deleted
+- `ITS-018-E2`: SQS message received → Clerk delete → failure → visibility timeout extended with backoff
 - `ITS-024-E1`: PostgreSQL tsvector search returns recipe IDs in relevance rank order
 
 ### 2.3 System Tests (v-model/system-test.md)
@@ -89,15 +89,15 @@ element via the traceability matrix (`v-model/traceability-matrix.md`).
 **Total**: 17 SYS components with system test cases.
 **Source**: `v-model/system-design.md`.
 
-| Component  | Focus                                        | Key Scenarios                                                     |
-| ---------- | -------------------------------------------- | ----------------------------------------------------------------- |
-| SYS-001    | Auth0 JWT validation and authorization guard | Valid token → 200, expired → 401, suspended → 403                 |
-| SYS-002    | Recipe CRUD endpoint contracts               | Create/read/update/delete with auth + ownership                   |
-| SYS-003    | Full-text search interface                   | Query → ranked results, empty query → 400                         |
-| SYS-004    | Version snapshot archival                    | Save → version row → SQS → S3 confirmed                           |
-| SYS-005    | Photo upload pipeline                        | Presigned URL → direct S3 upload → Lambda Sharp → CloudFront      |
-| SYS-006    | Collection clone with source-pull            | Clone → reconcile with source without overwriting local additions |
-| SYS-NF-004 | Performance — search response time           | p95 < 200ms for FTS queries                                       |
+| Component  | Focus                                             | Key Scenarios                                                     |
+| ---------- | ------------------------------------------------- | ----------------------------------------------------------------- |
+| SYS-001    | Clerk session-token verification (AuthMiddleware) | Valid token → 200, expired → 401, suspended → 403                 |
+| SYS-002    | Recipe CRUD endpoint contracts                    | Create/read/update/delete with auth + ownership                   |
+| SYS-003    | Full-text search interface                        | Query → ranked results, empty query → 400                         |
+| SYS-004    | Version snapshot archival                         | Save → version row → SQS → S3 confirmed                           |
+| SYS-005    | Photo upload pipeline                             | Presigned URL → direct S3 upload → Lambda Sharp → CloudFront      |
+| SYS-006    | Collection clone with source-pull                 | Clone → reconcile with source without overwriting local additions |
+| SYS-NF-004 | Performance — search response time                | p95 < 200ms for FTS queries                                       |
 
 ### 2.4 Acceptance Tests (v-model/acceptance-plan.md)
 
@@ -163,7 +163,7 @@ Acceptance Tests (ATP user scenarios — run against live system)
 
 - Generate `UTP-{NNN}-{X}` test cases for each module BEFORE writing the module
 - Use red-green-refactor: write failing test → implement → test passes
-- Mock all external dependencies (PostgreSQL, S3, Auth0, SQS)
+- Mock all external dependencies (PostgreSQL, S3, Clerk, SQS)
 
 ### Phase 2: Write Integration Tests
 
@@ -190,7 +190,7 @@ Acceptance Tests (ATP user scenarios — run against live system)
 | API            | `http://localhost:3000` (NestJS on Fargate local) |
 | Database       | PostgreSQL 16 (local Docker or RDS)               |
 | S3             | LocalStack or AWS sandbox                         |
-| Auth0          | Auth0 sandbox tenant                              |
+| Clerk          | Clerk sandbox instance                            |
 | Test Framework | Vitest (unit/integration), Playwright (E2E)       |
 | API Testing    | Supertest or Playwright API                       |
 
@@ -235,7 +235,7 @@ executable case list). Playwright `.spec.ts` files live in `testing/playwright-t
 - [ ] All acceptance scenarios `SCN-*` written before feature implementation
 - [ ] Playwright installed: `npx playwright install`
 - [ ] Vitest configured: `vitest.config.ts` in each workspace
-- [ ] Auth0 test tenant credentials in `testing/env.md`
+- [ ] Clerk test instance credentials in `testing/env.md`
 - [ ] Database migrations run in test environment
 - [ ] Seed data script (`packages/shared/db/src/seed.ts`) ready
 

@@ -32,7 +32,7 @@ This document decomposes 18 architecture modules (ARCH-001–ARCH-018) into 18 l
 | MOD-011 | AttributionVisibilityService | ARCH-011    | SYS-004          |
 | MOD-012 | CloneService                 | ARCH-012    | SYS-004          |
 | MOD-013 | RecipePersistenceAdapter     | ARCH-013    | SYS-007          |
-| MOD-014 | Auth0JwtGuard                | ARCH-014    | SYS-008          |
+| MOD-014 | AuthMiddleware               | ARCH-014    | SYS-008          |
 | MOD-015 | RecipeRepository             | ARCH-015    | SYS-005, SYS-007 |
 | MOD-016 | ImportDtoTypes               | ARCH-016    | [CROSS-CUTTING]  |
 | MOD-017 | ImportErrorNormalizer        | ARCH-017    | [CROSS-CUTTING]  |
@@ -111,7 +111,7 @@ interface OrchestrationRequest {
     importType: 'url' | 'instagram' | 'ocr';
     sourceUrl?: string; // undefined for OCR
     photoBuffer?: Buffer; // defined only for OCR
-    userId: string; // Auth0 sub claim
+    userId: string; // Clerk sub claim
 }
 
 // Output type
@@ -183,7 +183,7 @@ function mapOrchestrationResultToDto(result: OrchestrationResult): RecipeRespons
 
 ```typescript
 @Controller('import')
-@UseGuards(Auth0JwtGuard) // MOD-014 applied at class level
+// MOD-014 AuthMiddleware applied to these routes via module configure(consumer)
 class ImportController {
     constructor(
         private readonly orchestrator: ImportOrchestrator, // MOD-001
@@ -637,7 +637,7 @@ async saveOcrDraft(dto: ImportPhotoSaveDto, user: AuthUser): Promise<RecipeRespo
 
 ```typescript
 @Controller('import')
-@UseGuards(Auth0JwtGuard)
+// MOD-014 AuthMiddleware applied to these routes via module configure(consumer)
 class OcrReviewController {
     constructor(
         private readonly orchestrator: ImportOrchestrator, // MOD-001
@@ -654,7 +654,7 @@ class OcrReviewController {
 | Scenario               | HTTP Status | Notes                                     |
 | ---------------------- | ----------- | ----------------------------------------- |
 | DTO validation failure | 400         | NestJS ValidationPipe                     |
-| Unauthenticated        | 401         | Auth0JwtGuard                             |
+| Unauthenticated        | 401         | AuthMiddleware                            |
 | PersistenceError       | 500         | Via errorNormalizer                       |
 | Success                | 201         | `{ importStatus: 'created', recipe: {} }` |
 
@@ -827,7 +827,7 @@ interface AttributedPayload extends RecipeImportPayload {
         originalAuthor: string | null;
         platform: 'web' | 'instagram' | 'ocr';
         importedAt: string; // ISO 8601
-        importedBy: string; // Auth0 sub
+        importedBy: string; // Clerk sub
     };
     visibility: 'public' | 'private';
     ownerId: string;
@@ -997,85 +997,76 @@ class RecipePersistenceAdapter {
 
 ---
 
-## MOD-014 — Auth0JwtGuard
+## MOD-014 — AuthMiddleware
 
 **Parent ARCH**: ARCH-014 | **Type**: Component | **Parent SYS**: SYS-008
 
 ### 1. Algorithmic / Logic View
 
 ```
-async function canActivate(context: ExecutionContext): Promise<boolean>
+async function use(request, response, next): Promise<void>
 
-  request = context.switchToHttp().getRequest()
   authHeader = request.headers['authorization'] ?? ''
   if !authHeader.startsWith('Bearer ')
     throw new UnauthorizedException('Missing Bearer token')
 
   token = authHeader.slice(7)
 
-  // 1. Decode header to get kid
-  header = decodeJwtHeader(token)   // jose: decodeProtectedHeader()
-
-  // 2. Fetch JWKS (cached by jwks-rsa with 10 min TTL)
-  key = await jwksClient.getSigningKey(header.kid)
-  publicKey = key.getPublicKey()
-
-  // 3. Verify signature + claims
-  { payload } = await jwtVerify(token, publicKey, {
-    issuer: `https://${AUTH0_DOMAIN}/`,
-    audience: AUTH0_AUDIENCE,
-    algorithms: ['RS256'],
+  // 1. Networkless verification via ClerkAuthService.verifyToken
+  //    (@clerk/backend verifyToken using the public CLERK_JWT_KEY).
+  //    No JWKS round-trip, no issuer/audience fetch.
+  claims = await clerkAuthService.verifyToken(token, {
+    jwtKey: CLERK_JWT_KEY,
+    authorizedParties: CLERK_AUTHORIZED_PARTIES, // azp allowlist
   })
 
-  // 4. Attach user to request
-  request.user = { sub: payload.sub, email: payload.email, scope: payload.scope }
-  return true
+  // 2. Attach verified Clerk claims to request.
+  //    Admin scopes/permissions and subscription tier come from public_metadata.
+  request.user = {
+    sub: claims.sub,
+    email: claims.email,
+    publicMetadata: claims.public_metadata,
+  }
+  next()
 ```
 
 ### 2. Internal State & Data Structures View
 
 ```typescript
 @Injectable()
-class Auth0JwtGuard implements CanActivate {
-    private readonly jwksClient: JwksClient; // jwks-rsa
-    private readonly auth0Domain: string;
-    private readonly audience: string;
+class AuthMiddleware implements NestMiddleware {
+    constructor(private readonly clerkAuth: ClerkAuthService) {}
 
-    constructor(private readonly config: ConfigService) {
-        this.auth0Domain = config.get('AUTH0_DOMAIN');
-        this.audience = config.get('AUTH0_AUDIENCE');
-        this.jwksClient = jwksRsa({
-            jwksUri: `https://${this.auth0Domain}/.well-known/jwks.json`,
-            cache: true,
-            cacheMaxAge: 600_000, // 10 min
-            rateLimit: true,
-        });
+    async use(req: Request, res: Response, next: NextFunction): Promise<void> {
+        // delegates token verification to ClerkAuthService (networkless)
     }
 }
 
-interface AuthUser {
-    sub: string;
+interface VerifiedClerkClaims {
+    sub: string; // Clerk user id
     email?: string;
-    scope?: string;
+    public_metadata?: Record<string, unknown>; // tier + scopes/permissions
 }
 ```
+
+`CLERK_JWT_KEY` (PEM public key) and `CLERK_AUTHORIZED_PARTIES` (comma-separated `azp`
+allowlist) are both non-secret; there is no client secret, audience, or JWKS URI.
 
 ### 3. Error Handling & Return Codes View
 
 | Condition                       | Exception               | HTTP |
 | ------------------------------- | ----------------------- | ---- |
 | Missing/malformed Bearer header | `UnauthorizedException` | 401  |
-| Invalid/expired JWT signature   | `UnauthorizedException` | 401  |
-| Wrong issuer or audience        | `UnauthorizedException` | 401  |
-| JWKS fetch failure              | `UnauthorizedException` | 401  |
+| Invalid/expired token signature | `UnauthorizedException` | 401  |
+| Unauthorized party (`azp`)      | `UnauthorizedException` | 401  |
 
-All auth failures return 401; no 403 from this guard (authorisation is handled by business logic).
+All auth failures return 401; no 403 from this middleware (authorisation is handled by business logic).
 
 ### 4. Concurrency & Timing View
 
-- JWKS keys are cached for 10 min; concurrent requests share the cache (thread-safe via jwks-rsa internals).
-- `jwtVerify` is CPU-bound (~1–2 ms); no blocking concern.
-- Guard is applied globally via `APP_GUARD` provider.
+- Verification is **networkless** (signature checked against the local `CLERK_JWT_KEY` public key); no JWKS fetch or cache to share across requests.
+- `verifyToken` is CPU-bound (~1–2 ms); no blocking concern.
+- Applied via NestJS middleware (`configure(consumer)`) on all import routes.
 
 ---
 

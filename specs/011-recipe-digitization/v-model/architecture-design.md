@@ -73,7 +73,7 @@ The 14 unresolved markers below are inherited from `requirements.md` via `system
 | ARCH-024 | Circle Membership Audit Logger                          | Structured-log emitter producing actor/circle/target/action records on every membership state change.                                                                                                                                                 | SYS-016                                                                                                                     | Service   |
 | ARCH-025 | Circle Outlier Monitor                                  | Scheduled detection job emitting `circle.size.outlier` warnings when a Circle exceeds 100 members or a user owns ≥25 Circles within 1 hour; no hard caps.                                                                                             | SYS-017                                                                                                                     | Service   |
 | ARCH-026 | Circle Invitation Service                               | NestJS endpoints `POST /circles/:id/invitation/rotate` (owner-only) and `POST /circles/join/:token`; one active link per Circle, idempotent redemption, HTTP 410 with `circle.invitation.revoked` on rotation. `[FROZEN-PENDING-RESOLUTION: I1, I2]`. | SYS-018                                                                                                                     | Service   |
-| ARCH-027 | Auth0 Bearer Authenticator (NestJS Guard)               | Cross-cutting guard enforcing Auth0 bearer authentication on every 011 API endpoint. `[FROZEN-PENDING-RESOLUTION: I3]`.                                                                                                                               | SYS-019                                                                                                                     | Service   |
+| ARCH-027 | Clerk Session-Token Authenticator (NestJS Middleware)   | Cross-cutting `AuthMiddleware` (backed by `ClerkAuthService`) enforcing Clerk session-token authentication networklessly on every 011 API endpoint. `[FROZEN-PENDING-RESOLUTION: I3]`.                                                                | SYS-019                                                                                                                     | Service   |
 | ARCH-028 | RFC 7807 Error Envelope Filter                          | Cross-cutting Nest exception filter returning Problem Details with machine-readable `error_code` for all 4xx/5xx responses.                                                                                                                           | SYS-020                                                                                                                     | Library   |
 | ARCH-029 | `@kitchensink/shared-audience` Library                  | Shared TS package exporting `AudienceScope` (`private`, `circle`, `public-profile`, `published-lesson`) and `Audience` (`ref_id?`, `price_cents?`) for downstream features 001/006/007.                                                               | SYS-021                                                                                                                     | Library   |
 | ARCH-030 | API Versioning Convention Module                        | `/api/v1/*` routing convention enforced via NestJS global prefix + route-prefix lint; pairs with Node 24.x runtime conformance check. `[FROZEN-PENDING-RESOLUTION: I3]`.                                                                              | SYS-022                                                                                                                     | Module    |
@@ -88,7 +88,7 @@ The 14 unresolved markers below are inherited from `requirements.md` via `system
 | ARCH-039 | Transactional Isolation Enforcer                        | Persistence guideline + runtime check that Circle deletion / owner-deletion critical paths run under SERIALIZABLE or REPEATABLE READ + `SELECT ... FOR UPDATE`.                                                                                       | SYS-031                                                                                                                     | Module    |
 | ARCH-040 | UI Primitive Reuse Inspection                           | Process artifact + lint inspection ensuring `packages/ui` primitives are evaluated first for frontend tasks T057–T067; new primitives require documented rationale.                                                                                   | SYS-032                                                                                                                     | Module    |
 | ARCH-041 | Request-Scoped Logger                                   | Structured logger (`@aws-lambda-powertools/logger`-style) attached per request/job for consistent context propagation across handlers and workers.                                                                                                    | [CROSS-CUTTING] — shared infrastructure used by every NestJS handler, Lambda worker, and scheduled job for log correlation. | Utility   |
-| ARCH-042 | Configuration & Secrets Loader                          | `@nestjs/config` + Zod schema loader exposing typed config (S3 bucket, SQS URL, Auth0 audience, flag client keys) to all modules.                                                                                                                     | [CROSS-CUTTING] — shared infrastructure consumed by every API and worker module; not traceable to a specific SYS.           | Utility   |
+| ARCH-042 | Configuration & Secrets Loader                          | `@nestjs/config` + Zod schema loader exposing typed config (S3 bucket, SQS URL, `CLERK_JWT_KEY` + `CLERK_AUTHORIZED_PARTIES`, flag client keys) to all modules.                                                                                       | [CROSS-CUTTING] — shared infrastructure consumed by every API and worker module; not traceable to a specific SYS.           | Utility   |
 | ARCH-043 | Sentry Integration Adapter                              | `@sentry/aws-serverless` + Nest adapter capturing unhandled exceptions and performance traces across API, workers, and scheduled jobs.                                                                                                                | [CROSS-CUTTING] — error reporting consumed horizontally; complements SYS-026 telemetry but is not the metrics pipeline.     | Adapter   |
 | ARCH-044 | Idempotency Key Helper                                  | Shared helper enforcing idempotency-key semantics on retry-prone POSTs (intake, save, invitation rotation, redemption).                                                                                                                               | [CROSS-CUTTING] — used by multiple controllers (ARCH-005, ARCH-018, ARCH-026); not owned by a single SYS.                   | Library   |
 | ARCH-045 | Outbox / Domain Event Publisher                         | Transactional outbox pattern publishing domain events (`circle.deleted`, `recipe.audience.changed`, `circle.invitation.revoked`, `digitization.raw_ocr.purged.count`) atomically with their DB writes.                                                | [CROSS-CUTTING] — event-emission infrastructure used by ARCH-022, ARCH-023, ARCH-026, ARCH-033; not a feature component.    | Service   |
@@ -287,20 +287,20 @@ This section enumerates the input/output/exception contract for each ARCH module
 | Direction | Name              | Type            | Format                                                   | Constraints                             |
 | --------- | ----------------- | --------------- | -------------------------------------------------------- | --------------------------------------- |
 | Input     | Selected files    | `File[]`        | Browser File API                                         | jpeg/png/heic; ≤20 MB each; ≥300×300 px |
-| Input     | Active session    | `Auth0Session`  | `@auth0/nextjs-auth0` cookie                             | Required to render capture surface      |
+| Input     | Active session    | Clerk session   | `@clerk/nextjs` (`<ClerkProvider>`)                      | Required to render capture surface      |
 | Output    | Upload request    | `UploadIntent`  | `{ batch_id: uuid, items: { client_id, mime, size }[] }` | Forwarded to ARCH-003                   |
 | Exception | Permission denied | UI banner       | n/a                                                      | File picker cancelled or blocked        |
 | Exception | Validation error  | UI inline error | n/a                                                      | Pre-flight client check failed          |
 
 ### ARCH-002: Capture UI Shell (Mobile)
 
-| Direction | Name                 | Type                      | Format                     | Constraints                      |
-| --------- | -------------------- | ------------------------- | -------------------------- | -------------------------------- |
-| Input     | Camera/library asset | `ImagePickerAsset` (Expo) | uri + exif                 | Native permission grant required |
-| Input     | Active session       | `Auth0Credentials`        | `react-native-auth0` token | Stored via `expo-secure-store`   |
-| Output    | Upload request       | `UploadIntent`            | Same as ARCH-001           | Shared shape across web/mobile   |
-| Exception | Permission denied    | Native alert              | n/a                        | OS-level permission rejection    |
-| Exception | Asset too large      | UI inline error           | n/a                        | Pre-flight client check failed   |
+| Direction | Name                 | Type                      | Format              | Constraints                      |
+| --------- | -------------------- | ------------------------- | ------------------- | -------------------------------- |
+| Input     | Camera/library asset | `ImagePickerAsset` (Expo) | uri + exif          | Native permission grant required |
+| Input     | Active session       | Clerk session             | `@clerk/expo` token | Stored via `expo-secure-store`   |
+| Output    | Upload request       | `UploadIntent`            | Same as ARCH-001    | Shared shape across web/mobile   |
+| Exception | Permission denied    | Native alert              | n/a                 | OS-level permission rejection    |
+| Exception | Asset too large      | UI inline error           | n/a                 | Pre-flight client check failed   |
 
 ### ARCH-003: Pre-signed Upload Client
 
@@ -323,14 +323,14 @@ This section enumerates the input/output/exception contract for each ARCH module
 
 ### ARCH-005: Digitization Job Intake Controller
 
-| Direction | Name                     | Type                                 | Format                                                                                    | Constraints                                                                 |
-| --------- | ------------------------ | ------------------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Input     | HTTP request             | `POST /api/v1/recipes/digitize/jobs` | `application/json` body `{ batch_id, items: { mime, size }[] }`, header `Idempotency-Key` | Auth0 bearer required; `[FROZEN-PENDING-RESOLUTION: A2]` (latency contract) |
-| Input     | Authenticated user       | `RequestUser`                        | NestJS request-scoped DTO                                                                 | Injected via ARCH-027 guard                                                 |
-| Output    | 201 response             | `JobIntakeResponse`                  | `{ job_id: uuid, batch_id: uuid, upload_url: string, expires_at: ISO8601 }[]`             | Pre-signed URL TTL ≤ 15 min                                                 |
-| Exception | 400 validation           | `Problem`                            | RFC 7807 `application/problem+json` with `error_code`                                     | Delegated to ARCH-006/028                                                   |
-| Exception | 401 unauthorized         | `Problem`                            | RFC 7807                                                                                  | Emitted by ARCH-027                                                         |
-| Exception | 409 idempotency conflict | `Problem`                            | RFC 7807                                                                                  | Same key, different payload                                                 |
+| Direction | Name                     | Type                                 | Format                                                                                    | Constraints                                                                        |
+| --------- | ------------------------ | ------------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Input     | HTTP request             | `POST /api/v1/recipes/digitize/jobs` | `application/json` body `{ batch_id, items: { mime, size }[] }`, header `Idempotency-Key` | Clerk session token required; `[FROZEN-PENDING-RESOLUTION: A2]` (latency contract) |
+| Input     | Authenticated user       | `RequestUser`                        | NestJS request-scoped DTO                                                                 | Injected via ARCH-027 guard                                                        |
+| Output    | 201 response             | `JobIntakeResponse`                  | `{ job_id: uuid, batch_id: uuid, upload_url: string, expires_at: ISO8601 }[]`             | Pre-signed URL TTL ≤ 15 min                                                        |
+| Exception | 400 validation           | `Problem`                            | RFC 7807 `application/problem+json` with `error_code`                                     | Delegated to ARCH-006/028                                                          |
+| Exception | 401 unauthorized         | `Problem`                            | RFC 7807                                                                                  | Emitted by ARCH-027                                                                |
+| Exception | 409 idempotency conflict | `Problem`                            | RFC 7807                                                                                  | Same key, different payload                                                        |
 
 ### ARCH-006: Image Pre-flight Validator
 
@@ -407,7 +407,7 @@ This section enumerates the input/output/exception contract for each ARCH module
 
 | Direction | Name               | Type                                                 | Format                                                                             | Constraints                                        |
 | --------- | ------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Input     | GET request        | `GET /api/v1/recipes/digitize/jobs/:id/correction`   | path param `id`                                                                    | Auth0 bearer required                              |
+| Input     | GET request        | `GET /api/v1/recipes/digitize/jobs/:id/correction`   | path param `id`                                                                    | Clerk session token required                       |
 | Input     | PATCH request      | `PATCH /api/v1/recipes/digitize/jobs/:id/correction` | `application/json` `{ fields: ParsedRecipe, accept_all?: boolean }`                | Owner-only; optimistic concurrency via row version |
 | Output    | 200 GET response   | `CorrectionView`                                     | `{ job_id, photo_url, fields: ParsedRecipe, accept_all_eligible: boolean, state }` | Combines ARCH-007 + ARCH-013                       |
 | Output    | 200 PATCH response | `CorrectionView`                                     | updated state                                                                      | `state=awaiting-correction` until save             |
@@ -447,7 +447,7 @@ This section enumerates the input/output/exception contract for each ARCH module
 
 | Direction | Name              | Type                                                | Format                               | Constraints                                             |
 | --------- | ----------------- | --------------------------------------------------- | ------------------------------------ | ------------------------------------------------------- |
-| Input     | HTTP request      | `POST /api/v1/recipes/digitize/jobs/:id/save`       | empty body; header `Idempotency-Key` | Auth0 bearer; owner-only                                |
+| Input     | HTTP request      | `POST /api/v1/recipes/digitize/jobs/:id/save`       | empty body; header `Idempotency-Key` | Clerk session token; owner-only                         |
 | Output    | 201 response      | `{ recipe_id: uuid, job_id: uuid, state: 'saved' }` | JSON                                 | Recipe row created + job linkage in one tx              |
 | Exception | 404 not found     | `Problem`                                           | RFC 7807                             | Job missing                                             |
 | Exception | 409 already saved | `Problem`                                           | RFC 7807                             | `state=saved` already set; returns existing `recipe_id` |
@@ -468,7 +468,7 @@ This section enumerates the input/output/exception contract for each ARCH module
 
 | Direction | Name               | Type                                               | Format       | Constraints                                                |
 | --------- | ------------------ | -------------------------------------------------- | ------------ | ---------------------------------------------------------- |
-| Input     | GET request        | `GET /api/v1/recipes/digitize/jobs?cursor=&limit=` | query params | Auth0 bearer; default limit=20                             |
+| Input     | GET request        | `GET /api/v1/recipes/digitize/jobs?cursor=&limit=` | query params | Clerk session token; default limit=20                      |
 | Output    | 200 response       | `{ items: JobStatusView[], next_cursor?: string }` | JSON         | Cursor-paginated; deterministic order by `created_at desc` |
 | Exception | 400 invalid cursor | `Problem`                                          | RFC 7807     | Cursor cannot be decoded                                   |
 | Exception | 401 unauthorized   | `Problem`                                          | RFC 7807     | From ARCH-027                                              |
@@ -524,26 +524,26 @@ This section enumerates the input/output/exception contract for each ARCH module
 
 ### ARCH-026: Circle Invitation Service
 
-| Direction | Name                | Type                                         | Format                                           | Constraints                                                 |
-| --------- | ------------------- | -------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------- |
-| Input     | Rotate request      | `POST /api/v1/circles/:id/invitation/rotate` | empty body; header `Idempotency-Key`             | Owner-only; `[FROZEN-PENDING-RESOLUTION: I1, I2]`           |
-| Input     | Redeem request      | `POST /api/v1/circles/join/:token`           | path token                                       | Auth0 bearer required; idempotent on `(circle_id, user_id)` |
-| Output    | 200 rotate response | `{ invite_url: string, token_id: uuid }`     | JSON                                             | Exactly one active token per circle (DB unique index)       |
-| Output    | 200 redeem response | `{ circle_id: uuid }`                        | JSON                                             | Triggers ARCH-024 audit `action=join`                       |
-| Exception | 410 gone            | `Problem`                                    | RFC 7807 `error_code: circle.invitation.revoked` | Token was rotated                                           |
-| Exception | 403 not owner       | `Problem`                                    | RFC 7807                                         | Rotate by non-owner                                         |
-| Exception | 404 not found       | `Problem`                                    | RFC 7807                                         | Token never existed                                         |
+| Direction | Name                | Type                                         | Format                                           | Constraints                                                        |
+| --------- | ------------------- | -------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
+| Input     | Rotate request      | `POST /api/v1/circles/:id/invitation/rotate` | empty body; header `Idempotency-Key`             | Owner-only; `[FROZEN-PENDING-RESOLUTION: I1, I2]`                  |
+| Input     | Redeem request      | `POST /api/v1/circles/join/:token`           | path token                                       | Clerk session token required; idempotent on `(circle_id, user_id)` |
+| Output    | 200 rotate response | `{ invite_url: string, token_id: uuid }`     | JSON                                             | Exactly one active token per circle (DB unique index)              |
+| Output    | 200 redeem response | `{ circle_id: uuid }`                        | JSON                                             | Triggers ARCH-024 audit `action=join`                              |
+| Exception | 410 gone            | `Problem`                                    | RFC 7807 `error_code: circle.invitation.revoked` | Token was rotated                                                  |
+| Exception | 403 not owner       | `Problem`                                    | RFC 7807                                         | Rotate by non-owner                                                |
+| Exception | 404 not found       | `Problem`                                    | RFC 7807                                         | Token never existed                                                |
 
-### ARCH-027: Auth0 Bearer Authenticator (NestJS Guard)
+### ARCH-027: Clerk Session-Token Authenticator (NestJS Middleware)
 
-| Direction | Name                      | Type               | Format                                              | Constraints                                                        |
-| --------- | ------------------------- | ------------------ | --------------------------------------------------- | ------------------------------------------------------------------ |
-| Input     | HTTP request              | `Request` (NestJS) | Header `Authorization: Bearer <jwt>`                | Applied globally to `/api/v1/*`; `[FROZEN-PENDING-RESOLUTION: I3]` |
-| Input     | JWKS keys                 | `JWKS`             | fetched via `jwks-rsa`                              | Cached per process; rotated on kid miss                            |
-| Output    | RequestUser injection     | `RequestUser`      | `{ sub: string, email?: string, scopes: string[] }` | Attached to request scope for downstream handlers                  |
-| Exception | 401 missing/invalid token | `Problem`          | RFC 7807 `error_code: auth.token.invalid`           | Verified via `jose`                                                |
-| Exception | 401 expired token         | `Problem`          | RFC 7807 `error_code: auth.token.expired`           | Same envelope                                                      |
-| Exception | 503 JWKS unavailable      | `Problem`          | RFC 7807                                            | Captured by ARCH-043                                               |
+| Direction | Name                      | Type               | Format                                                                    | Constraints                                                                    |
+| --------- | ------------------------- | ------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Input     | HTTP request              | `Request` (NestJS) | Header `Authorization: Bearer <clerk session token>`                      | Applied to `/api/v1/*` via `configure()`; `[FROZEN-PENDING-RESOLUTION: I3]`    |
+| Input     | Verification config       | `ClerkConfig`      | `CLERK_JWT_KEY` (PEM public key) + `CLERK_AUTHORIZED_PARTIES`             | Networkless; no JWKS fetch, no client secret, no audience                      |
+| Output    | RequestUser injection     | `RequestUser`      | `{ sub: string, scopes: string[], permissions: string[], tier?: string }` | Scopes/permissions/tier read from `public_metadata`; attached to request scope |
+| Exception | 401 missing/invalid token | `Problem`          | RFC 7807 `error_code: auth.token.invalid`                                 | Verified via `@clerk/backend` `verifyToken` (`azp` enforced)                   |
+| Exception | 401 expired token         | `Problem`          | RFC 7807 `error_code: auth.token.expired`                                 | Same envelope                                                                  |
+| Exception | 401 unauthorized party    | `Problem`          | RFC 7807 `error_code: auth.token.invalid`                                 | `azp` not in `CLERK_AUTHORIZED_PARTIES` (exact-string match)                   |
 
 ### ARCH-028: RFC 7807 Error Envelope Filter
 
@@ -586,7 +586,7 @@ This section enumerates the input/output/exception contract for each ARCH module
 | Direction | Name                  | Type                                    | Format                                           | Constraints                        |
 | --------- | --------------------- | --------------------------------------- | ------------------------------------------------ | ---------------------------------- |
 | Input     | Deep link             | `string`                                | `/circles/join/:token`                           | Web + mobile route                 |
-| Input     | Authenticated session | `Auth0Session \| Auth0Credentials`      | from ARCH-001/002                                | If absent, redirects to login      |
+| Input     | Authenticated session | Clerk session                           | from ARCH-001/002                                | If absent, redirects to login      |
 | Output    | Redeem trigger        | `POST /circles/join/:token` to ARCH-026 | n/a                                              | After explicit user confirmation   |
 | Output    | Confirmation surface  | accessible UI                           | WCAG 2.1 AA; screen reader + keyboard nav        | Focus-trap + announce live regions |
 | Exception | Invalid token         | inline error + retry option             | mapped from RFC 7807 `circle.invitation.revoked` | No silent failure                  |

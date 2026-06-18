@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Grocery Lists & Online Ordering module design decomposes fourteen architecture modules (ARCH-001–ARCH-014) into eighteen low-level module specifications (MOD-001–MOD-018). The decomposition follows the NestJS layered pattern established in the architecture design: controllers are split into request-parsing and response-serialisation concerns; services are split by orchestration flow; the repository is split by table/entity; and the ExternalAdapters collection is decomposed into one module per external dependency. Cross-cutting guards (AuthGuard, SubscriptionGuard) each receive a single module. At this level every branch, state transition, data structure, and error code is specified — writing source code is a translation exercise.
+The Grocery Lists & Online Ordering module design decomposes fourteen architecture modules (ARCH-001–ARCH-014) into eighteen low-level module specifications (MOD-001–MOD-018). The decomposition follows the NestJS layered pattern established in the architecture design: controllers are split into request-parsing and response-serialisation concerns; services are split by orchestration flow; the repository is split by table/entity; and the ExternalAdapters collection is decomposed into one module per external dependency. Cross-cutting guards (AuthMiddleware, SubscriptionGuard) each receive a single module. At this level every branch, state transition, data structure, and error code is specified — writing source code is a translation exercise.
 
 ## ID Schema
 
@@ -31,7 +31,7 @@ The Grocery Lists & Online Ordering module design decomposes fourteen architectu
 ```pseudocode
 // POST /grocery-lists/generate
 FUNCTION handleGenerate(req: AuthenticatedRequest, body: GenerateGroceryListDTO) -> GroceryList:
-    // AuthGuard has already validated JWT and attached req.user.id
+    // AuthMiddleware has already validated JWT and attached req.user.id
     userId = req.user.id
     VALIDATE body.mealPlanId IS valid UUID format
     IF validation fails:
@@ -68,19 +68,19 @@ N/A — Stateless; controller delegates all state to GroceryListService.
 
 #### Internal Data Structures
 
-| Name                   | Type   | Size/Constraints       | Initialization | Description                                      |
-| ---------------------- | ------ | ---------------------- | -------------- | ------------------------------------------------ |
-| GenerateGroceryListDTO | class  | `{mealPlanId: string}` | per-request    | Validated DTO for POST body; `@IsUUID()` applied |
-| userId                 | string | UUID, non-empty        | from JWT sub   | Extracted from `req.user.id` set by AuthGuard    |
+| Name                   | Type   | Size/Constraints       | Initialization | Description                                        |
+| ---------------------- | ------ | ---------------------- | -------------- | -------------------------------------------------- |
+| GenerateGroceryListDTO | class  | `{mealPlanId: string}` | per-request    | Validated DTO for POST body; `@IsUUID()` applied   |
+| userId                 | string | UUID, non-empty        | from JWT sub   | Extracted from `req.user.id` set by AuthMiddleware |
 
 #### Error Handling & Return Codes
 
-| Error Condition              | Error Code / Exception  | Architecture Contract (ARCH-001 Interface View) | Recovery                          |
-| ---------------------------- | ----------------------- | ----------------------------------------------- | --------------------------------- |
-| Invalid DTO fields           | `ValidationError` 400   | `{statusCode: 400, message, errors[]}`          | Return immediately; no retry      |
-| Missing/invalid JWT          | `UnauthorizedError` 401 | `{statusCode: 401, message}`                    | AuthGuard throws before handler   |
-| List not found or not owned  | `NotFoundException` 404 | `{statusCode: 404, message}`                    | Propagated from service           |
-| Generation timeout (REQ-003) | `TimeoutError` 504      | `{statusCode: 504, message}`                    | Propagated from service; no retry |
+| Error Condition              | Error Code / Exception  | Architecture Contract (ARCH-001 Interface View) | Recovery                             |
+| ---------------------------- | ----------------------- | ----------------------------------------------- | ------------------------------------ |
+| Invalid DTO fields           | `ValidationError` 400   | `{statusCode: 400, message, errors[]}`          | Return immediately; no retry         |
+| Missing/invalid JWT          | `UnauthorizedError` 401 | `{statusCode: 401, message}`                    | AuthMiddleware throws before handler |
+| List not found or not owned  | `NotFoundException` 404 | `{statusCode: 404, message}`                    | Propagated from service              |
+| Generation timeout (REQ-003) | `TimeoutError` 504      | `{statusCode: 504, message}`                    | Propagated from service; no retry    |
 
 ---
 
@@ -290,13 +290,13 @@ N/A — Stateless; delegates all state to ListStateService.
 
 #### Error Handling & Return Codes
 
-| Error Condition           | Error Code / Exception   | Architecture Contract (ARCH-004 Interface View) | Recovery                        |
-| ------------------------- | ------------------------ | ----------------------------------------------- | ------------------------------- |
-| Invalid DTO / path params | `ValidationError` 400    | `{statusCode: 400, message, errors[]}`          | Return immediately              |
-| Missing/invalid JWT       | `UnauthorizedError` 401  | `{statusCode: 401, message}`                    | AuthGuard throws before handler |
-| Item not found            | `NotFoundException` 404  | `{statusCode: 404, message}`                    | Propagated from service         |
-| Ownership violation       | `ForbiddenException` 403 | `{statusCode: 403, message}`                    | Propagated from service         |
-| Optimistic lock conflict  | `ConflictError` 409      | `{statusCode: 409, message}`                    | Propagated from service         |
+| Error Condition           | Error Code / Exception   | Architecture Contract (ARCH-004 Interface View) | Recovery                             |
+| ------------------------- | ------------------------ | ----------------------------------------------- | ------------------------------------ |
+| Invalid DTO / path params | `ValidationError` 400    | `{statusCode: 400, message, errors[]}`          | Return immediately                   |
+| Missing/invalid JWT       | `UnauthorizedError` 401  | `{statusCode: 401, message}`                    | AuthMiddleware throws before handler |
+| Item not found            | `NotFoundException` 404  | `{statusCode: 404, message}`                    | Propagated from service              |
+| Ownership violation       | `ForbiddenException` 403 | `{statusCode: 403, message}`                    | Propagated from service              |
+| Optimistic lock conflict  | `ConflictError` 409      | `{statusCode: 409, message}`                    | Propagated from service              |
 
 ---
 
@@ -497,7 +497,7 @@ FUNCTION handleSubmitOrder(
     req: AuthenticatedRequest,
     params: {id: UUID}
 ) -> OrderSubmission:
-    // AuthGuard + SubscriptionGuard have already validated JWT and premium tier
+    // AuthMiddleware + SubscriptionGuard have already validated JWT and premium tier
     userId = req.user.id
     VALIDATE params.id IS valid UUID
     IF validation fails:
@@ -517,19 +517,19 @@ N/A — Stateless; delegates all state to OnlineOrderingService.
 
 #### Internal Data Structures
 
-| Name   | Type   | Size/Constraints | Initialization | Description                                   |
-| ------ | ------ | ---------------- | -------------- | --------------------------------------------- |
-| listId | string | UUID             | from path      | Grocery list to submit as an order            |
-| userId | string | non-empty        | from JWT sub   | Extracted from `req.user.id` set by AuthGuard |
+| Name   | Type   | Size/Constraints | Initialization | Description                                        |
+| ------ | ------ | ---------------- | -------------- | -------------------------------------------------- |
+| listId | string | UUID             | from path      | Grocery list to submit as an order                 |
+| userId | string | non-empty        | from JWT sub   | Extracted from `req.user.id` set by AuthMiddleware |
 
 #### Error Handling & Return Codes
 
-| Error Condition     | Error Code / Exception        | Architecture Contract (ARCH-007 Interface View)             | Recovery                        |
-| ------------------- | ----------------------------- | ----------------------------------------------------------- | ------------------------------- |
-| Invalid path param  | `ValidationError` 400         | `{statusCode: 400, message, errors[]}`                      | Return immediately              |
-| Missing/invalid JWT | `UnauthorizedError` 401       | `{statusCode: 401, message}`                                | AuthGuard throws before handler |
-| Free-tier user      | `ForbiddenError` 403          | `{statusCode: 403, message: "premium_required"}`            | SubscriptionGuard throws        |
-| Store API outage    | `ServiceUnavailableError` 503 | `{statusCode: 503, error: "store_unavailable", retryAfter}` | Propagated from service         |
+| Error Condition     | Error Code / Exception        | Architecture Contract (ARCH-007 Interface View)             | Recovery                             |
+| ------------------- | ----------------------------- | ----------------------------------------------------------- | ------------------------------------ |
+| Invalid path param  | `ValidationError` 400         | `{statusCode: 400, message, errors[]}`                      | Return immediately                   |
+| Missing/invalid JWT | `UnauthorizedError` 401       | `{statusCode: 401, message}`                                | AuthMiddleware throws before handler |
+| Free-tier user      | `ForbiddenError` 403          | `{statusCode: 403, message: "premium_required"}`            | SubscriptionGuard throws             |
+| Store API outage    | `ServiceUnavailableError` 503 | `{statusCode: 503, error: "store_unavailable", retryAfter}` | Propagated from service              |
 
 ---
 
@@ -669,12 +669,12 @@ N/A — Stateless; delegates all state to StoreConfigService.
 
 #### Error Handling & Return Codes
 
-| Error Condition     | Error Code / Exception   | Architecture Contract (ARCH-009 Interface View) | Recovery                        |
-| ------------------- | ------------------------ | ----------------------------------------------- | ------------------------------- |
-| Invalid DTO         | `ValidationError` 400    | `{statusCode: 400, message, errors[]}`          | Return immediately              |
-| Missing/invalid JWT | `UnauthorizedError` 401  | `{statusCode: 401, message}`                    | AuthGuard throws before handler |
-| Config not found    | `NotFoundException` 404  | `{statusCode: 404, message}`                    | Propagated from service         |
-| Ownership violation | `ForbiddenException` 403 | `{statusCode: 403, message}`                    | Propagated from service         |
+| Error Condition     | Error Code / Exception   | Architecture Contract (ARCH-009 Interface View) | Recovery                             |
+| ------------------- | ------------------------ | ----------------------------------------------- | ------------------------------------ |
+| Invalid DTO         | `ValidationError` 400    | `{statusCode: 400, message, errors[]}`          | Return immediately                   |
+| Missing/invalid JWT | `UnauthorizedError` 401  | `{statusCode: 401, message}`                    | AuthMiddleware throws before handler |
+| Config not found    | `NotFoundException` 404  | `{statusCode: 404, message}`                    | Propagated from service              |
+| Ownership violation | `ForbiddenException` 403 | `{statusCode: 403, message}`                    | Propagated from service              |
 
 ---
 
@@ -808,17 +808,15 @@ N/A — Stateless repository; DB manages persistence state.
 
 ---
 
-### Module: MOD-013 (AuthGuard)
+### Module: MOD-013 (AuthMiddleware)
 
 **Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `src/auth/auth.guard.ts`
+**Target Source File(s)**: `src/auth/auth.middleware.ts`
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-FUNCTION canActivate(context: ExecutionContext) -> boolean:
-    request = context.switchToHttp().getRequest()
-
+FUNCTION use(request, response, next) -> void:
     // Step 1: Extract Bearer token
     authHeader = request.headers["authorization"]
     IF authHeader IS NULL OR NOT authHeader.startsWith("Bearer "):
@@ -826,38 +824,37 @@ FUNCTION canActivate(context: ExecutionContext) -> boolean:
 
     token = authHeader.slice(7)  // strip "Bearer "
 
-    // Step 2: Validate JWT against Auth0 JWKS
-    // JWKS cached with 10-minute TTL
-    decoded = AWAIT jwksAdapter.verify(token)
+    // Step 2: Verify the Clerk session token (networkless)
+    // ClerkAuthService.verifyToken uses the public CLERK_JWT_KEY and enforces azp against CLERK_AUTHORIZED_PARTIES — no network round trip
+    decoded = AWAIT clerkAuthService.verifyToken(token)
     IF decoded IS NULL OR decoded.sub IS NULL:
         THROW UnauthorizedException("invalid_token")
 
-    // Step 3: Attach userId to request context
-    request.user = {id: decoded.sub}
+    // Step 3: Read-through-create the user (Clerk sub -> app ULID) and attach to request context
+    request.user = AWAIT usersService.resolveOrCreateFromClaims(decoded)
 
-    RETURN true
+    next()
 ```
 
 #### State Machine View
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ExtractToken : canActivate called
-    ExtractToken --> ValidateJWT : token present
+    [*] --> ExtractToken : use() called
+    ExtractToken --> VerifyToken : token present
     ExtractToken --> Rejected : missing/malformed header
-    ValidateJWT --> Attached : JWT valid, sub present
-    ValidateJWT --> Rejected : invalid/expired JWT
-    Attached --> [*] : returns true; request.user set
+    VerifyToken --> Attached : token valid, sub present
+    VerifyToken --> Rejected : invalid/expired token
+    Attached --> [*] : calls next(); request.user set
     Rejected --> [*] : throws UnauthorizedException 401
 ```
 
 #### Internal Data Structures
 
-| Name     | Type         | Size/Constraints     | Initialization   | Description                         |
-| -------- | ------------ | -------------------- | ---------------- | ----------------------------------- |
-| token    | string       | non-empty JWT        | per-request      | Extracted from Authorization header |
-| decoded  | object       | `{sub: string, ...}` | from JWKS verify | Decoded JWT payload                 |
-| JWKS_TTL | const number | 600000 (10 min)      | module-level     | JWKS cache TTL in milliseconds      |
+| Name    | Type   | Size/Constraints     | Initialization   | Description                         |
+| ------- | ------ | -------------------- | ---------------- | ----------------------------------- |
+| token   | string | non-empty token      | per-request      | Extracted from Authorization header |
+| decoded | object | `{sub: string, ...}` | from verifyToken | Verified Clerk session-token claims |
 
 #### Error Handling & Return Codes
 
@@ -865,8 +862,8 @@ stateDiagram-v2
 | ---------------------------- | ----------------------- | ----------------------------------------------- | ------------------------------------- |
 | Missing Authorization header | `UnauthorizedException` | `{statusCode: 401, message}`                    | Request rejected immediately          |
 | Malformed Bearer token       | `UnauthorizedException` | `{statusCode: 401, message}`                    | Request rejected immediately          |
-| Expired JWT                  | `UnauthorizedException` | `{statusCode: 401, message}`                    | Request rejected; client must refresh |
-| JWKS fetch failure           | `UnauthorizedException` | `{statusCode: 401, message}`                    | Fail-closed; reject request           |
+| Expired token                | `UnauthorizedException` | `{statusCode: 401, message}`                    | Request rejected; client must refresh |
+| Unauthorized party (`azp`)   | `UnauthorizedException` | `{statusCode: 401, message}`                    | Fail-closed; reject request           |
 
 ---
 
@@ -881,7 +878,7 @@ stateDiagram-v2
 FUNCTION canActivate(context: ExecutionContext) -> boolean:
     request = context.switchToHttp().getRequest()
 
-    // AuthGuard MUST have executed first; userId is on request.user.id
+    // AuthMiddleware MUST have executed first; userId is on request.user.id
     userId = request.user?.id
     IF userId IS NULL:
         THROW InternalServerErrorException("auth_guard_not_applied")
@@ -905,7 +902,7 @@ FUNCTION canActivate(context: ExecutionContext) -> boolean:
 stateDiagram-v2
     [*] --> CheckUserId : canActivate called
     CheckUserId --> FetchSubscription : userId present
-    CheckUserId --> InternalError : userId missing (AuthGuard not applied)
+    CheckUserId --> InternalError : userId missing (AuthMiddleware not applied)
     FetchSubscription --> Allowed : isPremium == true
     FetchSubscription --> Rejected : isPremium == false
     FetchSubscription --> Rejected : timeout / adapter error (fail-closed)
@@ -916,12 +913,12 @@ stateDiagram-v2
 
 #### Internal Data Structures
 
-| Name         | Type         | Size/Constraints | Initialization | Description                             |
-| ------------ | ------------ | ---------------- | -------------- | --------------------------------------- |
-| userId       | string       | non-empty        | from request   | Set by AuthGuard; guard fails if absent |
-| requiredTier | string       | "premium"        | from decorator | Tier required to access the route       |
-| isPremium    | boolean      | true \| false    | from adapter   | Result of subscription check            |
-| TIMEOUT_MS   | const number | 2000             | module-level   | Timeout for subscriptions adapter call  |
+| Name         | Type         | Size/Constraints | Initialization | Description                                  |
+| ------------ | ------------ | ---------------- | -------------- | -------------------------------------------- |
+| userId       | string       | non-empty        | from request   | Set by AuthMiddleware; guard fails if absent |
+| requiredTier | string       | "premium"        | from decorator | Tier required to access the route            |
+| isPremium    | boolean      | true \| false    | from adapter   | Result of subscription check                 |
+| TIMEOUT_MS   | const number | 2000             | module-level   | Timeout for subscriptions adapter call       |
 
 #### Error Handling & Return Codes
 
@@ -1021,10 +1018,10 @@ N/A — Stateless HTTP adapter wrapper.
 
 ---
 
-### Module: MOD-017 [EXTERNAL] (UsdaAdapter + JwksAdapter + SubscriptionsAdapter)
+### Module: MOD-017 [EXTERNAL] (UsdaAdapter + ClerkAuthService + SubscriptionsAdapter)
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/adapters/usda.adapter.ts`, `src/adapters/jwks.adapter.ts`, `src/adapters/subscriptions.adapter.ts`
+**Target Source File(s)**: `src/adapters/usda.adapter.ts`, `src/auth/clerk-auth.service.ts`, `src/adapters/subscriptions.adapter.ts`
 
 #### Algorithmic / Logic View
 
@@ -1043,11 +1040,11 @@ FUNCTION normalise(ingredientIds: string[]) -> Map<string, CanonicalIngredient>:
     IF response.status != 200: THROW AdapterError(response.status, response.body)
     RETURN buildCanonicalMap(response.body.foods)
 
-// JwksAdapter — wrapper configuration only
-FUNCTION verify(token: string) -> DecodedJWT:
-    // Uses jwks-rsa library with 10-minute cache
-    // JWKS URI from env: AUTH0_JWKS_URI
-    decoded = AWAIT jwksClient.verify(token, {cache: true, cacheTTL: 600})
+// ClerkAuthService — networkless verification (no external round trip)
+FUNCTION verifyToken(token: string) -> VerifiedClerkClaims:
+    // @clerk/backend verifyToken using the public CLERK_JWT_KEY
+    // Enforces authorized parties (azp) against CLERK_AUTHORIZED_PARTIES
+    decoded = AWAIT verifyToken(token, {jwtKey: CLERK_JWT_KEY, authorizedParties: CLERK_AUTHORIZED_PARTIES})
     RETURN decoded
 
 // SubscriptionsAdapter — wrapper configuration only
@@ -1066,24 +1063,24 @@ FUNCTION isPremium(userId: string) -> boolean:
 
 #### State Machine View
 
-N/A — Stateless HTTP adapter wrappers; JWKS cache is managed by jwks-rsa library internals.
+N/A — Stateless wrappers; Clerk session-token verification is networkless (public `CLERK_JWT_KEY`), so there is no token cache to manage.
 
 #### Internal Data Structures
 
-| Name                      | Type         | Size/Constraints | Initialization | Description                            |
-| ------------------------- | ------------ | ---------------- | -------------- | -------------------------------------- |
-| USDA_API_URL              | string       | non-empty URL    | from env       | USDA FoodData Central base URL         |
-| USDA_API_KEY              | string       | non-empty        | from env       | USDA API key                           |
-| AUTH0_JWKS_URI            | string       | non-empty URL    | from env       | Auth0 JWKS endpoint URI                |
-| SUBSCRIPTIONS_SERVICE_URL | string       | non-empty URL    | from env       | Base URL for 010 subscriptions service |
-| JWKS_CACHE_TTL            | const number | 600 (seconds)    | module-level   | jwks-rsa cache TTL                     |
+| Name                      | Type   | Size/Constraints | Initialization | Description                                                    |
+| ------------------------- | ------ | ---------------- | -------------- | -------------------------------------------------------------- |
+| USDA_API_URL              | string | non-empty URL    | from env       | USDA FoodData Central base URL                                 |
+| USDA_API_KEY              | string | non-empty        | from env       | USDA API key                                                   |
+| CLERK_JWT_KEY             | string | PEM public key   | from env       | Clerk public JWT key (non-secret) for networkless verification |
+| CLERK_AUTHORIZED_PARTIES  | string | comma-separated  | from env       | Allowed `azp` values (non-secret)                              |
+| SUBSCRIPTIONS_SERVICE_URL | string | non-empty URL    | from env       | Base URL for 010 subscriptions service                         |
 
 #### Error Handling & Return Codes
 
 | Error Condition                 | Error Code / Exception | Architecture Contract (ARCH-014 Interface View) | Recovery                           |
 | ------------------------------- | ---------------------- | ----------------------------------------------- | ---------------------------------- |
 | USDA non-200 / timeout          | `AdapterError`         | `{code, upstreamStatus, message}`               | Propagated to IngredientAggregator |
-| JWKS verify failure             | `AdapterError`         | `{code, upstreamStatus, message}`               | AuthGuard throws 401               |
+| Token verify failure            | `ClerkAuthError`       | `{code, message}`                               | AuthMiddleware throws 401          |
 | Subscriptions non-200 / timeout | `AdapterError`         | `{code, upstreamStatus, message}`               | SubscriptionGuard fails-closed 403 |
 
 ---
@@ -1160,7 +1157,7 @@ N/A — Stateless HTTP adapter wrapper; retry logic is in OnlineOrderingService 
 | ARCH-009 | StoreConfigController    | MOD-010                            |
 | ARCH-010 | StoreConfigService       | MOD-011                            |
 | ARCH-011 | StoreConfigRepository    | MOD-012                            |
-| ARCH-012 | AuthGuard                | MOD-013                            |
+| ARCH-012 | AuthMiddleware           | MOD-013                            |
 | ARCH-013 | SubscriptionGuard        | MOD-014                            |
 | ARCH-014 | ExternalAdapters         | MOD-015, MOD-016, MOD-017, MOD-018 |
 

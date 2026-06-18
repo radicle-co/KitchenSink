@@ -57,7 +57,7 @@
 
 | REQ-ID     | Requirement                                                                | ATP-ID   | Acceptance Test                 | Verification | Status               |
 | ---------- | -------------------------------------------------------------------------- | -------- | ------------------------------- | ------------ | -------------------- |
-| REQ-IF-001 | Integration with Auth0 (002) for user identity and tier management         | AT-010-C | Auth integration for tier       | Test         | ⬜ Pending Execution |
+| REQ-IF-001 | Integration with Clerk (002) for user identity and tier management         | AT-010-C | Auth integration for tier       | Test         | ⬜ Pending Execution |
 | REQ-IF-002 | Integration with Recipe App (001) for recipe visibility and access control | AT-010-C | Recipe visibility gated by tier | Test         | ⬜ Pending Execution |
 | REQ-IF-003 | Integration with Stripe for subscription payment and lifecycle             | AT-010-D | Stripe lifecycle management     | Test         | ⬜ Pending Execution |
 
@@ -67,7 +67,7 @@
 | ---------- | --------------------------------------------------------------------------------- | -------- | --------------------------------- | ------------ | -------------------- |
 | REQ-CN-001 | Subscription state changes processed within 5 seconds of event                    | AT-010-E | State change latency ≤ 5s         | Test         | ⬜ Pending Execution |
 | REQ-CN-002 | Upgrade prompt blocks premium feature access until dismissed or upgrade completes | AC-018   | Upgrade prompt blocks access      | Test         | ⬜ Pending Execution |
-| REQ-CN-003 | Subscriptions feature cannot deploy independently of Auth0 (002)                  | AT-010-F | Deployment blocked without 002    | Inspection   | ⬜ Pending Execution |
+| REQ-CN-003 | Subscriptions feature cannot deploy independently of Clerk (002)                  | AT-010-F | Deployment blocked without 002    | Inspection   | ⬜ Pending Execution |
 | REQ-CN-004 | Subscription management UI accessible only to authenticated users                 | AT-010-C | Auth required for subscription UI | Test         | ⬜ Pending Execution |
 
 ---
@@ -106,10 +106,10 @@
 | AC-028   | Canceled subscription active until period end | REQ-026                            | Canceled remains active                 | Canceled subscription stays active until current period ends              |
 | AT-010-A | Type safety + JSDoc                           | REQ-NF-001, REQ-NF-002             | Strict mode + documentation             | NFRs for type safety and maintainability                                  |
 | AT-010-B | Accessibility + color/icon                    | REQ-NF-003, REQ-NF-004             | Accessible names + color not sole state | NFRs for accessibility compliance                                         |
-| AT-010-C | Auth + recipe integration                     | REQ-IF-001, REQ-IF-002, REQ-CN-004 | Auth0 + Recipe App integration          | Required dependencies for identity and content access                     |
+| AT-010-C | Auth + recipe integration                     | REQ-IF-001, REQ-IF-002, REQ-CN-004 | Clerk + Recipe App integration          | Required dependencies for identity and content access                     |
 | AT-010-D | Stripe lifecycle                              | REQ-IF-003                         | Stripe integration                      | Payment and subscription lifecycle management                             |
 | AT-010-E | State change latency                          | REQ-CN-001                         | 5-second state change processing        | Constraint for user experience                                            |
-| AT-010-F | Co-deployment with 002                        | REQ-CN-003                         | Cannot deploy without Auth0             | Runtime failure prevention                                                |
+| AT-010-F | Co-deployment with 002                        | REQ-CN-003                         | Cannot deploy without Clerk             | Runtime failure prevention                                                |
 
 ---
 
@@ -117,9 +117,9 @@
 
 | Integration Point           | Description                                   | MOD Boundary     | UTP Coverage | Integration Test Gap        |
 | --------------------------- | --------------------------------------------- | ---------------- | ------------ | --------------------------- |
-| MOD-001 ↔ EXTERNAL (002)    | SubscriptionScreen → Auth0 (tier check)       | UI → External    | UTP-001-C    | ⚠️ Gap: no integration test |
+| MOD-001 ↔ EXTERNAL (002)    | SubscriptionScreen → Clerk (tier check)       | UI → External    | UTP-001-C    | ⚠️ Gap: no integration test |
 | MOD-001 ↔ EXTERNAL (Stripe) | SubscriptionScreen → Stripe (upgrade/cancel)  | UI → External    | UTP-001-D    | ⚠️ Gap: no integration test |
-| MOD-002 ↔ EXTERNAL (002)    | SubscriptionState → Auth0 (user identity)     | State → External | UTP-002-A    | ⚠️ Gap: no integration test |
+| MOD-002 ↔ EXTERNAL (002)    | SubscriptionState → Clerk (user identity)     | State → External | UTP-002-A    | ⚠️ Gap: no integration test |
 | MOD-003 ↔ EXTERNAL (001)    | FeatureGate → Recipe App (recipe visibility)  | Logic → External | UTP-003-A/B  | ⚠️ Gap: no integration test |
 | MOD-003 ↔ EXTERNAL (005)    | FeatureGate → AI Integration (AI features)    | Logic → External | UTP-003-C    | ⚠️ Gap: no integration test |
 | MOD-003 ↔ EXTERNAL (006)    | FeatureGate → Meal Planning (auto-plan)       | Logic → External | UTP-003-D    | ⚠️ Gap: no integration test |
@@ -194,7 +194,7 @@
 | HAZ-006 | Free-tier user sees upgrade prompt for already-accessible feature → confusion    | REQ-018                | FeatureGate checks tier before showing prompt              | AC-025         |
 | HAZ-007 | Canceled subscription still active past period end → unexpected charges          | REQ-026                | CancelFlow (MOD-010) enforces period-end semantics         | AC-028         |
 | HAZ-008 | TypeScript `any` in FeatureGate → premium features bypassed                      | REQ-NF-001             | `strict: true` enforcement, MOD-003 type guards            | AT-010-A       |
-| HAZ-009 | Co-deployment violation → subscription feature crashes without Auth0             | REQ-CN-003             | REQ-CN-003 inspection, MOD-002 auth dependency             | AT-010-F       |
+| HAZ-009 | Co-deployment violation → subscription feature crashes without Clerk             | REQ-CN-003             | REQ-CN-003 inspection, MOD-002 auth dependency             | AT-010-F       |
 | HAZ-010 | Stripe secret key in client bundle → payment fraud                               | REQ-IF-003             | Server-side Stripe webhook handler only                    | AT-010-D       |
 | HAZ-011 | Cancel flow creates race condition with lapse webhook                            | REQ-025, REQ-026       | Idempotent webhook processing (UTP-009-C)                  | AT-010-D       |
 | HAZ-012 | Upgrade prompt blocks accessible free-tier feature → usability issue             | REQ-018                | Prompt dismissible (AC-026); gate only on premium features | AC-018, AC-026 |

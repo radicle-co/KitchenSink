@@ -45,7 +45,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies that ARCH-001 correctly marshals validated `CreateMealPlanDTO` to ARCH-002 and propagates the returned `MealPlanDTO` back to the caller without mutation.
 
 - **Integration Scenario: ITS-001-A1**
-    - **Given** ARCH-002 (MealPlanService) is available and ARCH-018 (Auth0Adapter) has produced a valid `AuthContext { userId, tier }`
+    - **Given** ARCH-002 (MealPlanService) is available and ARCH-018 (ClerkAuthService) has produced a valid `AuthContext { userId, tier }`
     - **When** ARCH-001 receives a well-formed `CreateMealPlanDTO { name, startDate, endDate, slots[] }` and forwards it to ARCH-002
     - **Then** ARCH-001 receives a `MealPlanDTO` from ARCH-002 and returns HTTP 201 with the unmodified DTO body
 
@@ -537,11 +537,11 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ---
 
-### Module Verification: ARCH-018 (Auth0Adapter)
+### Module Verification: ARCH-018 (ClerkAuthService)
 
 **Parent System Components**: SYS-007
 
-#### Test Case: ITP-018-A (Auth0Adapter → downstream modules AuthContext contract compliance)
+#### Test Case: ITP-018-A (ClerkAuthService → downstream modules AuthContext contract compliance)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
@@ -549,7 +549,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 - **Integration Scenario: ITS-018-A1**
     - **Given** a valid Bearer token with claims `{ sub: userId, tier: 'premium' }` is presented
-    - **When** ARCH-018 validates the token via JWKS and passes `AuthContext` to ARCH-001, ARCH-004, ARCH-007, ARCH-010, ARCH-012, or ARCH-014
+    - **When** ARCH-018 verifies the token networklessly (via `CLERK_JWT_KEY`) and passes `AuthContext` to ARCH-001, ARCH-004, ARCH-007, ARCH-010, ARCH-012, or ARCH-014
     - **Then** the receiving module receives `AuthContext { userId: string, tier: 'premium' }` with correct field types
 
 - **Integration Scenario: ITS-018-A2**
@@ -557,15 +557,15 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** ARCH-018 attempts to validate the token
     - **Then** ARCH-018 raises `UnauthorizedException` and the request is rejected with HTTP 401 before reaching any controller
 
-#### Test Case: ITP-018-B (Auth0Adapter JWKS endpoint fault injection)
+#### Test Case: ITP-018-B (ClerkAuthService unauthorized-party fault injection)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-018 handles JWKS endpoint unavailability gracefully.
+**Description**: Verifies that ARCH-018 rejects a token whose `azp` is not in `CLERK_AUTHORIZED_PARTIES`. (Verification is networkless — `verifyToken` via the public `CLERK_JWT_KEY` — so there is no JWKS/issuer endpoint to be unreachable.)
 
 - **Integration Scenario: ITS-018-B1**
-    - **Given** the Auth0 JWKS endpoint is unreachable
-    - **When** ARCH-018 attempts to validate a Bearer token
+    - **Given** a Bearer token whose `azp` claim is not in `CLERK_AUTHORIZED_PARTIES`
+    - **When** ARCH-018 attempts to verify the token
     - **Then** ARCH-018 raises `UnauthorizedException` and all downstream modules receive HTTP 401
 
 ---
@@ -635,7 +635,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 **Parent System Components**: SYS-004, SYS-005, SYS-006
 
-#### Test Case: ITP-021-A (PremiumTierGuard → Auth0Adapter AuthContext contract compliance)
+#### Test Case: ITP-021-A (PremiumTierGuard → ClerkAuthService AuthContext contract compliance)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
@@ -707,7 +707,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 | ARCH-015  | WasteOptimizerService        | 2         | 2         | Data Flow Testing, Interface Fault Injection                     |
 | ARCH-016  | RecipeApiAdapter             | 2         | 3         | Interface Contract Testing, Interface Fault Injection            |
 | ARCH-017  | UsdaFoodDataAdapter          | 2         | 2         | Data Flow Testing, Interface Fault Injection                     |
-| ARCH-018  | Auth0Adapter                 | 2         | 3         | Interface Contract Testing, Interface Fault Injection            |
+| ARCH-018  | ClerkAuthService             | 2         | 3         | Interface Contract Testing, Interface Fault Injection            |
 | ARCH-019  | AiProviderAdapter            | 2         | 3         | Interface Contract Testing, Interface Fault Injection            |
 | ARCH-020  | MealPlanPublicApiAdapter     | 2         | 2         | Data Flow Testing, Interface Fault Injection                     |
 | ARCH-021  | PremiumTierGuard             | 2         | 3         | Interface Contract Testing, Concurrency & Race Condition Testing |

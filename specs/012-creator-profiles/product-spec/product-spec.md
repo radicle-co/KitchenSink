@@ -137,7 +137,7 @@ KitchenSink becomes the home for food creators who want a professional public pr
 
 **FR-029** The profile creation endpoint (`POST /api/v1/creators`) MUST validate handle format, check uniqueness, and return HTTP 409 on conflict.
 
-**FR-030** All owner-scoped endpoints MUST require a valid Auth0 JWT; the `sub` claim MUST match the `userId` on the `CreatorProfile`.
+**FR-030** All owner-scoped endpoints MUST require a valid Clerk session token; the `sub` claim MUST match the `userId` on the `CreatorProfile`.
 
 ---
 

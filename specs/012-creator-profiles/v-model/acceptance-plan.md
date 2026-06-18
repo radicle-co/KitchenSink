@@ -228,7 +228,7 @@ Acceptance plan maps every requirement (`REQ-001..REQ-018`) to executable ATP/SC
 
 #### Test Case: ATP-017-A (Primary validation for REQ-017)
 
-**Description:** Validates via **Test** that all creator-profile endpoints SHALL be versioned under `/api/v1/`; owner-scoped operations SHALL require Auth0 JWT `sub` matching profile `userId`; sensitive profile mutations SHALL require fresh session assurance to reduce stale OAuth takeover risk.
+**Description:** Validates via **Test** that all creator-profile endpoints SHALL be versioned under `/api/v1/`; owner-scoped operations SHALL require a Clerk session token whose `sub` matches profile `userId`; sensitive profile mutations SHALL require fresh session assurance to reduce stale OAuth takeover risk.
 
 - **User Scenario: SCN-017-A1**
     - **Given** preconditions and access context required by the requirement are satisfied

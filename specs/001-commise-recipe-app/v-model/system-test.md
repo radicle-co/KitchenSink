@@ -31,7 +31,7 @@ Each test case identifies its technique by name:
 
 ## System Tests
 
-### Component Verification: SYS-001 (Auth0 Identity and Access Guard)
+### Component Verification: SYS-001 (Clerk Identity and Access Guard)
 
 **Parent Requirements**: REQ-017, REQ-024, REQ-050b, REQ-052, REQ-IF-005a, REQ-IF-005b, REQ-IF-005c
 
@@ -42,7 +42,7 @@ Each test case identifies its technique by name:
 **Description**: Verifies that authenticated principal extraction, scope validation, and owner-authorization checks enforce endpoint contracts across protected API surfaces.
 
 - **System Scenario: STS-001-A1**
-    - **Given** an Auth0-issued bearer token signed by a known JWKS key with unexpired `exp` and required scopes
+    - **Given** a Clerk session token verifiable against the configured `CLERK_JWT_KEY` public key with unexpired `exp`, an allowed `azp` (`CLERK_AUTHORIZED_PARTIES`), and required scopes
     - **When** the guard processes `GET /api/v1/recipes/{id}` for a resource the principal can access
     - **Then** the request pipeline receives principal context (`userId`, tier, claims) and the endpoint continues with HTTP 200 response behavior
 
@@ -55,11 +55,11 @@ Each test case identifies its technique by name:
 
 **Technique**: Error Guessing
 **Target View**: Dependency View
-**Description**: Verifies fail-closed behavior when Auth0/JWKS dependencies degrade and owner checks fail.
+**Description**: Verifies fail-closed behavior when token verification inputs are invalid (bad signature, disallowed `azp`, missing `CLERK_JWT_KEY`) and owner checks fail.
 
 - **System Scenario: STS-001-B1**
-    - **Given** JWT verification requires JWKS retrieval and the JWKS endpoint times out
-    - **When** the guard attempts signature verification for an inbound token
+    - **Given** the configured `CLERK_JWT_KEY` is missing or malformed so networkless signature verification cannot complete
+    - **When** the guard attempts verification for an inbound token
     - **Then** the guard fails closed with HTTP 401 and no protected route logic runs
 
 - **System Scenario: STS-001-B2**
@@ -71,7 +71,7 @@ Each test case identifies its technique by name:
 
 **Technique**: Error Guessing
 **Target View**: Dependency View
-**Description**: Verifies JWT edge cases (clock skew, replay, JWKS unavailability during cache miss) as high-risk failure paths beyond formal partitions.
+**Description**: Verifies JWT edge cases (clock skew, replay, missing/invalid `CLERK_JWT_KEY` configuration) as high-risk failure paths beyond formal partitions. Verification is networkless, so all failure paths fail closed with HTTP 401 (or a boot-time config error) — there is no remote JWKS-outage path.
 
 - **System Scenario: STS-001-C1**
     - **Given** a bearer token with `nbf`/`exp` near validation boundaries and verifier clock skew relative to issuer time
@@ -84,9 +84,9 @@ Each test case identifies its technique by name:
     - **Then** replay is rejected and no duplicate protected side effects are committed
 
 - **System Scenario: STS-001-C3**
-    - **Given** signature verification requires JWKS refresh on cache miss while JWKS endpoint is unavailable
-    - **When** JWT signature verification executes
-    - **Then** the guard fails closed with HTTP 401 and no protected route logic runs
+    - **Given** a bearer token presented to the guard while the configured `CLERK_JWT_KEY` is stale/mismatched relative to the Clerk signing key (e.g. mid key-rotation), so the local signature check cannot succeed
+    - **When** networkless JWT signature verification executes
+    - **Then** the guard fails closed with HTTP 401 and no protected route logic runs (no JWKS fetch is attempted)
 
 ---
 
@@ -810,7 +810,7 @@ Each test case identifies its technique by name:
 **Description**: Verifies web client route protection, API base URL resolution, and conflict-resolution action wiring to backend contracts.
 
 - **System Scenario: STS-016-A1**
-    - **Given** web runtime with Auth0 session and `NEXT_PUBLIC_API_URL` unset
+    - **Given** web runtime with a Clerk session and `NEXT_PUBLIC_API_URL` unset
     - **When** recipe API client initializes and requests protected resources
     - **Then** base URL resolves to `http://localhost:4000`, bearer credentials are attached, and unauthenticated route access is blocked
 
@@ -848,7 +848,7 @@ Each test case identifies its technique by name:
 **Description**: Verifies mobile API contract parity with web, authenticated access requirements, and environment-based API resolution.
 
 - **System Scenario: STS-017-A1**
-    - **Given** mobile runtime with `EXPO_PUBLIC_API_URL` unset and valid Auth0 credentials
+    - **Given** mobile runtime with `EXPO_PUBLIC_API_URL` unset and a valid Clerk session token
     - **When** API client bootstrap executes
     - **Then** base URL resolves to `http://localhost:4000`, protected endpoint calls carry identity tokens, and anonymous API access is blocked
 

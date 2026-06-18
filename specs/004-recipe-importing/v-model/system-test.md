@@ -358,12 +358,12 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that SYS-008 validates a well-formed Auth0 JWT and allows the request to proceed to SYS-009 (REQ-IF-004).
+**Description**: Verifies that SYS-008 validates a well-formed Clerk session token and allows the request to proceed to SYS-009 (REQ-IF-004).
 
 - **System Scenario: STS-008-A1**
-    - **Given** an inbound HTTP request to `POST /import/url` with a valid, non-expired Auth0 JWT in the `Authorization: Bearer` header
+    - **Given** an inbound HTTP request to `POST /import/url` with a valid, non-expired Clerk session token in the `Authorization: Bearer` header
     - **When** SYS-008 processes the request
-    - **Then** the JWT is validated against the Auth0 JWKS endpoint, the request is forwarded to SYS-009 with the decoded user identity, and no 401 response is returned
+    - **Then** the token is verified networklessly against the public `CLERK_JWT_KEY` (with `azp` checked against `CLERK_AUTHORIZED_PARTIES`), the request is forwarded to SYS-009 with the decoded user identity, and no 401 response is returned
 
 #### Test Case: STP-008-B (Unauthenticated Request Rejection)
 
@@ -377,7 +377,7 @@ Each test case MUST identify its technique by name:
     - **Then** SYS-008 returns HTTP 401 immediately, and SYS-009 receives no invocation
 
 - **System Scenario: STS-008-B2**
-    - **Given** an inbound HTTP request to `POST /import/instagram` with an expired Auth0 JWT
+    - **Given** an inbound HTTP request to `POST /import/instagram` with an expired Clerk session token
     - **When** SYS-008 processes the request
     - **Then** SYS-008 returns HTTP 401 with an `invalid_token` error code, and SYS-009 receives no invocation
 

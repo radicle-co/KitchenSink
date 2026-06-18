@@ -143,7 +143,7 @@ Internal/operational roles — not user personas. See `specs/cross-feature-consi
 
 ## API Surface
 
-> All endpoints conform to S-001 (`/api/v1/*` prefix, JSON, Auth0 JWT). See `specs/cross-feature-consistency-report.md` §S-001.
+> All endpoints conform to S-001 (`/api/v1/*` prefix, JSON, Clerk session token). See `specs/cross-feature-consistency-report.md` §S-001.
 
 Runtime: Node 24.x / NestJS 11. All paths under `/api/v1/`.
 

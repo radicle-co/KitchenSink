@@ -33,7 +33,7 @@ All criteria below MUST be satisfied with linkable evidence before the Beta wait
 
 ### 2.2 Engineering Readiness
 
-- [ ] Auth0 (`002`) production tenant configured; emergency-revoke procedure documented and rehearsed once.
+- [ ] Clerk (`002`) production instance configured; emergency-revoke procedure documented and rehearsed once.
 - [ ] Sentry or equivalent error tracking live for every Beta-scope service (web, mobile, backend).
 - [ ] Structured logging in place for every Beta-scope service with a documented retention window.
 - [ ] Basic product analytics live (event names enumerated in a tracking-plan doc) for every Beta-scope feature.
@@ -42,7 +42,7 @@ All criteria below MUST be satisfied with linkable evidence before the Beta wait
 
 ### 2.3 Limited-Launch Mechanics
 
-- [ ] Beta invite / waitlist mechanism live (Auth0 user-pool segmentation **or** feature-flag — decision recorded in [`v1-launch-plan.md`](./v1-launch-plan.md) §8 Open Items).
+- [ ] Beta invite / waitlist mechanism live (Clerk instance/allowlist segmentation **or** feature-flag — decision recorded in [`v1-launch-plan.md`](./v1-launch-plan.md) §8 Open Items).
 - [ ] Hard cap on Beta seats configured. Initial cap: `1,000 seats provisional; Product sign-off due M4 entry`.
 - [ ] Mechanism to revoke a Beta seat without account deletion exists and is tested.
 - [ ] Feature-flag kill-switch exists for AI surfaces (even though `005` is not in Beta, any accidental exposure must be revocable).

@@ -13,7 +13,7 @@ This document defines the Acceptance Test Plan for the Recipe Importing feature.
 
 Coverage spans three import paths (web URL, Instagram, physical copy/OCR), attribution and visibility rules, deduplication, subscription gating, and accessibility constraints.
 
-**Dependencies**: Feature 001 (Recipe entity model), Feature 002 (Auth0 authentication), Feature 010 (subscription visibility rules).
+**Dependencies**: Feature 001 (Recipe entity model), Feature 002 (Clerk authentication), Feature 010 (subscription visibility rules).
 
 ---
 

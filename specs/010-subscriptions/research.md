@@ -27,7 +27,7 @@
 
 **What competitors gate behind premium:**
 
-| Feature Category         | Mealime Pro | AnyList Complete | Sabor Premium  | Commise (proposed)                        |
+| Feature Category         | Mealime Pro | AnyList Complete | Sabor Premium  | Commise (proposed)                          |
 | ------------------------ | ----------- | ---------------- | -------------- | ------------------------------------------- |
 | Private/unlisted content | —           | —                | —              | ✅ Private recipes                          |
 | AI features              | —           | —                | ✅ AI planning | ✅ AI generation, optimization              |
@@ -240,7 +240,7 @@ cancelAtPeriodEnd: boolean;
 trialEndsAt: Date | null;
 ```
 
-The API Gateway Lambda authorizer (from `002`) injects Auth0 `sub` into `$context.authorizer.sub`, matching `users.sub`. The subscription `plan` and `subscriptionStatus` should also be injected to avoid a DB lookup per request for gating decisions. Alternatively, the NestJS guard reads from the request-scoped user object populated from the authorizer context.
+The NestJS `AuthMiddleware` (from `002`) networklessly verifies the Clerk session token via `ClerkAuthService` (`@clerk/backend` `verifyToken` with the public `CLERK_JWT_KEY` and `azp`/`CLERK_AUTHORIZED_PARTIES` enforcement), then populates `req.user` with the Clerk `sub` (mapped to the app ULID). Because subscription tier rides on the token's `public_metadata.subscriptionTier` claim, gating decisions read it directly off the verified claims with no DB lookup per request. There is deliberately no trusted-header/authorizer-context path: the service is fronted by a public ALB, so a client-suppliable header would be forgeable.
 
 ### 3.2 NestJS Feature Gating Pattern
 

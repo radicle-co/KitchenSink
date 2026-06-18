@@ -19,22 +19,22 @@ The Grocery Lists & Online Ordering architecture decomposes six system component
 
 ## Logical View — Component Breakdown (IEEE 42010 / Kruchten 4+1)
 
-| ARCH ID  | Name                     | Description                                                                                                                                                                                                                                                                                                                    | Parent System Components | Type      |
-| -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | --------- |
-| ARCH-001 | GroceryListController    | NestJS REST controller exposing `POST /grocery-lists/generate`, `GET /grocery-lists/:id`, and `DELETE /grocery-lists/:id`. Validates DTOs, delegates to GroceryListService, and serialises responses. Applies AuthGuard and rate-limit decorators.                                                                             | SYS-001, SYS-002         | Component |
-| ARCH-002 | GroceryListService       | Domain service orchestrating list generation: fetches meal plan via MealPlanAdapter, fetches recipe ingredients via RecipeAdapter, invokes IngredientAggregator, persists result via GroceryListRepository. Enforces 5-second timeout (REQ-003).                                                                               | SYS-001                  | Service   |
-| ARCH-003 | IngredientAggregator     | Pure domain module: accepts a flat array of `{ingredientId, quantity, unit}` tuples, invokes UsdaAdapter for canonical identity and unit normalisation, deduplicates by canonical ingredient ID, sums quantities, and returns `GroceryListItem[]`.                                                                             | SYS-001                  | Component |
-| ARCH-004 | ListStateController      | NestJS REST controller exposing `PATCH /grocery-lists/:id/items/:itemId` (mark already-have), `GET /grocery-lists/:id/items` (filtered view). Applies AuthGuard. Delegates to ListStateService.                                                                                                                                | SYS-002                  | Component |
-| ARCH-005 | ListStateService         | Domain service managing grocery list item state: reads/writes `alreadyHave` flag, enforces exclusion of flagged items from shopping view and order submission queries. Delegates persistence to GroceryListRepository.                                                                                                         | SYS-002                  | Service   |
-| ARCH-006 | GroceryListRepository    | Drizzle ORM repository for `grocery_lists` and `grocery_list_items` tables. Provides typed CRUD operations, optimistic locking for concurrent flag updates, and query methods that filter `alreadyHave = true` items.                                                                                                          | SYS-001, SYS-002         | Component |
-| ARCH-007 | OnlineOrderingController | NestJS REST controller exposing `POST /grocery-lists/:id/order`. Applies AuthGuard and SubscriptionGuard (premium gate). Delegates to OnlineOrderingService. Returns order status and provider order ID.                                                                                                                       | SYS-003, SYS-004         | Component |
-| ARCH-008 | OnlineOrderingService    | Domain service orchestrating order submission: reads active list items (excluding `alreadyHave`) via ListStateService, resolves store config via StoreConfigService, maps ingredients to provider SKUs via IngredientMappingRepository, submits via GroceryStoreAdapter. Handles API outage with retry + graceful degradation. | SYS-003                  | Service   |
-| ARCH-009 | StoreConfigController    | NestJS REST controller exposing `GET /store-configs`, `POST /store-configs`, `DELETE /store-configs/:id`. Applies AuthGuard. Delegates to StoreConfigService. Returns setup guidance when no config exists.                                                                                                                    | SYS-004                  | Component |
-| ARCH-010 | StoreConfigService       | Domain service managing grocery store integration configurations: validates provider credentials, persists encrypted store configs, and provides lookup by userId. Returns setup guidance payload when no config is found (REQ-007).                                                                                           | SYS-004                  | Service   |
-| ARCH-011 | StoreConfigRepository    | Drizzle ORM repository for `store_configs` table. Stores encrypted provider credentials (AES-256-GCM via AWS KMS). Provides lookup by userId and provider enum.                                                                                                                                                                | SYS-004                  | Component |
-| ARCH-012 | AuthGuard                | NestJS guard applied to all grocery list and ordering endpoints. Extracts Bearer token from `Authorization` header, validates JWT signature against Auth0 JWKS via JwksAdapter, and attaches decoded `userId` to request context. Rejects on invalid/missing token.                                                            | SYS-005                  | Utility   |
-| ARCH-013 | SubscriptionGuard        | NestJS guard applied to online ordering endpoints only. Reads `userId` from request context (set by AuthGuard), calls SubscriptionsAdapter to verify active premium tier, and rejects with 403 if free-tier. Depends on AuthGuard executing first.                                                                             | SYS-005                  | Utility   |
-| ARCH-014 | ExternalAdapters         | Collection of typed adapter classes wrapping all external dependencies: `MealPlanAdapter` (006), `RecipeAdapter` (001), `UsdaAdapter` (003), `JwksAdapter` (002), `SubscriptionsAdapter` (010), `GroceryStoreAdapter` (provider-specific implementations). Each adapter implements a domain interface for testability.         | SYS-006                  | Library   |
+| ARCH ID  | Name                     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Parent System Components | Type      |
+| -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | --------- |
+| ARCH-001 | GroceryListController    | NestJS REST controller exposing `POST /grocery-lists/generate`, `GET /grocery-lists/:id`, and `DELETE /grocery-lists/:id`. Validates DTOs, delegates to GroceryListService, and serialises responses. Applies AuthMiddleware and rate-limit decorators.                                                                                                                                                                                                            | SYS-001, SYS-002         | Component |
+| ARCH-002 | GroceryListService       | Domain service orchestrating list generation: fetches meal plan via MealPlanAdapter, fetches recipe ingredients via RecipeAdapter, invokes IngredientAggregator, persists result via GroceryListRepository. Enforces 5-second timeout (REQ-003).                                                                                                                                                                                                                   | SYS-001                  | Service   |
+| ARCH-003 | IngredientAggregator     | Pure domain module: accepts a flat array of `{ingredientId, quantity, unit}` tuples, invokes UsdaAdapter for canonical identity and unit normalisation, deduplicates by canonical ingredient ID, sums quantities, and returns `GroceryListItem[]`.                                                                                                                                                                                                                 | SYS-001                  | Component |
+| ARCH-004 | ListStateController      | NestJS REST controller exposing `PATCH /grocery-lists/:id/items/:itemId` (mark already-have), `GET /grocery-lists/:id/items` (filtered view). Applies AuthMiddleware. Delegates to ListStateService.                                                                                                                                                                                                                                                               | SYS-002                  | Component |
+| ARCH-005 | ListStateService         | Domain service managing grocery list item state: reads/writes `alreadyHave` flag, enforces exclusion of flagged items from shopping view and order submission queries. Delegates persistence to GroceryListRepository.                                                                                                                                                                                                                                             | SYS-002                  | Service   |
+| ARCH-006 | GroceryListRepository    | Drizzle ORM repository for `grocery_lists` and `grocery_list_items` tables. Provides typed CRUD operations, optimistic locking for concurrent flag updates, and query methods that filter `alreadyHave = true` items.                                                                                                                                                                                                                                              | SYS-001, SYS-002         | Component |
+| ARCH-007 | OnlineOrderingController | NestJS REST controller exposing `POST /grocery-lists/:id/order`. Applies AuthMiddleware and SubscriptionGuard (premium gate). Delegates to OnlineOrderingService. Returns order status and provider order ID.                                                                                                                                                                                                                                                      | SYS-003, SYS-004         | Component |
+| ARCH-008 | OnlineOrderingService    | Domain service orchestrating order submission: reads active list items (excluding `alreadyHave`) via ListStateService, resolves store config via StoreConfigService, maps ingredients to provider SKUs via IngredientMappingRepository, submits via GroceryStoreAdapter. Handles API outage with retry + graceful degradation.                                                                                                                                     | SYS-003                  | Service   |
+| ARCH-009 | StoreConfigController    | NestJS REST controller exposing `GET /store-configs`, `POST /store-configs`, `DELETE /store-configs/:id`. Applies AuthMiddleware. Delegates to StoreConfigService. Returns setup guidance when no config exists.                                                                                                                                                                                                                                                   | SYS-004                  | Component |
+| ARCH-010 | StoreConfigService       | Domain service managing grocery store integration configurations: validates provider credentials, persists encrypted store configs, and provides lookup by userId. Returns setup guidance payload when no config is found (REQ-007).                                                                                                                                                                                                                               | SYS-004                  | Service   |
+| ARCH-011 | StoreConfigRepository    | Drizzle ORM repository for `store_configs` table. Stores encrypted provider credentials (AES-256-GCM via AWS KMS). Provides lookup by userId and provider enum.                                                                                                                                                                                                                                                                                                    | SYS-004                  | Component |
+| ARCH-012 | AuthMiddleware           | NestJS middleware applied to all grocery list and ordering endpoints. Extracts the Clerk session token (Bearer) from the `Authorization` header, verifies it networklessly via the public `CLERK_JWT_KEY` (no JWKS round trip) enforcing authorized parties (`azp` / `CLERK_AUTHORIZED_PARTIES`), read-through-resolves the app user from the `sub` claim, and attaches `userId` to request context. Rejects on invalid/missing/expired token or disallowed `azp`. | SYS-005                  | Utility   |
+| ARCH-013 | SubscriptionGuard        | NestJS guard applied to online ordering endpoints only. Reads `userId` from request context (set by AuthMiddleware) and reads the subscription tier from the session token's `public_metadata` claim to verify active premium tier, rejecting with 403 if free-tier. Depends on AuthMiddleware executing first.                                                                                                                                                    | SYS-005                  | Utility   |
+| ARCH-014 | ExternalAdapters         | Collection of typed adapter classes wrapping all external dependencies: `MealPlanAdapter` (006), `RecipeAdapter` (001), `UsdaAdapter` (003), `SubscriptionsAdapter` (010), `GroceryStoreAdapter` (provider-specific implementations). Each adapter implements a domain interface for testability. (Clerk session-token verification (002) is networkless via `CLERK_JWT_KEY` and requires no outbound adapter.)                                                    | SYS-006                  | Library   |
 
 ## Process View — Dynamic Behavior (Kruchten 4+1)
 
@@ -44,16 +44,15 @@ The Grocery Lists & Online Ordering architecture decomposes six system component
 sequenceDiagram
     participant Client
     participant C1 as ARCH-001 GroceryListController
-    participant G12 as ARCH-012 AuthGuard
+    participant G12 as ARCH-012 AuthMiddleware
     participant S2 as ARCH-002 GroceryListService
     participant A3 as ARCH-003 IngredientAggregator
     participant R6 as ARCH-006 GroceryListRepository
     participant E14 as ARCH-014 ExternalAdapters
 
     Client->>C1: POST /grocery-lists/generate {mealPlanId}
-    C1->>G12: validateJWT(token)
-    G12->>E14: JwksAdapter.verify(token)
-    E14-->>G12: {userId}
+    C1->>G12: verifyToken(token) [networkless, CLERK_JWT_KEY + azp]
+    G12->>G12: read-through resolve user from sub claim
     G12-->>C1: userId attached to context
     C1->>S2: generateList(mealPlanId, userId)
     S2->>E14: MealPlanAdapter.getMealPlan(mealPlanId)
@@ -81,12 +80,12 @@ sequenceDiagram
 sequenceDiagram
     participant Client
     participant C4 as ARCH-004 ListStateController
-    participant G12 as ARCH-012 AuthGuard
+    participant G12 as ARCH-012 AuthMiddleware
     participant S5 as ARCH-005 ListStateService
     participant R6 as ARCH-006 GroceryListRepository
 
     Client->>C4: PATCH /grocery-lists/:id/items/:itemId {alreadyHave: true}
-    C4->>G12: validateJWT(token)
+    C4->>G12: verifyToken(token) [networkless]
     G12-->>C4: userId
     C4->>S5: markAlreadyHave(listId, itemId, userId, true)
     S5->>R6: assertOwnership(listId, userId)
@@ -108,7 +107,7 @@ sequenceDiagram
 sequenceDiagram
     participant Client
     participant C7 as ARCH-007 OnlineOrderingController
-    participant G12 as ARCH-012 AuthGuard
+    participant G12 as ARCH-012 AuthMiddleware
     participant G13 as ARCH-013 SubscriptionGuard
     participant S8 as ARCH-008 OnlineOrderingService
     participant S5 as ARCH-005 ListStateService
@@ -116,11 +115,10 @@ sequenceDiagram
     participant E14 as ARCH-014 ExternalAdapters
 
     Client->>C7: POST /grocery-lists/:id/order
-    C7->>G12: validateJWT(token)
+    C7->>G12: verifyToken(token) [networkless]
     G12-->>C7: userId
     C7->>G13: checkSubscription(userId)
-    G13->>E14: SubscriptionsAdapter.isPremium(userId)
-    E14-->>G13: true/false
+    G13->>G13: read premium tier from public_metadata claim
     alt free-tier user
         G13-->>C7: 403 Forbidden
         C7-->>Client: 403 {error: "premium_required"}
@@ -146,7 +144,7 @@ sequenceDiagram
 ```
 
 **Concurrency Model**: NestJS event loop; store API call is a single async operation with 10-second timeout and exponential backoff (max 2 retries).
-**Synchronization Points**: Guards execute sequentially (AuthGuard → SubscriptionGuard) before service invocation; list state read is non-mutating (no lock required).
+**Synchronization Points**: Auth executes sequentially (AuthMiddleware → SubscriptionGuard) before service invocation; list state read is non-mutating (no lock required).
 
 ## Interface View — API Contracts (Kruchten 4+1)
 
@@ -155,7 +153,7 @@ sequenceDiagram
 | Direction | Name          | Type              | Format                              | Constraints                                  |
 | --------- | ------------- | ----------------- | ----------------------------------- | -------------------------------------------- |
 | Input     | mealPlanId    | string (UUID)     | `POST /grocery-lists/generate` body | Required; must reference existing meal plan  |
-| Input     | Authorization | string            | `Bearer <jwt>` header               | Required; validated by AuthGuard             |
+| Input     | Authorization | string            | `Bearer <jwt>` header               | Required; validated by AuthMiddleware        |
 | Output    | GroceryList   | object            | `{id, userId, mealPlanId, items[]}` | 201 on success                               |
 | Exception | 400           | ValidationError   | `{statusCode, message, errors[]}`   | Invalid DTO                                  |
 | Exception | 401           | UnauthorizedError | `{statusCode, message}`             | Missing or invalid JWT                       |
@@ -216,13 +214,13 @@ sequenceDiagram
 
 ### ARCH-007: OnlineOrderingController
 
-| Direction | Name            | Type               | Format                                      | Constraints                             |
-| --------- | --------------- | ------------------ | ------------------------------------------- | --------------------------------------- |
-| Input     | listId          | string (UUID)      | path parameter                              | Required                                |
-| Input     | Authorization   | string             | `Bearer <jwt>` header                       | Required; AuthGuard + SubscriptionGuard |
-| Output    | OrderSubmission | object             | `{orderId, providerOrderId, status}`        | 201 on success                          |
-| Exception | 403             | ForbiddenError     | `{statusCode, message: "premium_required"}` | Free-tier user (REQ-CN-002)             |
-| Exception | 503             | ServiceUnavailable | `{statusCode, error, retryAfter}`           | Grocery store API outage (REQ-010)      |
+| Direction | Name            | Type               | Format                                      | Constraints                                  |
+| --------- | --------------- | ------------------ | ------------------------------------------- | -------------------------------------------- |
+| Input     | listId          | string (UUID)      | path parameter                              | Required                                     |
+| Input     | Authorization   | string             | `Bearer <jwt>` header                       | Required; AuthMiddleware + SubscriptionGuard |
+| Output    | OrderSubmission | object             | `{orderId, providerOrderId, status}`        | 201 on success                               |
+| Exception | 403             | ForbiddenError     | `{statusCode, message: "premium_required"}` | Free-tier user (REQ-CN-002)                  |
+| Exception | 503             | ServiceUnavailable | `{statusCode, error, retryAfter}`           | Grocery store API outage (REQ-010)           |
 
 ### ARCH-008: OnlineOrderingService
 
@@ -263,35 +261,35 @@ sequenceDiagram
 | Output    | StoreConfig[] | domain entity[] | decrypted credential shape           | Decryption on read                        |
 | Exception | DatabaseError | Error           | `{code: "DB_ERROR"}`                 | Connection or constraint failure          |
 
-### ARCH-012: AuthGuard
+### ARCH-012: AuthMiddleware
 
-| Direction | Name   | Type              | Format                            | Constraints                          |
-| --------- | ------ | ----------------- | --------------------------------- | ------------------------------------ |
-| Input     | token  | string            | `Bearer <jwt>` from Authorization | Required on all protected routes     |
-| Output    | userId | string            | attached to `request.user.id`     | Decoded from validated JWT sub claim |
-| Exception | 401    | UnauthorizedError | `{statusCode, message}`           | Missing, expired, or invalid JWT     |
+| Direction | Name   | Type              | Format                            | Constraints                                             |
+| --------- | ------ | ----------------- | --------------------------------- | ------------------------------------------------------- |
+| Input     | token  | string            | `Bearer <jwt>` from Authorization | Required on all protected routes                        |
+| Output    | userId | string            | attached to `request.user.id`     | Resolved from the verified session token `sub` claim    |
+| Exception | 401    | UnauthorizedError | `{statusCode, message}`           | Missing, expired, or invalid token, or disallowed `azp` |
 
 ### ARCH-013: SubscriptionGuard
 
-| Direction | Name         | Type           | Format                                      | Constraints                            |
-| --------- | ------------ | -------------- | ------------------------------------------- | -------------------------------------- |
-| Input     | userId       | string         | from `request.user.id` (AuthGuard)          | Required; AuthGuard must execute first |
-| Input     | requiredTier | string         | decorator metadata `"premium"`              | Hardcoded for online ordering routes   |
-| Output    | void         | —              | passes through on success                   | No output; throws on failure           |
-| Exception | 403          | ForbiddenError | `{statusCode, message: "premium_required"}` | User not on premium tier               |
+| Direction | Name         | Type           | Format                                      | Constraints                                 |
+| --------- | ------------ | -------------- | ------------------------------------------- | ------------------------------------------- |
+| Input     | userId       | string         | from `request.user.id` (AuthMiddleware)     | Required; AuthMiddleware must execute first |
+| Input     | requiredTier | string         | decorator metadata `"premium"`              | Hardcoded for online ordering routes        |
+| Output    | void         | —              | passes through on success                   | No output; throws on failure                |
+| Exception | 403          | ForbiddenError | `{statusCode, message: "premium_required"}` | User not on premium tier                    |
 
 ### ARCH-014: ExternalAdapters
 
-| Direction | Name                             | Type             | Format                            | Constraints                                     |
-| --------- | -------------------------------- | ---------------- | --------------------------------- | ----------------------------------------------- |
-| Input     | MealPlanAdapter.get              | string (UUID)    | mealPlanId                        | Calls 006 REST API; 5-second timeout            |
-| Input     | RecipeAdapter.getIngredients     | UUID[]           | recipeIds[]                       | Parallel calls; 5-second timeout per call       |
-| Input     | UsdaAdapter.normalise            | string[]         | ingredientIds[]                   | Batch call; 3-second timeout                    |
-| Input     | JwksAdapter.verify               | string           | JWT token                         | JWKS cached with 10-minute TTL                  |
-| Input     | SubscriptionsAdapter.isPremium   | string           | userId                            | Calls 010 REST API; 2-second timeout            |
-| Input     | GroceryStoreAdapter.mapAndSubmit | object           | `{items[], storeConfig}`          | Provider-specific; 10-second timeout, 2 retries |
-| Output    | (per adapter)                    | typed domain obj | per adapter contract              | All adapters implement domain interface         |
-| Exception | AdapterError                     | Error            | `{code, upstreamStatus, message}` | Wraps all upstream HTTP errors                  |
+| Direction | Name                             | Type             | Format                            | Constraints                                          |
+| --------- | -------------------------------- | ---------------- | --------------------------------- | ---------------------------------------------------- |
+| Input     | MealPlanAdapter.get              | string (UUID)    | mealPlanId                        | Calls 006 REST API; 5-second timeout                 |
+| Input     | RecipeAdapter.getIngredients     | UUID[]           | recipeIds[]                       | Parallel calls; 5-second timeout per call            |
+| Input     | UsdaAdapter.normalise            | string[]         | ingredientIds[]                   | Batch call; 3-second timeout                         |
+| Input     | ClerkAuth.verifyToken            | string           | session token                     | Networkless (`CLERK_JWT_KEY` + `azp`); no round trip |
+| Input     | SubscriptionsAdapter.isPremium   | string           | userId                            | Calls 010 REST API; 2-second timeout                 |
+| Input     | GroceryStoreAdapter.mapAndSubmit | object           | `{items[], storeConfig}`          | Provider-specific; 10-second timeout, 2 retries      |
+| Output    | (per adapter)                    | typed domain obj | per adapter contract              | All adapters implement domain interface              |
+| Exception | AdapterError                     | Error            | `{code, upstreamStatus, message}` | Wraps all upstream HTTP errors                       |
 
 ## Data Flow View — Data Transformation Chains (Kruchten 4+1)
 
@@ -334,10 +332,10 @@ ARCH-001 GroceryListController
 [Client: POST /grocery-lists/:id/order]
         │ JWT token
         ▼
-ARCH-012 AuthGuard → ARCH-014 JwksAdapter
+ARCH-012 AuthMiddleware (networkless verify: CLERK_JWT_KEY + azp)
         │ userId
         ▼
-ARCH-013 SubscriptionGuard → ARCH-014 SubscriptionsAdapter
+ARCH-013 SubscriptionGuard → public_metadata tier claim
         │ premium confirmed
         ▼
 ARCH-008 OnlineOrderingService
@@ -367,7 +365,7 @@ ARCH-007 OnlineOrderingController
 [Client: PATCH /grocery-lists/:id/items/:itemId]
         │ {alreadyHave: boolean}
         ▼
-ARCH-012 AuthGuard
+ARCH-012 AuthMiddleware
         │ userId
         ▼
 ARCH-004 ListStateController

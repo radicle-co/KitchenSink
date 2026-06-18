@@ -1805,7 +1805,7 @@ Arrange:
 Act:
   call = () => guard.canActivate(context)
 Assert:
-  call() throws UnauthorizedException('AuthContext missing — Auth0Guard must run first')
+  call() throws UnauthorizedException('AuthContext missing — AuthMiddleware must run first')
 ```
 
 **UTS-021-A2**

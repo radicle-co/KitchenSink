@@ -503,9 +503,9 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-035 / REQ-IF-007: All /v1/foods/\* endpoints require Auth0 authorizer; 401 for unauthenticated requests
+#### Tier 2 — REQ-035 / REQ-IF-007: All /v1/foods/\* endpoints require the Clerk auth middleware; 401 for unauthenticated requests
 
-**AT-035-A** — Unauthenticated requests are rejected at the API Gateway layer
+**AT-035-A** — Unauthenticated requests are rejected by the Clerk auth middleware
 
 **Technique**: Interface Contract Testing
 
@@ -513,19 +513,19 @@ Examples:
 
 **ATS-035-A1**
 
-- **Given** the API is running with the shared Auth0 authorizer attached
+- **Given** the API is running with the shared Clerk auth middleware attached
 - **When** an unauthenticated client sends `GET /v1/foods/12345` (no Authorization header)
 - **Then** the response is `401 Unauthorized`; no downstream processing occurs
 
 **ATS-035-A2**
 
-- **Given** the API is running with the shared Auth0 authorizer attached
+- **Given** the API is running with the shared Clerk auth middleware attached
 - **When** an unauthenticated client sends `GET /v1/foods/search?query=chicken`
 - **Then** the response is `401 Unauthorized`
 
 **ATS-035-A3**
 
-- **Given** the API is running with the shared Auth0 authorizer attached
+- **Given** the API is running with the shared Clerk auth middleware attached
 - **When** an unauthenticated client sends `GET /v1/foods/12345/status`
 - **Then** the response is `401 Unauthorized`
 
@@ -668,7 +668,7 @@ Examples:
 | REQ-IF-002 | Client sends `GET /v1/foods/{fdcId}/status`                                           | Response matches documented schema                                                                                                 | Interface Contract Testing    |
 | REQ-IF-003 | Client sends `GET /v1/foods/search?query=<string>`                                    | Relevance-ranked array returned from local store                                                                                   | Interface Contract Testing    |
 | REQ-IF-004 | Consumer processes single and batch fetch messages                                    | Correct USDA endpoint called per message type                                                                                      | Interface Contract Testing    |
-| REQ-IF-007 | Request sent to any `/v1/foods/*` endpoint                                            | Auth0 authorizer enforced; no separate auth mechanism present                                                                      | Interface Contract Testing    |
+| REQ-IF-007 | Request sent to any `/v1/foods/*` endpoint                                            | Clerk auth middleware enforced; no separate auth mechanism present                                                                 | Interface Contract Testing    |
 | REQ-NF-007 | Feature branch code complete                                                          | `turbo run typecheck lint format:check` exits 0 with zero errors                                                                   | Static Analysis               |
 | REQ-NF-011 | Local store contains cached foods                                                     | p95 cache-hit lookup latency under 50ms                                                                                            | Performance Measurement       |
 | REQ-NF-012 | Consumer processing sustained message stream for 60 minutes                           | Total USDA API calls at most 1,000; zero `429` responses in CloudWatch                                                             | Performance Measurement       |

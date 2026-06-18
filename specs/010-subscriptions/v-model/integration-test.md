@@ -219,7 +219,7 @@ And ARCH-004 returns EntitlementDecision { permitted: false } (fail-closed)
 
 ### ARCH-005: FeatureGateMiddleware
 
-#### ITP-005-A — FeatureGateMiddleware ↔ Auth0TierClaimAdapter + FeatureGateRegistry Contract
+#### ITP-005-A — FeatureGateMiddleware ↔ ClerkTierClaimAdapter + FeatureGateRegistry Contract
 
 **Technique**: Interface Contract Testing | **View**: Interface View
 **Modules Under Test**: ARCH-005 ↔ ARCH-010, ARCH-005 ↔ ARCH-006
@@ -245,7 +245,7 @@ And ARCH-005 calls ARCH-006 getFeatureTier('ai-recipe-gen') and receives 'premiu
 And ARCH-005 returns HTTP 403 with upgradePromptPayload { featureId, userTier: 'free' }
 ```
 
-#### ITP-005-B — FeatureGateMiddleware ↔ Auth0TierClaimAdapter Fault Injection
+#### ITP-005-B — FeatureGateMiddleware ↔ ClerkTierClaimAdapter Fault Injection
 
 **Technique**: Interface Fault Injection | **View**: Interface View + Process View
 **Modules Under Test**: ARCH-005 ↔ ARCH-010
@@ -253,7 +253,7 @@ And ARCH-005 returns HTTP 403 with upgradePromptPayload { featureId, userTier: '
 ##### ITS-005-B1
 
 ```gherkin
-Given ARCH-010 Auth0TierClaimAdapter is configured to throw AuthIdentityError for userId
+Given ARCH-010 ClerkTierClaimAdapter is configured to throw AuthIdentityError for userId
 When ARCH-005 FeatureGateMiddleware calls getUserTier(userId)
 Then ARCH-005 receives AuthIdentityError { code: 'AUTH_IDENTITY_FAILED', userId }
 And ARCH-005 denies the request (fail-closed) without calling ARCH-006
@@ -453,33 +453,33 @@ And both users end up on 'free' tier with correct audit records
 
 ---
 
-### ARCH-010: Auth0TierClaimAdapter
+### ARCH-010: ClerkTierClaimAdapter
 
-#### ITP-010-A — Auth0TierClaimAdapter ↔ FeatureGateMiddleware Contract
+#### ITP-010-A — ClerkTierClaimAdapter ↔ FeatureGateMiddleware Contract
 
 **Technique**: Interface Contract Testing | **View**: Interface View
 **Modules Under Test**: ARCH-010 ↔ ARCH-005
-**Description**: Verifies that ARCH-010 returns a valid tier string from the Auth0 custom claim when called by ARCH-005.
+**Description**: Verifies that ARCH-010 returns a valid tier string from the `public_metadata.subscriptionTier` claim on the verified Clerk session token when called by ARCH-005.
 
 ##### ITS-010-A1
 
 ```gherkin
-Given a valid Auth0 session with custom claim subscriptionTier: 'premium' for userId
+Given a verified Clerk session token with public_metadata.subscriptionTier: 'premium' for userId
 When ARCH-005 FeatureGateMiddleware calls ARCH-010 getUserTier(userId)
-Then ARCH-010 reads the Auth0 custom claim and returns 'premium'
+Then ARCH-010 reads the public_metadata.subscriptionTier claim and returns 'premium'
 And ARCH-005 uses 'premium' for the tier comparison
 ```
 
 ##### ITS-010-A2
 
 ```gherkin
-Given a valid Auth0 session with no subscriptionTier claim for userId
+Given a verified Clerk session token with no public_metadata.subscriptionTier claim for userId
 When ARCH-005 FeatureGateMiddleware calls ARCH-010 getUserTier(userId)
 Then ARCH-010 defaults to returning 'free' (safe default)
 And ARCH-005 uses 'free' for the tier comparison
 ```
 
-#### ITP-010-B — Auth0TierClaimAdapter Fault Injection
+#### ITP-010-B — ClerkTierClaimAdapter Fault Injection
 
 **Technique**: Interface Fault Injection | **View**: Interface View
 **Modules Under Test**: ARCH-010 ↔ ARCH-005, ARCH-002
@@ -487,13 +487,13 @@ And ARCH-005 uses 'free' for the tier comparison
 ##### ITS-010-B1
 
 ```gherkin
-Given Auth0 session resolution fails for userId (expired token or network error)
+Given Clerk session token verification fails for userId (expired token or azp/CLERK_JWT_KEY rejection)
 When ARCH-005 calls ARCH-010 getUserTier(userId)
 Then ARCH-010 throws AuthIdentityError { code: 'AUTH_IDENTITY_FAILED', userId }
 And ARCH-005 denies the request without calling ARCH-006
 ```
 
-#### ITP-010-C — Auth0TierClaimAdapter ↔ TierAssignmentService Data Flow (Registration)
+#### ITP-010-C — ClerkTierClaimAdapter ↔ TierAssignmentService Data Flow (Registration)
 
 **Technique**: Data Flow Testing | **View**: Data Flow View (New User Registration, Stage 1–2)
 **Modules Under Test**: ARCH-010 ↔ ARCH-002
@@ -501,8 +501,8 @@ And ARCH-005 denies the request without calling ARCH-006
 ##### ITS-010-C1
 
 ```gherkin
-Given Auth0 emits a userCreated event with userId
-When ARCH-010 Auth0TierClaimAdapter receives the event and extracts userId
+Given Clerk emits a user.created webhook event with userId
+When ARCH-010 ClerkTierClaimAdapter receives the event and extracts userId
 Then ARCH-010 calls ARCH-002 TierAssignmentService assignDefaultTier(userId)
 And ARCH-002 receives { userId, targetTier: 'free', reason: 'registration' }
 ```
@@ -900,7 +900,7 @@ And ARCH-008 renders the fallback prompt without error
 | ARCH-007 | RecipeVisibilityEnforcer         | ITP-007-A, ITP-007-B, ITP-007-C | Contract, Fault Injection, Data Flow    |
 | ARCH-008 | UpgradePromptComponent           | ITP-008-A, ITP-008-B            | Contract, Fault Injection               |
 | ARCH-009 | SubscriptionLifecycleManager     | ITP-009-A, ITP-009-B, ITP-009-C | Data Flow, Fault Injection, Concurrency |
-| ARCH-010 | Auth0TierClaimAdapter            | ITP-010-A, ITP-010-B, ITP-010-C | Contract, Fault Injection, Data Flow    |
+| ARCH-010 | ClerkTierClaimAdapter            | ITP-010-A, ITP-010-B, ITP-010-C | Contract, Fault Injection, Data Flow    |
 | ARCH-011 | SubscriptionWebhookController    | ITP-011-A, ITP-011-B, ITP-011-C | Contract, Data Flow, Fault Injection    |
 | ARCH-012 | WebhookSignatureValidator        | ITP-012-A, ITP-012-B            | Contract, Fault Injection               |
 | ARCH-013 | DataRetentionGuard               | ITP-013-A, ITP-013-B, ITP-013-C | Contract, Fault Injection, Data Flow    |

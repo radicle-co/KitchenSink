@@ -35,9 +35,9 @@ users ──< recipes ──< recipe_ingredients >── ingredients
 ```sql
 -- (superseded — see 002-user-auth) The users table is owned by feature 002.
 -- users.sub (VARCHAR(255) COLLATE "C" PRIMARY KEY) is the canonical user identifier.
--- The id/auth0_id columns shown below are superseded; downstream FKs reference users(sub).
+-- The id/clerk_id columns shown below are superseded; downstream FKs reference users(sub).
 CREATE TABLE users (
-    sub          VARCHAR(255) COLLATE "C" PRIMARY KEY,  -- Auth0 sub claim; canonical PK
+    sub          VARCHAR(255) COLLATE "C" PRIMARY KEY,  -- Clerk sub claim; canonical PK
     email        TEXT        NOT NULL UNIQUE,
     display_name TEXT        NOT NULL,
     tier         TEXT        NOT NULL DEFAULT 'free'    -- 'free' | 'premium'

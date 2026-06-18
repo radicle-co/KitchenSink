@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Meal Planning system is decomposed into eight system components spanning meal plan lifecycle management, nutritional computation, AI-powered premium features, external service adapters, and cross-cutting infrastructure. The decomposition follows a layered architecture: a REST API layer handles client requests, a domain service layer enforces business rules, adapter components integrate external dependencies (Recipe API, USDA food data, Auth0, AI provider), and a persistence layer manages durable state. Cross-cutting concerns (type safety, documentation, accessibility) are addressed by a dedicated quality-assurance component.
+The Meal Planning system is decomposed into eight system components spanning meal plan lifecycle management, nutritional computation, AI-powered premium features, external service adapters, and cross-cutting infrastructure. The decomposition follows a layered architecture: a REST API layer handles client requests, a domain service layer enforces business rules, adapter components integrate external dependencies (Recipe API, USDA food data, Clerk, AI provider), and a persistence layer manages durable state. Cross-cutting concerns (type safety, documentation, accessibility) are addressed by a dedicated quality-assurance component.
 
 ## ID Schema
 
@@ -25,7 +25,7 @@ The Meal Planning system is decomposed into eight system components spanning mea
 | SYS-004 | AI Meal Suggestion Service    | Provides AI-powered recipe recommendations for premium users. Invokes the AI provider adapter with user dietary preferences and available recipe collection to generate ranked suggestions.                                    | REQ-006                                                                | Service   |
 | SYS-005 | Meal Plan Auto-Generator      | Generates a complete meal plan for premium users based on user-defined preferences and constraints. Produces a reviewable, modifiable plan by orchestrating the AI provider adapter and Recipe Assignment Service.             | REQ-007                                                                | Service   |
 | SYS-006 | Food Waste Optimizer          | Analyzes ingredient overlap across assigned recipes within a plan and suggests rearrangements or swaps to maximize shared ingredient usage. Premium-only feature.                                                              | REQ-008                                                                | Service   |
-| SYS-007 | External Integration Adapters | Encapsulates all outbound integrations: Recipe API (001), USDA food data (003), Auth0 authentication (002), AI provider (005). Exposes meal plan data for downstream consumers: grocery lists (007) and nutrition plans (009). | REQ-IF-001, REQ-IF-002, REQ-IF-003, REQ-IF-004, REQ-IF-005, REQ-IF-006 | Subsystem |
+| SYS-007 | External Integration Adapters | Encapsulates all outbound integrations: Recipe API (001), USDA food data (003), Clerk authentication (002), AI provider (005). Exposes meal plan data for downstream consumers: grocery lists (007) and nutrition plans (009). | REQ-IF-001, REQ-IF-002, REQ-IF-003, REQ-IF-004, REQ-IF-005, REQ-IF-006 | Subsystem |
 | SYS-008 | Quality & Compliance Layer    | Cross-cutting component enforcing TypeScript strict-mode compilation, JSDoc documentation coverage, accessible UI component contracts, and color-state accessibility rules across all modules.                                 | REQ-NF-001, REQ-NF-002, REQ-NF-003, REQ-NF-004                         | Utility   |
 
 ## Dependency View (IEEE 1016 §5.2)
@@ -41,13 +41,13 @@ The Meal Planning system is decomposed into eight system components spanning mea
 | SYS-005 | SYS-002 | Calls        | Auto-generated assignments cannot be persisted; plan generation fails                   |
 | SYS-006 | SYS-001 | Reads        | Optimizer cannot read plan; food waste analysis unavailable                             |
 | SYS-006 | SYS-007 | Calls        | Ingredient overlap data unavailable; optimization suggestions cannot be generated       |
-| SYS-001 | SYS-007 | Calls        | Auth0 authentication unavailable; all meal planning operations blocked                  |
+| SYS-001 | SYS-007 | Calls        | Clerk authentication unavailable; all meal planning operations blocked                  |
 
 ### Dependency Diagram
 
 ```text
 SYS-007 (External Adapters)
-  ├── Auth0 ← SYS-001 (auth gate for all operations)
+  ├── Clerk ← SYS-001 (auth gate for all operations)
   ├── Recipe API ← SYS-002
   ├── USDA Food Data ← SYS-003
   ├── AI Provider ← SYS-004
@@ -90,15 +90,15 @@ SYS-008 (Quality Layer) — cross-cutting, no runtime dependencies
 
 ### Internal Interfaces
 
-| Source  | Target  | Interface Name              | Protocol                                                                                      | Data Format                                               | Error Handling                           |
-| ------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- |
-| SYS-001 | SYS-007 | Auth0 Token Validation      | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Bearer token → `AuthContext { userId, tier }` (Derived)   | Throw `UnauthorizedException`            |
-| SYS-002 | SYS-007 | Recipe API Fetch            | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `recipeId` → `RecipeDTO { ingredients[] }` (Derived)      | Throw `RecipeNotFoundException`          |
-| SYS-003 | SYS-007 | USDA Food Data Lookup       | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `ingredientIds[]` → `NutrientDataDTO[]` (Derived)         | Throw `NutrientDataUnavailableException` |
-| SYS-004 | SYS-007 | AI Provider Invoke          | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `PromptDTO` → `AIResponseDTO { suggestions[] }` (Derived) | Throw `AIProviderException`              |
-| SYS-005 | SYS-004 | Suggestion Orchestration    | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `preferences` → `SuggestionListDTO` (Derived)             | Propagate `AIProviderException`          |
-| SYS-005 | SYS-002 | Bulk Assignment             | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `AssignRecipeDTO[]` → `MealSlotDTO[]` (Derived)           | Rollback on partial failure              |
-| SYS-006 | SYS-007 | Ingredient Overlap Analysis | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `ingredientIds[][]` → `OverlapMatrixDTO` (Derived)        | Throw `NutrientDataUnavailableException` |
+| Source  | Target  | Interface Name                   | Protocol                                                                                      | Data Format                                               | Error Handling                           |
+| ------- | ------- | -------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- |
+| SYS-001 | SYS-007 | Clerk session-token verification | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Bearer token → `AuthContext { userId, tier }` (Derived)   | Throw `UnauthorizedException`            |
+| SYS-002 | SYS-007 | Recipe API Fetch                 | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `recipeId` → `RecipeDTO { ingredients[] }` (Derived)      | Throw `RecipeNotFoundException`          |
+| SYS-003 | SYS-007 | USDA Food Data Lookup            | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `ingredientIds[]` → `NutrientDataDTO[]` (Derived)         | Throw `NutrientDataUnavailableException` |
+| SYS-004 | SYS-007 | AI Provider Invoke               | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `PromptDTO` → `AIResponseDTO { suggestions[] }` (Derived) | Throw `AIProviderException`              |
+| SYS-005 | SYS-004 | Suggestion Orchestration         | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `preferences` → `SuggestionListDTO` (Derived)             | Propagate `AIProviderException`          |
+| SYS-005 | SYS-002 | Bulk Assignment                  | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `AssignRecipeDTO[]` → `MealSlotDTO[]` (Derived)           | Rollback on partial failure              |
+| SYS-006 | SYS-007 | Ingredient Overlap Analysis      | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `ingredientIds[][]` → `OverlapMatrixDTO` (Derived)        | Throw `NutrientDataUnavailableException` |
 
 ## Data Design View (IEEE 1016 §5.4)
 

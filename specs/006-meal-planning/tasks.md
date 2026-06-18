@@ -8,15 +8,15 @@
 
 ## US Reference Table
 
-| Task ID | Priority | User Story | Description |
-|---------|----------|------------|-------------|
-| T-001–T-003 | P2 | US-006-001 | Create meal plan with configurable date range and meal slots |
-| T-004–T-006 | P2 | US-006-002 | Manually assign recipes to day/meal slots |
-| T-007–T-009 | P2 | US-006-003 | View daily and weekly nutrition summaries |
-| T-010–T-012 | P2 | US-006-004 | Complete planning workflow through grocery handoff |
-| T-013–T-014 | P2 | US-006-005 | AI-powered recipe suggestions for specific slots (Premium) |
-| T-015–T-016 | P2 | US-006-006 | AI auto-generate complete draft plan (Premium) |
-| T-017–T-018 | P2 | US-006-007 | Food waste optimization suggestions (Premium) |
+| Task ID     | Priority | User Story | Description                                                  |
+| ----------- | -------- | ---------- | ------------------------------------------------------------ |
+| T-001–T-003 | P2       | US-006-001 | Create meal plan with configurable date range and meal slots |
+| T-004–T-006 | P2       | US-006-002 | Manually assign recipes to day/meal slots                    |
+| T-007–T-009 | P2       | US-006-003 | View daily and weekly nutrition summaries                    |
+| T-010–T-012 | P2       | US-006-004 | Complete planning workflow through grocery handoff           |
+| T-013–T-014 | P2       | US-006-005 | AI-powered recipe suggestions for specific slots (Premium)   |
+| T-015–T-016 | P2       | US-006-006 | AI auto-generate complete draft plan (Premium)               |
+| T-017–T-018 | P2       | US-006-007 | Food waste optimization suggestions (Premium)                |
 
 ---
 
@@ -50,19 +50,19 @@ T-001 (schema)
 Implements **FR-022**.
 
 - [ ] **T-001** [P2] [US-006-001] Create Drizzle schema + migration for `meal_plans`, `meal_plan_entries`, `meal_plan_nutrition` tables with indexes — `packages/api/src/db/migrations/006-meal-planning.sql`
-  - **Depends on**: none
-  - **Implements**: FR-022 (database foundation)
-  - **Acceptance**: Schema applies cleanly; indexes cover `user_id`, `start_date`, `end_date`, `meal_plan_id`, `date`; migration rolls back successfully.
+    - **Depends on**: none
+    - **Implements**: FR-022 (database foundation)
+    - **Acceptance**: Schema applies cleanly; indexes cover `user_id`, `start_date`, `end_date`, `meal_plan_id`, `date`; migration rolls back successfully.
 
 - [ ] **T-002** [P2] [US-006-001] Implement POST /v1/meal-plans and GET /v1/meal-plans endpoints with Zod validation — `packages/api/src/meal-plans/meal-plans.controller.ts`
-  - **Depends on**: T-001
-  - **Implements**: FR-022 (create + list)
-  - **Acceptance**: Can create a plan with `name`, `startDate`, `endDate`, `planType`; list returns user's plans; 422 on invalid date ranges.
+    - **Depends on**: T-001
+    - **Implements**: FR-022 (create + list)
+    - **Acceptance**: Can create a plan with `name`, `startDate`, `endDate`, `planType`; list returns user's plans; 422 on invalid date ranges.
 
 - [ ] **T-003** [P2] [US-006-001] Implement GET /v1/meal-plans/{id}, PUT /v1/meal-plans/{id}, DELETE /v1/meal-plans/{id} with ownership checks — `packages/api/src/meal-plans/meal-plans.controller.ts`
-  - **Depends on**: T-002
-  - **Implements**: FR-022 (read/update/delete)
-  - **Acceptance**: 403 for non-owner access; 404 for missing plans; PUT rejects modification of locked plans; DELETE cascades to entries and nutrition rows.
+    - **Depends on**: T-002
+    - **Implements**: FR-022 (read/update/delete)
+    - **Acceptance**: 403 for non-owner access; 404 for missing plans; PUT rejects modification of locked plans; DELETE cascades to entries and nutrition rows.
 
 ---
 
@@ -71,19 +71,19 @@ Implements **FR-022**.
 Implements **FR-023**.
 
 - [ ] **T-004** [P2] [US-006-002] Implement POST /v1/meal-plans/{id}/entries and DELETE /v1/meal-plans/{id}/entries/{entryId} — `packages/api/src/meal-plans/meal-plan-entries.controller.ts`
-  - **Depends on**: T-002
-  - **Implements**: FR-023 (assign/remove recipes)
-  - **Acceptance**: Entry stores `recipeId`, `date`, `mealType`, `servings`, `notes`; POST triggers nutrition recalculation; DELETE removes entry and recalculates.
+    - **Depends on**: T-002
+    - **Implements**: FR-023 (assign/remove recipes)
+    - **Acceptance**: Entry stores `recipeId`, `date`, `mealType`, `servings`, `notes`; POST triggers nutrition recalculation; DELETE removes entry and recalculates.
 
 - [ ] **T-005** [P2] [US-006-002] Add validation for meal slot conflicts and recipe existence — `packages/api/src/meal-plans/meal-plan-entries.service.ts`
-  - **Depends on**: T-004
-  - **Implements**: FR-023 (validation layer)
-  - **Acceptance**: 409 on duplicate recipe+date+mealType; 400 on recipe not in user's collection; 400 on date outside plan range.
+    - **Depends on**: T-004
+    - **Implements**: FR-023 (validation layer)
+    - **Acceptance**: 409 on duplicate recipe+date+mealType; 400 on recipe not in user's collection; 400 on date outside plan range.
 
 - [ ] **T-006** [P2] [US-006-002] Handle orphaned entries when a recipe is deleted (mark `is_orphaned` instead of cascading) — `packages/api/src/meal-plans/meal-plan-entries.service.ts`
-  - **Depends on**: T-004
-  - **Implements**: plan.md §7 (resilience)
-  - **Acceptance**: Entry remains with `isOrphaned=true` and `orphanedAt` timestamp; GET /v1/meal-plans/{id} includes orphaned entries flagged; nutrition calculation excludes orphaned entries.
+    - **Depends on**: T-004
+    - **Implements**: plan.md §7 (resilience)
+    - **Acceptance**: Entry remains with `isOrphaned=true` and `orphanedAt` timestamp; GET /v1/meal-plans/{id} includes orphaned entries flagged; nutrition calculation excludes orphaned entries.
 
 ---
 
@@ -92,19 +92,19 @@ Implements **FR-023**.
 Implements **FR-024**.
 
 - [ ] **T-007** [P2] [US-006-003] Build nutrition calculation service that aggregates recipe ingredients via 003 USDA data — `packages/services/nutrition/src/calculator.ts`
-  - **Depends on**: T-004
-  - **Implements**: FR-024 (aggregation engine)
-  - **Acceptance**: Service fetches recipe ingredients (001), maps `usda_fdc_id` to nutrients (003), scales by servings, sums per day; cache-aside TTL 1h for USDA lookups.
+    - **Depends on**: T-004
+    - **Implements**: FR-024 (aggregation engine)
+    - **Acceptance**: Service fetches recipe ingredients (001), maps `usda_fdc_id` to nutrients (003), scales by servings, sums per day; cache-aside TTL 1h for USDA lookups.
 
 - [ ] **T-008** [P2] [US-006-003] Implement GET /v1/meal-plans/{id}/nutrition endpoint returning daily + weekly totals — `packages/api/src/meal-plans/meal-plans.controller.ts`
-  - **Depends on**: T-007
-  - **Implements**: FR-024 (API contract)
-  - **Acceptance**: Response matches plan.md §3 shape: `dailyNutrition[]` with per-meal breakdowns + `weekTotals`; recalculates on-demand within 500ms for 7-day plans.
+    - **Depends on**: T-007
+    - **Implements**: FR-024 (API contract)
+    - **Acceptance**: Response matches plan.md §3 shape: `dailyNutrition[]` with per-meal breakdowns + `weekTotals`; recalculates on-demand within 500ms for 7-day plans.
 
 - [ ] **T-009** [P2] [US-006-003] Unit tests for nutrition calculator with mocked USDA and recipe data — `packages/services/nutrition/tests/calculator.spec.ts`
-  - **Depends on**: T-007
-  - **Implements**: FR-024 (test coverage)
-  - **Acceptance**: ≥90% branch coverage; tests multi-day plans, serving scaling, orphaned entry exclusion, cache hit/miss paths.
+    - **Depends on**: T-007
+    - **Implements**: FR-024 (test coverage)
+    - **Acceptance**: ≥90% branch coverage; tests multi-day plans, serving scaling, orphaned entry exclusion, cache hit/miss paths.
 
 ---
 
@@ -113,19 +113,19 @@ Implements **FR-024**.
 Implements **SC-008**.
 
 - [ ] **T-010** [P2] [US-006-004] Implement POST /v1/meal-plans/{id}/grocery-list to trigger 007 grocery list generation — `packages/api/src/meal-plans/meal-plans.controller.ts`
-  - **Depends on**: T-004
-  - **Implements**: SC-008 (grocery handoff)
-  - **Acceptance**: Aggregates all plan entries' ingredients, deduplicates via 007 service, returns grocery list manifest; 400 if plan is empty; idempotent (same plan → same manifest).
+    - **Depends on**: T-004
+    - **Implements**: SC-008 (grocery handoff)
+    - **Acceptance**: Aggregates all plan entries' ingredients, deduplicates via 007 service, returns grocery list manifest; 400 if plan is empty; idempotent (same plan → same manifest).
 
 - [ ] **T-011** [P2] [US-006-004] Add `is_locked` flag and locking endpoint PUT /v1/meal-plans/{id}/lock — `packages/api/src/meal-plans/meal-plans.controller.ts`
-  - **Depends on**: T-003
-  - **Implements**: plan.md schema (finalization signal)
-  - **Acceptance**: Locked plan rejects entry modifications with 423; unlock requires explicit action; lock timestamp recorded.
+    - **Depends on**: T-003
+    - **Implements**: plan.md schema (finalization signal)
+    - **Acceptance**: Locked plan rejects entry modifications with 423; unlock requires explicit action; lock timestamp recorded.
 
 - [ ] **T-012** [P2] [US-006-004] E2E Playwright test: create 7-day plan, assign 7 recipes, view nutrition, generate grocery list in under 10 minutes — `packages/apps/commise/web/e2e/meal-planning/workflow.spec.ts`
-  - **Depends on**: T-008, T-010
-  - **Implements**: SC-008 (end-to-end verification)
-  - **Acceptance**: Test completes within simulated 10-minute user session; all assertions pass in CI.
+    - **Depends on**: T-008, T-010
+    - **Implements**: SC-008 (end-to-end verification)
+    - **Acceptance**: Test completes within simulated 10-minute user session; all assertions pass in CI.
 
 ---
 
@@ -134,14 +134,14 @@ Implements **SC-008**.
 Implements **FR-025**.
 
 - [ ] **T-013** [P2] [US-006-005] Implement POST /v1/meal-plans/{id}/recipes/suggestions proxy to 005 AI service with SQS async fallback — `packages/api/src/meal-plans/ai-suggestions.controller.ts`
-  - **Depends on**: T-004
-  - **Implements**: FR-025 (AI integration)
-  - **Acceptance**: Passes `planId`, `targetDate`, `mealType`, `preferences`, `macroTargets`; returns ranked recipe suggestions with match scores; 60s timeout with exponential backoff; premium gating returns 403 for non-premium users.
+    - **Depends on**: T-004
+    - **Implements**: FR-025 (AI integration)
+    - **Acceptance**: Passes `planId`, `targetDate`, `mealType`, `preferences`, `macroTargets`; returns ranked recipe suggestions with match scores; 60s timeout with exponential backoff; premium gating returns 403 for non-premium users.
 
 - [ ] **T-014** [P2] [US-006-005] Frontend UI for AI suggestion panel in meal slot context menu — `packages/apps/commise/web/src/components/meal-planning/AiSuggestionsPanel.tsx`
-  - **Depends on**: T-013, T-012
-  - **Implements**: FR-025 (UX)
-  - **Acceptance**: Panel opens from slot overflow menu; displays 3–5 suggestions with preview cards; clicking suggestion assigns to slot and recalculates nutrition live.
+    - **Depends on**: T-013, T-012
+    - **Implements**: FR-025 (UX)
+    - **Acceptance**: Panel opens from slot overflow menu; displays 3–5 suggestions with preview cards; clicking suggestion assigns to slot and recalculates nutrition live.
 
 ---
 
@@ -150,14 +150,14 @@ Implements **FR-025**.
 Implements **FR-026**.
 
 - [ ] **T-015** [P2] [US-006-006] Implement POST /v1/meal-plans/{id}/auto-generate to draft full plan via 005 AI with user constraint input — `packages/api/src/meal-plans/ai-generation.controller.ts`
-  - **Depends on**: T-002
-  - **Implements**: FR-026 (auto-generation)
-  - **Acceptance**: Accepts `preferences`, `dietaryRestrictions`, `macroTargets`, `excludedRecipes`; returns draft entries for all slots; does not overwrite existing entries unless `force=true`; premium gating.
+    - **Depends on**: T-002
+    - **Implements**: FR-026 (auto-generation)
+    - **Acceptance**: Accepts `preferences`, `dietaryRestrictions`, `macroTargets`, `excludedRecipes`; returns draft entries for all slots; does not overwrite existing entries unless `force=true`; premium gating.
 
 - [ ] **T-016** [P2] [US-006-006] Frontend modal for auto-generate constraints and draft review before applying — `packages/apps/commise/web/src/components/meal-planning/AutoGenerateModal.tsx`
-  - **Depends on**: T-015, T-012
-  - **Implements**: FR-026 (UX)
-  - **Acceptance**: Modal collects constraints, shows loading state, displays draft plan in calendar preview, allows accept (apply all) or reject (discard); accessible via `getByRole('dialog')`.
+    - **Depends on**: T-015, T-012
+    - **Implements**: FR-026 (UX)
+    - **Acceptance**: Modal collects constraints, shows loading state, displays draft plan in calendar preview, allows accept (apply all) or reject (discard); accessible via `getByRole('dialog')`.
 
 ---
 
@@ -166,29 +166,29 @@ Implements **FR-026**.
 Implements **FR-027**.
 
 - [ ] **T-017** [P2] [US-006-007] Implement POST /v1/meal-plans/{id}/optimize-waste to compute ingredient overlap swaps via 005 AI — `packages/api/src/meal-plans/waste-optimization.controller.ts`
-  - **Depends on**: T-004
-  - **Implements**: FR-027 (optimization engine)
-  - **Acceptance**: Returns proposed swaps ranked by ingredient overlap increase; includes `wasteRisk` signal for perishable ingredients used only once; premium gating.
+    - **Depends on**: T-004
+    - **Implements**: FR-027 (optimization engine)
+    - **Acceptance**: Returns proposed swaps ranked by ingredient overlap increase; includes `wasteRisk` signal for perishable ingredients used only once; premium gating.
 
 - [ ] **T-018** [P2] [US-006-007] Frontend UI to preview and accept/reject waste optimization proposals — `packages/apps/commise/web/src/components/meal-planning/WasteOptimizationPanel.tsx`
-  - **Depends on**: T-017, T-012
-  - **Implements**: FR-027 (UX)
-  - **Acceptance**: Panel shows swap proposals with before/after ingredient overlap metrics; accept applies swap, reject dismisses with no plan change; perishable warnings highlighted with icon + text (not color alone).
+    - **Depends on**: T-017, T-012
+    - **Implements**: FR-027 (UX)
+    - **Acceptance**: Panel shows swap proposals with before/after ingredient overlap metrics; accept applies swap, reject dismisses with no plan change; perishable warnings highlighted with icon + text (not color alone).
 
 ---
 
 ## Cross-Cutting Tasks
 
 - [ ] **T-019** [P2] [US-006-001–004] Implement drag-and-drop calendar UI with @dnd-kit/core + @dnd-kit/sortable — `packages/apps/commise/web/src/components/meal-planning/MealPlanCalendar.tsx`
-  - **Depends on**: T-012
-  - **Implements**: plan.md §4 (drag-and-drop UX)
-  - **Acceptance**: Recipes draggable from sidebar to breakfast/lunch/dinner/snack slots; slots accept drops with visual feedback; keyboard accessible reordering; screen-reader announces drop results.
+    - **Depends on**: T-012
+    - **Implements**: plan.md §4 (drag-and-drop UX)
+    - **Acceptance**: Recipes draggable from sidebar to breakfast/lunch/dinner/snack slots; slots accept drops with visual feedback; keyboard accessible reordering; screen-reader announces drop results.
 
 - [ ] **T-020** [P2] [US-006-003] Frontend nutrition summary sticky footer with live totals — `packages/apps/commise/web/src/components/meal-planning/NutritionSummary.tsx`
-  - **Depends on**: T-008, T-012
-  - **Implements**: FR-024 (live UX)
-  - **Acceptance**: Footer shows daily and weekly calorie/protein/carbs/fat/fiber totals; updates within 300ms of slot change; color pairs with text labels per NFR-004.
-**Total Tasks**: 38
+    - **Depends on**: T-008, T-012
+    - **Implements**: FR-024 (live UX)
+    - **Acceptance**: Footer shows daily and weekly calorie/protein/carbs/fat/fiber totals; updates within 300ms of slot change; color pairs with text labels per NFR-004.
+      **Total Tasks**: 38
 
 ---
 
@@ -268,7 +268,7 @@ Phase 1 (DB/Schema) → Phase 2 (Backend CRUD) → Phase 3 (Nutrition) → Phase
 
 ## Phase 2 — Backend CRUD APIs
 
-> Maps to FR-022, FR-023. All endpoints require Auth0 JWT (002 dependency).
+> Maps to FR-022, FR-023. All endpoints require Clerk session token (002 dependency).
 
 ### TASK-005 · Create `MealPlanModule` NestJS module scaffold
 

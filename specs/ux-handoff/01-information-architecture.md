@@ -17,7 +17,7 @@ Commise needs one coherent app shell across web and mobile. The navigation may b
 | Nutrition     | Nutrition Planning goals, compliance, contextual recipe/meal-plan links, and separate dieting/protocol guidance where in scope. | P4 Sam, P3 Riley                       | Related to recipes and meal plans, but needs a dedicated page for goal setup and review without medical-advice framing.                 |
 | Cooking Mode  | Focused, guided recipe execution.                                                                                               | P1 Casey, P2 Taylor, P9 Drew           | Enter from recipe detail and meal-plan recipe slots; optimized for hands-busy use.                                                      |
 | AI            | AI recipe generation, assistance, and external-agent connections.                                                               | P7 Quinn, P8 Alex                      | May appear as a page plus contextual entry points from recipes, meal planning, and cooking mode.                                        |
-| Account       | Profile, auth/session, subscription, billing, connected agents, privacy.                                                        | All                                    | Includes Auth0 flows, subscription management, agent consent/revocation, deletion/export.                                               |
+| Account       | Profile, auth/session, subscription, billing, connected agents, privacy.                                                        | All                                    | Includes Clerk flows, subscription management, agent consent/revocation, deletion/export.                                               |
 
 ### Recommended web navigation
 

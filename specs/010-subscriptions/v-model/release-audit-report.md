@@ -72,7 +72,7 @@
 | **REQ-NF-002** | All exported functions, interfaces introduced by this feature MUST carry JSDoc documentation.                                                                                                                                                                                             | AC-NF-002            | Acceptance coverage for REQ-NF-002                       | AC-NF-002                  | ⬜ Untested |
 | **REQ-NF-003** | Any UI component introduced by this feature MUST expose an accessible name queryable via getByRole / getByLabel in Playwright tests.                                                                                                                                                      | AC-NF-003            | Acceptance coverage for REQ-NF-003                       | AC-NF-003                  | ⬜ Untested |
 | **REQ-NF-004** | Color MUST NOT be the sole conveyor of subscription tier state / upgrade prompt status; an icon / text label pairing is required.                                                                                                                                                         | AC-NF-004            | Acceptance coverage for REQ-NF-004                       | AC-NF-004                  | ⬜ Untested |
-| **REQ-IF-001** | The system SHALL expose the authenticated user's current subscription tier (free/premium) as a property on the user identity object provided by the Auth0 integration (spec 002).                                                                                                         | AC-IF-001            | Acceptance coverage for REQ-IF-001                       | AC-IF-001                  | ⬜ Untested |
+| **REQ-IF-001** | The system SHALL expose the authenticated user's current subscription tier (free/premium) as a property on the user identity object provided by the Clerk integration (spec 002).                                                                                                         | AC-IF-001            | Acceptance coverage for REQ-IF-001                       | AC-IF-001                  | ⬜ Untested |
 | **REQ-IF-002** | The system SHALL provide a feature-gate check interface (function / middleware) that accepts a feature identifier, the current user's tier,, returns a boolean indicating access.                                                                                                         | AC-IF-002            | Acceptance coverage for REQ-IF-002                       | AC-IF-002                  | ⬜ Untested |
 | **REQ-IF-003** | The system SHALL provide an upgrade-prompt interface that accepts a feature identifier, renders the appropriate upgrade prompt UI for that feature.                                                                                                                                       | AC-IF-003            | Acceptance coverage for REQ-IF-003                       | AC-IF-003                  | ⬜ Untested |
 | **REQ-IF-004** | The system SHALL provide equivalent web and mobile user-facing workflows for Subscriptions & Monetization, including the same core capabilities, entitlement behavior, error states, accessibility semantics, and recovery paths unless an explicit V-Model parity exception is recorded. | AT-PARITY            | Acceptance coverage for REQ-IF-004                       | ATS-PARITY-1, ATS-PARITY-2 | ⬜ Untested |
@@ -145,7 +145,7 @@
 | **ARCH-007**           | RecipeVisibilityEnforcer         | SYS-005                    | ITP-007-A                      | ITS-007-A1        | ⬜ Untested |
 | **ARCH-008**           | UpgradePromptComponent           | SYS-006                    | ITP-008-A                      | ITS-008-A1        | ⬜ Untested |
 | **ARCH-009**           | SubscriptionLifecycleManager     | SYS-007                    | ITP-009-A                      | ITS-009-A1        | ⬜ Untested |
-| **ARCH-010**           | Auth0TierClaimAdapter            | SYS-008                    | ITP-010-A                      | ITS-010-A1        | ⬜ Untested |
+| **ARCH-010**           | ClerkTierClaimAdapter            | SYS-008                    | ITP-010-A                      | ITS-010-A1        | ⬜ Untested |
 | **ARCH-011**           | SubscriptionWebhookController    | SYS-009                    | ITP-011-A                      | ITS-011-A1        | ⬜ Untested |
 | **ARCH-012**           | WebhookSignatureValidator        | SYS-009                    | ITP-012-A                      | ITS-012-A1        | ⬜ Untested |
 | **ARCH-013**           | DataRetentionGuard               | SYS-010                    | ITP-013-A                      | ITS-013-A1        | ⬜ Untested |
@@ -168,7 +168,7 @@
 | **MOD-007**      | RecipeVisibilityEnforcer         | ARCH-007                      | UTP-006-A               | UTS-006-A1, UTS-006-A2, UTS-006-A3                         | ⬜ Untested |
 | **MOD-008**      | UpgradePromptComponent           | ARCH-008                      | UTP-007-A               | UTS-007-A1, UTS-007-A2, UTS-007-A3                         | ⬜ Untested |
 | **MOD-009**      | SubscriptionLifecycleManager     | ARCH-009                      | UTP-008-A               | UTS-008-A1, UTS-008-A2                                     | ⬜ Untested |
-| **MOD-010**      | Auth0TierClaimAdapter            | ARCH-010                      | UTP-009-A               | UTS-009-A1, UTS-009-A2, UTS-009-A3, UTS-009-B1             | ⬜ Untested |
+| **MOD-010**      | ClerkTierClaimAdapter            | ARCH-010                      | UTP-009-A               | UTS-009-A1, UTS-009-A2, UTS-009-A3, UTS-009-B1             | ⬜ Untested |
 | **MOD-011**      | SubscriptionWebhookController    | ARCH-011                      | UTP-010-A               | UTS-010-A1, UTS-010-A2                                     | ⬜ Untested |
 | **MOD-012**      | WebhookSignatureValidator        | ARCH-012                      | UTP-011-A               | UTS-011-A1, UTS-011-A2                                     | ⬜ Untested |
 | **MOD-013**      | DataRetentionGuard               | ARCH-013                      | UTP-012-A               | UTS-012-A1, UTS-012-A2                                     | ⬜ Untested |
@@ -258,8 +258,8 @@ No anomalies detected.
 
 ## 7. Signature Block
 
-| Role          | Name               | Signature          | Date         |
-| ------------- | ------------------ | ------------------ | ------------ |
-| QA Manager    | ********\_******** | ********\_******** | ****\_\_**** |
-| Lead Engineer | ********\_******** | ********\_******** | ****\_\_**** |
-| Release Tag   | (not specified)    | Git SHA: 3f6fd97   | 2026-05-13   |
+| Role          | Name                       | Signature                  | Date             |
+| ------------- | -------------------------- | -------------------------- | ---------------- |
+| QA Manager    | **\*\*\*\***\_**\*\*\*\*** | **\*\*\*\***\_**\*\*\*\*** | \***\*\_\_\*\*** |
+| Lead Engineer | **\*\*\*\***\_**\*\*\*\*** | **\*\*\*\***\_**\*\*\*\*** | \***\*\_\_\*\*** |
+| Release Tag   | (not specified)            | Git SHA: 3f6fd97           | 2026-05-13       |

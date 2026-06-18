@@ -359,15 +359,15 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that SYS-007 correctly validates a valid Auth0 JWT session token and returns `{ authenticated: true, userId: string }`.
+**Description**: Verifies that SYS-007 correctly validates a valid Clerk session token and returns `{ authenticated: true, userId: string }`.
 
 - **System Scenario: STS-007-A1**
-    - **Given** the Auth0 SDK is stubbed to return a valid, non-expired session token for `userId: "user-42"`
+    - **Given** the Clerk session is stubbed to return a valid, non-expired session token for `userId: "user-42"`
     - **When** SYS-007 validates the session
     - **Then** the response is `{ authenticated: true, userId: "user-42" }`
 
 - **System Scenario: STS-007-A2**
-    - **Given** the Auth0 SDK is stubbed to return an expired JWT token
+    - **Given** the Clerk session is stubbed to return an expired session token
     - **When** SYS-007 validates the session
     - **Then** the response is `{ authenticated: false }`; a redirect to the login flow is triggered
 
@@ -378,23 +378,23 @@ Each test case MUST identify its technique by name:
 **Description**: Verifies that SYS-007 blocks Cooking Mode entry and redirects to login when no valid session exists (CON-006).
 
 - **System Scenario: STS-007-B1**
-    - **Given** no Auth0 session token is present in the session store
+    - **Given** no Clerk session token is present in the session store
     - **When** SYS-007 is invoked at Cooking Mode entry
     - **Then** `{ authenticated: false }` is returned; the Cooking Mode session does not proceed; the login redirect is triggered
 
 - **System Scenario: STS-007-B2**
-    - **Given** the Auth0 SDK throws a network error during token validation
+    - **Given** the Clerk session read throws an error during token validation
     - **When** SYS-007 attempts to validate the session
     - **Then** `{ authenticated: false }` is returned; the error is logged; the login redirect is triggered
 
-#### Test Case: STP-007-C (Auth Guard fault: Auth0 SDK unavailable)
+#### Test Case: STP-007-C (Auth Guard fault: Clerk token fails verification)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View
-**Description**: Verifies that when the Auth0 SDK is unavailable (e.g., network partition), SYS-007 fails closed — denying access rather than allowing unauthenticated entry.
+**Description**: Verifies that when a Clerk session token cannot be verified (e.g., malformed token, or `azp` not in `CLERK_AUTHORIZED_PARTIES`), SYS-007 fails closed — denying access rather than allowing unauthenticated entry. Verification is networkless (`verifyToken` via the public `CLERK_JWT_KEY`), so there is no network dependency to partition.
 
 - **System Scenario: STS-007-C1**
-    - **Given** the Auth0 SDK is stubbed to be unreachable (connection timeout)
+    - **Given** the Clerk session token is stubbed to be malformed or to fail `azp`/signature verification
     - **When** SYS-007 attempts session validation
     - **Then** access is denied (`authenticated: false`); Cooking Mode entry is blocked; no recipe data is fetched
 

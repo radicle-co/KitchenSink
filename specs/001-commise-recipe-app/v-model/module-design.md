@@ -23,7 +23,7 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 | MOD-ID  | Module Name                      | Parent ARCH | Type      | Notes                                   |
 | ------- | -------------------------------- | ----------- | --------- | --------------------------------------- |
-| MOD-001 | Auth0 JWT Verifier               | ARCH-001    | Library   |                                         |
+| MOD-001 | Clerk Auth Service               | ARCH-001    | Library   |                                         |
 | MOD-002 | Owner & Tier Authorization Guard | ARCH-002    | Library   |                                         |
 | MOD-003 | Recipe HTTP Controller           | ARCH-003    | Component |                                         |
 | MOD-004 | Recipe Command Service           | ARCH-004    | Service   |                                         |
@@ -61,20 +61,19 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 ---
 
-### Module: MOD-001 (Auth0 JWT Verifier)
+### Module: MOD-001 (Clerk Auth Service)
 
 **Parent Architecture Modules**: ARCH-001
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/auth/auth0-jwt.verifier.ts`
+**Target Source File(s)**: `packages/api/src/auth/clerk-auth.service.ts`
 
 #### Interface View
 
-| Direction | Name               | Type   | Format                           | Constraints                                                         |
-| --------- | ------------------ | ------ | -------------------------------- | ------------------------------------------------------------------- |
-| Input     | `bearerToken`      | string | JWT compact serialization        | Required; non-empty; signed by configured Auth0 tenant; not expired |
-| Output    | `principal`        | object | `{ sub, email, tier, iat, exp }` | `sub` non-empty; `tier ∈ {"free","premium"}`; `exp` > now           |
-| Exception | `INVALID_TOKEN`    | 401    | `{ code, message }`              | Signature/claim/expiry/issuer/audience failure                      |
-| Exception | `JWKS_UNAVAILABLE` | 503    | `{ code, message, retryAfter }`  | JWKS endpoint unreachable after retries                             |
+| Direction | Name            | Type   | Format                           | Constraints                                                                                                                                  |
+| --------- | --------------- | ------ | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input     | `bearerToken`   | string | JWT compact serialization        | Required; non-empty; valid Clerk session token; signature verifies against `CLERK_JWT_KEY`; `azp` in `CLERK_AUTHORIZED_PARTIES`; not expired |
+| Output    | `principal`     | object | `{ sub, email, tier, iat, exp }` | `sub` non-empty; `tier ∈ {"free","premium"}` read from `public_metadata`; `exp` > now                                                        |
+| Exception | `INVALID_TOKEN` | 401    | `{ code, message }`              | Signature/claim/expiry/`azp` failure (networkless — no JWKS fetch)                                                                           |
 
 #### Algorithmic / Logic View
 
@@ -82,23 +81,20 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 function verify(bearerToken):
   if !bearerToken or bearerToken is empty:
     throw INVALID_TOKEN("missing")
-  decoded ← jose.decodeProtectedHeader(bearerToken)
-  jwk ← jwksCache.getKey(decoded.kid)        # remote fetch with retry+backoff
-  if jwk is null:
-    throw JWKS_UNAVAILABLE("kid not found", retryAfter=30)
-  payload ← jose.jwtVerify(bearerToken, jwk, {
-    issuer: config.auth0Issuer,
-    audience: config.auth0Audience,
-    algorithms: ["RS256"]
-  })
+  # Networkless verification: CLERK_JWT_KEY is a local PEM public key — no JWKS round trip.
+  payload ← verifyToken(bearerToken, {
+    jwtKey: config.clerkJwtKey,                 # CLERK_JWT_KEY (public PEM)
+    authorizedParties: config.clerkAuthorizedParties  # CLERK_AUTHORIZED_PARTIES (azp allowlist)
+  })  # @clerk/backend; throws on bad signature / azp mismatch / expiry
   if payload.exp ≤ now():
     throw INVALID_TOKEN("expired")
-  if payload["https://kitchensink/tier"] not in ["free","premium"]:
+  tier ← payload.public_metadata?.tier
+  if tier not in ["free","premium"]:
     throw INVALID_TOKEN("tier claim missing/invalid")
   return Principal{
     sub: payload.sub,
     email: payload.email,
-    tier: payload["https://kitchensink/tier"],
+    tier: tier,                                 # read from public_metadata
     iat: payload.iat,
     exp: payload.exp
   }
@@ -112,18 +108,24 @@ Stateless. Photo row transitions (`pending_processing → ready | failed`) are d
 
 ```ts
 type Principal = { sub: string; email: string; tier: 'free' | 'premium'; iat: number; exp: number };
-type JwksCacheEntry = { kid: string; jwk: JWK; fetchedAt: number };
+type VerifiedClerkClaims = {
+    sub: string;
+    email: string;
+    public_metadata: { tier?: 'free' | 'premium' };
+    azp?: string;
+    iat: number;
+    exp: number;
+};
 ```
 
 #### Error Handling & Return Codes
 
-| Trigger                                 | Error Code         | HTTP | Recovery                                     |
-| --------------------------------------- | ------------------ | ---- | -------------------------------------------- |
-| Missing/empty bearer token              | `INVALID_TOKEN`    | 401  | Caller returns 401 to client                 |
-| Bad signature / wrong issuer/audience   | `INVALID_TOKEN`    | 401  | Caller returns 401                           |
-| Expired token                           | `INVALID_TOKEN`    | 401  | Caller returns 401; client refreshes session |
-| `tier` claim missing or unknown value   | `INVALID_TOKEN`    | 401  | Caller returns 401; tenant config error      |
-| JWKS endpoint timeout/5xx after retries | `JWKS_UNAVAILABLE` | 503  | Client retries after `retryAfter`            |
+| Trigger                               | Error Code      | HTTP | Recovery                                           |
+| ------------------------------------- | --------------- | ---- | -------------------------------------------------- |
+| Missing/empty bearer token            | `INVALID_TOKEN` | 401  | Caller returns 401 to client                       |
+| Bad signature / `azp` not authorized  | `INVALID_TOKEN` | 401  | Caller returns 401                                 |
+| Expired token                         | `INVALID_TOKEN` | 401  | Caller returns 401; client refreshes session       |
+| `tier` claim missing or unknown value | `INVALID_TOKEN` | 401  | Caller returns 401; `public_metadata` config error |
 
 ---
 
@@ -1504,7 +1506,7 @@ function erase(req):
 
 function isAdmin(userId):
   principal ← MOD-024.users.loadPrincipal(userId)
-  return principal.roles.includes("admin")   # Auth0 RBAC role claim
+  return principal.roles.includes("admin")   # role from session token public_metadata claim
 ```
 
 #### State Machine View
@@ -1726,12 +1728,12 @@ Re-exports SDK input/output types where stable; otherwise re-shapes to internal 
 
 #### Interface View
 
-| Direction | Name              | Type  | Format                                             | Constraints                                                 |
-| --------- | ----------------- | ----- | -------------------------------------------------- | ----------------------------------------------------------- |
-| Input     | route + session   | mixed | Next.js route params + Auth0 session               | Bearer token attached server-side via `@auth0/nextjs-auth0` |
-| Input     | API responses     | mixed | JSON from `/api/v1/recipes`, `/api/v1/collections` | Includes `rowVersion`                                       |
-| Output    | rendered HTML     | HTML  | server + client components                         | Uses Tailwind v4 + Radix UI per `frontend-ux-engineer`      |
-| Exception | UI error boundary | —     | Renders typed error component                      | All API errors shown by `code`                              |
+| Direction | Name              | Type  | Format                                             | Constraints                                            |
+| --------- | ----------------- | ----- | -------------------------------------------------- | ------------------------------------------------------ |
+| Input     | route + session   | mixed | Next.js route params + Clerk session               | Session token attached server-side via `@clerk/nextjs` |
+| Input     | API responses     | mixed | JSON from `/api/v1/recipes`, `/api/v1/collections` | Includes `rowVersion`                                  |
+| Output    | rendered HTML     | HTML  | server + client components                         | Uses Tailwind v4 + Radix UI per `frontend-ux-engineer` |
+| Exception | UI error boundary | —     | Renders typed error component                      | All API errors shown by `code`                         |
 
 #### Algorithmic / Logic View
 
@@ -1777,7 +1779,7 @@ type RecipeFormState = { values: RecipeView; rowVersion: string; conflict?: Reci
 | `VALIDATION_FAILED`    | Inline field errors                      |
 | `CONCURRENCY_CONFLICT` | Show conflict resolver with current snap |
 | `FORBIDDEN_TIER`       | Show upgrade prompt                      |
-| `INVALID_TOKEN`        | Force re-auth via Auth0                  |
+| `INVALID_TOKEN`        | Force re-auth via Clerk                  |
 
 ---
 
@@ -1789,12 +1791,12 @@ type RecipeFormState = { values: RecipeView; rowVersion: string; conflict?: Reci
 
 #### Interface View
 
-| Direction | Name                | Type  | Format                          | Constraints                                             |
-| --------- | ------------------- | ----- | ------------------------------- | ------------------------------------------------------- |
-| Input     | navigation params   | mixed | Expo Router routes              | Token from `expo-secure-store` via `react-native-auth0` |
-| Input     | API responses       | mixed | identical to MOD-026            |                                                         |
-| Output    | rendered screens    | RN    | uses Tamagui v2 + Reanimated v4 |                                                         |
-| Exception | screen error states | —     | Per-screen retry component      |                                                         |
+| Direction | Name                | Type  | Format                          | Constraints                                              |
+| --------- | ------------------- | ----- | ------------------------------- | -------------------------------------------------------- |
+| Input     | navigation params   | mixed | Expo Router routes              | Session token from `expo-secure-store` via `@clerk/expo` |
+| Input     | API responses       | mixed | identical to MOD-026            |                                                          |
+| Output    | rendered screens    | RN    | uses Tamagui v2 + Reanimated v4 |                                                          |
+| Exception | screen error states | —     | Per-screen retry component      |                                                          |
 
 #### Algorithmic / Logic View
 
@@ -1802,8 +1804,8 @@ Mirrors MOD-026 with mobile-specific concerns:
 
 ```text
 authBootstrap():
-  token ← SecureStore.getItem("auth0_access_token")
-  if !token or expired: trigger `react-native-auth0` web login
+  token ← SecureStore.getItem("clerk_session_token")
+  if !token or expired: trigger `@clerk/expo` hosted UI login
   attach Authorization: Bearer <token> to all fetches
 
 photoCapture():
@@ -1875,7 +1877,7 @@ const STATUS_FOR = {
   UPLOAD_INVALID: 422, UNIT_INCONVERTIBLE: 422,
   INTERNAL: 500, VERSION_WRITE_FAILED: 500, POLICY_INTERNAL: 500,
   SEARCH_TIMEOUT: 504,
-  DB_UNAVAILABLE: 503, S3_UNAVAILABLE: 503, QUEUE_UNAVAILABLE: 503, JWKS_UNAVAILABLE: 503
+  DB_UNAVAILABLE: 503, S3_UNAVAILABLE: 503, QUEUE_UNAVAILABLE: 503
 };
 ```
 
@@ -1920,8 +1922,8 @@ schema (zod):
   NODE_ENV          ∈ {development, test, production}
   PORT              number ≥ 1
   DATABASE_URL      url
-  AUTH0_DOMAIN      hostname
-  AUTH0_AUDIENCE    string
+  CLERK_JWT_KEY              string (PEM public key, non-secret)
+  CLERK_AUTHORIZED_PARTIES   string (comma-separated azp allowlist, non-secret)
   S3_BUCKET         string
   CLOUDFRONT_DOMAIN hostname
   ARCHIVE_QUEUE_URL url
@@ -2214,7 +2216,7 @@ DI tokens declared per module.
 | PRF-MOD-017 | Added MOD-018 `ArchiveJob` type to make message-body contract self-contained in Internal Data Structures.                                                                                                                                                                                                                                                                                                                                                                     |
 | PRF-MOD-018 | Quantified MOD-025 retry/backoff policy as `3 attempts, exponential backoff base 200 ms, full jitter, max delay 2 s`.                                                                                                                                                                                                                                                                                                                                                         |
 | PRF-MOD-019 | Added explicit offline behavior statement to MOD-026: no offline mutations; network errors surfaced via error boundary with retry affordance.                                                                                                                                                                                                                                                                                                                                 |
-| PRF-MOD-020 | Specified MOD-022 `isAdmin(userId)` mechanism using principal roles (`admin` via Auth0 RBAC claim) and typed supporting structure.                                                                                                                                                                                                                                                                                                                                            |
+| PRF-MOD-020 | Specified MOD-022 `isAdmin(userId)` mechanism using principal roles (`admin` via the session token's `public_metadata` claim) and typed supporting structure.                                                                                                                                                                                                                                                                                                                 |
 | PRF-MOD-021 | Added `DB_UNAVAILABLE` (503) propagation row to MOD-009 Error Handling and documented caller-visible behavior.                                                                                                                                                                                                                                                                                                                                                                |
 | PRF-MOD-022 | Added explicit MOD-004 pseudocode comment documenting `VERSION_WRITE_FAILED` propagation and transaction abort behavior.                                                                                                                                                                                                                                                                                                                                                      |
 | PRF-MOD-023 | Expanded MOD-024 `applyErasureMutations` with explicit table order, tombstone/nullify operations, and FK-handling strategy.                                                                                                                                                                                                                                                                                                                                                   |

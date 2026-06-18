@@ -100,7 +100,7 @@ The content of these phantom IDs (session persistence across lifecycle events, t
 
 - REQ-007 → **AT-008-F** "Screen Wake Lock"
 - REQ-011 → **AT-008-G** "Offline Resilience"
-- REQ-IF-002 → **AT-008-H** "Auth0 Integration"
+- REQ-IF-002 → **AT-008-H** "Clerk Integration"
 - REQ-CN-001 → **AT-008-L** "Co-deployment Constraint"
 
 Every AT group from AT-008-E onward is off by one letter in the trace relative to the acceptance plan. The trace also references AT-008-I through AT-008-M which do not appear in `acceptance-plan.md` at all.
@@ -387,7 +387,7 @@ External dependencies (AuthGuard, RecipeDataAdapter, OfflineRecipeCache, ScreenW
 **Status**: PASSED
 **Artifact**: `acceptance-plan.md`
 
-The acceptance plan defines explicit, gated exit criteria across five gates: Functional Completeness (REQ-001–REQ-011), Accessibility (TypeScript strict, JSDoc, WCAG), Integration (Recipe App + Auth0), Non-Functional (readability, accessible names, color independence), and Constraint (read-only, wake lock). Each gate has checkboxes tied to specific requirements. This structure enables unambiguous shippability determination.
+The acceptance plan defines explicit, gated exit criteria across five gates: Functional Completeness (REQ-001–REQ-011), Accessibility (TypeScript strict, JSDoc, WCAG), Integration (Recipe App + Clerk), Non-Functional (readability, accessible names, color independence), and Constraint (read-only, wake lock). Each gate has checkboxes tied to specific requirements. This structure enables unambiguous shippability determination.
 
 ---
 

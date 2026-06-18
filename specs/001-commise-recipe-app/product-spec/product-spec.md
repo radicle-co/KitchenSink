@@ -106,7 +106,7 @@ Every user-facing feature in Commise ships on **both** web and mobile in the sam
 
 **Exceptions that are pre-approved** (no separate task needed):
 
-- Platform-specific auth SDK integration (Auth0 web SDK vs. react-native-auth0) — covered by spec 002.
+- Platform-specific auth SDK integration (`@clerk/nextjs` on web vs. `@clerk/expo` on mobile) — covered by spec 002.
 - Expo/React Native device APIs with no web equivalent (camera, haptics, push notifications) — must be noted in the task.
 - Maestro vs. Playwright E2E tooling — different tools for the same flow are expected and correct.
 
@@ -228,7 +228,7 @@ Users organize recipes into named collections. Collections can be public or priv
 
 The following are explicitly out of scope for the v1 product as specified in spec.md and related specs:
 
-- Unauthenticated access (FR-045: all features require Auth0 authentication)
+- Unauthenticated access (FR-045: all features require Clerk authentication)
 - Hard delete of individual recipes (default) — only soft delete; hard purge via explicit GDPR "Erase my data"
 - Paid-source recipe import (legal review required — see [004-recipe-importing](../../004-recipe-importing/spec.md) FR-014a)
 - Per-user sharing of individual recipes (covered by future spec)

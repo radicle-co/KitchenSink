@@ -38,7 +38,7 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View — `setUserTier(userId, tier)` write path
-**Description**: Verifies that SYS-001 writes `tier: 'free'` to `UserSubscriptionRecord` in PostgreSQL upon account creation, and that the Auth0 identity integration (SYS-008) reflects the new tier.
+**Description**: Verifies that SYS-001 writes `tier: 'free'` to `UserSubscriptionRecord` in PostgreSQL upon account creation, and that the Clerk identity integration (SYS-008) reflects the new tier.
 
 - **System Scenario: STS-001-A1**
     - **Given** a new `userId` with no existing `UserSubscriptionRecord` row
@@ -70,10 +70,10 @@ Each test case identifies its technique by name:
 
 **Technique**: Fault Injection
 **Target View**: Dependency View — SYS-001 → SYS-008 write failure
-**Description**: Verifies that SYS-001 rolls back the `UserSubscriptionRecord` update when the downstream Auth0 sync fails.
+**Description**: Verifies that SYS-001 rolls back the `UserSubscriptionRecord` update when the downstream Clerk sync fails.
 
 - **System Scenario: STS-001-C1**
-    - **Given** a `UserSubscriptionRecord` with `tier = 'free'` and SYS-008 Auth0 sync is configured to throw `AuthIdentityError`
+    - **Given** a `UserSubscriptionRecord` with `tier = 'free'` and SYS-008 Clerk sync is configured to throw `AuthIdentityError`
     - **When** `TierAssignmentService.setUserTier(userId, 'premium', 'upgrade')` is called
     - **Then** the `UserSubscriptionRecord` row retains `tier = 'free'` (rollback applied) and `TierUpdateError` is propagated to the caller
 
@@ -316,35 +316,35 @@ Each test case identifies its technique by name:
 
 ---
 
-### Component Verification: SYS-008 (Auth0 Identity Integration)
+### Component Verification: SYS-008 (Clerk Identity Integration)
 
 **Parent Requirements**: REQ-IF-001
 
 #### Test Case: STP-008-A (Tier Property Exposed on User Identity Object)
 
 **Technique**: Interface Contract Testing
-**Target View**: Interface View — `Auth0 User Identity` external interface
-**Description**: Verifies that SYS-008 returns a user object with `subscriptionTier: 'free' | 'premium'` when given a valid Auth0 session token.
+**Target View**: Interface View — `Clerk User Identity` external interface
+**Description**: Verifies that SYS-008 returns a user object with `subscriptionTier: 'free' | 'premium'` when given a valid Clerk session token.
 
 - **System Scenario: STS-008-A1**
-    - **Given** a valid Auth0 session token for a user with `tier = 'premium'` stored in `UserSubscriptionRecord`
-    - **When** `Auth0IdentityIntegration.getUserWithTier(sessionToken)` is called
+    - **Given** a valid Clerk session token for a user with `tier = 'premium'` stored in `UserSubscriptionRecord`
+    - **When** `ClerkAuthService.getUserWithTier(sessionToken)` is called
     - **Then** the returned user object contains `subscriptionTier: 'premium'`
 
 - **System Scenario: STS-008-A2**
-    - **Given** a valid Auth0 session token for a user with `tier = 'free'` stored in `UserSubscriptionRecord`
-    - **When** `Auth0IdentityIntegration.getUserWithTier(sessionToken)` is called
+    - **Given** a valid Clerk session token for a user with `tier = 'free'` stored in `UserSubscriptionRecord`
+    - **When** `ClerkAuthService.getUserWithTier(sessionToken)` is called
     - **Then** the returned user object contains `subscriptionTier: 'free'`
 
 #### Test Case: STP-008-B (AuthIdentityError on Invalid Token)
 
 **Technique**: Fault Injection
-**Target View**: Interface View — Auth0 error handling
-**Description**: Verifies that SYS-008 throws `AuthIdentityError` and denies access when the Auth0 session token is invalid or expired.
+**Target View**: Interface View — Clerk error handling
+**Description**: Verifies that SYS-008 throws `AuthIdentityError` and denies access when the Clerk session token fails networkless verification (`CLERK_JWT_KEY` / `azp`) or is expired.
 
 - **System Scenario: STS-008-B1**
-    - **Given** an expired or malformed Auth0 session token
-    - **When** `Auth0IdentityIntegration.getUserWithTier(invalidToken)` is called
+    - **Given** an expired or malformed Clerk session token
+    - **When** `ClerkAuthService.getUserWithTier(invalidToken)` is called
     - **Then** `AuthIdentityError` is thrown and no user object is returned
 
 ---
@@ -585,7 +585,7 @@ Each test case identifies its technique by name:
 | SYS-005 | Recipe Visibility Enforcement      | STP-005-A, STP-005-B, STP-005-C            |
 | SYS-006 | Upgrade Prompt Component           | STP-006-A, STP-006-B                       |
 | SYS-007 | Subscription Lifecycle Manager     | STP-007-A, STP-007-B, STP-007-C            |
-| SYS-008 | Auth0 Identity Integration         | STP-008-A, STP-008-B                       |
+| SYS-008 | Clerk Identity Integration         | STP-008-A, STP-008-B                       |
 | SYS-009 | Subscription Webhook Receiver      | STP-009-A, STP-009-B, STP-009-C            |
 | SYS-010 | Data Retention Guard               | STP-010-A, STP-010-B                       |
 | SYS-011 | TypeScript Strict Compliance Layer | STP-011-A, STP-011-B                       |

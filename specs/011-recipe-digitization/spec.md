@@ -45,12 +45,12 @@ Decades of family recipes exist only on paper — fragile, unsearchable, and loc
 
 ## Prerequisites
 
-| Priority | Feature                                                         | Status     | Relationship | What's Needed                                                                                                                 |
-| -------- | --------------------------------------------------------------- | ---------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| P0       | [002-user-auth](../002-user-auth/spec.md)           | 🟢 done    | blocks       | Authenticated `user_id` on every digitization + circle endpoint; Auth0 bearer token validation.                               |
+| Priority | Feature                                                     | Status     | Relationship | What's Needed                                                                                                                 |
+| -------- | ----------------------------------------------------------- | ---------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| P0       | [002-user-auth](../002-user-auth/spec.md)                   | 🟢 done    | blocks       | Authenticated `user_id` on every digitization + circle endpoint; Clerk session token validation.                              |
 | P0       | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | 🟢 done    | blocks       | `Recipe` entity (target of save) + S3 + CloudFront infra patterns + Drizzle/Pg conventions.                                   |
-| P1       | [004-recipe-importing](../004-recipe-importing/spec.md)         | ⏳ pending | complements  | Sibling boundary: 004 = structured/web-URL imports; 011 = unstructured photo imports. Coordinate `Recipe` save semantics.     |
-| P1       | [010-monetisation](../010-subscriptions/spec.md)                | ⏳ pending | complements  | Optional entitlement check before enqueuing OCR (Q-002 deferred to implementation). 011 ships ungated if 010 is not yet live. |
+| P1       | [004-recipe-importing](../004-recipe-importing/spec.md)     | ⏳ pending | complements  | Sibling boundary: 004 = structured/web-URL imports; 011 = unstructured photo imports. Coordinate `Recipe` save semantics.     |
+| P1       | [010-monetisation](../010-subscriptions/spec.md)            | ⏳ pending | complements  | Optional entitlement check before enqueuing OCR (Q-002 deferred to implementation). 011 ships ungated if 010 is not yet live. |
 
 ---
 
@@ -187,7 +187,7 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 | ID     | Requirement                                                                                                      | Priority | Source         |
 | ------ | ---------------------------------------------------------------------------------------------------------------- | -------- | -------------- |
-| FR-027 | All endpoints under `/api/v1/recipes/digitize/*`; Auth0 bearer required.                                         | Must     | US-001         |
+| FR-027 | All endpoints under `/api/v1/recipes/digitize/*`; Clerk session token required.                                  | Must     | US-001         |
 | FR-028 | `GET …/jobs` cursor pagination, page size 20.                                                                    | Must     | US-007         |
 | FR-029 | `job_status` field on every response (`pending` / `processing` / `awaiting-correction` / `saved` / `discarded`). | Must     | US-001, US-002 |
 | FR-030 | RFC 7807 Problem Details for 4xx/5xx with machine-readable `error_code`.                                         | Must     | US-001         |
@@ -244,7 +244,7 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 ### Integration Points
 
-- **Auth (002)** — every endpoint validates an Auth0 bearer token; `user_id` derived from `sub`.
+- **Auth (002)** — every endpoint validates a Clerk session token; `user_id` derived from `sub`.
 - **Recipe entity (001)** — `POST …/jobs/:id/save` writes a new `Recipe` row (owned by 001) and stores `recipe_id` on the job.
 - **Sibling 004** — coordinate save semantics; 004 owns the structured/URL path; 011 owns the photo path.
 - **Future 010** — optional entitlement check on enqueue (Q-002, deferred).

@@ -151,36 +151,31 @@ export const databaseConfigMeta: Record<keyof DatabaseConfig, ConfigFieldMeta> =
 };
 
 // ---------------------------------------------------------------------------
-// Auth0 Config
+// Clerk Config
 // ---------------------------------------------------------------------------
 
 /**
- * Auth0 configuration for JWT validation.
- * `AUTH0_CLIENT_SECRET` is secret; others are non-secret (public metadata).
+ * Clerk configuration for networkless session-token verification.
+ * Both fields are non-secret: `CLERK_JWT_KEY` is the instance's public PEM key
+ * and `CLERK_AUTHORIZED_PARTIES` is the `azp` allowlist. There is no client
+ * secret, audience, or JWKS-URI round trip — `@clerk/backend` `verifyToken`
+ * validates the token offline against the public key.
  */
-export const auth0ConfigSchema = z.object({
-    /** Auth0 tenant domain (e.g., `commise.us.auth0.com`). */
-    AUTH0_DOMAIN: z.string().min(1),
+export const clerkConfigSchema = z.object({
+    /** Clerk instance public JWT key (PEM). Used by `verifyToken` for offline verification. */
+    CLERK_JWT_KEY: z.string().min(1),
 
-    /** Auth0 application client ID. */
-    AUTH0_CLIENT_ID: z.string().min(1),
-
-    /** Auth0 API audience identifier. */
-    AUTH0_AUDIENCE: z.string().min(1),
-
-    /** Auth0 application client secret. SECRET. */
-    AUTH0_CLIENT_SECRET: z.string().min(1),
+    /** Comma-separated `azp` allowlist of authorized parties (web/mobile origins). */
+    CLERK_AUTHORIZED_PARTIES: z.string().min(1),
 });
 
-/** Typed Auth0 configuration. */
-export type Auth0Config = z.infer<typeof auth0ConfigSchema>;
+/** Typed Clerk configuration. */
+export type ClerkConfig = z.infer<typeof clerkConfigSchema>;
 
-/** Secret/non-secret metadata for Auth0 config fields. */
-export const auth0ConfigMeta: Record<keyof Auth0Config, ConfigFieldMeta> = {
-    AUTH0_DOMAIN: { secret: false, description: 'Auth0 tenant domain' },
-    AUTH0_CLIENT_ID: { secret: false, description: 'Auth0 client ID' },
-    AUTH0_AUDIENCE: { secret: false, description: 'Auth0 API audience' },
-    AUTH0_CLIENT_SECRET: { secret: true, description: 'Auth0 client secret' },
+/** Secret/non-secret metadata for Clerk config fields. */
+export const clerkConfigMeta: Record<keyof ClerkConfig, ConfigFieldMeta> = {
+    CLERK_JWT_KEY: { secret: false, description: 'Clerk instance public JWT key (PEM)' },
+    CLERK_AUTHORIZED_PARTIES: { secret: false, description: 'Authorized parties (azp) allowlist' },
 };
 
 // ---------------------------------------------------------------------------
@@ -256,7 +251,7 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
  */
 export const apiConfigSchema = baseConfigSchema
     .merge(databaseConfigSchema)
-    .merge(auth0ConfigSchema)
+    .merge(clerkConfigSchema)
     .merge(storageConfigSchema)
     .merge(rateLimitConfigSchema);
 
@@ -269,7 +264,7 @@ export type ApiConfig = z.infer<typeof apiConfigSchema>;
 
 /**
  * Configuration schema for the photo processor Lambda.
- * Subset of the full API config — no Auth0, no rate limits.
+ * Subset of the full API config — no Clerk, no rate limits.
  */
 export const photoProcessorConfigSchema = baseConfigSchema.merge(storageConfigSchema).merge(databaseConfigSchema);
 

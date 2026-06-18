@@ -959,18 +959,18 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 #### UTP-012-B — Web: valid session returns userId
 
 **Technique**: Statement & Branch Coverage (Algorithmic/Logic View — web happy path)
-**Mocks**: `PLATFORM = 'web'`; `getSession()` → `{ user: { sub: "auth0|123" } }`
+**Mocks**: `PLATFORM = 'web'`; `getClerkSession()` → `{ user: { id: "user_123" } }`
 
-| Scenario   | Arrange           | Act                              | Assert                    |
-| ---------- | ----------------- | -------------------------------- | ------------------------- | ------- |
-| UTS-012-B1 | Valid web session | `await AuthGuard.checkSession()` | Returns `{ userId: "auth0 | 123" }` |
+| Scenario   | Arrange           | Act                              | Assert                           |
+| ---------- | ----------------- | -------------------------------- | -------------------------------- |
+| UTS-012-B1 | Valid web session | `await AuthGuard.checkSession()` | Returns `{ userId: "user_123" }` |
 
 ---
 
 #### UTP-012-C — Mobile: null credentials throws AuthError
 
 **Technique**: Statement & Branch Coverage (Algorithmic/Logic View — mobile null credentials branch)
-**Mocks**: `PLATFORM = 'ios'`; `auth0Client.getCredentials()` → `null`
+**Mocks**: `PLATFORM = 'ios'`; `getClerkSession()` → `null`
 
 | Scenario   | Arrange                      | Act                              | Assert                                           |
 | ---------- | ---------------------------- | -------------------------------- | ------------------------------------------------ |
@@ -980,24 +980,24 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 #### UTP-012-D — Mobile: expired accessToken throws AuthError
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `accessToken IS EXPIRED` branch)
-**Mocks**: `PLATFORM = 'ios'`; credentials with expired token
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `token IS EXPIRED` branch)
+**Mocks**: `PLATFORM = 'ios'`; session with expired token
 
-| Scenario   | Arrange                                      | Act                              | Assert                                           |
-| ---------- | -------------------------------------------- | -------------------------------- | ------------------------------------------------ |
-| UTS-012-D1 | Mobile; `credentials.accessToken` is expired | `await AuthGuard.checkSession()` | Throws `AuthError("Session expired or missing")` |
+| Scenario   | Arrange                            | Act                              | Assert                                           |
+| ---------- | ---------------------------------- | -------------------------------- | ------------------------------------------------ |
+| UTS-012-D1 | Mobile; `session.token` is expired | `await AuthGuard.checkSession()` | Throws `AuthError("Session expired or missing")` |
 
 ---
 
 #### UTP-012-E — Missing userId in session throws AuthError
 
 **Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `userId IS NULL OR EMPTY` branch)
-**Mocks**: `getSession()` → `{ user: { sub: null } }`
+**Mocks**: `getClerkSession()` → `{ user: { id: null } }`
 
-| Scenario   | Arrange                   | Act                              | Assert                                                |
-| ---------- | ------------------------- | -------------------------------- | ----------------------------------------------------- |
-| UTS-012-E1 | Session with `sub = null` | `await AuthGuard.checkSession()` | Throws `AuthError("Invalid session: missing userId")` |
-| UTS-012-E2 | Session with `sub = ""`   | `await AuthGuard.checkSession()` | Throws `AuthError("Invalid session: missing userId")` |
+| Scenario   | Arrange                  | Act                              | Assert                                                |
+| ---------- | ------------------------ | -------------------------------- | ----------------------------------------------------- |
+| UTS-012-E1 | Session with `id = null` | `await AuthGuard.checkSession()` | Throws `AuthError("Invalid session: missing userId")` |
+| UTS-012-E2 | Session with `id = ""`   | `await AuthGuard.checkSession()` | Throws `AuthError("Invalid session: missing userId")` |
 
 ---
 
@@ -1005,11 +1005,11 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 **Technique**: Equivalence Partitioning (Internal Data Structures — platform: `'web'` vs mobile)
 
-| Scenario   | Arrange                | Act              | Assert                                                        |
-| ---------- | ---------------------- | ---------------- | ------------------------------------------------------------- |
-| UTS-012-F1 | `PLATFORM = 'web'`     | `checkSession()` | Uses `getSession()` from `@auth0/nextjs-auth0`                |
-| UTS-012-F2 | `PLATFORM = 'ios'`     | `checkSession()` | Uses `auth0Client.getCredentials()` from `react-native-auth0` |
-| UTS-012-F3 | `PLATFORM = 'android'` | `checkSession()` | Uses `auth0Client.getCredentials()`                           |
+| Scenario   | Arrange                | Act              | Assert                                      |
+| ---------- | ---------------------- | ---------------- | ------------------------------------------- |
+| UTS-012-F1 | `PLATFORM = 'web'`     | `checkSession()` | Uses the Clerk session from `@clerk/nextjs` |
+| UTS-012-F2 | `PLATFORM = 'ios'`     | `checkSession()` | Uses the Clerk session from `@clerk/expo`   |
+| UTS-012-F3 | `PLATFORM = 'android'` | `checkSession()` | Uses the Clerk session from `@clerk/expo`   |
 
 ---
 

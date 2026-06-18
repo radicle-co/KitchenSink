@@ -45,28 +45,28 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies POST /nutrition-plans calls AuthAdapter, delegates to service, returns 201 with response DTO.
+**Description**: Verifies POST /nutrition-plans calls ClerkAuthService, delegates to service, returns 201 with response DTO.
 
 **Scenarios:**
 
 **UTS-001-A1** — Valid JWT + valid DTO → 201 with plan
 
-- Arrange: mock AuthAdapter.verifyJWT() → { userId: 'uid-123' }; mock service.createPlan() → { id: 'plan-1', name: 'Keto Plan', dailyCalories: 2000, userId: 'uid-123' }
+- Arrange: mock ClerkAuthService.verifyToken() → { userId: 'uid-123' }; mock service.createPlan() → { id: 'plan-1', name: 'Keto Plan', dailyCalories: 2000, userId: 'uid-123' }
 - Act: result = await controller.createPlan(mockReq, { name: 'Keto Plan', dailyCalories: 2000, macroTargets: { protein: 150, carbs: 50, fat: 120 } })
 - Assert: result.status === 201; result.body.plan.id === 'plan-1'
-- Mock isolation: AuthAdapter stubbed; NutritionPlanService stubbed
+- Mock isolation: ClerkAuthService stubbed; NutritionPlanService stubbed
 
 **UTS-001-A2** — Missing Authorization header → 401 thrown before service call
 
-- Arrange: mock AuthAdapter.verifyJWT() → null
+- Arrange: mock ClerkAuthService.verifyToken() → null
 - Act/Assert: controller.createPlan(mockReq, validDto) throws UnauthorizedException; verify service.createPlan NOT called
-- Mock isolation: AuthAdapter stubbed
+- Mock isolation: ClerkAuthService stubbed
 
 **UTS-001-A3** — Service throws NotFoundException → 404 propagated
 
-- Arrange: mock AuthAdapter.verifyJWT() → { userId: 'uid' }; mock service.createPlan() → throws new NotFoundException('User not found')
+- Arrange: mock ClerkAuthService.verifyToken() → { userId: 'uid' }; mock service.createPlan() → throws new NotFoundException('User not found')
 - Act/Assert: controller.createPlan(mockReq, validDto) throws NotFoundException
-- Mock isolation: AuthAdapter stubbed; NutritionPlanService stubbed
+- Mock isolation: ClerkAuthService stubbed; NutritionPlanService stubbed
 
 ---
 
@@ -80,22 +80,22 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **UTS-001-B1** — Invalid UUID format → BadRequestException on getPlan
 
-- Arrange: id = 'not-a-uuid'; mock AuthAdapter.verifyJWT() → { userId: 'uid' }
+- Arrange: id = 'not-a-uuid'; mock ClerkAuthService.verifyToken() → { userId: 'uid' }
 - Act/Assert: controller.getPlan(mockReq, 'not-a-uuid') throws BadRequestException; verify service.getPlan NOT called
-- Mock isolation: AuthAdapter stubbed
+- Mock isolation: ClerkAuthService stubbed
 
 **UTS-001-B2** — Plan not found → NotFoundException
 
-- Arrange: id = 'valid-uuid'; mock AuthAdapter.verifyJWT() → { userId: 'uid' }; mock service.getPlan() → null
+- Arrange: id = 'valid-uuid'; mock ClerkAuthService.verifyToken() → { userId: 'uid' }; mock service.getPlan() → null
 - Act/Assert: controller.getPlan(mockReq, id) throws NotFoundException
-- Mock isolation: AuthAdapter stubbed; NutritionPlanService stubbed
+- Mock isolation: ClerkAuthService stubbed; NutritionPlanService stubbed
 
 **UTS-001-B3** — updatePlan with partial DTO → service called with partial patch
 
-- Arrange: mock AuthAdapter.verifyJWT() → { userId: 'uid' }; mock service.updatePlan() → updatedPlan
+- Arrange: mock ClerkAuthService.verifyToken() → { userId: 'uid' }; mock service.updatePlan() → updatedPlan
 - Act: result = await controller.updatePlan(mockReq, 'valid-uuid', { dailyCalories: 1800 })
 - Assert: verify service.updatePlan called with 'valid-uuid', { dailyCalories: 1800 }
-- Mock isolation: AuthAdapter stubbed; NutritionPlanService stubbed
+- Mock isolation: ClerkAuthService stubbed; NutritionPlanService stubbed
 
 ---
 
@@ -256,7 +256,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 - Arrange: mock service.linkMealPlanToRecipe('plan-1', 'recipe-1', 'uid') → { planId: 'plan-1', recipeId: 'recipe-1' }
 - Act: result = await controller.linkMealPlanToRecipe(mockReq, 'plan-1', { recipeId: 'recipe-1' })
 - Assert: result.status === 201; verify service.linkMealPlanToRecipe called
-- Mock isolation: NutritionPlanService stubbed; AuthAdapter stubbed
+- Mock isolation: NutritionPlanService stubbed; ClerkAuthService stubbed
 
 **UTS-005-A2** — Link recipe to another user's plan → 403 Forbidden
 
@@ -430,13 +430,13 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 - Arrange: mock service.assignPlanToClient('client-uid', 'plan-1', 'trainer-uid') → { clientId: 'client-uid', planId: 'plan-1' }
 - Act: result = await controller.assignPlanToClient(mockReq, { clientId: 'client-uid', planId: 'plan-1' })
 - Assert: result.status === 201
-- Mock isolation: TrainerClientService stubbed; AuthAdapter stubbed
+- Mock isolation: TrainerClientService stubbed; ClerkAuthService stubbed
 
 **UTS-010-A2** — Unauthorized user (not a trainer) → 403
 
-- Arrange: mock AuthAdapter.verifyJWT() → { userId: 'regular-user', role: 'client' }; mock service.assignPlanToClient() → throws ForbiddenException
+- Arrange: mock ClerkAuthService.verifyToken() → { userId: 'regular-user', role: 'client' }; mock service.assignPlanToClient() → throws ForbiddenException
 - Act/Assert: controller.assignPlanToClient(mockReq, { clientId: 'client-uid', planId: 'plan-1' }) throws ForbiddenException
-- Mock isolation: AuthAdapter stubbed; TrainerClientService stubbed
+- Mock isolation: ClerkAuthService stubbed; TrainerClientService stubbed
 
 ---
 
@@ -528,7 +528,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 - Arrange: mock aiService.getSwapRecommendations('plan-1', 'uid') → { swaps: [{ originalRecipeId: 'r1', suggestedRecipeId: 'r2', reason: 'Lower carbs' }] }
 - Act: result = await controller.getSwapRecommendations(mockReq, 'plan-1')
 - Assert: result.status === 200; result.body.swaps.length === 1
-- Mock isolation: AIRecipeSwapService stubbed; AuthAdapter stubbed
+- Mock isolation: AIRecipeSwapService stubbed; ClerkAuthService stubbed
 
 **UTS-013-A2** — Plan not found → 404
 
@@ -662,40 +662,40 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 ---
 
-### Module: MOD-018 (AuthAdapter)
+### Module: MOD-018 (ClerkAuthService)
 
 **Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/nutrition-planning/adapters/auth.adapter.ts`
+**Target Source File(s)**: `src/nutrition-planning/adapters/clerk-auth.service.ts`
 
 ---
 
-#### Test Case: UTP-018-A (verifyJWT + extractUserId)
+#### Test Case: UTP-018-A (verifyToken + extractUserId)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies JWT verification using jose library and user ID extraction from JWT payload.
+**Description**: Verifies networkless Clerk session-token verification via `@clerk/backend` `verifyToken` (public `CLERK_JWT_KEY` + `azp` enforcement) and user ID extraction from the token payload.
 
 **Scenarios:**
 
 **UTS-018-A1** — Valid JWT → user object extracted
 
-- Arrange: mock jwtVerify() → { payload: { sub: 'user-123', email: 'test@example.com' } }
-- Act: result = await authAdapter.verifyJWT('valid-token')
+- Arrange: mock @clerk/backend verifyToken() → { sub: 'user-123', email: 'test@example.com', public_metadata: {} }
+- Act: result = await clerkAuthService.verifyToken('valid-token')
 - Assert: result.userId === 'user-123'; result.email === 'test@example.com'
-- Mock isolation: jwtVerify stubbed
+- Mock isolation: @clerk/backend verifyToken stubbed
 
 **UTS-018-A2** — Missing auth header → null returned
 
 - Arrange: header = undefined
-- Act: result = await authAdapter.verifyJWT(undefined)
+- Act: result = await clerkAuthService.verifyToken(undefined)
 - Assert: result === null
 - Mock isolation: none
 
 **UTS-018-A3** — Invalid JWT → Error thrown
 
-- Arrange: mock jwtVerify() → throws Error('Invalid signature')
-- Act/Assert: authAdapter.verifyJWT('bad-token') throws Error
-- Mock isolation: jwtVerify stubbed
+- Arrange: mock @clerk/backend verifyToken() → throws Error('Invalid signature')
+- Act/Assert: clerkAuthService.verifyToken('bad-token') throws Error
+- Mock isolation: @clerk/backend verifyToken stubbed
 
 ---
 
@@ -738,7 +738,7 @@ No unit tests — compile-time TypeScript and OpenAPI doc enforcement. Build ste
 | MOD-015 | MealPlanningAdapter       | 1 (A)           | 2 (A1-A2)        |
 | MOD-016 | USDAFoodDataAdapter       | 1 (A)           | 2 (A1-A2)        |
 | MOD-017 | RecipeAppAdapter          | 1 (A)           | 2 (A1-A2)        |
-| MOD-018 | AuthAdapter               | 1 (A)           | 3 (A1-A3)        |
+| MOD-018 | ClerkAuthService          | 1 (A)           | 3 (A1-A3)        |
 | MOD-019 | SubscriptionGate          | [CROSS-CUTTING] | —                |
 | MOD-020 | TypeSafetyAndDocsEnforcer | [CROSS-CUTTING] | —                |
 

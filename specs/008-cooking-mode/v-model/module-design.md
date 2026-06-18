@@ -872,17 +872,16 @@ N/A — Stateless adapter; pure function with no retained state.
 ```pseudocode
 ASYNC FUNCTION checkSession() -> { userId: string }:
   IF PLATFORM == 'web':
-    session = AWAIT getSession()  // @auth0/nextjs-auth0
+    session = AWAIT getClerkSession()  // @clerk/nextjs
   ELSE:  // mobile
-    credentials = AWAIT auth0Client.getCredentials()  // react-native-auth0
-    IF credentials IS NULL OR credentials.accessToken IS EXPIRED:
+    session = AWAIT getClerkSession()  // @clerk/expo (token in expo-secure-store)
+    IF session IS NULL OR session.token IS EXPIRED:
       THROW AuthError("Session expired or missing")
-    session = { user: { sub: credentials.idToken.sub } }
 
   IF session IS NULL OR session.user IS NULL:
     THROW AuthError("No active session")
 
-  userId = session.user.sub
+  userId = session.user.id  // Clerk `sub` claim
   IF userId IS NULL OR EMPTY:
     THROW AuthError("Invalid session: missing userId")
 
@@ -897,7 +896,7 @@ N/A — Stateless guard; reads session on each call with no retained state.
 
 | Name      | Type             | Size/Constraints | Initialization | Description                        |
 | --------- | ---------------- | ---------------- | -------------- | ---------------------------------- |
-| `session` | `object \| null` | —                | per-call       | Auth0 session object from SDK      |
+| `session` | `object \| null` | —                | per-call       | Clerk session object from SDK      |
 | `userId`  | `string`         | UUID format      | per-call       | Extracted `sub` claim from session |
 
 #### Error Handling & Return Codes

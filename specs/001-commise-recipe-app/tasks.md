@@ -67,7 +67,7 @@
 
 - [ ] T011-test Write unit tests for Drizzle schema type inference (verify exported types compile and match data-model.md contracts) in `packages/shared/db/src/__tests__/schema.test.ts`
 - [ ] T017-test Write unit tests for environment loader (valid env, missing required vars, SSM fallback) in `packages/shared/config/src/__tests__/load-config.test.ts`
-- [ ] T019-test Write unit tests for Auth0 JWT guard (valid token, expired token, missing token, dev bypass) in `packages/api/recipe/src/auth/__tests__/auth.guard.test.ts`
+- [ ] T019-test Write unit tests for the Clerk AuthMiddleware (valid session token, expired token, missing token, dev bypass) in `packages/api/recipe/src/auth/__tests__/auth.middleware.test.ts`
 - [ ] T020-test Write unit tests for API exception filter (RecipeError mapping, unknown error fallback, HTTP status codes) in `packages/api/recipe/src/common/filters/__tests__/api-exception.filter.test.ts`
 - [ ] T021-test Write unit tests for `isRecipeError` type guard in `packages/shared/recipe-core/src/__tests__/recipe.types.test.ts`
 - [ ] T022-test Write unit tests for throttling configuration (verify rate limits applied to correct route groups) in `packages/api/recipe/src/__tests__/throttle.test.ts`
@@ -86,7 +86,7 @@
 - [ ] T122 [P] Create `account_erasure_jobs` table (id, user_id, status enum: queued|running|completed|failed, requested_at, completed_at, error) in `packages/shared/db/src/schema/users.ts` + migration `0005_account_erasure.sql` — moved from Phase 4.5
 - [ ] T017 Implement environment loader with Zod validation and optional SSM fallback in `packages/shared/config/src/load-config.ts`
 - [ ] T018 Wire global DB provider module and injection token in `packages/api/recipe/src/db/db.module.ts`
-- [ ] T019 Implement Auth0 JWT validation guard stub for spec-002 integration in `packages/api/recipe/src/auth/auth.guard.ts`
+- [ ] T019 Implement Clerk session-token AuthMiddleware (networkless verification via `CLERK_JWT_KEY` + `azp`, backed by `ClerkAuthService`) stub for spec-002 integration in `packages/api/recipe/src/auth/auth.middleware.ts`
 - [ ] T020 Implement shared API exception filter and recipe-domain error mapping in `packages/api/recipe/src/common/filters/api-exception.filter.ts`
 - [ ] T021 Add `isRecipeError(e: unknown): e is RecipeError` type guard in `packages/shared/recipe-core/src/recipe.types.ts`
 - [ ] T022 Configure API throttling defaults (writes 30/min, photos 10/min, search 60/min) in `packages/api/recipe/src/app.module.ts`
@@ -256,8 +256,8 @@ This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks 
 
 ### Setup & Shared
 
-- [ ] T061 [P] Configure Next.js 15 App Router with Auth0 web SDK (`@auth0/nextjs-auth0` v4.x) in `packages/apps/commise/web/src/app/layout.tsx`
-- [ ] T062 [P] Configure Expo 53 with Auth0 native SDK (`react-native-auth0` v5.5) in `packages/apps/commise/mobile/src/app/_layout.tsx`
+- [ ] T061 [P] Configure Next.js 15 App Router with Clerk web SDK (`@clerk/nextjs`: `<ClerkProvider>` + `middleware.ts`) in `packages/apps/commise/web/src/app/layout.tsx`
+- [ ] T062 [P] Configure Expo 53 with Clerk native SDK (`@clerk/expo`, tokens in `expo-secure-store`) in `packages/apps/commise/mobile/src/app/_layout.tsx`
 - [ ] T063 [P] Set up shared design tokens (colors, spacing, typography) in `packages/ui/src/tokens/` consumable by both web (Tailwind v4) and mobile (Tamagui)
 - [ ] T064 [P] Create shared API client (TanStack Query v5) with typed hooks for recipe endpoints in `packages/shared/recipe-core/src/hooks/` — reads `NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL` for base URL (NFR-009)
 

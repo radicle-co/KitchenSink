@@ -85,7 +85,7 @@ sequenceDiagram
 sequenceDiagram
     participant U as Jordan
     participant Agent as External Agent
-    participant Auth as Auth0 OAuth
+    participant Auth as Clerk OAuth
     participant MCP as Commise MCP API
     participant Data as Recipe Service
 

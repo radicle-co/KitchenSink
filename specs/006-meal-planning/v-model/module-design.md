@@ -32,13 +32,13 @@ Twenty-two architecture modules (ARCH-001 through ARCH-022) are decomposed into 
 // NestJS REST controller — pure HTTP dispatch, no business logic
 
 FUNCTION createMealPlan(body: CreateMealPlanDTO, authContext: AuthContext) -> MealPlanDTO:
-    // @Post('/meal-plans')  @UseGuards(Auth0Guard)
+    // @Post('/meal-plans')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
     userId = authContext.userId
     result = AWAIT mealPlanService.createPlan(body, userId)
     RETURN result  // HTTP 201
 
 FUNCTION getMealPlan(planId: string, authContext: AuthContext) -> MealPlanDTO:
-    // @Get('/meal-plans/:id')  @UseGuards(Auth0Guard)
+    // @Get('/meal-plans/:id')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
     userId = authContext.userId
     result = AWAIT mealPlanService.getPlan(planId, userId)
     IF result IS NULL:
@@ -46,13 +46,13 @@ FUNCTION getMealPlan(planId: string, authContext: AuthContext) -> MealPlanDTO:
     RETURN result  // HTTP 200
 
 FUNCTION updateMealPlan(planId: string, body: UpdateMealPlanDTO, authContext: AuthContext) -> MealPlanDTO:
-    // @Patch('/meal-plans/:id')  @UseGuards(Auth0Guard)
+    // @Patch('/meal-plans/:id')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
     userId = authContext.userId
     result = AWAIT mealPlanService.updatePlan(planId, body, userId)
     RETURN result  // HTTP 200
 
 FUNCTION deleteMealPlan(planId: string, authContext: AuthContext) -> void:
-    // @Delete('/meal-plans/:id')  @UseGuards(Auth0Guard)
+    // @Delete('/meal-plans/:id')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
     userId = authContext.userId
     AWAIT mealPlanService.deletePlan(planId, userId)
     RETURN  // HTTP 204
@@ -71,11 +71,11 @@ N/A — Stateless request dispatcher; all state lives in MealPlanService and Mea
 
 #### Error Handling & Return Codes
 
-| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery                  |
-| --------------------------- | --------------------------- | ------------------------------------------ | ------------------------- |
-| Plan not found for userId   | NotFoundException (404)     | ARCH-001 Interface View: NotFoundError     | Return 404 JSON to client |
-| Invalid DTO fields          | ValidationPipe (400)        | ARCH-001 Interface View: ValidationError   | Return 400 with errors[]  |
-| Missing/invalid Auth0 token | UnauthorizedException (401) | ARCH-001 Interface View: UnauthorizedError | Return 401 JSON           |
+| Error Condition                     | Error Code / Exception      | Architecture Contract                      | Recovery                  |
+| ----------------------------------- | --------------------------- | ------------------------------------------ | ------------------------- |
+| Plan not found for userId           | NotFoundException (404)     | ARCH-001 Interface View: NotFoundError     | Return 404 JSON to client |
+| Invalid DTO fields                  | ValidationPipe (400)        | ARCH-001 Interface View: ValidationError   | Return 400 with errors[]  |
+| Missing/invalid Clerk session token | UnauthorizedException (401) | ARCH-001 Interface View: UnauthorizedError | Return 401 JSON           |
 
 ---
 
@@ -242,7 +242,7 @@ N/A — Stateless; each method is an independent database operation.
 #### Algorithmic / Logic View
 
 ```pseudocode
-// @Controller('/meal-plans/:planId/slots/:slotId')  @UseGuards(Auth0Guard)
+// @Controller('/meal-plans/:planId/slots/:slotId')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
 
 FUNCTION assignRecipe(planId: string, slotId: string, body: AssignRecipeDTO, authContext: AuthContext) -> RecipeAssignmentDTO:
     // @Post('/recipe')
@@ -277,11 +277,11 @@ N/A — Stateless request dispatcher.
 
 #### Error Handling & Return Codes
 
-| Error Condition       | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| --------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Slot not found        | NotFoundException (404)     | ARCH-004 Interface View: NotFoundError     | Return 404 to client |
-| Recipe not accessible | ForbiddenException (403)    | ARCH-004 Interface View: ForbiddenError    | Return 403 to client |
-| Invalid Auth0 token   | UnauthorizedException (401) | ARCH-004 Interface View: UnauthorizedError | Return 401           |
+| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
+| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
+| Slot not found              | NotFoundException (404)     | ARCH-004 Interface View: NotFoundError     | Return 404 to client |
+| Recipe not accessible       | ForbiddenException (403)    | ARCH-004 Interface View: ForbiddenError    | Return 403 to client |
+| Invalid Clerk session token | UnauthorizedException (401) | ARCH-004 Interface View: UnauthorizedError | Return 401           |
 
 ---
 
@@ -430,7 +430,7 @@ N/A — Stateless; each method is an independent database operation.
 #### Algorithmic / Logic View
 
 ```pseudocode
-// @Controller('/meal-plans/:planId/nutrition')  @UseGuards(Auth0Guard)
+// @Controller('/meal-plans/:planId/nutrition')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
 
 FUNCTION getDailySummary(planId: string, authContext: AuthContext) -> NutritionalSummaryDTO:
     // @Get('/daily')
@@ -458,11 +458,11 @@ N/A — Stateless request dispatcher.
 
 #### Error Handling & Return Codes
 
-| Error Condition          | Error Code / Exception            | Architecture Contract                      | Recovery             |
-| ------------------------ | --------------------------------- | ------------------------------------------ | -------------------- |
-| Plan not found           | NotFoundException (404)           | ARCH-007 Interface View: NotFoundError     | Return 404 to client |
-| USDA service unavailable | ServiceUnavailableException (503) | ARCH-007 Interface View: ServiceError      | Return 503           |
-| Invalid Auth0 token      | UnauthorizedException (401)       | ARCH-007 Interface View: UnauthorizedError | Return 401           |
+| Error Condition             | Error Code / Exception            | Architecture Contract                      | Recovery             |
+| --------------------------- | --------------------------------- | ------------------------------------------ | -------------------- |
+| Plan not found              | NotFoundException (404)           | ARCH-007 Interface View: NotFoundError     | Return 404 to client |
+| USDA service unavailable    | ServiceUnavailableException (503) | ARCH-007 Interface View: ServiceError      | Return 503           |
+| Invalid Clerk session token | UnauthorizedException (401)       | ARCH-007 Interface View: UnauthorizedError | Return 401           |
 
 ---
 
@@ -626,7 +626,7 @@ stateDiagram-v2
 
 ```pseudocode
 // @Controller('/meal-plans/:planId/suggestions')
-// @UseGuards(Auth0Guard, PremiumTierGuard)
+// @UseGuards(PremiumTierGuard)  // AuthMiddleware (global) already authenticated; req.user populated
 
 FUNCTION getSuggestions(planId: string, body: SuggestionRequestDTO, authContext: AuthContext) -> SuggestionListDTO:
     // @Post('/')
@@ -649,11 +649,11 @@ N/A — Stateless request dispatcher.
 
 #### Error Handling & Return Codes
 
-| Error Condition         | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| ----------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Non-premium tier        | ForbiddenException (403)    | ARCH-010 Interface View: ForbiddenError    | Return 403 to client |
-| AI provider unavailable | ServiceUnavailableException | ARCH-010 Interface View: ServiceError      | Return 503 to client |
-| Invalid Auth0 token     | UnauthorizedException (401) | ARCH-010 Interface View: UnauthorizedError | Return 401 to client |
+| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
+| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
+| Non-premium tier            | ForbiddenException (403)    | ARCH-010 Interface View: ForbiddenError    | Return 403 to client |
+| AI provider unavailable     | ServiceUnavailableException | ARCH-010 Interface View: ServiceError      | Return 503 to client |
+| Invalid Clerk session token | UnauthorizedException (401) | ARCH-010 Interface View: UnauthorizedError | Return 401 to client |
 
 ---
 
@@ -743,7 +743,7 @@ N/A — Stateless; each invocation is independent.
 
 ```pseudocode
 // @Controller('/meal-plans/auto-generate')
-// @UseGuards(Auth0Guard, PremiumTierGuard)
+// @UseGuards(PremiumTierGuard)  // AuthMiddleware (global) already authenticated; req.user populated
 
 FUNCTION autoGenerate(body: AutoGenerateRequestDTO, authContext: AuthContext) -> MealPlanDTO:
     // @Post('/')
@@ -766,11 +766,11 @@ N/A — Stateless request dispatcher.
 
 #### Error Handling & Return Codes
 
-| Error Condition         | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| ----------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Non-premium tier        | ForbiddenException (403)    | ARCH-012 Interface View: ForbiddenError    | Return 403 to client |
-| AI provider unavailable | ServiceUnavailableException | ARCH-012 Interface View: ServiceError      | Return 503 to client |
-| Invalid Auth0 token     | UnauthorizedException (401) | ARCH-012 Interface View: UnauthorizedError | Return 401 to client |
+| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
+| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
+| Non-premium tier            | ForbiddenException (403)    | ARCH-012 Interface View: ForbiddenError    | Return 403 to client |
+| AI provider unavailable     | ServiceUnavailableException | ARCH-012 Interface View: ServiceError      | Return 503 to client |
+| Invalid Clerk session token | UnauthorizedException (401) | ARCH-012 Interface View: UnauthorizedError | Return 401 to client |
 
 ---
 
@@ -854,7 +854,7 @@ stateDiagram-v2
 
 ```pseudocode
 // @Controller('/meal-plans/:planId/optimize')
-// @UseGuards(Auth0Guard, PremiumTierGuard)
+// @UseGuards(PremiumTierGuard)  // AuthMiddleware (global) already authenticated; req.user populated
 
 FUNCTION optimize(planId: string, authContext: AuthContext) -> OptimizationSuggestionsDTO:
     // @Post('/')
@@ -877,11 +877,11 @@ N/A — Stateless request dispatcher.
 
 #### Error Handling & Return Codes
 
-| Error Condition     | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| ------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Non-premium tier    | ForbiddenException (403)    | ARCH-014 Interface View: ForbiddenError    | Return 403 to client |
-| Plan not found      | NotFoundException (404)     | ARCH-014 Interface View: NotFoundError     | Return 404 to client |
-| Invalid Auth0 token | UnauthorizedException (401) | ARCH-014 Interface View: UnauthorizedError | Return 401 to client |
+| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
+| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
+| Non-premium tier            | ForbiddenException (403)    | ARCH-014 Interface View: ForbiddenError    | Return 403 to client |
+| Plan not found              | NotFoundException (404)     | ARCH-014 Interface View: NotFoundError     | Return 404 to client |
+| Invalid Clerk session token | UnauthorizedException (401) | ARCH-014 Interface View: UnauthorizedError | Return 401 to client |
 
 ---
 
@@ -1094,42 +1094,47 @@ stateDiagram-v2
 
 ---
 
-### Module: MOD-018 (Auth0Adapter)
+### Module: MOD-018 (ClerkAuthService)
 
 **Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/meal-planning/guards/auth0.guard.ts`
+**Target Source File(s)**: `src/meal-planning/auth/clerk-auth.service.ts`
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-// NestJS CanActivate guard
+// NestJS middleware (AuthMiddleware), backed by ClerkAuthService — NOT a guard
 
-FUNCTION canActivate(context: ExecutionContext) -> boolean:
-    request = context.switchToHttp().getRequest()
+FUNCTION use(request, response, next) -> void:
     authHeader = request.headers["authorization"]
     IF authHeader IS NULL OR NOT authHeader.startsWith("Bearer "):
         THROW UnauthorizedException("Missing Bearer token")
 
     token = authHeader.slice(7)
 
-    // Verify JWT using Auth0 JWKS
+    // Networkless verification of the Clerk session token:
+    // verifyToken (@clerk/backend) using the public CLERK_JWT_KEY — no JWKS round trip,
+    // no client secret, no audience. Authorized parties enforced via CLERK_AUTHORIZED_PARTIES.
     TRY:
-        payload = AWAIT jwtVerifier.verify(token, {
-            issuer: AUTH0_ISSUER,
-            audience: AUTH0_AUDIENCE
-        })
-    CATCH JwtExpiredError:
+        claims = AWAIT clerkAuthService.verifySessionToken(token, {
+            jwtKey: CLERK_JWT_KEY,
+            authorizedParties: CLERK_AUTHORIZED_PARTIES
+        })  // -> VerifiedClerkClaims
+    CATCH TokenExpiredError:
         THROW UnauthorizedException("Token expired")
-    CATCH JwtInvalidError:
+    CATCH TokenInvalidError:        // bad signature / unauthorized azp
         THROW UnauthorizedException("Invalid token")
 
-    // Extract claims
-    userId = payload.sub
-    tier   = payload["https://commise.app/tier"] ?? "free"
+    // Extract claims; subscription tier/scopes come from the signed token's public_metadata
+    clerkId = claims.sub
+    tier    = claims.public_metadata?.tier ?? "free"
+
+    // Read-through-create the app user (Clerk sub -> app ULID) and populate req.user
+    userId  = AWAIT usersService.resolveOrCreateFromClaims(claims)
 
     // Attach AuthContext to request
     request.authContext = { userId, tier }
-    RETURN true
+    request.user = { id: userId, clerkId, tier }
+    next()
 ```
 
 #### State Machine View
@@ -1138,12 +1143,12 @@ N/A — Stateless; each request is independently verified.
 
 #### Internal Data Structures
 
-| Name           | Type        | Size/Constraints | Initialization | Description                      |
-| -------------- | ----------- | ---------------- | -------------- | -------------------------------- |
-| jwtVerifier    | JwtVerifier | singleton        | DI injection   | jose/jwks-rsa JWT verifier       |
-| AUTH0_ISSUER   | string      | URL              | Config/env     | Auth0 tenant issuer URL          |
-| AUTH0_AUDIENCE | string      | string           | Config/env     | Auth0 API audience identifier    |
-| authContext    | AuthContext | object           | Computed       | { userId: string, tier: string } |
+| Name                     | Type             | Size/Constraints | Initialization | Description                                                    |
+| ------------------------ | ---------------- | ---------------- | -------------- | -------------------------------------------------------------- |
+| clerkAuthService         | ClerkAuthService | singleton        | DI injection   | Networkless `verifyToken` (@clerk/backend) wrapper             |
+| CLERK_JWT_KEY            | string           | PEM public key   | Config/env     | Public JWT key for networkless verification (non-secret)       |
+| CLERK_AUTHORIZED_PARTIES | string           | comma-separated  | Config/env     | Allowed `azp` values enforced during verification (non-secret) |
+| authContext              | AuthContext      | object           | Computed       | { userId: string, tier: string }                               |
 
 #### Error Handling & Return Codes
 
@@ -1151,8 +1156,8 @@ N/A — Stateless; each request is independently verified.
 | ---------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
 | Missing Authorization header | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
 | Expired JWT                  | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
-| Invalid JWT signature        | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
-| JWKS fetch failure           | ServiceUnavailableException | ARCH-018 Interface View: ServiceError      | Return 503 to client |
+| Invalid token signature      | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
+| Unauthorized party (`azp`)   | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
 
 ---
 
@@ -1277,13 +1282,13 @@ N/A — Stateless serialization adapter.
 #### Algorithmic / Logic View
 
 ```pseudocode
-// NestJS CanActivate guard — runs AFTER Auth0Guard (authContext already set)
+// NestJS CanActivate guard — runs AFTER AuthMiddleware (authContext already set)
 
 FUNCTION canActivate(context: ExecutionContext) -> boolean:
     request = context.switchToHttp().getRequest()
     authContext = request.authContext
     IF authContext IS NULL:
-        THROW UnauthorizedException("AuthContext missing — Auth0Guard must run first")
+        THROW UnauthorizedException("AuthContext missing — AuthMiddleware must run first")
 
     tier = authContext.tier
     IF tier != "premium":
@@ -1298,10 +1303,10 @@ N/A — Stateless predicate; no internal state.
 
 #### Internal Data Structures
 
-| Name        | Type        | Size/Constraints | Initialization | Description                      |
-| ----------- | ----------- | ---------------- | -------------- | -------------------------------- | ------------------------------------ |
-| authContext | AuthContext | object           | From request   | Set by Auth0Guard; contains tier |
-| tier        | string      | "free"           | "premium"      | From JWT claim                   | Subscription tier extracted by guard |
+| Name        | Type        | Size/Constraints | Initialization | Description                          |
+| ----------- | ----------- | ---------------- | -------------- | ------------------------------------ | ------------------------------------ |
+| authContext | AuthContext | object           | From request   | Set by AuthMiddleware; contains tier |
+| tier        | string      | "free"           | "premium"      | From JWT claim                       | Subscription tier extracted by guard |
 
 #### Error Handling & Return Codes
 
@@ -1385,7 +1390,7 @@ N/A — Stateless build-time utility; no runtime state.
 | ARCH-015 | WasteOptimizerService        | MOD-015 | WasteOptimizerService        |
 | ARCH-016 | RecipeApiAdapter             | MOD-016 | RecipeApiAdapter             |
 | ARCH-017 | UsdaFoodDataAdapter          | MOD-017 | UsdaFoodDataAdapter          |
-| ARCH-018 | Auth0Adapter                 | MOD-018 | Auth0Adapter                 |
+| ARCH-018 | ClerkAuthService             | MOD-018 | ClerkAuthService             |
 | ARCH-019 | AiProviderAdapter            | MOD-019 | AiProviderAdapter            |
 | ARCH-020 | MealPlanPublicApiAdapter     | MOD-020 | MealPlanPublicApiAdapter     |
 | ARCH-021 | PremiumTierGuard             | MOD-021 | PremiumTierGuard             |

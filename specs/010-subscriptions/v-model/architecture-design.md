@@ -19,26 +19,26 @@ The Subscriptions & Monetization architecture decomposes 13 system components (S
 
 ## Logical View — Component Breakdown (IEEE 42010 / Kruchten 4+1)
 
-| ARCH ID  | Name                             | Description                                                                                                                                                      | Parent System Components  | Type      |
-| -------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------- |
-| ARCH-001 | UserTierRepository               | Persists and retrieves `UserSubscriptionRecord` in PostgreSQL; exposes `getUserTier`, `setUserTier`, and `getTierHistory` operations with row-level security.    | SYS-001, SYS-007, SYS-008 | Component |
-| ARCH-002 | TierAssignmentService            | Orchestrates tier state transitions (free→premium, premium→lapsed, lapsed→premium); validates transition legality; emits tier-changed domain events.             | SYS-001, SYS-007          | Service   |
-| ARCH-003 | FreeTierEntitlementResolver      | Resolves whether a given feature identifier is permitted under the free tier; reads from the FeatureGateRegistry; returns `EntitlementDecision`.                 | SYS-002, SYS-013          | Component |
-| ARCH-004 | PremiumTierEntitlementResolver   | Resolves whether a given feature identifier is permitted under the premium tier; reads from the FeatureGateRegistry; returns `EntitlementDecision`.              | SYS-003, SYS-013          | Component |
-| ARCH-005 | FeatureGateMiddleware            | NestJS middleware that intercepts all feature-gated HTTP requests; calls `getUserTier` and `getFeatureTier`; permits or denies; triggers upgrade prompt on deny. | SYS-004                   | Component |
-| ARCH-006 | FeatureGateRegistry              | In-memory static registry mapping `featureId → requiredTier`; loaded from config at startup; consumed by ARCH-003, ARCH-004, and ARCH-005.                       | SYS-013                   | Library   |
-| ARCH-007 | RecipeVisibilityEnforcer         | Enforces public-by-default for free-tier recipes; blocks free-tier users from setting `visibility=private`; applies lapse-time visibility preservation rules.    | SYS-005                   | Component |
-| ARCH-008 | UpgradePromptComponent           | React/React Native UI component that renders a contextual upgrade prompt with feature preview; exposes accessible name via `aria-label`; pairs icon+text label.  | SYS-006                   | Component |
-| ARCH-009 | SubscriptionLifecycleManager     | Orchestrates lapse and renewal flows: locks premium features, triggers data retention guard, enforces recipe visibility, updates tier via ARCH-002.              | SYS-007                   | Service   |
-| ARCH-010 | Auth0TierClaimAdapter            | Reads Auth0 user session; extracts or injects `subscriptionTier` claim; provides `getUserTier(userId)` to ARCH-005 and ARCH-002.                                 | SYS-008                   | Adapter   |
-| ARCH-011 | SubscriptionWebhookController    | NestJS controller that receives signed webhook POST from payment provider; validates HMAC signature; deserializes `SubscriptionEvent`; delegates to ARCH-009.    | SYS-009                   | Component |
-| ARCH-012 | WebhookSignatureValidator        | Validates HMAC-SHA256 signature on incoming webhook payloads; rejects unsigned or tampered events; logs validation failures.                                     | SYS-009                   | Library   |
-| ARCH-013 | DataRetentionGuard               | Ensures no user data is deleted on subscription lapse; runs pre-lapse data integrity check; emits `DataRetentionVerified` event before tier downgrade proceeds.  | SYS-010                   | Component |
-| ARCH-014 | TypeScriptStrictLinter           | Build-time enforcement of `strict: true`; CI gate that fails on `any` usage outside test doubles; JSDoc coverage reporter for exported symbols.                  | SYS-011                   | Utility   |
-| ARCH-015 | AccessibilityComplianceValidator | Playwright-based CI check that queries all subscription UI components via `getByRole`/`getByLabel`; validates icon+text pairing for tier status indicators.      | SYS-012                   | Utility   |
-| ARCH-016 | SubscriptionEventPublisher       | Publishes internal domain events (`TierChanged`, `SubscriptionLapsed`, `SubscriptionRenewed`) to an in-process event bus; consumed by downstream modules.        | SYS-007, SYS-001          | Component |
-| ARCH-017 | SubscriptionWebhookLogger        | Persists all incoming webhook events to `SubscriptionWebhookLog` table with 90-day retention; used for audit and replay.                                         | SYS-009                   | Component |
-| ARCH-018 | UpgradePromptFeaturePreview      | Sub-component of the upgrade prompt that renders a teaser/preview of the gated premium feature; receives `featureId` and renders feature-specific preview copy.  | SYS-006                   | Component |
+| ARCH ID  | Name                             | Description                                                                                                                                                                             | Parent System Components  | Type      |
+| -------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------- |
+| ARCH-001 | UserTierRepository               | Persists and retrieves `UserSubscriptionRecord` in PostgreSQL; exposes `getUserTier`, `setUserTier`, and `getTierHistory` operations with row-level security.                           | SYS-001, SYS-007, SYS-008 | Component |
+| ARCH-002 | TierAssignmentService            | Orchestrates tier state transitions (free→premium, premium→lapsed, lapsed→premium); validates transition legality; emits tier-changed domain events.                                    | SYS-001, SYS-007          | Service   |
+| ARCH-003 | FreeTierEntitlementResolver      | Resolves whether a given feature identifier is permitted under the free tier; reads from the FeatureGateRegistry; returns `EntitlementDecision`.                                        | SYS-002, SYS-013          | Component |
+| ARCH-004 | PremiumTierEntitlementResolver   | Resolves whether a given feature identifier is permitted under the premium tier; reads from the FeatureGateRegistry; returns `EntitlementDecision`.                                     | SYS-003, SYS-013          | Component |
+| ARCH-005 | FeatureGateMiddleware            | NestJS middleware that intercepts all feature-gated HTTP requests; calls `getUserTier` and `getFeatureTier`; permits or denies; triggers upgrade prompt on deny.                        | SYS-004                   | Component |
+| ARCH-006 | FeatureGateRegistry              | In-memory static registry mapping `featureId → requiredTier`; loaded from config at startup; consumed by ARCH-003, ARCH-004, and ARCH-005.                                              | SYS-013                   | Library   |
+| ARCH-007 | RecipeVisibilityEnforcer         | Enforces public-by-default for free-tier recipes; blocks free-tier users from setting `visibility=private`; applies lapse-time visibility preservation rules.                           | SYS-005                   | Component |
+| ARCH-008 | UpgradePromptComponent           | React/React Native UI component that renders a contextual upgrade prompt with feature preview; exposes accessible name via `aria-label`; pairs icon+text label.                         | SYS-006                   | Component |
+| ARCH-009 | SubscriptionLifecycleManager     | Orchestrates lapse and renewal flows: locks premium features, triggers data retention guard, enforces recipe visibility, updates tier via ARCH-002.                                     | SYS-007                   | Service   |
+| ARCH-010 | ClerkTierClaimAdapter            | Reads `public_metadata.subscriptionTier` from the verified Clerk session token (`VerifiedClerkClaims` via `ClerkAuthService`); provides `getUserTier(userId)` to ARCH-005 and ARCH-002. | SYS-008                   | Adapter   |
+| ARCH-011 | SubscriptionWebhookController    | NestJS controller that receives signed webhook POST from payment provider; validates HMAC signature; deserializes `SubscriptionEvent`; delegates to ARCH-009.                           | SYS-009                   | Component |
+| ARCH-012 | WebhookSignatureValidator        | Validates HMAC-SHA256 signature on incoming webhook payloads; rejects unsigned or tampered events; logs validation failures.                                                            | SYS-009                   | Library   |
+| ARCH-013 | DataRetentionGuard               | Ensures no user data is deleted on subscription lapse; runs pre-lapse data integrity check; emits `DataRetentionVerified` event before tier downgrade proceeds.                         | SYS-010                   | Component |
+| ARCH-014 | TypeScriptStrictLinter           | Build-time enforcement of `strict: true`; CI gate that fails on `any` usage outside test doubles; JSDoc coverage reporter for exported symbols.                                         | SYS-011                   | Utility   |
+| ARCH-015 | AccessibilityComplianceValidator | Playwright-based CI check that queries all subscription UI components via `getByRole`/`getByLabel`; validates icon+text pairing for tier status indicators.                             | SYS-012                   | Utility   |
+| ARCH-016 | SubscriptionEventPublisher       | Publishes internal domain events (`TierChanged`, `SubscriptionLapsed`, `SubscriptionRenewed`) to an in-process event bus; consumed by downstream modules.                               | SYS-007, SYS-001          | Component |
+| ARCH-017 | SubscriptionWebhookLogger        | Persists all incoming webhook events to `SubscriptionWebhookLog` table with 90-day retention; used for audit and replay.                                                                | SYS-009                   | Component |
+| ARCH-018 | UpgradePromptFeaturePreview      | Sub-component of the upgrade prompt that renders a teaser/preview of the gated premium feature; receives `featureId` and renders feature-specific preview copy.                         | SYS-006                   | Component |
 
 ## Process View — Dynamic Behavior (Kruchten 4+1)
 
@@ -48,7 +48,7 @@ The Subscriptions & Monetization architecture decomposes 13 system components (S
 sequenceDiagram
     participant Client as Client (Web/Mobile)
     participant GW as ARCH-005 FeatureGateMiddleware
-    participant Auth as ARCH-010 Auth0TierClaimAdapter
+    participant Auth as ARCH-010 ClerkTierClaimAdapter
     participant Reg as ARCH-006 FeatureGateRegistry
     participant Prompt as ARCH-008 UpgradePromptComponent
     participant Preview as ARCH-018 UpgradePromptFeaturePreview
@@ -67,7 +67,7 @@ sequenceDiagram
 ```
 
 **Concurrency Model**: Event loop (Node.js single-threaded async); all I/O is non-blocking.
-**Synchronization Points**: Auth0 claim read and registry lookup are sequential within the middleware; no shared mutable state.
+**Synchronization Points**: `public_metadata` tier read and registry lookup are sequential within the middleware; no shared mutable state.
 
 ### Interaction: Subscription Lapse Flow
 
@@ -107,13 +107,13 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Auth0 as Auth0 (spec 002)
-    participant Adapter as ARCH-010 Auth0TierClaimAdapter
+    participant Clerk as Clerk (spec 002)
+    participant Adapter as ARCH-010 ClerkTierClaimAdapter
     participant TA as ARCH-002 TierAssignmentService
     participant Repo as ARCH-001 UserTierRepository
     participant Pub as ARCH-016 EventPublisher
 
-    Auth0->>Adapter: userCreated event (userId)
+    Clerk->>Adapter: user.created webhook event (userId)
     Adapter->>TA: assignDefaultTier(userId)
     TA->>Repo: setUserTier(userId, 'free', reason='registration')
     Repo-->>TA: UserSubscriptionRecord
@@ -122,7 +122,7 @@ sequenceDiagram
     TA-->>Adapter: ok
 ```
 
-**Concurrency Model**: Event-driven; triggered by Auth0 post-registration hook.
+**Concurrency Model**: Event-driven; triggered by the Clerk `user.created` webhook.
 **Synchronization Points**: Tier record must be persisted before any feature gate check can succeed for the new user.
 
 ## Interface View — API Contracts (Kruchten 4+1)
@@ -207,12 +207,12 @@ sequenceDiagram
 | Output    | void                  | —                   | —                                                   | Emits domain events via ARCH-016        |
 | Exception | `LifecycleEventError` | `Error`             | `{ code: 'LIFECYCLE_EVENT_FAILED', event, reason }` | Thrown on failure; event sent to DLQ    |
 
-### ARCH-010: Auth0TierClaimAdapter
+### ARCH-010: ClerkTierClaimAdapter
 
 | Direction | Name                | Type                  | Format                                     | Constraints                                       |
 | --------- | ------------------- | --------------------- | ------------------------------------------ | ------------------------------------------------- |
-| Input     | userId              | `string`              | UUID v4 or Auth0 sub                       | Required                                          |
-| Output    | tier                | `'free' \| 'premium'` | Enum string                                | Derived from Auth0 custom claim                   |
+| Input     | userId              | `string`              | UUID v4 or Clerk `sub`                     | Required                                          |
+| Output    | tier                | `'free' \| 'premium'` | Enum string                                | Derived from `public_metadata.subscriptionTier`   |
 | Exception | `AuthIdentityError` | `Error`               | `{ code: 'AUTH_IDENTITY_FAILED', userId }` | Thrown when claim cannot be resolved; deny access |
 
 ### ARCH-011: SubscriptionWebhookController
@@ -301,7 +301,7 @@ sequenceDiagram
 | Stage | Module                          | Input Format                        | Transformation                                | Output Format                            |
 | ----- | ------------------------------- | ----------------------------------- | --------------------------------------------- | ---------------------------------------- |
 | 1     | ARCH-005 FeatureGateMiddleware  | HTTP request (JWT + featureId)      | Extract userId from JWT, featureId from route | `{ userId, featureId }`                  |
-| 2     | ARCH-010 Auth0TierClaimAdapter  | `{ userId }`                        | Read Auth0 custom claim `subscriptionTier`    | `'free' \| 'premium'`                    |
+| 2     | ARCH-010 ClerkTierClaimAdapter  | `{ userId }`                        | Read `public_metadata.subscriptionTier` claim | `'free' \| 'premium'`                    |
 | 3     | ARCH-006 FeatureGateRegistry    | `{ featureId }`                     | Lookup required tier from static config       | `'free' \| 'premium'`                    |
 | 4     | ARCH-005 FeatureGateMiddleware  | `{ userTier, requiredTier }`        | Compare tiers; permit or deny                 | `next()` or `403 + upgradePromptPayload` |
 | 5     | ARCH-008 UpgradePromptComponent | `{ featureId, userTier }` (on deny) | Render contextual upgrade prompt with preview | Rendered JSX with accessible name        |
@@ -310,7 +310,7 @@ sequenceDiagram
 
 | Stage | Module                         | Input Format                                             | Transformation                       | Output Format            |
 | ----- | ------------------------------ | -------------------------------------------------------- | ------------------------------------ | ------------------------ |
-| 1     | ARCH-010 Auth0TierClaimAdapter | Auth0 `userCreated` event                                | Extract userId                       | `{ userId }`             |
+| 1     | ARCH-010 ClerkTierClaimAdapter | Clerk `user.created` webhook event                       | Extract userId                       | `{ userId }`             |
 | 2     | ARCH-002 TierAssignmentService | `{ userId, targetTier: 'free', reason: 'registration' }` | Validate and initiate assignment     | Calls ARCH-001           |
 | 3     | ARCH-001 UserTierRepository    | `{ userId, tier: 'free', reason }`                       | Persist new `UserSubscriptionRecord` | `UserSubscriptionRecord` |
 | 4     | ARCH-016 EventPublisher        | `TierChanged { from: null, to: 'free' }`                 | Broadcast to in-process subscribers  | Event delivered          |

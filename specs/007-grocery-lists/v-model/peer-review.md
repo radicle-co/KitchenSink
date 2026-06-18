@@ -291,9 +291,9 @@ Matrices A through H cover forward (REQ→AT), backward (AT→REQ), integration 
 
 ---
 
-### PRF-007-P9 — AuthGuard token extraction boundary is explicitly tested
+### PRF-007-P9 — AuthMiddleware token extraction boundary is explicitly tested
 
-`UTP-013-B` verifies the `authHeader.slice(7)` boundary — that exactly 7 characters ("Bearer ") are stripped and the remaining token is passed to the JWKS verifier. This is a precise boundary value test for a security-critical operation.
+`UTP-013-B` verifies the `authHeader.slice(7)` boundary — that exactly 7 characters ("Bearer ") are stripped and the remaining token is passed to the Clerk session-token verifier (ClerkAuthService.verifyToken, networkless). This is a precise boundary value test for a security-critical operation.
 
 ---
 

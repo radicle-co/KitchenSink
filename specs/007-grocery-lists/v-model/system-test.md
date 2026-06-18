@@ -288,12 +288,12 @@ Each test case MUST identify its technique by name:
 **Description**: Verifies that `ValidateJWT(token)` (IF-INT-006) correctly classifies three token equivalence classes: valid tokens (pass), expired tokens (reject), and malformed tokens (reject), before any domain logic executes.
 
 - **System Scenario: STS-005-A1**
-    - **Given** a well-formed, non-expired Auth0 JWT signed with the correct JWKS key
+    - **Given** a well-formed, non-expired Clerk session token verifiable with the `CLERK_JWT_KEY` public key and an allowed `azp`
     - **When** `ValidateJWT(token)` is invoked
     - **Then** the component returns `{ valid: true, userId, claims }` and processing continues
 
 - **System Scenario: STS-005-A2**
-    - **Given** an Auth0 JWT with an `exp` claim in the past
+    - **Given** a Clerk session token with an `exp` claim in the past
     - **When** `ValidateJWT(token)` is invoked
     - **Then** the component returns `{ valid: false, reason: "TOKEN_EXPIRED" }` and the calling component rejects the request with HTTP 401
 
@@ -323,16 +323,16 @@ Each test case MUST identify its technique by name:
     - **When** `CheckSubscription(userId, "premium")` is invoked
     - **Then** the component returns `{ authorized: false, reason: "SUBSCRIPTION_REQUIRED" }` and the calling component returns HTTP 403
 
-#### Test Case: STP-005-C (Auth0 JWKS endpoint unavailability causes fail-closed behaviour)
+#### Test Case: STP-005-C (Token verification failure causes fail-closed behaviour)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View
-**Description**: Verifies that when the Auth0 JWKS endpoint (IF-EXT-008 via SYS-006) is unreachable, SYS-005 fails closed — rejecting all requests rather than allowing unauthenticated access.
+**Description**: Clerk session-token verification (IF-EXT-008) is networkless — performed in-process against the `CLERK_JWT_KEY` public key with `azp` enforcement, so there is no JWKS endpoint that can become unavailable. This case instead verifies that any verification failure (invalid signature, expired token, or a disallowed `azp`) makes SYS-005 fail closed — rejecting the request rather than allowing unauthenticated access.
 
 - **System Scenario: STS-005-C1**
-    - **Given** the Auth0 JWKS adapter (SYS-006 → IF-EXT-008) returns a connection timeout
-    - **When** `ValidateJWT(token)` is invoked with any token
-    - **Then** the component returns `{ valid: false, reason: "AUTH_PROVIDER_UNAVAILABLE" }` and the request is rejected with HTTP 503 (not 200 or 401)
+    - **Given** a token whose signature does not verify against `CLERK_JWT_KEY`, or whose `azp` is not in `CLERK_AUTHORIZED_PARTIES`
+    - **When** `ValidateJWT(token)` is invoked
+    - **Then** the component returns `{ valid: false, reason: "TOKEN_VERIFICATION_FAILED" }` and the request is rejected with HTTP 401 (never 200)
 
 #### Test Case: STP-005-D (Subscriptions API unavailability causes fail-closed for premium gate)
 
@@ -355,7 +355,7 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that each adapter (MealPlan, Recipe, USDA, Auth0, Subscriptions, Grocery Store) exposes a typed TypeScript interface and that domain components (SYS-001 through SYS-005) interact exclusively through these interfaces, not through raw HTTP clients.
+**Description**: Verifies that each adapter (MealPlan, Recipe, USDA, Clerk, Subscriptions, Grocery Store) exposes a typed TypeScript interface and that domain components (SYS-001 through SYS-005) interact exclusively through these interfaces, not through raw HTTP clients.
 
 - **System Scenario: STS-006-A1**
     - **Given** the MealPlan adapter is initialised with a valid base URL and auth token

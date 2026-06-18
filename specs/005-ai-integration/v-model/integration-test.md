@@ -455,14 +455,14 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 **Parent System Components**: SYS-007
 
-#### Test Case: ITP-015-A (AuthGuardMiddleware attaches userId to request context and passes to downstream modules on valid Auth0 JWT)
+#### Test Case: ITP-015-A (AuthMiddleware attaches userId to request context and passes to downstream modules on valid Clerk session token)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that ARCH-015 validates an Auth0 JWT, extracts `userId`, attaches it to the request context, and passes the enriched context to the downstream module (e.g., ARCH-005, ARCH-013).
+**Description**: Verifies that ARCH-015 verifies a Clerk session token networklessly (via `verifyToken` with the public `CLERK_JWT_KEY`, enforcing `azp`), extracts `userId`, attaches it to the request context, and passes the enriched context to the downstream module (e.g., ARCH-005, ARCH-013).
 
 - **Integration Scenario: ITS-015-A1**
-    - **Given** an inbound HTTP request carries a valid Auth0 JWT in the Authorization header
+    - **Given** an inbound HTTP request carries a valid Clerk session token in the Authorization header
     - **When** ARCH-015 processes the request before forwarding to ARCH-005 RecipeGenerationService
     - **Then** ARCH-015 attaches `{ userId: UUID }` to the request context and passes the request to ARCH-005
 
@@ -478,7 +478,7 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **Then** ARCH-015 returns HTTP 401 `UnauthorizedError` to the client and does not invoke ARCH-005, ARCH-013, or any other downstream module
 
 - **Integration Scenario: ITS-015-B2**
-    - **Given** an inbound HTTP request carries a malformed or expired Auth0 JWT
+    - **Given** an inbound HTTP request carries a malformed or expired Clerk session token
     - **When** ARCH-015 validates the token
     - **Then** ARCH-015 returns HTTP 401 and halts request propagation
 
@@ -489,7 +489,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies that ARCH-015 correctly isolates `userId` per request context under concurrent load, preventing cross-contamination between simultaneous requests.
 
 - **Integration Scenario: ITS-015-C1**
-    - **Given** two concurrent HTTP requests arrive simultaneously, each carrying a different valid Auth0 JWT for different users (userId-A and userId-B)
+    - **Given** two concurrent HTTP requests arrive simultaneously, each carrying a different valid Clerk session token for different users (userId-A and userId-B)
     - **When** ARCH-015 processes both requests concurrently
     - **Then** each downstream module receives the correct `userId` for its respective request, with no cross-contamination between userId-A and userId-B
 
@@ -573,7 +573,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 | ITP-008-A | RS256 key pair                        | Test key pair generated at test setup                     | Enables JWT signing/verification without production secrets       |
 | ITP-009-B | Token store / consent grant store     | In-memory store with revocation flag                      | Simulates revocation without persistent storage                   |
 | ITP-010-B | RS256 key pair + consent store        | Expired test JWT + revoked grant stub                     | Covers both expiry and revocation paths                           |
-| ITP-015-C | Auth0 JWT validation                  | Spy on request context assignment; concurrent test runner | Verifies per-request isolation under concurrency                  |
+| ITP-015-C | Clerk session-token validation        | Spy on request context assignment; concurrent test runner | Verifies per-request isolation under concurrency                  |
 | ITP-016-C | `010-subscriptions` integration       | Fake: returns consistent `isPremium` for concurrent calls | Verifies no race condition in entitlement check                   |
 | ITP-017-A | TypeScript compiler (`tsc`)           | Real compiler invoked in CI; no mock needed               | Compile-time enforcement requires actual `tsc --strict` execution |
 | ITP-017-B | ESLint                                | Real ESLint invoked in CI; no mock needed                 | Lint-time enforcement requires actual ESLint run                  |

@@ -38,7 +38,7 @@ The Meal Planning architecture decomposes eight system components into twenty-tw
 | ARCH-015 | WasteOptimizerService        | Analyzes ingredient overlap across all assigned recipes in a plan using an in-memory graph algorithm. Produces ranked swap/rearrangement suggestions.                                                                                                                                                                                       | SYS-006                   | Service   |
 | ARCH-016 | RecipeApiAdapter             | HTTP adapter wrapping the Recipe API from feature 001. Fetches recipe details and validates ownership for the authenticated user. Implements retry with exponential backoff.                                                                                                                                                                | SYS-007                   | Adapter   |
 | ARCH-017 | UsdaFoodDataAdapter          | HTTP adapter wrapping the USDA food data service from feature 003. Batch-fetches nutrient data for ingredient lists. Implements circuit breaker for resilience.                                                                                                                                                                             | SYS-007                   | Adapter   |
-| ARCH-018 | Auth0Adapter                 | JWT validation adapter integrating with Auth0 from feature 002. Extracts `userId` and subscription `tier` from validated tokens. Used as NestJS guard.                                                                                                                                                                                      | SYS-007                   | Adapter   |
+| ARCH-018 | ClerkAuthService             | Networkless Clerk session-token verification from feature 002 (`verifyToken` via `CLERK_JWT_KEY` public key, with `azp`/`CLERK_AUTHORIZED_PARTIES` enforcement). Extracts `userId` and subscription `tier` (from `public_metadata`) from the verified token. Consumed by the global `AuthMiddleware` (NestJS middleware, not a guard).      | SYS-007                   | Adapter   |
 | ARCH-019 | AiProviderAdapter            | HTTP adapter wrapping the AI provider configuration from feature 005. Sends structured prompts and parses AI responses into typed `AIResponseDTO` objects.                                                                                                                                                                                  | SYS-007                   | Adapter   |
 | ARCH-020 | MealPlanPublicApiAdapter     | Outbound adapter exposing `MealPlanDTO` in a format consumable by downstream features 007 (grocery lists) and 009 (nutrition planning). Implements versioned serialization.                                                                                                                                                                 | SYS-007                   | Adapter   |
 | ARCH-021 | PremiumTierGuard             | NestJS guard enforcing premium subscription checks for AI suggestions, auto-generation, and waste optimization endpoints. Reads `tier` from `AuthContext`.                                                                                                                                                                                  | SYS-004, SYS-005, SYS-006 | Component |
@@ -51,7 +51,7 @@ The Meal Planning architecture decomposes eight system components into twenty-tw
 ```mermaid
 sequenceDiagram
     participant Client
-    participant ARCH-018 as Auth0Adapter (Guard)
+    participant ARCH-018 as ClerkAuthService (Middleware)
     participant ARCH-004 as RecipeAssignmentController
     participant ARCH-005 as RecipeAssignmentService
     participant ARCH-016 as RecipeApiAdapter
@@ -81,7 +81,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Client
-    participant ARCH-018 as Auth0Adapter (Guard)
+    participant ARCH-018 as ClerkAuthService (Middleware)
     participant ARCH-007 as NutritionalSummaryController
     participant ARCH-008 as NutritionalSummaryService
     participant ARCH-009 as NutritionalSummaryCache
@@ -116,7 +116,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Client
-    participant ARCH-018 as Auth0Adapter (Guard)
+    participant ARCH-018 as ClerkAuthService (Middleware)
     participant ARCH-021 as PremiumTierGuard
     participant ARCH-012 as AutoGenerateController
     participant ARCH-013 as AutoGenerateService
@@ -151,7 +151,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Client
-    participant ARCH-018 as Auth0Adapter (Guard)
+    participant ARCH-018 as ClerkAuthService (Middleware)
     participant ARCH-021 as PremiumTierGuard
     participant ARCH-014 as WasteOptimizerController
     participant ARCH-015 as WasteOptimizerService
@@ -185,7 +185,7 @@ sequenceDiagram
 | Input     | UpdateMealPlanDTO | object (partial) | `{ name?: string, endDate?: ISO8601 }`                                        | endDate must not precede existing startDate |
 | Output    | MealPlanDTO       | object           | `{ id, name, startDate, endDate, slots[], createdAt }`                        | Always includes slot array (may be empty)   |
 | Exception | ValidationError   | HTTP 400         | `{ message, errors[] }`                                                       | On DTO constraint violation                 |
-| Exception | UnauthorizedError | HTTP 401         | `{ message }`                                                                 | On missing/invalid Auth0 token              |
+| Exception | UnauthorizedError | HTTP 401         | `{ message }`                                                                 | On missing/invalid Clerk session token      |
 | Exception | NotFoundError     | HTTP 404         | `{ message }`                                                                 | On unknown planId for authenticated user    |
 
 ### ARCH-002: MealPlanService
@@ -332,13 +332,13 @@ sequenceDiagram
 | Output    | NutrientDataDTO[]   | object | `{ ingredientId, nutrients: Nutrient[] }[]` | Parallel fetch via `Promise.all`                |
 | Exception | NutrientUnavailable | infra  | `NutrientDataUnavailableException`          | On circuit breaker open or 5xx response         |
 
-### ARCH-018: Auth0Adapter
+### ARCH-018: ClerkAuthService
 
-| Direction | Name                  | Type   | Format                                          | Constraints                               |
-| --------- | --------------------- | ------ | ----------------------------------------------- | ----------------------------------------- |
-| Input     | validateToken         | method | `(bearerToken: string)`                         | Validates JWT signature via JWKS endpoint |
-| Output    | AuthContext           | object | `{ userId: string, tier: 'free' \| 'premium' }` | Extracted from validated JWT claims       |
-| Exception | UnauthorizedException | infra  | `UnauthorizedException`                         | On invalid/expired token                  |
+| Direction | Name                  | Type   | Format                                          | Constraints                                                                                    |
+| --------- | --------------------- | ------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Input     | verifySessionToken    | method | `(bearerToken: string)`                         | Networkless verification via public `CLERK_JWT_KEY`; enforces `azp`/`CLERK_AUTHORIZED_PARTIES` |
+| Output    | AuthContext           | object | `{ userId: string, tier: 'free' \| 'premium' }` | `userId` from `sub`; `tier` from `public_metadata` of the verified token                       |
+| Exception | UnauthorizedException | infra  | `UnauthorizedException`                         | On invalid/expired token or unauthorized `azp`                                                 |
 
 ### ARCH-019: AiProviderAdapter
 

@@ -3,7 +3,7 @@
 **Feature**: `005-ai-integration`
 **Phase**: 5 — Product Forge Plan
 **Status**: Draft
-**Stack**: TypeScript 5.x, Node.js 24.x, NestJS 11, Drizzle ORM, pg, Vercel AI SDK, AWS Secrets Manager, SQS, Auth0 MCP
+**Stack**: TypeScript 5.x, Node.js 24.x, NestJS 11, Drizzle ORM, pg, Vercel AI SDK, AWS Secrets Manager, SQS, Clerk MCP
 
 ---
 
@@ -29,8 +29,8 @@
 │                  NestJS API (Port 3000)                     │
 │                                                              │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │AuthGuard │  │AiModule  │  │McpModule │  │ByokModule│   │
-│  │(Auth0)   │  │(Vercel)  │  │(OAuth2.1)│  │(Secrets) │   │
+│  │AuthMidwr │  │AiModule  │  │McpModule │  │ByokModule│   │
+│  │(Clerk)   │  │(Vercel)  │  │(OAuth2.1)│  │(Secrets) │   │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
 │                                                              │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────────────────┐   │
@@ -61,7 +61,7 @@
 
 ## 2. Data Model
 
-Feature 005 stores authenticated-user ownership with Feature 002's Auth0 `sub` key. Technical FKs use `user_sub VARCHAR(255) COLLATE "C" REFERENCES users(sub)`, aligning with `users.sub` as the canonical user primary key.
+Feature 005 stores authenticated-user ownership with Feature 002's Clerk `sub` key (the Clerk `sub` claim resolved to an app ULID via `UsersService.resolveOrCreateFromClaims`). Technical FKs use `user_sub VARCHAR(255) COLLATE "C" REFERENCES users(sub)`, aligning with `users.sub` as the canonical user primary key.
 
 ### 2.1 Database Tables (Drizzle)
 
@@ -339,14 +339,14 @@ Returns [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) Protected Resource Me
 
 ```json
 {
-    "authorization_servers": ["https://commise.auth0.com"],
+    "authorization_servers": ["https://clerk.commise.app"],
     "resource": "https://api.commise.io/mcp"
 }
 ```
 
 #### `GET /.well-known/oauth-authorization-server`
 
-Returns Auth0 authorization server metadata (auto-discovered by MCP clients).
+Returns the Clerk instance's authorization server metadata (auto-discovered by MCP clients).
 
 #### `POST /mcp` — MCP JSON-RPC 2.0
 
@@ -659,13 +659,13 @@ Secrets Manager key deletion policy: key is deleted when user removes BYOK key f
 
 ## 8. Open Questions from Research
 
-| #    | Question                                                                                                                                                                                                  | Status | Notes                                                           |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
-| OQ-1 | **Which GCP region for Gemini?** Gemini is GCP-native; us-east1 vs us-central1 has pricing/availability implications. Decision needed before GA.                                                          | Open   | Monitor Gemini regional availability in AWS regions we use.     |
-| OQ-2 | **Platform key quota enforcement granularity?** Do we track by generation _type_ (recipe vs meal plan) or total count?                                                                                    | Open   | Per-type tracking is more complex but fairer. Total is simpler. |
-| OQ-3 | **MCP OAuth client registration UI?** External agents need a `client_id`/`client_secret` per integration. Self-service registration portal or email-request?                                              | Open   | Recommend: self-service portal in app settings.                 |
-| OQ-4 | **Prompt template versioning strategy?** Do we allow users to fork and customize system prompts? If yes, user-specific template overrides need a `created_by = userId` path.                              | Open   | V2 scope. V1: platform-only templates with versioned updates.   |
-| OQ-5 | **Anthropic data processing agreement?** Has the legal team executed OpenAI DPA + SCCs? Is there an Anthropic DPA? Required before EU user prompts can flow.                                              | Open   | Block EU AI features until DPA is executed.                     |
+| #    | Question                                                                                                                                                                                                | Status | Notes                                                           |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
+| OQ-1 | **Which GCP region for Gemini?** Gemini is GCP-native; us-east1 vs us-central1 has pricing/availability implications. Decision needed before GA.                                                        | Open   | Monitor Gemini regional availability in AWS regions we use.     |
+| OQ-2 | **Platform key quota enforcement granularity?** Do we track by generation _type_ (recipe vs meal plan) or total count?                                                                                  | Open   | Per-type tracking is more complex but fairer. Total is simpler. |
+| OQ-3 | **MCP OAuth client registration UI?** External agents need a `client_id`/`client_secret` per integration. Self-service registration portal or email-request?                                            | Open   | Recommend: self-service portal in app settings.                 |
+| OQ-4 | **Prompt template versioning strategy?** Do we allow users to fork and customize system prompts? If yes, user-specific template overrides need a `created_by = userId` path.                            | Open   | V2 scope. V1: platform-only templates with versioned updates.   |
+| OQ-5 | **Anthropic data processing agreement?** Has the legal team executed OpenAI DPA + SCCs? Is there an Anthropic DPA? Required before EU user prompts can flow.                                            | Open   | Block EU AI features until DPA is executed.                     |
 | OQ-6 | **Nutrition advice AI risk classification?** Under EU AI Act, nutrition advice touching medical conditions may be **high-risk**. Is Commise claiming to give medical advice, or is it general wellness? | Open   | Classification determines mandatory conformity assessment.      |
 
 ---
@@ -694,7 +694,7 @@ Secrets Manager key deletion policy: key is deleted when user removes BYOK key f
 
 ### Phase 5D: External Agent / MCP (Weeks 6–7)
 
-12. **Auth0 MCP integration** — OAuth 2.1 + PKCE consent flow
+12. **Clerk MCP integration** — OAuth 2.1 + PKCE consent flow
 13. **MCP server** — JSON-RPC 2.0 handler, tool definitions for recipes + meal plans
 14. **OAuth consent management UI** — app settings page for external agent connections
 
@@ -720,4 +720,4 @@ Secrets Manager key deletion policy: key is deleted when user removes BYOK key f
 | AC-7  | MCP OAuth 2.1 PKCE flow completes; agent can call tools with Bearer token                  | E2E test                      |
 | AC-8  | BYOK key deleted from Secrets Manager on `DELETE /ai/byok/keys/:provider`                  | Integration test              |
 | AC-9  | `GET /ai/generate/recipe/:jobId` returns correct status through pending→complete lifecycle | E2E test                      |
-| AC-10 | Auth0 MCP guard rejects requests without valid `Authorization: Bearer <token>`             | Security test                 |
+| AC-10 | Clerk MCP guard rejects requests without valid `Authorization: Bearer <token>`             | Security test                 |

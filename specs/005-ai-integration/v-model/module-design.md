@@ -680,7 +680,7 @@ N/A — Stateless (each function is a discrete database operation)
 
 ---
 
-### Module: MOD-010 (AgentTokenValidator — RS256 JWT Verification)
+### Module: MOD-010 (AgentTokenValidator — app-issued RS256 JWT verification)
 
 **Parent Architecture Modules**: ARCH-010
 **Target Source File(s)**: `src/ai/oauth/agent-token.validator.ts`
@@ -990,10 +990,10 @@ stateDiagram-v2
 
 ---
 
-### Module: MOD-015 (AuthGuardMiddleware — Auth0 JWT Enforcement) [CROSS-CUTTING]
+### Module: MOD-015 (AuthMiddleware — Clerk Session-Token Enforcement) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `src/common/middleware/auth-guard.middleware.ts`
+**Target Source File(s)**: `src/auth/middleware/auth.middleware.ts`
 
 #### Algorithmic / Logic View
 
@@ -1006,9 +1006,11 @@ FUNCTION enforce(request: HttpRequest, next: NextFunction) -> void | HTTP 401:
 
     token = authHeader.slice(7)
 
-    // Step 2: Verify Auth0 JWT (using 002-user-auth integration)
+    // Step 2: Verify Clerk session token networklessly (using 002-user-auth integration)
+    //         ClerkAuthService.verifyToken via @clerk/backend with public CLERK_JWT_KEY;
+    //         enforces azp against CLERK_AUTHORIZED_PARTIES. No JWKS fetch, no audience exchange.
     TRY:
-        payload = Auth0JWTVerifier.verify(token)
+        payload = ClerkAuthService.verifyToken(token)
     CATCH TokenExpiredError:
         RETURN HTTP 401 { error: 'Token expired' }
     CATCH JsonWebTokenError:
@@ -1027,18 +1029,18 @@ N/A — Stateless
 
 #### Internal Data Structures
 
-| Name             | Type                 | Size/Constraints | Initialization             | Description                         |
-| ---------------- | -------------------- | ---------------- | -------------------------- | ----------------------------------- |
-| Auth0JWTVerifier | External module ref  | —                | From `002-user-auth` | Verifies Auth0-issued JWTs          |
-| request.context  | `{ userId: string }` | —                | Attached per request       | Carries authenticated user identity |
+| Name             | Type                 | Size/Constraints | Initialization       | Description                                                                                |
+| ---------------- | -------------------- | ---------------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| ClerkAuthService | External module ref  | —                | From `002-user-auth` | Verifies Clerk session tokens networklessly (`verifyToken`, public `CLERK_JWT_KEY`, `azp`) |
+| request.context  | `{ userId: string }` | —                | Attached per request | Carries authenticated user identity                                                        |
 
 #### Error Handling & Return Codes
 
 | Error Condition              | Error Code / Exception | Architecture Contract   | Recovery                          |
 | ---------------------------- | ---------------------- | ----------------------- | --------------------------------- |
 | Missing Authorization header | —                      | ARCH-015 — 401 response | Return 401; request not forwarded |
-| Expired Auth0 JWT            | `TokenExpiredError`    | ARCH-015 — 401 response | Return 401; request not forwarded |
-| Invalid Auth0 JWT            | `JsonWebTokenError`    | ARCH-015 — 401 response | Return 401; request not forwarded |
+| Expired Clerk session token  | `TokenExpiredError`    | ARCH-015 — 401 response | Return 401; request not forwarded |
+| Invalid Clerk session token  | `JsonWebTokenError`    | ARCH-015 — 401 response | Return 401; request not forwarded |
 
 ---
 

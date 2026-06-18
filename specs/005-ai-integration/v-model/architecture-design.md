@@ -27,7 +27,7 @@ The AI Integration architecture decomposes eight system components into seventee
 | ARCH-004 | AIProviderAdapter            | Abstracts external AI provider HTTP calls (OpenAI, Gemini, Anthropic). Accepts a normalized `GenerationRequest`, maps to provider-specific payload, enforces 15-second timeout, returns `RecipeDraft`.                                                                                                                                 | SYS-002                   | Adapter   |
 | ARCH-005 | RecipeGenerationService      | Orchestrates in-app recipe generation: retrieves credentials via ARCH-002, checks premium entitlement via ARCH-016, dispatches to ARCH-004, and returns `RecipeDraft` to ARCH-006.                                                                                                                                                     | SYS-002                   | Component |
 | ARCH-006 | RecipePreviewController      | Manages the preview-and-save flow: presents `RecipeDraft` to the user, routes accept to ARCH-007, routes decline to discard (no persistence). Ensures no recipe is saved without explicit user action.                                                                                                                                 | SYS-003                   | Component |
-| ARCH-007 | RecipePersistenceAdapter     | Saves accepted AI-generated recipes as private, user-owned Recipe entities via the `001-commise-recipe-app` Recipe repository. Sets `ownerId`, `isPrivate: true`, and `source: 'ai'`.                                                                                                                                                | SYS-003, SYS-005          | Adapter   |
+| ARCH-007 | RecipePersistenceAdapter     | Saves accepted AI-generated recipes as private, user-owned Recipe entities via the `001-commise-recipe-app` Recipe repository. Sets `ownerId`, `isPrivate: true`, and `source: 'ai'`.                                                                                                                                                  | SYS-003, SYS-005          | Adapter   |
 | ARCH-008 | OAuthAuthorizationServer     | Implements OAuth 2.0 authorization code flow: issues authorization codes, exchanges codes for access tokens (RS256 JWT), validates `redirect_uri`, enforces `recipes:read` / `recipes:create` scopes.                                                                                                                                  | SYS-004                   | Service   |
 | ARCH-009 | AgentConsentManager          | Stores and retrieves user consent grants (agent platform, granted scopes, grant date). Exposes revocation endpoint that invalidates all tokens for a given agent authorization.                                                                                                                                                        | SYS-004                   | Component |
 | ARCH-010 | AgentTokenValidator          | Validates Bearer tokens on external agent API requests: verifies RS256 JWT signature, checks expiry, extracts `userId` and `scopes[]`. Returns `UnauthorizedError` on failure.                                                                                                                                                         | SYS-004, SYS-005          | Library   |
@@ -35,7 +35,7 @@ The AI Integration architecture decomposes eight system components into seventee
 | ARCH-012 | AgentRecipeCreateController  | Handles `POST /agent/recipes` requests from authorized external agents. Validates token scope (`recipes:create`) via ARCH-010, delegates persistence to ARCH-007, returns created `recipeId`.                                                                                                                                          | SYS-005                   | Component |
 | ARCH-013 | InstructionOptimizerService  | Orchestrates AI instruction optimization: validates recipe ownership, checks premium entitlement via ARCH-016, retrieves credentials via ARCH-002, dispatches to ARCH-004 with optimization mode, returns `optimizedInstructions[]`.                                                                                                   | SYS-006                   | Component |
 | ARCH-014 | OptimizationReviewController | Presents optimized instructions to the user for accept/reject. Routes accept to ARCH-007 (patch recipe instructions), routes reject to discard. Ensures no changes applied without user confirmation.                                                                                                                                  | SYS-006                   | Component |
-| ARCH-015 | AuthGuardMiddleware          | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — Enforces authentication on all AI and agent endpoints by delegating to `002-user-auth`. Attaches `userId` to request context. Returns 401 for unauthenticated requests.                                                                     | SYS-007                   | Utility   |
+| ARCH-015 | AuthGuardMiddleware          | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — Enforces authentication on all AI and agent endpoints by delegating to `002-user-auth`. Attaches `userId` to request context. Returns 401 for unauthenticated requests.                                                                           | SYS-007                   | Utility   |
 | ARCH-016 | PremiumEntitlementGuard      | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — Checks whether the authenticated user holds an active premium subscription (via `010-subscriptions` integration). Returns 402 if not premium for gated features (generation, optimization).                                                       | SYS-002, SYS-006, SYS-008 | Utility   |
 | ARCH-017 | TypeSafetyAndA11yEnforcer    | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — Compile-time and lint-time enforcement layer: TypeScript `strict: true` compiler config, ESLint rules for `no-any` and JSDoc coverage, Playwright accessible-name assertions for all AI UI components, color-independent state indicator linting. | SYS-008                   | Utility   |
 
@@ -56,7 +56,7 @@ sequenceDiagram
     participant Persist as ARCH-007 RecipePersistenceAdapter
 
     Client->>Guard: POST /ai/recipes/generate {criteria}
-    Guard->>Guard: Validate Auth0 JWT → userId
+    Guard->>Guard: Validate Clerk session token (networkless, CLERK_JWT_KEY) → userId
     Guard-->>Client: 401 if unauthenticated
     Guard->>Premium: CheckPremium(userId)
     Premium-->>Client: 402 if not premium
@@ -94,9 +94,9 @@ sequenceDiagram
     participant Persist as ARCH-007 RecipePersistenceAdapter
 
     Agent->>Guard: POST /agent/recipes {recipe} + Bearer token
-    Guard->>Guard: Validate Auth0 session (agent client credentials)
+    Guard->>Guard: Recognize agent OAuth Bearer token (route to ARCH-010)
     Guard->>TokenVal: ValidateToken(bearerToken)
-    TokenVal->>TokenVal: Verify RS256 JWT signature + expiry
+    TokenVal->>TokenVal: Verify app-issued RS256 JWT via OAUTH_RS256_PUBLIC_KEY + issuer 'commise' + expiry + denylist
     alt Invalid / expired token
         TokenVal-->>Agent: 401 Unauthorized
     else Valid token, wrong scope
@@ -125,7 +125,7 @@ sequenceDiagram
     participant Agent as External Agent Platform
 
     User->>Guard: GET /oauth/authorize {client_id, scope, redirect_uri, state}
-    Guard->>Guard: Assert user authenticated (Auth0 session)
+    Guard->>Guard: Assert user authenticated (Clerk session)
     Guard->>OAuthSrv: InitiateAuthorizationCodeFlow(params)
     OAuthSrv->>User: Render consent screen (scopes requested)
     User->>OAuthSrv: POST /oauth/authorize {approve: true}
@@ -309,15 +309,15 @@ sequenceDiagram
 
 ### Data Flow: BYOK Recipe Generation
 
-| Stage | Module                            | Input Format                                               | Transformation                                       | Output Format                                          |
-| ----- | --------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------ |
-| 1     | ARCH-015 AuthGuardMiddleware      | HTTP request + Auth0 JWT                                   | Validate JWT → extract `userId`                      | Request context `{ userId }`                           |
-| 2     | ARCH-016 PremiumEntitlementGuard  | `{ userId }`                                               | Query 010-subscriptions → check active premium       | `{ isPremium: true }` or 402                           |
-| 3     | ARCH-005 RecipeGenerationService  | `{ userId, criteria: GenerationRequest }`                  | Orchestrate credential fetch + provider dispatch     | `RecipeDraft`                                          |
-| 4     | ARCH-002 ProviderConfigService    | `{ userId }`                                               | Decrypt stored API key from ARCH-001                 | `{ provider, apiKey }`                                 |
-| 5     | ARCH-004 AIProviderAdapter        | `{ provider, apiKey, criteria }`                           | Map to provider payload → HTTP call → parse response | `RecipeDraft { title, ingredients[], instructions[] }` |
-| 6     | ARCH-006 RecipePreviewController  | `RecipeDraft`                                              | Present to user → await accept/decline               | `{ userAction: 'accept' \| 'decline' }`                |
-| 7     | ARCH-007 RecipePersistenceAdapter | `{ userId, recipeDraft, source: 'ai' }` (accept path only) | Map to Recipe entity → persist to PostgreSQL         | `{ recipeId: UUID }`                                   |
+| Stage | Module                            | Input Format                                               | Transformation                                                | Output Format                                          |
+| ----- | --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
+| 1     | ARCH-015 AuthMiddleware           | HTTP request + Clerk session token                         | Verify token networklessly (CLERK_JWT_KEY) → extract `userId` | Request context `{ userId }`                           |
+| 2     | ARCH-016 PremiumEntitlementGuard  | `{ userId }`                                               | Query 010-subscriptions → check active premium                | `{ isPremium: true }` or 402                           |
+| 3     | ARCH-005 RecipeGenerationService  | `{ userId, criteria: GenerationRequest }`                  | Orchestrate credential fetch + provider dispatch              | `RecipeDraft`                                          |
+| 4     | ARCH-002 ProviderConfigService    | `{ userId }`                                               | Decrypt stored API key from ARCH-001                          | `{ provider, apiKey }`                                 |
+| 5     | ARCH-004 AIProviderAdapter        | `{ provider, apiKey, criteria }`                           | Map to provider payload → HTTP call → parse response          | `RecipeDraft { title, ingredients[], instructions[] }` |
+| 6     | ARCH-006 RecipePreviewController  | `RecipeDraft`                                              | Present to user → await accept/decline                        | `{ userAction: 'accept' \| 'decline' }`                |
+| 7     | ARCH-007 RecipePersistenceAdapter | `{ userId, recipeDraft, source: 'ai' }` (accept path only) | Map to Recipe entity → persist to PostgreSQL                  | `{ recipeId: UUID }`                                   |
 
 ### Data Flow: External Agent Recipe Creation
 
@@ -330,11 +330,11 @@ sequenceDiagram
 
 ### Data Flow: AI Provider Credential Storage
 
-| Stage | Module                            | Input Format                               | Transformation                                  | Output Format                         |
-| ----- | --------------------------------- | ------------------------------------------ | ----------------------------------------------- | ------------------------------------- |
-| 1     | ARCH-015 AuthGuardMiddleware      | HTTP request + Auth0 JWT                   | Validate JWT → extract `userId`                 | Request context `{ userId }`          |
-| 2     | ARCH-002 ProviderConfigService    | `{ userId, provider, apiKey }`             | Validate provider enum → delegate to ARCH-001   | Validated config object               |
-| 3     | ARCH-001 ProviderConfigRepository | `{ userId, provider, apiKey (plaintext) }` | AES-256 encrypt `apiKey` → upsert to PostgreSQL | `{ providerId, provider, maskedKey }` |
+| Stage | Module                            | Input Format                               | Transformation                                                | Output Format                         |
+| ----- | --------------------------------- | ------------------------------------------ | ------------------------------------------------------------- | ------------------------------------- |
+| 1     | ARCH-015 AuthMiddleware           | HTTP request + Clerk session token         | Verify token networklessly (CLERK_JWT_KEY) → extract `userId` | Request context `{ userId }`          |
+| 2     | ARCH-002 ProviderConfigService    | `{ userId, provider, apiKey }`             | Validate provider enum → delegate to ARCH-001                 | Validated config object               |
+| 3     | ARCH-001 ProviderConfigRepository | `{ userId, provider, apiKey (plaintext) }` | AES-256 encrypt `apiKey` → upsert to PostgreSQL               | `{ providerId, provider, maskedKey }` |
 
 ---
 

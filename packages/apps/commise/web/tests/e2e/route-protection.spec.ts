@@ -1,20 +1,21 @@
 import { test, expect } from '@playwright/test';
 
-import { route, isRoute, pathnameOf } from './utils/base-path';
+import { route, isRoute, hasDoublePrefix, pathnameOf } from './utils/base-path';
 
-// A signed-out user must never reach protected content — Clerk bounces them to an auth surface.
-// NOTE: today that surface is Clerk's HOSTED Account Portal (accounts.dev), not the app's own
-// /sign-in — clerkMiddleware has no signInUrl configured, unlike the home page which bounces to the
-// app /sign-in. This suite asserts the SECURITY property (no protected content for the signed-out);
-// the app-vs-portal destination is tracked as a separate follow-up.
+// A signed-out user on a protected route is bounced to the app's OWN /sign-in (the custom <SignIn>
+// page), not Clerk's hosted Account Portal — single-prefixed under the preview basePath, on the app
+// origin. Runs in both shapes: the default preview run (PREVIEW_BASE_PATH=/pr-e2e) and the production
+// run (E2E_BASE_PATH=''); in the prod shape hasDoublePrefix is inert (empty prefix), so the prod path
+// is pinned by isRoute('/sign-in') + the app-origin check.
 test.describe('route protection (signed out)', () => {
     for (const path of ['/profile', '/account', '/settings']) {
-        test(`${path} blocks unauthenticated access`, async ({ page }) => {
+        test(`${path} redirects to the app /sign-in`, async ({ page }) => {
             await page.goto(route(path));
 
-            // Redirected to a Clerk auth surface, never rendering the protected page itself.
-            await expect(page).toHaveURL(/sign-in|sign-up/);
-            await expect(page.getByRole('heading', { name: /^(Profile|Account|Settings)$/ })).toHaveCount(0);
+            await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
+            expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
+            // The app's own sign-in, not Clerk's hosted Account Portal (accounts.dev).
+            expect(page.url()).not.toContain('accounts.dev');
         });
     }
 

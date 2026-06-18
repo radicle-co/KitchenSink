@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
+import { withBasePath } from '@/lib/base-path';
+
 // ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
 // Under sandbox path routing the app is served at /pr-{N}. Next.js STRIPS basePath from
 // `nextUrl.pathname` BEFORE middleware runs (verified in next/dist/.../get-next-pathname-info), and
@@ -10,11 +12,26 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 // two, and do not move to per-PR subdomains, without reading the ADR.
 const isProtectedRoute = createRouteMatcher(['/profile(.*)', '/account(.*)', '/settings(.*)']);
 
-export default clerkMiddleware(async (auth, req) => {
-    if (isProtectedRoute(req)) {
-        await auth.protect();
-    }
-});
+export default clerkMiddleware(
+    async (auth, req) => {
+        if (isProtectedRoute(req)) {
+            await auth.protect();
+        }
+    },
+    {
+        // Bounce signed-out users on protected routes to the app's OWN /sign-in (custom <SignIn> page),
+        // not Clerk's hosted Account Portal (the default when signInUrl is unset). Matches the home
+        // page's behavior and ClerkProvider's signInUrl in app/layout.tsx.
+        //
+        // The value MUST carry the basePath via withBasePath. clerkMiddleware builds this redirect as
+        // an ABSOLUTE URL and emits it through NextResponse.redirect, which does NOT re-apply Next's
+        // basePath (unlike next/navigation's server redirect(), which is why page.tsx uses a bare
+        // path). signInUrl is a LOCATOR prop consumed as-is — same category as layout.tsx's
+        // withBasePath('/sign-in'). A bare '/sign-in' would 404 under a preview basePath. withBasePath
+        // is runtime-aware: a no-op '/sign-in' in production, '/pr-{N}/sign-in' under a preview.
+        signInUrl: withBasePath('/sign-in'),
+    },
+);
 
 export const config = {
     // Root-anchored. Next.js compiles `config.matcher` into the middleware manifest and AUTO-PREPENDS

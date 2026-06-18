@@ -9,14 +9,15 @@ export default function SignInPage() {
             {/* hash routing: Clerk derives its path from usePathname() (basePath-STRIPPED), so under a
                 preview basePath (/pr-{N}) path routing can't reconcile and renders an empty widget.
                 Hash routing drives the multi-step flow via the URL fragment, independent of basePath.
-                Redirect/cross-link URLs must be basePath-prefixed — Clerk's redirects are NOT
-                basePath-aware (ADR-0001). forceRedirectUrl always sends the user to the app home (/)
-                after sign-in (not back to a ?redirect_url), instead of stranding them on /sign-in. */}
+                signUpUrl is a page LOCATOR consumed as-is, so it must carry the basePath. But
+                forceRedirectUrl runs through Next's router (which already prepends basePath), so a
+                pre-prefixed value double-prefixes to /pr-{N}/pr-{N}/ and strands the signed-in user —
+                pass a BARE path and let Next add the prefix once. (See the sign-up page note.) */}
             <SignIn
                 routing="hash"
                 appearance={clerkAppearance}
                 signUpUrl={withBasePath('/sign-up')}
-                forceRedirectUrl={withBasePath('/')}
+                forceRedirectUrl="/"
             />
         </main>
     );

@@ -10,13 +10,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        // Clerk URL props are NOT basePath-aware (ADR-0001 / U2), so prefix them explicitly. No-op in
-        // production where the base path is empty.
+        // Two classes of Clerk URL prop behave differently under a preview basePath (ADR-0001 / U2):
+        //  - LOCATOR / raw-navigation props (where the sign-in/up pages live; the post-sign-OUT target,
+        //    which Clerk hard-navigates) are consumed as-is, so they MUST carry the basePath.
+        //  - post-sign-in/up REDIRECT props go through Next's router, which already prepends basePath —
+        //    a pre-prefixed value double-prefixes to /pr-{N}/pr-{N}/, so they take a BARE path.
+        // All no-ops in production where the base path is empty.
         <ClerkProvider
             signInUrl={withBasePath('/sign-in')}
             signUpUrl={withBasePath('/sign-up')}
-            signInFallbackRedirectUrl={withBasePath('/')}
-            signUpFallbackRedirectUrl={withBasePath('/')}
+            signInFallbackRedirectUrl="/"
+            signUpFallbackRedirectUrl="/"
             afterSignOutUrl={withBasePath('/')}
         >
             <html lang="en">

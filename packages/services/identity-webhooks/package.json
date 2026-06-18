@@ -36,7 +36,7 @@
         "@types/debug": "^4.1.12"
     },
     "dependencies": {
-        "@aws-lambda-powertools/logger": "^2.29.0",
+        "@aws-lambda-powertools/logger": "^2.33.1",
         "@aws-lambda-powertools/metrics": "^2.29.0",
         "@aws-sdk/client-secrets-manager": "^3.935.0",
         "@aws-sdk/client-sqs": "^3.935.0",

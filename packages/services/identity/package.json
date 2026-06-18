@@ -30,7 +30,7 @@
         "docker:push": "aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY} && docker push ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}"
     },
     "dependencies": {
-        "@aws-lambda-powertools/logger": "^2.7.0",
+        "@aws-lambda-powertools/logger": "^2.33.1",
         "@aws-sdk/client-s3": "^3.723.0",
         "@aws-sdk/client-sqs": "^3.723.0",
         "@aws-sdk/s3-request-presigner": "^3.723.0",

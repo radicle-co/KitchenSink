@@ -23,6 +23,24 @@ const nextConfig: NextConfig = {
     // Surface the prefix to runtime code (Clerk middleware, base-path helper) — `basePath` is not
     // readable at runtime. Empty string in production.
     env: { NEXT_PUBLIC_BASE_PATH: previewBasePath },
+    // ⚠️ DELIBERATE — re-home the BARE root onto the preview basePath. After OAuth sign-in, Clerk's
+    // SSO-callback completes on a full page load before its Next router is wired, so it navigates
+    // `forceRedirectUrl` via raw window.location (clerk-js `navigate()` falls to `windowNavigate` when
+    // no routerPush exists) instead of the basePath-aware router the password flow uses. A bare '/'
+    // (correct for the router branch — it prepends the prefix once) becomes a raw `https://host/`,
+    // dropping /pr-{N} and 404ing. We can't satisfy both branches with one `forceRedirectUrl` value
+    // (absolute/prefixed values double-prefix in the router branch — clerk-js `M()` hands the router
+    // the full URL and Next re-adds basePath), so we fix the DESTINATION here instead. `basePath: false`
+    // matches the literal bare root (Next would otherwise prepend the prefix to the source); the query
+    // (e.g. ?__clerk_handshake) is forwarded automatically, so the dev-instance handshake completes
+    // under the prefix. No-op in production (no basePath; prod Clerk has no dev handshake).
+    ...(previewBasePath
+        ? {
+              redirects: async () => [
+                  { source: '/', destination: `${previewBasePath}/`, basePath: false as const, permanent: false },
+              ],
+          }
+        : {}),
 };
 
 export default withSentryConfig(nextConfig, {

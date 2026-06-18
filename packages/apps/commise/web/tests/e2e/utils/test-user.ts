@@ -51,3 +51,24 @@ export function uniqueSignUpEmail(): string {
     // Date.now() is fine here — this is Node test code, not the deterministic workflow sandbox.
     return `commise-e2e-signup-${Date.now()}+clerk_test@example.com`;
 }
+
+/**
+ * Delete EVERY e2e test user from Clerk — the fixed sign-in fixture plus any sign-up users a crashed
+ * test left behind. Deleting from Clerk is the only cleanup the e2e can do (the identity DB is
+ * VPC-private), and it is sufficient: each delete fires the `user.deleted` webhook, which the sandbox
+ * deletion-worker turns into a DB purge (account + profile removed, user row anonymized). Best-effort
+ * — a cleanup failure must not fail an otherwise-green run.
+ */
+export async function deleteAllE2EUsers(): Promise<void> {
+    const clerk = client();
+    // `query` searches email / name / username, matching `commise-e2e-signin` and `commise-e2e-signup-*`.
+    const { data } = await clerk.users.getUserList({ query: 'commise-e2e', limit: 100 });
+
+    for (const user of data) {
+        try {
+            await clerk.users.deleteUser(user.id);
+        } catch (err) {
+            console.warn(`[e2e teardown] failed to delete Clerk user ${user.id}:`, err);
+        }
+    }
+}

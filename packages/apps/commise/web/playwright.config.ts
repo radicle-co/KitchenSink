@@ -29,6 +29,8 @@ export default defineConfig({
     workers: 1,
     reporter: 'html',
     globalSetup: './tests/e2e/global.setup.ts',
+    // Delete the e2e users from Clerk after the run (cascades to a DB purge via the user.deleted webhook).
+    globalTeardown: './tests/e2e/global.teardown.ts',
     use: {
         baseURL: ORIGIN,
         trace: 'on-first-retry',

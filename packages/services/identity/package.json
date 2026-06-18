@@ -43,7 +43,7 @@
         "@sentry/nestjs": "^10.57.0",
         "aws-cdk-lib": "*",
         "class-transformer": "^0.5.1",
-        "class-validator": "^0.14.1",
+        "class-validator": "^0.15.1",
         "constructs": "*",
         "debug": "^4.3.7",
         "drizzle-orm": "^0.45.2",

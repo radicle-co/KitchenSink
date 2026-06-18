@@ -35,6 +35,10 @@
         "format:check": "turbo run format:check",
         "prepare": "husky || true"
     },
+    "overrides": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0"
+    },
     "devDependencies": {
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",

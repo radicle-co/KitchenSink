@@ -44,7 +44,7 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@testing-library/react-native": "^12.9.0",
-        "@types/react": "~19.0.0",
+        "@types/react": "^19.0.0",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "react-test-renderer": "^19.0.0",

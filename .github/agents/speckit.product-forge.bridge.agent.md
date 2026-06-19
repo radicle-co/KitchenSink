@@ -41,7 +41,7 @@ If not approved:
 Read in this order (each enriches the spec.md we'll create):
 
 1. **product-spec/product-spec.md** — user stories, requirements, personas, risks
-2. **product-spec/user-journey*.md** — all flow files
+2. **product-spec/journeys/journeys.yml** — structured journeys (JRN/STEP/EDGE), the E2E source of truth
 3. **product-spec/metrics.md** — success criteria, KPIs
 4. **product-spec/wireframes*** — screen descriptions
 5. **research/README.md** — research executive summary
@@ -64,7 +64,7 @@ This drives whether the Consumer Contract section is included in spec.md (Step 4
 Before writing the spec, identify related features that may block or overlap with this one.
 `{features_dir}` comes from `.product-forge/config.yml`.
 
-1. List all feature directories in `{features_dir}/` — read each `.forge-status.yml` for phase status
+1. Enumerate feature roots via `enumerate()` (Path-Resolution Contract, [docs/runtime.md §12](../docs/runtime.md#12-path-resolution-contract)) — read each `.forge-status.yml` for phase status
 2. For each feature that shares a domain keyword or module with the current feature:
    - Determine the relationship: **blocks** / **complements** / **replaces** / **unrelated**
 3. If dependencies are found: populate the `## Prerequisites` section in `spec.md` (template below)
@@ -108,7 +108,7 @@ The spec must be **richer than a standard SpecKit spec** because it's enriched w
 | `## EDA Events` | Step 2 codebase-analysis.md shows event-driven patterns |
 | `## Consumer Contract` | `FEATURE_TYPE = shared_infrastructure` |
 
-```markdown
+````markdown
 # Spec: {Feature Name}
 
 > **Product Forge Feature** | Generated: {date}
@@ -173,7 +173,7 @@ Key need: {what they need from this feature}
 
 ## User Stories
 
-> Full user journey flows: [product-spec/user-journey*.md](./product-spec/)
+> Full structured journeys: [product-spec/journeys/](./product-spec/journeys/)
 
 ### Must Have (MVP)
 
@@ -375,7 +375,7 @@ Key screens:
 ## Open Questions
 
 {Remaining open questions from product-spec.md that implementation must resolve}
-```
+````
 
 ---
 
@@ -400,6 +400,46 @@ Update `spec.md § EDA Events` table with verified source file paths and final s
 
 ---
 
+## Step 4.6: Contract-first artifacts + delta specs (v1.6)
+
+**Contracts (Theme F).** Define the FE↔BE contracts up front so frontend and
+backend tasks share one source:
+- Emit/update `contracts/openapi.yaml` (OpenAPI 3.1) for HTTP endpoints and
+  `contracts/asyncapi.yaml` (AsyncAPI) for events, derived from the EDA Events and
+  data-model sections above. Give each operation a stable `API-*` id.
+- Reference these `API-*` ids from journey steps (`journeys.yml`) and from the
+  `contracts:` column of `traceability.yml`. `api-docs` later validates/regenerates
+  against the implementation rather than authoring from scratch.
+
+**Delta specs (Theme B).** Express this change against the canonical `specs/`
+source of truth (see [spec-merge](./spec-merge.md)): write
+`features/{slug}/specs/<domain>/spec.md` using `## ADDED / ## MODIFIED / ##
+REMOVED Requirements` with stable `FR-*` ids — the same `FR-*` requirements minted
+in the Functional Requirements table above. On completion, `spec-merge` folds these
+into canonical `specs/`. For a brand-new domain, all requirements are `ADDED`.
+
+For each domain touched by this feature, write one delta file. Template:
+
+```markdown
+# Delta spec: {domain} — {feature-slug}
+
+> Delta against canonical `specs/{domain}/spec.md`. Keys: `FR-*` (minted in
+> spec.md § Functional Requirements). Folded by [spec-merge](./spec-merge.md).
+
+## ADDED Requirements
+- **FR-001** {requirement} — Priority: Must — Source: US-001
+- **FR-002** {requirement} — Priority: Should — Source: US-005
+
+## MODIFIED Requirements
+- **FR-014** {new wording of an existing canonical requirement}
+
+## REMOVED Requirements
+- **FR-009** {requirement being retired, with one-line reason}
+```
+
+Omit any section that has no entries. For a brand-new domain, list every
+requirement under `## ADDED Requirements`.
+
 ## Step 5: Validate spec.md Quality
 
 Before presenting, self-check:
@@ -413,6 +453,7 @@ Before presenting, self-check:
 8. **[if `## Testing Specification` section is present]** At least 3 TC entries and at least 1 E2E scenario exist
 9. **[if `## Prerequisites` section is present]** All rows have a non-empty Relationship and What's Needed column
 10. **[if `## Consumer Contract` section is present]** Public API code block is filled in and Fallback Behaviour table has at least one row
+11. Delta spec `features/{slug}/specs/<domain>/spec.md` exists with at least one `## ADDED` / `## MODIFIED` / `## REMOVED` Requirements section and valid `FR-*` ids (matching the Functional Requirements table)
 
 Fix any issues found silently.
 
@@ -493,6 +534,8 @@ Update `{FEATURE_DIR}/.forge-status.yml`:
 phases:
   bridge: completed
 speckit_mode: "{SPECKIT_MODE}"
+delta_specs:                    # delta files written in Step 4.6 (for spec-merge)
+  - "specs/{domain}/spec.md"
 last_updated: "{ISO timestamp}"
 ```
 

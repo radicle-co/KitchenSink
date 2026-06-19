@@ -26,11 +26,18 @@ Parse the input:
 
 ---
 
+> **Delta specs (v1.6, Theme B):** express the change as a **delta** against the
+> canonical `specs/` source of truth — `features/{slug}/specs/<domain>/spec.md` with
+> `## ADDED / ## MODIFIED / ## REMOVED Requirements` referencing stable `FR-*` ids.
+> Propagate the change through `traceability.yml` rows. On acceptance & completion,
+> [`spec-merge`](./spec-merge.md) folds the delta into canonical `specs/`. A
+> `DEFERRED` or `REJECTED` change-request emits **no delta**.
+
 ## Step 0: Load Context
 
 1. Read `.product-forge/config.yml`
 2. Read `{FEATURE_DIR}/.forge-status.yml` — determine current lifecycle phase
-3. Load all existing artifacts that might be affected
+3. Load all existing artifacts that might be affected (including canonical `specs/` and `traceability.yml`)
 
 ---
 
@@ -75,7 +82,7 @@ For each existing artifact, analyze how the change affects it:
 | Artifact | Exists? | Impact | Changes Needed |
 |----------|:-------:|:------:|---------------|
 | product-spec/product-spec.md | {✅/❌} | {None/Minor/Major} | {description of changes} |
-| product-spec/user-journey*.md | {✅/❌} | {None/Minor/Major} | {new flow or modified flow} |
+| product-spec/journeys/journeys.yml | {✅/❌} | {None/Minor/Major} | {new/modified JRN/STEP/EDGE} |
 | product-spec/wireframes* | {✅/❌} | {None/Minor/Major} | {new screen or modified screen} |
 | spec.md | {✅/❌} | {None/Minor/Major} | {new US-NNN, new FR-NNN, modified AC} |
 | plan.md | {✅/❌} | {None/Minor/Major} | {new component, modified architecture} |
@@ -153,11 +160,17 @@ If ACCEPTED:
 ### 4A: Update Artifacts (in dependency order)
 
 1. **product-spec/product-spec.md** — Add/modify user stories with `<!-- CR-{NNN} -->` marker
-2. **product-spec/user-journey*.md** — Add/modify flows with marker
+2. **product-spec/journeys/journeys.yml** — Add/modify JRN/STEP/EDGE with marker
 3. **product-spec/wireframes*** — Add/modify screens (if UI change)
 4. **spec.md** — Add/modify US-NNN, FR-NNN, acceptance criteria with marker
 5. **plan.md** — Add/modify architecture sections with marker
 6. **tasks.md** — Add new tasks, modify existing tasks with marker
+7. **features/{slug}/specs/<domain>/spec.md** — Write/update the **delta spec** for
+   each domain the change touches, in delta format (`## ADDED / ## MODIFIED / ##
+   REMOVED Requirements`) keyed on the affected `FR-*` ids (the same ids changed in
+   spec.md above), each carrying the `<!-- CR-{NNN} -->` marker. This is the delta
+   [`spec-merge`](./spec-merge.md) will later fold into canonical `specs/`. Omit any
+   section with no entries.
 
 Each artifact modification:
 - Show the proposed edit to the user
@@ -246,6 +259,8 @@ change_requests:
 ## Deferred Changes
 
 If DEFERRED:
+- **No delta spec is emitted** — a deferred change does not alter canonical behavior,
+  so `spec-merge` has nothing to fold. If a delta was drafted, remove it.
 - Log in `change-log.md` with status DEFERRED
 - Add to `{FEATURE_DIR}/backlog.md` (create if not exists):
 
@@ -261,6 +276,16 @@ Deferred changes and v2 improvements logged during the lifecycle.
 - **Dependencies:** {what must exist first}
 - **Suggested phase to resume:** Phase {N}
 ```
+
+---
+
+## Rejected Changes
+
+If REJECTED:
+- **No delta spec is emitted** — the change is discarded, so canonical `specs/` is
+  untouched and `spec-merge` has nothing to fold. If a delta was drafted, remove it.
+- Log in `change-log.md` with status REJECTED (including the decision notes).
+- Do not modify any artifact.
 
 ---
 

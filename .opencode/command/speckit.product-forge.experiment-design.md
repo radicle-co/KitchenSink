@@ -33,6 +33,12 @@ Parse for:
 - `--variants=<list>` — comma-separated variant names. Default:
   `control,treatment`.
 
+> **Real experiment (v1.6, Theme D):** when `telemetry.product_analytics` is
+> `posthog` and its MCP is connected, optionally create the actual flag + experiment
+> (with the pre-registered primary/guardrail metrics) via the PostHog MCP after the
+> user pre-registers the plan. The retrospective then reads this experiment's real
+> results. Without a connected MCP, produce the plan artifacts only.
+
 ---
 
 ## Step 0: Prerequisites
@@ -144,8 +150,8 @@ the choice in the experiment plan.
 
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| Metric type | {proportion | continuous} | hypothesis |
-| Formula | {two-proportion z-test | Welch t-test} | §3.{a,b} |
+| Metric type | `{proportion \| continuous}` | hypothesis |
+| Formula | `{two-proportion z-test \| Welch t-test}` | §3.{a,b} |
 | Baseline | 12% | analytics 30-day |
 | MDE | +3pp (absolute) | hypothesis |
 | Power | 0.8 | default |

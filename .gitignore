@@ -55,7 +55,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .opencode/scratch/
 .sisyphus/
 .playwright-mcp
-.specify
+# .specify is version-controlled (SpecKit extensions, registry, config); only the transient backup dir is ignored
+.specify/extensions/.backup/
 .omo
 
 # localstack CI artifacts

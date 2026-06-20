@@ -6,6 +6,345 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+_Nothing yet._
+
+---
+
+## [1.7.0] — "Ivysaur" — 2026-06-13
+
+> **Feature wave (v1.7, 2026-06) — roadmap items P1-B/P1-C/P2-A/P2-C/P3-A/P3-B/P3-C**
+> from [docs/improvements/2026-06-feature-roadmap.md](docs/improvements/2026-06-feature-roadmap.md),
+> triangulated from the SpecKit-community gallery × Hermes runtime leverage ×
+> internal gaps. Every addition is executable + gated by a `lint-docs`/`doctor`
+> check and keeps the human gate. Followed by a two-reviewer independent code
+> review whose findings are folded into the **Fixed** section below.
+
+### Added — feature wave (v1.7)
+- **Cross-model code review (P1-B)** — `code-review --cross-model`: exports the
+  consolidated `gate-review.md` + git diff as a portable `review-package.md`,
+  has a *different* model review it out-of-band, and ingests its findings as
+  `F-NNN` (`source: cross-model`). `reviewed_by_model` stamped on the gate
+  (CARRIER-enforced). Config `review.cross_model`.
+- **Constitution↔code standing drift layer (P1-C)** — `sync-verify` **Layer 10**
+  and `verify-full` **Layer 11** re-assert the project architecture constitution
+  against the code (resilience / EDA / layering / security), deterministic probe
+  where possible. New `lint-docs` **LAYER-COUNT** rule keeps the "N-layer" prose
+  honest. All "9-layer" prose → 10.
+- **Lessons → Hermes skills (P2-A)** — `retrospective` Step 5B promotes a lesson
+  that recurs across ≥`learning.min_recurrence` features into a reusable
+  `SKILL.md` via `skill_manage` (`skills_promoted[]` carrier). Cross-project,
+  cross-session. No-op outside Hermes. Config `learning.*`.
+- **Parallel implementation (P2-C)** — `implement --parallel` runs path-disjoint
+  task groups via `delegate_task`, proven independent by the `portfolio` conflict
+  matrix; reconciled serially under the state-lock, single gate. policy §1.1
+  carve-out (intra-phase only).
+- **`--dry-run` is now normative (P3-A)** — runtime §7 rewritten from a "planned"
+  stub into an enforceable contract: write redirection to `.forge-dry-run/`, no
+  status mutation, no external side-effects, a `DRY-RUN-REPORT.md` per phase.
+  Composes with `--ci`/`--parallel`/`--cross-model`.
+- **Phase-map single source (P3-B)** — `docs/schema/phase-map.yml` is the
+  canonical phase set + per-mode applicability; the two forge.md tables now
+  *render* it and `lint-docs` PHASEMAP asserts they agree (kills the phase-map
+  drift class, mirroring the enum single-source). Completes step 3 of the
+  schema-as-source design note.
+- **`status --cost` + `scripts/cost-report.js` (P3-C)** — rolls up the
+  per-phase `tokens_in/out` / `tool_calls` telemetry (recorded by the orchestrator
+  at phase completion when the host exposes usage accounting; see runtime §8.1a)
+  per feature and `--portfolio`. Dollar cost only when the caller supplies a rate;
+  reports "no telemetry recorded" rather than zeros when the host provides none.
+- `lint-docs` self-test 9→23; `doctor` 12→15 checks; 12 helper scripts.
+
+### Fixed — independent code review (post-wave)
+> A two-reviewer pass (Node-scripts + doc-contract integrity) on the feature wave.
+> All findings reproduced and fixed; each lint-rule fix carries a regression test.
+- **Phase-status scope (HIGH).** `validate-traceability.js readCompletedPhases`
+  matched `name: completed` lines anywhere, so a sibling block keyed by phase name
+  (e.g. `gate_summary:`) falsely marked phases complete → spurious
+  `must_have.code/tests` errors and a false `--strict` FAIL. Now scoped to the
+  `phases:` block.
+- **Layer-count report templates (HIGH).** `sync-verify`'s report still emitted
+  `{1-9}` / `{N}/9` after Layer 10 (P1-C) was added, so constitution↔code drift
+  had no report slot. Fixed to `{1-10}` / `{N}/{applicable}`.
+- **Gate carrier schema (P1-B).** `reviewed_by_model` + `cross_model_findings`
+  were stamped on `gates[]` but missing from the canonical schema and the runtime
+  §6 audit trail — added to both.
+- **`skills_promoted` read-back (P2-A).** `retrospective` Step 5B wrote the carrier
+  but never read it; it now drives the create-vs-patch decision (idempotent across
+  features). `skills_promoted` + `cross_model_findings` added to the lint CARRIER
+  registry.
+- **Token-telemetry producer (P3-C).** `status --cost` consumed per-phase
+  `tokens_*`/`tool_calls` that no step produced; added the producer hook in runtime
+  §8.1a (host-dependent) and corrected the overstated "already captures" wording.
+- **`--dry-run` implementation gap (P3-A).** The §7 mandate was callout-deep; added
+  explicit honor-notes to all 10 spine writing phases and a coverage clause (§7.3).
+- **Lint-rule precision.** LAYER-COUNT no longer false-positives on a line naming
+  both `sync-verify` and `verify-full`; SCRIPT-PATH is now per-occurrence (a bare
+  `node scripts/…` is flagged even in a file that uses `${PLUGIN_ROOT}` elsewhere);
+  PHASEMAP flags empty/word-form per-mode cells instead of skipping them.
+- **Script hygiene.** `cost-report.js num()` uses `Number()` (decimals + thousands
+  separators no longer truncate); `require.main` guards + `module.exports` added to
+  cost-report/check-links/validate-traceability/doctor; a non-list `steps:` block
+  now warns instead of being silently ignored.
+- **Docs.** `.forge-dry-run/` described as "add to your project `.gitignore`" (it
+  lives in the consumer project); `PRODUCT_FORGE_COST_RATE_IN/OUT` documented in
+  config.md; the `--dry-run` "composes with `--parallel`/`--cross-model`" note
+  scoped to standalone sub-skill invocation.
+- `lint-docs` self-test 18→23; `validate-traceability` 20→23.
+
+---
+
+> Repo-hardening + tooling pass on top of v1.6.0 — addresses the 2026-06 deep
+> review ([docs/improvements/2026-06-deep-review.md](docs/improvements/2026-06-deep-review.md)).
+> No behavioural change to the lifecycle; closes a runtime-portability bug, a
+> dead config switch, and residual doc drift, and adds a deterministic
+> consistency gate so the whole class can't silently return.
+
+### Fixed
+- **Bundled-script path resolution (P1).** `forge.md`, `verify-full.md`, and
+  `test-run.md` invoked `node scripts/…` / `require('./scripts/…')` by bare
+  relative path, which does not resolve once the plugin is installed to
+  `~/.claude/plugins/cache` (cwd = user's project). All call sites now route
+  through `${PLUGIN_ROOT}` with a WARN-and-fall-back-to-LLM rule. New normative
+  section [`docs/runtime.md §1A`](docs/runtime.md) "Locating bundled scripts".
+- **`a11y_gate` dead switch.** The key was documented as `axe | none` but no
+  command read it (the axe floor was unconditional). `test-plan.md §4` now gates
+  generation and `test-run.md §4.7` gates execution on `a11y_gate`.
+- **`how-it-works-v2.md §1`** still said "v1.5 adds…" → updated to the v1.6
+  narrative; removed the phantom `docs/adr/` + `docs/reviews/` tree lines (those
+  dirs were intentionally removed) and refreshed the doc/script tree to reality.
+- **QA test plan** quick-smoke said "18 phase rows" (actual 20), pinned
+  `version: "1.5.0"`, and carried an `express`-omitting abort message → corrected
+  and made executable (delegates to `doctor.js` / `lint-docs.js`; dynamic counts
+  replace hard-coded ones).
+- **Task-ID drift.** Canonicalized on `T0NN` (with `TASK-NNN` as an accepted
+  alias) across `schema.md §8`, `file-structure.md`, `traceability-matrix.md`,
+  and `verify-full.md`; added missing `SEC-` / `F-` rows to the ID registry.
+- **`docs/claude-plugin.md`** relative-ref typo (`./config-template.yml`).
+
+### Added
+- **`scripts/lint-docs.js`** — deterministic doc-corpus consistency linter
+  (zero-dep, `--selftest`, `--json`). Rules: XREF (dangling refs + plugin-root
+  escapes + anchors), CMD-COUNT, VERSION (extension.yml == plugin.json + stale
+  narrative), ENUM, PHASEMAP, CONFIG-READER (dead-switch detection), SCRIPT-PATH
+  (`${PLUGIN_ROOT}` enforcement), ID-FORMAT.
+- **`scripts/doctor.js`** — aggregate self-check (every `--selftest` + lint-docs
+  + a live fixture smoke + release-blocking invariants). One command to gate a
+  change; `node scripts/doctor.js`.
+- **`.github/workflows/ci.yml`** — runs `doctor` on every push/PR (+ best-effort
+  `claude plugin validate`). The repo's first automated consistency gate.
+- **`fixtures/features/demo/`** — a known-good feature state (`.forge-status.yml`
+  + `traceability.yml` + `journeys.yml`) that passes
+  `validate-traceability.js --strict`; real-file test input for `doctor` and CI.
+- **`docs/concept.md`** — 10-minute mental model + the producer→consumer wiring
+  map for new contributors.
+- **`docs/improvements/2026-06-schema-as-source-design-note.md`** — staged design
+  for single-sourcing enum/count invariants from the schema (preventive fix for
+  the drift class).
+- **`forge.md`** command-syntax note (extension `/speckit.product-forge.X` vs
+  plugin `/speckit-product-forge:X`).
+- `.gitignore`: ignore `.serena/` and `.remember/` agent-runtime dirs.
+
+### Added — deeper enforcement (2026-06 follow-up)
+- **`docs/schema/enums.yml`** — the single canonical source for the
+  `feature_mode` / gate-decision / phase-status / gate-policy-action enums.
+  `lint-docs.js` ENUM now reads it and asserts the curated enumeration *sites*
+  (schema.yml, schema.md, runtime.md, forge.md) list the full canonical set —
+  true single-source enforcement, not a spot-check (step 2 of the schema-as-
+  source design note).
+- **`lint-docs.js` CARRIER rule** — every cross-phase carrier field
+  (`red_gate`, `reviewed_sha`, `commit_sha`, the doc↔code drift carrier,
+  `produced_by`) must have BOTH a producer and a consumer that name it. Direct
+  antidote to the "callout-deep" class (a field written but read by nobody).
+- **`lint-docs.js` GATE-POLICY rule** — validates `docs/templates/gate-policy.yml`:
+  every phase key is a real phase and every routing value is a canonical action,
+  so `forge --ci` can't be driven by a malformed policy.
+- **`validate-traceability.js` STEP coverage** — object-shaped journey steps
+  (`{id, tests}`) are now checked individually (≥1 test once `test_run`
+  completes), fulfilling the template's "each step should map to ≥1 test"; bare
+  steps still fall under journey-level coverage. Demo fixture upgraded to
+  object-shaped steps.
+- **`scripts/check-links.js`** — best-effort external-link liveness checker
+  (zero-dep, built-in `fetch`, `--selftest`, ignores illustrative/placeholder/
+  own-repo URLs). Wired as a `continue-on-error` CI job; never blocks a merge.
+- **`CONTRIBUTING.md`** — contributor workflow anchored on `doctor` + `concept.md`
+  and the linter rules.
+- `doctor` now also runs the `check-links` self-test + STEP-aware fixture smoke
+  (13 checks); lint-docs self-test 14/14, validate-traceability 20/20.
+
+
+---
+
+## [1.6.0] — "Bulbasaur" — 2026-05-29
+
+> First codenamed release 🌱 (**Bulbasaur**). A minor, fully **additive** release
+> in three strands: (1) the SDD-flow wave — a spec-anchored living spec with a
+> full traceability matrix, structured journeys → Playwright E2E, FE↔BE
+> contract-first APIs, telemetry MCP wiring, a risk-scored two-layer gate review,
+> and a first-class express track; (2) configurable documentation **storage
+> strategies**, a single **path-resolution contract**, and a layered **global
+> config**; (3) a repo-wide **consistency/audit pass** (56 findings). No breaking
+> changes — with no new config keys set, behavior is byte-for-byte identical to
+> v1.5.1. Schema v3 stays additive; the flat layout remains the zero-config
+> default.
+
+### Added — Configurable storage strategies + global config
+- **`storage_strategy` config key** — selectable feature-root placement, all
+  four values **active**: `flat` (default, today's `features/<slug>/`),
+  `domain-nested` (`features/<domain>/<slug>/`), `ddd`
+  (`features/<context>/<slug>/`, backed by a `features/domains.yml` registry),
+  and `workspace` (`features/<workspace>/<slug>/`, monorepo `scope.primary`). The
+  **internal artifact tree is invariant** across every strategy. See
+  [`docs/file-structure.md`](docs/file-structure.md) §"Storage strategies",
+  [`config-template.yml`](config-template.yml), and the registry template
+  [`docs/templates/domains.yml`](docs/templates/domains.yml).
+- **Path-Resolution Contract** — a single normative rule
+  ([`docs/runtime.md`](docs/runtime.md) §12) for resolving a feature root from a
+  slug (`resolve`) and enumerating all features (`enumerate`), parameterized by
+  `storage_strategy`, so every command/script shares one path rule instead of
+  scattered globs.
+- **`scripts/lib-paths.js`** — the executable form of the contract
+  (`resolveFeatureDir()` + `enumerateFeatures()`, depth-tolerant and
+  strategy-agnostic), with its own `--selftest`. `gate-risk.js`,
+  `validate-traceability.js`, and `migrate-status-v2-to-v3.js` now resolve/
+  enumerate through it, and the cross-feature commands (portfolio, status,
+  sync-verify, feature-flag-cleanup, bridge) + single-feature resolvers
+  (research, monitoring-setup, backfill) point at the contract. lib-paths reads
+  the `ddd` `domains.yml` registry (O(1), read-only; orchestrator heals it).
+  **All four strategies work end-to-end** (scripts find nested features across
+  `domain-nested`/`ddd`/`workspace`; `_archived`/`_portfolio`/`domains.yml`
+  excluded from enumeration; ambiguous bare slugs error with a qualified-ref hint).
+- **Global (cross-project) config layer** — `~/.product-forge/config.yml`
+  (canonical) with `$XDG_CONFIG_HOME/product-forge/config.yml` fallback, layered
+  `shipped defaults < global < project < per-feature < env` with deep-merge of
+  nested keys, plus a config-key → layer classification table. See
+  [`docs/config.md`](docs/config.md) §"Global Configuration".
+- Documented previously-undocumented config keys: `supply_chain.license_allowlist`,
+  `supported_locales`, `constitution_path`.
+
+### Fixed — repo-wide consistency/audit pass (56 findings)
+- Repo-wide consistency pass (56 verified findings; see
+  [`docs/improvements/2026-05-system-audit.md`](docs/improvements/2026-05-system-audit.md)):
+  command count `29 → 31`; version coherence at `1.6.0` across README / CHANGELOG /
+  `extension.yml` / QA plan; `sync-verify` consistently described as **9-layer**;
+  status-enum (`completed_with_known_issues`), gate-enum (`rolled_back`), and
+  supporting-command phase keys reconciled into the canonical schema; the
+  `api_docs` sibling collision renamed to `api_docs_report`.
+- Six command/template files whose inner triple-backtick code fences prematurely
+  closed the outer block (bridge, code-review, product-spec, retrospective,
+  tracking-plan, portfolio-report) now use 4-backtick wrappers; fixed a malformed
+  GFM table in experiment-design.
+- Three real helper bugs: `validate-traceability.js` (substring task-ID matching →
+  exact normalized equality; journey-coverage check no longer skipped when edges
+  exist); `gate-risk.js` (`countFindings` now counts only **open** findings, so the
+  CI `no_open_critical` gate clears once findings are resolved); `acquire-lock.sh`
+  (rejects unsafe `session_id` to prevent JSON/grep injection).
+- `release-readiness` license-allowlist env override renamed to the documented
+  `PRODUCT_FORGE_SUPPLY_CHAIN_LICENSE_ALLOWLIST` prefix.
+
+### Added — 2 new commands (catalog now 31)
+
+- **`speckit.product-forge.design-system-harvest`** (Phase 2H, opt; UI features)
+  — Harvests a read-only manifest of the project's in-code design system
+  (components with `CMP-` ids, props, variants, stable selectors, in-code token
+  refs, Storybook) so mockups, component decomposition, and UI verification are
+  grounded in real components rather than abstractions. The in-code design
+  system stays the single source of truth.
+- **`speckit.product-forge.spec-merge`** (Phase 10 + cross-cutting; living spec)
+  — Merges a feature's delta specs (`ADDED` / `MODIFIED` / `REMOVED`) into the
+  canonical `specs/<domain>/` and archives the change with audit history
+  (spec-anchored source of truth, OpenSpec model).
+
+### Added — Express mode (first-class)
+
+- **`feature_mode: express`** is now a first-class lifecycle mode alongside
+  `lite`, `standard`, and `v-model`. Express runs a minimal combined pass
+  (product-spec minimal → plan inline → implement → verify) for trivial
+  copy/config/one-liner changes, with everything else marked `not_applicable`.
+  Escalation to `lite`/`standard` is append-only. Validated in `forge.md` Mode
+  Resolution and the canonical schema.
+
+### Added — Living spec, delta specs, and traceability
+
+- **Canonical `specs/<domain>/`** living spec with stable `REQ-NNN` requirement
+  ids; `bridge` emits **delta specs** (`ADDED`/`MODIFIED`/`REMOVED`) against it,
+  `change-request` propagates deltas, `backfill` seeds canonical specs for
+  brown-field entry, and `spec-merge` folds approved deltas back in.
+- **Live `traceability.yml` matrix** (`REQ→US→JRN→FR→CMP→API→TASK→code→TEST→EVT`)
+  — seeded by `tasks`, filled by `implement` as tasks complete, and consumed by
+  `verify-full` instead of re-deriving the chain. New helper
+  `scripts/validate-traceability.js` with a `--selftest` entry point.
+
+### Added — Structured journeys → Playwright E2E
+
+- **Structured journeys** are now first-class artifacts in
+  `product-spec/journeys/journeys.yml` (`JRN`/`STEP`/`EDGE`, GIVEN/WHEN/THEN),
+  the authoritative E2E source of truth (`docs/journeys.md` + journey-spec
+  template). `test-plan` generates Playwright specs directly from `journeys.yml`
+  (selectors via `component-map.yml`); `test-run` maps failures back to
+  `JRN`/`STEP`/`EDGE`. `playwright-cli` is the committed default runner
+  (`e2e_runner` config).
+
+### Added — FE↔BE contracts (contract-first)
+
+- **`bridge` defines contract-first OpenAPI 3.1 + AsyncAPI** (`API-*` ids)
+  shared by front-end and back-end; `api-docs` becomes validation/regeneration
+  against the contracts and the implementation. `verify-full` and `sync-verify`
+  gain a contract-drift leg.
+
+### Added — Telemetry MCP wiring and quality gates
+
+- **Real telemetry via connected MCPs** — `retrospective` pulls funnels/errors
+  from PostHog/Amplitude and Sentry (NewRelic optional); `monitoring-setup`
+  creates real dashboards/alerts; `experiment-design` can create the real
+  PostHog experiment.
+- **Two-layer code review** — `code-review` adds a machine-gate layer
+  (lint/types/security/coverage) before the agent/human judgment dimensions,
+  plus a doc↔code reconciliation dimension.
+- **Risk-scored gate review** — `gate-review.md` / `gate-policy.yml` templates
+  and `scripts/gate-risk.js` (with `--selftest`) drive a unified `F-NNN`
+  gate-finding model and the `--ci` auto-recommend pre-gate.
+- **WCAG-AA accessibility gate** — `test-plan` emits one `@axe-core/playwright`
+  check per journey (`JRN`) and `test-run` executes it.
+
+### Changed
+
+- **`sync-verify` expanded from 7 to 9 layers** — adds **Layer 8 (FE↔BE contract
+  drift)** and **Layer 9 (doc↔code reconciliation)** on top of the original
+  seven artifact-pair layers.
+- **`verify-full` adds Layers 7–10** — journey↔E2E coverage, UI↔design-system,
+  FE↔BE contract drift, and doc↔code reconciliation.
+- **Test-first Red gate** — `tasks` orders test tasks before implementation and
+  `implement` enforces a Red gate (unit/contract tests written and confirmed
+  failing) before implementing Must-Have stories.
+- **All consumers point at structured `journeys/`** — every command and doc that
+  read the old free-form `product-spec/user-journey*.md` now reads
+  `product-spec/journeys/journeys.yml`.
+- **`extension.yml`** — version `1.6.0`; registers `design-system-harvest` and
+  `spec-merge` (31 commands total); description and tags updated for the v1.6
+  wave.
+- **`config-template.yml` / `docs/config.md`** — documented v1.6 keys:
+  `flow_mode`, `e2e_runner`, `a11y_gate`, `telemetry`, `design_system`,
+  `default_track_hint`; v1.6 file-layout appendix (canonical `specs/`,
+  `contracts/`, `design-system/`, `journeys/`, `traceability.yml`).
+
+### Phase accounting
+
+- Standard mode is **8 always-on core phases + 12 optional/conditional = 20 phase
+  slots** (Phase Map = 20 rows; 19 have a `## Phase` section — 2H is a Phase-2
+  helper — plus a post-launch Retrospective); `forge.md`'s Phase Map is the source
+  of truth.
+
+### Migration notes
+
+- **No action required.** Existing features continue to work; nothing on disk
+  moves. The flat feature layout remains the zero-config default. The first time
+  a v1.6-aware skill writes to a feature's `.forge-status.yml` it keeps
+  `schema_version: 3` and may populate new optional fields as it runs.
+
+---
+
 ## [1.5.1] — 2026-04-24
 
 > Docs-only patch. No behavioural change — closes a documentation gap
@@ -139,7 +478,7 @@ release just makes the dependency visible to users before they try.
 - **State-lock protocol** — `.forge-status.yml.lock` file-based lock with
   TTL-based takeover. Prevents concurrent-writer corruption between the
   orchestrator and sub-skills. Documented in
-  [`docs/runtime.md §2`](docs/runtime.md#2-state-lock-protocol).
+  [`docs/runtime.md §2`](docs/runtime.md#2-state-lock-protocol-a2).
 - **Per-phase digests** — Every major phase (`research`, `product_spec`,
   `plan`, `tasks`, `implement`, `verify`) now writes `<phase>/digest.md`.
   Runtime refuses to mark a phase completed without a digest. Downstream
@@ -284,9 +623,9 @@ Surfaced by the plugin test plan dry-run and closed before release:
 
 ### Added — 5 new commands expanding the product lifecycle
 
-- **`speckit.product-forge.sync-verify`** — Cross-cutting 7-layer artifact consistency checker:
+- **`speckit.product-forge.sync-verify`** — Cross-cutting 9-layer artifact consistency checker:
   - Detects forward drift (earlier artifacts not reflected in later) and backward drift (later decisions that should update earlier)
-  - Checks 7 layers: research↔product-spec, product-spec↔spec.md, spec↔plan, plan↔tasks, tasks↔code, spec↔code, cross-links
+  - Checks 9 layers: research↔product-spec, product-spec↔spec.md, spec↔plan, plan↔tasks, tasks↔code, spec↔code, cross-links, FE↔BE contract drift, doc↔code
   - Each drift item: severity (CRITICAL/WARNING/INFO), direction, proposed resolution, human approval
   - `--quick` mode runs automatically between forge phase transitions (configurable via `auto_sync_between_phases`)
   - `--fix` mode applies approved resolutions after user confirmation
@@ -529,6 +868,8 @@ Introduced the `features/<name>/` directory convention with:
 
 ---
 
+[1.7.0]: https://github.com/VaiYav/speckit-product-forge/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/VaiYav/speckit-product-forge/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/VaiYav/speckit-product-forge/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/VaiYav/speckit-product-forge/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/VaiYav/speckit-product-forge/compare/v1.3.0...v1.4.0

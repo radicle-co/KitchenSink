@@ -1,4 +1,4 @@
-# Product Forge — Phase Reference (v1.3.0)
+# Product Forge — Phase Reference (v1.6.0)
 
 Full documentation for all Product Forge lifecycle phases: 1 optional pre-phase (Phase 0),
 7 required phases (1–7), 5 optional phases (5C, 6B, 8A, 8B, 9), plus cross-cutting commands.
@@ -80,10 +80,17 @@ conducts a brief interview, then generates all documents.
 |------|---------|
 | `product-spec/README.md` | Yes |
 | `product-spec/product-spec.md` | Yes |
-| `product-spec/user-journey.md` (or multiple) | Yes |
+| `product-spec/journeys/journeys.yml` + `JRN-*.md` (structured, E2E source of truth — see [docs/journeys.md](./journeys.md)) | Yes |
 | `product-spec/wireframes.md` (or folder) | Yes |
 | `product-spec/metrics.md` | Optional |
-| `product-spec/mockups/index.html` + screens | Optional |
+| `design-system/manifest.yml` + `manifest.md` (harvested, read-only) | If UI |
+| `product-spec/mockups/index.html` + screens (clickable, design-system-grounded) | If UI |
+| `product-spec/mockups/component-map.yml` (region → `CMP-*` → code path) | If UI |
+
+> **Design system (helper):** `/speckit.product-forge.design-system-harvest`
+> discovers the project's in-code design system and emits the read-only
+> `design-system/manifest.yml` that grounds mockups, component decomposition, and
+> UI verification. The design system stays in code as the single source of truth.
 
 ---
 
@@ -104,7 +111,7 @@ The agent applies changes and loops until approval.
 Before locking, the agent automatically verifies:
 - All cross-links in README files are valid
 - All referenced files exist
-- User stories in product-spec align with user-journey flows
+- User stories in product-spec align with structured journeys (`journeys/journeys.yml`)
 
 ---
 
@@ -234,7 +241,9 @@ Findings use `REV-NNN` IDs with CRITICAL/HIGH/MEDIUM/LOW severity.
 **Output:** `features/{slug}/verify-report.md`
 **Gate:** No CRITICAL findings (or user acknowledges)
 
-### 6 Verification Layers
+### Verification Layers
+
+Consumes the live `traceability.yml` (does not re-derive the chain). Layers:
 
 | Layer | What it checks |
 |-------|---------------|
@@ -244,6 +253,10 @@ Findings use `REV-NNN` IDs with CRITICAL/HIGH/MEDIUM/LOW severity.
 | 4: spec.md ↔ product-spec | No spec drift from approved product spec |
 | 5: Research alignment | Key research recommendations followed |
 | 6: Document integrity | All cross-links valid, no broken references |
+| 7: Journey ↔ E2E *(v1.6)* | Every Must-Have `JRN` / P0-P1 `EDGE` has an E2E test (Theme H) |
+| 8: UI ↔ Design System *(v1.6)* | Built UI uses the mapped `CMP-*` components (Theme E) |
+| 9: FE ↔ BE contract drift *(v1.6)* | Contracts implemented + called on both sides (Theme F) |
+| 10: Doc ↔ Code *(v1.6)* | No unimplemented docs / undocumented code (Theme G) |
 
 ### Severity levels
 
@@ -264,8 +277,11 @@ Findings use `REV-NNN` IDs with CRITICAL/HIGH/MEDIUM/LOW severity.
 
 ### What happens
 
-Auto-detects test setup, generates test cases for every user story,
-creates runnable Playwright `.spec.ts` files.
+Auto-detects test setup and generates test cases. E2E specs are generated
+**directly from `product-spec/journeys/journeys.yml`** (one Playwright spec per
+`JRN`; steps → actions, edges → assertions; selectors from
+`mockups/component-map.yml`). `playwright-cli` is the committed default runner
+(`e2e_runner: playwright-cli`). See [docs/journeys.md](./journeys.md).
 
 ### Test types generated
 
@@ -334,7 +350,7 @@ Verdict: READY TO SHIP / CONDITIONALLY READY / NOT READY.
 ### What happens
 
 Compares predicted KPIs (from research/metrics-roi.md) against real data.
-Queries NewRelic via MCP, collects analytics data, audits research accuracy.
+Queries the connected MCPs (PostHog/Amplitude, Sentry; NewRelic optional), collects analytics data, audits research accuracy.
 Produces lessons learned and next-step recommendations.
 
 ---
@@ -346,7 +362,7 @@ Produces lessons learned and next-step recommendations.
 **Command:** `/speckit.product-forge.sync-verify`
 **Output:** `features/{slug}/sync-report.md` + `sync-report.json`
 
-Runnable between ANY phases. Checks 7 artifact layers for forward and backward drift.
+Runnable between ANY phases. Checks 9 artifact layers (incl. contract-drift + doc↔code) for forward and backward drift.
 `--quick` mode runs automatically between forge phase transitions.
 Human-in-the-loop for each CRITICAL/WARNING resolution.
 
@@ -356,8 +372,19 @@ Human-in-the-loop for each CRITICAL/WARNING resolution.
 **Output:** `features/{slug}/change-log.md`
 
 Formal scope change management: capture → impact analysis → effort delta → propagate.
-Traces changes with `CR-NNN` markers across all affected artifacts.
+Traces changes with `CR-NNN` markers across all affected artifacts. Emits **delta
+specs** (`## ADDED / ## MODIFIED / ## REMOVED`) against canonical `specs/` (v1.6).
 Runs sync-verify after application.
+
+### Spec Merge *(v1.6, living spec)*
+
+**Command:** `/speckit.product-forge.spec-merge`
+**Output:** updates canonical `specs/<domain>/spec.md`; archives the change folder.
+
+Merges a completed feature's delta specs into the canonical `specs/` source of truth
+and archives the change with audit history (OpenSpec model). Makes the spec
+spec-anchored — a living source of truth across the feature's lifetime. Wired in
+after Phase 9 / release-readiness. See [Theme B](./improvements/2026-05-sdd-flow-improvements.md).
 
 ---
 
@@ -425,6 +452,7 @@ Runs sync-verify after application.
 
 | Mode | Active phases | Excluded phases |
 |------|---------------|-----------------|
+| `express` *(v1.6)* | product-spec (minimal), plan (inline), implement, verify | everything else → `status: "not_applicable"` |
 | `lite` | problem-discovery (opt), product-spec, plan, implement, verify | everything else → `status: "not_applicable"` |
 | `standard` | all phases per the matrix above | — |
 | `v-model` | standard + V-Model artifact phases via `speckit:v-model-*` | — |

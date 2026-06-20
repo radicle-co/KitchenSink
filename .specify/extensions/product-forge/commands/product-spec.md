@@ -3,7 +3,8 @@ name: speckit.product-forge.product-spec
 description: >
   Phase 2: Interactive product specification creation. Asks detailed questions about
   desired level of detail and document decomposition. Creates product-spec.md,
-  user-journey.md, wireframes, metrics.md, and optional mockups.html.
+  structured journeys (journeys/journeys.yml as the E2E source of truth), wireframes,
+  metrics.md, and design-system-grounded clickable mockups with a component map.
   All documents are cross-linked via product-spec/README.md index.
   Use with: "create product spec", "/speckit.product-forge.product-spec"
 ---
@@ -20,6 +21,10 @@ product specification — the definitive source of truth before any code is writ
 $ARGUMENTS
 ```
 
+If `$ARGUMENTS` contains **`--dry-run`**, honor [docs/runtime.md §7](../docs/runtime.md#7-dry-run-semantics):
+write the `product-spec/` artifacts under `{FEATURE_DIR}/.forge-dry-run/product_spec/`,
+do **not** update `.forge-status.yml`, and emit a `DRY-RUN-REPORT.md`.
+
 ---
 
 ## Step 1: Load Context
@@ -34,9 +39,17 @@ Set `PRODUCT_SPEC_DIR = {FEATURE_DIR}/product-spec/`
 
 ---
 
+> **Interaction (normative):** every question in this phase uses the structured
+> convention in [docs/interaction.md](../docs/interaction.md) (ready snippets in
+> [docs/templates/interaction-prompts.md](../docs/templates/interaction-prompts.md)).
+> Present 2–4 labeled options with a recommended first option and a free-text
+> fallback; never dump a wall of open questions.
+
 ## Step 2: Detail Level Configuration
 
-This is the most important configuration step. Ask the user ALL questions below before creating any documents.
+This is the most important configuration step. Ask the user the questions below as
+discrete structured prompts (one decision each, related toggles grouped) before
+creating any documents.
 
 ### 2A. Feature Complexity Assessment
 
@@ -61,18 +74,24 @@ Store as `SPEC_DETAIL`.
 
 ---
 
-### 2C. User Journey — Format and Detail
+### 2C. User Journeys — Structured (E2E source of truth)
 
-Ask: *"How should we document user journeys?"*
+User journeys are **structured artifacts**, not free-form prose — they are the
+deterministic source for E2E tests (Playwright-cli). They are authored per the
+schema in [docs/journeys.md](../docs/journeys.md) using the
+[journey-spec template](../docs/templates/journey-spec.md).
 
-- **Simple flow** — One linear Markdown text flow in user-journey.md
-- **Standard** — Separate sections per user role/persona in user-journey.md, with decision branches
-- **Detailed multi-file** — One file per major flow (e.g., `user-journey-onboarding.md`, `user-journey-settings.md`), all linked from README
+Ask (structured): *"How many distinct user journeys does this feature have?
+(best estimate)"* → store as `JOURNEY_COUNT`.
 
-Also ask: *"How many distinct user journeys does this feature have? (best estimate)"*
-Store as `JOURNEY_COUNT`.
+Each journey gets a stable `JRN-NNN` id with ordered `STEP-NNN`s (action +
+expected result) and explicit `EDGE-NNN`s for alternate/error/boundary cases
+(GIVEN/WHEN/THEN + priority). Steps reference design-system components (`CMP-*`,
+from §2E) and backend contracts (`API-*`). Output goes to `product-spec/journeys/`
+with `journeys.yml` as the authoritative index.
 
-If `JOURNEY_COUNT > 2` or `FEATURE_SIZE = large`, automatically suggest multi-file.
+For each journey, confirm the edge cases with the user via a structured prompt
+(don't leave error handling implicit) before writing.
 
 ---
 
@@ -91,17 +110,38 @@ If `WIREFRAME_SCREEN_COUNT > 3`, auto-suggest decomposition into individual file
 
 ---
 
-### 2E. Mockups — Create or Skip?
+### 2E. Mockups — Design-system-grounded clickable prototype
 
-Ask: *"Do you want HTML mockups created? These are higher-fidelity interactive previews."*
-- **No mockups** — Skip. Wireframes are sufficient.
-- **Generic mockups** — Clean HTML/CSS, no specific project styles. Works for any project.
-- **Project-styled mockups** — Agent analyzes your CSS/SCSS/design tokens and creates mockups that match your project's look and feel.
+Mockups are grounded in the project's **real, in-code design system** and decompose
+into **real components**, so they transfer cleanly into the codebase.
 
-If "Project-styled": agent will scan `{codebase_path}` for CSS variables, design tokens, color palettes, typography.
+**Step 1 — Harvest the design system (if UI).** Delegate to
+[`speckit.product-forge.design-system-harvest`](./design-system-harvest.md). It
+emits `design-system/manifest.yml` (components with `CMP-` ids, props, variants,
+stable selectors, and in-code token references). The design system stays in code as
+the single source of truth — we harvest a manifest, never duplicate it.
 
-Also ask: *"How many mockup screens? (If feature is large, we'll create multiple linked HTML files with a navigation index)"*
-Store as `MOCKUP_STYLE`, `MOCKUP_SCREEN_COUNT`.
+**Step 2 — Choose fidelity** (structured prompt). Read `default_mockup_style` from
+config (`"none" | "generic" | "project-styled"`) and present that value as the
+**pre-selected / recommended** option:
+- **`none`** (`MOCKUP_STYLE = "none"`) — wireframes are sufficient; skip mockups.
+- **`generic`** (`MOCKUP_STYLE = "generic"`) — clickable multi-screen HTML
+  prototype with a clean generic design system (used when no in-code design system
+  was harvested).
+- **`project-styled`** (`MOCKUP_STYLE = "project-styled"`, default) — clickable
+  multi-screen HTML prototype that uses the harvested tokens/components, navigable
+  between screens, mapping 1:1 to real components (e.g.
+  `<button data-cmp="button" class="...">` reflecting `CMP-Button` variant
+  `primary`).
+
+Ask (structured): *"How many mockup screens?"* → store `MOCKUP_SCREEN_COUNT`.
+Store fidelity as the canonical config value `MOCKUP_STYLE` (`none` skips mockups;
+`generic` / `project-styled` build a clickable prototype).
+
+**Step 3 — Component map.** Produce `mockups/component-map.yml` linking each mockup
+region → design-system component (`CMP-*`) → target code path. This is consumed by
+`tasks`/`implement` (FE tasks reference real components) and `verify-full` (the
+built UI must use the mapped components), and by journey steps (§2C) for selectors.
 
 ---
 
@@ -128,17 +168,22 @@ Files to be created:
 ├── product-spec/
 │   ├── README.md                    ← Index + cross-links (always)
 │   ├── product-spec.md              ← Main PRD ({SPEC_DETAIL} detail)
-│   ├── user-journey.md              ← OR multiple files if {JOURNEY_COUNT > 2}
-│   │   ├── user-journey-{flow1}.md
-│   │   └── user-journey-{flow2}.md
+│   ├── journeys/                    ← Structured journeys (E2E source of truth)
+│   │   ├── journeys.yml             ← Authoritative machine-readable index
+│   │   ├── JRN-001-{slug}.md
+│   │   └── JRN-002-{slug}.md
 │   ├── wireframes.md                ← OR wireframes/ folder with {N} files
 │   │   ├── wireframe-{screen1}.html
 │   │   └── wireframe-{screen2}.html
 │   ├── metrics.md                   ← IF requested
-│   └── mockups/                     ← IF requested
-│       ├── index.html
+│   └── mockups/                     ← IF UI (design-system grounded)
+│       ├── index.html               ← clickable multi-screen prototype hub
 │       ├── mockup-{screen1}.html
-│       └── mockup-{screen2}.html
+│       ├── mockup-{screen2}.html
+│       └── component-map.yml        ← region → CMP-* → code path
+├── design-system/                   ← IF UI (harvested, read-only)
+│   ├── manifest.yml                 ← components + tokens + selectors
+│   └── manifest.md
 
 Estimated token budget per file: ~2000-4000 tokens
 Total estimated output: ~{N * 3000} tokens
@@ -185,7 +230,7 @@ Generate all documents **sequentially** (not in parallel, to maintain context an
 > Status: DRAFT | Version: 1.0 | Date: {date}
 > Feature: `{feature-slug}` | Size: {FEATURE_SIZE}
 >
-> **Related documents:** [User Journey](./user-journey.md) | [Wireframes](./wireframes.md) | [Metrics](./metrics.md) | [Research →](../research/README.md)
+> **Related documents:** [Journeys](./journeys/) | [Wireframes](./wireframes.md) | [Metrics](./metrics.md) | [Research →](../research/README.md)
 
 ## 1. Overview
 
@@ -274,46 +319,62 @@ Key findings from research phase:
 
 ---
 
-### 4B. user-journey.md (or multiple files)
+### 4B. Structured journeys (`journeys/`)
 
-If `JOURNEY_COUNT <= 2` → single `user-journey.md`
-If `JOURNEY_COUNT > 2` → create `user-journey-{name}.md` per flow, link from README
+Write the authoritative `product-spec/journeys/journeys.yml` plus one
+`JRN-NNN-{slug}.md` per journey, following the schema in
+[docs/journeys.md](../docs/journeys.md) and the
+[journey-spec template](../docs/templates/journey-spec.md).
 
-Each journey file format:
-```markdown
-# User Journey: {Flow Name}
+Requirements:
+- Each journey: stable `JRN-NNN` id, primary actor, mapped `US-NNN` stories, entry
+  + success states, preconditions.
+- Ordered `STEP-NNN`s with **action** + **expected result**; each UI step
+  references a `CMP-*` component (from `design-system/manifest.yml`) and each
+  backend step its `API-*` contract.
+- Explicit `EDGE-NNN`s for alternate / error / boundary cases in
+  **GIVEN/WHEN/THEN** with a priority (P0–P3) — never leave error handling implicit.
+- Mark smoke-worthy journeys (`smoke: true`) and set `runner: playwright-cli`.
 
-> Feature: {feature-name} | Persona: {primary persona}
-> Related: [Product Spec](./product-spec.md) | [Wireframes](./wireframes.md)
+`journeys.yml` is authoritative; the markdown files must not introduce steps absent
+from the YAML. These journeys are consumed by `test-plan` (Phase 8A) to generate
+Playwright specs and by `verify-full` for coverage.
 
-## Journey Map
+---
 
-| Step | User Action | System Response | Emotion | Notes |
-|------|-------------|-----------------|---------|-------|
-| 1 | {what user does} | {what system does} | 😊/😐/😤 | {edge case or note} |
-[...]
+### 4B.1. Seed the traceability `journeys:` block
 
-## Alternative Paths
+product-spec is the **write owner** of the `journeys` column / block in
+`{FEATURE_DIR}/traceability.yml` (per
+[traceability-matrix template](../docs/templates/traceability-matrix.md)). After
+authoring the structured journeys, write the `journeys:` block so the matrix has a
+real producer for journey data (US → JRN → STEP/EDGE) instead of a null column.
 
-### Path B: {Alternative scenario}
-[Step-by-step]
+Create `traceability.yml` if it does not exist (seeding `schema_version: 1`,
+`feature`, `last_updated`); otherwise upsert the `journeys:` block by `id` without
+disturbing rows owned by other phases. Mirror `journeys/journeys.yml`:
 
-## Error Scenarios
-[How the journey breaks and recovers]
-
-## Journey Metrics
-- **Entry point:** {where journey starts}
-- **Exit point:** {success state}
-- **Expected completion time:** {seconds/minutes}
-- **Drop-off risk points:** {where users might abandon}
+```yaml
+journeys:
+  - id: "JRN-001"
+    title: "{journey title}"
+    stories: ["US-001"]              # mapped user stories (US → JRN)
+    steps: ["STEP-001", "STEP-002"]
+    edges:                           # per-edge; tests stay [] until test-plan
+      - {id: EDGE-001, priority: P1, tests: []}
+    tests: []                        # journey-level E2E; filled by test-plan/test-run
 ```
+
+Leave the `tests` fields empty here — `test-plan`/`test-run` own that column. Do not
+write row-level `status` (owned by tasks/implement onward). Record this in the digest
+handoff notes (seeds the `US → JRN → CMP → API` matrix for downstream phases).
 
 ---
 
 ### 4C. Wireframes
 
 **If `WIREFRAME_DETAIL = text/ascii`** → Single `wireframes.md` with text+ASCII diagrams:
-```markdown
+````markdown
 # Wireframes: {Feature Name}
 
 > Navigation: [Screen 1](#screen-1) | [Screen 2](#screen-2)
@@ -339,7 +400,7 @@ Each journey file format:
 
 **Components:** {list of UI components}
 **States:** Default | Loading | Empty | Error
-```
+````
 
 **If `WIREFRAME_DETAIL = basic-html` or `detailed-html`**:
 Create separate `wireframe-{screen-name}.html` per screen.
@@ -412,31 +473,48 @@ For **detailed HTML**: agent scans `{codebase_path}` for CSS variables and desig
 
 ---
 
-### 4E. Mockups (if requested)
+### 4E. Mockups — clickable prototype + component map (if UI)
 
-**Create `mockups/index.html`** — navigation hub linking all mockup screens.
+**Skip this step entirely** when `MOCKUP_STYLE == "none"` (user chose wireframes
+only) or the feature has no UI — do not create `mockups/` or `component-map.yml`, and
+note "mockups skipped" in the digest. Otherwise (`MOCKUP_STYLE` is `generic` or
+`project-styled`):
+
+Mockups are grounded in `design-system/manifest.yml` (from §2E,
+`design-system-harvest`), so they map 1:1 to real components.
+
+**Create `mockups/index.html`** — a clickable multi-screen prototype hub with
+working navigation between screens (anchor/link-based; no build step required).
 
 **For each screen, create `mockups/mockup-{screen-name}.html`**:
+1. Use the harvested **tokens** by reference (the manifest's CSS-var/token names),
+   so the prototype inherits the real look and never hardcodes drifting hexes.
+2. Render each region with the corresponding **component** markup and its stable
+   selector (e.g. `<button data-cmp="button" class="...">Save</button>` for
+   `CMP-Button` variant `primary`).
+3. Include nav to other screens + a back link to `index.html`.
+4. Header note: `<!-- Product Forge Mockup | Feature: {slug} | Screen: {name} -->`.
 
-If `MOCKUP_STYLE = generic`:
-```html
-<!-- Clean, professional HTML mockup with generic design system -->
-<!-- Bootstrap-inspired utility classes, no dependencies -->
+**Create `mockups/component-map.yml`** — the transfer/decomposition map:
+
+```yaml
+schema_version: 1
+feature: "{feature-slug}"
+screens:
+  - screen: "settings-notifications"
+    regions:
+      - region: "save bar"
+        component: "CMP-Button"        # from design-system/manifest.yml
+        variant: "primary"
+        target_path: "frontend:apps/web/src/settings/SaveBar.tsx"  # where it lands
+        journeys: ["JRN-001"]          # journey steps that use this region
 ```
 
-If `MOCKUP_STYLE = project-styled`:
-1. Agent scans `{codebase_path}` for:
-   - CSS custom properties (`:root { --color-... }`)
-   - SCSS variables
-   - Tailwind config
-   - Design token files
-2. Extracts: colors, typography, spacing, border-radius, shadows
-3. Creates mockup with extracted values inline
+This map lets `tasks`/`implement` create FE tasks against real components and lets
+`verify-full` confirm the built UI uses the mapped components.
 
-Every mockup file includes:
-- Navigation bar linking to other screens in this feature
-- Back link to `index.html`
-- Note: `<!-- Product Forge Mockup | Feature: {slug} | Screen: {name} -->`
+If no design system was harvested (backend-only or harvest skipped), skip mockups
+and note it in the digest.
 
 ---
 
@@ -458,10 +536,12 @@ Every mockup file includes:
 | Document | Purpose | Detail Level | Status |
 |----------|---------|--------------|--------|
 | [product-spec.md](./product-spec.md) | Main PRD — goals, stories, requirements | {SPEC_DETAIL} | DRAFT |
-| [user-journey-{name}.md](./user-journey-{name}.md) | {Flow name} user journey | {detail} | DRAFT |
+| [journeys/journeys.yml](./journeys/) | Structured journeys (E2E source of truth) | {JOURNEY_COUNT} journeys | DRAFT |
 | [wireframes.md](./wireframes.md) OR [wireframes/](./wireframes/) | Screen layouts | {WIREFRAME_DETAIL} | DRAFT |
 | [metrics.md](./metrics.md) | KPIs and success criteria | {detail} | DRAFT |
-| [mockups/index.html](./mockups/index.html) | Interactive visual mockups | {MOCKUP_STYLE} | DRAFT |
+| [mockups/index.html](./mockups/index.html) | Clickable design-system prototype | {MOCKUP_STYLE} | DRAFT |
+| [mockups/component-map.yml](./mockups/component-map.yml) | Region → component → code path | — | DRAFT |
+| [../design-system/manifest.yml](../design-system/manifest.yml) | Harvested design-system manifest | read-only | — |
 
 ## Key Decisions
 
@@ -508,8 +588,8 @@ Create `{FEATURE_DIR}/README.md` — top-level index for the entire feature:
 
 1. **Read the research:** [research/README.md](./research/README.md)
 2. **Read the spec:** [product-spec/product-spec.md](./product-spec/product-spec.md)
-3. **See the journeys:** [product-spec/user-journey*.md](./product-spec/)
-4. **See the wireframes:** [product-spec/wireframes*](./product-spec/)
+3. **See the journeys:** [product-spec/journeys/](./product-spec/journeys/)
+4. **See the mockups:** [product-spec/mockups/index.html](./product-spec/mockups/index.html)
 
 ## Feature Description
 
@@ -547,10 +627,14 @@ Before returning, write `{FEATURE_DIR}/product-spec/digest.md` using the templat
 its path on `.forge-status.yml` under `phases.product_spec.digest_path`.
 
 The digest must include:
-- **Key decisions** — target users, scope boundaries, top 3 user stories.
-- **Artifacts produced** — every document in `product-spec/` with one-line descriptions.
+- **Key decisions** — target users, scope boundaries, top 3 user stories, journeys
+  identified (`JRN-*`), and whether a design system was harvested.
+- **Artifacts produced** — every document in `product-spec/` (including
+  `journeys/journeys.yml`, `mockups/component-map.yml`) and
+  `design-system/manifest.yml`, with one-line descriptions.
 - **Open risks** — any NEEDS-CLARIFICATION items unresolved and why.
-- **Handoff notes** — what revalidation and bridge need to verify.
+- **Handoff notes** — what revalidation and bridge need to verify; seed the
+  traceability matrix (`US → JRN → CMP → API`) for downstream phases.
 
 The orchestrator refuses to mark Phase 2 complete until `digest.md` exists.
 See [`docs/runtime.md §8`](../docs/runtime.md#8-phase-digest-requirement-a4).

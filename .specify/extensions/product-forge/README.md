@@ -1,6 +1,8 @@
-# Product Forge — SpecKit Extension
+# Product Forge — SpecKit Extension & Claude Plugin
 
 > **Full product lifecycle:** Problem Discovery → Research → Product Spec → Revalidation → SpecKit → Pre-Impl Review → Implement → Code Review → Verify → Test → Release Readiness → **API Docs · Security · Analytics · Retrospective**
+
+> Installs as a **SpecKit extension** *or* as a **Claude Code / Claude plugin** from this same repo — see [Installation](#installation) and [docs/claude-plugin.md](./docs/claude-plugin.md).
 
 Product Forge is a [SpecKit](https://github.com/github/spec-kit) extension that adds a
 complete **product discovery, specification, and quality pipeline** before and after any SpecKit
@@ -8,6 +10,27 @@ implementation work. Instead of jumping straight to spec.md, you first research 
 patterns, and your codebase — craft an approved product spec — review design/architecture/risks —
 let SpecKit implement it with progressive verification — run multi-agent code review — then
 automatically generate and run Playwright tests with a bug-fix loop until the feature is ready to ship.
+
+**New in v1.7.0 ("Ivysaur"):**
+- **`--dry-run` preview (normative)** — any phase (or `forge` end-to-end) runs fully but mutates nothing real: writes are redirected under `.forge-dry-run/<phase>/`, status is untouched, no external side-effects, and each phase emits a `DRY-RUN-REPORT.md` of what *would* change.
+- **Cross-model code review** — `code-review --cross-model` exports the consolidated gate surface + diff and has a *different* model review it out-of-band, ingesting findings back into the single `F-NNN` namespace.
+- **Parallel implementation** — `implement --parallel` runs path-disjoint task groups concurrently (proven independent by the portfolio conflict matrix), reconciled serially under the state-lock with a single gate.
+- **Constitution↔code drift layer** — `sync-verify` Layer 10 / `verify-full` Layer 11 re-assert the project architecture constitution against the code as a *standing* check, not just at planning time.
+- **Lessons → reusable skills** — `retrospective` promotes a lesson that recurs across features into a reusable skill (Hermes host), cross-project and idempotent.
+- **`status --cost`** — rolls up per-phase token / tool-call telemetry per feature and across the portfolio (dollar cost when a rate is supplied).
+- **Phase-map single source** — `docs/schema/phase-map.yml` is the canonical phase set + per-mode matrix; the forge.md tables render it and the linter enforces agreement.
+
+Full change list in [CHANGELOG.md](./CHANGELOG.md).
+
+**New in v1.6.0:**
+- **Express mode** — first-class `feature_mode: express`: a 4-phase combined pass (product-spec minimal → plan inline → implement → verify) for the smallest changes, escalatable to lite/standard.
+- **Design System Harvest** (Phase 2H) — discover the project's existing design system (component library, tokens, Storybook, Tailwind/CSS config) and emit a read-only manifest so mockups, component decomposition, and verification stay grounded in real code (`/speckit.product-forge.design-system-harvest`).
+- **Spec Merge** (Phase 10, living spec) — merge a shipped feature's delta specs into the canonical `specs/` source of truth and archive the change with audit history (`/speckit.product-forge.spec-merge`).
+- **Sync-verify now 10 layers** — adds Layer 8 (FE↔BE contract drift), Layer 9 (doc↔code), and Layer 10 (constitution↔code) on top of the seven artifact-pair layers.
+- **Structured journeys** — `journeys/` (journeys.yml + JRN-*.md) as the machine-readable E2E source of truth for spec, tests, and tracking.
+- **Automated WCAG-AA accessibility floor** — Phase 8A generates one `@axe-core/playwright` check per journey and Phase 8B runs it.
+
+Full change list in [CHANGELOG.md](./CHANGELOG.md).
 
 **New in v1.5.0:**
 - **Portfolio view** across all features — conflict matrix, dependency graph, suggested merge order (`/speckit.product-forge.portfolio`).
@@ -42,7 +65,7 @@ Standard SpecKit starts from a feature description. Product Forge starts from a 
 6. **Plans, implements, and verifies** using SpecKit with full traceability back to the original research
 7. **Auto-generates Playwright tests** from user stories, runs them via `playwright-cli`, fixes P0/P1 bugs, and produces a test report
 8. **Generates API docs** (OpenAPI 3.1 + Postman), runs an **OWASP security audit**, and creates an **analytics tracking plan** with SDK snippets
-9. **Runs a post-launch retrospective** comparing predicted KPIs against real data from NewRelic/Analytics
+9. **Runs a post-launch retrospective** comparing predicted KPIs against real data from the configured MCPs (PostHog/Amplitude, Sentry; NewRelic optional)
 
 The result: a **complete traceability chain** — problem → research → product spec → spec.md → plan → tasks → code → tests → metrics.
 
@@ -67,7 +90,7 @@ The result: a **complete traceability chain** — problem → research → produ
 | `/speckit.product-forge.test-plan` | 8A | Auto-generate test cases and Playwright specs from user stories |
 | `/speckit.product-forge.test-run` | 8B | Execute tests with playwright-cli, auto-fix bugs, loop until done |
 | `/speckit.product-forge.release-readiness` | 9 | **[NEW]** Pre-ship checklist: feature flags, rollout, docs, monitoring |
-| `/speckit.product-forge.sync-verify` | cross-cutting | **[NEW]** 7-layer artifact consistency check, runnable between any phases |
+| `/speckit.product-forge.sync-verify` | cross-cutting | **[NEW]** 10-layer artifact consistency check (incl. contract-drift + doc↔code + constitution↔code), runnable between any phases |
 | `/speckit.product-forge.change-request` | cross-cutting | **[NEW]** Formal scope change with impact analysis and artifact propagation |
 | `/speckit.product-forge.api-docs` | post-impl | Generate OpenAPI 3.1 spec + Postman collection from plan.md |
 | `/speckit.product-forge.security-check` | post-impl | OWASP audit scoped to detected surfaces (auth, input, payments) |
@@ -76,11 +99,13 @@ The result: a **complete traceability chain** — problem → research → produ
 | `/speckit.product-forge.status` | — | Show lifecycle status, gate audit trail, sync history |
 | `/speckit.product-forge.portfolio` | cross-cutting | **[NEW v1.5]** Multi-feature view: table, file-conflict matrix, dependency graph, merge order |
 | `/speckit.product-forge.backfill` | alt entry | **[NEW v1.5]** Reverse-engineer an existing module into a feature folder with gaps report |
-| `/speckit.product-forge.monitoring-setup` | 9.5 | **[NEW v1.5]** Build real dashboard JSON, alerts, SLO doc. Wraps `newrelic-dashboard-builder` |
+| `/speckit.product-forge.monitoring-setup` | 9.5 | **[NEW v1.5]** Build real dashboard JSON, alerts, SLO doc against the configured backend (PostHog/Amplitude, Sentry; NewRelic optional) |
 | `/speckit.product-forge.migration-plan` | 5.5 | **[NEW v1.5]** Zero-downtime migration plan with forward/rollback/validation/backfill when plan.md has schema changes |
 | `/speckit.product-forge.i18n-harvest` | post-bridge | **[NEW v1.5]** Extract strings from wireframes/spec, stub every locale |
 | `/speckit.product-forge.experiment-design` | 9B | **[NEW v1.5]** Pre-registered A/B plan — hypothesis, MDE, sample size, decision rule |
 | `/speckit.product-forge.feature-flag-cleanup` | cross-cutting | **[NEW v1.5]** Scan `flags/registry.yml` for stale flags, produce removal recipes |
+| `/speckit.product-forge.design-system-harvest` | 2H | **[NEW v1.6]** Harvest the project's existing design system into a read-only `design-system/manifest.yml` that grounds mockups, components, and verification |
+| `/speckit.product-forge.spec-merge` | 10 | **[NEW v1.6]** Merge a shipped feature's delta specs into canonical `specs/` (living spec) and archive the change with history |
 
 ---
 
@@ -127,7 +152,8 @@ The result: a **complete traceability chain** — problem → research → produ
 │  Asks: detail level · decomposition · mockup style                          │
 │                                                                              │
 │  Creates:                                                                    │
-│  product-spec.md · user-journey*.md · wireframes* · metrics.md · mockups/   │
+│  product-spec.md · journeys/ (journeys.yml + JRN-*.md) · wireframes*        │
+│  · metrics.md · mockups/                                                    │
 │  All linked via product-spec/README.md                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
    │
@@ -257,7 +283,7 @@ The result: a **complete traceability chain** — problem → research → produ
 │  CROSS-CUTTING COMMANDS  [Runnable at any time]                  [NEW v1.3]  │
 │                                                                              │
 │  /speckit.product-forge.sync-verify                                          │
-│  7-layer consistency check across all artifacts (forward + backward drift)   │
+│  10-layer consistency check across all artifacts (forward + backward drift)  │
 │  Auto-runs in quick mode between every phase transition                      │
 │  Full run on demand or before Phase 7                                        │
 │                                                                              │
@@ -290,7 +316,8 @@ The result: a **complete traceability chain** — problem → research → produ
 │  /speckit.product-forge.retrospective                                        │
 │                                                                              │
 │  Predicted vs actual metrics (from research/metrics-roi.md)                 │
-│  NewRelic + Analytics MCP query · Research accuracy audit                   │
+│  Connected MCPs query (PostHog/Amplitude, Sentry; NewRelic optional)        │
+│  · Research accuracy audit                                                  │
 │  Lessons learned · Closes the full lifecycle loop                           │
 └─────────────────────────────────────────────────────────────────────────────┘
    │
@@ -325,7 +352,9 @@ features/
     ├── product-spec/
     │   ├── README.md                      ← Spec index + document map
     │   ├── product-spec.md                ← Main PRD (concise/standard/exhaustive)
-    │   ├── user-journey.md                ← or user-journey-{name}.md × N
+    │   ├── journeys/                      ← structured journeys (E2E source of truth)
+    │   │   ├── journeys.yml               ← authoritative machine-readable index
+    │   │   └── JRN-NNN-{slug}.md × N      ← one file per journey (JRN/STEP/EDGE)
     │   ├── wireframes.md                  ← or wireframes/ folder × N screens
     │   ├── metrics.md                     ← optional
     │   └── mockups/                       ← optional
@@ -380,46 +409,95 @@ features/
 
 ## Installation
 
-### Install (latest version)
+Product Forge installs **two ways** from this same repository — as a **Claude Code / Claude plugin** or as the original **SpecKit extension**. Pick whichever matches your tooling; the workflows are identical.
+
+### Option A — Claude Code plugin
+
+This repo is also a single-plugin Claude marketplace named **`vaiyav-plugins`** (defined in [`.claude-plugin/marketplace.json`](./.claude-plugin/marketplace.json), with the plugin manifest in [`.claude-plugin/plugin.json`](./.claude-plugin/plugin.json)). Add the marketplace, then install the plugin.
+
+Inside Claude Code (or the Claude desktop app):
+
+```text
+/plugin marketplace add VaiYav/speckit-product-forge
+/plugin install speckit-product-forge@vaiyav-plugins
+```
+
+From the terminal:
+
+```bash
+claude plugin marketplace add VaiYav/speckit-product-forge
+claude plugin install speckit-product-forge@vaiyav-plugins
+```
+
+Pin to a tag or branch with `@ref`:
+
+```bash
+claude plugin marketplace add VaiYav/speckit-product-forge@v1.7.0
+```
+
+**Command names when installed as a plugin** are namespaced with the plugin name — e.g. `/speckit-product-forge:forge`, `/speckit-product-forge:status`, `/speckit-product-forge:research`. (As a SpecKit extension the same commands are `/speckit.product-forge.forge`, etc. — see Option B.)
+
+Verify and update:
+
+```bash
+claude plugin marketplace update vaiyav-plugins   # pull new commits / versions
+# In Claude Code, run /plugin to see speckit-product-forge listed and enabled.
+```
+
+> Validate the manifests locally before pushing changes: `claude plugin validate .`
+
+### Option B — SpecKit extension
+
+#### Install (latest version)
 
 ```bash
 specify extension add product-forge --from https://github.com/VaiYav/speckit-product-forge/archive/refs/heads/main.zip
 ```
 
-### Install (specific version)
+#### Install (specific version)
 
 ```bash
-specify extension add product-forge --from https://github.com/VaiYav/speckit-product-forge/archive/refs/tags/v1.5.1.zip
+specify extension add product-forge --from https://github.com/VaiYav/speckit-product-forge/archive/refs/tags/v1.7.0.zip
 ```
 
-### Update to latest
+#### Update to latest
 
 ```bash
 specify extension update product-forge --from https://github.com/VaiYav/speckit-product-forge/archive/refs/heads/main.zip
 ```
 
-### Update to specific version
+#### Update to specific version
 
 ```bash
-specify extension update product-forge --from https://github.com/VaiYav/speckit-product-forge/archive/refs/tags/v1.5.1.zip
+specify extension update product-forge --from https://github.com/VaiYav/speckit-product-forge/archive/refs/tags/v1.7.0.zip
 ```
 
-### Verify installation
+#### Verify installation
 
 ```bash
 specify extension list
-# Should show: product-forge  v1.5.1  enabled
+# Should show: product-forge  v1.7.0  enabled
 ```
 
 ---
 
 ### After installing: configure your project
 
-Copy the config template to your project root:
+Copy the config template to your project root.
+
+SpecKit extension:
 
 ```bash
 mkdir -p .product-forge
 cp $(specify extension path product-forge)/config-template.yml .product-forge/config.yml
+```
+
+Claude plugin (the template ships in the plugin cache; pull it straight from the repo):
+
+```bash
+mkdir -p .product-forge
+curl -fsSL https://raw.githubusercontent.com/VaiYav/speckit-product-forge/main/config-template.yml \
+  -o .product-forge/config.yml
 ```
 
 Edit `.product-forge/config.yml`:
@@ -436,7 +514,11 @@ default_speckit_mode: "ask"   # classic | v-model | ask
 ### Run
 
 ```
+# SpecKit extension
 /speckit.product-forge.forge Build a push notification preferences screen
+
+# Claude plugin (namespaced with the plugin name)
+/speckit-product-forge:forge Build a push notification preferences screen
 ```
 
 ---

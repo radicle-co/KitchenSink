@@ -21,12 +21,21 @@ $ARGUMENTS
 
 ---
 
+> **Interaction (normative):** the approval gate in this phase uses the structured
+> convention in [docs/interaction.md](../docs/interaction.md) (ready snippets in
+> [docs/templates/interaction-prompts.md](../docs/templates/interaction-prompts.md)).
+> Present the *Gate* template — labeled options, recommended first, free-text
+> fallback — at the genuine approve/revise decision rather than a free-form
+> "say APPROVED" prompt. Mid-loop change confirmations stay free-text.
+
+---
+
 ## Step 1: Load All Artifacts
 
 Read the full product-spec/ folder:
 - `{FEATURE_DIR}/product-spec/README.md` — document index
 - `{FEATURE_DIR}/product-spec/product-spec.md` — main PRD
-- `{FEATURE_DIR}/product-spec/user-journey*.md` — all journey files
+- `{FEATURE_DIR}/product-spec/journeys/journeys.yml` + `JRN-*.md` — structured journeys
 - `{FEATURE_DIR}/product-spec/wireframes*.md` or `wireframes/` — all wireframe files
 - `{FEATURE_DIR}/product-spec/metrics.md` — if exists
 - `{FEATURE_DIR}/product-spec/mockups/` — if exists
@@ -73,6 +82,25 @@ Also initialize `{FEATURE_DIR}/review.md` if it doesn't exist:
 
 ## Step 2: Present Summary for Review
 
+### 2.0. Re-run? Lead with the diff since last approval
+
+Check for a prior approval: a `## ✅ APPROVED` section in `{FEATURE_DIR}/review.md`
+(or a populated `## Change History`) means this feature was approved before and is now
+being re-revalidated.
+
+- **On a re-run (prior approval exists):** read the *"Diff since last approved state"*
+  section of the product-spec digest at `{FEATURE_DIR}/product-spec/digest.md` (written
+  per [phase-digest.md](../docs/templates/phase-digest.md)) and lead the review with
+  **what changed since the last approval** — Added / Changed / Removed — rather than a
+  full re-read of every document. Reviewers read the diff, not the whole artifact.
+  Fall back to the full summary below only for sections the digest does not cover.
+  If the digest is missing, note *"No prior digest — showing full summary"* and proceed
+  to the full summary.
+- **On the first run (no prior approval):** skip this sub-step and show the full
+  summary below.
+
+### 2.1. Full summary
+
 Show the user a structured overview of everything in the product spec.
 **Do not** paste full documents — show a navigable summary:
 
@@ -109,11 +137,22 @@ Total documents: {N}
 Open questions in spec: {N}
 ```
 
-Then ask:
-*"Please review the summary above. Read the full documents in `{FEATURE_DIR}/product-spec/` and tell me:*
-- *What needs to be changed, added, or removed?*
-- *You can list multiple changes in a single message.*
-- *When everything looks good, say: **APPROVED** or **LGTM***"*
+Then present the **Gate** prompt from
+[interaction-prompts.md](../docs/templates/interaction-prompts.md):
+
+```
+[Gate] Product spec ready for review — {N} documents, {N} open questions. How do you want to proceed?
+
+  1. Approve (recommended) — lock the spec and continue to bridge
+  2. Revise — list changes to apply (you can give several in one message)
+  3. Skip — proceed without revalidation (a reason may be required)
+  4. Rollback — return to an earlier phase by name
+  5. Abort — stop the lifecycle for this feature
+  (or type your own answer)
+```
+
+Read the full documents in `{FEATURE_DIR}/product-spec/` first. **Revise** routes to
+the revision loop (Step 3); **Approve** routes to Step 4.
 
 ---
 
@@ -142,7 +181,7 @@ Parse the user's feedback into a structured change list:
   → Change: {what to change}
   → Details: {user's exact request}
 
-[ADD] user-journey-checkout.md
+[ADD] journeys/JRN-00N-checkout.md (+ journeys.yml entry)
   → Add: {what to add}
 
 [REMOVE] metrics.md § Leading Indicators
@@ -221,8 +260,21 @@ Key changes summary:
 {bullet list of the most important modifications}
 ```
 
-Then ask again:
-*"Does everything look good now? Review the updated documents in `{FEATURE_DIR}/product-spec/` and let me know if anything else needs changing, or say **APPROVED** to lock the spec."*
+Then present a **Gate** prompt scoped to the in-loop decision (review the updated
+documents in `{FEATURE_DIR}/product-spec/` first). Mid-loop, only Approve / Revise /
+Abort are meaningful — Skip/Rollback apply at the phase gate (Step 2), not between
+revision iterations:
+
+```
+[Gate] Revision #{N} applied — {N} changes. How do you want to proceed?
+
+  1. Approve (recommended) — lock the spec and continue to bridge
+  2. Revise — list more changes to apply
+  3. Abort — stop the lifecycle for this feature
+  (or type your own answer)
+```
+
+**Revise** loops back (Step 3F); **Approve** routes to Step 4.
 
 ### 3F. Loop Back
 
@@ -240,11 +292,21 @@ Before locking, run a quick consistency pass:
 1. Are all cross-links in product-spec/README.md still valid?
 2. Do all wireframe files exist that are referenced?
 3. Are there any open questions in product-spec.md that should be answered before proceeding?
-4. Do user stories in product-spec.md align with journeys in user-journey files?
+4. Do user stories in product-spec.md align with journeys in `journeys/journeys.yml` (each US maps to ≥1 JRN)?
+5. **Determinism lens (v1.6, W5-E1).** For *each acceptance criterion* under each
+   Must-Have user story in `product-spec.md`, ask the literal adversarial question:
+   **"Would two competent implementers build materially different things from this
+   criterion?"** Flag the criterion as ambiguous if any of: it has no observable/
+   measurable outcome; it relies on a subjective term (`fast`, `intuitive`, `secure`,
+   etc.) with no defined threshold; or it leaves a branch (error path, empty/limit
+   state, permission case) unspecified. Produce a short list of the criteria that
+   failed the lens, naming the US/AC and the divergence each one allows.
 
 If consistency issues found:
 - Minor (broken link, typo) → fix silently and note in review.md
-- Moderate (story/journey mismatch) → flag to user, ask if should fix now or proceed anyway
+- Moderate (story/journey mismatch, ambiguous acceptance criterion) → flag to user,
+  ask if should fix now or proceed anyway; record any criterion sharpened or
+  deferred in the `## Open Questions Resolution` table in review.md
 
 ### 4B. Lock the Spec
 
@@ -259,7 +321,7 @@ Update `{FEATURE_DIR}/review.md` final status:
 | Document | Lines | Last Modified |
 |----------|-------|---------------|
 | product-spec.md | {N} | {date} |
-| user-journey-*.md | {N} | {date} |
+| journeys/journeys.yml + JRN-*.md | {N} | {date} |
 | wireframes* | {N} | {date} |
 | metrics.md | {N} | {date} |
 | mockups/ | {N} files | {date} |
@@ -306,7 +368,7 @@ Action required: re-run `/speckit.product-forge.bridge` to regenerate spec.md.
 
 {N} documents finalized:
   • product-spec.md — {N} user stories, {N} requirements
-  • user-journey files — {N} flows documented
+  • journeys/journeys.yml — {N} structured journeys (JRN/STEP/EDGE)
   • wireframes — {N} screens
   • {metrics.md if exists}
   • {mockups if exist}

@@ -22,6 +22,10 @@ The next step is `/speckit.product-forge.implement` (or any custom step you want
 $ARGUMENTS
 ```
 
+If `$ARGUMENTS` contains **`--dry-run`**, honor [docs/runtime.md §7](../docs/runtime.md#7-dry-run-semantics):
+write `tasks.md` (and traceability seeding) under `{FEATURE_DIR}/.forge-dry-run/tasks/`,
+do **not** update `.forge-status.yml`, and emit a `DRY-RUN-REPORT.md`.
+
 ---
 
 ## Step 1: Validate Prerequisites
@@ -79,8 +83,17 @@ After SpecKit tasks returns, read `tasks.md` and check:
 | No orphan tasks (tasks without traceable requirement)? | ✅/⚠️/❌ | |
 | Task granularity appropriate? (not too large, not trivial) | ✅/⚠️/❌ | |
 | Dependency order is sensible? (data model before service before controller) | ✅/⚠️/❌ | |
+| No contradictory tasks / impossible ordering assumed? (v1.6, W5-E1) | ✅/⚠️/❌ | List conflicts |
 
-If ❌ found: surface specific gaps (e.g., "US-003 has no task"), ask user how to resolve.
+For the last row, read the task list adversarially and ask the literal question:
+**"Do any tasks conflict or assume an impossible order?"** Flag a pair when: two tasks
+make mutually exclusive assumptions or edit the same artifact in incompatible ways; a
+task depends (explicitly or via shared `Paths:`) on output a later task produces; or a
+task assumes a prerequisite no listed task ever creates. Name the offending `T-NNN`
+pair and the conflict.
+
+If ❌ found: surface specific gaps (e.g., "US-003 has no task"; "T0xx reads the schema
+T0yy only adds later"), ask user how to resolve.
 If only ✅/⚠️: proceed to Step 4.1.
 
 ### Step 4.1: Structural validation (hard checks — never ship past these)
@@ -107,6 +120,38 @@ checks. Failures are hard errors — fix and regenerate, do not gate.
    are always accepted (exploratory tasks).
 
 Both checks are deterministic and cheap. Neither requires an LLM pass.
+
+### Step 4.2: Seed the live traceability matrix (v1.6, Theme C)
+
+Create/update `{FEATURE_DIR}/traceability.yml` (see
+[docs/templates/traceability-matrix.md](../docs/templates/traceability-matrix.md)).
+For each requirement row, fill `tasks: [TASK-*]` now (other columns — `code`,
+`tests`, `events` — are filled by later phases). This is the single live matrix
+that `verify-full` consumes instead of re-deriving the chain.
+
+For UI work, each frontend task SHOULD reference the design-system component(s) it
+implements (`CMP-*` from `product-spec/mockups/component-map.yml`) and its target
+path, so the component map and tasks stay linked. For backend work, reference the
+`API-*` contract(s) the task implements.
+
+### Step 4.3: Test-first task ordering (v1.6, Theme D)
+
+Per the spec-kit "Red" gate: for each Must-Have story/journey, order the test task
+(`TC-*`) **before** its implementation task so tests can be written and confirmed
+failing before code (enforced at the Phase 5B→6 boundary by `implement`).
+
+Mark each such test task with a literal `Test-first: true` sub-line (same shape as the
+`Paths:` / `Size:` sub-lines), so `implement` Step 2.5 can select them by name:
+
+```markdown
+- [ ] TC012 — Unit test: token validation rejects malformed tokens
+      Paths: src/modules/users/users.service.test.ts
+      Test-first: true
+      Size: S
+```
+
+Scope: this marker is for the unit/contract test tasks the Red gate covers — not the
+Phase 8 browser E2E suite.
 
 ---
 

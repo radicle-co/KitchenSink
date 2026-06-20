@@ -1,6 +1,7 @@
 installed:
 - agent-context
 - product-forge
+- red-team
 - v-model
 settings:
   auto_execute_hooks: true

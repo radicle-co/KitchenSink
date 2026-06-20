@@ -22,6 +22,17 @@ enriched with full product context from research, spec, and plan artifacts.
 $ARGUMENTS
 ```
 
+If `$ARGUMENTS` contains **`--cross-model`** (optionally `--cross-model <reviewer-id>`),
+run the cross-model review loop in **Step 2.5** — export the consolidated review
+surface as a portable package, have a *different* model review it, and ingest the
+result back into the `F-NNN` namespace. See Step 2.5. Without the flag, code-review
+runs single-model as before.
+
+If `$ARGUMENTS` contains **`--dry-run`**, honor [docs/runtime.md §7](../docs/runtime.md#7-dry-run-semantics):
+write `code-review.md` / `gate-review.md` additions and any cross-review package
+under `{FEATURE_DIR}/.forge-dry-run/code_review/`, record **no** `gates[]` entry
+or status change, emit a `DRY-RUN-REPORT.md`, and make no external side-effect.
+
 ---
 
 ## Step 0: Load Context
@@ -41,7 +52,20 @@ Load artifacts:
 
 ---
 
+> **Interaction (normative):** the review gate (Step 5) and any in-review question use
+> the structured convention in [docs/interaction.md](../docs/interaction.md) (ready
+> snippets in [docs/templates/interaction-prompts.md](../docs/templates/interaction-prompts.md)).
+> Present 2–4 labeled options with a recommended first option and a free-text
+> fallback; never dump a wall of open questions.
+
 ## Step 1: Build Review Scope
+
+**Lead with the diff since the last reviewed state.** If this feature has a prior
+code-review (a recorded `code_review` gate, or a `phase-digest.md` with a Diff
+section), review only what changed since then: reuse that digest's Diff section, or
+run `git diff <last-reviewed-ref>..HEAD` over `REVIEW_FILES`. Re-read whole files only
+on the first review, or for a file whose changed lines can't be understood in
+isolation. This keeps re-runs proportional to the delta, not the codebase.
 
 From `tasks.md`, extract all `[x]` completed tasks and their associated file paths.
 Build the `REVIEW_FILES` set — all files created or modified during implementation.
@@ -59,9 +83,28 @@ or attempt to detect via git diff if available.
 
 ---
 
+## Step 1.5: Machine gates first (two-layer review, v1.6, Theme D)
+
+Code review is a **two-layer** process: deterministic machine gates run *before* the
+agent/human judgment dimensions. Run the project's mechanical checks over
+`REVIEW_FILES` and the affected workspaces and record results:
+
+| Gate | Command (resolve from stack) | Blocks human review? |
+|------|------------------------------|----------------------|
+| Lint | project linter | Yes if errors |
+| Types | type checker (tsc / mypy / etc.) | Yes if errors |
+| Security scan (SCA) | `osv-scanner --recursive .` — same SCA tool as [release-readiness](release-readiness.md) §5C; + project SAST | Yes on high/critical |
+| Coverage thresholds | test runner coverage vs [testing-strategy.md](../docs/testing-strategy.md) | Yes if below min |
+
+If a machine gate fails, surface it and stop before the judgment dimensions — there
+is no point spending review effort on code that doesn't lint, type-check, or meet
+coverage. Only once machine gates pass do the agent dimensions (Step 2) run; the
+human gate (Step 5) is the final layer. Record machine-gate results in
+`code-review.md` under a "Machine gates" section.
+
 ## Step 2: Run Review Dimensions (Parallel)
 
-Run all four review dimensions simultaneously. Each produces a findings list.
+Run all review dimensions simultaneously. Each produces a findings list.
 
 ### Dimension 1: Code Quality
 
@@ -97,6 +140,12 @@ Based on `plan.md` threat model (what attack surfaces this feature introduces):
 
 Only check surfaces present in this feature (from plan.md). Don't flag irrelevant categories.
 
+> **Dependency CVEs (v1.6, W5-B3):** vulnerable third-party dependencies are *not* re-judged
+> here — that surface is enforced mechanically by `osv-scanner --recursive .` in the Step 1.5
+> machine gate (the same SCA tool [release-readiness](release-readiness.md) §5C runs), so the
+> two-layer review and the release gate share one tool. This dimension covers application-code
+> security only.
+
 ### Dimension 3: Pattern Consistency
 
 From `research/codebase-analysis.md`, extract existing project conventions:
@@ -126,13 +175,90 @@ Check:
 - Edge cases from spec.md acceptance criteria are covered
 - Test files follow project conventions (from codebase-analysis.md)
 
+### Dimension 5: Doc ↔ Code Reconciliation (v1.6, Theme G)
+
+Using `traceability.yml`, the contracts (OpenAPI/AsyncAPI), `component-map.yml`, and
+canonical `specs/` (if present):
+- Every documented requirement / endpoint / component in scope maps to code.
+- Every significant new code path maps to a documented requirement / task.
+
+Flag **unimplemented docs** (HIGH) and **undocumented code** (MEDIUM). For genuine
+behavior drift, write the suggested canonical-spec update into the **Suggested
+canonical-spec updates** section of `code-review.md` (Step 4, below) — the same
+carrier `verify-full` uses — so `spec-merge` (Theme B) can consume it.
+
+> **Severity note (CF-35):** `verify-full` Layer 10 escalates the same doc↔code
+> drift conditions to CRITICAL/WARNING as the final gate. The HIGH/MEDIUM applied
+> here is intentionally phase-appropriate, not a weaker duplicate of that gate.
+
+---
+
+## Step 2.5: Cross-Model Review (opt-in, `--cross-model`, v1.7, P1-B)
+
+PF's Step 2 dimensions are multi-*agent* but run on **one model family** — a model
+reviewing output from its own family tends to rationalize it. A *different* model
+brings different priors, bug sensitivity, and rule interpretation. **Run this step
+only when `--cross-model` was passed**; otherwise skip straight to Step 3.
+
+This builds directly on PF's already-consolidated review surface — no new format:
+the `gate-review.md` `F-NNN` namespace + the git diff *are* the package.
+
+1. **Export a portable review package.** Write
+   `{FEATURE_DIR}/cross-review/<UTC-timestamp>-<slug>/review-package.md`
+   containing, in order:
+   - the feature's `spec.md` acceptance criteria + `plan.md` architecture/threat
+     notes (the contract the reviewer judges against),
+   - the **git diff** of the implementation (`git diff <base>..HEAD`; default
+     base = the feature branch point, overridable with `--base <ref>`),
+   - the current `gate-review.md` open `F-NNN` findings (so the reviewer
+     augments, not re-derives),
+   - an explicit instruction block: *"You are an independent reviewer. Emit
+     findings as `F-NNN` rows (severity, file:line, rule, suggested fix). Do not
+     assume the author's intent was correct."*
+   Also write a sibling `metadata.json` (`base_sha`, `head_sha`, `reviewer_id`,
+   `created_at`). This is the portable handoff — the reviewer needs no access to
+   this session.
+2. **Run the reviewer out-of-band.** The reviewer model is **not** this session.
+   Resolve the reviewer id from `--cross-model <id>` or config
+   `review.cross_model` (e.g. `codex`, `gemini`, another `claude` session, a local
+   model, or a separate Hermes session). Tell the user the exact command to run,
+   e.g.:
+   ```bash
+   PKG={FEATURE_DIR}/cross-review/<ts>-<slug>
+   codex exec --file $PKG/review-package.md > $PKG/review-report.md
+   # or: gemini / a second claude / hermes — any CLI-capable model
+   ```
+   PF does not silently invoke another paid model — the user runs (or confirms)
+   the reviewer. When running inside Hermes, this MAY be delegated to a subagent
+   pinned to a different model, still writing `review-report.md`.
+3. **Ingest the report.** Read `review-report.md`, dedupe its findings against the
+   existing `F-NNN` set (same file:line + rule = same finding; raise severity to
+   the max of the two), and **append genuinely new findings** to `gate-review.md`
+   with `source: cross-model` + `reviewer: <id>` + `raised@{head-sha}`. Cross-model
+   findings flow through the same gate (Step 5) as native ones.
+4. **Stamp the carrier.** Record on the eventual gate entry (Step 6)
+   `reviewed_by_model: <id>` and `cross_model_findings: {N}` so the audit trail
+   shows the review was cross-model and by which model.
+
+> Degradation: if no reviewer is configured/available, emit the package, tell the
+> user where it is, and proceed single-model — the package is still a useful
+> portable artifact. The loop is complementary to PF's flow, never a replacement.
+
 ---
 
 ## Step 3: Compile Findings
 
+> **Emit into the unified gate surface (W5-A3).** Also append each finding to
+> `{FEATURE_DIR}/gate-review.md` under the single `F-NNN` namespace with
+> `source: code-review` + `dimension: quality|security|patterns|tests|doc-code`
+> and `raised@{git-sha}` — read the current max `F-NNN` first; don't renumber.
+> The `REV-NNN` ids below remain the in-document local labels; the gate reads
+> `gate-review.md`. See [docs/templates/gate-review.md](../docs/templates/gate-review.md)
+> and [docs/policy.md §9](../docs/policy.md#9-gate-review-surface--risk-routing-w5-a).
+
 Each finding:
 
-```markdown
+````markdown
 ### REV-{NNN}: {short title}
 
 | Field | Value |
@@ -154,7 +280,7 @@ Each finding:
 // After
 {suggested code}
 ```
-```
+````
 
 Severity assignment:
 - **CRITICAL**: Security vulnerability, data loss risk, broken functionality
@@ -183,7 +309,10 @@ Write `{FEATURE_DIR}/code-review.md`:
 | Security | {N} | {N} | {N} | {N} | {N} |
 | Patterns | {N} | {N} | {N} | {N} | {N} |
 | Tests | {N} | {N} | {N} | {N} | {N} |
+| Doc↔Code | {N} | {N} | {N} | {N} | {N} |
 | **Total** | **{N}** | **{N}** | **{N}** | **{N}** | **{N}** |
+
+> Machine gates (lint / types / security scan / coverage): {PASS/FAIL summary}
 
 **Recommendation:** {PROCEED TO VERIFY / FIX CRITICAL+HIGH FIRST / NEEDS REWORK}
 
@@ -208,6 +337,17 @@ Write `{FEATURE_DIR}/code-review.md`:
 | Requirement | Test Status | Gap |
 |------------|:----------:|-----|
 | {requirements with missing or inadequate tests} |
+
+## Suggested canonical-spec updates (Theme G)
+
+> Doc↔code drift found in Dimension 5 that `spec-merge` should reconcile. One row per
+> proposed delta, keyed on `FR-*`; `spec-merge` consumes this section by name (same
+> carrier as `verify-full`'s "Suggested canonical-spec updates"). Omit if no drift.
+
+| FR / domain | Current canonical text | Observed-from-code behavior | Proposed delta |
+|-------------|------------------------|-----------------------------|----------------|
+| FR-NNN | {what the spec says} | {what the code actually does} | MODIFY FR-NNN: {proposed change} |
+| {domain} | {none — undocumented} | {observed behavior} | ADD FR-NNN: {proposed addition} |
 
 ## Review Checklist
 
@@ -261,11 +401,26 @@ REV-001 [CRITICAL] Security: Missing ownership check in updateNotificationPrefer
   → [Fix now] [Acknowledge — fix later] [Not applicable — explain why]
 ```
 
-Gate options:
-- **Approve** — all CRITICAL/HIGH addressed, proceed to Phase 7
-- **Fix now** — user fixes specific findings, then re-run review on affected files
-- **Acknowledge** — user accepts findings, they become warnings in verify-report.md
-- **Skip** — user proceeds without addressing (not recommended, recorded in audit trail)
+Gate (structured — see [interaction-prompts.md](../docs/templates/interaction-prompts.md#gate-after-every-phase)):
+
+```
+[Gate] Code review complete — {one-line outcome}. How do you want to proceed?
+
+  1. Approve (recommended) — all CRITICAL/HIGH addressed; proceed to Phase 7
+  2. Revise — re-run the review (or re-review affected files after fixes)
+  3. Skip — proceed without addressing (not recommended; reason may be required)
+  4. Rollback — return to an earlier phase by name (e.g. Phase 6 Implement)
+  5. Abort — stop the lifecycle for this feature
+  (or type your own answer)
+```
+
+- **Approve** maps to `approved`. If the user accepts open findings as warnings
+  (the per-finding *Acknowledge* path above), record `approved_with_conditions`.
+- **Revise** → `revised`; **Skip** → `skipped`; **Rollback** → `rolled_back` (with
+  `rolled_back_to`); **Abort** → `aborted`.
+- Per-finding handling (**Fix now** / **Acknowledge** / **Not applicable**) is offered
+  inside option 1/2 above; it tunes the finding set, the gate decision stays one of the
+  canonical literals.
 
 ---
 
@@ -283,9 +438,12 @@ Record gate decision:
 ```yaml
 gates:
   - phase: code_review
-    decision: "{approved / approved_with_conditions / skipped}"
+    decision: "{approved / approved_with_conditions / revised / skipped / rolled_back / aborted}"
+    rolled_back_to: "{phase}"   # only when decision is rolled_back
     timestamp: "{ISO timestamp}"
     notes: "{summary}"
+    reviewed_by_model: "{reviewer-id or null}"   # v1.7 P1-B — set when --cross-model ran; null otherwise
+    cross_model_findings: {N}                     # v1.7 P1-B — new findings the cross-model reviewer added (0 if not run)
     findings:
       critical: {N}
       high: {N}

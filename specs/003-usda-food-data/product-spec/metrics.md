@@ -6,6 +6,8 @@
 **Source**: [product-spec.md](./product-spec.md), [spec.md](../spec.md)
 **Distinction from research/metrics-roi.md**: That file covers portfolio-level ROI and system SLO framing. This file is story-level — per-user-story measurable outcomes for product teams.
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Metric Notation
@@ -78,11 +80,11 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 **FRs**: FR-014, FR-015, FR-016, FR-017, FR-018
 
-| Metric ID    | Metric                                      | Target                           | Source                   | Signal                           |
-| ------------ | ------------------------------------------- | -------------------------------- | ------------------------ | -------------------------------- |
-| MET-US005-01 | High-priority starvation incidents          | 0                                | Queue-age dashboards     | high-priority age alarm count    |
-| MET-US005-02 | DLQ capture correctness                     | 100% after max retries           | SQS metrics              | failed messages observed in DLQ  |
-| MET-US005-03 | Queue drain recovery time after USDA outage | <= 4 hours for backlog under 10k | Queue + consumer metrics | backlog peak to normalized depth |
+| Metric ID    | Metric                                      | Target                           | Source                   | Signal                                       |
+| ------------ | ------------------------------------------- | -------------------------------- | ------------------------ | -------------------------------------------- |
+| MET-US005-01 | High-priority starvation incidents          | 0                                | Queue-age dashboards     | high-priority age alarm count                |
+| MET-US005-02 | Tombstone capture correctness               | 100% after max retries           | Postgres/CloudWatch      | failed rows observed as `status='tombstone'` |
+| MET-US005-03 | Queue drain recovery time after USDA outage | <= 4 hours for backlog under 10k | Queue + consumer metrics | backlog peak to normalized depth             |
 
 ---
 

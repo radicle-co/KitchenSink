@@ -3,6 +3,8 @@
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
 **Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Overview
@@ -46,17 +48,17 @@ This document captures success metrics and ROI hypotheses for feature 003. It co
 
 ## 2. Performance SLOs (Success Criteria)
 
-| Metric                         | SLO                                       | Source |
-| ------------------------------ | ----------------------------------------- | ------ |
-| Local cache-hit lookup latency | p95 <= 50ms                               | SC-001 |
-| USDA limit compliance          | 0 normal-operation 429s                   | SC-002 |
-| Pending-to-available latency   | p95 <= 60s (queue depth <100)             | SC-003 |
-| Local cache hit rate           | >80% once store >5,000 foods              | SC-004 |
-| Batch throughput efficiency    | >=5,000 foods/hour effective              | SC-005 |
-| Queue failure capture          | 100% failed messages in DLQ after retries | SC-006 |
-| Search latency                 | p95 <= 200ms at 50k foods                 | SC-007 |
-| Nutrient fidelity              | Source-value parity at ingest             | SC-008 |
-| API availability               | 99.9% monthly                             | SC-009 |
+| Metric                         | SLO                                                                           | Source |
+| ------------------------------ | ----------------------------------------------------------------------------- | ------ |
+| Local cache-hit lookup latency | p95 <= 50ms                                                                   | SC-001 |
+| USDA limit compliance          | 0 normal-operation 429s                                                       | SC-002 |
+| Pending-to-available latency   | p95 <= 60s (queue depth <100)                                                 | SC-003 |
+| Local cache hit rate           | >80% once store >5,000 foods                                                  | SC-004 |
+| Batch throughput efficiency    | >=5,000 foods/hour effective                                                  | SC-005 |
+| Queue failure capture          | 100% terminal failures tombstoned (status='tombstone') after the retry budget | SC-006 |
+| Search latency                 | p95 <= 200ms at 50k foods                                                     | SC-007 |
+| Nutrient fidelity              | Source-value parity at ingest                                                 | SC-008 |
+| API availability               | 99.9% monthly                                                                 | SC-009 |
 
 ---
 

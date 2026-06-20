@@ -49,7 +49,13 @@ phases:
 
     bridge:
         state: complete
-        note: spec.md already exists from SpecKit flow; bridge is a no-op.
+        note: >
+            spec.md already exists from the SpecKit flow; forward bridge is a no-op (retroactive
+            bootstrap — spec.md leads the forge lineage). 2026-06-20: ran a BACKWARD sync instead —
+            product-spec/ (product-spec.md, user-journey.md, metrics.md) + research/ (codebase-analysis,
+            tech-stack, README, ux-patterns, competitors, metrics-roi) updated to reflect the clarified
+            spec design (Postgres-as-queue + Fargate worker, rolling-60-min window, dynamic demotion,
+            SWR/tombstone-TTL/batch-partial). spec.md NOT modified.
         artifact: spec.md
 
     plan:

@@ -10,12 +10,12 @@
 
 ## Package Layout & Database (locked 2026-06-19)
 
-| Package                            | Path                             | Role                                                                                                                                                                                                                                                                              |
-| ---------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate behind ALB** — `/v1/foods/*` API + `FoodAuthGuard` (in-process Clerk `AuthMiddleware`), Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`, like `@kitchensink/identity-service`). |
-| `@kitchensink/usda-client`         | `packages/clients/usda`          | External **USDA FoodData Central** client library (typed `getFood`/`getFoodsBatch`/`searchFoods` + error types). No DB, no HTTP server. Consumed by `food-service`.                                                                                                               |
-| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services (001/006/007/009 — the M2M callers).                                                                                                                                                   |
-| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service's `ClerkAuthService`; consumed by both identity and food-service.                                                                                                              |
+| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB** (global infra, host-based listener rule at priority 200 — not its own ALB) — `/v1/foods/*` API + `FoodAuthGuard` (in-process Clerk `AuthMiddleware`), Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`, like `@kitchensink/identity-service`). |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | External **USDA FoodData Central** client library (typed `getFood`/`getFoodsBatch`/`searchFoods` + error types). No DB, no HTTP server. Consumed by `food-service`.                                                                                                                                                                                                                          |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services (001/006/007/009 — the M2M callers).                                                                                                                                                                                                                                                              |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service's `ClerkAuthService`; consumed by both identity and food-service.                                                                                                                                                                                                                         |
 
 > `packages/clients/usda` and `packages/clients/food-service` MUST be added to the root
 > `package.json` `workspaces` array as **explicit paths** (`packages/clients` is a semantic
@@ -88,17 +88,23 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
       **Implements**: ARCH-001
 
     Create the food-service's own CDK (mirroring `packages/services/identity/infra/lib/`). The
-    `FoodServiceStack` defines the **ECS/Fargate** NestJS service (behind the shared ALB), the
-    Fargate consumer worker, the lambdas (stale-refresh, bulk-sync, search-indexer), and the
-    EventBridge (scheduled-producer) wiring — **no SQS** (the demand queue is the Postgres
-    `fetch_queue`). It does **NOT** create an RDS — it `Fn.importValue`s the shared
+    `FoodServiceStack` defines the **ECS/Fargate** NestJS service, the Fargate consumer worker, the
+    lambdas (stale-refresh, bulk-sync, search-indexer), and the EventBridge (scheduled-producer)
+    wiring — **no SQS** (the demand queue is the Postgres `fetch_queue`). It does **NOT** create its
+    own ALB: it `Fn.importValue`s the **single shared per-stage ALB** (owned by the global infra,
+    `kitchensink-alb-{stage}`) HTTPS listener and adds a **host-based listener rule** (priority 200)
+    routing `food[.stage].{domain}` to its own target group, plus the A-record aliased to the shared
+    ALB. It also does **NOT** create an RDS — it `Fn.importValue`s the shared
     `kitchensink-data-{stage}:Database{Endpoint,Port,SecretArn}` and the new
     `kitchensink-data-{stage}:FoodDbSecretArn` (T-001b) and connects to the `kitchensink_food`
     database.
 
     **Acceptance**:
-    - `cdk synth` produces valid CloudFormation with no errors and **no new RDS resource**
-    - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret
+    - `cdk synth` produces valid CloudFormation with no errors, **no new RDS resource**, and
+      **no per-service ALB** (0 `AWS::ElasticLoadBalancingV2::LoadBalancer`) — the stack instead
+      adds exactly one `AWS::ElasticLoadBalancingV2::ListenerRule` (host-header condition, priority 200) + one target group on the shared ALB's imported HTTPS listener, plus the A-record
+    - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret and the
+      shared ALB listener/ARN exports
 
 - [x] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
       **Story**: Foundation

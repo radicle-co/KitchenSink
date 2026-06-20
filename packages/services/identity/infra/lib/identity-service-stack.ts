@@ -4,7 +4,6 @@ import {
     Fn,
     Stack,
     type StackProps,
-    aws_certificatemanager as acm,
     aws_cloudwatch as cloudwatch,
     aws_cloudwatch_actions as cloudwatch_actions,
     aws_ec2 as ec2,
@@ -249,21 +248,6 @@ export class IdentityServiceStack extends Stack {
             zoneName: domainName,
         });
 
-        const certificate = acm.Certificate.fromCertificateArn(
-            this,
-            'ImportedCertificate',
-            Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
-        );
-
-        const loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'IdentityServiceAlb', {
-            vpc,
-            internetFacing: true,
-            securityGroup: albSecurityGroup,
-            vpcSubnets: {
-                subnetType: ec2.SubnetType.PUBLIC,
-            },
-        });
-
         const targetGroup = new elbv2.ApplicationTargetGroup(this, 'IdentityServiceTargets', {
             vpc,
             port: 3000,
@@ -281,31 +265,40 @@ export class IdentityServiceStack extends Stack {
             },
         });
 
-        const httpsListener = loadBalancer.addListener('IdentityServiceHttpsListener', {
-            port: 443,
-            certificates: [certificate],
-            open: true,
-        });
-        httpsListener.addTargetGroups('IdentityServiceHttpsTargetGroup', {
+        // Shared per-stage ALB (owned by the global infra — kitchensink-alb-${stage}). This service
+        // does NOT create its own ALB; it imports the shared HTTPS listener and adds a host-based rule
+        // for its subdomain. See docs/architecture/decisions/0003-shared-alb-per-stage.md.
+        const sharedHttpsListener = elbv2.ApplicationListener.fromApplicationListenerAttributes(
+            this,
+            'SharedHttpsListener',
+            {
+                listenerArn: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbHttpsListenerArn`),
+                securityGroup: albSecurityGroup,
+            },
+        );
+
+        // Per-service listener-rule priority allocation: identity=100, food=200. Future services pick
+        // 300, 400, … (priorities must be unique across all rules on the shared listener).
+        new elbv2.ApplicationListenerRule(this, 'IdentityServiceListenerRule', {
+            listener: sharedHttpsListener,
+            priority: 100,
+            conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
             targetGroups: [targetGroup],
         });
 
-        const httpListener = loadBalancer.addListener('IdentityServiceListener', {
-            port: 80,
-            open: true,
-        });
-        httpListener.addAction('HttpRedirect', {
-            action: elbv2.ListenerAction.redirect({
-                protocol: 'HTTPS',
-                port: '443',
-                permanent: true,
-            }),
+        const sharedAlb = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(this, 'SharedAlb', {
+            loadBalancerArn: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbArn`),
+            securityGroupId: Fn.importValue(`kitchensink-network-${stage}:AlbSecurityGroupId`),
+            loadBalancerDnsName: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbDnsName`),
+            loadBalancerCanonicalHostedZoneId: Fn.importValue(
+                `kitchensink-alb-${stage}:SharedAlbCanonicalHostedZoneId`,
+            ),
         });
 
         new route53.ARecord(this, 'IdentityServiceAliasRecord', {
             zone: hostedZone,
             recordName: subdomain,
-            target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(loadBalancer)),
+            target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
         });
 
         this.serviceUrl = `https://${serviceDomain}`;
@@ -317,8 +310,10 @@ export class IdentityServiceStack extends Stack {
         });
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
 
+        // Per-service 5xx on the shared ALB. The ALB-level metric would now aggregate every service's
+        // 5xx, so this scopes to the identity target group's target 5xx count instead.
         const alb5xxAlarm = new cloudwatch.Alarm(this, 'IdentityAlb5xxAlarm', {
-            metric: loadBalancer.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT, {
+            metric: targetGroup.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT, {
                 period: Duration.minutes(5),
                 statistic: 'sum',
             }),
@@ -378,18 +373,6 @@ export class IdentityServiceStack extends Stack {
         new CfnOutput(this, 'IdentityTaskRoleArn', {
             value: taskRole.roleArn,
             exportName: `${this.stackName}:IdentityTaskRoleArn`,
-        });
-        new CfnOutput(this, 'IdentityAlbArn', {
-            value: loadBalancer.loadBalancerArn,
-            exportName: `${this.stackName}:IdentityAlbArn`,
-        });
-        new CfnOutput(this, 'IdentityAlbDnsName', {
-            value: loadBalancer.loadBalancerDnsName,
-            exportName: `${this.stackName}:IdentityAlbDnsName`,
-        });
-        new CfnOutput(this, 'IdentityAlbListenerArn', {
-            value: httpsListener.listenerArn,
-            exportName: `${this.stackName}:IdentityAlbListenerArn`,
         });
         new CfnOutput(this, 'IdentityAlbTargetGroupArn', {
             value: targetGroup.targetGroupArn,

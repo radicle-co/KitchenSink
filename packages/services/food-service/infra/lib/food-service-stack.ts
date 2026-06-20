@@ -4,7 +4,6 @@ import {
     Fn,
     Stack,
     type StackProps,
-    aws_certificatemanager as acm,
     aws_ec2 as ec2,
     aws_ecr as ecr,
     aws_ecs as ecs,
@@ -40,7 +39,8 @@ export interface FoodServiceStackProps extends StackProps {
 /**
  * Food service infrastructure (feature 003).
  *
- * Mirrors `IdentityServiceStack`: an ECS/Fargate NestJS service behind a public ALB. Additionally
+ * Mirrors `IdentityServiceStack`: an ECS/Fargate NestJS service fronted by the shared per-stage ALB
+ * (owned by the global infra) via a host-based listener rule. Additionally
  * defines the **Fargate consumer worker** (single desired count — the Postgres `fetch_queue` is the
  * demand queue, so there is NO SQS), the three lambdas (stale-refresh, bulk-sync, search-indexer),
  * and the EventBridge **scheduled-producer** wiring. It does NOT create an RDS instance — it
@@ -298,7 +298,10 @@ export class FoodServiceStack extends Stack {
             targets: [new targets.LambdaFunction(searchIndexerLambda)],
         });
 
-        // ── Public ALB + DNS (mirrors identity) ─────────────────────────────────────────────────
+        // ── Shared ALB host-rule + DNS (mirrors identity) ───────────────────────────────────────
+        // This service does NOT create its own ALB. It imports the shared per-stage ALB's HTTPS
+        // listener (owned by the global infra — kitchensink-alb-${stage}) and attaches a host-based
+        // rule for its subdomain. See docs/architecture/decisions/0003-shared-alb-per-stage.md.
         const isProd = stage === 'prod';
         const subdomain = isProd ? 'food' : `food.${stage}`;
         const serviceDomain = `${subdomain}.${domainName}`;
@@ -306,19 +309,6 @@ export class FoodServiceStack extends Stack {
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
             hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
             zoneName: domainName,
-        });
-
-        const certificate = acm.Certificate.fromCertificateArn(
-            this,
-            'ImportedCertificate',
-            Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
-        );
-
-        const loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'FoodServiceAlb', {
-            vpc,
-            internetFacing: true,
-            securityGroup: albSecurityGroup,
-            vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
         });
 
         const targetGroup = new elbv2.ApplicationTargetGroup(this, 'FoodServiceTargets', {
@@ -338,22 +328,37 @@ export class FoodServiceStack extends Stack {
             },
         });
 
-        const httpsListener = loadBalancer.addListener('FoodServiceHttpsListener', {
-            port: 443,
-            certificates: [certificate],
-            open: true,
-        });
-        httpsListener.addTargetGroups('FoodServiceHttpsTargetGroup', { targetGroups: [targetGroup] });
+        const sharedHttpsListener = elbv2.ApplicationListener.fromApplicationListenerAttributes(
+            this,
+            'SharedHttpsListener',
+            {
+                listenerArn: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbHttpsListenerArn`),
+                securityGroup: albSecurityGroup,
+            },
+        );
 
-        const httpListener = loadBalancer.addListener('FoodServiceListener', { port: 80, open: true });
-        httpListener.addAction('HttpRedirect', {
-            action: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }),
+        // Per-service listener-rule priority allocation: identity=100, food=200. Future services pick
+        // 300, 400, … (priorities must be unique across all rules on the shared listener).
+        new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {
+            listener: sharedHttpsListener,
+            priority: 200,
+            conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
+            targetGroups: [targetGroup],
+        });
+
+        const sharedAlb = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(this, 'SharedAlb', {
+            loadBalancerArn: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbArn`),
+            securityGroupId: Fn.importValue(`kitchensink-network-${stage}:AlbSecurityGroupId`),
+            loadBalancerDnsName: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbDnsName`),
+            loadBalancerCanonicalHostedZoneId: Fn.importValue(
+                `kitchensink-alb-${stage}:SharedAlbCanonicalHostedZoneId`,
+            ),
         });
 
         new route53.ARecord(this, 'FoodServiceAliasRecord', {
             zone: hostedZone,
             recordName: subdomain,
-            target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(loadBalancer)),
+            target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
         });
 
         this.serviceUrl = `https://${serviceDomain}`;

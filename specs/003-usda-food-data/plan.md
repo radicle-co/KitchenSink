@@ -49,12 +49,12 @@ Use Architecture 5 (Event-Driven Queue-Based) per user selection. This treats th
 
 ### Package & Infrastructure Layout (locked 2026-06-19)
 
-| Package                            | Path                             | Role                                                                                                                                                                                                                          |
-| ---------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate behind the shared ALB** — `/v1/foods/*` API + in-process `FoodAuthGuard`, Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`). |
-| `@kitchensink/usda-client`         | `packages/clients/usda`          | External USDA FoodData Central client library (typed wrapper; no DB/server).                                                                                                                                                  |
-| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for our `/v1/foods/*` API used by web/mobile + downstream (001/006/007/009 M2M callers).                                                                                                                         |
-| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification, extracted from the identity service.                                                                                                                                                   |
+| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB** (owned by the global infra) via a **host-based listener rule** (priority 200) — not its own ALB — `/v1/foods/*` API + in-process `FoodAuthGuard`, Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`). |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | External USDA FoodData Central client library (typed wrapper; no DB/server).                                                                                                                                                                                                                                                                       |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for our `/v1/foods/*` API used by web/mobile + downstream (001/006/007/009 M2M callers).                                                                                                                                                                                                                                              |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification, extracted from the identity service.                                                                                                                                                                                                                                                                        |
 
 **Database — reuse, no new RDS, no cluster.** The food tables live in a **separate logical
 database `kitchensink_food`** on the **existing shared instance `kitchensink-data-{stage}`** (a
@@ -191,9 +191,12 @@ prose), and every auth FR (FR-035–FR-052) traces to it.
   come from the validated JWT; no client-suppliable identity header is ever trusted.
 
 **Deployment decision (locked 2026-06-19): in-process NestJS middleware on ECS/Fargate.**
-FoodService is a NestJS service on **ECS/Fargate behind a public ALB** (same topology as
-the identity service). Therefore `FoodAuthGuard` is implemented as **NestJS `AuthMiddleware`
-running in-process**, not as a Lambda authorizer:
+FoodService is a NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB**
+(owned by the global infra; the service adds a host-based listener rule at priority 200 rather
+than creating its own ALB — same topology as the identity service, which uses priority 100).
+The service is still fronted by a **public, internet-facing ALB**, so the auth rationale is
+unchanged. Therefore `FoodAuthGuard` is implemented as **NestJS `AuthMiddleware` running
+in-process**, not as a Lambda authorizer:
 
 - An **API Gateway Lambda authorizer cannot front an ALB** — Lambda authorizers are an API
   Gateway / AppSync feature; ALB has no equivalent (its only native auth is redirect-based

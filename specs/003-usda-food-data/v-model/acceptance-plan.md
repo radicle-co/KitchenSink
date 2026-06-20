@@ -55,11 +55,11 @@ Examples:
 - **When** an authenticated client sends `GET /v1/foods/12345`
 - **Then** the response is `200 OK` with a complete nutrition payload; no USDA API call is made during the request lifecycle
 
-**ATS-001-A2**
+**ATS-001-A2** _(deferred Redis variant)_
 
-- **Given** a food record exists in the Redis cache for `fdcId = 12345` with `fetch_status = 'fetched'`
+- **Given** the deferred Redis cache is enabled and contains `fdcId = 12345` with `fetch_status = 'fetched'`
 - **When** an authenticated client sends `GET /v1/foods/12345`
-- **Then** the response is `200 OK` with a complete nutrition payload served from cache; no USDA API call is made
+- **Then** the response is `200 OK` with a complete nutrition payload served from cache; no USDA API call is made. _(Under the lean Postgres default this read is served by ATS-001-A1's indexed local-store `SELECT` instead.)_
 
 ---
 
@@ -441,7 +441,7 @@ Examples:
 
 - **Given** a `FoodRequested` row exists for `fdcId = 12399` and the USDA API returns `200 OK` with nutrition data
 - **When** the consumer processes the row
-- **Then** the food is stored locally with `fetch_status = 'fetched'`; the `fetch_queue` row is marked `status = 'done'`; a `FoodDataReceived` event is emitted to EventBridge; a subsequent `GET /v1/foods/12399` returns `200 OK` with the nutrition data
+- **Then** the food is stored locally with `fetch_status = 'fetched'`; the `fetch_queue` row is **deleted** on success (removed from the pending set) — there is no `done` status; a `FoodDataReceived` event is emitted to EventBridge; a subsequent `GET /v1/foods/12399` returns `200 OK` with the nutrition data
 
 ---
 
@@ -575,7 +575,7 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-037: No token → `401` at every entry point; no enqueue, no USDA call (US-0 AS-1)
+#### Tier 2 — REQ-037a–d: No token → `401` at every entry point; no enqueue, no USDA call (US-0 AS-1)
 
 **ATP-008-A** — Unauthenticated requests are rejected before any business logic, enqueue, or USDA call
 
@@ -591,7 +591,7 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-037: Valid Clerk session token → normal `200`/`202`/`404` handling (US-0 AS-2, AS-5)
+#### Tier 2 — REQ-037a–d: Valid Clerk session token → normal `200`/`202`/`404` handling (US-0 AS-2, AS-5)
 
 **ATP-008-B** — A valid Bearer token authenticates the caller and normal handling applies, networklessly
 
@@ -613,7 +613,7 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-037: Expired or malformed token → `401` (US-0 AS-3)
+#### Tier 2 — REQ-037a–d: Expired or malformed token → `401` (US-0 AS-3)
 
 **ATP-008-C** — Expired and malformed tokens are rejected fail-closed
 
@@ -629,7 +629,7 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-037: Wrong-`azp` or wrong-instance token → `401` (US-0 AS-4, AS-6)
+#### Tier 2 — REQ-037a–d: Wrong-`azp` or wrong-instance token → `401` (US-0 AS-4, AS-6)
 
 **ATP-008-D** — Tokens failing the `azp` allowlist, the instance signature, or supplying a forged identity header are rejected
 
@@ -683,7 +683,7 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-038: Insufficient operational scope → `403`, distinct from `401` (US-0 AS-10)
+#### Tier 2 — REQ-038a–c: Insufficient operational scope → `403`, distinct from `401` (US-0 AS-10)
 
 **ATP-008-G** — Authenticated-but-unauthorized is `403`, not `401`
 
@@ -715,7 +715,7 @@ Examples:
 
 ---
 
-#### Tier 2 — REQ-040: Oversized batch → `400`, enqueues nothing (US-0 AS-12)
+#### Tier 2 — REQ-040a–b: Oversized batch → `400`, enqueues nothing (US-0 AS-12)
 
 **ATP-008-I** — Batch hard-limit is enforced before any enqueue
 
@@ -747,7 +747,7 @@ Examples:
 
 **ATS-NF011-A1**
 
-- **Given** the local store (or Redis cache) contains 1,000+ food records with `fetch_status = 'fetched'`
+- **Given** the local store contains 1,000+ food records with `fetch_status = 'fetched'` _(deferred variant: served from the Redis cache)_
 - **When** 200 sequential authenticated `GET /v1/foods/{fdcId}` requests are made for locally-cached foods
 - **Then** p95 response time is under 50ms as measured at the ALB / `food-service` ingress
 
@@ -856,7 +856,7 @@ Examples:
 | REQ-019    | Rolling window empty; >1,000 `fetch_queue` rows pending                               | At most 1,000 USDA API calls in any trailing 60 min; consumer pauses at 900 (90%); excess rows deferred; zero `429` responses                                                                                                                                                                      | Performance Measurement       |
 | REQ-021    | Rolling window at the 1,000/hr cap                                                    | No USDA API call made; `fetch_queue` row lease released without completion for retry                                                                                                                                                                                                               | Fault Injection               |
 | REQ-023    | Single-food and batch `fetch_queue` rows pending                                      | Single-food uses `GET /v1/food/{fdcId}`; batch uses `POST /v1/foods`; 1 call recorded against the rolling window per call                                                                                                                                                                          | Interface Contract Testing    |
-| REQ-024    | USDA returns `200 OK` for requested food                                              | Food upserted with `fetch_status = 'fetched'`; `fetch_queue` row marked `done`; `FoodDataReceived` emitted; subsequent lookup returns `200 OK`                                                                                                                                                     | Interface Contract Testing    |
+| REQ-024    | USDA returns `200 OK` for requested food                                              | Food upserted with `fetch_status = 'fetched'`; `fetch_queue` row deleted on success (removed from the pending set, no `done` status); `FoodDataReceived` emitted; subsequent lookup returns `200 OK`                                                                                               | Interface Contract Testing    |
 | REQ-025    | USDA returns `404 Not Found` for requested food                                       | Tombstone written (`fetch_status = 'not_found'`, row `status='tombstone'`); within TTL → `404`; after the 30-day tombstone TTL a later lookup re-attempts (counts against the rolling window)                                                                                                      | Fault Injection               |
 | REQ-026    | USDA returns `429 Too Many Requests`                                                  | Consumer treats rolling window as full and backs off; current row left `pending`; no further USDA calls in batch                                                                                                                                                                                   | Fault Injection               |
 | REQ-027    | USDA returns `5xx` on every attempt                                                   | Row set to `status = 'tombstone'` after exhausting ≤5 row-lease retry cycles with backoff (FR-016)                                                                                                                                                                                                 | Fault Injection               |
@@ -868,7 +868,7 @@ Examples:
 | REQ-IF-002 | Client sends `GET /v1/foods/{fdcId}/status`                                           | Response matches documented schema                                                                                                                                                                                                                                                                 | Interface Contract Testing    |
 | REQ-IF-003 | Client sends `GET /v1/foods/search?query=<string>`                                    | Relevance-ranked array returned from local store                                                                                                                                                                                                                                                   | Interface Contract Testing    |
 | REQ-IF-004 | Consumer processes single and batch fetch messages                                    | Correct USDA endpoint called per message type                                                                                                                                                                                                                                                      | Interface Contract Testing    |
-| REQ-IF-007 | Request sent to any `/v1/foods/*` endpoint                                            | Clerk auth middleware enforced; no separate auth mechanism present                                                                                                                                                                                                                                 | Interface Contract Testing    |
+| REQ-IF-007 | Request sent to any `/v1/foods/*` endpoint                                            | HTTP `/v1/foods/*` uses in-process Clerk auth middleware, no Lambda authorizer; the deferred WS `$connect` REQUEST authorizer is the sole authorizer surface                                                                                                                                       | Interface Contract Testing    |
 | REQ-NF-007 | Feature branch code complete                                                          | `turbo run typecheck lint format:check` exits 0 with zero errors                                                                                                                                                                                                                                   | Static Analysis               |
 | REQ-NF-011 | Local store contains cached foods                                                     | p95 cache-hit lookup latency under 50ms                                                                                                                                                                                                                                                            | Performance Measurement       |
 | REQ-NF-012 | Consumer processing sustained message stream                                          | No rolling-60-min window ever exceeds 1,000 USDA API calls (SC-002); zero `429` responses in CloudWatch                                                                                                                                                                                            | Performance Measurement       |
@@ -907,10 +907,10 @@ Examples:
 | REQ-027              | 1                                  | Fault Injection                  | Row tombstoned after exhausting ≤5 row-lease retry cycles with backoff (FR-016)                                                                                                                                                             |
 | REQ-031 / REQ-032    | 3                                  | Equivalence Partitioning         | Stale food re-queued via scheduled sweep and `fetched_at` updated; stale read serves held data `200` + background re-fetch (SWR); re-fetch failure serves stale indefinitely                                                                |
 | REQ-035 / REQ-IF-007 | 3                                  | Interface Contract Testing       | `401 Unauthorized` for all unauthenticated endpoint variants                                                                                                                                                                                |
-| REQ-037 (US-0)       | 5 (ATP-008-A..D; B has B1+B2)      | Interface Contract / Equivalence | `401` on no/expired/malformed/wrong-`azp`/wrong-instance token + forged header; valid token → `200`/`202`/`404`; AS-5 networkless verified via egress-deny harness (zero IdP calls at the network boundary); no enqueue/USDA call on reject |
-| REQ-038 (US-0)       | 1 (ATP-008-G)                      | Equivalence Partitioning         | Insufficient operational scope → `403`, distinct from `401`                                                                                                                                                                                 |
+| REQ-037a–d (US-0)    | 5 (ATP-008-A..D; B has B1+B2)      | Interface Contract / Equivalence | `401` on no/expired/malformed/wrong-`azp`/wrong-instance token + forged header; valid token → `200`/`202`/`404`; AS-5 networkless verified via egress-deny harness (zero IdP calls at the network boundary); no enqueue/USDA call on reject |
+| REQ-038a–c (US-0)    | 1 (ATP-008-G)                      | Equivalence Partitioning         | Insufficient operational scope → `403`, distinct from `401`                                                                                                                                                                                 |
 | REQ-039 (US-0)       | 1 (ATP-008-F)                      | Boundary Value Analysis          | Per-`sub` >50 pending → accepted (`202`), items demoted to back (no `429`/no rejection); one user cannot starve others; dynamic re-promotion below 50                                                                                       |
-| REQ-040 (US-0)       | 1 (ATP-008-I)                      | Boundary Value Analysis          | Oversized batch → `400`; nothing enqueued                                                                                                                                                                                                   |
+| REQ-040a–b (US-0)    | 1 (ATP-008-I)                      | Boundary Value Analysis          | Oversized batch → `400`; nothing enqueued                                                                                                                                                                                                   |
 | REQ-041 (US-0)       | 1 (ATP-008-H)                      | Interface Contract Testing       | Backend M2M token accepted; server-to-server not forced to `401`                                                                                                                                                                            |
 | REQ-043 (US-0)       | 2 (ATP-008-E)                      | Interface Contract Testing       | `$connect` rejected (`403`) without token; `FoodDataReceived` delivered only to requesting `sub` (no broadcast)                                                                                                                             |
 | REQ-IF-001           | Covered by REQ-001 through REQ-006 | Interface Contract Testing       | Correct response per `fetch_status`; `/v1/` prefix honored                                                                                                                                                                                  |
@@ -959,7 +959,7 @@ The feature is considered shippable when **all** of the following conditions are
 ### Security Gate
 
 - [ ] All `/v1/foods/*` endpoints return `401 Unauthorized` for unauthenticated requests (REQ-035)
-- [ ] US-0 auth contract green (ATP-008): every entry point + WebSocket `$connect` rejects no/expired/malformed/wrong-`azp`/wrong-instance tokens (`401`/`403`) with no enqueue or USDA call; valid token → `200`/`202`/`404`; per-`sub` >50 pending → accepted (`202`) with items demoted to the back (no `429`); insufficient scope → `403`; M2M token accepted; oversized batch → `400`; `FoodDataReceived` not broadcast (REQ-037..REQ-043)
+- [ ] US-0 auth contract green (ATP-008): every entry point + WebSocket `$connect` rejects no/expired/malformed/wrong-`azp`/wrong-instance tokens (`401`/`403`) with no enqueue or USDA call; valid token → `200`/`202`/`404`; per-`sub` >50 pending → accepted (`202`) with items demoted to the back (no `429`); insufficient scope → `403`; M2M token accepted; oversized batch → `400`; `FoodDataReceived` not broadcast (REQ-037a–d..REQ-043)
 - [ ] USDA API key is not present in any client-facing response body or application log (REQ-IF-006)
 
 ### Out of Scope for This Gate

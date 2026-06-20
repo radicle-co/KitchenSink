@@ -197,10 +197,23 @@ red_team:
 #       SWR/tombstone-TTL-30d/batch-per-item-partial.
 # Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
 # both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
-next_action: implement — v-model peer-review refreshed + remediated, checklist regenerated. Optional final step before code: an independent peer-review re-run for a 0C/0M confirmation. Auth/rate-limit/demotion tests still unexecuted.
+next_action: implement — independent re-review (round 5) PASSED on the core design and its findings on the V&V layer were remediated + verified. Auth/rate-limit/demotion tests still unexecuted (that is the implement+test work).
 next_command: /speckit.product-forge.implement
 prior_next_action: re-verify before implement — refresh peer-review + regenerate checklist (2026-06-20)
-peer_review_gate: REMEDIATED # round 4 (2026-06-20): re-review vs the reconciled v-model found 6 Critical + 17 Major (demand-path/queue still on SQS/EventBridge+high/low; demotion not wired to single-food path → SC-012 would fail; missing rolling-window state-loss hazard; test symbol/value drift). ALL closed + verified (grep-clean, cross-file consistent) same session. Independent re-review optional.
+peer_review_gate: PASS # core design (requirements/architecture/module-design) independently re-reviewed 0C/0M round 5; V&V-layer findings from rounds 4–5 all remediated + verified
+peer_review_history_round5: >
+    Round 5 (2026-06-20, INDEPENDENT re-review, user-requested): requirements + architecture +
+    module-design verified PASS (0C/0M) — incl. confirmation the round-3 admitEnqueue-on-single-food
+    fix is genuinely wired. Found residuals in the V&V layer: status='done' (system-test/acceptance/
+    tasks), UTP-002-B old 1–20 batch cap, EventBridge-demand test framing (UTP-002-A/B, ITP-002-A),
+    system-design SYS-013→nonexistent-bare-REQ + shifted SYS-006/008/010/011/012/002 parent ids,
+    release-audit regenerated from a pre-auth snapshot (missing REQ-037..044/SYS-013 + HAZ-036..041),
+    hazard SYS-003/004 still High/LowPriorityFoodQueue, missing HAZ-041 in trace/matrix, and a
+    pervasive bare-vs-lettered auth-REQ-id split (66 refs). ALL remediated + verified (grep-clean,
+    cross-file consistent): status='done'→delete-row everywhere; batch cap 100; demand tests →
+    Postgres INSERT+pg_notify; SYS→REQ parent ids corrected to existing lettered defs; release-audit
+    rebuilt w/ auth slice + 41 hazards + recomputed metrics; SYS-003/004 → FetchQueue/FetchRequesters;
+    HAZ-041 added to trace/matrix/audit; auth REQ ids reconciled to lettered (REQ-037a–d etc.).
 checklist_gate: REGENERATED # checklists/requirements.md rebuilt vs current spec — 16/17 (item 13 pends the out-of-folder architecture doc; spec-internal architecture is consistent)
 peer_review_history_round4: >
     Round 4 (2026-06-20): refreshed all 9 peer-review records against the reconciled+clarified

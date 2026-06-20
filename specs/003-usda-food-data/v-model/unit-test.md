@@ -336,34 +336,35 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Technique**: Statement & Branch Coverage + Strict Isolation
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies `publishFoodRequested()` throws `ValidationError` for invalid inputs and calls `EventBridgeClient.putEvents` with correct entry shape on valid input.
+**Description**: Verifies `publishFoodRequested()` throws `ValidationError` for invalid inputs and, on valid input, performs the Postgres-as-queue enqueue — `FetchQueue.insert(...)` (INSERT ON CONFLICT into `fetch_queue`) followed by `Postgres.notify('fetch_queue', …)` — returning `{ queueRowId }`.
 
 **Dependency & Mock Registry:**
 
-| Dependency          | Source             | Mock/Stub Strategy                                                                     | Rationale                       |
-| ------------------- | ------------------ | -------------------------------------------------------------------------------------- | ------------------------------- |
-| `EventBridgeClient` | AWS SDK (external) | Mock: `putEvents()` returns `{ FailedEntryCount: 0, Entries: [{ EventId: "evt-1" }] }` | Prevent real AWS calls          |
-| `MonitoringLogger`  | ARCH-011           | Stub: no-op                                                                            | Prevent CloudWatch side-effects |
+| Dependency         | Source                  | Mock/Stub Strategy                                 | Rationale                       |
+| ------------------ | ----------------------- | -------------------------------------------------- | ------------------------------- |
+| `FetchQueue`       | ARCH-003 (Postgres DAO) | Mock: `insert()` returns `{ queueRowId: "q-1" }`   | Prevent real Postgres writes    |
+| `Postgres`         | pg client (external)    | Mock: `notify('fetch_queue', …)` records call args | Verify NOTIFY without a real DB |
+| `MonitoringLogger` | ARCH-011                | Stub: no-op                                        | Prevent CloudWatch side-effects |
 
 - **Unit Scenario: UTS-002-A1**
     - **Arrange**: Set `payload = { fdcId: 0, requestedAt: "2026-05-09T00:00:00Z" }` (invalid fdcId)
     - **Act**: Call `publishFoodRequested(payload)`
-    - **Assert**: Throws `ValidationError("Invalid fdcId")`; `EventBridgeClient.putEvents` NOT called
+    - **Assert**: Throws `ValidationError("Invalid fdcId")`; `FetchQueue.insert` and `Postgres.notify` NOT called
 
 - **Unit Scenario: UTS-002-A2**
     - **Arrange**: Set `payload = { fdcId: 12345, requestedAt: "not-a-date" }` (invalid timestamp)
     - **Act**: Call `publishFoodRequested(payload)`
-    - **Assert**: Throws `ValidationError("Invalid requestedAt timestamp")`; `EventBridgeClient.putEvents` NOT called
+    - **Assert**: Throws `ValidationError("Invalid requestedAt timestamp")`; `FetchQueue.insert` and `Postgres.notify` NOT called
 
 - **Unit Scenario: UTS-002-A3**
-    - **Arrange**: Set `payload = { fdcId: 12345, requestedAt: "2026-05-09T00:00:00Z" }`; `EventBridgeClient.putEvents` mock returns `{ FailedEntryCount: 0, Entries: [{ EventId: "evt-abc" }] }`
+    - **Arrange**: Set `payload = { fdcId: 12345, requestedAt: "2026-05-09T00:00:00Z" }`; `FetchQueue.insert` mock returns `{ queueRowId: "q-abc" }`
     - **Act**: Call `publishFoodRequested(payload)`
-    - **Assert**: Returns `{ eventId: "evt-abc" }`; `EventBridgeClient.putEvents` called with `{ Entries: [{ Source: "food-service", DetailType: "FoodRequested", Detail: contains fdcId 12345, EventBusName: ENV.EVENT_BUS_NAME }] }`
+    - **Assert**: Returns `{ queueRowId: "q-abc" }`; `FetchQueue.insert` called with a `fetch_queue` row containing `fdcId 12345` (INSERT ON CONFLICT on the dedupe key), then `Postgres.notify` called with `('fetch_queue', <payload containing fdcId 12345>)`
 
 - **Unit Scenario: UTS-002-A4**
-    - **Arrange**: Set valid `payload`; `EventBridgeClient.putEvents` mock returns `{ FailedEntryCount: 1, Entries: [{ ErrorCode: "ThrottlingException" }] }`
+    - **Arrange**: Set valid `payload`; `FetchQueue.insert` mock rejects with a connection error
     - **Act**: Call `publishFoodRequested(payload)`
-    - **Assert**: Throws `EventBridgeError("PutEvents partial failure", "ThrottlingException")`
+    - **Assert**: Throws `EnqueueError("fetch_queue insert failed")`; `Postgres.notify` NOT called
 
 ---
 
@@ -371,33 +372,34 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Technique**: Boundary Value Analysis
 **Target View**: Internal Data Structures (`fdcIds` array length)
-**Description**: Verifies `publishFoodBatchRequested()` enforces the 1–100 client batch size constraint (FR-045) at boundaries.
+**Description**: Verifies `publishFoodBatchRequested()` enforces the 1–100 client batch size constraint (FR-045) at boundaries, and on valid input performs the Postgres-as-queue enqueue (`FetchQueue.insert(...)` + `Postgres.notify('fetch_queue', …)`).
 
 **Dependency & Mock Registry:**
 
-| Dependency          | Source             | Mock/Stub Strategy                                                                  | Rationale              |
-| ------------------- | ------------------ | ----------------------------------------------------------------------------------- | ---------------------- |
-| `EventBridgeClient` | AWS SDK (external) | Mock: `putEvents()` returns `{ FailedEntryCount: 0, Entries: [{ EventId: "e1" }] }` | Prevent real AWS calls |
+| Dependency   | Source                  | Mock/Stub Strategy                                 | Rationale                       |
+| ------------ | ----------------------- | -------------------------------------------------- | ------------------------------- |
+| `FetchQueue` | ARCH-003 (Postgres DAO) | Mock: `insert()` returns `{ queueRowId: "q-1" }`   | Prevent real Postgres writes    |
+| `Postgres`   | pg client (external)    | Mock: `notify('fetch_queue', …)` records call args | Verify NOTIFY without a real DB |
 
 - **Unit Scenario: UTS-002-B1**
     - **Arrange**: Set `payload.fdcIds = []` (length 0, below min)
     - **Act**: Call `publishFoodBatchRequested(payload)`
-    - **Assert**: Throws `ValidationError("fdcIds must be 1–20 items")`; `EventBridgeClient.putEvents` NOT called
+    - **Assert**: Throws `ValidationError("fdcIds must be 1–100 items")`; `FetchQueue.insert` and `Postgres.notify` NOT called
 
 - **Unit Scenario: UTS-002-B2**
     - **Arrange**: Set `payload.fdcIds = [1]` (length 1, min valid); `requestedAt` valid ISO8601
     - **Act**: Call `publishFoodBatchRequested(payload)`
-    - **Assert**: Returns `{ eventId: "e1" }`; `EventBridgeClient.putEvents` called with `DetailType: "FoodBatchRequested"`
+    - **Assert**: Returns `{ queueRowId: "q-1" }`; `FetchQueue.insert` called with a `fetch_queue` row covering the batch, then `Postgres.notify('fetch_queue', …)` called
 
 - **Unit Scenario: UTS-002-B3**
-    - **Arrange**: Set `payload.fdcIds = Array(20).fill(1).map((_, i) => i + 1)` (length 20, max valid)
+    - **Arrange**: Set `payload.fdcIds = Array(100).fill(1).map((_, i) => i + 1)` (length 100, max valid)
     - **Act**: Call `publishFoodBatchRequested(payload)`
-    - **Assert**: Returns `{ eventId: "e1" }`; `EventBridgeClient.putEvents` called once
+    - **Assert**: Returns `{ queueRowId: "q-1" }`; `FetchQueue.insert` + `Postgres.notify('fetch_queue', …)` called once
 
 - **Unit Scenario: UTS-002-B4**
-    - **Arrange**: Set `payload.fdcIds = Array(21).fill(1).map((_, i) => i + 1)` (length 21, max+1)
+    - **Arrange**: Set `payload.fdcIds = Array(101).fill(1).map((_, i) => i + 1)` (length 101, max+1)
     - **Act**: Call `publishFoodBatchRequested(payload)`
-    - **Assert**: Throws `ValidationError("fdcIds must be 1–20 items")`
+    - **Assert**: Throws `ValidationError("fdcIds must be 1–100 items")`; `FetchQueue.insert` and `Postgres.notify` NOT called
 
 ---
 
@@ -1194,7 +1196,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 ### Module: MOD-012 (ClerkAuthMiddleware — Networkless Clerk Verification & Scope Gate) + MOD-013 (DemotionAndFairness — Per-`sub` Pending-Count Demotion, Batch Cap & Distinct-Requester Demand)
 
 **Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
-**Requirements Under Test**: REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
+**Requirements Under Test**: REQ-037a–d, REQ-038a–c, REQ-039, REQ-040a–b, REQ-041, REQ-042, REQ-043, REQ-044
 **Target Source File(s)**: `packages/services/food-service/src/auth/clerk-auth.middleware.ts` (MOD-012, uses shared `@kitchensink/clerk-verify`), `packages/services/food-service/src/auth/demotion-and-fairness.service.ts` (MOD-013)
 
 > The auth slice fronts every food-data entry point. MOD-012 verifies the Clerk session/M2M token networklessly (signature/`exp`/`nbf`/`azp` via the public `CLERK_JWT_KEY`), fails closed to `401`, derives the `AuthenticatedCaller` solely from the verified `sub`, and gates operational scopes (`403`) from `public_metadata`. MOD-013 enforces **fairness by demotion, not rejection** (FR-043, revised 2026-06-20): there is **no per-user quota and no `429`** — instead, when a single `sub` has **more than 50 items currently pending** in the `fetch_queue` (counted live from `fetch_queue` + `fetch_requesters`), that requester's queued items are ranked to the **back** of the priority order, with dynamic re-promotion once the pending count falls back below 50. It also enforces the batch-size cap (`400`) and distinct-requester demand counting before any fetch is enqueued; no authenticated cache-miss request is ever rejected for a personal limit (work-conserving). Unit scenarios isolate `@clerk/backend` `verifyToken` and all I/O behind mocks; only the module's internal control flow, boundaries, and state are exercised.
@@ -1205,7 +1207,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Statement & Branch Coverage + Strict Isolation
 **Target View**: Algorithmic/Logic View + Architecture Interface View
-**Description**: Verifies that on a syntactically valid Clerk token with a matching `azp`, MOD-012 returns the verified claims and builds an `AuthenticatedCaller` whose `sub`/`azp`/scopes are sourced **only** from the `verifyToken` result — covering the success branch of the verification control flow (REQ-037). `verifyToken` is mocked; no network call is made.
+**Description**: Verifies that on a syntactically valid Clerk token with a matching `azp`, MOD-012 returns the verified claims and builds an `AuthenticatedCaller` whose `sub`/`azp`/scopes are sourced **only** from the `verifyToken` result — covering the success branch of the verification control flow (REQ-037a–d). `verifyToken` is mocked; no network call is made.
 
 **Dependency & Mock Registry:**
 
@@ -1230,7 +1232,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Error Guessing + Statement & Branch Coverage + Strict Isolation
 **Target View**: Error Handling & Return Codes + Algorithmic/Logic View
-**Description**: Verifies every fail-closed branch yields `401` networklessly and never produces an `AuthenticatedCaller` or calls downstream logic (REQ-037, REQ-044). Each rejection path is driven by mocking `verifyToken` to throw, or by omitting the header — no real signature math, no IdP call.
+**Description**: Verifies every fail-closed branch yields `401` networklessly and never produces an `AuthenticatedCaller` or calls downstream logic (REQ-037a–d, REQ-044a–d). Each rejection path is driven by mocking `verifyToken` to throw, or by omitting the header — no real signature math, no IdP call.
 
 **Dependency & Mock Registry:**
 
@@ -1270,7 +1272,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Error Guessing + Strict Isolation
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies that a forged identity header (`x-authorizer-context` / `x-user-id`) is never read; the `AuthenticatedCaller.sub` comes solely from the verified token, even when the header claims a different `sub` (REQ-037, mirrors PR #39 decision).
+**Description**: Verifies that a forged identity header (`x-authorizer-context` / `x-user-id`) is never read; the `AuthenticatedCaller.sub` comes solely from the verified token, even when the header claims a different `sub` (REQ-037a–d, mirrors PR #39 decision).
 
 **Dependency & Mock Registry:**
 
@@ -1289,7 +1291,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Equivalence Partitioning + Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View + State Machine View (status precedence)
-**Description**: Verifies the scope gate on an operational endpoint: an authenticated caller lacking the required scope receives `403` (distinct from the `401` unauthenticated case), and a caller holding the scope passes — covering both branches of the authorization check (REQ-038, FR-051 precedence `401 → 403 → 400`).
+**Description**: Verifies the scope gate on an operational endpoint: an authenticated caller lacking the required scope receives `403` (distinct from the `401` unauthenticated case), and a caller holding the scope passes — covering both branches of the authorization check (REQ-038a–c, FR-051 precedence `401 → 403 → 400`).
 
 **Dependency & Mock Registry:**
 
@@ -1348,7 +1350,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Boundary Value Analysis + Statement & Branch Coverage
 **Target View**: Internal Data Structures + Algorithmic/Logic View
-**Description**: Verifies the hard batch-size cap (e.g. ≤ 100 `fdcId`s) across the boundary: at-limit accepted, over-limit rejected with `400` before any enqueue (REQ-040, FR-045). (There is no per-user quota to debit — fairness is by demotion, UTP-012-E.)
+**Description**: Verifies the hard batch-size cap (e.g. ≤ 100 `fdcId`s) across the boundary: at-limit accepted, over-limit rejected with `400` before any enqueue (REQ-040a–b, FR-045). (There is no per-user quota to debit — fairness is by demotion, UTP-012-E.)
 
 **Dependency & Mock Registry:**
 
@@ -1406,7 +1408,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Boundary Value Analysis + Statement & Branch Coverage + Error Guessing
 **Target View**: Internal Data Structures + Algorithmic/Logic View + Error Handling & Return Codes
-**Description**: Verifies the `503` decision branches of MOD-013's enqueue gate for an authenticated caller (note: there is no per-user quota — fairness is by demotion per UTP-012-E, not by `429`): (a) the `fetch_queue` is at/over its enforced `MAX_QUEUE_DEPTH` → `503` with no enqueue; (b) the USDA circuit breaker is `OPEN` → `503` with no enqueue; (c) the pending-count store (`fetch_queue` + `fetch_requesters`) used to compute demotion is unavailable → **fail closed** to `503` (never fail open to unbounded enqueue). These are the unit-level counterparts to the seam test ITP-012-D; the queue-depth probe, circuit breaker, and pending-count store are all mocked so only the gate's decision logic is exercised (REQ-040, FR-046). Fail-closed is **defined** here: any error or unavailability of the demotion/depth/breaker signals resolves to a reject (`503`) and `FetchQueue.enqueue` is never called. (The system-wide `MAX_QUEUE_DEPTH` backstop is distinct from per-`sub` demotion: demotion never rejects, but the global depth ceiling can `503`.)
+**Description**: Verifies the `503` decision branches of MOD-013's enqueue gate for an authenticated caller (note: there is no per-user quota — fairness is by demotion per UTP-012-E, not by `429`): (a) the `fetch_queue` is at/over its enforced `MAX_QUEUE_DEPTH` → `503` with no enqueue; (b) the USDA circuit breaker is `OPEN` → `503` with no enqueue; (c) the pending-count store (`fetch_queue` + `fetch_requesters`) used to compute demotion is unavailable → **fail closed** to `503` (never fail open to unbounded enqueue). These are the unit-level counterparts to the seam test ITP-012-D; the queue-depth probe, circuit breaker, and pending-count store are all mocked so only the gate's decision logic is exercised (REQ-040a–b, FR-046). Fail-closed is **defined** here: any error or unavailability of the demotion/depth/breaker signals resolves to a reject (`503`) and `FetchQueue.enqueue` is never called. (The system-wide `MAX_QUEUE_DEPTH` backstop is distinct from per-`sub` demotion: demotion never rejects, but the global depth ceiling can `503`.)
 
 **Dependency & Mock Registry:**
 
@@ -1462,12 +1464,12 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 - **Unit Scenario: UTS-012-I2**
     - **Arrange**: `MAX_SOURCE_401_RATE = 100`; mock `FailureRateStore.count('1.2.3.4')` returns `100` (at the cap); same well-formed-but-invalid token; spy `verifyToken`
     - **Act**: Invoke `middleware.verify(req)`
-    - **Assert**: Responds `401`; `verifyToken` **called zero times** — the per-source cap short-circuits ahead of the CPU-bound verify (load-shed); `MonitoringLogger.incrementMetric` called with `("auth.load_shed", 1)`; `req.caller` is `undefined` (boundary: at-cap == shedding)
+    - **Assert**: Responds `429` (per MOD-012's pinned per-source 401-rate-cap shed status, module-design.md §error map); `verifyToken` **called zero times** — the per-source cap short-circuits ahead of the CPU-bound verify (load-shed); `MonitoringLogger.incrementMetric` called with `("auth.load_shed", 1)`; `req.caller` is `undefined` (boundary: at-cap == shedding)
 
 - **Unit Scenario: UTS-012-I3**
     - **Arrange**: `MAX_VERIFY_CONCURRENCY = 64`; mock `VerifyConcurrencyGuard.inFlight()` returns `64` (at the ceiling); `FailureRateStore.count` under cap; spy `verifyToken`
     - **Act**: Invoke `middleware.verify(req)`
-    - **Assert**: Sheds without a signature check — responds `503`/`401` (per the pinned shed status) and `verifyToken` **called zero times**; `MonitoringLogger.incrementMetric` called with `("auth.load_shed", 1)` — the concurrency semaphore caps in-flight verifications so a flood cannot saturate the verifier (boundary: in-flight == max → shed)
+    - **Assert**: Sheds without a signature check — responds `503` (per MOD-012's pinned `VerifySemaphore`-exhausted shed status, module-design.md §error map) and `verifyToken` **called zero times**; `MonitoringLogger.incrementMetric` called with `("auth.load_shed", 1)` — the concurrency semaphore caps in-flight verifications so a flood cannot saturate the verifier (boundary: in-flight == max → shed)
 
 - **Unit Scenario: UTS-012-I4**
     - **Arrange**: `MAX_VERIFY_CONCURRENCY = 64`; mock `VerifyConcurrencyGuard.inFlight()` returns `63` (max-1, a slot free); `FailureRateStore.count` under cap; mock `verifyToken` to **resolve** a valid `{ sub: 'user_legit', azp: <authorized>, public_metadata: { scopes: [] } }` (a legitimate caller arriving during the flood)
@@ -1520,7 +1522,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 ### Module: MOD-014 (AsyncProducerAuthz — Async-Producer Provenance & Least-Privilege Enforcement)
 
 **Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
-**Requirements Under Test**: REQ-037, FR-048
+**Requirements Under Test**: REQ-037a–d, FR-048
 **Target Source File(s)**: `packages/services/food-service/src/auth/async-producer-authz.service.ts` (MOD-014)
 
 > US-0's guarantee — _"no unauthenticated path may drive USDA consumption"_ — must also hold on the **async/internal** producer leg (EventBridge events, cron/scheduled jobs, bulk-sync, recipe import), not only the synchronous HTTP edge that MOD-012 fronts. MOD-014 enforces two layers before any USDA fetch or `INSERT INTO fetch_queue`: **(1)** the delivering IAM principal — taken from the AWS-attested invocation context, never a forgeable event-body field — must be on the least-privilege producer allowlist; and **(2)** the event's `requestedBy` provenance must be an authenticated human `sub` (carried from MOD-012) or a named `svc_` service principal — never empty and never the anonymous `'system'` shortcut. Every deny path is **fail-closed**: the event is dropped, nothing is fetched or enqueued. Unit scenarios mock the invocation context, the allowlist config, and `MonitoringLogger`; only the module's internal control flow and boundaries are exercised — no real EventBridge, no DB.

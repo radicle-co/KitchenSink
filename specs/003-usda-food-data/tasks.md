@@ -529,7 +529,7 @@ INTEGRATION TESTS (T-040–T-045)
     3. Call `UsdaApiClient.getFoodsBatch(fdcIds)` (POST `/v1/foods`)
     4. For each result: upsert `fetch_status='fetched'` and **delete the `fetch_queue` row**
     5. For each 404 in batch response: write tombstone
-    6. On partial 5xx: successful items marked `done`, failed items returned to `pending` with `attempts++`
+    6. On partial 5xx: successful items have their `fetch_queue` row deleted, failed items left `pending` with `attempts++`
 
     **Acceptance**:
     - 5 IDs in batch → 1 USDA call recorded against the rolling window (US-004 scenario 3)

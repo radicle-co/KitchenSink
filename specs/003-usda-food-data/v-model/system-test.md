@@ -70,7 +70,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-001-B3**
     - **Given** PostgreSQL contains `fdc_id = 33333` with `fetch_status = 'pending'` (lean default: the pending `foods` row + active `fetch_queue` row is the dedup marker; deferred variant: `pending_fetch` Redis set contains `33333`)
     - **When** FoodApiController receives `GET /v1/foods/33333`
-    - **Then** response status is `202 Accepted`; no new `FoodRequested` enqueue is published to SYS-002 — the `INSERT ... ON CONFLICT DO NOTHING` is a no-op (deduplication enforced)
+    - **Then** response status is `202 Accepted`; the duplicate does not create a new `fetch_queue` row — the `INSERT INTO fetch_queue (...) ON CONFLICT (fdc_id) DO NOTHING` is a no-op — but it DOES record the requester's distinct demand via `INSERT INTO fetch_requesters (fdc_id, sub) ... ON CONFLICT DO NOTHING` (so `request_count` reflects distinct requesters), consistent with STP-008-C / SYS-004
 
 - **System Scenario: STS-001-B4**
     - **Given** PostgreSQL contains `fdc_id = 44444` with `fetch_status = 'not_found'`
@@ -267,12 +267,12 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-004: SYS-005 → SYS-009; IC-005: SYS-005 → SYS-007)
-**Description**: Verifies the complete success path: rolling-window check-and-record → USDA call → PostgreSQL upsert → cache invalidation → fetch_queue row completion → EventBridge `FoodDataReceived` emit.
+**Description**: Verifies the complete success path: rolling-window check-and-record → USDA call → PostgreSQL upsert → the `fetch_queue` row is deleted on success (removed from the pending set) → EventBridge `FoodDataReceived` emit.
 
 - **System Scenario: STS-005-B1**
     - **Given** SYS-006 rolling-window trailing-60-min count is below 900; a `fetch_queue` row `{ "fdc_id": 12345 }` is pending in SYS-003; USDA API returns `200 OK` with food data for `fdcId = 12345`
     - **When** the consumer worker processes the leased row
-    - **Then** the consumer worker: (1) calls SYS-006 to check-and-record against the rolling window and receives `{ allowed: true }` (the new call timestamp is recorded in `usda_call_log`); (2) calls USDA API `POST /v1/foods` with `{ fdcIds: [12345] }`; (3) upserts food into SYS-007 with `fetch_status = 'fetched'`; (4) invalidates the cache for `food:12345` and clears the `pending_fetch` marker in SYS-008; (5) marks the `fetch_queue` row `status = 'done'` in SYS-003; (6) publishes the `FoodDataReceived` event to SYS-002
+    - **Then** the consumer worker: (1) calls SYS-006 to check-and-record against the rolling window and receives `{ allowed: true }` (the new call timestamp is recorded in `usda_call_log`); (2) calls USDA API `POST /v1/foods` with `{ fdcIds: [12345] }`; (3) upserts food into SYS-007 with `fetch_status = 'fetched'` (the `foods` upsert is authoritative; no separate cache/pending marker at launch — _deferred Redis variant: invalidate the `food:12345` cache key and clear the `pending_fetch` marker in SYS-008_); (4) the `fetch_queue` row is **deleted** on success (removed from the pending set) in SYS-003 — there is no `done` status; (5) publishes the `FoodDataReceived` event to SYS-002
 
 #### Test Case: STP-005-C (Batch Processing — Up to 20 fdcIds per USDA Call)
 
@@ -423,8 +423,8 @@ Each test case identifies its technique by name:
 #### Test Case: STP-007-B (fetch_status State Machine — All Partitions)
 
 **Technique**: Equivalence Partitioning
-**Target View**: Data Design View (fetch_status: 'pending' | 'fetched' | 'failed' | 'not_found' | 'stale')
-**Description**: Verifies that each valid `fetch_status` value is stored and retrieved correctly.
+**Target View**: Data Design View (`foods.fetch_status` enum: `pending | fetched | failed | not_found | stale` — distinct from the `fetch_queue` status enum, which is `pending | in_flight | tombstone` only, with success deleting the row)
+**Description**: Verifies that each valid `foods.fetch_status` partition is stored and retrieved correctly. This covers all five partitions of the `foods` enum (`pending`, `fetched`, `failed`, `not_found`, `stale`).
 
 - **System Scenario: STS-007-B1**
     - **Given** a food record is inserted with `fetch_status = 'pending'`
@@ -435,6 +435,21 @@ Each test case identifies its technique by name:
     - **Given** a food record has `fetch_status = 'not_found'`
     - **When** FoodApiController queries the record
     - **Then** the returned row has `fetch_status = 'not_found'`; FoodApiController returns `404 Not Found`
+
+- **System Scenario: STS-007-B3**
+    - **Given** a food record is inserted with `fetch_status = 'fetched'`
+    - **When** FoodApiController queries `SELECT * FROM foods WHERE fdc_id = $1`
+    - **Then** the returned row has `fetch_status = 'fetched'`; FoodApiController returns `200 OK` with the full nutrition payload
+
+- **System Scenario: STS-007-B4**
+    - **Given** a food record has `fetch_status = 'failed'` (a transient ingestion error was recorded against the `foods` row)
+    - **When** FoodApiController queries the record
+    - **Then** the returned row has `fetch_status = 'failed'`; the stored value round-trips intact (the held record is still readable, and the row remains eligible for a background re-fetch)
+
+- **System Scenario: STS-007-B5**
+    - **Given** a food record has `fetch_status = 'stale'` (`fetched_at` older than the staleness threshold)
+    - **When** FoodApiController queries the record
+    - **Then** the returned row has `fetch_status = 'stale'`; FoodApiController returns `200 OK` serving the held data with a staleness indicator (stale-while-revalidate, FR-031)
 
 #### Test Case: STP-007-C (Fault Injection — PostgreSQL Unavailable)
 
@@ -636,7 +651,7 @@ Each test case identifies its technique by name:
 
 ### Component Verification: SYS-013 (AuthnAuthzLayer)
 
-**Parent Requirements**: REQ-IF-008, REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
+**Parent Requirements**: REQ-IF-008, REQ-037a–d, REQ-038a–c, REQ-039, REQ-040a–b, REQ-041, REQ-042, REQ-043, REQ-044
 
 The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using `@kitchensink/clerk-verify`) on the ECS/Fargate `food-service`; it is not a Lambda authorizer (except the deferred WebSocket `$connect` authorizer). It fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any downstream component is reached (no `fetch_queue` insert, no USDA call), the load-shed property under an invalid-token flood, per-`sub` fairness by queue demotion (not rejection), the scope-`403`/M2M authorization classes, the `401`→`403`→`400`→business status-precedence ordering, and the batch-size boundary. Verification is networkless (`@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY`), fail-closed.
 

@@ -40,7 +40,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### Module: MOD-001 (FoodApiController — Request Handler)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/food-api/handler.ts`
+**Target Source File(s)**: `packages/services/food-service/src/food-api/handler.ts`
 
 ---
 
@@ -95,41 +95,41 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies every branch in `handleGetFood()`: invalid fdcId → 400; Redis HIT → 200; Redis MISS + DB HIT → 200; Redis MISS + DB MISS + pending → 202; Redis MISS + DB MISS + not pending → 202 with backfill trigger.
+**Description**: Verifies every branch in `handleGetFood()`: invalid fdcId → 400; cache HIT → 200; cache MISS + DB HIT → 200; cache MISS + DB MISS + pending → 202; cache MISS + DB MISS + not pending → 202 with backfill trigger.
 
 **Dependency & Mock Registry:**
 
-| Dependency             | Source   | Mock/Stub Strategy                                   | Rationale                                 |
-| ---------------------- | -------- | ---------------------------------------------------- | ----------------------------------------- |
-| `RedisCacheService`    | ARCH-007 | Mock: `get()` returns null or FoodData stub          | Isolate Redis layer from controller logic |
-| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns null or FoodData stub  | Isolate DB layer from controller logic    |
-| `EventBridgePublisher` | ARCH-002 | Mock: `publishFoodRequested()` returns `{ eventId }` | Prevent real EventBridge calls            |
-| `MonitoringLogger`     | ARCH-011 | Stub: no-op                                          | Prevent CloudWatch side-effects           |
+| Dependency             | Source   | Mock/Stub Strategy                                   | Rationale                                                                                             |
+| ---------------------- | -------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `CacheService`         | ARCH-007 | Mock: `get()` returns null or FoodData stub          | Isolate cache layer (in-process LRU / Postgres default; deferred Redis variant) from controller logic |
+| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns null or FoodData stub  | Isolate DB layer from controller logic                                                                |
+| `EventBridgePublisher` | ARCH-002 | Mock: `publishFoodRequested()` returns `{ eventId }` | Prevent real EventBridge calls                                                                        |
+| `MonitoringLogger`     | ARCH-011 | Stub: no-op                                          | Prevent CloudWatch side-effects                                                                       |
 
 - **Unit Scenario: UTS-001-B1**
     - **Arrange**: Set `event.pathParameters.fdcId = "abc"`; `isValidFdcId` returns `false`
     - **Act**: Call `handleGetFood(event)` with mocked dependencies
-    - **Assert**: Returns `{ statusCode: 400, body: '{"error":"Invalid fdcId format"}' }`; `RedisCacheService.get` NOT called; `PostgresRepository.findByFdcId` NOT called
+    - **Assert**: Returns `{ statusCode: 400, body: '{"error":"Invalid fdcId format"}' }`; `CacheService.get` NOT called; `PostgresRepository.findByFdcId` NOT called
 
 - **Unit Scenario: UTS-001-B2**
-    - **Arrange**: Set `event.pathParameters.fdcId = "12345"`; `RedisCacheService.get` mock returns `{ fdcId: 12345, description: "Apple" }` (cache HIT)
+    - **Arrange**: Set `event.pathParameters.fdcId = "12345"`; `CacheService.get` mock returns `{ fdcId: 12345, description: "Apple" }` (cache HIT)
     - **Act**: Call `handleGetFood(event)`
     - **Assert**: Returns `{ statusCode: 200, body: contains fdcId 12345 }`; `MonitoringLogger.incrementMetric` called with `"cache.hit", 1`; `PostgresRepository.findByFdcId` NOT called
 
 - **Unit Scenario: UTS-001-B3**
-    - **Arrange**: Set `fdcId = "12345"`; `RedisCacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `{ fdcId: 12345, fetch_status: "fetched" }`
+    - **Arrange**: Set `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `{ fdcId: 12345, fetch_status: "fetched" }`
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 200 }`; `RedisCacheService.set` called with `fdcId=12345, TTL=3600`; `MonitoringLogger.incrementMetric` called with `"db.hit", 1`
+    - **Assert**: Returns `{ statusCode: 200 }`; `CacheService.set` called with `fdcId=12345, TTL=3600`; `MonitoringLogger.incrementMetric` called with `"db.hit", 1`
 
 - **Unit Scenario: UTS-001-B4**
-    - **Arrange**: Set `fdcId = "12345"`; `RedisCacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `null`; `RedisCacheService.isPending` returns `true`
+    - **Arrange**: Set `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `null`; `CacheService.isPending` returns `true`
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `EventBridgePublisher.publishFoodRequested` NOT called; `RedisCacheService.markPending` NOT called
+    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `EventBridgePublisher.publishFoodRequested` NOT called; `CacheService.markPending` NOT called
 
 - **Unit Scenario: UTS-001-B5**
-    - **Arrange**: Set `fdcId = "12345"`; `RedisCacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `null`; `RedisCacheService.isPending` returns `false`
+    - **Arrange**: Set `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `null`; `CacheService.isPending` returns `false`
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `RedisCacheService.markPending` called with `12345`; `EventBridgePublisher.publishFoodRequested` called with `{ fdcId: 12345 }`; `MonitoringLogger.incrementMetric` called with `"backfill.triggered", 1`
+    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `CacheService.markPending` called with `12345`; `EventBridgePublisher.publishFoodRequested` called with `{ fdcId: 12345 }`; `MonitoringLogger.incrementMetric` called with `"backfill.triggered", 1`
 
 ---
 
@@ -170,10 +170,10 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Dependency & Mock Registry:**
 
-| Dependency           | Source   | Mock/Stub Strategy                             | Rationale                    |
-| -------------------- | -------- | ---------------------------------------------- | ---------------------------- |
-| `PostgresRepository` | ARCH-006 | Mock: `findByFdcId()` returns null or row stub | Isolate DB from status logic |
-| `RedisCacheService`  | ARCH-007 | Mock: `isPending()` returns boolean            | Isolate Redis from logic     |
+| Dependency           | Source   | Mock/Stub Strategy                             | Rationale                                                                            |
+| -------------------- | -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `PostgresRepository` | ARCH-006 | Mock: `findByFdcId()` returns null or row stub | Isolate DB from status logic                                                         |
+| `CacheService`       | ARCH-007 | Mock: `isPending()` returns boolean            | Isolate cache (in-process LRU / Postgres default; deferred Redis variant) from logic |
 
 - **Unit Scenario: UTS-001-D1**
     - **Arrange**: Set `fdcId = "-5"` (invalid); `isValidFdcId` returns `false`
@@ -181,12 +181,12 @@ None — `isValidFdcId` is a pure function with no external dependencies.
     - **Assert**: Returns `{ statusCode: 400 }`; `PostgresRepository.findByFdcId` NOT called
 
 - **Unit Scenario: UTS-001-D2**
-    - **Arrange**: Set `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns `null`; `RedisCacheService.isPending` returns `true`
+    - **Arrange**: Set `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns `null`; `CacheService.isPending` returns `true`
     - **Act**: Call `handleGetFoodStatus(event)`
     - **Assert**: Returns `{ statusCode: 200, body: contains '"status":"pending"' }`
 
 - **Unit Scenario: UTS-001-D3**
-    - **Arrange**: Set `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns `null`; `RedisCacheService.isPending` returns `false`
+    - **Arrange**: Set `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns `null`; `CacheService.isPending` returns `false`
     - **Act**: Call `handleGetFoodStatus(event)`
     - **Assert**: Returns `{ statusCode: 404 }`
 
@@ -239,7 +239,7 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 ### Module: MOD-002 (EventBridgePublisher — Event Emitter)
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/events/event-bridge-publisher.ts`
+**Target Source File(s)**: `packages/services/food-service/src/events/event-bridge-publisher.ts`
 
 ---
 
@@ -269,7 +269,7 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 - **Unit Scenario: UTS-002-A3**
     - **Arrange**: Set `payload = { fdcId: 12345, requestedAt: "2026-05-09T00:00:00Z" }`; `EventBridgeClient.putEvents` mock returns `{ FailedEntryCount: 0, Entries: [{ EventId: "evt-abc" }] }`
     - **Act**: Call `publishFoodRequested(payload)`
-    - **Assert**: Returns `{ eventId: "evt-abc" }`; `EventBridgeClient.putEvents` called with `{ Entries: [{ Source: "usda-food-data", DetailType: "FoodRequested", Detail: contains fdcId 12345, EventBusName: ENV.EVENT_BUS_NAME }] }`
+    - **Assert**: Returns `{ eventId: "evt-abc" }`; `EventBridgeClient.putEvents` called with `{ Entries: [{ Source: "food-service", DetailType: "FoodRequested", Detail: contains fdcId 12345, EventBusName: ENV.EVENT_BUS_NAME }] }`
 
 - **Unit Scenario: UTS-002-A4**
     - **Arrange**: Set valid `payload`; `EventBridgeClient.putEvents` mock returns `{ FailedEntryCount: 1, Entries: [{ ErrorCode: "ThrottlingException" }] }`
@@ -337,87 +337,87 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 ---
 
-### Module: MOD-003 (SqsQueueRouter — EventBridge Rule Router)
+### Module: MOD-003 (FetchQueueRouter — Postgres `fetch_queue` enqueue + `LISTEN/NOTIFY`)
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `infra/lib/sqs-queue-router.ts` (CDK construct)
+**Target Source File(s)**: `packages/services/food-service/src/queue/fetch-queue-router.ts`
 
 ---
 
-#### Test Case: UTP-003-A (deduplicateMessage — MessageDeduplicationId generation)
+#### Test Case: UTP-003-A (dedupeKey — deduplication key generation)
 
 **Technique**: Statement & Branch Coverage + Boundary Value Analysis
-**Target View**: Algorithmic/Logic View (`deduplicateMessage` function)
-**Description**: Verifies the deduplication ID is deterministic within a 5-minute window and changes across window boundaries.
+**Target View**: Algorithmic/Logic View (`dedupeKey` function)
+**Description**: Verifies the `fetch_queue` deduplication key is deterministic within a 5-minute window and changes across window boundaries (so a duplicate enqueue collapses onto the same row via the unique dedupe-key constraint).
 
 **Dependency & Mock Registry:**
 
-None — `deduplicateMessage` is a pure function (SHA256 hash of fdcId + time-bucketed timestamp).
+None — `dedupeKey` is a pure function (SHA256 hash of fdcId + time-bucketed timestamp).
 
 - **Unit Scenario: UTS-003-A1**
     - **Arrange**: Set `fdcId = 12345`; set `now()` to `T = 1000` (floor(1000/300) = 3)
-    - **Act**: Call `deduplicateMessage(12345)` at time T
-    - **Assert**: `MessageDeduplicationId` equals `SHA256("FoodRequested:12345:3")`; `MessageGroupId` equals `"food-12345"`
+    - **Act**: Call `dedupeKey(12345)` at time T
+    - **Assert**: `dedupeKey` equals `SHA256("FoodRequested:12345:3")`; the row's `group_key` equals `"food-12345"`
 
 - **Unit Scenario: UTS-003-A2**
     - **Arrange**: Set `fdcId = 12345`; set `now()` to `T = 1299` (still floor(1299/300) = 4, same window as T=1200)
-    - **Act**: Call `deduplicateMessage(12345)` at time T and at T+1
-    - **Assert**: Both calls return identical `MessageDeduplicationId` (same 5-minute bucket)
+    - **Act**: Call `dedupeKey(12345)` at time T and at T+1
+    - **Assert**: Both calls return identical `dedupeKey` (same 5-minute bucket → collapses onto one `fetch_queue` row)
 
 - **Unit Scenario: UTS-003-A3**
     - **Arrange**: Set `fdcId = 12345`; call at `T = 1199` (bucket 3) and `T = 1200` (bucket 4)
-    - **Act**: Call `deduplicateMessage(12345)` at both times
-    - **Assert**: `MessageDeduplicationId` values differ (window boundary crossed)
+    - **Act**: Call `dedupeKey(12345)` at both times
+    - **Assert**: `dedupeKey` values differ (window boundary crossed)
 
 ---
 
-#### Test Case: UTP-003-B (configureDlq — redrive policy values)
+#### Test Case: UTP-003-B (configureRetry — max-attempt values before tombstone)
 
 **Technique**: Equivalence Partitioning
-**Target View**: Internal Data Structures (`RedrivePolicy`)
-**Description**: Verifies `configureDlq()` sets `maxReceiveCount` correctly for HighPriority (3) and LowPriority (5) queues.
+**Target View**: Internal Data Structures (`fetch_queue` retry config)
+**Description**: Verifies `configureRetry()` sets the FR-016 `maxAttempts` correctly for high-priority (3) and low-priority (5) rows, after which the row is transitioned to `status='tombstone'`.
 
 **Dependency & Mock Registry:**
 
-None — `configureDlq` is a pure configuration function operating on a queue object.
+None — `configureRetry` is a pure configuration function operating on a `fetch_queue` row config object.
 
 - **Unit Scenario: UTS-003-B1**
-    - **Arrange**: Create `queue = {}` stub; set `dlqArn = "arn:aws:sqs:us-east-1:123:dlq"`; set `maxReceiveCount = 3`
-    - **Act**: Call `configureDlq(queue, dlqArn, 3)`
-    - **Assert**: `queue.RedrivePolicy.deadLetterTargetArn` equals `dlqArn`; `queue.RedrivePolicy.maxReceiveCount` equals `3`
+    - **Arrange**: Create `rowConfig = {}` stub; set `tombstoneStatus = "tombstone"`; set `maxAttempts = 3`
+    - **Act**: Call `configureRetry(rowConfig, "tombstone", 3)`
+    - **Assert**: `rowConfig.onExhausted.status` equals `"tombstone"`; `rowConfig.maxAttempts` equals `3`
 
 - **Unit Scenario: UTS-003-B2**
-    - **Arrange**: Create `queue = {}` stub; set `maxReceiveCount = 5`
-    - **Act**: Call `configureDlq(queue, dlqArn, 5)`
-    - **Assert**: `queue.RedrivePolicy.maxReceiveCount` equals `5`
+    - **Arrange**: Create `rowConfig = {}` stub; set `maxAttempts = 5`
+    - **Act**: Call `configureRetry(rowConfig, "tombstone", 5)`
+    - **Assert**: `rowConfig.maxAttempts` equals `5`
 
 ---
 
-### Module: MOD-004 (FoodConsumerService — SQS Message Processor)
+### Module: MOD-004 (FoodConsumerService — `fetch_queue` Row Processor)
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `src/consumer/food-consumer.ts`
+**Target Source File(s)**: `packages/services/food-service/src/consumer/food-consumer.ts` (Fargate consumer worker — single instance, advisory lock)
 
 ---
 
 #### Test Case: UTP-004-A (processRecord — rate limit exhausted branch)
 
 **Technique**: Statement & Branch Coverage + State Transition Testing
-**Target View**: Algorithmic/Logic View + State Machine View (CheckingRateLimit → RequeueingMessage)
-**Description**: Verifies `processRecord()` changes message visibility and returns `{ failed: false }` when token bucket is exhausted.
+**Target View**: Algorithmic/Logic View + State Machine View (CheckingRateLimit → ReleasingLease)
+**Description**: Verifies `processRecord()` extends the `fetch_queue` row lease (FR-018) and returns `{ failed: false }` when token bucket is exhausted.
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                                               | Rationale                           |
-| ------------------------ | -------- | -------------------------------------------------------------------------------- | ----------------------------------- |
-| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: false }`; `getWaitTime()` returns `25` | Simulate exhausted bucket           |
-| `SqsClient`              | AWS SDK  | Mock: `changeMessageVisibility()` records args                                   | Prevent real SQS calls              |
-| `UsdaApiClient`          | ARCH-008 | Mock: NOT called (assert)                                                        | Verify USDA not called when limited |
+| Dependency               | Source   | Mock/Stub Strategy                                                               | Rationale                                  |
+| ------------------------ | -------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: false }`; `getWaitTime()` returns `25` | Simulate exhausted bucket                  |
+| `FetchQueueRouter`       | ARCH-003 | Mock: `extendLease()` records args                                               | Prevent real Postgres `fetch_queue` writes |
+| `UsdaApiClient`          | ARCH-008 | Mock: NOT called (assert)                                                        | Verify USDA not called when limited        |
 
 - **Unit Scenario: UTS-004-A1**
-    - **Arrange**: Set `record = { messageId: "msg-1", receiptHandle: "rh-1", body: '{"fdcId":12345}' }`; `TokenBucketRateLimiter.checkTokens` returns `{ allowed: false }`; `TokenBucketRateLimiter.getWaitTime` returns `25`
+    - **Arrange**: Set `record = { rowId: "row-1", fdcId: 12345, body: '{"fdcId":12345}' }`; `TokenBucketRateLimiter.checkTokens` returns `{ allowed: false }`; `TokenBucketRateLimiter.getWaitTime` returns `25`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, messageId: "msg-1" }`; `SqsClient.changeMessageVisibility` called with `("rh-1", 30)` (25 + 5); `UsdaApiClient.fetchFoods` NOT called
+    - **Assert**: Returns `{ failed: false, rowId: "row-1" }`; `FetchQueueRouter.extendLease` called with `("row-1", 30)` (25 + 5; row-lease extension per FR-018); `UsdaApiClient.fetchFoods` NOT called
 
 ---
 
@@ -425,32 +425,32 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View (CATCH branches)
-**Description**: Verifies `processRecord()` handles USDA 429, 5xx, and 404 errors with correct SQS outcomes.
+**Description**: Verifies `processRecord()` handles USDA 429, 5xx, and 404 errors with correct `fetch_queue` outcomes per FR-016 (≤5 attempts, exponential backoff, then tombstone; 404 → immediate tombstone).
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                                   | Rationale                      |
-| ------------------------ | -------- | -------------------------------------------------------------------- | ------------------------------ |
-| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: true }`                    | Allow rate limit to pass       |
-| `UsdaApiClient`          | ARCH-008 | Mock: `fetchFoods()` throws `UsdaApiError` with varying status codes | Simulate USDA error responses  |
-| `SqsClient`              | AWS SDK  | Mock: `changeMessageVisibility()` records args                       | Verify visibility change calls |
-| `PostgresRepository`     | ARCH-006 | Mock: `updateFetchStatus()` records args                             | Verify DB update on 404        |
-| `RedisCacheService`      | ARCH-007 | Mock: `clearPending()` records args                                  | Verify pending cleared on 404  |
+| Dependency               | Source   | Mock/Stub Strategy                                                   | Rationale                          |
+| ------------------------ | -------- | -------------------------------------------------------------------- | ---------------------------------- |
+| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: true }`                    | Allow rate limit to pass           |
+| `UsdaApiClient`          | ARCH-008 | Mock: `fetchFoods()` throws `UsdaApiError` with varying status codes | Simulate USDA error responses      |
+| `FetchQueueRouter`       | ARCH-003 | Mock: `extendLease()` / `tombstone()` record args                    | Verify row-lease / tombstone calls |
+| `PostgresRepository`     | ARCH-006 | Mock: `updateFetchStatus()` records args                             | Verify DB update on 404            |
+| `CacheService`           | ARCH-007 | Mock: `clearPending()` records args                                  | Verify pending cleared on 404      |
 
 - **Unit Scenario: UTS-004-B1**
-    - **Arrange**: `UsdaApiClient.fetchFoods` throws `UsdaApiError` with `status = 429`; `record.receiptHandle = "rh-1"`
+    - **Arrange**: `UsdaApiClient.fetchFoods` throws `UsdaApiError` with `status = 429`; `record.rowId = "row-1"`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, messageId: record.messageId }`; `SqsClient.changeMessageVisibility` called with `("rh-1", 60)`
+    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `FetchQueueRouter.extendLease` called with `("row-1", 60)` (backoff-extended row lease, FR-016/FR-018)
 
 - **Unit Scenario: UTS-004-B2**
     - **Arrange**: `UsdaApiClient.fetchFoods` throws `UsdaApiError` with `status = 503`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: true, messageId: record.messageId }`; `SqsClient.changeMessageVisibility` NOT called
+    - **Assert**: Returns `{ failed: true, rowId: record.rowId }`; `FetchQueueRouter.extendLease` NOT called (the lease simply expires, surfacing the row for retry under FR-016)
 
 - **Unit Scenario: UTS-004-B3**
     - **Arrange**: `UsdaApiClient.fetchFoods` throws `UsdaApiError` with `status = 404`; `message.fdcId = 12345`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, messageId: record.messageId }`; `PostgresRepository.updateFetchStatus` called with `(12345, "not_found")`; `RedisCacheService.clearPending` called with `12345`
+    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `FetchQueueRouter.tombstone` called with `record.rowId` (404 → immediate tombstone, `status='tombstone'`, FR-016); `PostgresRepository.updateFetchStatus` called with `(12345, "not_found")`; `CacheService.clearPending` called with `12345`
 
 ---
 
@@ -462,106 +462,107 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                                      | Rationale                      |
-| ------------------------ | -------- | ----------------------------------------------------------------------- | ------------------------------ |
-| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: true }`                       | Allow rate limit to pass       |
-| `UsdaApiClient`          | ARCH-008 | Mock: `fetchFoods()` returns `[{ fdcId: 12345, description: "Apple" }]` | Simulate successful USDA fetch |
-| `PostgresRepository`     | ARCH-006 | Mock: `upsertFood()` returns `{ success: true }`                        | Prevent real DB writes         |
-| `RedisCacheService`      | ARCH-007 | Mock: `invalidate()` and `clearPending()` record args                   | Verify cache operations        |
-| `EventBridgePublisher`   | ARCH-002 | Mock: `publishFoodDataReceived()` records args                          | Verify event published         |
-| `MonitoringLogger`       | ARCH-011 | Mock: `incrementMetric()` records args                                  | Verify metric emitted          |
+| Dependency               | Source   | Mock/Stub Strategy                                                      | Rationale                                 |
+| ------------------------ | -------- | ----------------------------------------------------------------------- | ----------------------------------------- |
+| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: true }`                       | Allow rate limit to pass                  |
+| `UsdaApiClient`          | ARCH-008 | Mock: `fetchFoods()` returns `[{ fdcId: 12345, description: "Apple" }]` | Simulate successful USDA fetch            |
+| `PostgresRepository`     | ARCH-006 | Mock: `upsertFood()` returns `{ success: true }`                        | Prevent real DB writes                    |
+| `CacheService`           | ARCH-007 | Mock: `invalidate()` and `clearPending()` record args                   | Verify cache operations                   |
+| `FetchQueueRouter`       | ARCH-003 | Mock: `complete()` records args                                         | Verify the leased row is completed        |
+| `EventBridgePublisher`   | ARCH-002 | Mock: `publishFoodDataReceived()` records args                          | Verify `FoodDataReceived` event published |
+| `MonitoringLogger`       | ARCH-011 | Mock: `incrementMetric()` records args                                  | Verify metric emitted                     |
 
 - **Unit Scenario: UTS-004-C1**
     - **Arrange**: `record.body = '{"fdcId":12345}'`; `UsdaApiClient.fetchFoods` returns `[{ fdcId: 12345, description: "Apple" }]`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, messageId: record.messageId }`; `PostgresRepository.upsertFood` called with `{ fdcId: 12345 }`; `RedisCacheService.invalidate` called with `12345`; `RedisCacheService.clearPending` called with `12345`; `EventBridgePublisher.publishFoodDataReceived` called with `{ fdcId: 12345 }`; `MonitoringLogger.incrementMetric` called with `("consumer.processed", 1)`
+    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `PostgresRepository.upsertFood` called with `{ fdcId: 12345 }`; `CacheService.invalidate` called with `12345`; `CacheService.clearPending` called with `12345`; `EventBridgePublisher.publishFoodDataReceived` called with `{ fdcId: 12345 }` (EventBridge `FoodDataReceived` only); `FetchQueueRouter.complete` called with `record.rowId` (leased row marked done); `MonitoringLogger.incrementMetric` called with `("consumer.processed", 1)`
 
 ---
 
-#### Test Case: UTP-004-D (handler — batch item failure aggregation)
+#### Test Case: UTP-004-D (processBatch — leased-row failure aggregation)
 
 **Technique**: Statement & Branch Coverage
-**Target View**: Algorithmic/Logic View (`handler` function)
-**Description**: Verifies `handler()` correctly aggregates `batchItemFailures` from mixed success/failure records.
+**Target View**: Algorithmic/Logic View (`processBatch` loop)
+**Description**: Verifies `processBatch()` correctly aggregates failed `fetch_queue` rows from a mixed success/failure lease batch so that only failed rows are left un-completed (their leases expire and they surface again per FR-016).
 
 **Dependency & Mock Registry:**
 
-| Dependency      | Source   | Mock/Stub Strategy                                                                                                     | Rationale                   |
-| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `processRecord` | Internal | Spy: first call returns `{ failed: false, messageId: "msg-1" }`; second returns `{ failed: true, messageId: "msg-2" }` | Control per-record outcomes |
+| Dependency      | Source   | Mock/Stub Strategy                                                                                             | Rationale                |
+| --------------- | -------- | -------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `processRecord` | Internal | Spy: first call returns `{ failed: false, rowId: "row-1" }`; second returns `{ failed: true, rowId: "row-2" }` | Control per-row outcomes |
 
 - **Unit Scenario: UTS-004-D1**
-    - **Arrange**: Set `sqsEvent.Records = [{ messageId: "msg-1" }, { messageId: "msg-2" }]`; `processRecord` spy returns `{ failed: false }` for msg-1 and `{ failed: true }` for msg-2
-    - **Act**: Call `handler(sqsEvent)`
-    - **Assert**: Returns `{ batchItemFailures: [{ itemIdentifier: "msg-2" }] }` (only failed record included)
+    - **Arrange**: Set leased batch `rows = [{ rowId: "row-1" }, { rowId: "row-2" }]`; `processRecord` spy returns `{ failed: false }` for row-1 and `{ failed: true }` for row-2
+    - **Act**: Call `processBatch(rows)`
+    - **Assert**: Returns `{ failedRowIds: ["row-2"] }` (only the failed leased row included)
 
 - **Unit Scenario: UTS-004-D2**
-    - **Arrange**: Set `sqsEvent.Records = [{ messageId: "msg-1" }]`; `processRecord` spy returns `{ failed: false }`
-    - **Act**: Call `handler(sqsEvent)`
-    - **Assert**: Returns `{ batchItemFailures: [] }` (empty array, no failures)
+    - **Arrange**: Set leased batch `rows = [{ rowId: "row-1" }]`; `processRecord` spy returns `{ failed: false }`
+    - **Act**: Call `processBatch(rows)`
+    - **Assert**: Returns `{ failedRowIds: [] }` (empty array, no failures)
 
 ---
 
-### Module: MOD-005 (TokenBucketRateLimiter — Redis Lua Script Rate Limiter)
+### Module: MOD-005 (TokenBucketRateLimiter — Postgres-Backed Atomic Token Bucket; deferred Redis-Lua variant)
 
 **Parent Architecture Modules**: ARCH-005 [CROSS-CUTTING]
-**Target Source File(s)**: `src/rate-limiter/token-bucket.ts`
+**Target Source File(s)**: `packages/services/food-service/src/rate-limiter/token-bucket.ts`
 
 ---
 
-#### Test Case: UTP-005-A (Lua script logic — token refill and consumption)
+#### Test Case: UTP-005-A (token bucket logic — token refill and consumption)
 
 **Technique**: Statement & Branch Coverage + Boundary Value Analysis
-**Target View**: Algorithmic/Logic View (Lua script)
-**Description**: Verifies the Lua script's token refill calculation and the allowed/denied branch at the token boundary.
+**Target View**: Algorithmic/Logic View (atomic token-bucket update)
+**Description**: Verifies the token refill calculation and the allowed/denied branch at the token boundary. By default the bucket is an atomic Postgres `UPDATE ... RETURNING` (single-instance consumer + advisory lock); the deferred Redis variant runs the same arithmetic as a Lua script. The store is mocked to execute the update logic in-process.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source      | Mock/Stub Strategy                                                                                 | Rationale                              |
-| ------------- | ----------- | -------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `RedisClient` | ElastiCache | Mock: `eval()` / `evalsha()` executes Lua script logic in-process (or use embedded Redis for unit) | Isolate from real Redis infrastructure |
+| Dependency    | Source                                     | Mock/Stub Strategy                                                                                      | Rationale                               |
+| ------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `BucketStore` | Postgres (default; deferred Redis variant) | Mock: executes the atomic bucket update in-process (`UPDATE ... RETURNING`, or the deferred Lua `eval`) | Isolate from real bucket infrastructure |
 
 - **Unit Scenario: UTS-005-A1**
     - **Arrange**: Set `tokens = 1.0`, `last_refill = now - 0` (no elapsed time), `capacity = 1000`, `refill_rate = 0.2778`
-    - **Act**: Execute Lua script via mock Redis `eval`
-    - **Assert**: Returns `[1, 0]` (allowed=true, tokensRemaining=0); `SET BUCKET_KEY 0` called; `SET LAST_REFILL_KEY now` called
+    - **Act**: Execute the atomic bucket update via mock `BucketStore`
+    - **Assert**: Returns `[1, 0]` (allowed=true, tokensRemaining=0); bucket row updated to `tokens = 0`; `last_refill` updated to `now`
 
 - **Unit Scenario: UTS-005-A2**
     - **Arrange**: Set `tokens = 0.5`, `last_refill = now - 0` (no elapsed time, tokens < 1)
-    - **Act**: Execute Lua script
-    - **Assert**: Returns `[0, 0]` (allowed=false, tokensRemaining=0 after clamp); `SET BUCKET_KEY` called with value < 1
+    - **Act**: Execute the bucket update
+    - **Assert**: Returns `[0, 0]` (allowed=false, tokensRemaining=0 after clamp); bucket row updated with value < 1
 
 - **Unit Scenario: UTS-005-A3**
     - **Arrange**: Set `tokens = 0`, `last_refill = now - 3600` (1 hour elapsed); `capacity = 1000`, `refill_rate = 0.2778`
-    - **Act**: Execute Lua script
+    - **Act**: Execute the bucket update
     - **Assert**: `new_tokens` clamped to `1000` (capacity); returns `[1, 999]` (allowed=true, 999 remaining after consuming 1)
 
 - **Unit Scenario: UTS-005-A4**
     - **Arrange**: Set `tokens = 0`, `last_refill = now - 1` (1 second elapsed, refill = 0.2778 < 1)
-    - **Act**: Execute Lua script
+    - **Act**: Execute the bucket update
     - **Assert**: Returns `[0, ...]` (allowed=false; 0.2778 tokens insufficient to consume 1)
 
 ---
 
-#### Test Case: UTP-005-B (checkTokens — Redis unavailability error propagation)
+#### Test Case: UTP-005-B (checkTokens — bucket-store unavailability error propagation)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Error Handling Return Codes
-**Description**: Verifies `checkTokens()` throws `RateLimiterError` when Redis is unavailable or times out.
+**Description**: Verifies `checkTokens()` throws `RateLimiterError` when the bucket store (Postgres by default; deferred Redis variant) is unavailable or times out.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source      | Mock/Stub Strategy                             | Rationale                     |
-| ------------- | ----------- | ---------------------------------------------- | ----------------------------- |
-| `RedisClient` | ElastiCache | Mock: `eval()` throws `ConnectionRefusedError` | Simulate Redis unavailability |
+| Dependency    | Source                                     | Mock/Stub Strategy                                  | Rationale                            |
+| ------------- | ------------------------------------------ | --------------------------------------------------- | ------------------------------------ |
+| `BucketStore` | Postgres (default; deferred Redis variant) | Mock: bucket update throws `ConnectionRefusedError` | Simulate bucket-store unavailability |
 
 - **Unit Scenario: UTS-005-B1**
-    - **Arrange**: `RedisClient.eval` mock throws `ConnectionRefusedError`
+    - **Arrange**: `BucketStore` update mock throws `ConnectionRefusedError`
     - **Act**: Call `checkTokens()`
     - **Assert**: Throws `RateLimiterError`; error message contains "unavailable" or "connection"
 
 - **Unit Scenario: UTS-005-B2**
-    - **Arrange**: `RedisClient.eval` mock throws `TimeoutError` after 100ms
+    - **Arrange**: `BucketStore` update mock throws `TimeoutError` after 100ms
     - **Act**: Call `checkTokens()`
     - **Assert**: Throws `RateLimiterError`
 
@@ -575,22 +576,22 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source      | Mock/Stub Strategy                                                    | Rationale                               |
-| ------------- | ----------- | --------------------------------------------------------------------- | --------------------------------------- |
-| `RedisClient` | ElastiCache | Mock: `eval()` returns controlled `[allowed, tokensRemaining]` tuples | Drive state machine through transitions |
+| Dependency    | Source                                     | Mock/Stub Strategy                                                         | Rationale                               |
+| ------------- | ------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------- |
+| `BucketStore` | Postgres (default; deferred Redis variant) | Mock: bucket update returns controlled `[allowed, tokensRemaining]` tuples | Drive state machine through transitions |
 
 - **Unit Scenario: UTS-005-C1**
-    - **Arrange**: `RedisClient.eval` returns `[1, 5]` (tokens available)
+    - **Arrange**: `BucketStore` update returns `[1, 5]` (tokens available)
     - **Act**: Call `checkTokens()`
     - **Assert**: Returns `{ allowed: true, tokensRemaining: 5 }` (state: TokensAvailable)
 
 - **Unit Scenario: UTS-005-C2**
-    - **Arrange**: `RedisClient.eval` returns `[1, 0]` (last token consumed)
+    - **Arrange**: `BucketStore` update returns `[1, 0]` (last token consumed)
     - **Act**: Call `checkTokens()`
     - **Assert**: Returns `{ allowed: true, tokensRemaining: 0 }` (transition: TokensAvailable → TokensExhausted)
 
 - **Unit Scenario: UTS-005-C3**
-    - **Arrange**: `RedisClient.eval` returns `[0, 0]` (exhausted)
+    - **Arrange**: `BucketStore` update returns `[0, 0]` (exhausted)
     - **Act**: Call `checkTokens()`
     - **Assert**: Returns `{ allowed: false, tokensRemaining: 0 }` (state: TokensExhausted)
 
@@ -599,7 +600,7 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 ### Module: MOD-006 (FoodPostgresRepository — Database Access Layer)
 
 **Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `src/repository/food-postgres-repository.ts`
+**Target Source File(s)**: `packages/services/food-service/src/repository/food-postgres-repository.ts`
 
 ---
 
@@ -695,10 +696,10 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 ---
 
-### Module: MOD-007 (FoodRedisCacheService — Cache & Pending-Set Manager)
+### Module: MOD-007 (FoodCacheService — Cache & Pending-Set Manager; in-process LRU / Postgres default, deferred Redis variant)
 
 **Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `src/cache/food-redis-cache-service.ts`
+**Target Source File(s)**: `packages/services/food-service/src/cache/food-cache.service.ts`
 
 ---
 
@@ -710,23 +711,23 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 **Dependency & Mock Registry:**
 
-| Dependency         | Source      | Mock/Stub Strategy                                             | Rationale                |
-| ------------------ | ----------- | -------------------------------------------------------------- | ------------------------ |
-| `RedisClient`      | ElastiCache | Mock: `get()` returns `null`, JSON string, or malformed string | Prevent real Redis calls |
-| `MonitoringLogger` | ARCH-011    | Mock: `logError()` records args                                | Verify error logging     |
+| Dependency         | Source                                                      | Mock/Stub Strategy                                             | Rationale                      |
+| ------------------ | ----------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------ |
+| `CacheStore`       | in-process LRU / Postgres (default; deferred Redis variant) | Mock: `get()` returns `null`, JSON string, or malformed string | Prevent real cache-store calls |
+| `MonitoringLogger` | ARCH-011                                                    | Mock: `logError()` records args                                | Verify error logging           |
 
 - **Unit Scenario: UTS-007-A1**
-    - **Arrange**: `RedisClient.get` mock returns `null` for key `"food:12345"`
+    - **Arrange**: `CacheStore.get` mock returns `null` for key `"food:12345"`
     - **Act**: Call `get(12345)`
     - **Assert**: Returns `null`
 
 - **Unit Scenario: UTS-007-A2**
-    - **Arrange**: `RedisClient.get` mock returns `'{"fdcId":12345,"description":"Apple"}'`
+    - **Arrange**: `CacheStore.get` mock returns `'{"fdcId":12345,"description":"Apple"}'`
     - **Act**: Call `get(12345)`
     - **Assert**: Returns `{ fdcId: 12345, description: "Apple" }`
 
 - **Unit Scenario: UTS-007-A3**
-    - **Arrange**: `RedisClient.get` mock returns `"INVALID_JSON{"`
+    - **Arrange**: `CacheStore.get` mock returns `"INVALID_JSON{"`
     - **Act**: Call `get(12345)`
     - **Assert**: Returns `null`; `MonitoringLogger.logError` called
 
@@ -736,18 +737,18 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 **Technique**: Statement & Branch Coverage + Strict Isolation
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies `set()` calls `Redis.set` with the correct key (`"food:{fdcId}"`), JSON-serialized value, and `EX` TTL.
+**Description**: Verifies `set()` calls the cache store with the correct key (`"food:{fdcId}"`), JSON-serialized value, and TTL.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source      | Mock/Stub Strategy                   | Rationale               |
-| ------------- | ----------- | ------------------------------------ | ----------------------- |
-| `RedisClient` | ElastiCache | Mock: `set()` records call arguments | Verify key/TTL contract |
+| Dependency   | Source                                                      | Mock/Stub Strategy                   | Rationale               |
+| ------------ | ----------------------------------------------------------- | ------------------------------------ | ----------------------- |
+| `CacheStore` | in-process LRU / Postgres (default; deferred Redis variant) | Mock: `set()` records call arguments | Verify key/TTL contract |
 
 - **Unit Scenario: UTS-007-B1**
     - **Arrange**: Set `fdcId = 12345`, `data = { fdcId: 12345, description: "Apple" }`, `ttl = 3600`
     - **Act**: Call `set(12345, data, 3600)`
-    - **Assert**: `RedisClient.set` called with `("food:12345", '{"fdcId":12345,"description":"Apple"}', "EX", 3600)`
+    - **Assert**: `CacheStore.set` called with `("food:12345", '{"fdcId":12345,"description":"Apple"}', { ttlSeconds: 3600 })` (the deferred Redis variant maps this to `SET ... EX 3600`)
 
 ---
 
@@ -755,40 +756,40 @@ None — `configureDlq` is a pure configuration function operating on a queue ob
 
 **Technique**: Statement & Branch Coverage + Equivalence Partitioning
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies the pending set operations use correct Redis commands and key schemas.
+**Description**: Verifies the pending-set operations use the correct store commands and key schemas. By default the pending set is the Postgres `pending_fetch` set (membership row + TTL column); the deferred Redis variant maps these to `SISMEMBER`/`SADD`/`SREM`.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source      | Mock/Stub Strategy                                                    | Rationale                  |
-| ------------- | ----------- | --------------------------------------------------------------------- | -------------------------- |
-| `RedisClient` | ElastiCache | Mock: `sismember()` returns 0 or 1; `sadd()` and `srem()` record args | Verify Redis command usage |
+| Dependency        | Source                                                     | Mock/Stub Strategy                                                        | Rationale                        |
+| ----------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------- |
+| `PendingSetStore` | Postgres `pending_fetch` (default; deferred Redis variant) | Mock: `isMember()` returns false/true; `add()` and `remove()` record args | Verify pending-set command usage |
 
 - **Unit Scenario: UTS-007-C1**
-    - **Arrange**: `RedisClient.sismember` mock returns `1` for `("pending_fetch", "12345")`
+    - **Arrange**: `PendingSetStore.isMember` mock returns `true` for `("pending_fetch", "12345")`
     - **Act**: Call `isPending(12345)`
     - **Assert**: Returns `true`
 
 - **Unit Scenario: UTS-007-C2**
-    - **Arrange**: `RedisClient.sismember` mock returns `0`
+    - **Arrange**: `PendingSetStore.isMember` mock returns `false`
     - **Act**: Call `isPending(12345)`
     - **Assert**: Returns `false`
 
 - **Unit Scenario: UTS-007-C3**
-    - **Arrange**: `RedisClient.sadd` and `RedisClient.set` mocks record args
+    - **Arrange**: `PendingSetStore.add` mock records args
     - **Act**: Call `markPending(12345)`
-    - **Assert**: `RedisClient.sadd` called with `("pending_fetch", "12345")`; `RedisClient.set` called with `("pending_ttl:12345", "1", "EX", 300)`
+    - **Assert**: `PendingSetStore.add` called with `("pending_fetch", "12345", { ttlSeconds: 300 })` (Postgres membership row + TTL; the deferred Redis variant maps this to `SADD` + `SET pending_ttl:12345 "1" EX 300`)
 
 - **Unit Scenario: UTS-007-C4**
-    - **Arrange**: `RedisClient.srem` and `RedisClient.del` mocks record args
+    - **Arrange**: `PendingSetStore.remove` mock records args
     - **Act**: Call `clearPending(12345)`
-    - **Assert**: `RedisClient.srem` called with `("pending_fetch", "12345")`; `RedisClient.del` called with `"pending_ttl:12345"`
+    - **Assert**: `PendingSetStore.remove` called with `("pending_fetch", "12345")` (the deferred Redis variant maps this to `SREM` + `DEL pending_ttl:12345`)
 
 ---
 
 ### Module: MOD-008 (UsdaApiClient — HTTP Client for USDA FoodData Central)
 
 **Parent Architecture Modules**: ARCH-008
-**Target Source File(s)**: `src/usda/usda-api-client.ts`
+**Target Source File(s)**: `packages/clients/usda/src/usda-api.client.ts` (`@kitchensink/usda-client`)
 
 ---
 
@@ -887,7 +888,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 ### Module: MOD-009 (WebSocketNotifier — Real-Time Client Notification)
 
 **Parent Architecture Modules**: ARCH-009
-**Target Source File(s)**: `src/websocket/websocket-notifier.ts`
+**Target Source File(s)**: `packages/services/food-service/src/websocket/websocket-notifier.ts`
 
 ---
 
@@ -954,7 +955,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 ### Module: MOD-010 (SecretManager — AWS Secrets Manager Wrapper)
 
 **Parent Architecture Modules**: ARCH-010 [CROSS-CUTTING]
-**Target Source File(s)**: `src/secrets/secret-manager.ts`
+**Target Source File(s)**: `packages/services/food-service/src/secrets/secret-manager.ts`
 
 ---
 
@@ -1035,7 +1036,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 ### Module: MOD-011 (MonitoringLogger — Structured Logging & Metrics)
 
 **Parent Architecture Modules**: ARCH-011 [CROSS-CUTTING]
-**Target Source File(s)**: `src/monitoring/monitoring-logger.ts`
+**Target Source File(s)**: `packages/services/food-service/src/monitoring/monitoring-logger.ts`
 
 ---
 
@@ -1092,7 +1093,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 - **Unit Scenario: UTS-011-C1**
     - **Arrange**: Set `name = "cache.hit"`, `value = 1`; mock `unixTimestampMs()` returns `1715212800000`
     - **Act**: Call `incrementMetric("cache.hit", 1)`
-    - **Assert**: `logger.info` called with `"metric"` and object where `_aws.CloudWatchMetrics[0].Namespace = "UsdaFoodData"`, `_aws.CloudWatchMetrics[0].Metrics[0].Name = "cache.hit"`, `_aws.CloudWatchMetrics[0].Metrics[0].Unit = "Count"`, `["cache.hit"] = 1`, `service = "usda-food-data"`
+    - **Assert**: `logger.info` called with `"metric"` and object where `_aws.CloudWatchMetrics[0].Namespace = "UsdaFoodData"`, `_aws.CloudWatchMetrics[0].Metrics[0].Name = "cache.hit"`, `_aws.CloudWatchMetrics[0].Metrics[0].Unit = "Count"`, `["cache.hit"] = 1`, `service = "food-service"`
 
 ---
 
@@ -1100,7 +1101,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
 **Requirements Under Test**: REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
-**Target Source File(s)**: `src/auth/clerk-auth.middleware.ts` (MOD-012), `src/auth/quota-and-fairness.ts` (MOD-013)
+**Target Source File(s)**: `packages/services/food-service/src/auth/clerk-auth.middleware.ts` (MOD-012, uses shared `@kitchensink/clerk-verify`), `packages/services/food-service/src/auth/quota-and-fairness.ts` (MOD-013)
 
 > The auth slice fronts every food-data entry point. MOD-012 verifies the Clerk session/M2M token networklessly (signature/`exp`/`nbf`/`azp` via the public `CLERK_JWT_KEY`), fails closed to `401`, derives the `AuthenticatedCaller` solely from the verified `sub`, and gates operational scopes (`403`) from `public_metadata`. MOD-013 enforces the per-`sub` enqueue quota (`429`), the batch-size cap (`400`), and distinct-requester demand counting before any fetch is enqueued. Unit scenarios isolate `@clerk/backend` `verifyToken` and all I/O behind mocks; only the module's internal control flow, boundaries, and state are exercised.
 
@@ -1227,10 +1228,10 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Dependency & Mock Registry:**
 
-| Dependency           | Source   | Mock/Stub Strategy                                        | Rationale                                   |
-| -------------------- | -------- | --------------------------------------------------------- | ------------------------------------------- |
-| `QuotaStore` (Redis) | ARCH-007 | Mock: returns controlled remaining-token counts per `sub` | Isolate quota arithmetic from real Redis    |
-| `FetchQueue`         | ARCH-003 | Spy: `enqueue()` — assert call count                      | Verify no fetch is enqueued on quota breach |
+| Dependency   | Source                                              | Mock/Stub Strategy                                        | Rationale                                    |
+| ------------ | --------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------- |
+| `QuotaStore` | ARCH-007 (Postgres default; deferred Redis variant) | Mock: returns controlled remaining-token counts per `sub` | Isolate quota arithmetic from the real store |
+| `FetchQueue` | ARCH-003 (Postgres `fetch_queue`)                   | Spy: `enqueue()` — assert call count                      | Verify no fetch is enqueued on quota breach  |
 
 - **Unit Scenario: UTS-012-E1**
     - **Arrange**: Per-`sub` quota `N = 10` enqueues/hour; mock `QuotaStore` so `sub='user_abc'` has `remaining = 1` (at boundary, one left)
@@ -1286,14 +1287,14 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Dependency & Mock Registry:**
 
-| Dependency                 | Source   | Mock/Stub Strategy                                      | Rationale                                 |
-| -------------------------- | -------- | ------------------------------------------------------- | ----------------------------------------- |
-| `RequesterSubscriptionSet` | ARCH-007 | Mock: backed by an in-memory `Set` keyed `fdcId → subs` | Isolate distinct-counting from Redis SADD |
+| Dependency                 | Source                                                                     | Mock/Stub Strategy                                      | Rationale                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `RequesterSubscriptionSet` | ARCH-007 (Postgres `fetch_requesters` set default; deferred Redis variant) | Mock: backed by an in-memory `Set` keyed `fdcId → subs` | Isolate distinct-counting from the real set store (Postgres unique-row / deferred Redis SADD) |
 
 - **Unit Scenario: UTS-012-G1**
     - **Arrange**: For `fdcId=12345`, `sub='user_a'` records a request 5 times in a row
     - **Act**: Invoke `recordDemand(12345, 'user_a')` five times, then `getDemand(12345)`
-    - **Assert**: `getDemand(12345) === 1` — repeated requests by the same `sub` count once (idempotent SADD semantics), not 5
+    - **Assert**: `getDemand(12345) === 1` — repeated requests by the same `sub` count once (idempotent set-insert semantics: Postgres `INSERT ... ON CONFLICT DO NOTHING` by default, deferred Redis `SADD`), not 5
 
 - **Unit Scenario: UTS-012-G2**
     - **Arrange**: For `fdcId=12345`, three distinct subs `user_a`, `user_b`, `user_c` each request once
@@ -1315,12 +1316,12 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Dependency & Mock Registry:**
 
-| Dependency           | Source   | Mock/Stub Strategy                                                          | Rationale                                             |
-| -------------------- | -------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `QueueDepthProbe`    | ARCH-003 | Mock: `currentDepth()` returns a controlled integer at/over/under the bound | Drive the backpressure boundary without a real queue  |
-| `CircuitBreaker`     | ARCH-008 | Mock: `state()` returns `'closed'` or `'open'`                              | Drive the open-circuit branch without real USDA state |
-| `QuotaStore` (Redis) | ARCH-007 | Mock: `remaining()` resolves a count **or** throws `ConnectionRefusedError` | Drive the within-quota and store-unavailable branches |
-| `FetchQueue`         | ARCH-003 | Spy: `enqueue()` — assert zero on every `503`                               | Verify nothing is enqueued when the gate fails closed |
+| Dependency        | Source                                              | Mock/Stub Strategy                                                          | Rationale                                             |
+| ----------------- | --------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `QueueDepthProbe` | ARCH-003                                            | Mock: `currentDepth()` returns a controlled integer at/over/under the bound | Drive the backpressure boundary without a real queue  |
+| `CircuitBreaker`  | ARCH-008                                            | Mock: `state()` returns `'closed'` or `'open'`                              | Drive the open-circuit branch without real USDA state |
+| `QuotaStore`      | ARCH-007 (Postgres default; deferred Redis variant) | Mock: `remaining()` resolves a count **or** throws `ConnectionRefusedError` | Drive the within-quota and store-unavailable branches |
+| `FetchQueue`      | ARCH-003                                            | Spy: `enqueue()` — assert zero on every `503`                               | Verify nothing is enqueued when the gate fails closed |
 
 - **Unit Scenario: UTS-012-H1**
     - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; mock `QueueDepthProbe.currentDepth()` returns `1000` (at the ceiling); `CircuitBreaker.state()` returns `'closed'`; `QuotaStore.remaining('user_abc')` returns `5` (within quota)
@@ -1352,12 +1353,12 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source         | Mock/Stub Strategy                                                                                      | Rationale                                                                 |
-| ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `verifyToken`            | @clerk/backend | Spy: throws `TokenVerificationError`; assert **call count** to prove the cap short-circuits ahead of it | Prove load-shed bypasses the CPU-bound signature check                    |
-| `FailureRateStore`       | ARCH-007       | Mock: `count(source)` returns a controlled rolling `401` count at/over/under the cap                    | Drive the per-source `401`-rate-cap boundary without a real Redis counter |
-| `VerifyConcurrencyGuard` | MOD-012        | Mock: `inFlight()` returns a controlled integer at/over/under `MAX_VERIFY_CONCURRENCY`                  | Drive the concurrency-cap shed branch deterministically                   |
-| `MonitoringLogger`       | ARCH-011       | Mock: `incrementMetric()` records args                                                                  | Verify the `auth.load_shed` metric is emitted (observability of the shed) |
+| Dependency               | Source                                              | Mock/Stub Strategy                                                                                      | Rationale                                                                 |
+| ------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `verifyToken`            | @clerk/backend                                      | Spy: throws `TokenVerificationError`; assert **call count** to prove the cap short-circuits ahead of it | Prove load-shed bypasses the CPU-bound signature check                    |
+| `FailureRateStore`       | ARCH-007 (Postgres default; deferred Redis variant) | Mock: `count(source)` returns a controlled rolling `401` count at/over/under the cap                    | Drive the per-source `401`-rate-cap boundary without a real counter store |
+| `VerifyConcurrencyGuard` | MOD-012                                             | Mock: `inFlight()` returns a controlled integer at/over/under `MAX_VERIFY_CONCURRENCY`                  | Drive the concurrency-cap shed branch deterministically                   |
+| `MonitoringLogger`       | ARCH-011                                            | Mock: `incrementMetric()` records args                                                                  | Verify the `auth.load_shed` metric is emitted (observability of the shed) |
 
 - **Unit Scenario: UTS-012-I1**
     - **Arrange**: `MAX_SOURCE_401_RATE = 100`/window; mock `FailureRateStore.count('1.2.3.4')` returns `99` (max-1, under the cap); `Authorization = 'Bearer well-formed.but.invalid'`; spy `verifyToken` throws `TokenVerificationError`
@@ -1426,7 +1427,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
 **Requirements Under Test**: REQ-037, FR-048
-**Target Source File(s)**: `src/auth/async-producer-authz.service.ts` (MOD-014)
+**Target Source File(s)**: `packages/services/food-service/src/auth/async-producer-authz.service.ts` (MOD-014)
 
 > US-0's guarantee — _"no unauthenticated path may drive USDA consumption"_ — must also hold on the **async/internal** producer leg (EventBridge events, cron/scheduled jobs, bulk-sync, recipe import), not only the synchronous HTTP edge that MOD-012 fronts. MOD-014 enforces two layers before any USDA fetch or `INSERT INTO fetch_queue`: **(1)** the delivering IAM principal — taken from the AWS-attested invocation context, never a forgeable event-body field — must be on the least-privilege producer allowlist; and **(2)** the event's `requestedBy` provenance must be an authenticated human `sub` (carried from MOD-012) or a named `svc_` service principal — never empty and never the anonymous `'system'` shortcut. Every deny path is **fail-closed**: the event is dropped, nothing is fetched or enqueued. Unit scenarios mock the invocation context, the allowlist config, and `MonitoringLogger`; only the module's internal control flow and boundaries are exercised — no real EventBridge, no DB.
 

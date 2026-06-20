@@ -7,7 +7,7 @@
 
 ## Overview
 
-Event-driven, queue-based architecture for USDA FoodData Central integration. The HTTP read API is a NestJS service running on ECS/Fargate behind a public ALB; user-facing food lookups are served from local PostgreSQL (with optional Redis cache) — the USDA API is never called in the request path. Cache misses and pending foods trigger async backfill via EventBridge → SQS → a Fargate consumer worker, rate-limited to 1,000 USDA API calls per hour via a Redis token-bucket algorithm. The system handles eventual consistency via client polling. (A WebSocket push notifier on API Gateway WebSocket API is deferred to US-9 and is the only Lambda-authorizer surface.)
+Event-driven, queue-based architecture for USDA FoodData Central integration. The HTTP read API is a NestJS service running on ECS/Fargate behind a public ALB; user-facing food lookups are served from local PostgreSQL (with optional Redis cache; lean-launch default is Postgres) — the USDA API is never called in the request path. Cache misses and pending foods trigger async backfill via an `INSERT … ON CONFLICT` into the Postgres `fetch_queue` (Postgres-as-queue) paired with `pg_notify`, drained over `LISTEN/NOTIFY` by a single Fargate consumer worker (single instance via advisory lock), rate-limited to 1,000 USDA API calls per hour via a token-bucket algorithm. Demand priority is `ORDER BY request_count DESC, first_requested ASC`. EventBridge is used only for scheduled producers (stale-refresh / bulk-sync) and the `FoodDataReceived` completion event — never the demand-path enqueue. The system handles eventual consistency via client polling. (A WebSocket push notifier on API Gateway WebSocket API is deferred to US-9 and is the only Lambda-authorizer surface.)
 
 ## ID Schema
 
@@ -20,43 +20,43 @@ Event-driven, queue-based architecture for USDA FoodData Central integration. Th
 | SYS ID  | Name                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Parent Requirements                                                                      | Type      |
 | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------- |
 | SYS-001 | FoodApiController           | NestJS controller in the food read service running on ECS/Fargate behind a public ALB. Handles all food lookup endpoints with in-process `AuthMiddleware`/`FoodAuthGuard` (SYS-013). Serves from local store only; never calls USDA API directly. Returns 200/202/404/400 based on local fetch_status.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | REQ-001, REQ-002, REQ-003, REQ-004, REQ-005, REQ-006, REQ-007, REQ-008, REQ-009, REQ-010 | Component |
-| SYS-002 | EventBridgeBus              | Central event bus routing FoodRequested and FoodBatchRequested events to respective SQS queues. Decouples the API service from queue producers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | REQ-011, REQ-012                                                                         | Component |
-| SYS-003 | HighPriorityFoodQueue       | SQS FIFO queue for individual food lookup requests. Polled by Consumer Lambda ahead of LowPriorityQueue.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | REQ-011, REQ-012, REQ-014                                                                | Component |
-| SYS-004 | LowPriorityFoodQueue        | SQS FIFO queue for batch/recipe-triggered and periodic refresh events. Polled only when HighPriorityQueue is empty.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | REQ-011, REQ-013                                                                         | Component |
-| SYS-005 | FoodConsumerLambda          | Rate-limited Lambda that consumes from both queues. Calls USDA API via token-bucket (max 1,000/hr). Processes up to 20 fdcIds per batch API call. Writes results to PostgreSQL and invalidates Redis cache.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | REQ-011, REQ-012, REQ-014, REQ-015, REQ-016, REQ-017                                     | Component |
-| SYS-006 | TokenBucketRateLimiter      | Redis-backed token bucket limiting Consumer Lambda to 1,000 USDA API calls/hour. Prevents throttling and ensures fair distribution across time windows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | REQ-018, REQ-019                                                                         | Component |
+| SYS-002 | EventBridgeBus              | Event bus for **scheduled producers only** (stale-refresh / bulk-sync) and the `FoodDataReceived` completion event. It is **not** on the demand-path enqueue — cache-miss enqueues are `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify`. Decouples scheduled producers and completion consumers from the API service.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | REQ-011, REQ-012                                                                         | Component |
+| SYS-003 | HighPriorityFetchQueue      | Postgres `fetch_queue` (Postgres-as-queue) rows for individual food lookup requests. Demand priority `ORDER BY request_count DESC, first_requested ASC`; drained by the Fargate consumer worker via `LISTEN/NOTIFY` ahead of lower-demand rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | REQ-011, REQ-012, REQ-014                                                                | Component |
+| SYS-004 | LowPriorityFetchQueue       | Lower-demand `fetch_queue` rows for batch/recipe-triggered and periodic refresh enqueues (same Postgres `fetch_queue`, lower `request_count`). Drained only after higher-demand rows by the same `ORDER BY request_count DESC, first_requested ASC`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | REQ-011, REQ-013                                                                         | Component |
+| SYS-005 | FoodConsumerWorker          | Rate-limited Fargate consumer worker (single instance via advisory lock) that drains the Postgres `fetch_queue` via `LISTEN/NOTIFY`. Calls USDA API via token-bucket (max 1,000/hr). Processes up to 20 fdcIds per batch API call. Writes results to PostgreSQL and invalidates Redis cache.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | REQ-011, REQ-012, REQ-014, REQ-015, REQ-016, REQ-017                                     | Component |
+| SYS-006 | TokenBucketRateLimiter      | Token bucket limiting the Fargate consumer worker to 1,000 USDA API calls/hour (Postgres `rate_limiter_state` by default; Redis is a deferred post-launch variant). Prevents throttling and ensures fair distribution across time windows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | REQ-018, REQ-019                                                                         | Component |
 | SYS-007 | FoodDataPostgresRepository  | PostgreSQL-backed persistent store for food data and fetch_status tracking. Contains foods table with fdcId, description, nutrition fields, fetch_status, fetched_at, last_requested_at, request_count.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | REQ-001, REQ-002, REQ-003, REQ-004, REQ-005, REQ-020, REQ-021                            | Component |
-| SYS-008 | FoodDataRedisCache          | Redis cache for hot food data (TTL 24h) and pending fetch deduplication set. Role 1: hot cache. Role 2: token bucket state. Role 3: pending set deduplication.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | REQ-001, REQ-002, REQ-003, REQ-004, REQ-022, REQ-023                                     | Component |
-| SYS-009 | USDAFoodDataCentralApi      | External USDA FoodData Central REST API. Called exclusively by Consumer Lambda via token-bucket-controlled HTTP. Used for batch (up to 20 IDs) and single food lookups.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | REQ-016, REQ-017, REQ-024                                                                | Component |
+| SYS-008 | FoodDataRedisCache          | Optional Redis cache (deferred post-launch variant; lean-launch default is Postgres) for hot food data (TTL 24h). Pending-fetch deduplication is the `fetch_queue` `ON CONFLICT` row, not a Redis set. Role 1: hot cache. Role 2: token bucket state (Redis variant). Role 3: dedup is the `fetch_queue` row.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | REQ-001, REQ-002, REQ-003, REQ-004, REQ-022, REQ-023                                     | Component |
+| SYS-009 | USDAFoodDataCentralApi      | External USDA FoodData Central REST API. Called exclusively by the Fargate consumer worker via token-bucket-controlled HTTP. Used for batch (up to 20 IDs) and single food lookups.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | REQ-016, REQ-017, REQ-024                                                                | Component |
 | SYS-010 | WebSocketNotificationLambda | Optional Lambda triggered by FoodDataReceived events from EventBridge. Pushes real-time updates to connected clients via API Gateway WebSocket API. Launch deferred (US-9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | REQ-025                                                                                  | Component |
-| SYS-011 | SecretManagement            | AWS Secrets Manager integration for USDA API key storage and rotation. Injected into Consumer Lambda environment via secure parameter.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | REQ-026, REQ-027                                                                         | Component |
+| SYS-011 | SecretManagement            | AWS Secrets Manager integration for USDA API key storage and rotation. Injected into the Fargate consumer worker environment via secure parameter.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | REQ-026, REQ-027                                                                         | Component |
 | SYS-012 | MonitoringAndLogging        | CloudWatch for the ECS/Fargate API service and the Fargate consumer worker logs, metrics, and alarms. X-Ray tracing for distributed request visibility.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | REQ-028, REQ-029, REQ-030                                                                | Component |
 | SYS-013 | AuthnAuthzLayer             | Named Clerk authentication & authorization component fronting **every** food data entry point. Networkless `@clerk/backend` `verifyToken` against non-secret `CLERK_JWT_KEY` with `azp` allowlist, fail-closed `401`. Two deployment surfaces: (1) in-process NestJS `AuthMiddleware`/`FoodAuthGuard` on the ECS/Fargate HTTP service behind the public ALB (HTTP routes); (2) a WebSocket `$connect` Lambda authorizer (pinned `403`). Emits the `AuthenticatedCaller` principal (`sub`, `azp`, scopes from `public_metadata`), enforces scope `403`/precedence, per-`sub` enqueue quota (`429`), batch/queue bounds (`400`/`503`), M2M token class, async-producer provenance, and auth-layer load-shed. Reuses the identity service's `ClerkAuthService` verify logic via a shared `@kitchensink/*` package. | REQ-IF-008, REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044       | Component |
 
 ## Dependency View (IEEE 1016 §5.2)
 
-| Source  | Target  | Relationship  | Failure Impact                                                                                                                                                                                        |
-| ------- | ------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SYS-001 | SYS-002 | Calls         | If EventBridge publish fails, food fetch is lost; client gets stale data or 404                                                                                                                       |
-| SYS-001 | SYS-007 | Reads         | If PostgreSQL unavailable, the API service returns 503; no graceful degradation                                                                                                                       |
-| SYS-001 | SYS-008 | Reads         | If Redis unavailable, falls through to PostgreSQL; slight latency increase                                                                                                                            |
-| SYS-002 | SYS-003 | Routes        | If HighPriorityQueue unavailable, food lookups fail; batch jobs queued to DLQ                                                                                                                         |
-| SYS-002 | SYS-004 | Routes        | If LowPriorityQueue unavailable, batch imports fail silently; DLQ capture                                                                                                                             |
-| SYS-003 | SYS-005 | Feeds         | If Consumer Lambda is behind, HighPriorityQueue accumulates; food data delayed                                                                                                                        |
-| SYS-004 | SYS-005 | Feeds         | If Consumer Lambda is behind, LowPriorityQueue accumulates; batch enrichment delayed                                                                                                                  |
-| SYS-005 | SYS-006 | Calls         | If TokenBucket unavailable, Consumer Lambda cannot call USDA API safely                                                                                                                               |
-| SYS-005 | SYS-007 | Writes        | If PostgreSQL write fails, USDA data lost; retry with exponential backoff                                                                                                                             |
-| SYS-005 | SYS-008 | Invalidates   | If Redis invalidate fails, stale data may be served from cache up to TTL (24h)                                                                                                                        |
-| SYS-005 | SYS-009 | Calls         | If USDA API unavailable, Consumer Lambda re-queues with retry limit                                                                                                                                   |
-| SYS-005 | SYS-011 | Reads         | If Secrets Manager unavailable, Consumer Lambda cannot obtain API key; stops processing                                                                                                               |
-| SYS-007 | SYS-008 | Reads         | Optional cache backfill on read miss; not a hard dependency                                                                                                                                           |
-| SYS-008 | SYS-007 | Reads         | Redis miss falls through to PostgreSQL; not a failure path                                                                                                                                            |
-| SYS-010 | SYS-001 | Publishes     | WebSocket push is fire-and-forget; failure does not affect the API service                                                                                                                            |
-| SYS-013 | SYS-001 | Fronts        | In-process middleware on ECS/Fargate; every HTTP route is gated. If verification fails, request is rejected `401`/`403` before business logic — no enqueue, no USDA call                              |
-| SYS-013 | SYS-010 | Fronts        | WebSocket `$connect` Lambda authorizer; unauthenticated connections rejected (`403`) before establishment. Recipient targeting uses the verified `sub` via the requester set                          |
-| SYS-013 | SYS-002 | Gates         | Per-`sub` enqueue quota (`429`) and queue/circuit-breaker bounds (`503`) applied after authn, before EventBridge publish / `fetch_queue` insert; async producers must present an authorized principal |
-| SYS-001 | SYS-013 | Authenticates | API service depends on the auth layer to resolve the `AuthenticatedCaller`; if the auth layer is misconfigured (missing `CLERK_JWT_KEY`) it fails closed to `401`                                     |
-| SYS-010 | SYS-013 | Authenticates | WebSocket `$connect` depends on the `$connect` authorizer to verify the token before the connection is accepted                                                                                       |
+| Source  | Target  | Relationship  | Failure Impact                                                                                                                                                                                                    |
+| ------- | ------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SYS-001 | SYS-003 | Enqueues      | Demand-path enqueue is `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify`. If the insert fails, food fetch is lost; client gets stale data or 404                                                            |
+| SYS-001 | SYS-007 | Reads         | If PostgreSQL unavailable, the API service returns 503; no graceful degradation                                                                                                                                   |
+| SYS-001 | SYS-008 | Reads         | If Redis unavailable, falls through to PostgreSQL; slight latency increase                                                                                                                                        |
+| SYS-002 | SYS-003 | Enqueues      | Scheduled producers `INSERT` rows into `fetch_queue`. If the insert fails, scheduled refresh/bulk-sync rows are lost; tombstone rows capture terminal failures                                                    |
+| SYS-002 | SYS-004 | Enqueues      | Scheduled batch/periodic producers `INSERT` lower-demand `fetch_queue` rows; on failure, batch imports are skipped for that cycle                                                                                 |
+| SYS-003 | SYS-005 | Feeds         | If the consumer worker is behind, higher-demand `fetch_queue` rows accumulate; food data delayed                                                                                                                  |
+| SYS-004 | SYS-005 | Feeds         | If the consumer worker is behind, lower-demand `fetch_queue` rows accumulate; batch enrichment delayed                                                                                                            |
+| SYS-005 | SYS-006 | Calls         | If TokenBucket unavailable, the consumer worker cannot call USDA API safely                                                                                                                                       |
+| SYS-005 | SYS-007 | Writes        | If PostgreSQL write fails, USDA data lost; retry with exponential backoff                                                                                                                                         |
+| SYS-005 | SYS-008 | Invalidates   | If Redis invalidate fails, stale data may be served from cache up to TTL (24h)                                                                                                                                    |
+| SYS-005 | SYS-009 | Calls         | If USDA API unavailable, the consumer worker retries with backoff (FR-016) and tombstones after 5 attempts                                                                                                        |
+| SYS-005 | SYS-011 | Reads         | If Secrets Manager unavailable, the consumer worker cannot obtain API key; stops processing                                                                                                                       |
+| SYS-007 | SYS-008 | Reads         | Optional cache backfill on read miss; not a hard dependency                                                                                                                                                       |
+| SYS-008 | SYS-007 | Reads         | Redis miss falls through to PostgreSQL; not a failure path                                                                                                                                                        |
+| SYS-010 | SYS-001 | Publishes     | WebSocket push is fire-and-forget; failure does not affect the API service                                                                                                                                        |
+| SYS-013 | SYS-001 | Fronts        | In-process middleware on ECS/Fargate; every HTTP route is gated. If verification fails, request is rejected `401`/`403` before business logic — no enqueue, no USDA call                                          |
+| SYS-013 | SYS-010 | Fronts        | WebSocket `$connect` Lambda authorizer; unauthenticated connections rejected (`403`) before establishment. Recipient targeting uses the verified `sub` via the requester set                                      |
+| SYS-013 | SYS-003 | Gates         | Per-`sub` enqueue quota (`429`) and `fetch_queue` depth / circuit-breaker bounds (`503`) applied after authn, before the `fetch_queue` INSERT … ON CONFLICT; async producers must present an authorized principal |
+| SYS-001 | SYS-013 | Authenticates | API service depends on the auth layer to resolve the `AuthenticatedCaller`; if the auth layer is misconfigured (missing `CLERK_JWT_KEY`) it fails closed to `401`                                                 |
+| SYS-010 | SYS-013 | Authenticates | WebSocket `$connect` depends on the `$connect` authorizer to verify the token before the connection is accepted                                                                                                   |
 
 ### Dependency Diagram
 
@@ -66,15 +66,15 @@ Client ─(Bearer token)→ SYS-013 (AuthnAuthzLayer) ─[401/403 fail-closed]
    └─ WS:    $connect Lambda authorizer ───────────────────────→ SYS-010 (WebSocket)
                         ↓ (AuthenticatedCaller; per-sub quota 429 / queue 503 before publish)
 Client → ALB → ECS/Fargate NestJS service → SYS-001 (FoodApiController)
-                        ↓ publish
-                   SYS-002 (EventBridge)
-                        ↓ route
-              ┌────── SYS-003 (HighPriorityQueue) ──→ SYS-005 (ConsumerLambda) ──→ SYS-009 (USDA API)
-              │                                              ↓ calls              ↓ writes
-              └────── SYS-004 (LowPriorityQueue) ──→ SYS-005 ──→ SYS-006 (TokenBucket)
-                        │                                   ↓ writes
-                   (DLQ)                               SYS-007 (PostgreSQL)
-                        │                                   ↑ reads/writes
+                        ↓ INSERT … ON CONFLICT + pg_notify (demand path)
+              ┌────── SYS-003 (fetch_queue: high demand) ──┐
+              │                                            ├─ LISTEN/NOTIFY ─→ SYS-005 (Fargate ConsumerWorker) ──→ SYS-009 (USDA API)
+              └────── SYS-004 (fetch_queue: low demand) ───┘        ↓ calls                                    ↓ writes
+                        ↑ INSERT (scheduled only)                SYS-006 (TokenBucket)
+                   SYS-002 (EventBridge: scheduled producers + FoodDataReceived)
+                        │                                          ↓ writes
+                   (tombstone rows on terminal failure)        SYS-007 (PostgreSQL)
+                                                                   ↑ reads/writes
                    SYS-011 (SecretsManager) ←── reads ── SYS-005
                         │
                         └──USDA API key──→
@@ -93,32 +93,32 @@ Client → ALB → ECS/Fargate NestJS service → SYS-001 (FoodApiController)
 
 ### Internal Interfaces
 
-| SYS-NNN           | Interface Contract                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| SYS-001 → SYS-002 | `FoodRequested` event: `{ "fdcId": number, "requestedAt": timestamp }`                                                   |
-| SYS-001 → SYS-007 | SQL: `SELECT * FROM foods WHERE fdcId = $1`                                                                              |
-| SYS-002 → SYS-003 | SQS message: `{ "fdcId": number, "priority": "high", "correlationId": string }`                                          |
-| SYS-002 → SYS-004 | SQS message: `{ "fdcIds": number[], "priority": "low", "correlationId": string }`                                        |
-| SYS-005 → SYS-006 | Lua script atomic token check-and-decrement; returns `{ allowed: bool, tokensRemaining: number }`                        |
-| SYS-005 → SYS-009 | HTTP POST with Authorization header (API key from Secrets Manager)                                                       |
-| SYS-005 → SYS-007 | UPSERT: `INSERT INTO foods (...) VALUES (...) ON CONFLICT (fdcId) DO UPDATE SET ...`                                     |
-| SYS-005 → SYS-008 | DEL command on `food:{fdcId}` key + SADD to `pending_fetch` set                                                          |
-| SYS-011 → SYS-005 | Environment variable injection: `USDA_API_KEY`                                                                           |
-| SYS-013 → SYS-001 | Verified `AuthenticatedCaller` `{ sub, azp, scopes }` surfaced to HTTP handlers (req context); rejects with `401`/`403`  |
-| SYS-013 → SYS-010 | `$connect` authorizer policy (Allow/Deny); verified `sub` passed via WebSocket `$context.authorizer`                     |
-| SYS-013 → SYS-002 | Pre-publish gate: per-`sub` quota check (`429`) + queue depth / circuit-breaker check (`503`) before EventBridge publish |
+| SYS-NNN           | Interface Contract                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SYS-001 → SYS-003 | Demand enqueue: `INSERT INTO fetch_queue (fdc_id, ...) VALUES (...) ON CONFLICT (fdc_id) DO UPDATE SET request_count = fetch_queue.request_count + 1` + `pg_notify('fetch_queued', fdc_id)` |
+| SYS-001 → SYS-007 | SQL: `SELECT * FROM foods WHERE fdcId = $1`                                                                                                                                                 |
+| SYS-002 → SYS-003 | Scheduled-producer enqueue: `INSERT INTO fetch_queue (fdc_id, ...) ON CONFLICT (fdc_id) DO UPDATE SET request_count = fetch_queue.request_count + 1` (stale-refresh)                        |
+| SYS-002 → SYS-004 | Scheduled batch enqueue: `INSERT INTO fetch_queue (fdc_id, ...) ON CONFLICT ...` per id (bulk-sync, lower demand)                                                                           |
+| SYS-005 → SYS-006 | Atomic token check-and-decrement on Postgres `rate_limiter_state` (Redis Lua variant deferred); returns `{ allowed: bool, tokensRemaining: number }`                                        |
+| SYS-005 → SYS-009 | HTTP POST with Authorization header (API key from Secrets Manager)                                                                                                                          |
+| SYS-005 → SYS-007 | UPSERT: `INSERT INTO foods (...) VALUES (...) ON CONFLICT (fdcId) DO UPDATE SET ...`                                                                                                        |
+| SYS-005 → SYS-008 | DEL command on `food:{fdcId}` key (optional Redis cache); pending state is cleared by `UPDATE fetch_queue SET status='done'`, not a Redis set                                               |
+| SYS-011 → SYS-005 | Environment variable injection: `USDA_API_KEY`                                                                                                                                              |
+| SYS-013 → SYS-001 | Verified `AuthenticatedCaller` `{ sub, azp, scopes }` surfaced to HTTP handlers (req context); rejects with `401`/`403`                                                                     |
+| SYS-013 → SYS-010 | `$connect` authorizer policy (Allow/Deny); verified `sub` passed via WebSocket `$context.authorizer`                                                                                        |
+| SYS-013 → SYS-003 | Pre-enqueue gate: per-`sub` quota check (`429`) + `fetch_queue` depth / circuit-breaker check (`503`) before `INSERT INTO fetch_queue`                                                      |
 
 ### Interface Contracts Table
 
 | Contract ID | SYS Source | SYS Target | Operation        | Request Schema                                                        | Response Schema                                                        |
 | ----------- | ---------- | ---------- | ---------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| IC-001      | SYS-001    | SYS-002    | PublishEvent     | `FoodRequested { fdcId, requestedAt }`                                | `EventId`                                                              |
+| IC-001      | SYS-001    | SYS-003    | EnqueueFetch     | `INSERT … ON CONFLICT (fdc_id)` + `pg_notify('fetch_queued')`         | `{ enqueued: boolean }`                                                |
 | IC-002      | SYS-001    | SYS-007    | QueryFood        | `fdcId: number`                                                       | `FoodData \| NotFound \| Pending`                                      |
 | IC-003      | SYS-005    | SYS-006    | CheckRateLimit   | none                                                                  | `{ allowed: boolean, tokensRemaining: number }`                        |
 | IC-004      | SYS-005    | SYS-009    | FetchFoods       | `{ fdcIds: number[] }`                                                | `USDAFoodResponse[]`                                                   |
 | IC-005      | SYS-005    | SYS-007    | UpsertFood       | `FoodData`                                                            | `{ success: boolean }`                                                 |
 | IC-006      | SYS-013    | SYS-001    | VerifyToken      | `Bearer <clerk session/M2M token>`                                    | `AuthenticatedCaller \| 401 \| 403`                                    |
-| IC-007      | SYS-013    | SYS-002    | GateEnqueue      | `{ sub, fdcIds }`                                                     | `Allow \| 429 (quota) \| 503 (backpressure)`                           |
+| IC-007      | SYS-013    | SYS-003    | GateEnqueue      | `{ sub, fdcIds }`                                                     | `Allow \| 429 (quota) \| 503 (backpressure)`                           |
 | IC-008      | SYS-013    | SYS-001    | ValidateBatch    | `{ sub, fdcIds: number[] }` (`POST /v1/foods/batch`)                  | `Accepted (≤ 100 IDs) \| 400 (batch cap exceeded — no enqueue)`        |
 | IC-009      | SYS-013    | SYS-010    | AuthorizeConnect | `$connect` token (query param / `Sec-WebSocket-Protocol` subprotocol) | `Allow { $context.authorizer.sub } \| 403 (pinned $connect rejection)` |
 
@@ -135,7 +135,7 @@ Client → (Authorization: Bearer <Clerk session/M2M token>)
        ├─ missing/invalid/expired token | azp mismatch | verify error → 401 (no enqueue, no USDA call)
        ├─ operational endpoint, scope absent from public_metadata     → 403
        └─ valid → req.user = AuthenticatedCaller { sub, azp, scopes }
-            → pre-enqueue quota/fairness gate (before SYS-002 publish / fetch_queue insert)
+            → pre-enqueue quota/fairness gate (before the fetch_queue INSERT … ON CONFLICT + pg_notify)
                ├─ per-sub enqueue quota exceeded → 429 (no enqueue)
                ├─ fetch_queue depth exceeded | circuit open → 503 (fail closed)
                └─ within budget → hand off to SYS-001 (Paths 1–4)
@@ -171,64 +171,63 @@ Client → GET /v1/foods/12345
 ```
 Client → GET /v1/foods/12345
   → ALB → ECS/Fargate NestJS service → FoodApiController (SYS-001)
-    → Redis GET food:12345 [MISS]
+    → Redis GET food:12345 [MISS] (optional cache)
     → PostgreSQL SELECT [MISS, fetch_status NOT EXISTS]
-    → Redis SISMEMBER pending_fetch 12345 [NOT MEMBER]
-    → Redis SADD pending_fetch 12345
-    → EventBridge Publish FoodRequested { fdcId: 12345, requestedAt: ... } (SYS-002)
+    → INSERT INTO fetch_queue (fdc_id, ...) VALUES (12345, ...) ON CONFLICT (fdc_id) DO UPDATE SET request_count = fetch_queue.request_count + 1 (SYS-003)
+    → pg_notify('fetch_queued', '12345')
     → Return 202 { status: 'pending', fdcId: 12345, estimatedWaitSeconds: 30, partialData }
   → Client polls GET /v1/foods/12345/status until 200
 ```
 
-### Path 4: Consumer Lambda Processing (High Priority)
+### Path 4: Consumer Worker Processing (High Demand)
 
 ```
-SQS HighPriorityQueue → ConsumerLambda (SYS-005)
+Postgres LISTEN/NOTIFY (fetch_queued) → Fargate ConsumerWorker (SYS-005)
+  → SELECT … FROM fetch_queue WHERE status='pending' ORDER BY request_count DESC, first_requested ASC FOR UPDATE SKIP LOCKED LIMIT 1 (row lease, FR-018)
   → TokenBucket.Check() (SYS-006) [allowed]
   → HTTP POST USDA /v1/foods { fdcIds: [12345] }
   → Parse USDA response
   → PostgreSQL UPSERT foods (SYS-007)
-  → Redis DEL food:12345 + SREM pending_fetch 12345 (SYS-008)
+  → Redis DEL food:12345 (optional cache, SYS-008) + UPDATE fetch_queue SET status='done' WHERE fdc_id=12345
   → EventBridge Publish FoodDataReceived { fdcId: 12345, fetchedAt: ... }
-  → DELETE message from SQS
 ```
 
-### Path 5: Consumer Lambda Rate-Limited (No Tokens)
+### Path 5: Consumer Worker Rate-Limited (No Tokens)
 
 ```
-SQS HighPriorityQueue → ConsumerLambda (SYS-005)
+Postgres LISTEN/NOTIFY (fetch_queued) → Fargate ConsumerWorker (SYS-005)
   → TokenBucket.Check() [NOT allowed, tokens = 0]
-  → VISIBILITY_TIMEOUT backoff (30s increment)
-  → Message returns to queue; reprocessed when tokens refill
+  → release row lease (no status change); back off
+  → Row remains 'pending'; reprocessed when tokens refill
 ```
 
 ## Physical View
 
-| Component         | AWS Resource                   | Region    | Notes                                                            |
-| ----------------- | ------------------------------ | --------- | ---------------------------------------------------------------- |
-| ALB               | Application Load Balancer      | us-east-1 | Public; HTTP entry point fronting the food read service          |
-| FoodApiService    | ECS/Fargate service            | us-east-1 | NestJS REST API (SYS-001); in-process `AuthMiddleware` (SYS-013) |
-| EventBridge       | Default event bus              | us-east-1 | 3 rules for routing                                              |
-| HighPriorityQueue | SQS FIFO                       | us-east-1 | 5min visibility timeout, DLQ                                     |
-| LowPriorityQueue  | SQS FIFO                       | us-east-1 | 15min visibility timeout, DLQ                                    |
-| ConsumerWorker    | ECS/Fargate task               | us-east-1 | Fargate consumer worker (SYS-005); Postgres-as-queue polling     |
-| TokenBucket       | ElastiCache Redis (cluster)    | us-east-1 | t4g.micro for dev, scaling based on ops                          |
-| PostgreSQL        | RDS db.t4g.small               | us-east-1 | 2 vCPU, 2GB RAM, ~$25/mo                                         |
-| RedisCache        | ElastiCache Redis              | us-east-1 | Optional lean-launch; add when p95 > 100ms                       |
-| SecretsManager    | Secrets Manager                | us-east-1 | USDA API key rotation                                            |
-| WebSocketNotifier | API Gateway WebSocket + Lambda | us-east-1 | Deferred (US-9); `$connect` Lambda authorizer (SYS-010/SYS-013)  |
-| CloudWatch        | Log groups, metrics, alarms    | us-east-1 | API service + consumer worker logging                            |
+| Component         | AWS Resource                                               | Region    | Notes                                                                                         |
+| ----------------- | ---------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------- |
+| ALB               | Application Load Balancer                                  | us-east-1 | Public; HTTP entry point fronting the food read service                                       |
+| FoodApiService    | ECS/Fargate service                                        | us-east-1 | NestJS REST API (SYS-001); in-process `AuthMiddleware` (SYS-013)                              |
+| EventBridge       | Default event bus                                          | us-east-1 | Scheduled producers (stale-refresh / bulk-sync) + `FoodDataReceived` only; not on demand path |
+| HighPriorityFetch | Postgres `fetch_queue` rows                                | us-east-1 | High demand (`request_count` DESC); row lease (FR-018), tombstone on terminal failure         |
+| LowPriorityFetch  | Postgres `fetch_queue` rows                                | us-east-1 | Lower demand; same table, lower `request_count`; tombstone on terminal failure                |
+| ConsumerWorker    | ECS/Fargate task                                           | us-east-1 | Fargate consumer worker (SYS-005); single instance via advisory lock; LISTEN/NOTIFY drain     |
+| TokenBucket       | Postgres `rate_limiter_state`                              | us-east-1 | Postgres default (lean-launch); Redis is a deferred post-launch variant                       |
+| PostgreSQL        | `kitchensink_food` DB on shared `kitchensink-data-{stage}` | us-east-1 | Logical database on the shared instance; no new RDS, no cluster                               |
+| RedisCache        | ElastiCache Redis                                          | us-east-1 | Deferred post-launch variant; lean-launch default is Postgres                                 |
+| SecretsManager    | Secrets Manager                                            | us-east-1 | USDA API key rotation                                                                         |
+| WebSocketNotifier | API Gateway WebSocket + Lambda                             | us-east-1 | Deferred (US-9); `$connect` Lambda authorizer (SYS-010/SYS-013)                               |
+| CloudWatch        | Log groups, metrics, alarms                                | us-east-1 | API service + consumer worker logging                                                         |
 
 ## Trade-off Decisions
 
-| Decision                    | Chosen Option                            | Rationale                                               |
-| --------------------------- | ---------------------------------------- | ------------------------------------------------------- |
-| USDA API call path          | Async via SQS (not sync in API service)  | Decouples user latency from USDA availability           |
-| Notification mechanism      | Client polling (not WebSocket)           | Simpler launch; WebSocket deferred to US-9              |
-| Cache layer                 | Redis + PostgreSQL (not PostgreSQL only) | Sub-10ms hot cache response; USDA rate limit protection |
-| Token bucket implementation | Redis Lua atomic script                  | Atomic check-and-decrement prevents overshoot           |
-| Queue priority              | Two SQS queues with consumer polling     | User-facing lookups ahead of batch enrichment           |
-| Database initial sizing     | db.t4g.small (not pre-sized for 330K)    | Grows with actual demand; not pre-optimized             |
+| Decision                    | Chosen Option                                                                      | Rationale                                             |
+| --------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| USDA API call path          | Async via Postgres `fetch_queue` (not sync in API service)                         | Decouples user latency from USDA availability         |
+| Notification mechanism      | Client polling (not WebSocket)                                                     | Simpler launch; WebSocket deferred to US-9            |
+| Cache layer                 | PostgreSQL by default (Redis deferred post-launch)                                 | Lean launch; add Redis hot cache when p95 warrants it |
+| Token bucket implementation | Postgres `rate_limiter_state` atomic update (Redis variant deferred)               | Atomic check-and-decrement prevents overshoot         |
+| Queue priority              | Demand-weighted `fetch_queue` (`ORDER BY request_count DESC, first_requested ASC`) | User-facing lookups ahead of batch enrichment         |
+| Database initial sizing     | Shared `kitchensink-data-{stage}` instance (`kitchensink_food` DB)                 | Reuses shared instance; no new RDS, grows with demand |
 
 ## Component Traceability Detail
 
@@ -244,19 +243,19 @@ SQS HighPriorityQueue → ConsumerLambda (SYS-005)
 
 **Traceability Rationale**: SYS-002 implements the listed parent requirements through the behavior defined in the Decomposition, Dependency, Interface, and Data Design views.
 
-### Component: SYS-003 (HighPriorityFoodQueue)
+### Component: SYS-003 (HighPriorityFetchQueue)
 
 **Parent Requirements**: REQ-011, REQ-012, REQ-014
 
 **Traceability Rationale**: SYS-003 implements the listed parent requirements through the behavior defined in the Decomposition, Dependency, Interface, and Data Design views.
 
-### Component: SYS-004 (LowPriorityFoodQueue)
+### Component: SYS-004 (LowPriorityFetchQueue)
 
 **Parent Requirements**: REQ-011, REQ-013
 
 **Traceability Rationale**: SYS-004 implements the listed parent requirements through the behavior defined in the Decomposition, Dependency, Interface, and Data Design views.
 
-### Component: SYS-005 (FoodConsumerLambda)
+### Component: SYS-005 (FoodConsumerWorker)
 
 **Parent Requirements**: REQ-011, REQ-012, REQ-014, REQ-015, REQ-016, REQ-017
 
@@ -308,4 +307,4 @@ SQS HighPriorityQueue → ConsumerLambda (SYS-005)
 
 **Parent Requirements**: REQ-IF-008, REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
 
-**Traceability Rationale**: SYS-013 implements the listed parent requirements through the behavior defined in the Decomposition, Dependency, Interface, and Data Design views. It is the named auth component (REQ-044/FR-053) positioned in front of every food data entry point. Its deployment is **split**: HTTP routes are gated by in-process NestJS `AuthMiddleware`/`FoodAuthGuard` on the ECS/Fargate service behind the public ALB (an ALB cannot front an API Gateway Lambda authorizer, and the token verifies networklessly so no extra edge layer is warranted — plan §2A), while the deferred WebSocket surface (SYS-010) uses a `$connect` Lambda authorizer because there is no in-process request middleware on the WebSocket connection lifecycle. Both surfaces reuse the identity service's `ClerkAuthService` verify logic (`verifyToken` + `azp`) via a shared `@kitchensink/*` package. SYS-013 produces the `AuthenticatedCaller` principal consumed by SYS-001 (REQ-IF-008/REQ-037), enforces scope-gated `403` and status precedence (REQ-038), the per-`sub` enqueue quota `429` ahead of SYS-002 publish (REQ-039), batch/queue `400`/`503` bounds (REQ-040), the M2M token class for service callers (REQ-041), async-producer provenance for EventBridge/`fetch_queue` (REQ-042), WebSocket `$connect` auth and per-recipient targeting via the requester set (REQ-043), and auth-layer load-shed under invalid-token floods (REQ-044).
+**Traceability Rationale**: SYS-013 implements the listed parent requirements through the behavior defined in the Decomposition, Dependency, Interface, and Data Design views. It is the named auth component (REQ-044/FR-053) positioned in front of every food data entry point. Its deployment is **split**: HTTP routes are gated by in-process NestJS `AuthMiddleware`/`FoodAuthGuard` on the ECS/Fargate service behind the public ALB (an ALB cannot front an API Gateway Lambda authorizer, and the token verifies networklessly so no extra edge layer is warranted — plan §2A), while the deferred WebSocket surface (SYS-010) uses a `$connect` Lambda authorizer because there is no in-process request middleware on the WebSocket connection lifecycle. Both surfaces reuse the identity service's `ClerkAuthService` verify logic (`verifyToken` + `azp`) via a shared `@kitchensink/*` package. SYS-013 produces the `AuthenticatedCaller` principal consumed by SYS-001 (REQ-IF-008/REQ-037), enforces scope-gated `403` and status precedence (REQ-038), the per-`sub` enqueue quota `429` ahead of the `fetch_queue` INSERT (REQ-039), batch/queue `400`/`503` bounds (REQ-040), the M2M token class for service callers (REQ-041), async-producer provenance for EventBridge/`fetch_queue` (REQ-042), WebSocket `$connect` auth and per-recipient targeting via the requester set (REQ-043), and auth-layer load-shed under invalid-token floods (REQ-044).

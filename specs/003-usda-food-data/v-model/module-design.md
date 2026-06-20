@@ -31,7 +31,7 @@ This document decomposes each of the 12 architecture modules (ARCH-001 through A
 
 **Parent ARCH**: ARCH-001
 **Type**: Stateful (per-request lifecycle)
-**Runtime**: AWS Lambda (Node.js 22.x)
+**Runtime**: NestJS controller on ECS/Fargate (Node.js 22.x), ALB-fronted
 
 ### 1. Algorithmic / Logic View
 
@@ -41,8 +41,8 @@ FUNCTION handleGetFood(event):
   IF NOT isValidFdcId(fdcId):
     RETURN 400 { error: "Invalid fdcId format" }
 
-  // Layer 1: Redis cache
-  cached = RedisCacheService.get(fdcId)
+  // Layer 1: cache (lean-launch default Postgres; Redis is a deferred variant)
+  cached = CacheService.get(fdcId)
   IF cached IS NOT NULL:
     MonitoringLogger.incrementMetric("cache.hit", 1)
     RETURN 200 { food: cached }
@@ -50,17 +50,17 @@ FUNCTION handleGetFood(event):
   // Layer 2: PostgreSQL
   row = PostgresRepository.findByFdcId(fdcId)
   IF row IS NOT NULL AND row.fetch_status == "fetched":
-    RedisCacheService.set(fdcId, row, TTL=3600)
+    CacheService.set(fdcId, row, TTL=3600)
     MonitoringLogger.incrementMetric("db.hit", 1)
     RETURN 200 { food: row }
 
   // Layer 3: Already pending?
-  IF RedisCacheService.isPending(fdcId):
+  IF CacheService.isPending(fdcId):
     RETURN 202 { status: "pending", estimatedWaitSeconds: 30 }
 
-  // Layer 4: Trigger async backfill
-  RedisCacheService.markPending(fdcId)
-  EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now() })
+  // Layer 4: Trigger async backfill — admit (MOD-013) then INSERT INTO fetch_queue (Postgres-as-queue)
+  CacheService.markPending(fdcId)
+  EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now() })  // INSERT INTO fetch_queue + LISTEN/NOTIFY
   MonitoringLogger.incrementMetric("backfill.triggered", 1)
   RETURN 202 { status: "pending", estimatedWaitSeconds: 30 }
 
@@ -77,7 +77,7 @@ FUNCTION handleGetFoodStatus(event):
     RETURN 400 { error: "Invalid fdcId format" }
   row = PostgresRepository.findByFdcId(fdcId)
   IF row IS NULL:
-    pending = RedisCacheService.isPending(fdcId)
+    pending = CacheService.isPending(fdcId)
     IF pending:
       RETURN 200 { status: "pending" }
     RETURN 404 { error: "Not found" }
@@ -103,9 +103,9 @@ stateDiagram-v2
   [*] --> Idle
   Idle --> ValidatingInput : HTTP request received
   ValidatingInput --> Rejected : invalid fdcId / query
-  ValidatingInput --> CheckingRedis : valid input
-  CheckingRedis --> Responding200 : cache HIT
-  CheckingRedis --> CheckingPostgres : cache MISS
+  ValidatingInput --> CheckingCache : valid input
+  CheckingCache --> Responding200 : cache HIT
+  CheckingCache --> CheckingPostgres : cache MISS
   CheckingPostgres --> Responding200 : DB row found (fetched)
   CheckingPostgres --> CheckingPending : DB MISS
   CheckingPending --> Responding202 : already pending
@@ -118,12 +118,12 @@ stateDiagram-v2
 
 ### 3. Internal Data Structures
 
-| Name               | Type                                                                  | Description                                         |
-| ------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
-| `RequestContext`   | `{ fdcId: number, requestId: string, startTime: number }`             | Per-request metadata for logging                    |
-| `RouteMap`         | `Map<string, HandlerFn>`                                              | Maps HTTP method + path pattern to handler function |
-| `ValidationResult` | `{ valid: boolean, error?: string }`                                  | Output of fdcId / query validation                  |
-| `CacheLayerResult` | `{ source: 'redis' \| 'postgres' \| 'miss', data: FoodData \| null }` | Unified result from cache lookup chain              |
+| Name               | Type                                                                  | Description                                                                           |
+| ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `RequestContext`   | `{ fdcId: number, requestId: string, startTime: number }`             | Per-request metadata for logging                                                      |
+| `RouteMap`         | `Map<string, HandlerFn>`                                              | Maps HTTP method + path pattern to handler function                                   |
+| `ValidationResult` | `{ valid: boolean, error?: string }`                                  | Output of fdcId / query validation                                                    |
+| `CacheLayerResult` | `{ source: 'cache' \| 'postgres' \| 'miss', data: FoodData \| null }` | Unified result from cache lookup chain (cache = lean-launch Postgres; Redis deferred) |
 
 ### 4. Error Handling Return Codes
 
@@ -131,60 +131,65 @@ stateDiagram-v2
 | ------------------------------------------------ | ----------- | ---------------------------------------------- | --------------------------------------- |
 | Invalid fdcId format (non-numeric, ≤0, >9999999) | 400         | `{ error: "Invalid fdcId format" }`            | Return immediately, no downstream calls |
 | Query string too short (<2 chars)                | 400         | `{ error: "Query too short" }`                 | Return immediately                      |
-| Redis unavailable (get)                          | —           | Fallthrough to PostgreSQL                      | Log warning, continue                   |
+| Cache unavailable (get)                          | —           | Fallthrough to PostgreSQL                      | Log warning, continue                   |
 | PostgreSQL connection error                      | 503         | `{ error: "Service temporarily unavailable" }` | Log error, return 503                   |
-| EventBridge publish failure                      | 503         | `{ error: "Failed to queue backfill" }`        | Clear pending flag, return 503          |
+| `fetch_queue` INSERT / NOTIFY failure            | 503         | `{ error: "Failed to queue backfill" }`        | Clear pending flag, return 503          |
 | Unknown route                                    | 404         | `{ error: "Not found" }`                       | Return immediately                      |
 
 ---
 
-## MOD-002 — EventBridgePublisher (Event Emitter)
+## MOD-002 — EventBridgePublisher (Enqueue Emitter)
 
 **Parent ARCH**: ARCH-002
 **Type**: Stateless
-**Runtime**: AWS Lambda (Node.js 22.x), called inline from ARCH-001 and ARCH-004
+**Runtime**: NestJS provider on ECS/Fargate (Node.js 22.x), called inline from ARCH-001 and ARCH-004
+
+> Enqueue requests are NOT EventBridge events. `publishFoodRequested` / `publishFoodBatchRequested`
+> are thin wrappers over an `INSERT INTO fetch_queue` row plus a `LISTEN/NOTIFY` wake to the Fargate
+> consumer worker (Postgres-as-queue). EventBridge is retained ONLY for scheduled producers and the
+> fire-and-forget `FoodDataReceived` fan-out (`publishFoodDataReceived`).
 
 ### 1. Algorithmic / Logic View
 
 ```
-FUNCTION publishFoodRequested(payload: { fdcId, requestedAt }):
+FUNCTION publishFoodRequested(payload: { fdcId, requestedAt, requestedBy }):
   IF NOT isValidFdcId(payload.fdcId):
     THROW ValidationError("Invalid fdcId")
   IF NOT isValidISO8601(payload.requestedAt):
     THROW ValidationError("Invalid requestedAt timestamp")
 
-  entry = {
-    Source: "usda-food-data",
-    DetailType: "FoodRequested",
-    Detail: JSON.stringify({ fdcId: payload.fdcId, requestedAt: payload.requestedAt }),
-    EventBusName: ENV.EVENT_BUS_NAME
+  // Postgres-as-queue: insert a queued row, then NOTIFY the consumer worker.
+  row = {
+    fdc_id: payload.fdcId,
+    priority: "high",
+    status: "queued",
+    requested_by: payload.requestedBy,   // authenticated provenance (FR-048)
+    requested_at: payload.requestedAt,
+    attempts: 0
   }
-  response = EventBridgeClient.putEvents({ Entries: [entry] })
-  IF response.FailedEntryCount > 0:
-    THROW EventBridgeError("PutEvents partial failure", response.Entries[0].ErrorCode)
-  RETURN { eventId: response.Entries[0].EventId }
+  inserted = FetchQueue.insert(row)        // INSERT INTO fetch_queue ... ON CONFLICT (fdc_id) DO NOTHING
+  Postgres.notify("fetch_queue", JSON.stringify({ fdcId: payload.fdcId }))  // LISTEN/NOTIFY wake
+  RETURN { queueRowId: inserted.id }
 
-FUNCTION publishFoodBatchRequested(payload: { fdcIds, requestedAt }):
-  IF length(payload.fdcIds) == 0 OR length(payload.fdcIds) > 20:
-    THROW ValidationError("fdcIds must be 1–20 items")
+FUNCTION publishFoodBatchRequested(payload: { fdcIds, requestedAt, requestedBy }):
+  IF length(payload.fdcIds) == 0 OR length(payload.fdcIds) > 100:
+    THROW ValidationError("fdcIds must be 1–100 items")   // client-facing batch cap (FR-045)
   FOR EACH fdcId IN payload.fdcIds:
     IF NOT isValidFdcId(fdcId):
       THROW ValidationError("Invalid fdcId: " + fdcId)
 
-  entry = {
-    Source: "usda-food-data",
-    DetailType: "FoodBatchRequested",
-    Detail: JSON.stringify({ fdcIds: payload.fdcIds, requestedAt: payload.requestedAt }),
-    EventBusName: ENV.EVENT_BUS_NAME
-  }
-  response = EventBridgeClient.putEvents({ Entries: [entry] })
-  IF response.FailedEntryCount > 0:
-    THROW EventBridgeError("PutEvents partial failure")
-  RETURN { eventId: response.Entries[0].EventId }
+  rows = payload.fdcIds.map(fdcId => ({
+    fdc_id: fdcId, priority: "low", status: "queued",
+    requested_by: payload.requestedBy, requested_at: payload.requestedAt, attempts: 0
+  }))
+  inserted = FetchQueue.insertMany(rows)   // INSERT ... ON CONFLICT (fdc_id) DO NOTHING
+  Postgres.notify("fetch_queue", JSON.stringify({ fdcIds: payload.fdcIds }))  // LISTEN/NOTIFY wake
+  RETURN { queueRowIds: inserted.ids }
 
 FUNCTION publishFoodDataReceived(payload: { fdcId, foodData }):
+  // FoodDataReceived stays on EventBridge — fire-and-forget fan-out to the (deferred) WS notifier.
   entry = {
-    Source: "usda-food-data",
+    Source: "food-service",
     DetailType: "FoodDataReceived",
     Detail: JSON.stringify({ fdcId: payload.fdcId, foodData: payload.foodData }),
     EventBusName: ENV.EVENT_BUS_NAME
@@ -201,138 +206,160 @@ FUNCTION publishFoodDataReceived(payload: { fdcId, foodData }):
 
 ### 3. Internal Data Structures
 
-| Name                      | Type                                           | Description                                       |
-| ------------------------- | ---------------------------------------------- | ------------------------------------------------- |
-| `EventEntry`              | `{ Source, DetailType, Detail, EventBusName }` | AWS EventBridge PutEvents entry shape             |
-| `PublishResult`           | `{ eventId: string }`                          | Successful publish response                       |
-| `EventBridgeClientConfig` | `{ region: string, endpoint?: string }`        | SDK client configuration (injected at cold start) |
+| Name                      | Type                                                                                  | Description                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `FetchQueueRow`           | `{ fdc_id, priority: 'high' \| 'low', status, requested_by, requested_at, attempts }` | Row inserted into the Postgres `fetch_queue` for enqueue requests        |
+| `EnqueueResult`           | `{ queueRowId: string }`                                                              | Successful `fetch_queue` INSERT + NOTIFY response                        |
+| `EventEntry`              | `{ Source, DetailType, Detail, EventBusName }`                                        | EventBridge PutEvents entry shape (FoodDataReceived fan-out only)        |
+| `EventBridgeClientConfig` | `{ region: string, endpoint?: string }`                                               | SDK client configuration (injected at cold start; FoodDataReceived only) |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                       | Error Type         | Response                    | Action                                          |
-| ----------------------------------------------------- | ------------------ | --------------------------- | ----------------------------------------------- |
-| Invalid fdcId in payload                              | `ValidationError`  | Throw                       | Caller receives error; no EventBridge call made |
-| Invalid timestamp format                              | `ValidationError`  | Throw                       | Caller receives error                           |
-| fdcIds array empty or >20                             | `ValidationError`  | Throw                       | Caller receives error                           |
-| EventBridge `FailedEntryCount > 0`                    | `EventBridgeError` | Throw (FoodRequested/Batch) | Caller handles retry                            |
-| EventBridge `FailedEntryCount > 0` (FoodDataReceived) | Log only           | No throw                    | Fire-and-forget; log warning                    |
-| AWS SDK network timeout                               | `EventBridgeError` | Throw                       | Caller handles retry                            |
+| Error Condition                                       | Error Type        | Response                    | Action                                         |
+| ----------------------------------------------------- | ----------------- | --------------------------- | ---------------------------------------------- |
+| Invalid fdcId in payload                              | `ValidationError` | Throw                       | Caller receives error; no `fetch_queue` INSERT |
+| Invalid timestamp format                              | `ValidationError` | Throw                       | Caller receives error                          |
+| fdcIds array empty or >100                            | `ValidationError` | Throw                       | Caller receives error (FR-045)                 |
+| `fetch_queue` INSERT / NOTIFY failure                 | `EnqueueError`    | Throw (FoodRequested/Batch) | Caller returns 503; pending flag cleared       |
+| EventBridge `FailedEntryCount > 0` (FoodDataReceived) | Log only          | No throw                    | Fire-and-forget; log warning                   |
+| DB / NOTIFY network timeout                           | `EnqueueError`    | Throw                       | Caller handles retry                           |
 
 ---
 
-## MOD-003 — SqsQueueRouter (EventBridge Rule Router)
+## MOD-003 — FetchQueueRouter (Postgres-as-Queue Priority Router)
 
 **Parent ARCH**: ARCH-003
-**Type**: Stateless (EventBridge rule configuration + DLQ setup)
-**Runtime**: Infrastructure-level (EventBridge rules, not Lambda code)
+**Type**: Stateless (Postgres `fetch_queue` schema + lease/priority claim logic)
+**Runtime**: Postgres `fetch_queue` table + `LISTEN/NOTIFY`; claim queries run inside the Fargate consumer worker (ARCH-004)
+
+> No SQS, no EventBridge rules, no DLQ. Routing is expressed as a `priority` column on `fetch_queue`
+> ('high' for FoodRequested, 'low' for FoodBatchRequested). The single Fargate consumer worker
+> (one instance via a Postgres advisory lock) claims rows highest-priority-first under a row lease
+> (`FOR UPDATE SKIP LOCKED` + `lease_expires_at`, the visibility-timeout analog — FR-018). Exhausted
+> rows become tombstones (`status='tombstone'`), the DLQ analog.
 
 ### 1. Algorithmic / Logic View
 
 ```
-// EventBridge Rule: HighPriority
-RULE HighPriorityRule:
-  EventPattern: { source: ["usda-food-data"], detail-type: ["FoodRequested"] }
-  Target: SQS HighPriorityQueue
-  InputTransformer: pass-through Detail as message body
+// fetch_queue schema (Postgres-as-queue). Priority is a column, not a separate queue.
+//   fetch_queue(fdc_id PK, priority 'high'|'low', status 'queued'|'leased'|'tombstone',
+//               requested_by, requested_at, attempts, lease_expires_at)
+// ON CONFLICT (fdc_id) DO NOTHING makes repeat enqueues idempotent — the dedup analog (no FIFO needed).
 
-// EventBridge Rule: LowPriority
-RULE LowPriorityRule:
-  EventPattern: { source: ["usda-food-data"], detail-type: ["FoodBatchRequested"] }
-  Target: SQS LowPriorityQueue
-  InputTransformer: pass-through Detail as message body
+// Single-instance worker guard: one consumer drains the queue (advisory lock).
+FUNCTION acquireWorkerLock():
+  RETURN Postgres.query("SELECT pg_try_advisory_lock($1)", [FETCH_QUEUE_LOCK_KEY])
 
-// DLQ Configuration (applied at queue level)
-FUNCTION configureDlq(queue, dlqArn, maxReceiveCount):
-  queue.RedrivePolicy = {
-    deadLetterTargetArn: dlqArn,
-    maxReceiveCount: maxReceiveCount  // 3 for HighPriority, 5 for LowPriority
-  }
+// Claim the next batch, highest priority first, under a row lease (visibility-timeout analog, FR-018).
+FUNCTION claimNext(batchSize, leaseSeconds):
+  sql = """
+    UPDATE fetch_queue
+    SET status = 'leased', lease_expires_at = NOW() + ($2 || ' seconds')::interval, attempts = attempts + 1
+    WHERE fdc_id IN (
+      SELECT fdc_id FROM fetch_queue
+      WHERE status = 'queued' OR (status = 'leased' AND lease_expires_at < NOW())  -- reclaim expired leases
+      ORDER BY (priority = 'high') DESC, requested_at ASC
+      LIMIT $1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *
+  """
+  RETURN Postgres.query(sql, [batchSize, leaseSeconds])
 
-// Deduplication (HighPriorityQueue is FIFO with content-based dedup)
-FUNCTION deduplicateMessage(fdcId):
-  MessageGroupId = "food-" + fdcId
-  MessageDeduplicationId = SHA256("FoodRequested:" + fdcId + ":" + floor(now() / 300))
-  // 5-minute dedup window prevents duplicate SQS messages for same fdcId
+// Wake on enqueue: worker LISTENs; producers NOTIFY 'fetch_queue' (low-latency, no polling-only loop).
+FUNCTION listenForWork():
+  Postgres.execute("LISTEN fetch_queue")
 ```
 
 ### 2. State Machine View
 
-`N/A Stateless` — SqsQueueRouter is implemented as EventBridge rules (infrastructure configuration). No runtime state is maintained; routing decisions are deterministic based on event `detail-type`.
+`N/A Stateless` — FetchQueueRouter is the `fetch_queue` schema plus deterministic claim/lease SQL. No in-process runtime state; routing is a `priority` ORDER BY and rows are leased/reclaimed by timestamp.
 
 ### 3. Internal Data Structures
 
-| Name              | Type                                                                     | Description                            |
-| ----------------- | ------------------------------------------------------------------------ | -------------------------------------- |
-| `EventBridgeRule` | `{ name, eventPattern, target, inputTransformer }`                       | Rule definition for CDK/CloudFormation |
-| `RedrivePolicy`   | `{ deadLetterTargetArn: string, maxReceiveCount: number }`               | DLQ configuration per queue            |
-| `QueueConfig`     | `{ url: string, arn: string, fifo: boolean, visibilityTimeout: number }` | Queue metadata used by consumer        |
+| Name            | Type                                                                                                                                         | Description                                                   |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `FetchQueueRow` | `{ fdc_id, priority: 'high' \| 'low', status: 'queued' \| 'leased' \| 'tombstone', requested_by, requested_at, attempts, lease_expires_at }` | Postgres `fetch_queue` row — the unit of work                 |
+| `ClaimBatch`    | `{ rows: FetchQueueRow[], leaseExpiresAt: timestamp }`                                                                                       | Result of a `FOR UPDATE SKIP LOCKED` priority claim           |
+| `WorkerLock`    | `{ lockKey: number, acquired: boolean }`                                                                                                     | `pg_try_advisory_lock` result enforcing single-instance drain |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                | Handling                      | Action                                                |
-| ---------------------------------------------- | ----------------------------- | ----------------------------------------------------- |
-| EventBridge rule match failure                 | EventBridge dead-letter       | Event dropped to EventBridge archive (if configured)  |
-| SQS queue unavailable                          | EventBridge retry (up to 24h) | EventBridge retries delivery with exponential backoff |
-| Message exceeds SQS 256KB limit                | EventBridge rule error        | Log to CloudWatch; event discarded                    |
-| DLQ delivery failure                           | CloudWatch alarm              | Alert on-call; manual inspection required             |
-| FIFO dedup collision (same fdcId within 5 min) | SQS dedup                     | Duplicate silently dropped — correct behavior         |
+| Error Condition                                | Handling                          | Action                                                            |
+| ---------------------------------------------- | --------------------------------- | ----------------------------------------------------------------- |
+| Worker advisory lock already held              | `pg_try_advisory_lock` returns 0  | This instance idles; the single holder drains the queue           |
+| Lease expired before completion (worker crash) | Row reclaimed by next `claimNext` | `lease_expires_at < NOW()` makes the row claimable again (FR-018) |
+| Row exhausts retry budget (attempts > 5)       | Set `status='tombstone'`          | Tombstone row (DLQ analog); alarmed, no further fetch (FR-016)    |
+| `NOTIFY` lost / worker not LISTENing           | Periodic poll fallback            | Claim loop also polls on an interval; NOTIFY only reduces latency |
+| Duplicate enqueue (same fdc_id queued)         | `ON CONFLICT (fdc_id) DO NOTHING` | Duplicate silently dropped — correct behavior (dedup analog)      |
 
 ---
 
-## MOD-004 — FoodConsumerService (SQS Message Processor)
+## MOD-004 — FoodConsumerService (fetch_queue Worker)
 
 **Parent ARCH**: ARCH-004
-**Type**: Stateful (per-batch Lambda invocation)
-**Runtime**: AWS Lambda (Node.js 22.x)
+**Type**: Stateful (long-running drain loop; single instance via Postgres advisory lock)
+**Runtime**: Fargate consumer worker (Node.js 22.x), `LISTEN fetch_queue` + lease-claim loop
+**Target source files**: `packages/services/food-service/src/worker/...`
 
 ### 1. Algorithmic / Logic View
 
 ```
-FUNCTION handler(sqsEvent):
-  results = []
-  FOR EACH record IN sqsEvent.Records:
-    result = processRecord(record)
-    results.append(result)
-  // Return batch item failures for partial batch success
-  RETURN { batchItemFailures: results.filter(r => r.failed).map(r => ({ itemIdentifier: r.messageId })) }
+// Single-instance drain loop. One worker holds the advisory lock; it LISTENs for NOTIFY and
+// also polls on an interval. Each iteration claims a leased batch (FOR UPDATE SKIP LOCKED, FR-018).
+FUNCTION runWorker():
+  IF NOT FetchQueueRouter.acquireWorkerLock():
+    RETURN  // another instance is draining; idle
+  FetchQueueRouter.listenForWork()       // LISTEN fetch_queue
+  LOOP:
+    waitForNotifyOrInterval()
+    batch = FetchQueueRouter.claimNext(batchSize = 20, leaseSeconds = 90)  // lease = visibility-timeout analog
+    FOR EACH row IN batch:
+      processRow(row)
 
-FUNCTION processRecord(record):
-  message = JSON.parse(record.body)
-  fdcId = message.fdcId OR message.fdcIds[0]  // handle single or batch
+FUNCTION processRow(row):
+  // Validate async provenance before any USDA consumption (MOD-014, FR-048).
+  AsyncProducerAuthz.assertEnqueueProvenance(dbSessionRole, row.requested_by)
+
+  fdcId = row.fdc_id
 
   // Rate limit check
   tokenResult = TokenBucketRateLimiter.checkTokens()
   IF NOT tokenResult.allowed:
     waitSeconds = TokenBucketRateLimiter.getWaitTime()
-    SqsClient.changeMessageVisibility(record.receiptHandle, waitSeconds + 5)
-    RETURN { failed: false, messageId: record.messageId }  // not a failure, just re-queue
+    FetchQueue.extendLease(row.fdc_id, waitSeconds + 5)   // defer; keep row leased, re-claim later
+    RETURN
 
-  // Fetch from USDA
-  fdcIds = message.fdcIds OR [message.fdcId]
+  // Fetch from USDA (USDA hard cap is 20 ids/call, FR-023; the client batches accordingly)
   TRY:
-    foods = UsdaApiClient.fetchFoods(fdcIds)
+    foods = UsdaApiClient.fetchFoods([fdcId])
   CATCH UsdaApiError(status=429):
-    // Rate limited by USDA despite our token bucket — back off
-    SqsClient.changeMessageVisibility(record.receiptHandle, 60)
-    RETURN { failed: false, messageId: record.messageId }
+    // Rate limited by USDA despite our token bucket — back off (exponential, FR-016)
+    FetchQueue.requeueWithBackoff(row, baseSeconds = 60)
+    RETURN
   CATCH UsdaApiError(status=5xx):
-    // Transient USDA error — let SQS retry
-    RETURN { failed: true, messageId: record.messageId }
+    // Transient USDA error — retry with exponential backoff up to 5 attempts, then tombstone (FR-016)
+    IF row.attempts >= 5:
+      FetchQueue.tombstone(row.fdc_id, reason = "usda_5xx_exhausted")
+    ELSE:
+      FetchQueue.requeueWithBackoff(row, baseSeconds = 5)
+    RETURN
   CATCH UsdaApiError(status=404):
-    // Food not found in USDA — mark as not_found, delete message
+    // Food not found in USDA — immediate tombstone, no retry (FR-016)
     PostgresRepository.updateFetchStatus(fdcId, "not_found")
-    RedisCacheService.clearPending(fdcId)
-    RETURN { failed: false, messageId: record.messageId }
+    FetchQueue.tombstone(row.fdc_id, reason = "usda_404")
+    CacheService.clearPending(fdcId)
+    RETURN
 
-  // Persist results
+  // Persist results, then delete the queue row (ack)
   FOR EACH food IN foods:
     PostgresRepository.upsertFood(food)
-    RedisCacheService.invalidate(food.fdcId)
-    RedisCacheService.clearPending(food.fdcId)
-    EventBridgePublisher.publishFoodDataReceived({ fdcId: food.fdcId, foodData: food })
+    CacheService.invalidate(food.fdcId)
+    CacheService.clearPending(food.fdcId)
+    EventBridgePublisher.publishFoodDataReceived({ fdcId: food.fdcId, foodData: food })  // EventBridge fan-out
 
+  FetchQueue.delete(row.fdc_id)   // ack: remove the completed row
   MonitoringLogger.incrementMetric("consumer.processed", length(foods))
-  RETURN { failed: false, messageId: record.messageId }
 ```
 
 ### 2. State Machine View
@@ -340,61 +367,70 @@ FUNCTION processRecord(record):
 ```mermaid
 stateDiagram-v2
   [*] --> Idle
-  Idle --> ProcessingBatch : SQS trigger (Lambda invocation)
-  ProcessingBatch --> CheckingRateLimit : for each record
-  CheckingRateLimit --> RequeueingMessage : tokens exhausted
+  Idle --> Draining : advisory lock acquired (single instance)
+  Draining --> ClaimingBatch : NOTIFY received or poll interval
+  ClaimingBatch --> Draining : no queued rows (idle until next wake)
+  ClaimingBatch --> CheckingProvenance : rows leased (FOR UPDATE SKIP LOCKED)
+  CheckingProvenance --> CheckingRateLimit : provenance ok (MOD-014)
+  CheckingRateLimit --> DeferringLease : tokens exhausted
   CheckingRateLimit --> FetchingFromUsda : tokens available
-  RequeueingMessage --> ProcessingBatch : next record
+  DeferringLease --> Draining : lease extended; row re-claimed later
   FetchingFromUsda --> PersistingResults : USDA 200 OK
-  FetchingFromUsda --> RequeueingMessage : USDA 429 (rate limited)
-  FetchingFromUsda --> MarkingFailure : USDA 5xx (transient)
-  FetchingFromUsda --> MarkingNotFound : USDA 404
+  FetchingFromUsda --> RequeueingWithBackoff : USDA 429 (rate limited)
+  FetchingFromUsda --> RequeueingWithBackoff : USDA 5xx (transient, attempts ≤ 5)
+  FetchingFromUsda --> Tombstoning : USDA 5xx exhausted (attempts > 5) or USDA 404
   PersistingResults --> PublishingEvent : upsert complete
-  PublishingEvent --> ProcessingBatch : next record
-  MarkingNotFound --> ProcessingBatch : next record
-  MarkingFailure --> [*] : batchItemFailure returned
-  ProcessingBatch --> [*] : all records processed
+  PublishingEvent --> AckingRow : FoodDataReceived published
+  AckingRow --> Draining : row deleted (next row)
+  RequeueingWithBackoff --> Draining : lease released, backoff applied
+  Tombstoning --> Draining : status='tombstone' (DLQ analog)
 ```
 
 ### 3. Internal Data Structures
 
-| Name               | Type                                                     | Description                                           |
-| ------------------ | -------------------------------------------------------- | ----------------------------------------------------- |
-| `SqsRecord`        | `{ messageId, receiptHandle, body: string, attributes }` | Raw SQS record from Lambda event                      |
-| `ProcessResult`    | `{ failed: boolean, messageId: string }`                 | Per-record processing outcome                         |
-| `BatchItemFailure` | `{ itemIdentifier: string }`                             | SQS partial batch failure response shape              |
-| `RetryState`       | `{ attempt: number, lastError: string }`                 | Tracked in message attributes for backoff calculation |
+| Name            | Type                                                                                   | Description                                                       |
+| --------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `FetchQueueRow` | `{ fdc_id, priority, status, requested_by, requested_at, attempts, lease_expires_at }` | Leased `fetch_queue` row being processed                          |
+| `ProcessResult` | `{ acked: boolean, fdcId: number }`                                                    | Per-row processing outcome                                        |
+| `LeaseAction`   | `'delete' \| 'extend' \| 'requeue_backoff' \| 'tombstone'`                             | Disposition applied to a leased row after processing              |
+| `RetryState`    | `{ attempts: number, lastError: string }`                                              | Carried on the `fetch_queue` row for exponential backoff (FR-016) |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                | Action                                   | SQS Outcome                                |
-| ---------------------------------------------- | ---------------------------------------- | ------------------------------------------ |
-| Token bucket exhausted                         | `changeMessageVisibility(waitTime + 5s)` | Message re-appears after wait              |
-| USDA API 429                                   | `changeMessageVisibility(60s)`           | Message re-appears after 60s               |
-| USDA API 5xx                                   | Return `batchItemFailure`                | SQS retries; after maxReceiveCount → DLQ   |
-| USDA API 404                                   | Mark `not_found` in DB, delete message   | Message deleted (success path)             |
-| PostgreSQL upsert failure                      | Return `batchItemFailure`                | SQS retries                                |
-| Redis invalidation failure                     | Log warning, continue                    | Non-fatal; stale cache will expire via TTL |
-| EventBridge publish failure (FoodDataReceived) | Log warning, continue                    | Non-fatal; fire-and-forget                 |
+| Error Condition                                | Action                                     | fetch_queue Outcome                                    |
+| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| Token bucket exhausted                         | `extendLease(waitTime + 5s)`               | Row stays leased; re-claimed after wait                |
+| USDA API 429                                   | `requeueWithBackoff(60s)`                  | Row re-queued after backoff                            |
+| USDA API 5xx (attempts ≤ 5)                    | `requeueWithBackoff` (exponential, FR-016) | Row re-queued; retried up to 5 attempts                |
+| USDA API 5xx (attempts > 5)                    | `tombstone(status='tombstone')`            | Tombstone row (DLQ analog) + alarm                     |
+| USDA API 404                                   | Mark `not_found` in DB, `tombstone`        | Immediate tombstone, no retry (FR-016)                 |
+| PostgreSQL upsert failure                      | `requeueWithBackoff`                       | Row re-queued; retried under FR-016 budget             |
+| Cache invalidation failure                     | Log warning, continue                      | Non-fatal; stale cache will expire via TTL             |
+| EventBridge publish failure (FoodDataReceived) | Log warning, continue                      | Non-fatal; fire-and-forget                             |
+| Worker crash mid-lease                         | Lease expires → row reclaimed              | `lease_expires_at < NOW()` re-exposes the row (FR-018) |
 
 ---
 
-## MOD-005 — TokenBucketRateLimiter (Redis Lua Script Rate Limiter)
+## MOD-005 — TokenBucketRateLimiter (Atomic Token Bucket Rate Limiter)
 
 **Parent ARCH**: ARCH-005
-**Type**: Stateful (state stored in Redis)
-**Runtime**: Called from ARCH-004 Lambda; state in ElastiCache Redis
+**Type**: Stateful (state stored in Postgres by default; Redis is a deferred variant)
+**Runtime**: Called from the ARCH-004 Fargate consumer worker; state in the `kitchensink_food` logical database (lean-launch default — a single-row UPDATE … RETURNING token-bucket txn). Redis + the Lua script below is the deferred variant.
 
 ### 1. Algorithmic / Logic View
 
 ```
-// Redis key schema
+// Default (lean-launch) bucket: a single fetch_rate_limiter row mutated atomically in one
+// `UPDATE ... RETURNING` Postgres txn (refill-then-consume), same semantics as the Lua script.
+// The Redis Lua variant below is functionally identical and is the DEFERRED form.
+
+// Redis key schema (DEFERRED Redis variant)
 BUCKET_KEY = "rate_limiter:usda:tokens"
 LAST_REFILL_KEY = "rate_limiter:usda:last_refill"
 CAPACITY = 1000          // max tokens (1,000 calls/hour)
 REFILL_RATE = 1000/3600  // tokens per second ≈ 0.2778
 
-// Atomic Lua script executed via EVAL (single Redis round-trip)
+// Atomic Lua script executed via EVAL (single Redis round-trip) — DEFERRED variant
 LUA_SCRIPT = """
   local tokens = tonumber(redis.call('GET', KEYS[1])) or ARGV[1]
   local last_refill = tonumber(redis.call('GET', KEYS[2])) or ARGV[3]
@@ -458,21 +494,21 @@ stateDiagram-v2
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                        | Action                                   | Caller Impact                                         |
-| -------------------------------------- | ---------------------------------------- | ----------------------------------------------------- |
-| Redis unavailable (connection refused) | Throw `RateLimiterError`                 | ARCH-004 treats as "allowed=false"; re-queues message |
-| Redis timeout (>100ms)                 | Throw `RateLimiterError`                 | Same as unavailable                                   |
-| Lua script execution error             | Throw `RateLimiterError`                 | ARCH-004 re-queues message                            |
-| Negative token count (clock skew)      | Clamp to 0 in Lua script                 | Graceful degradation                                  |
-| Key expiry (TTL elapsed, bucket reset) | Lua initializes fresh bucket at CAPACITY | Correct behavior; bucket refills                      |
+| Error Condition                                        | Action                                    | Caller Impact                                                     |
+| ------------------------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------- |
+| Store unavailable (Postgres/Redis, connection refused) | Throw `RateLimiterError`                  | ARCH-004 treats as "allowed=false"; extends lease / re-queues row |
+| Store timeout (>100ms)                                 | Throw `RateLimiterError`                  | Same as unavailable                                               |
+| Bucket txn / Lua script execution error                | Throw `RateLimiterError`                  | ARCH-004 re-queues row                                            |
+| Negative token count (clock skew)                      | Clamp to 0 in the bucket txn / Lua script | Graceful degradation                                              |
+| Key expiry (TTL elapsed, bucket reset)                 | Initializes fresh bucket at CAPACITY      | Correct behavior; bucket refills                                  |
 
 ---
 
 ## MOD-006 — FoodPostgresRepository (Database Access Layer)
 
 **Parent ARCH**: ARCH-006
-**Type**: Stateless (connection pool managed externally via RDS Proxy)
-**Runtime**: AWS Lambda (Node.js 22.x), uses `pg` (node-postgres)
+**Type**: Stateless (connection pool held by the long-running Fargate process)
+**Runtime**: ECS/Fargate (Node.js 22.x), uses `pg` (node-postgres) against the `kitchensink_food` logical database on the shared `kitchensink-data-{stage}` instance (no new RDS, no cluster)
 
 ### 1. Algorithmic / Logic View
 
@@ -531,7 +567,7 @@ FUNCTION mapRowToFoodData(row): FoodData
 
 ### 2. State Machine View
 
-`N/A Stateless` — FoodPostgresRepository is a pure data-access module. Each method executes a discrete SQL query with no retained state between calls. Connection pooling is managed by RDS Proxy, not this module.
+`N/A Stateless` — FoodPostgresRepository is a pure data-access module. Each method executes a discrete SQL query with no retained state between calls. Connection pooling is held by the long-running Fargate process against the shared `kitchensink-data-{stage}` instance, not by this module.
 
 ### 3. Internal Data Structures
 
@@ -555,11 +591,11 @@ FUNCTION mapRowToFoodData(row): FoodData
 
 ---
 
-## MOD-007 — FoodRedisCacheService (Cache & Pending-Set Manager)
+## MOD-007 — FoodCacheService (Cache & Pending-Set Manager)
 
 **Parent ARCH**: ARCH-007
-**Type**: Stateless (state in Redis)
-**Runtime**: AWS Lambda (Node.js 22.x), uses `ioredis`
+**Type**: Stateless (state in the cache store — lean-launch Postgres by default; Redis is a deferred variant)
+**Runtime**: ECS/Fargate (Node.js 22.x). Lean-launch default backs cache + pending-set with the `kitchensink_food` Postgres database; the deferred Redis variant uses `ioredis` (the key/command schema below describes that variant)
 
 ### 1. Algorithmic / Logic View
 
@@ -596,27 +632,27 @@ FUNCTION clearPending(fdcId: number): void
 
 ### 2. State Machine View
 
-`N/A Stateless` — FoodRedisCacheService is a thin wrapper over Redis commands. All state is stored in Redis; the module itself retains no in-process state between Lambda invocations.
+`N/A Stateless` — FoodCacheService is a thin wrapper over the cache store (lean-launch Postgres by default; the deferred Redis variant maps the same operations to Redis commands). All state lives in the store; the module itself retains no in-process state between requests.
 
 ### 3. Internal Data Structures
 
-| Name                | Type                                                                              | Description                                                                                |
-| ------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `CacheKey`          | `string`                                                                          | `"food:{fdcId}"` — Redis key for cached food data                                          |
-| `PendingSetKey`     | `"pending_fetch"`                                                                 | Redis Set key tracking in-flight fdcIds                                                    |
-| `PendingTtlKey`     | `string`                                                                          | `"pending_ttl:{fdcId}"` — sentinel key with 5-min TTL to auto-expire stale pending entries |
-| `RedisClientConfig` | `{ host, port, password, tls: true, connectTimeout: 2000, commandTimeout: 1000 }` | ioredis client configuration                                                               |
+| Name                | Type                                                                              | Description                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `CacheKey`          | `string`                                                                          | `"food:{fdcId}"` — cache key for cached food data (Postgres row key by default; Redis key in the deferred variant) |
+| `PendingSetKey`     | `"pending_fetch"`                                                                 | Pending-set key tracking in-flight fdcIds (Postgres set/table by default; Redis Set in the deferred variant)       |
+| `PendingTtlKey`     | `string`                                                                          | `"pending_ttl:{fdcId}"` — sentinel with 5-min TTL to auto-expire stale pending entries                             |
+| `CacheClientConfig` | `{ host, port, password, tls: true, connectTimeout: 2000, commandTimeout: 1000 }` | Cache client configuration (ioredis shape shown for the deferred Redis variant)                                    |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                      | Action                        | Caller Impact                                  |
-| ------------------------------------ | ----------------------------- | ---------------------------------------------- |
-| Redis connection refused             | Throw `CacheUnavailableError` | ARCH-001 falls through to PostgreSQL           |
-| Redis command timeout (>1s)          | Throw `CacheUnavailableError` | ARCH-001 falls through to PostgreSQL           |
-| JSON parse error on `get()`          | Log error, return `null`      | Cache treated as miss; PostgreSQL consulted    |
-| `sismember` returns unexpected value | Treat as `false`              | Conservative: triggers backfill (safe)         |
-| `sadd` failure on `markPending`      | Log warning, continue         | Risk of duplicate SQS messages (dedup handles) |
-| `srem` failure on `clearPending`     | Log warning, continue         | Stale pending entry expires via TTL sentinel   |
+| Error Condition                      | Action                        | Caller Impact                                                       |
+| ------------------------------------ | ----------------------------- | ------------------------------------------------------------------- |
+| Cache store connection refused       | Throw `CacheUnavailableError` | ARCH-001 falls through to PostgreSQL                                |
+| Cache command timeout (>1s)          | Throw `CacheUnavailableError` | ARCH-001 falls through to PostgreSQL                                |
+| JSON parse error on `get()`          | Log error, return `null`      | Cache treated as miss; PostgreSQL consulted                         |
+| `isPending` returns unexpected value | Treat as `false`              | Conservative: triggers backfill (safe)                              |
+| `markPending` failure                | Log warning, continue         | Risk of duplicate enqueue (`fetch_queue` ON CONFLICT dedup handles) |
+| `clearPending` failure               | Log warning, continue         | Stale pending entry expires via TTL sentinel                        |
 
 ---
 
@@ -624,7 +660,8 @@ FUNCTION clearPending(fdcId: number): void
 
 **Parent ARCH**: ARCH-008
 **Type**: Stateless
-**Runtime**: AWS Lambda (Node.js 22.x), uses `node-fetch` or native `fetch`
+**Runtime**: Node.js 22.x, uses native `fetch`; invoked inline from the ARCH-004 Fargate consumer worker
+**Target source file**: `packages/clients/usda/src/usda-api.client.ts` (package `@kitchensink/usda-client`)
 
 ### 1. Algorithmic / Logic View
 
@@ -699,15 +736,15 @@ FUNCTION extractNutrients(foodNutrients): NutrientMap
 
 ### 4. Error Handling Return Codes
 
-| Error Condition              | Error Type        | Status Code | Action                                                   |
-| ---------------------------- | ----------------- | ----------- | -------------------------------------------------------- |
-| HTTP 401 Unauthorized        | `UsdaApiError`    | 401         | Throw; ARCH-004 alerts on-call (key rotation needed)     |
-| HTTP 429 Too Many Requests   | `UsdaApiError`    | 429         | Throw; ARCH-004 re-queues with 60s visibility delay      |
-| HTTP 500–599 Server Error    | `UsdaApiError`    | 5xx         | Throw; ARCH-004 returns `batchItemFailure` for SQS retry |
-| HTTP 404 Not Found           | `UsdaApiError`    | 404         | Throw; ARCH-004 marks food as `not_found`                |
-| Request timeout (>10s)       | `UsdaApiError`    | 0           | Throw; ARCH-004 returns `batchItemFailure`               |
-| JSON parse error on response | `UsdaApiError`    | —           | Throw; ARCH-004 returns `batchItemFailure`               |
-| fdcIds array >20             | `ValidationError` | —           | Throw before HTTP call                                   |
+| Error Condition              | Error Type        | Status Code | Action                                                  |
+| ---------------------------- | ----------------- | ----------- | ------------------------------------------------------- |
+| HTTP 401 Unauthorized        | `UsdaApiError`    | 401         | Throw; ARCH-004 alerts on-call (key rotation needed)    |
+| HTTP 429 Too Many Requests   | `UsdaApiError`    | 429         | Throw; ARCH-004 re-queues row with 60s backoff          |
+| HTTP 500–599 Server Error    | `UsdaApiError`    | 5xx         | Throw; ARCH-004 re-queues row with backoff (≤5, FR-016) |
+| HTTP 404 Not Found           | `UsdaApiError`    | 404         | Throw; ARCH-004 marks food `not_found` + tombstones row |
+| Request timeout (>10s)       | `UsdaApiError`    | 0           | Throw; ARCH-004 re-queues row with backoff              |
+| JSON parse error on response | `UsdaApiError`    | —           | Throw; ARCH-004 re-queues row with backoff              |
+| fdcIds array >20             | `ValidationError` | —           | Throw before HTTP call (USDA 20/call hard cap, FR-023)  |
 
 ---
 
@@ -804,12 +841,12 @@ stateDiagram-v2
 
 **Parent ARCH**: ARCH-010
 **Type**: Stateful (in-memory cache with TTL)
-**Runtime**: AWS Lambda (Node.js 22.x), uses `@aws-sdk/client-secrets-manager`
+**Runtime**: ECS/Fargate (Node.js 22.x) — in-process cache lives for the long-running container's lifetime; uses `@aws-sdk/client-secrets-manager`
 
 ### 1. Algorithmic / Logic View
 
 ```
-// In-memory cache to avoid Secrets Manager API calls on every Lambda invocation
+// In-memory cache to avoid Secrets Manager API calls on every request (lives for the Fargate container lifetime)
 SECRET_CACHE = {}  // { secretName: { value: string, expiresAt: number } }
 CACHE_TTL_MS = 300000  // 5 minutes
 
@@ -857,11 +894,11 @@ stateDiagram-v2
 
 ### 3. Internal Data Structures
 
-| Name                   | Type                                                   | Description                                          |
-| ---------------------- | ------------------------------------------------------ | ---------------------------------------------------- |
-| `SecretCache`          | `Record<string, { value: string, expiresAt: number }>` | In-memory cache; lives for Lambda container lifetime |
-| `SecretValue`          | `{ apiKey: string }`                                   | JSON structure stored in Secrets Manager             |
-| `SecretsManagerConfig` | `{ region: string }`                                   | SDK client configuration                             |
+| Name                   | Type                                                   | Description                                               |
+| ---------------------- | ------------------------------------------------------ | --------------------------------------------------------- |
+| `SecretCache`          | `Record<string, { value: string, expiresAt: number }>` | In-memory cache; lives for the Fargate container lifetime |
+| `SecretValue`          | `{ apiKey: string }`                                   | JSON structure stored in Secrets Manager                  |
+| `SecretsManagerConfig` | `{ region: string }`                                   | SDK client configuration                                  |
 
 ### 4. Error Handling Return Codes
 
@@ -879,13 +916,13 @@ stateDiagram-v2
 
 **Parent ARCH**: ARCH-011
 **Type**: Stateless
-**Runtime**: AWS Lambda (Node.js 22.x), uses `@aws-lambda-powertools/logger` + CloudWatch SDK
+**Runtime**: ECS/Fargate (Node.js 22.x) — shared by the food-service API and the consumer worker; uses `@aws-lambda-powertools/logger` + CloudWatch SDK
 
 ### 1. Algorithmic / Logic View
 
 ```
 // Structured logger backed by @aws-lambda-powertools/logger
-logger = new Logger({ serviceName: "usda-food-data", logLevel: ENV.LOG_LEVEL || "INFO" })
+logger = new Logger({ serviceName: "food-service", logLevel: ENV.LOG_LEVEL || "INFO" })
 
 FUNCTION logRequest(requestId: string, event: object, durationMs: number): void
   logger.info("request", {
@@ -893,7 +930,7 @@ FUNCTION logRequest(requestId: string, event: object, durationMs: number): void
     event,
     durationMs,
     timestamp: ISO8601Now(),
-    lambdaContext: { functionName, memoryLimitInMB, remainingTimeInMillis }
+    runtimeContext: { taskArn, cpu, memoryLimitMiB }
   })
 
 FUNCTION logError(requestId: string, error: Error, context: object): void
@@ -918,7 +955,7 @@ FUNCTION incrementMetric(name: string, value: number): void
         Metrics: [{ Name: name, Unit: "Count" }]
       }]
     },
-    service: "usda-food-data",
+    service: "food-service",
     [name]: value
   })
 
@@ -937,7 +974,7 @@ FUNCTION startTrace(requestId: string): Segment
 
 | Name           | Type                                                                        | Description                                   |
 | -------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
-| `LogEntry`     | `{ requestId, event, durationMs, timestamp, lambdaContext }`                | Structured log payload                        |
+| `LogEntry`     | `{ requestId, event, durationMs, timestamp, runtimeContext }`               | Structured log payload                        |
 | `EmfMetric`    | `{ _aws: { Timestamp, CloudWatchMetrics }, service, [metricName]: number }` | CloudWatch Embedded Metrics Format payload    |
 | `LoggerConfig` | `{ serviceName: string, logLevel: 'DEBUG' \| 'INFO' \| 'WARN' \| 'ERROR' }` | Logger initialization config                  |
 | `Segment`      | X-Ray `Subsegment`                                                          | X-Ray tracing segment for distributed tracing |
@@ -946,7 +983,7 @@ FUNCTION startTrace(requestId: string): Segment
 
 | Error Condition                  | Action                                         | Impact                            |
 | -------------------------------- | ---------------------------------------------- | --------------------------------- |
-| CloudWatch Logs delivery failure | Swallow error (Lambda runtime handles)         | Log may be lost; non-fatal        |
+| CloudWatch Logs delivery failure | Swallow error (log driver / agent handles)     | Log may be lost; non-fatal        |
 | EMF metric parse error           | Log raw JSON; CloudWatch may not create metric | Metric lost; non-fatal            |
 | X-Ray tracing disabled           | Return no-op Segment                           | Tracing unavailable; non-fatal    |
 | Invalid log level in ENV         | Default to `INFO`                              | Degraded observability; non-fatal |
@@ -957,8 +994,8 @@ FUNCTION startTrace(requestId: string): Segment
 
 **Parent ARCH**: ARCH-012
 **Type**: Stateful (per-request lifecycle; populates `req.user`)
-**Runtime**: NestJS `AuthMiddleware` on ECS/Fargate (Node.js 22.x), ALB-fronted; reuses shared `@kitchensink/*` clerk-verify package. WebSocket `$connect` reuses the same verification in a Lambda authorizer (the only Lambda-authorizer surface).
-**Target source file**: `src/auth/clerk-auth.middleware.ts` (+ shared `@kitchensink/*` clerk-verify package)
+**Runtime**: NestJS `AuthMiddleware` on ECS/Fargate (Node.js 22.x), ALB-fronted; reuses the shared `@kitchensink/clerk-verify` package (`packages/shared/clerk-verify`). WebSocket `$connect` reuses the same verification in a Lambda authorizer (the only Lambda-authorizer surface).
+**Target source file**: `packages/services/food-service/src/auth/clerk-auth.middleware.ts` (+ shared `@kitchensink/clerk-verify` package, `packages/shared/clerk-verify`)
 
 ### 1. Algorithmic / Logic View
 
@@ -1105,8 +1142,8 @@ stateDiagram-v2
 
 **Parent ARCH**: ARCH-012
 **Type**: Stateful (state in Redis and/or PostgreSQL: `user_fetch_quota`, `global_fetch_quota`, `fetch_requesters`)
-**Runtime**: NestJS service invoked inline after MOD-012, **before** `INSERT INTO fetch_queue`
-**Target source file**: `src/auth/quota-and-fairness.service.ts`
+**Runtime**: NestJS service on ECS/Fargate invoked inline after MOD-012, **before** `INSERT INTO fetch_queue`
+**Target source file**: `packages/services/food-service/src/auth/quota-and-fairness.service.ts`
 
 ### 1. Algorithmic / Logic View
 
@@ -1233,8 +1270,8 @@ stateDiagram-v2
 
 **Parent ARCH**: ARCH-012
 **Type**: Stateful (per-event validation in the consumer/worker; reads IAM-principal allowlist + event attributes)
-**Runtime**: Invoked inline in the Fargate consumer worker (ARCH-004) before any USDA fetch or `INSERT INTO fetch_queue`, and at the EventBridge/queue ingress boundary
-**Target source file**: `src/auth/async-producer-authz.service.ts`
+**Runtime**: Invoked inline in the Fargate consumer worker (ARCH-004) before any USDA fetch or `INSERT INTO fetch_queue`, and at the EventBridge/`fetch_queue` ingress boundary
+**Target source file**: `packages/services/food-service/src/auth/async-producer-authz.service.ts`
 
 US-0's guarantee — _"no unauthenticated path may drive USDA consumption"_ — must hold for **async/internal producers** (EventBridge events, cron/scheduled jobs, bulk-sync, recipe import) just as MOD-012 enforces it on the synchronous HTTP edge. MOD-014 closes the gap where a producer could publish `FoodRequested`/`FoodBatchRequested`/`IngestionScheduled` (or insert into `fetch_queue`) without an authenticated provenance, bypassing FR-035 (FR-048). Two enforcement layers: **(1)** infrastructure — only named, least-privilege IAM principals are granted `events:PutEvents` on the bus / `INSERT` on `fetch_queue`; **(2)** application — the consumer validates each event's provenance (`requestedBy` is an authenticated `sub` or a named service principal, and the delivering IAM principal is on the allowlist) before doing work.
 
@@ -1330,35 +1367,35 @@ stateDiagram-v2
 
 This matrix maps each Architecture Module (ARCH) to its corresponding low-level Module Design (MOD), and traces both back to parent System Components (SYS).
 
-| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                               | Parent SYS                | Notes                                                                                                                                             |
-| -------- | ---------------------- | ------- | ------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                    | SYS-001                   | API Gateway Lambda; 4-layer cache lookup chain                                                                                                    |
-| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Event Emitter)                   | SYS-002                   | Publishes FoodRequested, FoodBatchRequested, FoodDataReceived                                                                                     |
-| ARCH-003 | SqsQueueRouter         | MOD-003 | SqsQueueRouter (EventBridge Rule Router)               | SYS-002, SYS-003, SYS-004 | Infrastructure-level routing; FIFO dedup for HighPriorityQueue                                                                                    |
-| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (SQS Message Processor)            | SYS-005                   | Partial batch failure support; exponential backoff                                                                                                |
-| ARCH-005 | TokenBucketRateLimiter | MOD-005 | TokenBucketRateLimiter (Redis Lua Script Rate Limiter) | [CROSS-CUTTING]           | Atomic Lua script; 1,000 calls/hour cap                                                                                                           |
-| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)         | SYS-006                   | pg_trgm FTS; JSONB nutrients; RDS Proxy pooling                                                                                                   |
-| ARCH-007 | FoodRedisCacheService  | MOD-007 | FoodRedisCacheService (Cache & Pending-Set Manager)    | SYS-007                   | Redis Set for pending dedup; TTL sentinel for stale pending                                                                                       |
-| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central)  | SYS-008                   | Abridged format; 6 nutrient IDs; 10s timeout                                                                                                      |
-| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)      | SYS-009                   | Launch-deferred; DynamoDB connection store                                                                                                        |
-| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)            | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                           |
-| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)        | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                     |
-| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)   | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                  |
-| ARCH-012 | FoodAuthGuard          | MOD-013 | QuotaAndFairness (Per-`sub` Quota & Backpressure)      | SYS-013                   | Per-`sub` quota 429; distinct-requester demand; batch cap 400; backpressure 503                                                                   |
-| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)         | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT) |
+| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                              | Parent SYS                | Notes                                                                                                                                             |
+| -------- | ---------------------- | ------- | ----------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                   | SYS-001                   | NestJS controller on ECS/Fargate (ALB-fronted); 4-layer cache lookup chain                                                                        |
+| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Enqueue Emitter)                | SYS-002                   | FoodRequested/FoodBatchRequested → `fetch_queue` INSERT + LISTEN/NOTIFY; FoodDataReceived → EventBridge                                           |
+| ARCH-003 | FetchQueueRouter       | MOD-003 | FetchQueueRouter (Postgres-as-Queue Priority Router)  | SYS-002, SYS-003, SYS-004 | `fetch_queue` priority column + lease (FOR UPDATE SKIP LOCKED); ON CONFLICT dedup; tombstone rows                                                 |
+| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (fetch_queue Worker)              | SYS-005                   | Single Fargate worker (advisory lock); lease-claim drain; exponential backoff then tombstone                                                      |
+| ARCH-005 | TokenBucketRateLimiter | MOD-005 | TokenBucketRateLimiter (Atomic Token Bucket)          | [CROSS-CUTTING]           | Atomic Postgres bucket txn (Redis Lua deferred); 1,000 calls/hour cap                                                                             |
+| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)        | SYS-006                   | pg_trgm FTS; JSONB nutrients; `kitchensink_food` DB on shared instance                                                                            |
+| ARCH-007 | FoodCacheService       | MOD-007 | FoodCacheService (Cache & Pending-Set Manager)        | SYS-007                   | Postgres pending-set + TTL sentinel by default (Redis deferred)                                                                                   |
+| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central) | SYS-008                   | `@kitchensink/usda-client`; abridged format; 6 nutrient IDs; 10s timeout                                                                          |
+| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)     | SYS-009                   | Launch-deferred; DynamoDB connection store; WS `$connect` Lambda authorizer (sole Lambda-authorizer surface)                                      |
+| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)           | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                           |
+| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)       | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                     |
+| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)  | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                  |
+| ARCH-012 | FoodAuthGuard          | MOD-013 | QuotaAndFairness (Per-`sub` Quota & Backpressure)     | SYS-013                   | Per-`sub` quota 429; distinct-requester demand; batch cap 400; backpressure 503                                                                   |
+| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)        | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT) |
 
 ### Coverage Summary
 
-| Metric                                   | Count                                                                               |
-| ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| Total ARCH modules                       | 12                                                                                  |
-| Total MOD modules                        | 14                                                                                  |
-| ARCH modules with full MOD coverage      | 12 / 12 (100%)                                                                      |
-| MOD modules with Stateful state machine  | 7 (MOD-001, MOD-004, MOD-005, MOD-010, MOD-012, MOD-013, MOD-014)                   |
-| MOD modules marked N/A Stateless         | 5 (MOD-002, MOD-006, MOD-007, MOD-008, MOD-011)                                     |
-| MOD modules with WebSocket state machine | 1 (MOD-009)                                                                         |
-| MOD modules with SQS state machine       | 1 (MOD-003 — infrastructure, N/A Stateless)                                         |
-| ARCH-012 (FoodAuthGuard) decomposition   | 3 MODs (MOD-012 verify/authz, MOD-013 quota/fairness, MOD-014 async-producer authz) |
+| Metric                                           | Count                                                                               |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| Total ARCH modules                               | 12                                                                                  |
+| Total MOD modules                                | 14                                                                                  |
+| ARCH modules with full MOD coverage              | 12 / 12 (100%)                                                                      |
+| MOD modules with Stateful state machine          | 7 (MOD-001, MOD-004, MOD-005, MOD-010, MOD-012, MOD-013, MOD-014)                   |
+| MOD modules marked N/A Stateless                 | 5 (MOD-002, MOD-006, MOD-007, MOD-008, MOD-011)                                     |
+| MOD modules with WebSocket state machine         | 1 (MOD-009)                                                                         |
+| MOD modules with Postgres-as-queue state machine | 1 (MOD-003 — `fetch_queue` schema, N/A Stateless)                                   |
+| ARCH-012 (FoodAuthGuard) decomposition           | 3 MODs (MOD-012 verify/authz, MOD-013 quota/fairness, MOD-014 async-producer authz) |
 
 ---
 

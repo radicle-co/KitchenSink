@@ -9,7 +9,7 @@
 
 This document defines the System Test Plan for the USDA Food Data Integration feature. Every system component in `system-design.md` has one or more Test Cases (STP), and every Test Case has one or more executable System Scenarios (STS) in technical BDD format (Given/When/Then).
 
-System tests verify **architectural behavior**, not user journeys. Language is technical and component-oriented. The architecture is event-driven and queue-based: user-facing food lookups are served exclusively from local PostgreSQL (with optional Redis cache); the USDA API is never called in the request path.
+System tests verify **architectural behavior**, not user journeys. Language is technical and component-oriented. The architecture is event-driven and queue-based: user-facing food lookups are served exclusively from local PostgreSQL (Redis cache is a deferred variant; lean-launch default is Postgres); the USDA API is never called in the request path. The fetch pipeline is backed by a Postgres `fetch_queue` table with `LISTEN/NOTIFY`, drained by a Fargate consumer worker; EventBridge is used only for scheduled producers and the `FoodDataReceived` notification.
 
 ## ID Schema
 
@@ -75,7 +75,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-001-B4**
     - **Given** PostgreSQL contains `fdc_id = 44444` with `fetch_status = 'not_found'`
     - **When** FoodApiController receives `GET /v1/foods/44444`
-    - **Then** response status is `404 Not Found`; no event is published to SYS-002; no SQS message is enqueued
+    - **Then** response status is `404 Not Found`; no event is published to SYS-002; no row is inserted into `fetch_queue`
 
 #### Test Case: STP-001-C (Input Validation — fdcId Boundary Values)
 
@@ -125,143 +125,143 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-011, REQ-012
 
-#### Test Case: STP-002-A (Event Routing — FoodRequested to HighPriorityQueue)
+#### Test Case: STP-002-A (Enqueue Routing — FoodRequested to High-Priority fetch_queue Row)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-001: SYS-001 → SYS-002; SYS-002 → SYS-003)
-**Description**: Verifies that EventBridgeBus routes `FoodRequested` events exclusively to SYS-003 (HighPriorityFoodQueue).
+**Description**: Verifies that a `FoodRequested` cache-miss results in a high-priority row inserted into SYS-003 (HighPriorityFetchQueue: `fetch_queue` rows with `priority = 'high'`).
 
 - **System Scenario: STS-002-A1**
-    - **Given** EventBridgeBus has a rule matching `detail-type = "FoodRequested"` targeting SYS-003
-    - **When** SYS-001 publishes `FoodRequested { "fdcId": 12345, "requestedAt": "<timestamp>" }` to the event bus
-    - **Then** the event is delivered to SYS-003 (HighPriorityFoodQueue); SYS-004 (LowPriorityFoodQueue) receives no message
+    - **Given** SYS-001 resolves a single-food cache miss for `fdc_id = 12345`
+    - **When** SYS-001 executes `INSERT INTO fetch_queue (fdc_id, priority, ...) VALUES (12345, 'high', ...)` and issues a `NOTIFY fetch_queue` signal
+    - **Then** a high-priority row is present in SYS-003 (HighPriorityFetchQueue); no low-priority row is written to SYS-004 (LowPriorityFetchQueue)
 
-#### Test Case: STP-002-B (Event Routing — FoodBatchRequested to LowPriorityQueue)
+#### Test Case: STP-002-B (Enqueue Routing — FoodBatchRequested to Low-Priority fetch_queue Rows)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-002 → SYS-004)
-**Description**: Verifies that EventBridgeBus routes `FoodBatchRequested` events exclusively to SYS-004 (LowPriorityFoodQueue).
+**Description**: Verifies that a batch request results in low-priority rows inserted into SYS-004 (LowPriorityFetchQueue: `fetch_queue` rows with `priority = 'low'`).
 
 - **System Scenario: STS-002-B1**
-    - **Given** EventBridgeBus has a rule matching `detail-type = "FoodBatchRequested"` targeting SYS-004
-    - **When** a producer publishes `FoodBatchRequested { "fdcIds": [1, 2, 3], "correlationId": "abc" }` to the event bus
-    - **Then** the event is delivered to SYS-004 (LowPriorityFoodQueue); SYS-003 receives no message
+    - **Given** a producer resolves a batch request for `fdcIds = [1, 2, 3]` with `correlationId = "abc"`
+    - **When** the producer inserts the batch rows into `fetch_queue` with `priority = 'low'` and issues a `NOTIFY fetch_queue` signal
+    - **Then** the low-priority rows are present in SYS-004 (LowPriorityFetchQueue); no high-priority row is written to SYS-003
 
-#### Test Case: STP-002-C (Fault Injection — EventBridge Publish Failure)
+#### Test Case: STP-002-C (Fault Injection — fetch_queue Insert Failure)
 
 **Technique**: Fault Injection
-**Target View**: Dependency View (SYS-001 → SYS-002: publish failure)
-**Description**: Verifies system behavior when EventBridge publish fails.
+**Target View**: Dependency View (SYS-001 → SYS-002: enqueue failure)
+**Description**: Verifies system behavior when the `fetch_queue` insert fails.
 
 - **System Scenario: STS-002-C1**
-    - **Given** EventBridgeBus is unavailable (simulated via IAM deny or endpoint failure)
-    - **When** FoodApiController attempts to publish `FoodRequested` for `fdc_id = 99999`
-    - **Then** FoodApiController returns `202 Accepted` to the caller (or propagates an error); the food record remains in `fetch_status = 'pending'` or is not created; no SQS message reaches SYS-003
+    - **Given** the `fetch_queue` insert is unavailable (simulated via Postgres error or permission deny)
+    - **When** FoodApiController attempts to enqueue a fetch for `fdc_id = 99999`
+    - **Then** FoodApiController returns `202 Accepted` to the caller (or propagates an error); the food record remains in `fetch_status = 'pending'` or is not created; no row reaches SYS-003
 
 ---
 
-### Component Verification: SYS-003 (HighPriorityFoodQueue)
+### Component Verification: SYS-003 (HighPriorityFetchQueue)
 
 **Parent Requirements**: REQ-011, REQ-012, REQ-014
 
-#### Test Case: STP-003-A (FIFO Queue Message Delivery Contract)
+#### Test Case: STP-003-A (Priority-Ordered Row Delivery Contract)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-002 → SYS-003; SYS-003 → SYS-005)
-**Description**: Verifies that HighPriorityFoodQueue is a FIFO queue and delivers messages to SYS-005 with correct schema.
+**Description**: Verifies that HighPriorityFetchQueue (`fetch_queue` rows with `priority = 'high'`) is drained in insertion order and delivers leased rows to SYS-005 with the correct schema.
 
 - **System Scenario: STS-003-A1**
-    - **Given** HighPriorityFoodQueue is empty; SYS-002 routes a `FoodRequested` event
-    - **When** the SQS message `{ "fdcId": 12345, "priority": "high", "correlationId": "xyz" }` is enqueued
-    - **Then** SYS-005 (ConsumerLambda) receives the message with all three fields intact; message is delivered in FIFO order relative to other high-priority messages
+    - **Given** HighPriorityFetchQueue holds no pending high-priority rows; SYS-002 inserts a high-priority `FoodRequested` row
+    - **When** the `fetch_queue` row `{ "fdc_id": 12345, "priority": "high", "correlation_id": "xyz" }` is inserted and a `NOTIFY fetch_queue` signal fires
+    - **Then** SYS-005 (Fargate consumer worker) leases the row (via `SELECT ... FOR UPDATE SKIP LOCKED`) with all three fields intact; rows are drained in `created_at` order relative to other high-priority rows
 
-#### Test Case: STP-003-B (DLQ Routing After Max Receive Count)
+#### Test Case: STP-003-B (Tombstone Routing After Max Attempts)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-003 → SYS-005 failure path)
-**Description**: Verifies that messages exceeding max receive count (3) are routed to the Dead Letter Queue.
+**Description**: Verifies that rows exceeding the max attempt count (≤5 attempts with backoff, FR-016) are tombstoned (`status = 'tombstone'`, the DLQ-equivalent).
 
 - **System Scenario: STS-003-B1**
-    - **Given** a message `{ "fdcId": 55555 }` is in HighPriorityFoodQueue; SYS-005 fails to process it and does not delete it on each attempt
-    - **When** the message has been received 3 times without deletion
-    - **Then** the message is moved to the HighPriorityFoodQueue DLQ; it is no longer visible in the main queue
+    - **Given** a row `{ "fdc_id": 55555 }` is pending in HighPriorityFetchQueue; SYS-005 fails to process it and does not mark it done on each attempt (the row lease, FR-018, expires for retry between attempts)
+    - **When** the row has been attempted 5 times without success
+    - **Then** the row is set to `status = 'tombstone'` (DLQ-equivalent); it is no longer leasable from the pending set
 
 ---
 
-### Component Verification: SYS-004 (LowPriorityFoodQueue)
+### Component Verification: SYS-004 (LowPriorityFetchQueue)
 
 **Parent Requirements**: REQ-011, REQ-013
 
-#### Test Case: STP-004-A (FIFO Queue Message Delivery — Batch Schema)
+#### Test Case: STP-004-A (Row Delivery — Batch Schema)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-002 → SYS-004)
-**Description**: Verifies that LowPriorityFoodQueue delivers batch messages with the correct schema to SYS-005.
+**Description**: Verifies that LowPriorityFetchQueue (`fetch_queue` rows with `priority = 'low'`) delivers batch rows with the correct schema to SYS-005.
 
 - **System Scenario: STS-004-A1**
-    - **Given** LowPriorityFoodQueue is empty; SYS-002 routes a `FoodBatchRequested` event
-    - **When** the SQS message `{ "fdcIds": [1, 2, 3], "priority": "low", "correlationId": "batch-001" }` is enqueued
-    - **Then** SYS-005 receives the message with `fdcIds` array intact; message is delivered in FIFO order
+    - **Given** LowPriorityFetchQueue holds no pending low-priority rows; SYS-002 inserts `FoodBatchRequested` rows
+    - **When** the `fetch_queue` rows `{ "fdc_ids": [1, 2, 3], "priority": "low", "correlation_id": "batch-001" }` are inserted
+    - **Then** SYS-005 leases the rows with `fdc_ids` intact; rows are drained in `created_at` order
 
-#### Test Case: STP-004-B (DLQ Routing After Max Receive Count)
+#### Test Case: STP-004-B (Tombstone Routing After Max Attempts)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-004 → SYS-005 failure path)
-**Description**: Verifies that low-priority messages exceeding max receive count are routed to the DLQ.
+**Description**: Verifies that low-priority rows exceeding the max attempt count are tombstoned (`status = 'tombstone'`, the DLQ-equivalent).
 
 - **System Scenario: STS-004-B1**
-    - **Given** a batch message `{ "fdcIds": [77777, 88888] }` is in LowPriorityFoodQueue; SYS-005 fails to process it 3 times
-    - **When** the message has been received 3 times without deletion
-    - **Then** the message is moved to the LowPriorityFoodQueue DLQ; it is no longer visible in the main queue
+    - **Given** a batch row `{ "fdc_ids": [77777, 88888] }` is pending in LowPriorityFetchQueue; SYS-005 fails to process it 5 times
+    - **When** the row has been attempted 5 times without success
+    - **Then** the row is set to `status = 'tombstone'` (DLQ-equivalent); it is no longer leasable from the pending set
 
 ---
 
-### Component Verification: SYS-005 (FoodConsumerLambda)
+### Component Verification: SYS-005 (FoodConsumerWorker)
 
 **Parent Requirements**: REQ-011, REQ-012, REQ-014, REQ-015, REQ-016, REQ-017
 
-#### Test Case: STP-005-A (High-Priority Queue Polling Priority)
+#### Test Case: STP-005-A (High-Priority Lease Priority)
 
 **Technique**: Interface Contract Testing
 **Target View**: Dependency View (SYS-003 → SYS-005; SYS-004 → SYS-005)
-**Description**: Verifies that ConsumerLambda polls HighPriorityQueue first and only polls LowPriorityQueue when HighPriorityQueue is empty.
+**Description**: Verifies that the Fargate consumer worker leases from HighPriorityFetchQueue first and only leases from LowPriorityFetchQueue when no high-priority rows are pending.
 
 - **System Scenario: STS-005-A1**
-    - **Given** both SYS-003 and SYS-004 contain messages
-    - **When** ConsumerLambda begins a polling cycle
-    - **Then** ConsumerLambda processes all available messages from SYS-003 before issuing any `ReceiveMessage` call to SYS-004
+    - **Given** both SYS-003 and SYS-004 contain pending rows
+    - **When** the consumer worker begins a drain cycle
+    - **Then** the consumer worker processes all available high-priority rows from SYS-003 before leasing any row from SYS-004
 
 - **System Scenario: STS-005-A2**
-    - **Given** SYS-003 is empty; SYS-004 contains messages
-    - **When** ConsumerLambda begins a polling cycle
-    - **Then** ConsumerLambda issues a `ReceiveMessage` call to SYS-004 and processes the available messages
+    - **Given** SYS-003 has no pending rows; SYS-004 contains pending rows
+    - **When** the consumer worker begins a drain cycle
+    - **Then** the consumer worker leases rows from SYS-004 and processes the available rows
 
 #### Test Case: STP-005-B (Successful USDA Fetch — Full Success Path)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-004: SYS-005 → SYS-009; IC-005: SYS-005 → SYS-007)
-**Description**: Verifies the complete success path: token check → USDA call → PostgreSQL upsert → Redis invalidation → SQS delete → EventBridge emit.
+**Description**: Verifies the complete success path: token check → USDA call → PostgreSQL upsert → cache invalidation → fetch_queue row completion → EventBridge `FoodDataReceived` emit.
 
 - **System Scenario: STS-005-B1**
-    - **Given** SYS-006 token bucket has ≥ 1 token; SQS message `{ "fdcId": 12345 }` is in SYS-003; USDA API returns `200 OK` with food data for `fdcId = 12345`
-    - **When** ConsumerLambda processes the message
-    - **Then** ConsumerLambda: (1) calls SYS-006 and receives `{ allowed: true }`; (2) calls USDA API `POST /v1/foods` with `{ fdcIds: [12345] }`; (3) upserts food into SYS-007 with `fetch_status = 'fetched'`; (4) issues `DEL food:12345` and `SREM pending_fetch 12345` to SYS-008; (5) deletes the SQS message from SYS-003; (6) publishes `FoodDataReceived` event to SYS-002
+    - **Given** SYS-006 token bucket has ≥ 1 token; a `fetch_queue` row `{ "fdc_id": 12345 }` is pending in SYS-003; USDA API returns `200 OK` with food data for `fdcId = 12345`
+    - **When** the consumer worker processes the leased row
+    - **Then** the consumer worker: (1) calls SYS-006 and receives `{ allowed: true }`; (2) calls USDA API `POST /v1/foods` with `{ fdcIds: [12345] }`; (3) upserts food into SYS-007 with `fetch_status = 'fetched'`; (4) invalidates the cache for `food:12345` and clears the `pending_fetch` marker in SYS-008; (5) marks the `fetch_queue` row `status = 'done'` in SYS-003; (6) publishes the `FoodDataReceived` event to SYS-002
 
 #### Test Case: STP-005-C (Batch Processing — Up to 20 fdcIds per USDA Call)
 
 **Technique**: Boundary Value Analysis
 **Target View**: Data Design View (batch size: 1–20 fdcIds per USDA API call)
-**Description**: Verifies that ConsumerLambda batches up to 20 fdcIds per USDA API call and consumes exactly 1 token per call regardless of batch size.
+**Description**: Verifies that the consumer worker batches up to 20 fdcIds per USDA API call and consumes exactly 1 token per call regardless of batch size.
 
 - **System Scenario: STS-005-C1**
-    - **Given** SYS-006 has ≥ 1 token; SQS message contains `{ "fdcIds": [1, 2, ..., 20] }` (20 IDs)
-    - **When** ConsumerLambda processes the message
+    - **Given** SYS-006 has ≥ 1 token; a `fetch_queue` row contains `{ "fdc_ids": [1, 2, ..., 20] }` (20 IDs)
+    - **When** the consumer worker processes the leased row
     - **Then** exactly 1 HTTP call is made to USDA API with all 20 IDs; exactly 1 token is consumed from SYS-006
 
 - **System Scenario: STS-005-C2**
-    - **Given** SYS-006 has ≥ 2 tokens; SQS message contains `{ "fdcIds": [1, 2, ..., 21] }` (21 IDs, exceeds batch limit)
-    - **When** ConsumerLambda processes the message
-    - **Then** ConsumerLambda splits into 2 USDA API calls (20 + 1); 2 tokens are consumed from SYS-006
+    - **Given** SYS-006 has ≥ 2 tokens; a `fetch_queue` row contains `{ "fdc_ids": [1, 2, ..., 21] }` (21 IDs, exceeds batch limit)
+    - **When** the consumer worker processes the leased row
+    - **Then** the consumer worker splits into 2 USDA API calls (20 + 1); 2 tokens are consumed from SYS-006
 
 #### Test Case: STP-005-D (USDA 404 — Tombstone Write)
 
@@ -270,31 +270,31 @@ Each test case identifies its technique by name:
 **Description**: Verifies that a USDA 404 response results in a tombstone record and no retry.
 
 - **System Scenario: STS-005-D1**
-    - **Given** SQS message `{ "fdcId": 99999 }` is in SYS-003; USDA API returns `404 Not Found` for `fdcId = 99999`
-    - **When** ConsumerLambda processes the message
-    - **Then** ConsumerLambda upserts `{ fdc_id: 99999, fetch_status: 'not_found' }` into SYS-007; the SQS message is deleted; no retry is scheduled; no `FoodDataReceived` event is emitted
+    - **Given** a `fetch_queue` row `{ "fdc_id": 99999 }` is pending in SYS-003; USDA API returns `404 Not Found` for `fdcId = 99999`
+    - **When** the consumer worker processes the leased row
+    - **Then** the consumer worker upserts `{ fdc_id: 99999, fetch_status: 'not_found' }` into SYS-007; the `fetch_queue` row is marked `status = 'done'`; the 404 is treated as immediate (no retry, no backoff, FR-016); no `FoodDataReceived` event is emitted
 
 #### Test Case: STP-005-E (USDA 429 — Token Bucket Reset and Backoff)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-005 → SYS-009: rate limit exceeded)
-**Description**: Verifies that a USDA 429 response resets the token bucket to 0 and stops processing remaining messages.
+**Description**: Verifies that a USDA 429 response resets the token bucket to 0 and stops processing remaining rows.
 
 - **System Scenario: STS-005-E1**
-    - **Given** SYS-006 token bucket has 5 tokens; ConsumerLambda is processing a batch of 3 SQS messages; USDA API returns `429 Too Many Requests` on the second message
-    - **When** ConsumerLambda receives the 429 response
-    - **Then** ConsumerLambda resets SYS-006 token bucket to 0 tokens; the second SQS message is left undeleted (visibility timeout expires for retry); the third message is not processed in this invocation
+    - **Given** SYS-006 token bucket has 5 tokens; the consumer worker is processing a batch of 3 leased `fetch_queue` rows; USDA API returns `429 Too Many Requests` on the second row
+    - **When** the consumer worker receives the 429 response
+    - **Then** the consumer worker resets SYS-006 token bucket to 0 tokens; the second `fetch_queue` row is left incomplete (its row lease, FR-018, expires for retry); the third row is not processed in this drain cycle
 
-#### Test Case: STP-005-F (USDA 5xx — SQS Native Retry via Visibility Timeout)
+#### Test Case: STP-005-F (USDA 5xx — Row-Lease Retry with Backoff)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-005 → SYS-009: transient error)
-**Description**: Verifies that USDA 5xx errors leave the SQS message undeleted for SQS-native retry.
+**Description**: Verifies that USDA 5xx errors leave the `fetch_queue` row incomplete for row-lease retry with backoff (FR-016).
 
 - **System Scenario: STS-005-F1**
-    - **Given** SQS message `{ "fdcId": 11111 }` is in SYS-003; USDA API returns `503 Service Unavailable`
-    - **When** ConsumerLambda processes the message
-    - **Then** ConsumerLambda does NOT delete the SQS message; the message becomes visible again after the visibility timeout; after 3 total receive attempts, the message is routed to the DLQ
+    - **Given** a `fetch_queue` row `{ "fdc_id": 11111 }` is pending in SYS-003; USDA API returns `503 Service Unavailable`
+    - **When** the consumer worker processes the leased row
+    - **Then** the consumer worker does NOT mark the row `done`; the row becomes leasable again after its row lease (FR-018) expires; the attempt count is incremented with backoff and, after 5 total attempts (FR-016), the row is set to `status = 'tombstone'` (DLQ-equivalent)
 
 ---
 
@@ -343,12 +343,12 @@ Each test case identifies its technique by name:
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-005 → SYS-006: token bucket unavailable)
-**Description**: Verifies ConsumerLambda behavior when the token bucket Redis is unreachable.
+**Description**: Verifies consumer worker behavior when the token bucket store is unreachable.
 
 - **System Scenario: STS-006-C1**
-    - **Given** Redis (SYS-006) is unreachable (connection timeout)
-    - **When** ConsumerLambda attempts to call the token bucket Lua script
-    - **Then** ConsumerLambda does NOT call the USDA API; the SQS message is left undeleted; an error is logged to CloudWatch (SYS-012)
+    - **Given** the token bucket store (SYS-006) is unreachable (connection timeout)
+    - **When** the consumer worker attempts the atomic token check-and-consume
+    - **Then** the consumer worker does NOT call the USDA API; the `fetch_queue` row is left incomplete (its row lease, FR-018, expires for retry); an error is logged to CloudWatch (SYS-012)
 
 ---
 
@@ -364,12 +364,12 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-007-A1**
     - **Given** no record exists for `fdc_id = 12345` in the `foods` table
-    - **When** ConsumerLambda executes `INSERT INTO foods (...) VALUES (...) ON CONFLICT (fdc_id) DO UPDATE SET ...` with `fetch_status = 'fetched'`
+    - **When** the consumer worker executes `INSERT INTO foods (...) VALUES (...) ON CONFLICT (fdc_id) DO UPDATE SET ...` with `fetch_status = 'fetched'`
     - **Then** a new row is inserted with all required fields: `fdc_id`, `description`, `data_type`, `nutrients` (JSONB), `fetch_status = 'fetched'`, `fetched_at`, `created_at`, `updated_at`
 
 - **System Scenario: STS-007-A2**
     - **Given** a record exists for `fdc_id = 12345` with `fetch_status = 'pending'`
-    - **When** ConsumerLambda executes the upsert with `fetch_status = 'fetched'` and updated nutrition data
+    - **When** the consumer worker executes the upsert with `fetch_status = 'fetched'` and updated nutrition data
     - **Then** the existing row is updated; `fetch_status` changes to `'fetched'`; `fetched_at` and `updated_at` are set to current timestamp; no duplicate row is created
 
 #### Test Case: STP-007-B (fetch_status State Machine — All Partitions)
@@ -423,7 +423,7 @@ Each test case identifies its technique by name:
 **Description**: Verifies that cached food data expires after exactly 24 hours.
 
 - **System Scenario: STS-008-B1**
-    - **Given** ConsumerLambda writes `SET food:12345 <data> EX 86400` to Redis after a successful USDA fetch
+    - **Given** the consumer worker writes `SET food:12345 <data> EX 86400` to Redis after a successful USDA fetch
     - **When** 86,400 seconds elapse
     - **Then** `GET food:12345` returns nil (key expired); FoodApiController falls through to PostgreSQL on the next request
 
@@ -464,22 +464,22 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-004: SYS-005 → SYS-009)
-**Description**: Verifies that ConsumerLambda calls the USDA batch endpoint with the correct request schema and processes the response correctly.
+**Description**: Verifies that the consumer worker (via `@kitchensink/usda-client`) calls the USDA batch endpoint with the correct request schema and processes the response correctly.
 
 - **System Scenario: STS-009-A1**
-    - **Given** SYS-006 has ≥ 1 token; SQS message contains `{ "fdcIds": [12345, 67890] }`
-    - **When** ConsumerLambda calls `POST https://api.nal.usda.gov/fdc/v1/foods` with `Authorization: Bearer <USDA_API_KEY>` and body `{ "fdcIds": [12345, 67890] }`
-    - **Then** USDA API returns `200 OK` with an array of food objects; ConsumerLambda upserts each food into SYS-007
+    - **Given** SYS-006 has ≥ 1 token; a `fetch_queue` row contains `{ "fdc_ids": [12345, 67890] }`
+    - **When** the consumer worker calls `POST https://api.nal.usda.gov/fdc/v1/foods` with `Authorization: Bearer <USDA_API_KEY>` and body `{ "fdcIds": [12345, 67890] }`
+    - **Then** USDA API returns `200 OK` with an array of food objects; the consumer worker upserts each food into SYS-007
 
 #### Test Case: STP-009-B (API Key Injection from Secrets Manager)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-011 → SYS-005: USDA_API_KEY injection)
-**Description**: Verifies that ConsumerLambda uses the API key from SYS-011 (Secrets Manager) in all USDA API calls.
+**Description**: Verifies that the consumer worker uses the API key from SYS-011 (Secrets Manager) in all USDA API calls.
 
 - **System Scenario: STS-009-B1**
-    - **Given** `USDA_API_KEY` environment variable is set in ConsumerLambda from SYS-011
-    - **When** ConsumerLambda calls the USDA API
+    - **Given** `USDA_API_KEY` environment variable is set in the consumer worker from SYS-011
+    - **When** the consumer worker calls the USDA API
     - **Then** the `Authorization` header contains the correct API key value; the USDA API returns `200 OK` (not `401 Unauthorized`)
 
 ---
@@ -496,8 +496,8 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-010-A1**
     - **Given** WebSocketNotificationLambda (SYS-010) is unavailable or throws an exception
-    - **When** a `FoodDataReceived` event is published to SYS-002 by ConsumerLambda
-    - **Then** the event routing to SYS-010 fails silently; FoodApiController continues to serve requests normally; ConsumerLambda continues processing; no error propagates to the core pipeline
+    - **When** a `FoodDataReceived` event is published to SYS-002 by the consumer worker
+    - **Then** the event routing to SYS-010 fails silently; FoodApiController continues to serve requests normally; the consumer worker continues processing; no error propagates to the core pipeline
 
 #### Test Case: STP-010-B (WebSocket Push on FoodDataReceived Event)
 
@@ -506,7 +506,7 @@ Each test case identifies its technique by name:
 **Description**: Verifies that WebSocketNotificationLambda is triggered by `FoodDataReceived` events and pushes to connected clients.
 
 - **System Scenario: STS-010-B1**
-    - **Given** a client is connected to the API Gateway WebSocket API; ConsumerLambda publishes `FoodDataReceived { "fdcId": 12345, "fetchedAt": "<timestamp>" }` to SYS-002
+    - **Given** a client is connected to the API Gateway WebSocket API; the consumer worker publishes `FoodDataReceived { "fdcId": 12345, "fetchedAt": "<timestamp>" }` to SYS-002
     - **When** EventBridgeBus routes the event to SYS-010
     - **Then** WebSocketNotificationLambda calls `@connections/{connectionId}` on the API Gateway Management API with the food data payload; the connected client receives the push notification
 
@@ -516,27 +516,27 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-026, REQ-027
 
-#### Test Case: STP-011-A (API Key Injection into ConsumerLambda Environment)
+#### Test Case: STP-011-A (API Key Injection into Consumer Worker Environment)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-011 → SYS-005: USDA_API_KEY)
-**Description**: Verifies that the USDA API key is retrieved from Secrets Manager and injected into ConsumerLambda as an environment variable.
+**Description**: Verifies that the USDA API key is retrieved from Secrets Manager and injected into the consumer worker as an environment variable.
 
 - **System Scenario: STS-011-A1**
-    - **Given** Secrets Manager contains a secret named `usda-food-data/api-key` with value `<valid-api-key>`
-    - **When** ConsumerLambda is invoked
-    - **Then** the `USDA_API_KEY` environment variable is populated with the secret value; ConsumerLambda successfully authenticates to the USDA API
+    - **Given** Secrets Manager contains a secret named `food-service/usda-api-key` with value `<valid-api-key>`
+    - **When** the consumer worker starts
+    - **Then** the `USDA_API_KEY` environment variable is populated with the secret value; the consumer worker successfully authenticates to the USDA API
 
 #### Test Case: STP-011-B (Fault Injection — Secrets Manager Unavailable)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-005 → SYS-011: Secrets Manager unavailable)
-**Description**: Verifies that ConsumerLambda stops processing when Secrets Manager is unreachable.
+**Description**: Verifies that the consumer worker stops processing when Secrets Manager is unreachable.
 
 - **System Scenario: STS-011-B1**
     - **Given** Secrets Manager (SYS-011) is unreachable (network partition or IAM deny)
-    - **When** ConsumerLambda attempts to retrieve the USDA API key
-    - **Then** ConsumerLambda does NOT call the USDA API; processing stops; an error is logged to CloudWatch (SYS-012); SQS messages remain undeleted for retry
+    - **When** the consumer worker attempts to retrieve the USDA API key
+    - **Then** the consumer worker does NOT call the USDA API; processing stops; an error is logged to CloudWatch (SYS-012); `fetch_queue` rows remain incomplete (row leases expire for retry)
 
 ---
 
@@ -544,11 +544,11 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-028, REQ-029, REQ-030
 
-#### Test Case: STP-012-A (CloudWatch Log Emission — API Lambda and Consumer Lambda)
+#### Test Case: STP-012-A (CloudWatch Log Emission — API Service and Consumer Worker)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-001 → SYS-012; SYS-005 → SYS-012)
-**Description**: Verifies that both FoodApiController and ConsumerLambda emit structured logs to CloudWatch.
+**Description**: Verifies that both FoodApiController and the consumer worker emit structured logs to CloudWatch.
 
 - **System Scenario: STS-012-A1**
     - **Given** FoodApiController is invoked with `GET /v1/foods/12345`
@@ -556,30 +556,30 @@ Each test case identifies its technique by name:
     - **Then** a structured log entry is written to the FoodApiController CloudWatch log group containing at minimum: `fdcId`, `fetch_status`, HTTP response code, and request duration
 
 - **System Scenario: STS-012-A2**
-    - **Given** ConsumerLambda processes a message from SYS-003
+    - **Given** the consumer worker processes a `fetch_queue` row from SYS-003
     - **When** the processing completes (success, 404, 429, or 5xx)
-    - **Then** a structured log entry is written to the ConsumerLambda CloudWatch log group containing: `fdcId`, USDA response code, tokens consumed, and processing outcome
+    - **Then** a structured log entry is written to the consumer worker CloudWatch log group containing: `fdcId`, USDA response code, tokens consumed, and processing outcome
 
 #### Test Case: STP-012-B (X-Ray Tracing — Distributed Request Visibility)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-001 → SYS-012 tracing)
-**Description**: Verifies that X-Ray traces are emitted for distributed request flows spanning FoodApiController and ConsumerLambda.
+**Description**: Verifies that X-Ray traces are emitted for distributed request flows spanning FoodApiController and the consumer worker.
 
 - **System Scenario: STS-012-B1**
-    - **Given** X-Ray active tracing is enabled on FoodApiController and ConsumerLambda
-    - **When** a food lookup triggers the full pipeline: FoodApiController → EventBridge → SQS → ConsumerLambda → USDA API → PostgreSQL
+    - **Given** X-Ray active tracing is enabled on FoodApiController and the consumer worker
+    - **When** a food lookup triggers the full pipeline: FoodApiController → `fetch_queue` insert + `NOTIFY` → consumer worker → USDA API → PostgreSQL
     - **Then** an X-Ray trace is recorded with segments for each component; the trace is queryable in the X-Ray console by `fdcId` or `correlationId`
 
-#### Test Case: STP-012-C (CloudWatch Alarm — Consumer Lambda Error Rate)
+#### Test Case: STP-012-C (CloudWatch Alarm — Consumer Worker Error Rate)
 
 **Technique**: Equivalence Partitioning
 **Target View**: Data Design View (alarm thresholds)
 **Description**: Verifies that CloudWatch alarms fire when error rates exceed configured thresholds.
 
 - **System Scenario: STS-012-C1**
-    - **Given** a CloudWatch alarm is configured on ConsumerLambda error rate with threshold > 5% over 5 minutes
-    - **When** ConsumerLambda error rate exceeds 5% (e.g., 6 errors in 100 invocations within 5 minutes)
+    - **Given** a CloudWatch alarm is configured on the consumer worker error rate with threshold > 5% over 5 minutes
+    - **When** the consumer worker error rate exceeds 5% (e.g., 6 errors in 100 processed rows within 5 minutes)
     - **Then** the CloudWatch alarm transitions to `ALARM` state; an SNS notification is triggered
 
 ---
@@ -588,18 +588,18 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-IF-008, REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
 
-The auth layer fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any downstream component is reached (no EventBridge publish, no `fetch_queue` insert, no USDA call), the load-shed property under an invalid-token flood, per-`sub` quota fairness, the scope-`403`/M2M authorization classes, the `401`→`403`→`400`→business status-precedence ordering, and the batch-size boundary. Verification is networkless (`@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY`), fail-closed.
+The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using `@kitchensink/clerk-verify`) on the ECS/Fargate `food-service`; it is not a Lambda authorizer (except the deferred WebSocket `$connect` authorizer). It fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any downstream component is reached (no `fetch_queue` insert, no USDA call), the load-shed property under an invalid-token flood, per-`sub` quota fairness, the scope-`403`/M2M authorization classes, the `401`→`403`→`400`→business status-precedence ordering, and the batch-size boundary. Verification is networkless (`@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY`), fail-closed.
 
 #### Test Case: STP-013-A (Fail-Closed `401` at Every Entry Point — No Enqueue, No USDA Call)
 
 **Technique**: Equivalence Partitioning
 **Target View**: Interface View (SYS-013 → SYS-001, SYS-010); Dependency View (SYS-013 → SYS-002)
-**Description**: Verifies that SYS-013 rejects unauthenticated, expired, malformed, and wrong-`azp`/wrong-instance requests with `401` at every HTTP route and the WebSocket `$connect`, before SYS-001/SYS-010 business logic runs, and that no event reaches SYS-002 and no message is enqueued to SYS-003/SYS-004 (SC-010). _(Invalid-credential equivalence classes: missing token, expired `exp`, not-yet-valid `nbf`, malformed/garbage, valid signature but wrong `azp`, token signed for a different Clerk instance — fail-closed config error.)_
+**Description**: Verifies that SYS-013 rejects unauthenticated, expired, malformed, and wrong-`azp`/wrong-instance requests with `401` at every HTTP route and the WebSocket `$connect`, before SYS-001/SYS-010 business logic runs, and that no `FoodDataReceived` event reaches SYS-002 and no row is enqueued to SYS-003/SYS-004 `fetch_queue` (SC-010). _(Invalid-credential equivalence classes: missing token, expired `exp`, not-yet-valid `nbf`, malformed/garbage, valid signature but wrong `azp`, token signed for a different Clerk instance — fail-closed config error.)_
 
 - **System Scenario: STS-013-A1**
     - **Given** SYS-013 is attached to every `/v1/foods/*` route; no `Authorization` header is present
     - **When** each entry point is exercised in turn — `GET /v1/foods/12345`, `GET /v1/foods/12345/status`, `GET /v1/foods/search?query=chicken`, `GET /v1/foods/12345/nutrients`, `GET /v1/foods/autocomplete?prefix=chic`, and `POST /v1/foods/batch`
-    - **Then** every endpoint returns `401 Unauthorized`; SYS-001 business logic is not reached; no `FoodRequested`/`FoodBatchRequested` event is published to SYS-002; no message is enqueued to SYS-003 or SYS-004; no outbound call to `api.nal.usda.gov` is made
+    - **Then** every endpoint returns `401 Unauthorized`; SYS-001 business logic is not reached; no `fetch_queue` row is inserted for SYS-003 or SYS-004; no outbound call to `api.nal.usda.gov` is made
 
 - **System Scenario: STS-013-A2**
     - **Given** SYS-013 fronts the WebSocket API Gateway `$connect` route
@@ -609,7 +609,7 @@ The auth layer fronts **every** food data entry point (every HTTP `/v1/foods/*` 
 - **System Scenario: STS-013-A3**
     - **Given** SYS-013 receives, across separate requests to `GET /v1/foods/12345`, each invalid-credential class — an expired token (`exp` in the past), a not-yet-valid token (`nbf` in the future), a malformed/garbage Bearer string, a well-formed token whose `azp` is not in `CLERK_AUTHORIZED_PARTIES`, and a token signed for a different Clerk instance (signature fails against `CLERK_JWT_KEY`)
     - **When** each request is processed
-    - **Then** every request returns `401 Unauthorized`; no event is published to SYS-002 and no SQS message is enqueued for any of them; verification is performed networklessly (no outbound call to Clerk or any IdP observed on the request path)
+    - **Then** every request returns `401 Unauthorized`; no `fetch_queue` row is enqueued for any of them; verification is performed networklessly (no outbound call to Clerk or any IdP observed on the request path)
 
 - **System Scenario: STS-013-A4**
     - **Given** `CLERK_JWT_KEY` is missing or malformed in SYS-013 configuration (verifier cannot initialize)
@@ -630,7 +630,7 @@ The auth layer fronts **every** food data entry point (every HTTP `/v1/foods/*` 
 - **System Scenario: STS-013-B1**
     - **Given** the verifier concurrency bound under test is `C = 50` in-flight signature checks and the per-source `401`-rate cap is `200` `401`/min/source; **and** a sustained flood of well-formed-but-invalid tokens (valid structure, signature fails against `CLERK_JWT_KEY`) is generated against `GET /v1/foods/{fdcId}` at **2,000 req/s** (= `40×C`, ≥ a stated multiple of the concurrency bound) from a bounded set of **8** source identities for a **120 s** measurement window; **and** a separate baseline of legitimate valid-token requests is interleaved at **100 req/s** (valid:invalid mix ≈ 1:20)
     - **When** SYS-013 processes the mixed load over the 120 s window (first 10 s discarded as warm-up; metrics taken over the remaining 110 s, ≥ 11,000 valid-request latency samples)
-    - **Then** the per-source `401`-rate cap / concurrency bound engages — **≥ 95%** of the invalid flood is load-shed (fast-rejected at the cap or rejected without a full CPU-bound signature check), in-flight signature checks stay **≤ `C` (50)** and the verifier queue depth stays bounded (does not grow monotonically across the window), i.e. the verifier does not saturate; **and** valid-token requests continue to be served with auth-attributable verification overhead **≤ 10ms at p95** (SC-011), where auth-attributable latency is measured as the time from request receipt to the authn decision (verify-start → verify-complete span), isolated from downstream SYS-001/SYS-007 handling; **and** no invalid request is enqueued to SYS-003/SYS-004 or reaches the USDA path. _Pass = (valid-token p95 ≤ 10ms) AND (in-flight ≤ C across the window) AND (≥ 95% of invalid requests shed). The scenario is reproducible: same C, cap, rates, mix, window, and sample size yield the same verdict._
+    - **Then** the per-source `401`-rate cap / concurrency bound engages — **≥ 95%** of the invalid flood is load-shed (fast-rejected at the cap or rejected without a full CPU-bound signature check), in-flight signature checks stay **≤ `C` (50)** and the verifier queue depth stays bounded (does not grow monotonically across the window), i.e. the verifier does not saturate; **and** valid-token requests continue to be served with auth-attributable verification overhead **≤ 10ms at p95** (SC-011), where auth-attributable latency is measured as the time from request receipt to the authn decision (verify-start → verify-complete span), isolated from downstream SYS-001/SYS-007 handling; **and** no invalid request is enqueued to the SYS-003/SYS-004 `fetch_queue` or reaches the USDA path. _Pass = (valid-token p95 ≤ 10ms) AND (in-flight ≤ C across the window) AND (≥ 95% of invalid requests shed). The scenario is reproducible: same C, cap, rates, mix, window, and sample size yield the same verdict._
 
 #### Test Case: STP-013-C (Per-`sub` Enqueue Quota — `429`, USDA Budget Fairness)
 
@@ -714,9 +714,9 @@ The auth layer fronts **every** food data entry point (every HTTP `/v1/foods/*` 
 | ------- | --------------------------- | ------------------------ | ---------------------------------------------------------------------- |
 | SYS-001 | FoodApiController           | STP-001-A, B, C, D       | STS-001-A1, A2, B1, B2, B3, B4, C1, C2, C3, C4, D1, D2                 |
 | SYS-002 | EventBridgeBus              | STP-002-A, B, C          | STS-002-A1, B1, C1                                                     |
-| SYS-003 | HighPriorityFoodQueue       | STP-003-A, B             | STS-003-A1, B1                                                         |
-| SYS-004 | LowPriorityFoodQueue        | STP-004-A, B             | STS-004-A1, B1                                                         |
-| SYS-005 | FoodConsumerLambda          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, E1, F1                                 |
+| SYS-003 | HighPriorityFetchQueue      | STP-003-A, B             | STS-003-A1, B1                                                         |
+| SYS-004 | LowPriorityFetchQueue       | STP-004-A, B             | STS-004-A1, B1                                                         |
+| SYS-005 | FoodConsumerWorker          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, E1, F1                                 |
 | SYS-006 | TokenBucketRateLimiter      | STP-006-A, B, C          | STS-006-A1, A2, B1, B2, B3, C1                                         |
 | SYS-007 | FoodDataPostgresRepository  | STP-007-A, B, C          | STS-007-A1, A2, B1, B2, C1                                             |
 | SYS-008 | FoodDataRedisCache          | STP-008-A, B, C, D       | STS-008-A1, B1, C1, C2, D1                                             |

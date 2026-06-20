@@ -8,6 +8,30 @@
 
 ---
 
+## Package Layout & Database (locked 2026-06-19)
+
+| Package                            | Path                             | Role                                                                                                                                                                                                                                                                              |
+| ---------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate behind ALB** — `/v1/foods/*` API + `FoodAuthGuard` (in-process Clerk `AuthMiddleware`), Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`, like `@kitchensink/identity-service`). |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | External **USDA FoodData Central** client library (typed `getFood`/`getFoodsBatch`/`searchFoods` + error types). No DB, no HTTP server. Consumed by `food-service`.                                                                                                               |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services (001/006/007/009 — the M2M callers).                                                                                                                                                   |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service's `ClerkAuthService`; consumed by both identity and food-service.                                                                                                              |
+
+> `packages/clients/usda` and `packages/clients/food-service` MUST be added to the root
+> `package.json` `workspaces` array as **explicit paths** (`packages/clients` is a semantic
+> grouping folder, not a glob — matching how `packages/apps/commise/{web,mobile}` are listed).
+> `services/*` and `shared/*` globs already cover `food-service` and `clerk-verify`.
+
+**Database (no new RDS, no cluster):** reuse the existing shared instance
+`kitchensink-data-{stage}` (a single `rds.DatabaseInstance`, db.t4g.small, defined in
+`packages/infra/global/lib/platform/data-stack.ts`). Add a **separate logical database
+`kitchensink_food`** on that instance (own least-privilege role + secret), provisioned in the
+**global DataStack** so it stays platform infra. `food-service` `Fn.importValue`s the shared
+`kitchensink-data-{stage}:Database*` exports and runs its Drizzle migrations against
+`kitchensink_food`. (`pg_trgm` is already bootstrapped on the instance — covers FR-008 search.)
+
+---
+
 ## User Story Reference
 
 | US     | Name                                | Priority | FRs                                                    |
@@ -22,25 +46,26 @@
 | US-007 | Stale Data Refresh                  | P2       | FR-031, FR-032                                         |
 | US-008 | Fetch Status Polling                | P2       | FR-007, FR-033                                         |
 | US-009 | WebSocket Notifications             | P3       | FR-034                                                 |
-| US-010 | Monitoring Dashboard                | P3       | FR-016, FR-018, FR-035                                 |
+| US-010 | Monitoring Dashboard                | P3       | FR-016, FR-018 (SC-006 DLQ/tombstone alarm)            |
 
 ---
 
 ## Dependency Graph
 
 ```
-SETUP (T-001–T-004)
-  └─► SCHEMA (T-005–T-009)
-        └─► API LAYER (T-010–T-015)
-              ├─► QUEUE + CONSUMER (T-016–T-023)
-              │     └─► RATE LIMITER (T-024–T-026)
-              │           └─► BATCH PROCESSING (T-027–T-029)
-              ├─► SEARCH INDEXER (T-023)
-              ├─► STALE REFRESH (T-030–T-032)
-              ├─► AUTH & AUTHZ (T-033, T-046–T-056) [US-0, FR-035–FR-053]
-              └─► MONITORING (T-034–T-037)
+PACKAGES + WORKSPACE (T-060 → T-003, T-046, T-057)
+GLOBAL DB (T-001b: kitchensink_food) ─► FOOD-SERVICE CDK (T-001)
+  └─► SETUP/CONFIG (T-002, T-004)
+        └─► SCHEMA (T-005–T-009, T-056 auth tables)
+              └─► API LAYER (T-010–T-015)
+                    ├─► QUEUE + FARGATE CONSUMER (T-016–T-023)
+                    │     └─► TOKEN BUCKET (T-024–T-026) ─► BATCH (T-027–T-029)
+                    ├─► STALE REFRESH / BULK SYNC (T-030–T-032)
+                    ├─► AUTH & AUTHZ (T-033, T-046–T-056) [US-0, FR-035–FR-053]
+                    └─► MONITORING (T-034–T-037)
 
-WEBSOCKET (T-038–T-039) [P3 — Deferred]
+PERF/LOAD TESTS (T-062) [SC-001/003/004/007]
+WEBSOCKET (T-038–T-039) [P3 — Deferred] · MULTI-AZ UPGRADE (T-061) [deferred, SC-009]
 INTEGRATION TESTS (T-040–T-045)
 ```
 
@@ -48,17 +73,39 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 0 — Setup & Infrastructure
 
-- [ ] **T-001** [P0] [Foundation] CDK Stack Scaffold — `—`
+- [ ] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
+      **Story**: Foundation
+      **Priority**: P0
+      **Depends on**: T-001b
+      **Implements**: ARCH-001
+
+    Create the food-service's own CDK (mirroring `packages/services/identity/infra/lib/`). The
+    `FoodServiceStack` defines the **ECS/Fargate** NestJS service (behind the shared ALB), the
+    Fargate consumer worker, the lambdas (stale-refresh, bulk-sync, search-indexer), and the
+    EventBridge (scheduled-producer) wiring — **no SQS** (the demand queue is the Postgres
+    `fetch_queue`). It does **NOT** create an RDS — it `Fn.importValue`s the shared
+    `kitchensink-data-{stage}:Database{Endpoint,Port,SecretArn}` and the new
+    `kitchensink-data-{stage}:FoodDbSecretArn` (T-001b) and connects to the `kitchensink_food`
+    database.
+
+    **Acceptance**:
+    - `cdk synth` produces valid CloudFormation with no errors and **no new RDS resource**
+    - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret
+
+- [ ] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: —
-      **Implements**: ARCH-001 (Postgres-as-queue stack)
+      **Implements**: ARCH-001 (shared data tier)
 
-    Create the CDK stack for feature 003 under `infra/stacks/usda-food-data/`. Define the stack class, environment config, and export outputs (RDS cluster endpoint, Fargate service name, Lambda ARNs, table names) consumed by other stacks.
+    Extend the **global** DataStack (no new instance, no cluster) to provision a second logical
+    database `kitchensink_food` on the existing `kitchensink-data-{stage}` instance, with its own
+    least-privilege role + credentials secret, and export `FoodDbSecretArn` / `FoodDatabaseName`.
+    Reuse the instance's already-bootstrapped `pg_trgm` extension.
 
     **Acceptance**:
-    - `cdk synth` produces valid CloudFormation with no errors
-    - Stack exports `usdaFoodDataRdsEndpoint`, `usdaFetchWorkerServiceName`
+    - `cdk diff` on the data stack adds only a database + role + secret (no instance/cluster change)
+    - New exports `kitchensink-data-{stage}:FoodDbSecretArn`, `:FoodDatabaseName` are present
 
 ---
 
@@ -82,13 +129,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-003** [P0] [Foundation] USDA API Client Module — `packages/services/usda-food-data/src/usda/usda-api.client.ts`
+- [ ] **T-003** [P0] [Foundation] `@kitchensink/usda-client` package + USDA API client — `packages/clients/usda/src/usda-api.client.ts`
       **Story**: Foundation
       **Priority**: P0
-      **Depends on**: T-002
+      **Depends on**: T-002, T-060
       **Implements**: FR-023 (USDA API integration)
 
-    Create `packages/services/usda-food-data/src/usda/usda-api.client.ts` — a typed HTTP client wrapping the USDA FoodData Central REST API:
+    Scaffold the **`@kitchensink/usda-client`** package (`packages/clients/usda`, extending the shared tooling configs per NFR-006) and create `packages/clients/usda/src/usda-api.client.ts` — a typed HTTP client wrapping the USDA FoodData Central REST API. This package is the external-API client only (no DB, no server); `food-service` depends on it.
     - `getFood(fdcId: number): Promise<UsdaFoodDetail>`
     - `getFoodsBatch(fdcIds: number[]): Promise<UsdaFoodDetail[]>` (POST `/v1/foods`, max 20 IDs)
     - `searchFoods(query: string): Promise<UsdaSearchResult>`
@@ -101,19 +148,19 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/api/usda-food/src/db/schema/usda.ts`
+- [ ] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/services/food-service/src/db/schema/usda.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001
       **Implements**: FR-028 (data persistence schema)
 
-    Create `packages/api/usda-food/src/db/schema/usda.ts` with Drizzle table definitions for:
+    Create `packages/services/food-service/src/db/schema/usda.ts` with Drizzle table definitions for:
     - `foods` (all columns from plan.md §2)
     - `fetch_queue` (`fdc_id` text PK, `request_count`, `first_requested`, `last_requested`, `status`, `attempts`, `last_error`, `fetched_at`)
     - `usda_sync_metadata` (singleton)
     - `rate_limiter_state` (token bucket persistence)
 
-    Export all tables from `packages/api/usda-food/src/db/schema/index.ts`.
+    Export all tables from `packages/services/food-service/src/db/schema/index.ts`.
 
     **Acceptance**:
     - `drizzle-kit generate` produces valid SQL migration with no errors
@@ -139,7 +186,7 @@ INTEGRATION TESTS (T-040–T-045)
     - `created_at`, `updated_at`
 
     **Acceptance**:
-    - Migration runs cleanly on a fresh PostgreSQL 16 instance
+    - Migration runs cleanly against the `kitchensink_food` database on the shared `kitchensink-data-{stage}` instance
     - `fetch_status` check constraint rejects invalid values
 
 ---
@@ -235,13 +282,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 2 — REST API Layer (US-001, US-002, US-006, US-008)
 
-- [ ] **T-010** [P1] [US-001] NestJS Module: `FoodsModule` — `packages/api/usda-food/src/foods/foods.module.ts`
+- [ ] **T-010** [P1] [US-001] NestJS Module: `FoodsModule` — `packages/services/food-service/src/foods/foods.module.ts`
       **Story**: US-001
       **Priority**: P1
       **Depends on**: T-005, T-006, T-007, T-008
       **Implements**: FR-001
 
-    Scaffold `packages/api/usda-food/src/foods/foods.module.ts` with:
+    Scaffold `packages/services/food-service/src/foods/foods.module.ts` with:
     - `FoodsController` (routes)
     - `FoodsService` (business logic)
     - `FoodsRepository` (Drizzle queries)
@@ -358,13 +405,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 3 — Postgres Queue + Fargate Consumer (US-002, US-003, US-005)
 
-- [ ] **T-016** [P1] [US-002] Enqueue Service (`FetchQueueService`) — `packages/api/usda-food/src/foods/fetch-queue.service.ts`
+- [ ] **T-016** [P1] [US-002] Enqueue Service (`FetchQueueService`) — `packages/services/food-service/src/foods/fetch-queue.service.ts`
       **Story**: US-002 / US-005
       **Priority**: P1
       **Depends on**: T-006
       **Implements**: FR-014, FR-017
 
-    Create `packages/api/usda-food/src/foods/fetch-queue.service.ts`:
+    Create `packages/services/food-service/src/foods/fetch-queue.service.ts`:
     - `enqueue(fdcId: string, source: 'single' | 'batch'): Promise<void>`
     - Executes `INSERT … ON CONFLICT DO UPDATE` per FR-014
     - Emits `pg_notify('fetch_queued', fdc_id)` after successful insert
@@ -376,13 +423,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-017** [P1] [US-005] Fargate Worker Scaffold (`food-fetch-worker`) — `packages/services/usda-food-data/src/worker/`
+- [ ] **T-017** [P1] [US-005] Fargate Worker Scaffold (`food-fetch-worker`) — `packages/services/food-service/src/worker/`
       **Story**: US-005
       **Priority**: P1
       **Depends on**: T-001, T-003
       **Implements**: FR-017, FR-018, FR-022
 
-    Create `packages/services/usda-food-data/src/worker/`:
+    Create `packages/services/food-service/src/worker/`:
     - ECS Fargate task definition (512 MB, Node.js 22.x)
     - Single desired count (FR-022: exactly one consumer)
     - `LISTEN fetch_queued` on startup (persistent Postgres connection)
@@ -497,13 +544,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-023** [P2] [US-006] Food Search Indexer (EventBridge) — `packages/services/usda-food-data/src/lambdas/food-search-indexer/handler.ts`
+- [ ] **T-023** [P2] [US-006] Food Search Indexer (EventBridge) — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts`
       **Story**: US-006
       **Priority**: P2
       **Depends on**: T-019
       **Implements**: FR-008
 
-    Create `packages/services/usda-food-data/src/lambdas/food-search-indexer/handler.ts`:
+    Create `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts`:
     - Triggered by `FoodFetchCompleted` EventBridge event (emitted by worker on successful fetch)
     - Updates `foods.search_vector`: `to_tsvector('english', description)`
     - Invalidates any in-process LRU cache
@@ -516,13 +563,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 4 — Token Bucket Rate Limiter (US-003)
 
-- [ ] **T-024** [P1] [US-003] Token Bucket: In-Process Implementation — `packages/services/usda-food-data/src/usda/token-bucket.ts`
+- [ ] **T-024** [P1] [US-003] Token Bucket: In-Process Implementation — `packages/services/food-service/src/usda/token-bucket.ts`
       **Story**: US-003
       **Priority**: P1
       **Depends on**: T-007
       **Implements**: FR-019, FR-020
 
-    Create `packages/services/usda-food-data/src/usda/token-bucket.ts`:
+    Create `packages/services/food-service/src/usda/token-bucket.ts`:
     - `TokenBucket` class: `consume(n: number): boolean`, `reset(): void`, `available(): number`
     - Capacity: 1,000 tokens; refill: 16.67/min (1 per 3.6s)
     - In-process state (single Fargate worker = no shared state needed at MVP)
@@ -630,13 +677,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 6 — Stale Data Refresh (US-007)
 
-- [ ] **T-030** [P2] [US-007] Stale Refresh Scheduler (EventBridge) — `packages/services/usda-food-data/src/lambdas/usda-stale-refresh/handler.ts`
+- [ ] **T-030** [P2] [US-007] Stale Refresh Scheduler (EventBridge) — `packages/services/food-service/src/lambdas/usda-stale-refresh/handler.ts`
       **Story**: US-007
       **Priority**: P2
       **Depends on**: T-001
       **Implements**: FR-031
 
-    Create `packages/services/usda-food-data/src/lambdas/usda-stale-refresh/handler.ts`:
+    Create `packages/services/food-service/src/lambdas/usda-stale-refresh/handler.ts`:
     - EventBridge scheduled rule: daily at 3am UTC
     - Query `foods` where `fetched_at < NOW() - INTERVAL '30 days'` AND `fetch_status = 'fetched'`
     - Configurable threshold via `USDA_STALE_THRESHOLD_DAYS`
@@ -665,13 +712,13 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-032** [P2] [US-007] Bulk Sync Lambda (Weekly Foundation/SR Legacy) — `packages/services/usda-food-data/src/lambdas/usda-bulk-sync/handler.ts`
+- [ ] **T-032** [P2] [US-007] Bulk Sync Lambda (Weekly Foundation/SR Legacy) — `packages/services/food-service/src/lambdas/usda-bulk-sync/handler.ts`
       **Story**: US-007 (bulk variant)
       **Priority**: P2
       **Depends on**: T-005, T-007
       **Implements**: FR-031
 
-    Create `packages/services/usda-food-data/src/lambdas/usda-bulk-sync/handler.ts`:
+    Create `packages/services/food-service/src/lambdas/usda-bulk-sync/handler.ts`:
     - EventBridge scheduled: Sunday 2am UTC
     - Downloads Foundation + SR Legacy bulk files from USDA
     - Upserts into `foods` table (batch inserts, 1,000 rows/batch)
@@ -694,7 +741,7 @@ INTEGRATION TESTS (T-040–T-045)
       In-process NestJS `AuthMiddleware` on every `/v1/foods/*` route (mirrors `packages/services/identity` `AuthMiddleware`). Networkless `verifyToken` via shared package (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed.
       **Acceptance**: no/invalid/expired/wrong-`azp` token → `401`, no enqueue, no USDA call; valid token → `req.user.sub` set; verification makes zero outbound network calls.
 
-- [ ] **T-046** [P1] [FR-036,053] Shared Clerk-verification package — `—`
+- [ ] **T-046** [P1] [FR-036,053] `@kitchensink/clerk-verify` shared package — `packages/shared/clerk-verify`
       **Story**: US-0 · **Depends on**: — · **Implements**: FR-036, FR-053
       Extract `verifyToken(jwtKey, authorizedParties)` from the identity service's `ClerkAuthService` into a shared `@kitchensink/*` package consumed by both identity and food services (one implementation, no drift). FoodAuthGuard is the named, traceable auth component fronting all entry points.
 
@@ -744,6 +791,26 @@ INTEGRATION TESTS (T-040–T-045)
 > **WebSocket auth (FR-041, FR-049)** is tracked with the deferred WebSocket work in **Phase 9**
 > (`$connect` Lambda authorizer on the API Gateway WebSocket API + per-`sub` notification
 > targeting from `fetch_requesters`), since the WS API itself is P3-deferred.
+
+---
+
+## Phase 7b — Packages & Workspace Wiring (Foundation)
+
+- [ ] **T-060** [P0] [Foundation] Register new packages in root workspaces — `package.json`
+      **Story**: Foundation · **Depends on**: — · **Implements**: NFR-006
+      Add explicit paths `"packages/clients/usda"` and `"packages/clients/food-service"` to the root
+      `package.json` `workspaces` array (`packages/clients` stays a grouping folder, not a glob —
+      matching `apps/commise/{web,mobile}`). `services/*` and `shared/*` globs already cover
+      `food-service` and `clerk-verify`. Each new package extends the shared `@kitchensink/{typescript,eslint,prettier,vitest}` configs and declares its Turbo tasks.
+      **Acceptance**: `npm install` links all four packages; `turbo run typecheck` resolves them.
+
+- [ ] **T-057** [P2] [US-0/integration] `@kitchensink/food-service-client` package — `packages/clients/food-service`
+      **Story**: US-0 · **Depends on**: T-010, T-047, T-060 · **Implements**: FR-047 (consumer side)
+      Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services
+      (001/006/007/009). Surfaces `getFood`/`searchFoods`/batch, attaches the caller's Clerk token
+      (user session **or** M2M service token per FR-047), and maps `401`/`403`/`429`/`404`/`202`.
+      **Acceptance**: a downstream service can call the food API with an M2M token via this client and
+      receive typed results; unauthorized calls surface typed `401`/`403` errors.
 
 ---
 
@@ -966,6 +1033,26 @@ INTEGRATION TESTS (T-040–T-045)
     - Repeated lookup of same `fdcId` within 5 minutes served from memory
     - Cache miss falls through to PostgreSQL
     - No Redis infrastructure provisioned
+
+---
+
+## Phase 11 — Performance & Availability
+
+- [ ] **T-062** [P2] [perf] Performance / load tests for SC-001/003/004/007 — `—`
+      **Story**: US-001/002/006 · **Depends on**: T-040 · **Implements**: SC-001, SC-003, SC-004, SC-007
+      Load-test harness validating the measurable success criteria the functional integration tests
+      don't cover: cache-hit p95 ≤ 50ms (SC-001), backfill `202`→available p95 ≤ 60s at queue depth
+      < 100 (SC-003), cache-hit rate ≥ 80% after 5,000 foods (SC-004), search p95 ≤ 200ms at 50,000
+      foods (SC-007). (SC-011 auth-under-flood is already covered by STP-013-B.)
+      **Acceptance**: each SC threshold measured and reported under representative load; regressions fail CI.
+
+- [ ] **T-061** [P3 — Deferred] [infra] Multi-AZ upgrade of shared DB (SC-009) — `packages/infra/global/lib/platform/data-stack.ts`
+      **Story**: US-0/availability · **Depends on**: — · **Implements**: SC-009 (A-013)
+      Promote the shared `kitchensink-data-{stage}` instance to `multiAz: true` so SC-009's 99.9%
+      target becomes defensible. **Deferred to the GA/scale phase** — lean launch accepts the
+      single-AZ risk (A-013). This is a global-DataStack change affecting all consumers (identity +
+      food), so it is coordinated platform work, not food-only.
+      **Acceptance**: `cdk diff` flips `multiAz` to true with a failover test plan; no data loss.
 
 ---
 

@@ -1,7 +1,7 @@
 # Technical Plan: Feature 003 — USDA Food Data Integration
 
 **Feature**: `003-usda-food-data`
-**Architecture**: Event-Driven Queue-Based (SQS + Lambda + Token Bucket)
+**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate worker + token bucket)
 **Reference**: `docs/architecture/usda/05-event-driven-queue-based.md`
 **Status**: Draft
 
@@ -13,23 +13,21 @@
 
 ```
 USDA FoodData Central (1,000 req/hr limit)
+        ↑  (async, token-bucket rate-limited)
+        │
+Fargate consumer worker  ← LISTEN/NOTIFY ─┐
+   (token bucket @ 1,000 req/hr)          │
+        ↓                                 │
+PostgreSQL  (kitchensink_food on the shared kitchensink-data-{stage} instance)
+  • foods (local store)                   │
+  • fetch_queue (Postgres-as-queue) ──────┘ pg_notify('fetch_queued')
         ↑
-        │ (async, rate-limited)
-        ↓
-SQS Queue (USDA fetch requests)
-        ↓
-Lambda Consumer (token bucket @ 1,000 req/hr)
-        ↓
-PostgreSQL (local food store + Redis cache)
-        ↑________________________|
-        │                      |
-REST API edge           API edge
-(FoodAuthGuard:         (FoodAuthGuard)
- Clerk verifyToken      (search queries)
- + per-sub quota)
-        ↑                      ↑
-   Commise App /        Search UX
-   downstream svcs (M2M)
+ALB → ECS/Fargate NestJS service (FoodService)
+   FoodAuthGuard (in-process Clerk verifyToken + azp + per-sub quota)
+        ↑
+   Commise App (user token) / downstream services (M2M token) / Search UX
+
+EventBridge (scheduled only): stale-refresh cron + bulk-sync → enqueue
 ```
 
 > Every entry point (incl. WebSocket `$connect`) is fronted by **`FoodAuthGuard`** (§2A) —
@@ -38,13 +36,32 @@ REST API edge           API edge
 
 ### Data Flow
 
-1. **Lookup path** (synchronous): API → PostgreSQL → Redis cache → response (no USDA call)
-2. **Fetch path** (async): Cache miss → EventBridge → SQS → Lambda consumer → USDA API → PostgreSQL → mark fetched
-3. **Bulk path**: Multiple unknown fdcIds → single `FoodBatchRequested` event → batch Lambda → reduced queue pressure
+1. **Lookup path** (synchronous): ALB → ECS/Fargate NestJS service → PostgreSQL → response (no USDA call; optional in-process LRU per §6)
+2. **Fetch path** (async): cache miss → `INSERT INTO fetch_queue … ON CONFLICT` + `pg_notify('fetch_queued')` → Fargate worker wakes (LISTEN/NOTIFY), drains by demand-weighted priority, token-bucket-limited USDA call → upsert `foods`, mark fetched
+3. **Bulk path**: multiple unknown fdcIds → one enqueue per id (deduped) → USDA batch endpoint (≤20 ids / 1 token)
+4. **Scheduled path**: EventBridge cron → stale-refresh / bulk-sync → enqueue rows on `fetch_queue`
 
 ### Key Architecture Decision
 
 Use Architecture 5 (Event-Driven Queue-Based) per user selection. This treats the USDA rate limit as a first-class constraint and decouples data fetching from data serving.
+
+### Package & Infrastructure Layout (locked 2026-06-19)
+
+| Package                            | Path                             | Role                                                                                                                                                                                                                          |
+| ---------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate behind the shared ALB** — `/v1/foods/*` API + in-process `FoodAuthGuard`, Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`). |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | External USDA FoodData Central client library (typed wrapper; no DB/server).                                                                                                                                                  |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for our `/v1/foods/*` API used by web/mobile + downstream (001/006/007/009 M2M callers).                                                                                                                         |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification, extracted from the identity service.                                                                                                                                                   |
+
+**Database — reuse, no new RDS, no cluster.** The food tables live in a **separate logical
+database `kitchensink_food`** on the **existing shared instance `kitchensink-data-{stage}`** (a
+single `rds.DatabaseInstance`, db.t4g.small, owned by the global DataStack in
+`packages/infra/global`). The `kitchensink_food` database + its least-privilege role/secret are
+provisioned in that **global DataStack** (platform infra); `food-service` `Fn.importValue`s the
+shared DB exports and runs its migrations against `kitchensink_food`. The instance's `pg_trgm`
+extension is already bootstrapped (FR-008 search). Reusing the instance inherits its current
+`multiAz: false` posture (acceptable for lean launch; SC-009 99.9% is a future shared-DB concern).
 
 ---
 
@@ -58,7 +75,7 @@ foods (
   fdc_id INT PRIMARY KEY,          -- USDA FoodData Central ID
   description TEXT,
   data_type TEXT,                  -- 'Foundation' | 'SR Legacy' | 'Branded'
-  fetch_status TEXT,              -- 'pending' | 'fetched' | 'not_found' | 'failed'
+  fetch_status TEXT,              -- pending|fetched|failed|not_found|stale (FR-028)
   last_synced_at TIMESTAMP,
   raw_json JSONB,                  -- Full USDA response
   -- Standard nutrients (per 100g)
@@ -95,21 +112,54 @@ usda_sync_metadata (
   branded_version TEXT
 )
 
--- Failed fetch tracking
-usda_fetch_failures (
-  fdc_id INT PRIMARY KEY,
-  attempted_at TIMESTAMP,
-  failure_reason TEXT,
-  attempt_count INT DEFAULT 0
+-- Demand-weighted fetch queue (Postgres-as-queue; replaces SQS + the old
+-- usda_pending/usda_fetch_failures tables — dedup, demand counting, retry,
+-- and tombstoning all live in one row; FR-014..FR-018)
+fetch_queue (
+  fdc_id           text PRIMARY KEY,     -- ON CONFLICT dedup (FR-014)
+  request_count    int  NOT NULL DEFAULT 1,
+  first_requested  timestamptz NOT NULL DEFAULT now(),
+  last_requested   timestamptz NOT NULL DEFAULT now(),
+  status           text NOT NULL DEFAULT 'pending',  -- pending|in_flight|tombstone
+  attempts         int  NOT NULL DEFAULT 0,           -- retry/backoff (FR-016)
+  last_error       text,
+  fetched_at       timestamptz
+)
+-- INDEX (request_count DESC, first_requested ASC) WHERE status='pending'  -- FR-015
+
+-- USDA token-bucket rate limiter state (FR-019/FR-020; Postgres in lean launch)
+rate_limiter_state (
+  id           int PRIMARY KEY DEFAULT 1,  -- singleton
+  tokens       numeric NOT NULL,           -- 0..1000
+  last_refill  timestamptz NOT NULL
 )
 
--- Pending fetch deduplication (prevents double-queuing)
-usda_pending (
-  fdc_id INT PRIMARY KEY,
-  created_at TIMESTAMP DEFAULT NOW(),
-  source TEXT                    -- 'single' | 'batch'
+-- Per-`sub` enqueue quota (FR-043) + distinct-requester demand (FR-044) + global
+-- fairness window (SC-012). See §2A.4 / MOD-013.
+user_fetch_quota (
+  sub          text NOT NULL,
+  window_start timestamptz NOT NULL,
+  count        int NOT NULL DEFAULT 0,
+  PRIMARY KEY (sub, window_start)
+)
+global_fetch_quota (
+  window_start timestamptz PRIMARY KEY,    -- global rolling-hour budget (SC-002/SC-012)
+  count        int NOT NULL DEFAULT 0
+)
+fetch_requesters (
+  fdc_id       text NOT NULL,              -- distinct-`sub` demand + WS targeting
+  sub          text NOT NULL,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (fdc_id, sub)
 )
 ```
+
+> The `foods` table's authoritative columns are spec **FR-028** (`fetch_status` enum
+> `pending|fetched|failed|not_found|stale`, `fetched_at`, `last_requested_at`,
+> `request_count`, `created_at`, `updated_at`) — T-005 is the source of truth for the DDL.
+> The old `usda_fetch_failures` and `usda_pending` tables are **removed**: failure
+> tracking is `fetch_queue.{attempts,last_error,status}` and dedup is the `fetch_queue`
+> `ON CONFLICT` (FR-014). All tables live in the `kitchensink_food` database.
 
 ### Integration with 001
 
@@ -149,8 +199,9 @@ running in-process**, not as a Lambda authorizer:
 ECS` purely to host it — an extra edge layer for no gain, since the token verifies
   networklessly in ~1ms in-process.
 - The middleware **reuses the identity service's Clerk verification**: extract the
-  `ClerkAuthService` verify logic (`verifyToken` + `azp`) into a shared `@kitchensink/*`
-  package consumed by both services — one implementation, no drift.
+  `ClerkAuthService` verify logic (`verifyToken` + `azp`) into a shared
+  **`@kitchensink/clerk-verify`** package (`packages/shared/clerk-verify`) consumed by both
+  the identity service and `food-service` — one implementation, no drift.
 - No cold start → SC-011 (≤10ms p95) is met without provisioned concurrency; the per-`sub`
   quota (FR-043) lives in the same process, right before enqueue.
 - **FR-050 reframed for middleware:** the middleware runs on **every** route (there is no
@@ -439,15 +490,15 @@ CREATE INDEX idx_foods_data_type ON foods(data_type);
 
 ### CloudWatch Metrics
 
-- `usda-fetch-queue-depth` — SQS queue depth
+- `usda-fetch-queue-depth` — Postgres `fetch_queue` pending-row depth
 - `usda-api-request-count` — success/failure rate
 - `usda-api-latency` — p50/p95/p99
 - `usda-token-bucket-available` — remaining capacity
-- `food-cache-hit-rate` — Redis hit rate
+- `food-cache-hit-rate` — local cache hit rate (in-process LRU; Postgres fallback)
 
 ### Alarms
 
-- DLQ depth > 0 → SNS alert
+- tombstone-row count > 0 → SNS alert
 - API error rate > 5% → SNS alert
 - Queue depth > 10,000 → SNS alert
 
@@ -462,11 +513,11 @@ CREATE INDEX idx_foods_data_type ON foods(data_type);
 
 ## 10. Implementation Order
 
-1. **PostgreSQL schema** — foods table, indexes, sync metadata
-2. **REST API endpoints** — GET /v1/foods/{fdcId}, /status, /search
-3. **Redis cache layer** — cache-aside pattern
-4. **SQS queue + consumer Lambda** — token bucket rate limiter
-5. **EventBridge events** — FoodRequested, FoodBatchRequested
-6. **Bulk sync Lambda** — weekly Foundation/SR Legacy download
-7. **Monitoring + alarms**
-8. **WebSocket notifications** (P3, deferred)
+1. **Packages + workspace wiring** — `@kitchensink/{food-service,usda-client,clerk-verify}`, register `packages/clients/*` (T-060, T-046, T-003)
+2. **Global DataStack: `kitchensink_food` database** on the shared instance + food-service CDK (T-001b, T-001)
+3. **PostgreSQL schema** — `foods`, `fetch_queue`, `rate_limiter_state`, `user_fetch_quota`/`global_fetch_quota`/`fetch_requesters`, indexes (T-004–T-009, T-056)
+4. **Auth slice (US-0)** — `FoodAuthGuard` middleware + M2M + scopes/403 + per-`sub` quota + backpressure + DoS (T-033, T-046–T-056; Test-first)
+5. **REST API endpoints** — `GET /v1/foods/{fdcId}`, `/status`, `/search`, `/batch` (auth-gated)
+6. **Postgres fetch_queue + Fargate consumer worker** — LISTEN/NOTIFY, token-bucket rate limiter (T-016–T-026)
+7. **Bulk sync + stale-refresh lambdas** — EventBridge scheduled (T-030–T-032)
+8. **Monitoring + alarms**, then **WebSocket notifications** (P3, deferred)

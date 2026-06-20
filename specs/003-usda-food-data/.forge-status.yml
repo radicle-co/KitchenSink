@@ -146,10 +146,24 @@ v-model:
         completed_at: 2026-05-10
 
 sync_runs:
-    last_run: '2026-06-19'
-    total_runs: 3
+    last_run: '2026-06-20'
+    total_runs: 4
     last_verdict: RESOLVED
     last_critical_count: 0
+    reconciliation_2026_06_20: >
+        Post-#3 design reconciliation (analyze-driven): (1) queue mechanism
+        SQS+Lambda → Postgres `fetch_queue` (LISTEN/NOTIFY) + Fargate consumer
+        worker across spec/plan/tasks AND the full v-model V&V chain (12 core
+        artifacts); (2) package layout locked — @kitchensink/food-service
+        (packages/services/food-service, own CDK), @kitchensink/usda-client
+        (packages/clients/usda), @kitchensink/food-service-client
+        (packages/clients/food-service), @kitchensink/clerk-verify
+        (packages/shared/clerk-verify); (3) DB = kitchensink_food logical DB on
+        the shared kitchensink-data-{stage} instance (no new RDS/cluster);
+        (4) Redis demoted to deferred post-launch variant; (5) release-audit
+        REQ-035 auth wording fixed (in-process NestJS middleware, not API-GW
+        authorizer). spec/plan/tasks + 12 v-model files prettier-clean.
+        The 9 peer-review-*.md were left as historical records.
     notes: >
         Run #3 (2026-06-19): DRIFT-101 RESOLVED. The Clerk auth slice
         (US-0, FR-035–FR-053) now has full coverage across spec (19/19),
@@ -176,12 +190,13 @@ red_team:
         auth requirements still need to propagate into plan → tasks → v-model.
 
 # DRIFT-101 RESOLVED across spec/plan/tasks/v-model/product-spec (auth fully traced).
-# Before implement: (1) peer-review the auth v-model slice, (2) regenerate
-# release-audit-report.md (stale REQ-035 wording), (3) tests still unexecuted.
-next_action: advance to implement — peer-review gate CLEAN (0 Critical / 0 Major)
-next_command: /speckit.product-forge.implement
-prior_next_action: remediate Criticals + Majors + re-review (2026-06-19)
-peer_review_gate: PASS # all 9 v-model artifacts 0 Critical / 0 Major after 3 review rounds
+# 2026-06-20: design reconciled (SQS→Postgres-as-queue + package layout + DB reuse +
+# Redis-deferred) across spec/plan/tasks AND the 12 core v-model artifacts. The peer
+# review (2026-06-19) now PRE-DATES that reconciliation → it must be refreshed before implement.
+next_action: re-verify before implement — refresh peer-review of the v-model against the 2026-06-20 reconciled design (queue mechanism + package paths changed post-review); auth tests still unexecuted
+next_command: /speckit.product-forge.sync-verify   # then peer-review refresh, then implement
+prior_next_action: advance to implement — peer-review gate CLEAN (2026-06-19, now stale)
+peer_review_gate: STALE # 2026-06-19 review was clean (0C/0M), but predates the 2026-06-20 SQS→Postgres + package reconciliation; needs refresh
 peer_review_history: >
     Round 1 (2026-06-19): 7 Critical + ~26 Major. Round 2 (remediate Criticals + re-review):
     0 Critical, ~20 Major. Round 3 (remediate Majors + re-review): 0 Critical, 0 Major.

@@ -190,13 +190,18 @@ red_team:
         auth requirements still need to propagate into plan → tasks → v-model.
 
 # DRIFT-101 RESOLVED across spec/plan/tasks/v-model/product-spec (auth fully traced).
-# 2026-06-20: design reconciled (SQS→Postgres-as-queue + package layout + DB reuse +
-# Redis-deferred) across spec/plan/tasks AND the 12 core v-model artifacts. The peer
-# review (2026-06-19) now PRE-DATES that reconciliation → it must be refreshed before implement.
-next_action: re-verify before implement — refresh peer-review of the v-model against the 2026-06-20 reconciled design (queue mechanism + package paths changed post-review); auth tests still unexecuted
-next_command: /speckit.product-forge.sync-verify   # then peer-review refresh, then implement
+# 2026-06-20: TWO design passes landed across spec/plan/tasks + 12 core v-model artifacts:
+#   (a) SQS→Postgres-as-queue + package layout + kitchensink_food DB reuse + Redis-deferred;
+#   (b) clarify-driven: rate limiter token-bucket→rolling-60-min window (usda_call_log),
+#       fairness quota/429→dynamic demotion (drop user_fetch_quota/global_fetch_quota),
+#       SWR/tombstone-TTL-30d/batch-per-item-partial.
+# Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
+# both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
+next_action: re-verify before implement — (1) refresh peer-review of the v-model vs the 2026-06-20 reconciled+clarified design, (2) regenerate checklists/requirements.md, (3) auth/rate-limit/demotion tests still unexecuted
+next_command: /speckit.product-forge.sync-verify   # then peer-review refresh + checklist regen, then implement
 prior_next_action: advance to implement — peer-review gate CLEAN (2026-06-19, now stale)
-peer_review_gate: STALE # 2026-06-19 review was clean (0C/0M), but predates the 2026-06-20 SQS→Postgres + package reconciliation; needs refresh
+peer_review_gate: STALE # 2026-06-19 review (0C/0M) predates the 2026-06-20 reconciliation + clarify re-propagation; needs refresh
+repropagation_2026_06_20: complete # rate-limiter/demotion/lifecycle propagated to plan/tasks/12 v-model artifacts; names harmonized (RollingWindowLimiter, RateLimitWindowFullError, DemotionAndFairness)
 peer_review_history: >
     Round 1 (2026-06-19): 7 Critical + ~26 Major. Round 2 (remediate Criticals + re-review):
     0 Critical, ~20 Major. Round 3 (remediate Majors + re-review): 0 Critical, 0 Major.

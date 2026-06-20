@@ -1,8 +1,8 @@
 # Tasks: Feature 003 — USDA Food Data Integration
 
 **Feature**: `003-usda-food-data`
-**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate Worker + Token Bucket)
-**Updated**: 2026-06-02
+**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate Worker + Rolling 60-min Window Limiter)
+**Updated**: 2026-06-20
 **Source Artifacts**: plan.md, spec.md, product-spec.md
 **Design Reference**: plan.md §4 Fetch Queue (Postgres-as-queue), spec.md FR-014..FR-018
 
@@ -29,6 +29,14 @@
 **global DataStack** so it stays platform infra. `food-service` `Fn.importValue`s the shared
 `kitchensink-data-{stage}:Database*` exports and runs its Drizzle migrations against
 `kitchensink_food`. (`pg_trgm` is already bootstrapped on the instance — covers FR-008 search.)
+
+**Data-model note (clarified 2026-06-20):** the `kitchensink_food` tables are `foods`,
+`fetch_queue`, `fetch_requesters`, `usda_sync_metadata`, and `usda_call_log` (the rolling
+60-min USDA-call log — timestamped rows pruned to the trailing 60 min, replacing the old
+`rate_limiter_state` token-bucket table). The per-user quota tables `user_fetch_quota` and
+`global_fetch_quota` are **dropped** — fairness is enforced by queue **demotion** (FR-043),
+which derives a `sub`'s pending count at drain time from `fetch_queue` + `fetch_requesters`
+(no quota row, no `429`).
 
 ---
 
@@ -59,8 +67,8 @@ GLOBAL DB (T-001b: kitchensink_food) ─► FOOD-SERVICE CDK (T-001)
         └─► SCHEMA (T-005–T-009, T-056 auth tables)
               └─► API LAYER (T-010–T-015)
                     ├─► QUEUE + FARGATE CONSUMER (T-016–T-023)
-                    │     └─► TOKEN BUCKET (T-024–T-026) ─► BATCH (T-027–T-029)
-                    ├─► STALE REFRESH / BULK SYNC (T-030–T-032)
+                    │     └─► ROLLING-WINDOW LIMITER (T-024–T-026) ─► BATCH (T-027–T-029)
+                    ├─► STALE-WHILE-REVALIDATE READ (T-063) · STALE REFRESH / BULK SYNC (T-030–T-032)
                     ├─► AUTH & AUTHZ (T-033, T-046–T-056) [US-0, FR-035–FR-053]
                     └─► MONITORING (T-034–T-037)
 
@@ -118,8 +126,9 @@ INTEGRATION TESTS (T-040–T-045)
     Add USDA-specific env vars to the Zod schema in `@nestjs/config`:
     - `USDA_API_KEY` (required, string)
     - `USDA_API_BASE_URL` (default: `https://api.nal.usda.gov/fdc/v1`)
-    - `USDA_RATE_LIMIT_PER_HOUR` (default: 1000)
+    - `USDA_RATE_LIMIT_PER_HOUR` (default: 1000) — the rolling-60-min-window cap (FR-019); the worker pauses draining at 90% of this
     - `USDA_STALE_THRESHOLD_DAYS` (default: 30)
+    - `USDA_TOMBSTONE_TTL_DAYS` (default: 30) — `not_found` tombstone TTL after which a lookup may re-attempt (FR-025)
     - `USDA_WORKER_DESIRED_COUNT` (default: 1)
     - `USDA_LEASE_TIMEOUT_SECONDS` (default: 30)
 
@@ -158,7 +167,7 @@ INTEGRATION TESTS (T-040–T-045)
     - `foods` (all columns from plan.md §2)
     - `fetch_queue` (`fdc_id` text PK, `request_count`, `first_requested`, `last_requested`, `status`, `attempts`, `last_error`, `fetched_at`)
     - `usda_sync_metadata` (singleton)
-    - `rate_limiter_state` (token bucket persistence)
+    - `usda_call_log` (rolling 60-min window persistence: timestamped rows, one per USDA call, pruned to the trailing 60 min)
 
     Export all tables from `packages/services/food-service/src/db/schema/index.ts`.
 
@@ -229,11 +238,12 @@ INTEGRATION TESTS (T-040–T-045)
 
     Write and apply migrations for:
     - `usda_sync_metadata` (singleton row, `id INT PRIMARY KEY DEFAULT 1`, `last_full_sync_at`, `last_incremental_at`, `foundation_version`, `sr_legacy_version`, `branded_version`)
-    - `rate_limiter_state` (`id INT PRIMARY KEY DEFAULT 1`, `available_tokens INT`, `last_refill_at TIMESTAMPTZ`, `capacity INT DEFAULT 1000`)
+    - `usda_call_log` (rolling 60-min window: `id BIGSERIAL PRIMARY KEY`, `called_at TIMESTAMPTZ NOT NULL DEFAULT now()`, plus `idx_usda_call_log_called_at` btree on `called_at` for trailing-window counts and pruning). One row is inserted per USDA call; rows older than 60 min are pruned/ignored. No singleton/token columns — the trailing-60-min count is derived from the row timestamps.
 
     **Acceptance**:
     - `usda_sync_metadata` has a default row with `id = 1`
-    - `rate_limiter_state` defaults to `available_tokens = 1000`
+    - `usda_call_log` starts empty; `SELECT count(*) FROM usda_call_log WHERE called_at > now() - interval '60 minutes'` returns 0 on a fresh DB
+    - `idx_usda_call_log_called_at` supports an index scan for the trailing-60-min count
 
 ---
 
@@ -310,12 +320,13 @@ INTEGRATION TESTS (T-040–T-045)
     1. Validate `fdcId` is a positive integer (400 on invalid)
     2. Check PostgreSQL `foods` table:
         - `fetch_status = 'fetched'` → return 200 with full food data
-        - `fetch_status = 'not_found'` → return 404 with tombstone message (no queuing)
+        - `fetch_status = 'not_found'` (tombstone) → if the tombstone is **within** its TTL (default 30d, `USDA_TOMBSTONE_TTL_DAYS`), return 404 with tombstone message (no queuing); if the TTL has **lapsed**, re-attempt (enqueue per T-012) so USDA can be re-checked (FR-025)
     3. Response shape per plan.md §3
 
     **Acceptance**:
     - Cache hit returns 200 within 50ms (US-001 scenario 1)
-    - Tombstoned food returns 404 without queuing (US-001 scenario 4)
+    - Tombstoned food within TTL returns 404 without queuing (US-001 scenario 4)
+    - Tombstoned food past TTL is re-enqueued on lookup (FR-025 TTL re-attempt)
     - Invalid `fdcId` returns 400 (FR-006)
 
 ---
@@ -343,6 +354,24 @@ INTEGRATION TESTS (T-040–T-045)
     - First request returns 202 within 100ms (US-002 scenario 1)
     - Second request increments `request_count`, returns 202 without duplicate row (US-005 scenario 3)
     - `pg_notify` fires on every enqueue
+
+---
+
+- [ ] **T-063** [P2] [US-007] `GET /v1/foods/{fdcId}` — Stale-While-Revalidate Read Path — `—`
+      **Story**: US-007
+      **Priority**: P2
+      **Depends on**: T-011, T-016
+      **Implements**: FR-031
+
+    Extend the lookup handler for the `stale` read path (stale-while-revalidate):
+    1. Record with `fetch_status = 'stale'` (or `fetched` past `USDA_STALE_THRESHOLD_DAYS`) → **serve the existing data immediately as `200`** with a staleness indicator (the read never blocks and never returns `202` for a record it already holds)
+    2. Trigger a **background re-fetch** by enqueuing via `FetchQueueService` (deduped per FR-014) + `pg_notify`
+    3. If the background re-fetch keeps failing (e.g. prolonged USDA outage), **continue serving the stale data indefinitely** — there is no max-staleness cutoff that withholds an already-held record; the re-fetch keeps retrying (availability over freshness)
+
+    **Acceptance**:
+    - A `stale` record returns `200` with the staleness indicator (not `202`) and enqueues a background re-fetch
+    - A repeated read while the re-fetch is still failing keeps returning the stale `200` (served indefinitely)
+    - Once the re-fetch succeeds the record is upserted and subsequent reads return fresh `200`
 
 ---
 
@@ -472,7 +501,7 @@ INTEGRATION TESTS (T-040–T-045)
 
     Implement single-food fetch in the worker:
     1. Extract `fdc_id` from locked row
-    2. Check token bucket (`consume(1)`)
+    2. Check the rolling-window limiter (`RollingWindowLimiter.tryRecord()`); if it returns `false` (window full / at 90% pause), leave the row `pending` and stop draining
     3. Call `UsdaApiClient.getFood(fdcId)`
     4. On 200: upsert `foods` with `fetch_status='fetched'`, update `fetch_queue` `status='done'`, `fetched_at=now()`
     5. On 404: tombstone immediately — `fetch_queue.status='tombstone'`, `foods.fetch_status='not_found'` (no retry)
@@ -493,14 +522,14 @@ INTEGRATION TESTS (T-040–T-045)
 
     Implement batch fetch in the worker:
     1. Select up to 20 pending rows with `source='batch'` or adjacent `fdc_id`s (lock all with `FOR UPDATE SKIP LOCKED`)
-    2. Consume exactly 1 token from bucket
+    2. Record exactly 1 USDA call against the rolling window (`RollingWindowLimiter.tryRecord()`) for the whole batch
     3. Call `UsdaApiClient.getFoodsBatch(fdcIds)` (POST `/v1/foods`)
     4. For each result: upsert `fetch_status='fetched'`, mark `fetch_queue.status='done'`
     5. For each 404 in batch response: write tombstone
     6. On partial 5xx: successful items marked `done`, failed items returned to `pending` with `attempts++`
 
     **Acceptance**:
-    - 5 IDs in batch → 1 token consumed (US-004 scenario 3)
+    - 5 IDs in batch → 1 USDA call recorded against the rolling window (US-004 scenario 3)
     - Mixed 200/404 batch: 4 fetched + 1 tombstoned (US-004 scenario 4)
 
 ---
@@ -532,8 +561,8 @@ INTEGRATION TESTS (T-040–T-045)
       **Implements**: FR-016, FR-025, FR-026, FR-027
 
     Implement error classification and retry policy:
-    - 404 → immediate `status='tombstone'`, `last_error='404'`, no retry
-    - 429 → reset token bucket to 0, return row to `pending` with `attempts++`, backoff `2^attempts` seconds
+    - 404 → immediate `status='tombstone'`, `last_error='404'`, no retry. The tombstone carries a **configurable TTL (default 30 days, `USDA_TOMBSTONE_TTL_DAYS`)**; record `fetched_at`/`tombstoned_at` so a later lookup after the TTL has lapsed MAY re-attempt the fetch (FR-025). The re-attempt counts against the normal rolling-window budget (FR-019). Within the TTL the tombstone returns `404` without enqueueing.
+    - 429 → treat the rolling window as full and back off (pause draining), return row to `pending` with `attempts++`, backoff `2^attempts` seconds
     - 5xx / timeout → return to `pending`, `attempts++`, backoff `2^attempts` seconds
     - After 5 attempts → `status='tombstone'`, `last_error='max_retries'`
     - Tombstone rows queryable by ops for audit
@@ -541,6 +570,7 @@ INTEGRATION TESTS (T-040–T-045)
     **Acceptance**:
     - 5xx row cycles `pending → in_flight → pending` with exponential backoff, lands in tombstone after 5 attempts (US-005 scenario 5)
     - 404 immediate tombstone (US-002 scenario 5)
+    - A `not_found` tombstone older than the TTL is re-attempted on the next lookup; within the TTL it returns `404` without enqueueing (FR-025)
 
 ---
 
@@ -561,57 +591,58 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-## Phase 4 — Token Bucket Rate Limiter (US-003)
+## Phase 4 — Rolling 60-Minute Window Rate Limiter (US-003)
 
-- [ ] **T-024** [P1] [US-003] Token Bucket: In-Process Implementation — `packages/services/food-service/src/usda/token-bucket.ts`
+- [ ] **T-024** [P1] [US-003] Rolling Window Limiter: In-Process Implementation — `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`
       **Story**: US-003
       **Priority**: P1
       **Depends on**: T-007
       **Implements**: FR-019, FR-020
 
-    Create `packages/services/food-service/src/usda/token-bucket.ts`:
-    - `TokenBucket` class: `consume(n: number): boolean`, `reset(): void`, `available(): number`
-    - Capacity: 1,000 tokens; refill: 16.67/min (1 per 3.6s)
-    - In-process state (single Fargate worker = no shared state needed at MVP)
+    Create `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`:
+    - `RollingWindowLimiter` class: `tryRecord(): boolean` (count trailing-60-min calls and record the new call atomically; reject when already at cap), `count(): number` (calls in the trailing 60 min), `isPaused(): boolean` (true once the trailing count ≥ 900 / 90%)
+    - Limit: **≤1,000 USDA calls per trailing 60 minutes**; worker pauses draining at **90% (900)** and resumes as calls age out of the window (no continuous refill, no token capacity)
+    - In-process state is a list of recent call timestamps, pruned to the trailing 60 min (single Fargate worker = no shared state needed at MVP)
     - Thread-safe within the Node.js event loop
 
     **Acceptance**:
-    - `consume(1)` with 3 tokens remaining → returns `true`, leaves 2 (US-003 scenario 1)
-    - Refill adds ~16–17 tokens per minute up to 1,000 cap (US-003 scenario 3)
-    - `consume(1)` with 0 tokens → returns `false`, worker sleeps (US-003 scenario 2)
+    - `tryRecord()` with a trailing count of 3 → returns `true`, count becomes 4 (US-003 scenario 1)
+    - `isPaused()` flips to `true` once the trailing count reaches 900 and back to `false` as calls age out below the threshold (US-003 scenario 2)
+    - `tryRecord()` when the trailing count is at 1,000 → returns `false`, worker pauses draining (US-003 scenario 3)
+    - Calls older than 60 min are excluded from the count (window slides)
 
 ---
 
-- [ ] **T-025** [P2] [US-003] Token Bucket: Postgres Persistence (Future-Proofing) — `—`
+- [ ] **T-025** [P2] [US-003] Rolling Window Limiter: Postgres Persistence (`usda_call_log`) — `—`
       **Story**: US-003
       **Priority**: P2
       **Depends on**: T-024
       **Implements**: FR-020
 
-    Create `PostgresTokenBucket` implementation using `rate_limiter_state` row:
-    - Atomic check-and-consume via `UPDATE rate_limiter_state SET available_tokens = available_tokens - n WHERE available_tokens >= n RETURNING available_tokens`
-    - Refill logic: calculate tokens earned since `last_refill_at`
-    - Falls back to in-process if Postgres row unavailable
+    Create the `usda_call_log`-backed `RollingWindowLimiter` variant:
+    - Atomic check-and-record in one statement, e.g. `INSERT INTO usda_call_log (called_at) SELECT now() WHERE (SELECT count(*) FROM usda_call_log WHERE called_at > now() - interval '60 minutes') < 1000 RETURNING id` — inserts (and thus permits the call) only when the trailing-60-min count is below the cap
+    - Periodically prune rows older than 60 min (`DELETE FROM usda_call_log WHERE called_at < now() - interval '60 minutes'`)
+    - Falls back to in-process if the call log is unavailable
 
     **Acceptance**:
-    - Concurrent consume calls are atomic (no race condition)
-    - Refill adds correct token count based on elapsed time
+    - Concurrent check-and-record calls are atomic (no race lets the trailing count exceed 1,000)
+    - Trailing-60-min count is computed correctly as old rows age out / are pruned
 
 ---
 
-- [ ] **T-026** [P1] [US-003] Token Bucket: Unit Tests — `—`
+- [ ] **T-026** [P1] [US-003] Rolling Window Limiter: Unit Tests — `—`
       **Story**: US-003
       **Priority**: P1
       **Depends on**: T-024, T-025
       **Implements**: FR-019, FR-020
 
-    Write unit tests for `TokenBucket` and `PostgresTokenBucket`:
-    - Consume with sufficient tokens
-    - Consume with 0 tokens (returns false / sleeps)
-    - Refill rate (mock time)
-    - Concurrent consume (mock DB for atomicity)
-    - Reset to 0 (USDA 429 scenario)
-    - Boundary: 1,000 cap
+    Write unit tests for the in-process and `usda_call_log`-backed `RollingWindowLimiter`:
+    - Record with the trailing count below cap (returns true)
+    - Record at the 1,000 cap (returns false / worker pauses)
+    - Pause at 90% (900) and resume as calls age out (mock time)
+    - Window slide: calls older than 60 min drop out of the count (mock time)
+    - Concurrent check-and-record (mock DB for atomicity — never exceeds 1,000)
+    - USDA 429 failsafe: treat the window as full and back off
 
     **Acceptance**:
     - All scenarios from US-003 acceptance criteria covered
@@ -650,10 +681,10 @@ INTEGRATION TESTS (T-040–T-045)
     Wire batch enqueue to batch consumer:
     - API enqueues at `request_count=0` for background batch enrichment (drains during idle periods)
     - Worker selects batch-ready rows (adjacent `fdc_id`s or `source='batch'`)
-    - Single `POST /v1/foods` call consumes 1 token for up to 20 items
+    - Single `POST /v1/foods` call counts as 1 USDA call against the rolling window for up to 20 items
 
     **Acceptance**:
-    - Batch of 20 IDs → 1 USDA API call, 1 token consumed
+    - Batch of 20 IDs → 1 USDA API call, 1 call recorded against the rolling window
     - Background batch jobs do not starve high-priority single lookups
 
 ---
@@ -755,10 +786,10 @@ INTEGRATION TESTS (T-040–T-045)
       `403` for authenticated-but-insufficient `public_metadata` scope on operational endpoints; enforce precedence `401`→`403`→`400`→`404`/`202`/`200` (governs FR-002/003/005/006).
       **Acceptance**: valid token without scope on `POST /v1/foods/{fdcId}/refetch` → `403`; malformed `fdcId` with bad token → `401` (not `400`).
 
-- [ ] **T-049** [P1] [FR-043] Per-`sub` enqueue quota — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-033, T-056 · **Implements**: FR-043 (SC-012)
-      Per-`sub` leaky/token bucket (Postgres `user_fetch_quota` for lean launch, Redis later), enforced **after** auth and **before** `INSERT INTO fetch_queue`; exceed → `429`; cap any `sub` at ≤20% of the global hourly budget.
-      **Acceptance**: one account scripting lookups gets `429` past its quota and cannot starve other users of the 1,000/hr budget (SC-012 test).
+- [ ] **T-049** [P1] [FR-043] Per-`sub` fairness by **demotion** (no quota, no `429`) — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-033, T-056, T-018 (queue) · **Implements**: FR-043 (SC-012)
+      Fairness is enforced by **queue demotion, not rejection** — there is **no per-`sub` quota and no `429`**. At drain time the queue scorer computes each candidate row's owning `sub`'s **current pending count** (derived live from `fetch_queue` + `fetch_requesters`); when a `sub` has **more than 50 pending items**, that `sub`'s rows are ranked to the **back** of the priority order (below FR-015 demand ordering) so they cannot starve other users. Demotion is **dynamic**: it reads live state, so a `sub`'s rows auto re-promote to normal priority once its pending count drops back below 50 (no frozen flag, no rejection). Work-conserving — demoted rows still drain on spare capacity.
+      **Acceptance**: a `sub` with >50 pending items has its rows ranked to the back while other users' rows drain first; when its pending count falls below 50 its rows return to normal priority; **no request is rejected with `429`** (SC-012 demotion-fairness test).
 
 - [ ] **T-050** [P1] [FR-044] Distinct-requester demand counting — `Test-first: true`
       **Story**: US-0/US-5 · **Depends on**: T-056, T-018 (queue) · **Implements**: FR-044
@@ -767,8 +798,8 @@ INTEGRATION TESTS (T-040–T-045)
 
 - [ ] **T-051** [P1] [FR-045] Max batch size enforcement — `Test-first: true`
       **Story**: US-0/US-4 · **Depends on**: T-024 (batch) · **Implements**: FR-045
-      `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s → `400` over limit, no enqueue; accepted IDs count to the per-`sub` quota.
-      **Acceptance**: oversized batch returns `400` and enqueues nothing.
+      `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s → `400` over limit, no enqueue; accepted IDs add to the `sub`'s pending count (and so feed the FR-043 demotion check, not a quota). Per FR-045 an accepted mixed batch returns a **per-item partial** result (cached/stale foods inline, each miss as a `pending` entry whose fetch is enqueued).
+      **Acceptance**: oversized batch returns `400` and enqueues nothing; an accepted mixed batch returns cached items inline and `pending` entries for the misses in one response body.
 
 - [ ] **T-052** [P1] [FR-046] Queue backpressure + circuit breaker — `Test-first: true`
       **Story**: US-0 · **Depends on**: T-018, T-020 · **Implements**: FR-046
@@ -784,9 +815,9 @@ INTEGRATION TESTS (T-040–T-045)
       Bound verification concurrency + per-source `401`-rate cap (load-shed) so an invalid-token flood can't saturate the verifier.
       **Acceptance**: SC-011 (≤10ms p95) holds under an invalid-token flood, not just the happy path.
 
-- [ ] **T-056** [P1] [FR-043,044] Migration: `user_fetch_quota` + `fetch_requesters` — `—`
+- [ ] **T-056** [P1] [FR-043,044] Migration: `fetch_requesters` (no quota tables) — `—`
       **Story**: US-0 · **Depends on**: T-010 · **Implements**: FR-043, FR-044
-      Drizzle migration for both tables (+ indexes). Includes **user-erasure handling**: on a user-deletion event, `fetch_requesters`/`user_fetch_quota` rows for that `sub` are deleted (or TTL'd) — closes the constitution data-privacy warning.
+      Drizzle migration for `fetch_requesters(fdc_id, sub, requested_at)` (+ indexes, including one on `sub` to compute a `sub`'s live pending count for the FR-043 demotion check). **No `user_fetch_quota` / `global_fetch_quota` tables** — fairness is demotion (FR-043), which derives the per-`sub` pending count at drain time from `fetch_queue` + `fetch_requesters`; there is no quota row and no `429`. Includes **user-erasure handling**: on a user-deletion event, `fetch_requesters` rows for that `sub` are deleted (or TTL'd) — closes the constitution data-privacy warning.
 
 > **WebSocket auth (FR-041, FR-049)** is tracked with the deferred WebSocket work in **Phase 9**
 > (`$connect` Lambda authorizer on the API Gateway WebSocket API + per-`sub` notification
@@ -808,7 +839,7 @@ INTEGRATION TESTS (T-040–T-045)
       **Story**: US-0 · **Depends on**: T-010, T-047, T-060 · **Implements**: FR-047 (consumer side)
       Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services
       (001/006/007/009). Surfaces `getFood`/`searchFoods`/batch, attaches the caller's Clerk token
-      (user session **or** M2M service token per FR-047), and maps `401`/`403`/`429`/`404`/`202`.
+      (user session **or** M2M service token per FR-047), and maps `401`/`403`/`400`/`503`/`404`/`202` (no per-user `429` — fairness is queue demotion, FR-043; `503` is the FR-046 backpressure/circuit-breaker status).
       **Acceptance**: a downstream service can call the food API with an M2M token via this client and
       receive typed results; unauthorized calls surface typed `401`/`403` errors.
 
@@ -826,7 +857,7 @@ INTEGRATION TESTS (T-040–T-045)
     - `usda-fetch-queue-depth` — `SELECT count(*) FROM fetch_queue WHERE status='pending'`
     - `usda-api-request-count` — success/failure dimensions
     - `usda-api-latency` — p50/p95/p99
-    - `usda-token-bucket-available` — after each consume
+    - `usda-rolling-window-count` — trailing-60-min USDA call count after each recorded call
     - `usda-in-flight-leases` — rows with `status='in_flight'`
 
     **Acceptance**:
@@ -844,7 +875,7 @@ INTEGRATION TESTS (T-040–T-045)
     CDK: Create CloudWatch dashboard `usda-food-data`:
     - Pending queue depth
     - In-flight lease count
-    - Token bucket available tokens
+    - Trailing-60-min USDA call count (rolling window)
     - Worker error rate
     - USDA API latency distribution
     - Tombstone count
@@ -976,7 +1007,7 @@ INTEGRATION TESTS (T-040–T-045)
     Create a recipe with 15 ingredients where 10 are locally cached and 5 are unknown:
     - Verify response includes 10 resolved + 5 pending
     - Verify exactly 1 batch USDA API call made (not 5 individual calls)
-    - Verify 1 token consumed for the batch
+    - Verify 1 USDA call recorded against the rolling window for the batch
 
     **Acceptance**:
     - All US-004 acceptance scenarios pass end-to-end
@@ -1058,56 +1089,56 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## FR Coverage Audit
 
-| FR     | Covered By          | Status                    |
-| ------ | ------------------- | ------------------------- |
-| FR-001 | T-010, T-011        | ✅                        |
-| FR-002 | T-011, T-015        | ✅                        |
-| FR-003 | T-012               | ✅                        |
-| FR-004 | T-012               | ✅                        |
-| FR-005 | T-011               | ✅                        |
-| FR-006 | T-011               | ✅                        |
-| FR-007 | T-013               | ✅                        |
-| FR-008 | T-014, T-023        | ✅                        |
-| FR-009 | T-014               | ✅                        |
-| FR-010 | T-014               | ✅                        |
-| FR-011 | T-012               | ✅                        |
-| FR-012 | T-027, T-028        | ✅                        |
-| FR-013 | T-012, T-028        | ✅                        |
-| FR-014 | T-016               | ✅                        |
-| FR-015 | T-018, T-029        | ✅                        |
-| FR-016 | T-022, T-037        | ✅                        |
-| FR-017 | T-016, T-017, T-018 | ✅                        |
-| FR-018 | T-017, T-021, T-024 | ✅                        |
-| FR-019 | T-002, T-024        | ✅                        |
-| FR-020 | T-024, T-025        | ✅                        |
-| FR-021 | T-024               | ✅                        |
-| FR-022 | T-017               | ✅                        |
-| FR-023 | T-003, T-019, T-020 | ✅                        |
-| FR-024 | T-019, T-020        | ✅                        |
-| FR-025 | T-019, T-022        | ✅                        |
-| FR-026 | T-022               | ✅                        |
-| FR-027 | T-022               | ✅                        |
-| FR-028 | T-004, T-005        | ✅                        |
-| FR-029 | T-005, T-008        | ✅                        |
-| FR-030 | T-045               | ✅ (in-process, no Redis) |
-| FR-031 | T-030, T-032        | ✅                        |
-| FR-032 | T-031               | ✅                        |
-| FR-033 | T-013               | ✅                        |
-| FR-034 | T-038, T-039        | ✅ (deferred)             |
-| FR-035 | T-033               | ✅                        |
+| FR     | Covered By          | Status                                  |
+| ------ | ------------------- | --------------------------------------- |
+| FR-001 | T-010, T-011        | ✅                                      |
+| FR-002 | T-011, T-015        | ✅                                      |
+| FR-003 | T-012               | ✅                                      |
+| FR-004 | T-012               | ✅                                      |
+| FR-005 | T-011               | ✅                                      |
+| FR-006 | T-011               | ✅                                      |
+| FR-007 | T-013               | ✅                                      |
+| FR-008 | T-014, T-023        | ✅                                      |
+| FR-009 | T-014               | ✅                                      |
+| FR-010 | T-014               | ✅                                      |
+| FR-011 | T-012               | ✅                                      |
+| FR-012 | T-027, T-028        | ✅                                      |
+| FR-013 | T-012, T-028        | ✅                                      |
+| FR-014 | T-016               | ✅                                      |
+| FR-015 | T-018, T-029        | ✅                                      |
+| FR-016 | T-022, T-037        | ✅                                      |
+| FR-017 | T-016, T-017, T-018 | ✅                                      |
+| FR-018 | T-017, T-021, T-024 | ✅                                      |
+| FR-019 | T-002, T-024        | ✅                                      |
+| FR-020 | T-024, T-025        | ✅                                      |
+| FR-021 | T-024               | ✅                                      |
+| FR-022 | T-017               | ✅                                      |
+| FR-023 | T-003, T-019, T-020 | ✅                                      |
+| FR-024 | T-019, T-020        | ✅                                      |
+| FR-025 | T-011, T-019, T-022 | ✅ (incl. 30d tombstone TTL re-attempt) |
+| FR-026 | T-022               | ✅                                      |
+| FR-027 | T-022               | ✅                                      |
+| FR-028 | T-004, T-005        | ✅                                      |
+| FR-029 | T-005, T-008        | ✅                                      |
+| FR-030 | T-045               | ✅ (in-process, no Redis)               |
+| FR-031 | T-063, T-030, T-032 | ✅ (SWR on-read + scheduled sweep)      |
+| FR-032 | T-031               | ✅                                      |
+| FR-033 | T-013               | ✅                                      |
+| FR-034 | T-038, T-039        | ✅ (deferred)                           |
+| FR-035 | T-033               | ✅                                      |
 
 **Gap**: None. All **53 FRs** trace to at least one task. FR-030 maps to T-045 (in-process LRU) because the new architecture explicitly removes Redis; the functional intent (cache acceleration) is preserved without ElastiCache infrastructure.
 
 **Auth coverage (FR-035–FR-053, added 2026-06-19 re-plan):**
 
-| FR                                     | Task(s)                                                                            |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| FR-035, FR-036, FR-037, FR-038, FR-040 | T-033 (FoodAuthGuard middleware) + T-046 (shared verify pkg)                       |
-| FR-039, FR-051                         | T-048 (scopes + `403` + status precedence)                                         |
-| FR-041, FR-049                         | Phase 9 (T-038/T-039 — `$connect` authorizer + per-`sub` targeting, deferred)      |
-| FR-042                                 | T-033 / config                                                                     |
-| FR-043                                 | T-049 (per-`sub` quota + `429`) · FR-044 → T-050 · FR-045 → T-051 · FR-046 → T-052 |
-| FR-047                                 | T-047 (M2M) · FR-048 → T-053 · FR-052 → T-054 · FR-053 → T-046                     |
-| migrations                             | T-056 (`user_fetch_quota`, `fetch_requesters`, user-erasure)                       |
+| FR                                     | Task(s)                                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| FR-035, FR-036, FR-037, FR-038, FR-040 | T-033 (FoodAuthGuard middleware) + T-046 (shared verify pkg)                                  |
+| FR-039, FR-051                         | T-048 (scopes + `403` + status precedence)                                                    |
+| FR-041, FR-049                         | Phase 9 (T-038/T-039 — `$connect` authorizer + per-`sub` targeting, deferred)                 |
+| FR-042                                 | T-033 / config                                                                                |
+| FR-043                                 | T-049 (per-`sub` demotion, no quota/`429`) · FR-044 → T-050 · FR-045 → T-051 · FR-046 → T-052 |
+| FR-047                                 | T-047 (M2M) · FR-048 → T-053 · FR-052 → T-054 · FR-053 → T-046                                |
+| migrations                             | T-056 (`fetch_requesters`, user-erasure — no quota tables)                                    |
 
-Test-first tasks: T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054 (auth `401`/`403`/`429`, azp rejection, no-broadcast WS, one-user-can't-starve-others).
+Test-first tasks: T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054 (auth `401`/`403`, demotion fairness (no `429`), azp rejection, no-broadcast WS, one-user-can't-starve-others).

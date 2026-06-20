@@ -77,6 +77,16 @@ Each test case identifies its technique by name:
     - **When** FoodApiController receives `GET /v1/foods/44444`
     - **Then** response status is `404 Not Found`; no event is published to SYS-002; no row is inserted into `fetch_queue`
 
+- **System Scenario: STS-001-B5**
+    - **Given** PostgreSQL contains `fdc_id = 55557` with `fetch_status = 'stale'` (`fetched_at` older than the 30-day threshold)
+    - **When** FoodApiController receives `GET /v1/foods/55557`
+    - **Then** response status is `200 OK` and the held (stale) data is served immediately with a staleness indicator (the read never blocks and never returns `202` for a record it already holds); a background re-fetch is enqueued as a `fetch_queue` row (stale-while-revalidate, FR-031)
+
+- **System Scenario: STS-001-B6**
+    - **Given** PostgreSQL contains `fdc_id = 55558` with `fetch_status = 'stale'`; the background re-fetch repeatedly fails (e.g. prolonged USDA outage)
+    - **When** FoodApiController receives repeated `GET /v1/foods/55558` requests across the outage
+    - **Then** every response is `200 OK` serving the stale data with the staleness indicator (availability over freshness — reads never depend on USDA health, no max-staleness cutoff withholds the held record); the background re-fetch keeps retrying (FR-031)
+
 #### Test Case: STP-001-C (Input Validation — fdcId Boundary Values)
 
 **Technique**: Boundary Value Analysis
@@ -118,6 +128,17 @@ Each test case identifies its technique by name:
     - **Given** PostgreSQL contains 50,000 food records
     - **When** FoodApiController receives `GET /v1/foods/search?query=broccoli`
     - **Then** response is returned within 200ms; results are ranked by relevance score descending
+
+#### Test Case: STP-001-E (Batch Endpoint — Per-Item Partial Response)
+
+**Technique**: Equivalence Partitioning
+**Target View**: Interface View (SYS-001 → SYS-007 read; SYS-001 → SYS-002 enqueue for misses)
+**Description**: Verifies that `POST /v1/foods/batch` mixing cached/stale and uncached ids returns a per-item partial result in one response — cached/stale foods inline, each miss as a `pending` entry whose fetch is enqueued — rather than withholding all-or-nothing (FR-045).
+
+- **System Scenario: STS-001-E1**
+    - **Given** PostgreSQL contains `fdc_id = 100` (`fetch_status = 'fetched'`) and `fdc_id = 200` (`fetch_status = 'stale'`); `fdc_id = 300` and `fdc_id = 400` have no local record
+    - **When** FoodApiController receives `POST /v1/foods/batch` with `{ "fdcIds": [100, 200, 300, 400] }`
+    - **Then** the response is a single body returning `100` and `200` inline with their food data (`200` carries a staleness indicator), and `300` and `400` each as a `pending` entry; high-priority `fetch_queue` rows are enqueued for `300` and `400` (and a background re-fetch for the stale `200`); the caller receives available data immediately and polls only the pending ids
 
 ---
 
@@ -240,50 +261,55 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-004: SYS-005 → SYS-009; IC-005: SYS-005 → SYS-007)
-**Description**: Verifies the complete success path: token check → USDA call → PostgreSQL upsert → cache invalidation → fetch_queue row completion → EventBridge `FoodDataReceived` emit.
+**Description**: Verifies the complete success path: rolling-window check-and-record → USDA call → PostgreSQL upsert → cache invalidation → fetch_queue row completion → EventBridge `FoodDataReceived` emit.
 
 - **System Scenario: STS-005-B1**
-    - **Given** SYS-006 token bucket has ≥ 1 token; a `fetch_queue` row `{ "fdc_id": 12345 }` is pending in SYS-003; USDA API returns `200 OK` with food data for `fdcId = 12345`
+    - **Given** SYS-006 rolling-window trailing-60-min count is below 900; a `fetch_queue` row `{ "fdc_id": 12345 }` is pending in SYS-003; USDA API returns `200 OK` with food data for `fdcId = 12345`
     - **When** the consumer worker processes the leased row
-    - **Then** the consumer worker: (1) calls SYS-006 and receives `{ allowed: true }`; (2) calls USDA API `POST /v1/foods` with `{ fdcIds: [12345] }`; (3) upserts food into SYS-007 with `fetch_status = 'fetched'`; (4) invalidates the cache for `food:12345` and clears the `pending_fetch` marker in SYS-008; (5) marks the `fetch_queue` row `status = 'done'` in SYS-003; (6) publishes the `FoodDataReceived` event to SYS-002
+    - **Then** the consumer worker: (1) calls SYS-006 to check-and-record against the rolling window and receives `{ allowed: true }` (the new call timestamp is recorded in `usda_call_log`); (2) calls USDA API `POST /v1/foods` with `{ fdcIds: [12345] }`; (3) upserts food into SYS-007 with `fetch_status = 'fetched'`; (4) invalidates the cache for `food:12345` and clears the `pending_fetch` marker in SYS-008; (5) marks the `fetch_queue` row `status = 'done'` in SYS-003; (6) publishes the `FoodDataReceived` event to SYS-002
 
 #### Test Case: STP-005-C (Batch Processing — Up to 20 fdcIds per USDA Call)
 
 **Technique**: Boundary Value Analysis
 **Target View**: Data Design View (batch size: 1–20 fdcIds per USDA API call)
-**Description**: Verifies that the consumer worker batches up to 20 fdcIds per USDA API call and consumes exactly 1 token per call regardless of batch size.
+**Description**: Verifies that the consumer worker batches up to 20 fdcIds per USDA API call and records exactly 1 call against the rolling window per USDA call regardless of batch size.
 
 - **System Scenario: STS-005-C1**
-    - **Given** SYS-006 has ≥ 1 token; a `fetch_queue` row contains `{ "fdc_ids": [1, 2, ..., 20] }` (20 IDs)
+    - **Given** SYS-006 rolling-window trailing-60-min count is below 900; a `fetch_queue` row contains `{ "fdc_ids": [1, 2, ..., 20] }` (20 IDs)
     - **When** the consumer worker processes the leased row
-    - **Then** exactly 1 HTTP call is made to USDA API with all 20 IDs; exactly 1 token is consumed from SYS-006
+    - **Then** exactly 1 HTTP call is made to USDA API with all 20 IDs; exactly 1 call is recorded against the SYS-006 rolling window
 
 - **System Scenario: STS-005-C2**
-    - **Given** SYS-006 has ≥ 2 tokens; a `fetch_queue` row contains `{ "fdc_ids": [1, 2, ..., 21] }` (21 IDs, exceeds batch limit)
+    - **Given** SYS-006 rolling-window trailing-60-min count is at least 2 below the cap; a `fetch_queue` row contains `{ "fdc_ids": [1, 2, ..., 21] }` (21 IDs, exceeds batch limit)
     - **When** the consumer worker processes the leased row
-    - **Then** the consumer worker splits into 2 USDA API calls (20 + 1); 2 tokens are consumed from SYS-006
+    - **Then** the consumer worker splits into 2 USDA API calls (20 + 1); 2 calls are recorded against the SYS-006 rolling window
 
-#### Test Case: STP-005-D (USDA 404 — Tombstone Write)
+#### Test Case: STP-005-D (USDA 404 — Tombstone Write with TTL Re-Attempt)
 
 **Technique**: Equivalence Partitioning
-**Target View**: Data Design View (fetch_status = 'not_found')
-**Description**: Verifies that a USDA 404 response results in a tombstone record and no retry.
+**Target View**: Data Design View (fetch_status = 'not_found'; tombstone TTL default 30 days)
+**Description**: Verifies that a USDA 404 response results in a tombstone record with no immediate retry, and that the tombstone carries a configurable TTL (default 30 days) after which a later lookup MAY re-attempt the fetch.
 
 - **System Scenario: STS-005-D1**
     - **Given** a `fetch_queue` row `{ "fdc_id": 99999 }` is pending in SYS-003; USDA API returns `404 Not Found` for `fdcId = 99999`
     - **When** the consumer worker processes the leased row
-    - **Then** the consumer worker upserts `{ fdc_id: 99999, fetch_status: 'not_found' }` into SYS-007; the `fetch_queue` row is marked `status = 'done'`; the 404 is treated as immediate (no retry, no backoff, FR-016); no `FoodDataReceived` event is emitted
+    - **Then** the consumer worker upserts `{ fdc_id: 99999, fetch_status: 'not_found' }` into SYS-007; the `fetch_queue` row is marked `status = 'tombstone'`; the 404 is treated as immediate (no retry, no backoff, FR-016); no `FoodDataReceived` event is emitted
 
-#### Test Case: STP-005-E (USDA 429 — Token Bucket Reset and Backoff)
+- **System Scenario: STS-005-D2**
+    - **Given** a tombstone record `{ fdc_id: 99999, fetch_status: 'not_found' }` exists in SYS-007 whose tombstone age exceeds the configured TTL (default 30 days)
+    - **When** FoodApiController receives `GET /v1/foods/99999` after the TTL has lapsed
+    - **Then** the lookup re-attempts the fetch (a new high-priority `fetch_queue` row is enqueued for `99999`, response `202 Accepted`); within the TTL the same lookup would instead return `404` without enqueueing; the re-attempt counts against the SYS-006 rolling-window budget so it cannot bypass the rate limit (FR-025)
+
+#### Test Case: STP-005-E (USDA 429 — Treat Rolling Window as Full and Back Off)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-005 → SYS-009: rate limit exceeded)
-**Description**: Verifies that a USDA 429 response resets the token bucket to 0 and stops processing remaining rows.
+**Description**: Verifies that a USDA 429 response causes the consumer to treat the rolling window as full, back off, and stop processing remaining rows (a failsafe; the consumer does not reset any counter).
 
 - **System Scenario: STS-005-E1**
-    - **Given** SYS-006 token bucket has 5 tokens; the consumer worker is processing a batch of 3 leased `fetch_queue` rows; USDA API returns `429 Too Many Requests` on the second row
+    - **Given** the SYS-006 rolling-window trailing-60-min count is below the cap; the consumer worker is processing a batch of 3 leased `fetch_queue` rows; USDA API returns `429 Too Many Requests` on the second row
     - **When** the consumer worker receives the 429 response
-    - **Then** the consumer worker resets SYS-006 token bucket to 0 tokens; the second `fetch_queue` row is left incomplete (its row lease, FR-018, expires for retry); the third row is not processed in this drain cycle
+    - **Then** the consumer worker treats the rolling window as full and backs off (pauses draining); the second `fetch_queue` row is left `pending` (its row lease, FR-018, expires for retry after the backoff gate); the third row is not processed in this drain cycle
 
 #### Test Case: STP-005-F (USDA 5xx — Row-Lease Retry with Backoff)
 
@@ -298,56 +324,56 @@ Each test case identifies its technique by name:
 
 ---
 
-### Component Verification: SYS-006 (TokenBucketRateLimiter)
+### Component Verification: SYS-006 (RollingWindowLimiter)
 
 **Parent Requirements**: REQ-018, REQ-019
 
-#### Test Case: STP-006-A (Atomic Token Check-and-Consume)
+#### Test Case: STP-006-A (Atomic Rolling-Window Check-and-Record)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-003: SYS-005 → SYS-006)
-**Description**: Verifies that the token bucket check-and-consume operation is atomic and returns the correct response schema.
+**Description**: Verifies that the rolling-window check-and-record operation — counting calls in the trailing 60 minutes and recording the new call timestamp in one atomic step — returns the correct response schema. (Lean launch: a Postgres `usda_call_log` count+insert in a transaction; deferred variant: a Redis sorted-set Lua script.)
 
 - **System Scenario: STS-006-A1**
-    - **Given** Redis token bucket key has 500 tokens remaining
-    - **When** SYS-005 executes the Lua script atomic check-and-decrement
-    - **Then** the script returns `{ "allowed": true, "tokensRemaining": 499 }`; the Redis key is decremented by exactly 1 in a single atomic operation
+    - **Given** the `usda_call_log` contains 500 call timestamps within the trailing 60 minutes (below the 1,000 cap)
+    - **When** SYS-005 executes the atomic check-and-record operation
+    - **Then** the operation returns `{ "allowed": true, "trailingCount": 501 }`; exactly one new call timestamp is appended to `usda_call_log` in a single atomic operation
 
 - **System Scenario: STS-006-A2**
-    - **Given** Redis token bucket key has 0 tokens remaining
-    - **When** SYS-005 executes the Lua script atomic check-and-decrement
-    - **Then** the script returns `{ "allowed": false, "tokensRemaining": 0 }`; the Redis key is not modified
+    - **Given** the `usda_call_log` contains 1,000 call timestamps within the trailing 60 minutes (at the cap)
+    - **When** SYS-005 executes the atomic check-and-record operation
+    - **Then** the operation returns `{ "allowed": false, "trailingCount": 1000 }`; no new timestamp is recorded in `usda_call_log`
 
-#### Test Case: STP-006-B (Rate Limit Capacity and Refill Boundary Values)
+#### Test Case: STP-006-B (Rolling-Window Cap and Aging Boundary Values)
 
 **Technique**: Boundary Value Analysis
-**Target View**: Data Design View (capacity: 1,000 tokens; refill: 16.67 tokens/minute)
-**Description**: Verifies token bucket capacity ceiling and refill rate at boundary values.
+**Target View**: Data Design View (cap: ≤1,000 calls in any trailing 60 minutes; pause at 90% = 900)
+**Description**: Verifies the rolling-window hard cap and the 90% pause/resume behavior as calls age out of the trailing 60-minute window at boundary values.
 
 - **System Scenario: STS-006-B1**
-    - **Given** the token bucket is at capacity (1,000 tokens)
-    - **When** a refill event fires (16.67 tokens added)
-    - **Then** the bucket remains at 1,000 tokens (capacity ceiling enforced; no overflow)
+    - **Given** the `usda_call_log` holds 900 call timestamps within the trailing 60 minutes (the 90% pause threshold)
+    - **When** SYS-005 considers the next USDA call
+    - **Then** the consumer pauses draining (does not record a new call) until earlier calls age out; the trailing-60-min count is held at or below 900 while paused (≤1,000 cap never breached)
 
 - **System Scenario: STS-006-B2**
-    - **Given** the token bucket has 990 tokens; 60 seconds elapse (1 refill cycle = 16.67 tokens)
-    - **When** the refill is applied
-    - **Then** the bucket has min(990 + 16.67, 1000) = 1,000 tokens (ceiling enforced)
+    - **Given** the `usda_call_log` holds 899 call timestamps within the trailing 60 minutes
+    - **When** SYS-005 executes a check-and-record
+    - **Then** the operation returns `{ "allowed": true, "trailingCount": 900 }`; recording the 900th call reaches the pause threshold, so the next check pauses draining
 
 - **System Scenario: STS-006-B3**
-    - **Given** the token bucket has 0 tokens; 60 seconds elapse
-    - **When** the refill is applied
-    - **Then** the bucket has 16 or 17 tokens (floor/ceil of 16.67); subsequent check-and-consume returns `{ "allowed": true }`
+    - **Given** the `usda_call_log` holds 900 timestamps and the consumer is paused; enough time elapses that the oldest timestamps fall outside the trailing 60-minute window, dropping the count below the threshold
+    - **When** the consumer re-evaluates the rolling window
+    - **Then** the trailing-60-min count is now below 900; the next check-and-record returns `{ "allowed": true }` and draining resumes
 
-#### Test Case: STP-006-C (Fault Injection — Redis Unavailable)
+#### Test Case: STP-006-C (Fault Injection — Rolling-Window Store Unavailable)
 
 **Technique**: Fault Injection
-**Target View**: Dependency View (SYS-005 → SYS-006: token bucket unavailable)
-**Description**: Verifies consumer worker behavior when the token bucket store is unreachable.
+**Target View**: Dependency View (SYS-005 → SYS-006: rolling-window store unavailable)
+**Description**: Verifies consumer worker behavior when the rolling-window store (`usda_call_log` / Redis sorted set) is unreachable.
 
 - **System Scenario: STS-006-C1**
-    - **Given** the token bucket store (SYS-006) is unreachable (connection timeout)
-    - **When** the consumer worker attempts the atomic token check-and-consume
+    - **Given** the rolling-window store (SYS-006) is unreachable (connection timeout)
+    - **When** the consumer worker attempts the atomic rolling-window check-and-record
     - **Then** the consumer worker does NOT call the USDA API; the `fetch_queue` row is left incomplete (its row lease, FR-018, expires for retry); an error is logged to CloudWatch (SYS-012)
 
 ---
@@ -467,7 +493,7 @@ Each test case identifies its technique by name:
 **Description**: Verifies that the consumer worker (via `@kitchensink/usda-client`) calls the USDA batch endpoint with the correct request schema and processes the response correctly.
 
 - **System Scenario: STS-009-A1**
-    - **Given** SYS-006 has ≥ 1 token; a `fetch_queue` row contains `{ "fdc_ids": [12345, 67890] }`
+    - **Given** the SYS-006 rolling-window trailing-60-min count is below 900; a `fetch_queue` row contains `{ "fdc_ids": [12345, 67890] }`
     - **When** the consumer worker calls `POST https://api.nal.usda.gov/fdc/v1/foods` with `Authorization: Bearer <USDA_API_KEY>` and body `{ "fdcIds": [12345, 67890] }`
     - **Then** USDA API returns `200 OK` with an array of food objects; the consumer worker upserts each food into SYS-007
 
@@ -558,7 +584,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-012-A2**
     - **Given** the consumer worker processes a `fetch_queue` row from SYS-003
     - **When** the processing completes (success, 404, 429, or 5xx)
-    - **Then** a structured log entry is written to the consumer worker CloudWatch log group containing: `fdcId`, USDA response code, tokens consumed, and processing outcome
+    - **Then** a structured log entry is written to the consumer worker CloudWatch log group containing: `fdcId`, USDA response code, trailing-60-min rolling-window count, and processing outcome
 
 #### Test Case: STP-012-B (X-Ray Tracing — Distributed Request Visibility)
 
@@ -588,7 +614,7 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-IF-008, REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
 
-The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using `@kitchensink/clerk-verify`) on the ECS/Fargate `food-service`; it is not a Lambda authorizer (except the deferred WebSocket `$connect` authorizer). It fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any downstream component is reached (no `fetch_queue` insert, no USDA call), the load-shed property under an invalid-token flood, per-`sub` quota fairness, the scope-`403`/M2M authorization classes, the `401`→`403`→`400`→business status-precedence ordering, and the batch-size boundary. Verification is networkless (`@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY`), fail-closed.
+The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using `@kitchensink/clerk-verify`) on the ECS/Fargate `food-service`; it is not a Lambda authorizer (except the deferred WebSocket `$connect` authorizer). It fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any downstream component is reached (no `fetch_queue` insert, no USDA call), the load-shed property under an invalid-token flood, per-`sub` fairness by queue demotion (not rejection), the scope-`403`/M2M authorization classes, the `401`→`403`→`400`→business status-precedence ordering, and the batch-size boundary. Verification is networkless (`@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY`), fail-closed.
 
 #### Test Case: STP-013-A (Fail-Closed `401` at Every Entry Point — No Enqueue, No USDA Call)
 
@@ -632,21 +658,21 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
     - **When** SYS-013 processes the mixed load over the 120 s window (first 10 s discarded as warm-up; metrics taken over the remaining 110 s, ≥ 11,000 valid-request latency samples)
     - **Then** the per-source `401`-rate cap / concurrency bound engages — **≥ 95%** of the invalid flood is load-shed (fast-rejected at the cap or rejected without a full CPU-bound signature check), in-flight signature checks stay **≤ `C` (50)** and the verifier queue depth stays bounded (does not grow monotonically across the window), i.e. the verifier does not saturate; **and** valid-token requests continue to be served with auth-attributable verification overhead **≤ 10ms at p95** (SC-011), where auth-attributable latency is measured as the time from request receipt to the authn decision (verify-start → verify-complete span), isolated from downstream SYS-001/SYS-007 handling; **and** no invalid request is enqueued to the SYS-003/SYS-004 `fetch_queue` or reaches the USDA path. _Pass = (valid-token p95 ≤ 10ms) AND (in-flight ≤ C across the window) AND (≥ 95% of invalid requests shed). The scenario is reproducible: same C, cap, rates, mix, window, and sample size yield the same verdict._
 
-#### Test Case: STP-013-C (Per-`sub` Enqueue Quota — `429`, USDA Budget Fairness)
+#### Test Case: STP-013-C (Per-`sub` Fairness by Queue Demotion — No `429`, Dynamic Re-Promotion)
 
 **Technique**: Boundary Value Analysis
-**Target View**: Dependency View (SYS-013 → SYS-002: quota gate applied after authn, before publish/insert)
-**Description**: Verifies that the per-`sub` enqueue quota is enforced after authentication and before `INSERT INTO fetch_queue` / EventBridge publish, returning `429` over quota, so no single authenticated `sub` can consume more than its configured share (≤ 20%) of the global USDA budget within a rolling hour (SC-012, FR-043).
+**Target View**: Dependency View (SYS-013/SYS-005 → SYS-003/SYS-004: drain-time priority computed from the requester's current pending count)
+**Description**: Verifies that fairness is enforced by **queue demotion, not rejection**: a `sub` with more than 50 items currently pending in the `fetch_queue` has its queued (and subsequent) items ranked to the **back** of the priority order, while other `sub`s continue to be served. No authenticated cache-miss request is rejected — there is **no per-user quota and no `429`**. Demotion is **dynamic**: priority is computed at drain time from the requester's live pending count, so items auto-return to normal priority once the `sub` falls below 50 (SC-012, FR-043). The boundary under test is the **50-pending** demotion threshold.
 
 - **System Scenario: STS-013-C1**
-    - **Given** an authenticated `sub` `A` has reached its configured per-hour enqueue quota of N cache-miss fetches
+    - **Given** an authenticated `sub` `A` already has more than 50 items pending in the `fetch_queue`
     - **When** `sub` `A` triggers another cache-miss lookup (`GET /v1/foods/{newFdcId}` for an unknown id)
-    - **Then** the response is `429 Too Many Requests`; no `FoodRequested` event is published to SYS-002; no message is enqueued; the request did pass authentication (quota is post-authn)
+    - **Then** the response is `202 Accepted` (the request is **not** rejected; no `429`); the fetch **is** enqueued, but `sub` `A`'s items are ranked to the back of the priority order (lowest priority, below FR-015 demand ordering) so they drain only on spare capacity
 
 - **System Scenario: STS-013-C2**
-    - **Given** authenticated `sub` `A` is scripting cache-miss lookups continuously while authenticated `sub` `B` issues occasional cache-miss lookups, against the global 1,000 req/hr USDA budget (SYS-006)
-    - **When** the rolling-hour window is observed
-    - **Then** `sub` `A`'s accepted enqueues do not exceed its configured share (target ≤ 20%) of the global budget; `sub` `B`'s lookups are still accepted (one account cannot starve the shared budget for others); excess `A` requests receive `429`
+    - **Given** authenticated `sub` `A` is scripting cache-miss lookups continuously (driving its pending count above 50) while authenticated `sub` `B` issues occasional cache-miss lookups, against the global 1,000 req/hr USDA budget (SYS-006 rolling window)
+    - **When** the consumer drains the `fetch_queue` and `sub` `A`'s pending count later falls back below 50
+    - **Then** while `A` is above 50, `A`'s demoted items yield to `B`'s normally-prioritized items (one account cannot starve the shared budget for others); none of `A`'s requests receive `429`; once `A`'s live pending count drops below 50, the drain-time scorer re-promotes `A`'s remaining items to normal priority (no frozen demotion flag)
 
 #### Test Case: STP-013-D (Scope `403` vs `401` Authorization Class; M2M Service-Token Acceptance)
 
@@ -704,7 +730,7 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 - **System Scenario: STS-013-F3** (just-over — 101)
     - **Given** an authenticated, authorized `POST /v1/foods/batch` whose `fdcId` array contains **101** ids (one over the hard maximum)
     - **When** SYS-013/SYS-001 process the request (authentication and authorization having passed)
-    - **Then** the response is `400 Bad Request`; no fetch is enqueued for any id in the batch; nothing counts against quota for the rejected request
+    - **Then** the response is `400 Bad Request`; no fetch is enqueued for any id in the batch; nothing counts toward the requester's pending-count demotion threshold for the rejected request
 
 ---
 
@@ -712,12 +738,12 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 
 | SYS ID  | Component Name              | Test Cases               | Scenarios                                                              |
 | ------- | --------------------------- | ------------------------ | ---------------------------------------------------------------------- |
-| SYS-001 | FoodApiController           | STP-001-A, B, C, D       | STS-001-A1, A2, B1, B2, B3, B4, C1, C2, C3, C4, D1, D2                 |
+| SYS-001 | FoodApiController           | STP-001-A, B, C, D, E    | STS-001-A1, A2, B1, B2, B3, B4, B5, B6, C1, C2, C3, C4, D1, D2, E1     |
 | SYS-002 | EventBridgeBus              | STP-002-A, B, C          | STS-002-A1, B1, C1                                                     |
 | SYS-003 | HighPriorityFetchQueue      | STP-003-A, B             | STS-003-A1, B1                                                         |
 | SYS-004 | LowPriorityFetchQueue       | STP-004-A, B             | STS-004-A1, B1                                                         |
-| SYS-005 | FoodConsumerWorker          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, E1, F1                                 |
-| SYS-006 | TokenBucketRateLimiter      | STP-006-A, B, C          | STS-006-A1, A2, B1, B2, B3, C1                                         |
+| SYS-005 | FoodConsumerWorker          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, D2, E1, F1                             |
+| SYS-006 | RollingWindowLimiter        | STP-006-A, B, C          | STS-006-A1, A2, B1, B2, B3, C1                                         |
 | SYS-007 | FoodDataPostgresRepository  | STP-007-A, B, C          | STS-007-A1, A2, B1, B2, C1                                             |
 | SYS-008 | FoodDataRedisCache          | STP-008-A, B, C, D       | STS-008-A1, B1, C1, C2, D1                                             |
 | SYS-009 | USDAFoodDataCentralApi      | STP-009-A, B             | STS-009-A1, B1                                                         |
@@ -726,6 +752,6 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 | SYS-012 | MonitoringAndLogging        | STP-012-A, B, C          | STS-012-A1, A2, B1, C1                                                 |
 | SYS-013 | AuthnAuthzLayer             | STP-013-A, B, C, D, E, F | STS-013-A1, A2, A3, A4, A5, B1, C1, C2, D1, D2, E1, E2, E3, F1, F2, F3 |
 
-**Total Test Cases**: 35 STP
-**Total Scenarios**: 59 STS
+**Total Test Cases**: 36 STP
+**Total Scenarios**: 63 STS
 **Components Covered**: 13 / 13 (100%)

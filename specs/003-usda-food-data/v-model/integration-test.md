@@ -82,6 +82,38 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** Module ARCH-001 sends `isPending(12345)` to ARCH-007
     - **Then** Module ARCH-001 receives `true`, returns `202 Accepted` to the caller, and sends zero `publishFoodRequested` calls to ARCH-002
 
+#### Test Case: ITP-001-D (FoodApiController stale-while-revalidate seam: serve stale 200 + enqueue re-fetch)
+
+**Technique**: Interface Contract Testing + Data Flow Testing
+**Target View**: Interface View + Data Flow View
+**Description**: Verifies the stale-read (SWR) seam (FR-031, clarified 2026-06-20): on a read where ARCH-006 returns a held-but-`stale` record, ARCH-001 serves the existing data immediately as `200` (with a staleness indicator) **and** enqueues a background re-fetch via ARCH-002 — the read never blocks and never returns `202` for a record it already holds. If the re-fetch keeps failing, repeated reads continue serving the stale data indefinitely (availability over freshness).
+
+- **Integration Scenario: ITS-001-D1**
+    - **Given** Module ARCH-007 returns `null` (cache miss) and Module ARCH-006 `findByFdcId(12345)` returns a held record with `fetch_status='stale'` (older than the staleness threshold), with a spy on ARCH-002 `publishFoodRequested`
+    - **When** Module ARCH-001 handles `GET /v1/foods/12345`
+    - **Then** ARCH-001 returns `200 OK` with the stale `FoodData` and a staleness indicator (not `202`), and sends exactly one `publishFoodRequested({ fdcId: 12345 })` to ARCH-002 (background re-fetch enqueued, stale-while-revalidate)
+
+- **Integration Scenario: ITS-001-D2**
+    - **Given** The background re-fetch has repeatedly failed (prolonged USDA outage) and ARCH-006 still returns the same `stale` record on a subsequent read
+    - **When** Module ARCH-001 handles `GET /v1/foods/12345` again
+    - **Then** ARCH-001 still returns `200 OK` with the stale data + indicator — the held record is served indefinitely (no max-staleness cutoff withholds it) — and re-enqueues the re-fetch (subject to ARCH-003 `ON CONFLICT` dedup)
+
+#### Test Case: ITP-001-E (FoodApiController tombstone-TTL seam: within TTL → 404 no enqueue; after TTL → re-attempt)
+
+**Technique**: Interface Contract Testing + Interface Fault Injection
+**Target View**: Interface View + Process View
+**Description**: Verifies the `not_found` tombstone-TTL seam (FR-025, clarified 2026-06-20): a `fdcId` tombstoned as `not_found` returns `404` from ARCH-001 **without** crossing the ARCH-002 enqueue boundary while the tombstone is **within its configurable TTL (default 30 days)**; once the TTL has lapsed, a later read re-attempts by enqueuing a re-fetch (counting against the normal rolling-window budget so it cannot bypass the rate limit).
+
+- **Integration Scenario: ITS-001-E1**
+    - **Given** Module ARCH-006 `findByFdcId(12345)` returns a `not_found` tombstone whose age is within the 30-day TTL, with a spy on ARCH-002 `publishFoodRequested`
+    - **When** Module ARCH-001 handles `GET /v1/foods/12345`
+    - **Then** ARCH-001 returns `404` and sends **zero** `publishFoodRequested` calls to ARCH-002 — within TTL → `404` with no enqueue (FR-025)
+
+- **Integration Scenario: ITS-001-E2**
+    - **Given** Module ARCH-006 returns a `not_found` tombstone whose age has exceeded the 30-day TTL
+    - **When** Module ARCH-001 handles `GET /v1/foods/12345`
+    - **Then** ARCH-001 enqueues a re-attempt — exactly one `publishFoodRequested({ fdcId: 12345 })` to ARCH-002 (after TTL → re-attempt, against the normal rolling-window budget) — and returns `202`/pending while the re-fetch is in flight
+
 ---
 
 ### Module Verification: ARCH-002 (EventBridgePublisher)
@@ -154,21 +186,21 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 **Parent System Components**: SYS-005
 
-#### Test Case: ITP-004-A (FoodConsumerService→TokenBucketRateLimiter contract before USDA call)
+#### Test Case: ITP-004-A (FoodConsumerService→RollingWindowLimiter contract before USDA call)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that ARCH-004 always calls ARCH-005's `checkTokens()` before invoking ARCH-008, and that the token check result gates the USDA API call.
+**Description**: Verifies that ARCH-004 always calls ARCH-005's `checkAndRecord()` (count the trailing-60-min USDA calls and atomically record the new one) before invoking ARCH-008, and that the rolling-window result gates the USDA API call.
 
 - **Integration Scenario: ITS-004-A1**
-    - **Given** Module ARCH-005 (TokenBucketRateLimiter) returns `{ allowed: true, tokensRemaining: 500 }` to ARCH-004
-    - **When** Module ARCH-004 sends `checkTokens()` to ARCH-005 before processing a leased `fetch_queue` row
+    - **Given** Module ARCH-005 (RollingWindowLimiter) returns `{ allowed: true, trailingCount: 500 }` to ARCH-004 (trailing-60-min count well below the 900 pause threshold; the new call is recorded)
+    - **When** Module ARCH-004 sends `checkAndRecord()` to ARCH-005 before processing a leased `fetch_queue` row
     - **Then** Module ARCH-004 proceeds to invoke ARCH-008 (`fetchFoods([12345])`) and does not extend the row lease (FR-018) on the `fetch_queue` row
 
 - **Integration Scenario: ITS-004-A2**
-    - **Given** Module ARCH-005 returns `{ allowed: false, tokensRemaining: 0 }` to ARCH-004
-    - **When** Module ARCH-004 sends `checkTokens()` to ARCH-005
-    - **Then** Module ARCH-004 releases / re-leases the `fetch_queue` row (extends the row lease per FR-018 so it becomes visible again later) and does NOT invoke ARCH-008
+    - **Given** Module ARCH-005 returns `{ allowed: false, paused: true, trailingCount: 900 }` to ARCH-004 (trailing-60-min count at the 90% pause threshold; no new call recorded)
+    - **When** Module ARCH-004 sends `checkAndRecord()` to ARCH-005
+    - **Then** Module ARCH-004 pauses draining — releases / re-leases the `fetch_queue` row (extends the row lease per FR-018/FR-021 so it becomes visible again once earlier calls age out of the window) and does NOT invoke ARCH-008
 
 #### Test Case: ITP-004-B (FoodConsumerService data flow: `fetch_queue`→USDA→PostgreSQL→cache)
 
@@ -177,7 +209,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies the end-to-end data transformation chain from `fetch_queue` row lease through USDA API fetch, PostgreSQL upsert, and cache invalidation across module boundaries.
 
 - **Integration Scenario: ITS-004-B1**
-    - **Given** Module ARCH-004 (Fargate consumer worker) leases a high-priority `fetch_queue` row `{ fdcId: 12345 }` and ARCH-005 allows the token
+    - **Given** Module ARCH-004 (Fargate consumer worker) leases a high-priority `fetch_queue` row `{ fdcId: 12345 }` and ARCH-005 allows the call (trailing-60-min count below the pause threshold; the call is recorded against the rolling window)
     - **When** Module ARCH-004 sends `fetchFoods([12345])` to ARCH-008, receives `USDAFoodResponse[]`, then sends `upsertFood(food)` to ARCH-006, then sends `invalidate(12345)` and `clearPending(12345)` to ARCH-007
     - **Then** The data transformation chain completes: ARCH-006 persists the food record, ARCH-007 clears the cache entry, and ARCH-004 marks the `fetch_queue` row done (deletes/completes the leased row)
 
@@ -194,35 +226,35 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ---
 
-### Module Verification: ARCH-005 (TokenBucketRateLimiter)
+### Module Verification: ARCH-005 (RollingWindowLimiter)
 
 **Parent System Components**: SYS-006 `[CROSS-CUTTING]`
 
-#### Test Case: ITP-005-A (TokenBucketRateLimiter atomic token check under concurrent Fargate consumer worker invocations)
+#### Test Case: ITP-005-A (RollingWindowLimiter atomic count-and-record under concurrent Fargate consumer worker invocations)
 
 **Technique**: Concurrency & Race Condition Testing
 **Target View**: Process View
-**Description**: Verifies that ARCH-005's Redis Lua script atomically checks and decrements tokens when multiple ARCH-004 instances invoke `checkTokens()` simultaneously, ensuring the 1,000 calls/hour cap is never exceeded.
+**Description**: Verifies that ARCH-005's atomic count-and-record on the `usda_call_log` (Postgres `INSERT ... WHERE (SELECT count over trailing 60 min) < cap RETURNING`; deferred Redis variant: a sorted-set Lua script over `ZCOUNT`) counts the trailing-60-min calls and records the new one in one atomic step when multiple ARCH-004 instances invoke `checkAndRecord()` simultaneously, ensuring no more than 1,000 USDA calls occur in any trailing 60 minutes (FR-019/FR-020, SC-002).
 
 - **Integration Scenario: ITS-005-A1**
-    - **Given** Module ARCH-005 has exactly 1 token remaining in the Redis bucket and two ARCH-004 instances simultaneously send `checkTokens()`
-    - **When** Both ARCH-004 instances invoke ARCH-005's `checkTokens()` concurrently
-    - **Then** Exactly one ARCH-004 instance receives `{ allowed: true }` and the other receives `{ allowed: false, tokensRemaining: 0 }` — the token is never double-spent
+    - **Given** Module ARCH-005's `usda_call_log` already holds 999 calls within the trailing 60 minutes (one slot below the 1,000 cap) and two ARCH-004 instances simultaneously send `checkAndRecord()`
+    - **When** Both ARCH-004 instances invoke ARCH-005's `checkAndRecord()` concurrently
+    - **Then** Exactly one ARCH-004 instance receives `{ allowed: true, trailingCount: 1000 }` (its call is recorded) and the other receives `{ allowed: false, trailingCount: 1000 }` (the 1,001st call in the window is blocked) — the cap is never breached and no call is double-recorded
 
 - **Integration Scenario: ITS-005-A2**
-    - **Given** Module ARCH-005 has 1,000 tokens and 1,000 concurrent ARCH-004 invocations each call `checkTokens()`
-    - **When** All 1,000 invocations execute against ARCH-005 simultaneously
-    - **Then** Exactly 1,000 invocations receive `{ allowed: true }` and zero additional invocations are allowed — the bucket is atomically exhausted
+    - **Given** Module ARCH-005's `usda_call_log` is empty for the trailing 60 minutes (count 0) and 1,500 concurrent ARCH-004 invocations each call `checkAndRecord()`
+    - **When** All 1,500 invocations execute the atomic count-and-record against ARCH-005 simultaneously
+    - **Then** Exactly 1,000 invocations receive `{ allowed: true }` (recorded into the window) and the remaining 500 receive `{ allowed: false }` — the trailing-60-min window is atomically capped at 1,000
 
-#### Test Case: ITP-005-B (TokenBucketRateLimiter→Redis interface fault on Redis unavailability)
+#### Test Case: ITP-005-B (RollingWindowLimiter→call-log-store interface fault on store unavailability)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-005 propagates a Redis unavailability error to ARCH-004 in a way that causes ARCH-004 to fail safely (not call USDA API).
+**Description**: Verifies that ARCH-005 propagates a call-log-store unavailability error (Postgres `usda_call_log` by default; deferred Redis sorted-set variant) to ARCH-004 in a way that causes ARCH-004 to fail safely (not call USDA API) — the limiter fails closed rather than assuming an empty window.
 
 - **Integration Scenario: ITS-005-B1**
-    - **Given** Redis is unavailable when ARCH-004 sends `checkTokens()` to ARCH-005
-    - **When** Module ARCH-005 attempts to execute the Lua script against Redis
+    - **Given** The `usda_call_log` store is unavailable when ARCH-004 sends `checkAndRecord()` to ARCH-005
+    - **When** Module ARCH-005 attempts the atomic count-and-record against the store
     - **Then** Module ARCH-005 returns an error to ARCH-004, and ARCH-004 does NOT invoke ARCH-008 (USDA API call is blocked)
 
 ---
@@ -425,16 +457,16 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** Module ARCH-001 sends `logRequest('req-abc', { path: '/v1/foods/12345', status: 200 }, 45)` to ARCH-011
     - **Then** Module ARCH-011 emits a structured JSON log entry to CloudWatch containing `requestId`, `path`, `status`, and `duration` fields — no fields are dropped
 
-#### Test Case: ITP-011-B (MonitoringLogger metric emission contract: queue depth and token bucket utilization)
+#### Test Case: ITP-011-B (MonitoringLogger metric emission contract: queue depth and trailing-60-min USDA call count)
 
 **Technique**: Data Flow Testing
 **Target View**: Data Flow View
-**Description**: Verifies that ARCH-011 correctly receives metric data from ARCH-004 and ARCH-005 and emits CloudWatch metrics for queue depth and token bucket utilization.
+**Description**: Verifies that ARCH-011 correctly receives metric data from ARCH-004 and ARCH-005 and emits CloudWatch metrics for queue depth and the trailing-60-min USDA call count (rolling-window utilization).
 
 - **Integration Scenario: ITS-011-B1**
-    - **Given** Module ARCH-004 processes a `fetch_queue` row and ARCH-005 returns `tokensRemaining=750`
-    - **When** Module ARCH-004 sends `incrementMetric('token_bucket_utilization', 250)` to ARCH-011
-    - **Then** Module ARCH-011 emits the metric to CloudWatch with the correct namespace and value
+    - **Given** Module ARCH-004 processes a `fetch_queue` row and ARCH-005 returns `{ allowed: true, trailingCount: 750 }` (750 USDA calls in the trailing 60 minutes)
+    - **When** Module ARCH-004 sends `incrementMetric('usda_calls_trailing_60min', 750)` to ARCH-011
+    - **Then** Module ARCH-011 emits the metric to CloudWatch with the correct namespace and value (so rolling-window compliance — never >1,000 in any trailing hour — is verifiable per SC-002)
 
 #### Test Case: ITP-011-C (MonitoringLogger X-Ray trace boundary handshake)
 
@@ -452,7 +484,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 ### Module Verification: ARCH-012 (FoodAuthGuard)
 
 **Parent System Components**: SYS-013
-**Modules Under Test**: MOD-012 (ClerkAuthMiddleware), MOD-013 (QuotaAndFairness)
+**Modules Under Test**: MOD-012 (ClerkAuthMiddleware), MOD-013 (DemotionAndFairness)
 **Requirements**: REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
 
 > ARCH-012 is wired into the route stack **in front of** ARCH-001 (every HTTP route) and ARCH-009 (`$connect`). These tests verify the seam: the auth guard either admits a request to the downstream handler with an `AuthenticatedCaller`, or fails closed before any downstream module boundary (ARCH-002 publish / ARCH-003 enqueue / ARCH-008 USDA call) is crossed.
@@ -484,26 +516,31 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** Downstream service 006 (meal-planning) sends `GET /v1/foods/12345` with the M2M Bearer token to the route stack
     - **Then** ARCH-012 admits the request and hands ARCH-001 an `AuthenticatedCaller` with `isService=true` and `sub='svc_meal_planning'`; the handler proceeds to the normal cache-lookup path (no `401`)
 
-#### Test Case: ITP-012-C (QuotaAndFairness — one `sub` cannot exceed its quota share)
+#### Test Case: ITP-012-C (DemotionAndFairness — one `sub` is demoted, not rejected, and cannot starve others)
 
 **Technique**: Interface Contract Testing + Concurrency & Race Condition Testing
 **Target View**: Interface View + Process View
-**Description**: Verifies the seam between ARCH-012 (MOD-013) and the ARCH-003 enqueue boundary: when a single authenticated `sub` scripts cache-miss lookups past its per-`sub` quota / global-share ceiling, the over-quota requests get `429` and enqueue nothing, so one account cannot starve the shared USDA budget for others (REQ-039, SC-012).
+**Description**: Verifies the seam between ARCH-012 (MOD-013) and the ARCH-003 enqueue boundary under fairness-by-demotion (FR-043, SC-012, revised 2026-06-20): when a single authenticated `sub` scripts cache-miss lookups past **50 items currently pending**, its requests are **still accepted and enqueued** (`202`, **no `429`**, never rejected for a personal limit) but its queued items are ranked to the **back** of the priority order so they cannot starve other users; a concurrent low-pending `sub` keeps draining at normal priority — and the heavy `sub` still drains on spare capacity (work-conserving). Demotion is dynamic: once the heavy `sub`'s pending count falls below 50, its items return to normal priority.
 
 - **Integration Scenario: ITS-012-C1**
-    - **Given** Module ARCH-012's quota store is seeded so `sub='user_greedy'` has consumed its full per-`sub` enqueue quota for the window, with a spy on ARCH-003 `enqueue`
-    - **When** `user_greedy` issues one more cache-miss `GET /v1/foods/{fdcId}` for a not-yet-cached `fdcId`
-    - **Then** ARCH-012 returns `429 Too Many Requests`, ARCH-003 `enqueue` receives zero additional calls for that request, and a concurrent `sub='user_other'` (within quota) is still admitted and enqueued — fairness preserved
+    - **Given** Module ARCH-012's `fetch_queue` + `fetch_requesters` state is seeded so `sub='user_greedy'` already has **more than 50 items pending**, with a spy on ARCH-003 `enqueue` and visibility into the drain-time priority ordering
+    - **When** `user_greedy` issues more cache-miss `GET /v1/foods/{fdcId}` lookups for not-yet-cached `fdcId`s
+    - **Then** ARCH-012 returns `202 Accepted` (**not `429`**), ARCH-003 `enqueue` **is** invoked for each request, but those rows are ranked to the **back** of the priority order (below FR-015 demand ordering); a concurrent `sub='user_other'` (under 50 pending) is enqueued at normal priority and drains ahead — one account cannot starve the shared USDA budget for others
+
+- **Integration Scenario: ITS-012-C2**
+    - **Given** `sub='user_greedy'`'s pending count later drops below 50 as its back-ranked items drain on spare capacity
+    - **When** `user_greedy` issues another cache-miss lookup, and the consumer recomputes priority at drain time from live `fetch_queue` + `fetch_requesters` state
+    - **Then** the `sub`'s newly enqueued items are scored at **normal** priority again (dynamic re-promotion — the scorer reads live state, not a frozen demotion flag), confirming the demotion is reversible and work-conserving (FR-043/SC-012)
 
 #### Test Case: ITP-012-D (FoodAuthGuard fails closed with 503 on queue backpressure / open circuit)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
-**Description**: Verifies that when the `fetch_queue` exceeds its enforced maximum depth, or the USDA circuit breaker is open, an authenticated and within-quota enqueue attempt fails closed with `503` rather than growing the queue unbounded. **This scenario verifies FR-046** (queue backpressure ceiling + enforced circuit breaker → `503`), wired through ARCH-012 (REQ-040). The hard batch-size `400` of FR-045 is a _distinct_ gate verified separately by ITP-012-G — it must not be conflated with this `503` backpressure path.
+**Description**: Verifies that when the `fetch_queue` exceeds its enforced maximum depth, or the USDA circuit breaker is open, an authenticated enqueue attempt fails closed with `503` rather than growing the queue unbounded. **This scenario verifies FR-046** (queue backpressure ceiling + enforced circuit breaker → `503`), wired through ARCH-012 (REQ-040). This system-wide `503` backstop is distinct from per-`sub` demotion (FR-043), which never rejects; and the hard batch-size `400` of FR-045 is a _distinct_ gate verified separately by ITP-012-G — neither must be conflated with this `503` backpressure path.
 
 - **Integration Scenario: ITS-012-D1**
     - **Given** Module ARCH-012 (MOD-013) is configured with `MAX_QUEUE_DEPTH`, and the ARCH-003 queue-depth probe is stubbed to report depth above the ceiling (or the circuit breaker reports `open`)
-    - **When** An authenticated, within-quota cache-miss request reaches the enqueue gate
+    - **When** An authenticated cache-miss request reaches the enqueue gate
     - **Then** ARCH-012 returns `503 Service Unavailable` and ARCH-003 `enqueue` receives zero calls — the queue is not grown past its bound; recovery drains with jitter (no thundering herd)
 
 #### Test Case: ITP-012-E (Async-path provenance — only authorized principals drive consumption)
@@ -520,7 +557,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 - **Integration Scenario: ITS-012-E2**
     - **Given** ARCH-004 receives a well-formed `FoodRequested` event whose provenance marker identifies a named least-privilege producer principal
     - **When** ARCH-004 processes the record
-    - **Then** ARCH-004 accepts it and proceeds to the ARCH-005 token check → ARCH-008 USDA fetch path — the synchronous auth guarantee extends to the async edge
+    - **Then** ARCH-004 accepts it and proceeds to the ARCH-005 rolling-window check-and-record → ARCH-008 USDA fetch path — the synchronous auth guarantee extends to the async edge
 
 #### Test Case: ITP-012-F (FoodAuthGuard scope gate and 401→403→400 status precedence through the route stack)
 
@@ -548,21 +585,21 @@ Each test case identifies its technique by name and anchors to a specific archit
     - **When** The request reaches the route stack with a valid + scoped token and a malformed body
     - **Then** ARCH-012 **admits** the request to ARCH-001, which performs input validation and returns `400 Bad Request` for the malformed body — only once auth (`401`) and scope (`403`) both pass does the input-validation `400` surface (precedence step 3: `400` reached last)
 
-#### Test Case: ITP-012-G (QuotaAndFairness — oversized batch → `400` at the enqueue gate, before quota debit or enqueue)
+#### Test Case: ITP-012-G (DemotionAndFairness — oversized batch → `400` at the enqueue gate; accepted batch → per-item partial)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
-**Description**: Verifies the module-seam behavior of the hard batch-size cap (MOD-013, FR-045): a `POST /v1/foods/batch` carrying more than the bound (100) `fdcId`s is rejected with `400 Bad Request` at the ARCH-012 enqueue gate **before** the ARCH-003 enqueue boundary is crossed and **before** the per-`sub` quota (FR-043) is debited — distinct from the FR-046 `503` backpressure path of ITP-012-D. This is the integration counterpart to the unit-level UTP-012-F; it asserts the batch cap fails closed at the seam so an oversized batch cannot enqueue partial work or burn quota (REQ-040, FR-045).
+**Description**: Verifies the module-seam behavior of the hard batch-size cap (MOD-013, FR-045): a `POST /v1/foods/batch` carrying more than the bound (100) `fdcId`s is rejected with `400 Bad Request` at the ARCH-012 enqueue gate **before** the ARCH-003 enqueue boundary is crossed — distinct from the FR-046 `503` backpressure path of ITP-012-D. For an accepted batch mixing cached and uncached ids, the seam returns a **per-item partial result** — cached/stale foods inline and each miss as a `pending` entry whose fetch is enqueued (subject to the same demotion fairness, FR-043, not a per-user quota). This is the integration counterpart to the unit-level UTP-012-F/UTP-001-H; it asserts the batch cap fails closed at the seam so an oversized batch cannot enqueue partial work (REQ-040, FR-045).
 
 - **Integration Scenario: ITS-012-G1**
-    - **Given** Module ARCH-012 (MOD-013) is configured with `MAX_BATCH = 100`, with a spy on ARCH-003 `enqueue` and on the per-`sub` quota-debit operation
-    - **When** An authenticated, within-quota caller sends `POST /v1/foods/batch` with `101` `fdcId`s (over the cap) to the route stack
-    - **Then** ARCH-012 returns `400 Bad Request` to the caller; ARCH-003 `enqueue` receives **zero** calls; the per-`sub` quota is **not** debited; no ARCH-008 USDA call is made — the oversized batch is rejected whole at the seam (no partial enqueue)
+    - **Given** Module ARCH-012 (MOD-013) is configured with `MAX_BATCH = 100`, with a spy on ARCH-003 `enqueue`
+    - **When** An authenticated caller sends `POST /v1/foods/batch` with `101` `fdcId`s (over the cap) to the route stack
+    - **Then** ARCH-012 returns `400 Bad Request` to the caller; ARCH-003 `enqueue` receives **zero** calls; no ARCH-008 USDA call is made — the oversized batch is rejected whole at the seam (no partial enqueue)
 
 - **Integration Scenario: ITS-012-G2**
-    - **Given** Module ARCH-012 (MOD-013) with `MAX_BATCH = 100`, spy on ARCH-003 `enqueue`
-    - **When** The same authenticated, within-quota caller sends `POST /v1/foods/batch` with exactly `100` `fdcId`s (at the cap, all cache-miss)
-    - **Then** ARCH-012 admits the request to the enqueue gate, the per-`sub` quota is debited for the accepted IDs (FR-043), and ARCH-003 `enqueue` is invoked — confirming the `400` branch is the batch ceiling, not an always-reject (boundary at-limit accepted)
+    - **Given** Module ARCH-012 (MOD-013) with `MAX_BATCH = 100`, spy on ARCH-003 `enqueue`, and a batch of exactly `100` `fdcId`s mixing cached ids and cache-miss ids
+    - **When** The same authenticated caller sends `POST /v1/foods/batch` with those `100` `fdcId`s (at the cap)
+    - **Then** ARCH-012 admits the request and returns a **per-item partial** response — cached foods inline and each miss as a `pending` entry — and ARCH-003 `enqueue` is invoked once per miss (each subject to demotion fairness, FR-043, not a per-user quota); this confirms the `400` branch is the batch ceiling, not an always-reject (boundary at-limit accepted)
 
 #### Test Case: ITP-012-H (Consumer-Driven Contract — M2M service-token seam and async-producer provenance seam)
 
@@ -584,44 +621,46 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ## Test Harness & Mocking Strategy
 
-| Test Case | External Dependency                                                                            | Mock/Stub Strategy                                                                                                                    | Rationale                                                                                        |
-| --------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| ITP-001-A | ARCH-007 (Redis)                                                                               | In-memory Redis stub (ioredis-mock)                                                                                                   | Isolates ARCH-001↔ARCH-007 boundary without real Redis                                           |
-| ITP-001-B | ARCH-002 (EventBridge)                                                                         | Spy on publishFoodRequested — assert zero calls                                                                                       | Verifies no downstream boundary is crossed on invalid input                                      |
-| ITP-001-C | ARCH-007 (Redis pending set)                                                                   | In-memory Redis stub with pre-seeded pending_fetch set                                                                                | Simulates deduplication state                                                                    |
-| ITP-002-A | EventBridge default bus                                                                        | AWS SDK mock (aws-sdk-mock / jest mock)                                                                                               | Avoids real EventBridge calls; verifies payload schema                                           |
-| ITP-002-B | EventBridge default bus                                                                        | AWS SDK mock — assert PutEvents not called                                                                                            | Verifies validation gate before publish                                                          |
-| ITP-003-A | Postgres `fetch_queue` (high/low priority rows)                                                | Test PostgreSQL instance (Docker) or pg-mem; assert INSERT + `NOTIFY`                                                                 | Verifies enqueue/priority-row logic against the real `fetch_queue` schema                        |
-| ITP-003-B | Postgres `fetch_queue` (retry-exhausted row)                                                   | Test PostgreSQL instance; drive a row past its FR-016 retry budget                                                                    | Simulates persistent failure for tombstone (`status='tombstone'`) transition                     |
-| ITP-004-A | ARCH-005 (Redis Lua)                                                                           | Redis stub returning controlled token responses                                                                                       | Isolates token check gate from real Redis                                                        |
-| ITP-004-B | ARCH-008 (USDA API)                                                                            | HTTP mock (nock) returning valid USDAFoodResponse                                                                                     | Avoids real USDA API calls; controls response data                                               |
-| ITP-004-C | ARCH-008 (USDA API)                                                                            | HTTP mock returning 500 on first call                                                                                                 | Simulates transient USDA error for retry verification                                            |
-| ITP-005-A | Redis (concurrent access)                                                                      | Real Redis instance with concurrent test clients                                                                                      | Concurrency test requires real atomic Lua script execution                                       |
-| ITP-005-B | Redis (unavailable)                                                                            | Redis stub throwing connection error                                                                                                  | Simulates Redis failure for fault propagation test                                               |
-| ITP-006-A | PostgreSQL                                                                                     | Test PostgreSQL instance (Docker) or pg-mem                                                                                           | Verifies real SQL upsert behavior; schema-level contract                                         |
-| ITP-006-B | PostgreSQL (pg_trgm)                                                                           | Test PostgreSQL instance with pg_trgm extension                                                                                       | Full-text search requires real extension                                                         |
-| ITP-006-C | PostgreSQL (unavailable)                                                                       | pg-mock throwing connection error                                                                                                     | Simulates DB failure for error propagation test                                                  |
-| ITP-007-A | ARCH-007 (Redis), ARCH-006                                                                     | Redis stub (miss) + PostgreSQL stub (hit)                                                                                             | Isolates cache-through data flow                                                                 |
-| ITP-007-B | Redis (concurrent SADD)                                                                        | Real Redis instance with concurrent test clients                                                                                      | Concurrency test requires real Redis SADD atomicity                                              |
-| ITP-007-C | Redis (invalidate/clear)                                                                       | Redis stub — assert DEL and SREM called                                                                                               | Verifies cache invalidation handshake                                                            |
-| ITP-007-D | Redis (unavailable)                                                                            | Redis stub throwing connection error                                                                                                  | Simulates Redis failure for fallthrough test                                                     |
-| ITP-008-A | USDA FoodData Central API                                                                      | HTTP mock (nock) with valid USDA response fixture                                                                                     | Avoids real USDA API dependency; controls response                                               |
-| ITP-008-B | USDA FoodData Central API                                                                      | HTTP mock returning 429 / 401 responses                                                                                               | Simulates USDA error codes for classification test                                               |
-| ITP-009-A | API Gateway WebSocket API                                                                      | AWS SDK mock for PostToConnection                                                                                                     | Avoids real WebSocket connections; verifies notification dispatch                                |
-| ITP-009-B | API Gateway WebSocket API                                                                      | AWS SDK mock returning GoneException (disconnected)                                                                                   | Simulates disconnected clients for fire-and-forget test                                          |
-| ITP-010-A | AWS Secrets Manager                                                                            | AWS SDK mock returning valid secret string                                                                                            | Avoids real Secrets Manager; verifies key retrieval contract                                     |
-| ITP-010-B | AWS Secrets Manager                                                                            | AWS SDK mock throwing ResourceNotFoundException                                                                                       | Simulates missing secret for fault propagation test                                              |
-| ITP-011-A | CloudWatch Logs                                                                                | AWS SDK mock — assert PutLogEvents payload                                                                                            | Verifies structured log field completeness                                                       |
-| ITP-011-B | CloudWatch Metrics                                                                             | AWS SDK mock — assert PutMetricData values                                                                                            | Verifies metric emission contract                                                                |
-| ITP-011-C | AWS X-Ray                                                                                      | X-Ray SDK mock — assert segment creation                                                                                              | Verifies trace boundary handshake                                                                |
-| ITP-012-A | @clerk/backend `verifyToken`; ARCH-002/ARCH-003                                                | Stub `verifyToken` to throw; spy on `publishFoodRequested` / `enqueue` — assert zero                                                  | Networkless verify; assert fail-closed before any downstream boundary                            |
-| ITP-012-B | @clerk/backend `verifyToken`                                                                   | Stub `verifyToken` to resolve a valid M2M claim set                                                                                   | Verifies M2M service token is admitted, not `401`                                                |
-| ITP-012-C | Quota store (in-process/Postgres by default; deferred Redis variant); ARCH-003                 | In-memory quota store pre-seeded to exhausted; spy on `enqueue`                                                                       | Verifies per-`sub` `429` + fairness without a real quota store                                   |
-| ITP-012-D | ARCH-003 queue-depth probe / circuit breaker                                                   | Stub depth above ceiling / breaker `open`; spy on `enqueue`                                                                           | Simulates backpressure for `503` fail-closed test                                                |
-| ITP-012-E | ARCH-004 consumer; Postgres `fetch_queue` event provenance                                     | Inject events with/without authorized-principal provenance marker                                                                     | Verifies async-path provenance validation (US-0 on internal edge)                                |
-| ITP-012-F | @clerk/backend `verifyToken`; ARCH-001 validation                                              | Stub `verifyToken` to throw / resolve unscoped / resolve scoped; malformed body; spy on `publishFoodRequested` / `enqueue`            | Verifies scope `403` and the `401 → 403 → 400` precedence through the route stack                |
-| ITP-012-G | ARCH-003 enqueue; per-`sub` quota store                                                        | Spy on `enqueue` and quota-debit; submit batch of 101 and of 100 `fdcId`s                                                             | Verifies FR-045 batch `400` fails closed before enqueue/quota debit (distinct from FR-046 `503`) |
-| ITP-012-H | @clerk/backend `verifyToken`; consumer pacts (Pact/contract broker); ARCH-004 event provenance | Replay consumer-published M2M and async-event pacts against ARCH-012 / ARCH-004; resolve M2M claims / inject marked + unmarked events | Consumer-driven contract verification of the M2M and async-producer seams before deploy          |
+| Test Case | External Dependency                                                                            | Mock/Stub Strategy                                                                                                                    | Rationale                                                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| ITP-001-A | ARCH-007 (Redis)                                                                               | In-memory Redis stub (ioredis-mock)                                                                                                   | Isolates ARCH-001↔ARCH-007 boundary without real Redis                                                                      |
+| ITP-001-B | ARCH-002 (EventBridge)                                                                         | Spy on publishFoodRequested — assert zero calls                                                                                       | Verifies no downstream boundary is crossed on invalid input                                                                 |
+| ITP-001-C | ARCH-007 (Redis pending set)                                                                   | In-memory Redis stub with pre-seeded pending_fetch set                                                                                | Simulates deduplication state                                                                                               |
+| ITP-001-D | ARCH-006 (`stale` record); ARCH-002                                                            | DB stub returns a `stale` record; spy on `publishFoodRequested`                                                                       | Verifies stale-while-revalidate: serve stale `200` + enqueue re-fetch; serve indefinitely on repeated failure               |
+| ITP-001-E | ARCH-006 (`not_found` tombstone w/ controlled age); ARCH-002                                   | DB stub returns a tombstone within / past the 30-day TTL; spy on `publishFoodRequested`                                               | Verifies tombstone TTL: within TTL → `404` no enqueue; after TTL → re-attempt                                               |
+| ITP-002-A | EventBridge default bus                                                                        | AWS SDK mock (aws-sdk-mock / jest mock)                                                                                               | Avoids real EventBridge calls; verifies payload schema                                                                      |
+| ITP-002-B | EventBridge default bus                                                                        | AWS SDK mock — assert PutEvents not called                                                                                            | Verifies validation gate before publish                                                                                     |
+| ITP-003-A | Postgres `fetch_queue` (high/low priority rows)                                                | Test PostgreSQL instance (Docker) or pg-mem; assert INSERT + `NOTIFY`                                                                 | Verifies enqueue/priority-row logic against the real `fetch_queue` schema                                                   |
+| ITP-003-B | Postgres `fetch_queue` (retry-exhausted row)                                                   | Test PostgreSQL instance; drive a row past its FR-016 retry budget                                                                    | Simulates persistent failure for tombstone (`status='tombstone'`) transition                                                |
+| ITP-004-A | ARCH-005 (`usda_call_log`; deferred Redis sorted set)                                          | Call-log stub returning controlled `{ allowed, paused, trailingCount }` results                                                       | Isolates the rolling-window check-and-record gate from the real store                                                       |
+| ITP-004-B | ARCH-008 (USDA API)                                                                            | HTTP mock (nock) returning valid USDAFoodResponse                                                                                     | Avoids real USDA API calls; controls response data                                                                          |
+| ITP-004-C | ARCH-008 (USDA API)                                                                            | HTTP mock returning 500 on first call                                                                                                 | Simulates transient USDA error for retry verification                                                                       |
+| ITP-005-A | `usda_call_log` (concurrent access)                                                            | Real Postgres instance with concurrent test clients (deferred Redis variant: real sorted-set Lua)                                     | Concurrency test requires real atomic count-and-record over the trailing 60-min window                                      |
+| ITP-005-B | `usda_call_log` store (unavailable)                                                            | Call-log store stub throwing connection error                                                                                         | Simulates call-log-store failure for fail-closed fault propagation test                                                     |
+| ITP-006-A | PostgreSQL                                                                                     | Test PostgreSQL instance (Docker) or pg-mem                                                                                           | Verifies real SQL upsert behavior; schema-level contract                                                                    |
+| ITP-006-B | PostgreSQL (pg_trgm)                                                                           | Test PostgreSQL instance with pg_trgm extension                                                                                       | Full-text search requires real extension                                                                                    |
+| ITP-006-C | PostgreSQL (unavailable)                                                                       | pg-mock throwing connection error                                                                                                     | Simulates DB failure for error propagation test                                                                             |
+| ITP-007-A | ARCH-007 (Redis), ARCH-006                                                                     | Redis stub (miss) + PostgreSQL stub (hit)                                                                                             | Isolates cache-through data flow                                                                                            |
+| ITP-007-B | Redis (concurrent SADD)                                                                        | Real Redis instance with concurrent test clients                                                                                      | Concurrency test requires real Redis SADD atomicity                                                                         |
+| ITP-007-C | Redis (invalidate/clear)                                                                       | Redis stub — assert DEL and SREM called                                                                                               | Verifies cache invalidation handshake                                                                                       |
+| ITP-007-D | Redis (unavailable)                                                                            | Redis stub throwing connection error                                                                                                  | Simulates Redis failure for fallthrough test                                                                                |
+| ITP-008-A | USDA FoodData Central API                                                                      | HTTP mock (nock) with valid USDA response fixture                                                                                     | Avoids real USDA API dependency; controls response                                                                          |
+| ITP-008-B | USDA FoodData Central API                                                                      | HTTP mock returning 429 / 401 responses                                                                                               | Simulates USDA error codes for classification test                                                                          |
+| ITP-009-A | API Gateway WebSocket API                                                                      | AWS SDK mock for PostToConnection                                                                                                     | Avoids real WebSocket connections; verifies notification dispatch                                                           |
+| ITP-009-B | API Gateway WebSocket API                                                                      | AWS SDK mock returning GoneException (disconnected)                                                                                   | Simulates disconnected clients for fire-and-forget test                                                                     |
+| ITP-010-A | AWS Secrets Manager                                                                            | AWS SDK mock returning valid secret string                                                                                            | Avoids real Secrets Manager; verifies key retrieval contract                                                                |
+| ITP-010-B | AWS Secrets Manager                                                                            | AWS SDK mock throwing ResourceNotFoundException                                                                                       | Simulates missing secret for fault propagation test                                                                         |
+| ITP-011-A | CloudWatch Logs                                                                                | AWS SDK mock — assert PutLogEvents payload                                                                                            | Verifies structured log field completeness                                                                                  |
+| ITP-011-B | CloudWatch Metrics                                                                             | AWS SDK mock — assert PutMetricData values                                                                                            | Verifies metric emission contract                                                                                           |
+| ITP-011-C | AWS X-Ray                                                                                      | X-Ray SDK mock — assert segment creation                                                                                              | Verifies trace boundary handshake                                                                                           |
+| ITP-012-A | @clerk/backend `verifyToken`; ARCH-002/ARCH-003                                                | Stub `verifyToken` to throw; spy on `publishFoodRequested` / `enqueue` — assert zero                                                  | Networkless verify; assert fail-closed before any downstream boundary                                                       |
+| ITP-012-B | @clerk/backend `verifyToken`                                                                   | Stub `verifyToken` to resolve a valid M2M claim set                                                                                   | Verifies M2M service token is admitted, not `401`                                                                           |
+| ITP-012-C | `fetch_queue` + `fetch_requesters` pending state; ARCH-003                                     | Pending state pre-seeded so one `sub` has >50 pending; spy on `enqueue` + drain-time priority ordering                                | Verifies demotion-not-rejection fairness (`202`, no `429`) + dynamic re-promotion from live state                           |
+| ITP-012-D | ARCH-003 queue-depth probe / circuit breaker                                                   | Stub depth above ceiling / breaker `open`; spy on `enqueue`                                                                           | Simulates backpressure for `503` fail-closed test (system-wide backstop, distinct from demotion)                            |
+| ITP-012-E | ARCH-004 consumer; Postgres `fetch_queue` event provenance                                     | Inject events with/without authorized-principal provenance marker                                                                     | Verifies async-path provenance validation (US-0 on internal edge)                                                           |
+| ITP-012-F | @clerk/backend `verifyToken`; ARCH-001 validation                                              | Stub `verifyToken` to throw / resolve unscoped / resolve scoped; malformed body; spy on `publishFoodRequested` / `enqueue`            | Verifies scope `403` and the `401 → 403 → 400` precedence through the route stack                                           |
+| ITP-012-G | ARCH-003 enqueue; cache/DB for mixed batch                                                     | Spy on `enqueue`; submit batch of 101 (over cap) and of 100 mixed cached/miss `fdcId`s                                                | Verifies FR-045 batch `400` fails closed before enqueue, and accepted batch → per-item partial (distinct from FR-046 `503`) |
+| ITP-012-H | @clerk/backend `verifyToken`; consumer pacts (Pact/contract broker); ARCH-004 event provenance | Replay consumer-published M2M and async-event pacts against ARCH-012 / ARCH-004; resolve M2M claims / inject marked + unmarked events | Consumer-driven contract verification of the M2M and async-producer seams before deploy                                     |
 
 ---
 
@@ -630,22 +669,22 @@ Each test case identifies its technique by name and anchors to a specific archit
 | Metric                            | Count          |
 | --------------------------------- | -------------- |
 | Total Architecture Modules (ARCH) | 12             |
-| Total Test Cases (ITP)            | 36             |
-| Total Scenarios (ITS)             | 51             |
+| Total Test Cases (ITP)            | 38             |
+| Total Scenarios (ITS)             | 56             |
 | Modules with ≥1 ITP               | 12 / 12 (100%) |
-| Test Cases with ≥1 ITS            | 36 / 36 (100%) |
+| Test Cases with ≥1 ITS            | 38 / 38 (100%) |
 | **Overall Coverage (ARCH→ITP)**   | **100%**       |
 
 ### Technique Distribution
 
 | Technique                            | Test Cases | Percentage |
 | ------------------------------------ | ---------- | ---------- |
-| Interface Contract Testing           | 16         | 44%        |
-| Interface Fault Injection            | 13         | 36%        |
+| Interface Contract Testing           | 18         | 47%        |
+| Interface Fault Injection            | 13         | 34%        |
 | Data Flow Testing                    | 4          | 11%        |
-| Concurrency & Race Condition Testing | 2          | 6%         |
+| Concurrency & Race Condition Testing | 2          | 5%         |
 | Consumer-Driven Contract Testing     | 1          | 3%         |
-| **Total**                            | **36**     | **100%**   |
+| **Total**                            | **38**     | **100%**   |
 
 > Note: ITP-012-C applies both Interface Contract Testing and Concurrency & Race Condition Testing, and ITP-012-F applies both Interface Contract Testing and Interface Fault Injection; each is counted once under its primary technique (Interface Contract Testing) in the table above. ITP-012-G is counted under Interface Fault Injection, and ITP-012-H under Consumer-Driven Contract Testing (the seam-pact technique named in the Overview, now exercised by a concrete test case).
 

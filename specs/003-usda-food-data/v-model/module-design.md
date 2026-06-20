@@ -10,7 +10,7 @@
 
 ## Overview
 
-This document decomposes each of the 12 architecture modules (ARCH-001 through ARCH-012) into low-level module designs. Each module is assigned a unique `MOD-NNN` identifier and includes four mandatory views. ARCH-012 (FoodAuthGuard) decomposes into three modules — MOD-012 (`ClerkAuthMiddleware`), MOD-013 (`QuotaAndFairness`), and MOD-014 (`AsyncProducerAuthz`):
+This document decomposes each of the 12 architecture modules (ARCH-001 through ARCH-012) into low-level module designs. Each module is assigned a unique `MOD-NNN` identifier and includes four mandatory views. ARCH-012 (FoodAuthGuard) decomposes into three modules — MOD-012 (`ClerkAuthMiddleware`), MOD-013 (`DemotionAndFairness`), and MOD-014 (`AsyncProducerAuthz`):
 
 1. **Algorithmic / Logic View** — pseudocode describing the module's core logic
 2. **State Machine View** — `stateDiagram-v2` (or `N/A Stateless` for pure functions)
@@ -52,7 +52,26 @@ FUNCTION handleGetFood(event):
   IF row IS NOT NULL AND row.fetch_status == "fetched":
     CacheService.set(fdcId, row, TTL=3600)
     MonitoringLogger.incrementMetric("db.hit", 1)
+    // Stale-while-revalidate (SWR): a fetched-but-stale record (older than the 30-day
+    // threshold) is served immediately as 200 with a staleness indicator, AND a background
+    // re-fetch is triggered. The read NEVER blocks on USDA. If the background re-fetch keeps
+    // failing (USDA down for days), the stale data is served INDEFINITELY — there is no
+    // max-staleness cutoff that withholds data; the row self-heals on the next successful fetch.
+    IF isStale(row.fetched_at):
+      triggerBackgroundRefetch(fdcId)                 // admit (MOD-013) + INSERT low-priority fetch_queue row
+      MonitoringLogger.incrementMetric("read.stale.served", 1)
+      RETURN 200 { food: row, stale: true }           // serve stale 200; re-fetch in background
     RETURN 200 { food: row }
+
+  // Tombstoned not_found: 404 without queuing UNLESS the tombstone TTL (30d) has lapsed —
+  // then a re-attempt is allowed (USDA may have added the food); it counts against the normal
+  // rolling-window budget (MOD-005), so it cannot bypass the rate limit (FR-025).
+  IF row IS NOT NULL AND row.fetch_status == "not_found":
+    IF tombstoneTtlExpired(row):                      // older than TOMBSTONE_TTL_DAYS (30)
+      CacheService.markPending(fdcId)
+      EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub })
+      RETURN 202 { status: "pending", estimatedWaitSeconds: 30 }
+    RETURN 404 { error: "Food not found in USDA" }    // within TTL — no re-fetch
 
   // Layer 3: Already pending?
   IF CacheService.isPending(fdcId):
@@ -92,6 +111,51 @@ FUNCTION handleGetNutrition(event):
     RETURN 404 { error: "Nutrition data not available" }
   RETURN 200 { nutrition: row.nutrients }
 
+FUNCTION handleBatchFoods(event):
+  // Per-item partial response: a batch mixing cached and uncached ids returns the cached
+  // foods inline AND a per-id `pending` entry for each miss (which is enqueued), in ONE
+  // response. The caller gets available data immediately and polls only the pending ids.
+  fdcIds = parseBody(event, "fdcIds")
+  IF length(fdcIds) == 0 OR length(fdcIds) > 100:
+    RETURN 400 { error: "fdcIds must be 1–100 items" }   // batch cap (FR-045, MOD-013)
+  AsyncEnqueueAuthz.admitEnqueue(req.user, fdcIds)        // MOD-013: batch cap + backpressure (no 429)
+
+  resolved = []
+  misses   = []
+  FOR EACH fdcId IN fdcIds:
+    row = PostgresRepository.findByFdcId(fdcId)
+    IF row IS NOT NULL AND row.fetch_status == "fetched":
+      IF isStale(row.fetched_at):
+        triggerBackgroundRefetch(fdcId)                  // SWR for stale items in a batch
+        resolved.push({ fdcId, food: row, stale: true })
+      ELSE:
+        resolved.push({ fdcId, food: row })
+    ELSE IF row IS NOT NULL AND row.fetch_status == "not_found":
+      resolved.push({ fdcId, status: "not_found" })      // tombstoned (re-attempt only after TTL, MOD-004)
+    ELSE:
+      misses.push(fdcId)                                  // enqueue + report per-id pending
+
+  IF length(misses) > 0:
+    CacheService.markPending(misses)
+    EventBridgePublisher.publishFoodBatchRequested({ fdcIds: misses, requestedAt: now(), requestedBy: req.user.sub })
+  pending = misses.map(id => ({ fdcId: id, status: "pending", estimatedWaitSeconds: 30 }))
+  RETURN 200 { foods: resolved, pending: pending }        // per-item partial response
+
+STALE_THRESHOLD_DAYS = 30        // a fetched record older than this is served stale + re-fetched (SWR)
+TOMBSTONE_TTL_DAYS   = 30        // a not_found tombstone may be re-attempted after this lapses (FR-025)
+
+FUNCTION isStale(fetchedAt):
+  // Stale threshold = 30 days (the FR-032 freshness threshold). Drives SWR on read.
+  RETURN now() - fetchedAt > STALE_THRESHOLD_DAYS * 86400
+
+FUNCTION tombstoneTtlExpired(row):
+  // A not_found tombstone is eligible for one re-attempt once its 30-day TTL has lapsed.
+  RETURN now() - row.fetched_at > TOMBSTONE_TTL_DAYS * 86400
+
+FUNCTION triggerBackgroundRefetch(fdcId):
+  // Non-blocking: enqueue a LOW-priority re-fetch so the read returns immediately (SWR).
+  EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub, priority: "low" })
+
 FUNCTION isValidFdcId(fdcId):
   RETURN fdcId IS integer AND fdcId > 0 AND fdcId <= 9999999
 ```
@@ -106,13 +170,19 @@ stateDiagram-v2
   ValidatingInput --> CheckingCache : valid input
   CheckingCache --> Responding200 : cache HIT
   CheckingCache --> CheckingPostgres : cache MISS
-  CheckingPostgres --> Responding200 : DB row found (fetched)
+  CheckingPostgres --> Responding200 : DB row found (fetched, fresh)
+  CheckingPostgres --> ServingStale : DB row found (fetched, stale ≥30d)
+  CheckingPostgres --> CheckingTombstone : DB row found (not_found)
   CheckingPostgres --> CheckingPending : DB MISS
+  ServingStale --> Responding200 : serve stale 200 + background re-fetch (SWR); served indefinitely on repeated failure
+  CheckingTombstone --> Responding404 : tombstone within TTL (30d)
+  CheckingTombstone --> TriggeringBackfill : tombstone TTL lapsed → re-attempt (FR-025)
   CheckingPending --> Responding202 : already pending
   CheckingPending --> TriggeringBackfill : not pending
   TriggeringBackfill --> Responding202 : event published
   Responding200 --> [*]
   Responding202 --> [*]
+  Responding404 --> [*]
   Rejected --> [*]
 ```
 
@@ -323,18 +393,24 @@ FUNCTION processRow(row):
 
   fdcId = row.fdc_id
 
-  // Rate limit check
-  tokenResult = TokenBucketRateLimiter.checkTokens()
-  IF NOT tokenResult.allowed:
-    waitSeconds = TokenBucketRateLimiter.getWaitTime()
+  // Rate limit check (rolling 60-min window, MOD-005). Pause draining at 90% (900); the
+  // atomic check-and-record admits this call only if the trailing-60-min count is < 1,000.
+  IF RollingWindowLimiter.shouldPauseDraining():
+    waitSeconds = RollingWindowLimiter.getWaitTime()
     FetchQueue.extendLease(row.fdc_id, waitSeconds + 5)   // defer; keep row leased, re-claim later
+    RETURN
+  windowResult = RollingWindowLimiter.checkAndRecord()
+  IF NOT windowResult.allowed:
+    waitSeconds = RollingWindowLimiter.getWaitTime()
+    FetchQueue.extendLease(row.fdc_id, waitSeconds + 5)   // window full; re-claim after oldest call ages out
     RETURN
 
   // Fetch from USDA (USDA hard cap is 20 ids/call, FR-023; the client batches accordingly)
   TRY:
     foods = UsdaApiClient.fetchFoods([fdcId])
   CATCH UsdaApiError(status=429):
-    // Rate limited by USDA despite our token bucket — back off (exponential, FR-016)
+    // Rate limited by USDA despite our rolling-window limiter — treat the window as full and
+    // back off (exponential, FR-016); do NOT reset limiter state.
     FetchQueue.requeueWithBackoff(row, baseSeconds = 60)
     RETURN
   CATCH UsdaApiError(status=5xx):
@@ -345,9 +421,12 @@ FUNCTION processRow(row):
       FetchQueue.requeueWithBackoff(row, baseSeconds = 5)
     RETURN
   CATCH UsdaApiError(status=404):
-    // Food not found in USDA — immediate tombstone, no retry (FR-016)
+    // Food not found in USDA — tombstone with a 30-day TTL. No retry WITHIN the TTL, but a
+    // later request AFTER the tombstone TTL lapses (default 30 days) MAY re-attempt (USDA may
+    // have since added the food). The re-attempt counts against the normal rolling-window
+    // budget (MOD-005), so it cannot be used to bypass the rate limit.
     PostgresRepository.updateFetchStatus(fdcId, "not_found")
-    FetchQueue.tombstone(row.fdc_id, reason = "usda_404")
+    FetchQueue.tombstone(row.fdc_id, reason = "usda_404", tombstoneTtlDays = 30)
     CacheService.clearPending(fdcId)
     RETURN
 
@@ -372,8 +451,8 @@ stateDiagram-v2
   ClaimingBatch --> Draining : no queued rows (idle until next wake)
   ClaimingBatch --> CheckingProvenance : rows leased (FOR UPDATE SKIP LOCKED)
   CheckingProvenance --> CheckingRateLimit : provenance ok (MOD-014)
-  CheckingRateLimit --> DeferringLease : tokens exhausted
-  CheckingRateLimit --> FetchingFromUsda : tokens available
+  CheckingRateLimit --> DeferringLease : window full or ≥90% (drain paused, MOD-005)
+  CheckingRateLimit --> FetchingFromUsda : trailing-60-min count < cap (call recorded)
   DeferringLease --> Draining : lease extended; row re-claimed later
   FetchingFromUsda --> PersistingResults : USDA 200 OK
   FetchingFromUsda --> RequeueingWithBackoff : USDA 429 (rate limited)
@@ -397,110 +476,119 @@ stateDiagram-v2
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                | Action                                     | fetch_queue Outcome                                    |
-| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| Token bucket exhausted                         | `extendLease(waitTime + 5s)`               | Row stays leased; re-claimed after wait                |
-| USDA API 429                                   | `requeueWithBackoff(60s)`                  | Row re-queued after backoff                            |
-| USDA API 5xx (attempts ≤ 5)                    | `requeueWithBackoff` (exponential, FR-016) | Row re-queued; retried up to 5 attempts                |
-| USDA API 5xx (attempts > 5)                    | `tombstone(status='tombstone')`            | Tombstone row (DLQ analog) + alarm                     |
-| USDA API 404                                   | Mark `not_found` in DB, `tombstone`        | Immediate tombstone, no retry (FR-016)                 |
-| PostgreSQL upsert failure                      | `requeueWithBackoff`                       | Row re-queued; retried under FR-016 budget             |
-| Cache invalidation failure                     | Log warning, continue                      | Non-fatal; stale cache will expire via TTL             |
-| EventBridge publish failure (FoodDataReceived) | Log warning, continue                      | Non-fatal; fire-and-forget                             |
-| Worker crash mid-lease                         | Lease expires → row reclaimed              | `lease_expires_at < NOW()` re-exposes the row (FR-018) |
+| Error Condition                                | Action                                     | fetch_queue Outcome                                      |
+| ---------------------------------------------- | ------------------------------------------ | -------------------------------------------------------- |
+| Rolling window full / ≥90% (drain paused)      | `extendLease(waitTime + 5s)`               | Row stays leased; re-claimed after earlier calls age out |
+| USDA API 429                                   | `requeueWithBackoff(60s)`                  | Row re-queued after backoff                              |
+| USDA API 5xx (attempts ≤ 5)                    | `requeueWithBackoff` (exponential, FR-016) | Row re-queued; retried up to 5 attempts                  |
+| USDA API 5xx (attempts > 5)                    | `tombstone(status='tombstone')`            | Tombstone row (DLQ analog) + alarm                       |
+| USDA API 404                                   | Mark `not_found` in DB, `tombstone`        | Immediate tombstone, no retry (FR-016)                   |
+| PostgreSQL upsert failure                      | `requeueWithBackoff`                       | Row re-queued; retried under FR-016 budget               |
+| Cache invalidation failure                     | Log warning, continue                      | Non-fatal; stale cache will expire via TTL               |
+| EventBridge publish failure (FoodDataReceived) | Log warning, continue                      | Non-fatal; fire-and-forget                               |
+| Worker crash mid-lease                         | Lease expires → row reclaimed              | `lease_expires_at < NOW()` re-exposes the row (FR-018)   |
 
 ---
 
-## MOD-005 — TokenBucketRateLimiter (Atomic Token Bucket Rate Limiter)
+## MOD-005 — RollingWindowLimiter (Atomic Rolling 60-Minute Window Rate Limiter)
 
 **Parent ARCH**: ARCH-005
 **Type**: Stateful (state stored in Postgres by default; Redis is a deferred variant)
-**Runtime**: Called from the ARCH-004 Fargate consumer worker; state in the `kitchensink_food` logical database (lean-launch default — a single-row UPDATE … RETURNING token-bucket txn). Redis + the Lua script below is the deferred variant.
+**Runtime**: Called from the ARCH-004 Fargate consumer worker; state = recent USDA-call timestamps in the `kitchensink_food` logical database (lean-launch default — an `usda_call_log` table whose rows are the timestamps of recent USDA calls, pruned to the trailing 60 min). The deferred variant keeps the same timestamps in a Redis sorted set (`ZADD`/`ZCOUNT`).
+
+> **(formerly TokenBucketRateLimiter.)** This module no longer models a token bucket. A 1,000-capacity
+> bucket refilling at 1,000/hr can emit up to ~2,000 calls across a single rolling hour (drain the full
+> bucket, then consume every refilled token), breaching the USDA hard cap. A **rolling 60-minute window**
+> instead enforces ≤1,000 USDA calls in _any_ trailing 60 minutes strictly (FR-019/FR-020). State is the
+> set of recent USDA-call timestamps; admission is a windowed count, and a call is recorded by inserting
+> its timestamp. There is no capacity/refill/token concept.
 
 ### 1. Algorithmic / Logic View
 
 ```
-// Default (lean-launch) bucket: a single fetch_rate_limiter row mutated atomically in one
-// `UPDATE ... RETURNING` Postgres txn (refill-then-consume), same semantics as the Lua script.
-// The Redis Lua variant below is functionally identical and is the DEFERRED form.
+WINDOW_SECONDS  = 3600         // trailing 60-minute window
+HARD_CAP        = 1000         // ≤1,000 USDA calls in any trailing 60 min (FR-019; A-001 hard cap)
+PAUSE_THRESHOLD = 900          // pause draining at 90% of the cap (FR-019)
 
-// Redis key schema (DEFERRED Redis variant)
-BUCKET_KEY = "rate_limiter:usda:tokens"
-LAST_REFILL_KEY = "rate_limiter:usda:last_refill"
-CAPACITY = 1000          // max tokens (1,000 calls/hour)
-REFILL_RATE = 1000/3600  // tokens per second ≈ 0.2778
+// Default (lean-launch) state: the `usda_call_log` table — one row per recent USDA call, each row a
+// `called_at` timestamp. The trailing-window count is a windowed COUNT(*); a call is recorded by an
+// INSERT of `now()`. check-and-record is ONE atomic Postgres txn (count + conditional insert), so
+// the window can never be overshot under concurrent worker access (FR-020). Rows older than the
+// window are pruned (the count ignores them; a periodic DELETE bounds table size).
+// The deferred Redis variant below is functionally identical (sorted set of timestamps).
 
-// Atomic Lua script executed via EVAL (single Redis round-trip) — DEFERRED variant
-LUA_SCRIPT = """
-  local tokens = tonumber(redis.call('GET', KEYS[1])) or ARGV[1]
-  local last_refill = tonumber(redis.call('GET', KEYS[2])) or ARGV[3]
-  local now = tonumber(ARGV[3])
-  local capacity = tonumber(ARGV[1])
-  local refill_rate = tonumber(ARGV[2])
+// Atomic check-and-record against the rolling window. Returns whether the call may proceed AND
+// records its timestamp in the SAME transaction so the count and the insert cannot race.
+FUNCTION checkAndRecord():
+  // Single statement: prune-aware windowed count, insert only if strictly under the cap.
+  //   INSERT INTO usda_call_log (called_at)
+  //   SELECT now()
+  //   WHERE (SELECT count(*) FROM usda_call_log
+  //          WHERE called_at > now() - interval '3600 seconds') < HARD_CAP
+  //   RETURNING called_at;
+  inserted = Postgres.query(ATOMIC_COUNT_AND_INSERT_SQL, [HARD_CAP, WINDOW_SECONDS])
+  windowCount = countCallsInTrailingWindow()   // post-insert trailing-60-min count
+  RETURN { allowed: inserted.rowCount == 1, windowCount: windowCount }
 
-  -- Refill tokens based on elapsed time
-  local elapsed = now - last_refill
-  local new_tokens = math.min(capacity, tokens + elapsed * refill_rate)
+// Soft gate the drain loop consults BEFORE attempting a fetch: pause at 90% so the worker
+// stops draining well before the hard cap, resuming as older calls age out of the window.
+FUNCTION shouldPauseDraining():
+  windowCount = countCallsInTrailingWindow()
+  RETURN windowCount >= PAUSE_THRESHOLD     // true → ARCH-004 pauses; false → keep draining
 
-  -- Check if we can consume one token
-  if new_tokens >= 1 then
-    new_tokens = new_tokens - 1
-    redis.call('SET', KEYS[1], new_tokens, 'EX', 7200)
-    redis.call('SET', KEYS[2], now, 'EX', 7200)
-    return { 1, math.floor(new_tokens) }  -- { allowed=true, tokensRemaining }
-  else
-    redis.call('SET', KEYS[1], new_tokens, 'EX', 7200)
-    redis.call('SET', KEYS[2], now, 'EX', 7200)
-    return { 0, 0 }  -- { allowed=false, tokensRemaining=0 }
-  end
-"""
+FUNCTION countCallsInTrailingWindow():
+  // SELECT count(*) FROM usda_call_log WHERE called_at > now() - interval '3600 seconds'
+  RETURN Postgres.query(WINDOW_COUNT_SQL, [WINDOW_SECONDS]).count
 
-FUNCTION checkTokens():
-  now = unixTimestampSeconds()
-  result = Redis.eval(LUA_SCRIPT, keys=[BUCKET_KEY, LAST_REFILL_KEY],
-                      args=[CAPACITY, REFILL_RATE, now])
-  RETURN { allowed: result[0] == 1, tokensRemaining: result[1] }
-
+// Time until the window has room again: when full, the oldest in-window call must age out.
 FUNCTION getWaitTime():
-  tokens = Redis.get(BUCKET_KEY) OR 0
-  IF tokens >= 1:
+  IF countCallsInTrailingWindow() < HARD_CAP:
     RETURN 0
-  deficit = 1 - tokens
-  RETURN ceil(deficit / REFILL_RATE)  // seconds until next token available
+  oldestInWindow = Postgres.query(OLDEST_IN_WINDOW_SQL, [WINDOW_SECONDS]).called_at
+  RETURN ceil((oldestInWindow + WINDOW_SECONDS) - now())  // seconds until it ages out
+
+// ---- DEFERRED Redis variant (functionally identical) -------------------------------------
+// State is a sorted set of call timestamps, scored by epoch seconds, keyed:
+//   WINDOW_KEY = "rate_limiter:usda:calls"
+// A Lua script does the atomic windowed count-and-record (single Redis round-trip):
+//   ZREMRANGEBYSCORE WINDOW_KEY 0 (now - 3600)     -- drop calls that aged out
+//   local n = ZCOUNT WINDOW_KEY (now-3600) now      -- count calls in the trailing 60 min
+//   if n < HARD_CAP then ZADD WINDOW_KEY now now; return {1, n+1} else return {0, n} end
+// shouldPauseDraining() reads the same ZCOUNT against PAUSE_THRESHOLD.
 ```
 
 ### 2. State Machine View
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Initialized
-  Initialized --> TokensAvailable : tokens >= 1
-  Initialized --> TokensExhausted : tokens == 0
-  TokensAvailable --> TokensAvailable : consume token (tokens > 1 after consume)
-  TokensAvailable --> TokensExhausted : consume token (tokens == 0 after consume)
-  TokensExhausted --> TokensAvailable : time elapsed → refill crosses 1.0
-  TokensAvailable --> [*] : checkTokens() returns allowed=true
-  TokensExhausted --> [*] : checkTokens() returns allowed=false
+  [*] --> WindowOpen
+  WindowOpen --> WindowOpen : checkAndRecord() inserts timestamp (count < 1000)
+  WindowOpen --> WindowFull : trailing-60-min count reaches 1000 (HARD_CAP)
+  WindowOpen --> DrainPaused : trailing-60-min count reaches 900 (PAUSE_THRESHOLD)
+  DrainPaused --> WindowOpen : earlier calls age out of window → count < 900
+  WindowFull --> WindowOpen : oldest in-window call ages out → count < 1000
+  WindowOpen --> [*] : checkAndRecord() returns allowed=true
+  WindowFull --> [*] : checkAndRecord() returns allowed=false (window full)
 ```
 
 ### 3. Internal Data Structures
 
-| Name                | Type                                                                   | Description                                                         |
-| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `BucketState`       | `{ tokens: float, lastRefill: number }`                                | Persisted in Redis; represents current bucket state                 |
-| `TokenCheckResult`  | `{ allowed: boolean, tokensRemaining: number }`                        | Return value of `checkTokens()`                                     |
-| `LuaScript`         | `string`                                                               | Atomic Lua script loaded via `SCRIPT LOAD` for SHA-based invocation |
-| `RateLimiterConfig` | `{ capacity: 1000, refillRatePerSecond: 0.2778, keyTtlSeconds: 7200 }` | Static configuration constants                                      |
+| Name                | Type                                                            | Description                                                                                                                          |
+| ------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `usda_call_log`     | table `{ called_at: timestamp }` (one row per recent USDA call) | The rolling-window state — recent USDA-call timestamps; trailing-60-min `count(*)` is the window count (Postgres form, lean default) |
+| `WindowCheckResult` | `{ allowed: boolean, windowCount: number }`                     | Return value of `checkAndRecord()` — whether the call may proceed and the resulting trailing-60-min count                            |
+| `CallTimestampSet`  | sorted set of epoch-second scores (`rate_limiter:usda:calls`)   | DEFERRED Redis variant of the timestamp state; `ZADD` records a call, `ZCOUNT` counts the trailing window                            |
+| `RateLimiterConfig` | `{ hardCap: 1000, pauseThreshold: 900, windowSeconds: 3600 }`   | Static configuration constants (≤1,000 per trailing 60 min; pause at 90%)                                                            |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                        | Action                                    | Caller Impact                                                     |
-| ------------------------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------- |
-| Store unavailable (Postgres/Redis, connection refused) | Throw `RateLimiterError`                  | ARCH-004 treats as "allowed=false"; extends lease / re-queues row |
-| Store timeout (>100ms)                                 | Throw `RateLimiterError`                  | Same as unavailable                                               |
-| Bucket txn / Lua script execution error                | Throw `RateLimiterError`                  | ARCH-004 re-queues row                                            |
-| Negative token count (clock skew)                      | Clamp to 0 in the bucket txn / Lua script | Graceful degradation                                              |
-| Key expiry (TTL elapsed, bucket reset)                 | Initializes fresh bucket at CAPACITY      | Correct behavior; bucket refills                                  |
+| Error Condition                                         | Action                          | Caller Impact                                                                                                            |
+| ------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Store unavailable (Postgres/Redis, connection refused)  | Throw `RateLimiterError`        | ARCH-004 treats as "allowed=false"; extends lease / re-queues row                                                        |
+| Store timeout (>100ms)                                  | Throw `RateLimiterError`        | Same as unavailable                                                                                                      |
+| Count-and-record txn / Lua script execution error       | Throw `RateLimiterError`        | ARCH-004 re-queues row                                                                                                   |
+| USDA returns 429 despite the limiter                    | Treat window as full / back off | ARCH-004 pauses draining and re-queues the row (NOT a state reset)                                                       |
+| Window state lost (call-log truncation / Redis restart) | Trailing count restarts at 0    | Bounded, safe-ish: may briefly exceed the true rolling-hour count before fresh timestamps refill the window (Edge Cases) |
 
 ---
 
@@ -1138,65 +1226,38 @@ stateDiagram-v2
 
 ---
 
-## MOD-013 — QuotaAndFairness (Per-`sub` Quota, Distinct-Requester Demand & Backpressure)
+## MOD-013 — DemotionAndFairness (Per-`sub` Demotion, Distinct-Requester Demand & Backpressure)
 
 **Parent ARCH**: ARCH-012
-**Type**: Stateful (state in Redis and/or PostgreSQL: `user_fetch_quota`, `global_fetch_quota`, `fetch_requesters`)
-**Runtime**: NestJS service on ECS/Fargate invoked inline after MOD-012, **before** `INSERT INTO fetch_queue`
-**Target source file**: `packages/services/food-service/src/auth/quota-and-fairness.service.ts`
+**Type**: Stateful (state in PostgreSQL: `fetch_queue`, `fetch_requesters`; the per-`sub` pending count is derived, not a stored counter)
+**Runtime**: NestJS service on ECS/Fargate invoked inline after MOD-012, **before** `INSERT INTO fetch_queue`; the demotion priority itself is computed at **drain time** by the queue scorer (ARCH-004)
+**Target source file**: `packages/services/food-service/src/auth/demotion-and-fairness.service.ts`
+
+> **(formerly QuotaAndFairness.)** Fairness is no longer a per-`sub` enqueue **quota** that returns `429`.
+> The food service only calls USDA on a cache miss, and MOD-005's rolling-window limiter already caps
+> the global 1,000/hr USDA budget hard, so a per-`sub` budget is redundant. Fairness is now achieved by
+> **demotion, not rejection**: when a single `sub` has **more than 50 items currently pending in the
+> `fetch_queue`**, that requester's queued items are ranked to the **back** of the priority order so they
+> cannot starve other users — but **no authenticated request is ever rejected for a personal quota**
+> (work-conserving: a heavy user only consumes spare capacity). Demotion is **dynamic** — priority is
+> computed at drain time from the requester's _current_ pending count, so items auto re-promote once the
+> `sub` falls below 50. There is no `QUOTA_PER_HOUR`, no `GLOBAL_SHARE_CAP`, and no `429` on this path
+> (FR-043). The distinct-requester demand counting, the per-`sub` priority cap, and aging are unchanged (FR-044).
 
 ### 1. Algorithmic / Logic View
 
 ```
-MAX_BATCH_IDS      = 100          // client-facing batch cap (FR-045) — distinct from USDA 20/call (FR-023)
-GLOBAL_BUDGET_HOUR = 1000         // shared USDA budget per hour (A-001 hard cap; SC-002)
-GLOBAL_SHARE_CAP   = 0.20         // any single sub ≤ 20% of the global budget (FR-043 / SC-012)
-QUOTA_PER_HOUR     = floor(GLOBAL_BUDGET_HOUR * GLOBAL_SHARE_CAP)  // per-sub enqueue quota = 200/hr (FR-043; ≤20% of 1000/hr, SC-012)
-MAX_QUEUE_DEPTH    = M            // enforced fetch_queue ceiling (FR-046)
-PRIORITY_CAP       = 1            // a single sub contributes at most once to demand (FR-044)
+MAX_BATCH_IDS    = 100          // client-facing batch cap (FR-045) — distinct from USDA 20/call (FR-023)
+DEMOTE_THRESHOLD = 50           // a sub with > 50 pending fetch_queue items is demoted to the back (FR-043)
+MAX_QUEUE_DEPTH  = M            // enforced fetch_queue ceiling (FR-046)
+PRIORITY_CAP     = 1            // a single sub contributes at most once to demand (FR-044)
 
 // Step 1 — batch cap (FR-045). Runs at input-validation tier (precedence 400 after 401/403; FR-051).
 FUNCTION enforceBatchCap(fdcIds):
   IF length(fdcIds) > MAX_BATCH_IDS:
     THROW BatchTooLargeError(400, "Batch exceeds max of 100 ids")   // enqueue NOTHING
 
-// Step 2 — per-sub enqueue quota (FR-043) → 429. Applied after auth, before enqueue.
-// Enforces BOTH a per-sub bucket AND a global rolling-window counter so that no single
-// `sub` can ever consume more than GLOBAL_SHARE_CAP (≤20%) of the global 1000/hr USDA
-// budget (SC-012). Without the global-share check, a per-sub bucket alone would let one
-// principal drain 100% of the budget once QUOTA_PER_HOUR was (mis)configured high — the
-// exact denial-of-wallet hole FR-043/SC-012 close.
-FUNCTION enforceQuota(sub, acceptedCount):
-  windowStart = floor(now() / 3600) * 3600
-  retryAfter  = (windowStart + 3600) - now()
-
-  // (a) Per-sub bucket. Redis token/leaky bucket keyed quota:{sub}:{windowStart},
-  //     OR Postgres user_fetch_quota(sub, window_start, count).
-  subCount = QuotaStore.getCount(sub, windowStart)
-  IF subCount + acceptedCount > QUOTA_PER_HOUR:
-    THROW QuotaExceededError(429, retryAfter)   // per-sub cap hit → MUST NOT enqueue (FR-043)
-
-  // (b) Global rolling-window share. Single global counter global_fetch_quota:{windowStart}
-  //     (Redis INCRBY key OR Postgres global_fetch_quota row). The per-sub admission is
-  //     additionally clamped so this `sub`'s cumulative share in the window cannot exceed
-  //     GLOBAL_SHARE_CAP of GLOBAL_BUDGET_HOUR (≤20%). This is the real global-window gate;
-  //     it is NOT advisory — it returns 429 even when the per-sub bucket still has headroom.
-  subShareCeiling = floor(GLOBAL_BUDGET_HOUR * GLOBAL_SHARE_CAP)   // == QUOTA_PER_HOUR (200)
-  IF subCount + acceptedCount > subShareCeiling:
-    THROW QuotaExceededError(429, retryAfter)   // sub would exceed its ≤20% global share (SC-012)
-
-  // Defense-in-depth: never let the aggregate global window be overshot either, even if a
-  // future config raised QUOTA_PER_HOUR above the share ceiling for some subs.
-  globalCount = QuotaStore.getGlobalCount(windowStart)
-  IF globalCount + acceptedCount > GLOBAL_BUDGET_HOUR:
-    THROW QuotaExceededError(429, retryAfter)   // global budget exhausted → MUST NOT enqueue (SC-002)
-
-  // Commit both counters atomically (single Lua MULTI / single Postgres txn) so the
-  // per-sub and global windows can never diverge under concurrency.
-  QuotaStore.increment(sub, windowStart, acceptedCount)        // per-sub bucket
-  QuotaStore.incrementGlobal(windowStart, acceptedCount)       // global rolling window
-
-// Step 3 — backpressure + circuit breaker (FR-046) → 503. Fail closed, do not grow queue unbounded.
+// Step 2 — backpressure + circuit breaker (FR-046) → 503. Fail closed, do not grow queue unbounded.
 FUNCTION checkBackpressure():
   IF CircuitBreaker.state == "open":
     THROW BackpressureError(503, "USDA circuit open")       // jittered drain on recovery
@@ -1204,7 +1265,7 @@ FUNCTION checkBackpressure():
   IF depth >= MAX_QUEUE_DEPTH:
     THROW BackpressureError(503, "Fetch queue saturated")
 
-// Step 4 — distinct-requester demand (FR-044). request_count = DISTINCT subs, capped + aged.
+// Step 3 — distinct-requester demand (FR-044). request_count = DISTINCT subs, capped + aged.
 FUNCTION recordDemand(sub, fdcId):
   // fetch_requesters(fdc_id, sub, requested_at) — PK (fdc_id, sub) makes repeat requests idempotent.
   inserted = FetchRequesters.upsert({ fdcId, sub, requestedAt: now() })  // no-op if (fdcId,sub) exists
@@ -1212,15 +1273,37 @@ FUNCTION recordDemand(sub, fdcId):
     // priority contribution capped at PRIORITY_CAP per sub; aging applied by the queue scorer
     FetchQueue.bumpDemand(fdcId, delta = PRIORITY_CAP)
 
+// Derived per-sub pending count — NOT a stored quota counter. Counts the sub's items still
+// pending in the queue, joining fetch_queue to fetch_requesters by (fdc_id). This is read live
+// (no window, no reset): once items drain or tombstone, the count falls and demotion lifts.
+FUNCTION pendingCountForSub(sub):
+  // SELECT count(*) FROM fetch_queue q JOIN fetch_requesters r USING (fdc_id)
+  //   WHERE r.sub = $1 AND q.status = 'queued'
+  RETURN Postgres.query(PENDING_COUNT_SQL, [sub]).count
+
+// Step 4 — fairness by DEMOTION, not rejection (FR-043). NO 429: every authenticated request is
+// admitted. The drain-time scorer (ARCH-004) demotes a sub's queued rows to the BACK while that
+// sub has > 50 pending items, so a heavy user only consumes spare capacity and cannot starve others.
+// DYNAMIC: priority is recomputed from the live pending count at drain time, so rows auto re-promote
+// once the sub drops to ≤ 50 — there is no frozen "demoted" flag.
+FUNCTION isDemoted(sub):
+  RETURN pendingCountForSub(sub) > DEMOTE_THRESHOLD   // true → rank this sub's rows to the back
+
+// Drain-time priority key consulted by the consumer's claim ORDER BY (ARCH-004). Demoted subs
+// sort AFTER non-demoted subs; within each tier, normal demand-weight + FIFO/aging applies (FR-044).
+FUNCTION drainPriorityTier(row):
+  // demoted → 1 (back), normal → 0 (front); recomputed every drain pass from live pending count
+  RETURN isDemoted(row.requested_by) ? 1 : 0
+
 // Orchestration — invoked by ARCH-001 on a cache+DB miss, before publishing FoodRequested.
 // `reqUser` is the verified `req.user` (AuthenticatedCaller) populated by MOD-012.
+// Always admits (no per-sub quota / no 429); fairness is applied later, at drain time, via demotion.
 FUNCTION admitEnqueue(reqUser, fdcIds):
   enforceBatchCap(fdcIds)                  // 400
   checkBackpressure()                      // 503
-  enforceQuota(reqUser.sub, length(fdcIds))// 429 — canonical enforceQuota (not checkQuota)
   FOR EACH fdcId IN fdcIds:
     recordDemand(reqUser.sub, fdcId)
-  RETURN { admitted: true }
+  RETURN { admitted: true }               // never rejected for a personal quota (FR-043)
 ```
 
 ### 2. State Machine View
@@ -1231,38 +1314,42 @@ stateDiagram-v2
   Admitting --> Rejected400 : batch > 100 ids (FR-045)
   Admitting --> CheckingBackpressure : batch ok
   CheckingBackpressure --> Rejected503 : queue full OR circuit open (FR-046)
-  CheckingBackpressure --> CheckingQuota : capacity available
-  CheckingQuota --> Rejected429 : per-sub bucket OR ≤20% global share OR global budget exceeded (FR-043 / SC-012 / SC-002)
-  CheckingQuota --> RecordingDemand : within per-sub AND global share AND global budget
-  RecordingDemand --> Admitted : distinct-requester upsert + capped demand bump (FR-044)
+  CheckingBackpressure --> RecordingDemand : capacity available
+  RecordingDemand --> Admitted : distinct-requester upsert + capped demand bump (FR-044); always admitted (no 429, FR-043)
+  Admitted --> [*]
   Rejected400 --> [*]
   Rejected503 --> [*]
-  Rejected429 --> [*]
-  Admitted --> [*]
+
+  state "Drain-time scoring (ARCH-004)" as DrainScoring {
+    [*] --> EvaluatingPendingCount
+    EvaluatingPendingCount --> NormalPriority : sub pending ≤ 50 (front tier)
+    EvaluatingPendingCount --> Demoted : sub pending > 50 → ranked to back (FR-043)
+    Demoted --> NormalPriority : pending drops ≤ 50 → auto re-promote (dynamic, FR-043)
+    NormalPriority --> Demoted : pending rises > 50
+  }
 ```
 
 ### 3. Internal Data Structures
 
-| Name                 | Type                                                                                                                           | Description                                                                                                                                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `user_fetch_quota`   | table `{ sub: string, window_start: number, count: number }` (PK sub+window)                                                   | Per-`sub` rolling-hour enqueue counter (Postgres form; Redis `quota:{sub}:{window}` bucket is the alt)                                                                                                                   |
-| `global_fetch_quota` | table `{ window_start: number, count: number }` (PK window_start)                                                              | **Global** rolling-hour counter across ALL subs (Postgres form; Redis `global_fetch_quota:{window}` INCRBY is the alt). Backs the ≤20% global-share check and the GLOBAL_BUDGET_HOUR hard cap (FR-043 / SC-012 / SC-002) |
-| `fetch_requesters`   | table `{ fdc_id: number, sub: string, requested_at: timestamp }` (PK fdc_id+sub)                                               | Distinct-requester set; PK makes repeat requests idempotent (FR-044) + WS recipient set (FR-041)                                                                                                                         |
-| `QuotaConfig`        | `{ quotaPerHour: 200, maxBatchIds: 100, maxQueueDepth: number, priorityCap: 1, globalBudgetHour: 1000, globalShareCap: 0.20 }` | Static fairness/backpressure thresholds; `quotaPerHour == floor(globalBudgetHour × globalShareCap)` so per-sub ≤20% share holds by construction                                                                          |
-| `AdmitResult`        | `{ admitted: boolean }`                                                                                                        | Returned only when all four gates pass                                                                                                                                                                                   |
+| Name               | Type                                                                               | Description                                                                                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fetch_queue`      | table `{ fdc_id, status, requested_by, request_count, first_requested, ... }`      | Pending work; the per-`sub` pending count is derived by joining this to `fetch_requesters` (no separate quota counter). The drain-time scorer reads it to compute demotion tiers (FR-043) |
+| `fetch_requesters` | table `{ fdc_id: number, sub: string, requested_at: timestamp }` (PK fdc_id+sub)   | Distinct-requester set; PK makes repeat requests idempotent (FR-044) + WS recipient set (FR-041); joined to `fetch_queue` to derive a sub's live pending count                            |
+| `PendingCount`     | `{ sub: string, count: number }`                                                   | Derived (not stored) per-`sub` count of currently-pending queue items; computed live at admit and at drain time — drives dynamic demotion/re-promotion (FR-043)                           |
+| `FairnessConfig`   | `{ demoteThreshold: 50, maxBatchIds: 100, maxQueueDepth: number, priorityCap: 1 }` | Static fairness/backpressure thresholds; a sub with `pendingCount > demoteThreshold` is ranked to the back (no quota, no global-share cap)                                                |
+| `AdmitResult`      | `{ admitted: boolean }`                                                            | Always `{ admitted: true }` once batch-cap and backpressure pass — no personal-quota rejection (FR-043)                                                                                   |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                        | Error Type / Status        | Action                                                                                                     |
-| -------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Batch size > 100 `fdcId`s              | `BatchTooLargeError` / 400 | Reject; enqueue nothing (FR-045)                                                                           |
-| `fetch_queue` depth ≥ MAX_QUEUE_DEPTH  | `BackpressureError` / 503  | Fail closed; do not grow queue (FR-046)                                                                    |
-| USDA circuit breaker open              | `BackpressureError` / 503  | Fail closed; jittered drain on recovery (FR-046)                                                           |
-| Per-`sub` bucket exceeded in window    | `QuotaExceededError` / 429 | Reject with `Retry-After`; enqueue nothing (FR-043)                                                        |
-| `sub` would exceed ≤20% global share   | `QuotaExceededError` / 429 | Reject with `Retry-After`; enqueue nothing — no single `sub` may exceed 20% of the 1000/hr budget (SC-012) |
-| Global budget (1000/hr) exhausted      | `QuotaExceededError` / 429 | Reject with `Retry-After`; enqueue nothing — global hard cap (SC-002)                                      |
-| Repeat request for same `(fdcId, sub)` | — (idempotent upsert)      | No double demand increment; priority capped (FR-044)                                                       |
-| Redis/Postgres quota store unavailable | `BackpressureError` / 503  | Fail closed — never default-open the enqueue path                                                          |
+| Error Condition                         | Error Type / Status        | Action                                                                                               |
+| --------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Batch size > 100 `fdcId`s               | `BatchTooLargeError` / 400 | Reject; enqueue nothing (FR-045)                                                                     |
+| `fetch_queue` depth ≥ MAX_QUEUE_DEPTH   | `BackpressureError` / 503  | Fail closed; do not grow queue (FR-046)                                                              |
+| USDA circuit breaker open               | `BackpressureError` / 503  | Fail closed; jittered drain on recovery (FR-046)                                                     |
+| `sub` has > 50 pending items            | — (admitted, demoted)      | NO 429 — request still accepted; the sub's queued rows are ranked to the back at drain time (FR-043) |
+| `sub` pending count drops back to ≤ 50  | — (auto re-promote)        | Demotion lifts dynamically; rows return to normal priority at the next drain pass (FR-043)           |
+| Repeat request for same `(fdcId, sub)`  | — (idempotent upsert)      | No double demand increment; priority capped (FR-044)                                                 |
+| Postgres (queue/requesters) unavailable | `BackpressureError` / 503  | Fail closed — never default-open the enqueue path                                                    |
 
 ---
 
@@ -1308,7 +1395,7 @@ FUNCTION assertProvenance(event):
     THROW ProvenanceError("requestedBy is neither an authenticated sub nor a named service principal")
   RETURN { requestedBy, requesterClass: isNamedService ? "service" : "user" }
 
-// Gate applied at the consumer ingress (ARCH-004), before TokenBucket / USDA fetch / enqueue.
+// Gate applied at the consumer ingress (ARCH-004), before the rolling-window limiter (MOD-005) / USDA fetch / enqueue.
 FUNCTION admitAsyncEvent(invocationContext, event):
   assertProducerPrincipal(invocationContext)   // layer 1: IAM least-privilege (who delivered it)
   provenance = assertProvenance(event)         // layer 2: authenticated provenance (on whose behalf)
@@ -1334,7 +1421,7 @@ stateDiagram-v2
   CheckingProducerPrincipal --> CheckingProvenance : principal allowlisted
   CheckingProvenance --> RejectedProvenance : requestedBy missing / 'system' / unrecognized detail-type (FR-048)
   CheckingProvenance --> Admitted : requestedBy is authenticated sub OR named service principal
-  Admitted --> [*] : proceed to TokenBucket → USDA fetch / enqueue (ARCH-004)
+  Admitted --> [*] : proceed to rolling-window limiter (MOD-005) → USDA fetch / enqueue (ARCH-004)
   RejectedUnauthorizedProducer --> [*] : event dropped + alarmed; no fetch, no enqueue
   RejectedProvenance --> [*] : event dropped + alarmed; no fetch, no enqueue
 ```
@@ -1367,35 +1454,35 @@ stateDiagram-v2
 
 This matrix maps each Architecture Module (ARCH) to its corresponding low-level Module Design (MOD), and traces both back to parent System Components (SYS).
 
-| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                              | Parent SYS                | Notes                                                                                                                                             |
-| -------- | ---------------------- | ------- | ----------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                   | SYS-001                   | NestJS controller on ECS/Fargate (ALB-fronted); 4-layer cache lookup chain                                                                        |
-| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Enqueue Emitter)                | SYS-002                   | FoodRequested/FoodBatchRequested → `fetch_queue` INSERT + LISTEN/NOTIFY; FoodDataReceived → EventBridge                                           |
-| ARCH-003 | FetchQueueRouter       | MOD-003 | FetchQueueRouter (Postgres-as-Queue Priority Router)  | SYS-002, SYS-003, SYS-004 | `fetch_queue` priority column + lease (FOR UPDATE SKIP LOCKED); ON CONFLICT dedup; tombstone rows                                                 |
-| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (fetch_queue Worker)              | SYS-005                   | Single Fargate worker (advisory lock); lease-claim drain; exponential backoff then tombstone                                                      |
-| ARCH-005 | TokenBucketRateLimiter | MOD-005 | TokenBucketRateLimiter (Atomic Token Bucket)          | [CROSS-CUTTING]           | Atomic Postgres bucket txn (Redis Lua deferred); 1,000 calls/hour cap                                                                             |
-| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)        | SYS-006                   | pg_trgm FTS; JSONB nutrients; `kitchensink_food` DB on shared instance                                                                            |
-| ARCH-007 | FoodCacheService       | MOD-007 | FoodCacheService (Cache & Pending-Set Manager)        | SYS-007                   | Postgres pending-set + TTL sentinel by default (Redis deferred)                                                                                   |
-| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central) | SYS-008                   | `@kitchensink/usda-client`; abridged format; 6 nutrient IDs; 10s timeout                                                                          |
-| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)     | SYS-009                   | Launch-deferred; DynamoDB connection store; WS `$connect` Lambda authorizer (sole Lambda-authorizer surface)                                      |
-| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)           | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                           |
-| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)       | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                     |
-| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)  | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                  |
-| ARCH-012 | FoodAuthGuard          | MOD-013 | QuotaAndFairness (Per-`sub` Quota & Backpressure)     | SYS-013                   | Per-`sub` quota 429; distinct-requester demand; batch cap 400; backpressure 503                                                                   |
-| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)        | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT) |
+| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                                | Parent SYS                | Notes                                                                                                                                             |
+| -------- | ---------------------- | ------- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                     | SYS-001                   | NestJS controller on ECS/Fargate (ALB-fronted); 4-layer cache lookup chain                                                                        |
+| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Enqueue Emitter)                  | SYS-002                   | FoodRequested/FoodBatchRequested → `fetch_queue` INSERT + LISTEN/NOTIFY; FoodDataReceived → EventBridge                                           |
+| ARCH-003 | FetchQueueRouter       | MOD-003 | FetchQueueRouter (Postgres-as-Queue Priority Router)    | SYS-002, SYS-003, SYS-004 | `fetch_queue` priority column + lease (FOR UPDATE SKIP LOCKED); ON CONFLICT dedup; tombstone rows                                                 |
+| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (fetch_queue Worker)                | SYS-005                   | Single Fargate worker (advisory lock); lease-claim drain; exponential backoff then tombstone                                                      |
+| ARCH-005 | RollingWindowLimiter   | MOD-005 | RollingWindowLimiter (Atomic Rolling 60-Min Window)     | [CROSS-CUTTING]           | Atomic `usda_call_log` windowed count+insert (Redis sorted-set deferred); ≤1,000 calls in any trailing 60 min, pause at 90%                       |
+| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)          | SYS-006                   | pg_trgm FTS; JSONB nutrients; `kitchensink_food` DB on shared instance                                                                            |
+| ARCH-007 | FoodCacheService       | MOD-007 | FoodCacheService (Cache & Pending-Set Manager)          | SYS-007                   | Postgres pending-set + TTL sentinel by default (Redis deferred)                                                                                   |
+| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central)   | SYS-008                   | `@kitchensink/usda-client`; abridged format; 6 nutrient IDs; 10s timeout                                                                          |
+| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)       | SYS-009                   | Launch-deferred; DynamoDB connection store; WS `$connect` Lambda authorizer (sole Lambda-authorizer surface)                                      |
+| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)             | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                           |
+| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)         | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                     |
+| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)    | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                  |
+| ARCH-012 | FoodAuthGuard          | MOD-013 | DemotionAndFairness (Per-`sub` Demotion & Backpressure) | SYS-013                   | Per-`sub` demotion (>50 pending → ranked to back, dynamic, no 429); distinct-requester demand; batch cap 400; backpressure 503                    |
+| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)          | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT) |
 
 ### Coverage Summary
 
-| Metric                                           | Count                                                                               |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| Total ARCH modules                               | 12                                                                                  |
-| Total MOD modules                                | 14                                                                                  |
-| ARCH modules with full MOD coverage              | 12 / 12 (100%)                                                                      |
-| MOD modules with Stateful state machine          | 7 (MOD-001, MOD-004, MOD-005, MOD-010, MOD-012, MOD-013, MOD-014)                   |
-| MOD modules marked N/A Stateless                 | 5 (MOD-002, MOD-006, MOD-007, MOD-008, MOD-011)                                     |
-| MOD modules with WebSocket state machine         | 1 (MOD-009)                                                                         |
-| MOD modules with Postgres-as-queue state machine | 1 (MOD-003 — `fetch_queue` schema, N/A Stateless)                                   |
-| ARCH-012 (FoodAuthGuard) decomposition           | 3 MODs (MOD-012 verify/authz, MOD-013 quota/fairness, MOD-014 async-producer authz) |
+| Metric                                           | Count                                                                                  |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Total ARCH modules                               | 12                                                                                     |
+| Total MOD modules                                | 14                                                                                     |
+| ARCH modules with full MOD coverage              | 12 / 12 (100%)                                                                         |
+| MOD modules with Stateful state machine          | 7 (MOD-001, MOD-004, MOD-005, MOD-010, MOD-012, MOD-013, MOD-014)                      |
+| MOD modules marked N/A Stateless                 | 5 (MOD-002, MOD-006, MOD-007, MOD-008, MOD-011)                                        |
+| MOD modules with WebSocket state machine         | 1 (MOD-009)                                                                            |
+| MOD modules with Postgres-as-queue state machine | 1 (MOD-003 — `fetch_queue` schema, N/A Stateless)                                      |
+| ARCH-012 (FoodAuthGuard) decomposition           | 3 MODs (MOD-012 verify/authz, MOD-013 demotion/fairness, MOD-014 async-producer authz) |
 
 ---
 

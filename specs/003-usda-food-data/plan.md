@@ -1,7 +1,7 @@
 # Technical Plan: Feature 003 — USDA Food Data Integration
 
 **Feature**: `003-usda-food-data`
-**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate worker + token bucket)
+**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate worker + rolling 60-min window limiter)
 **Reference**: `docs/architecture/usda/05-event-driven-queue-based.md`
 **Status**: Draft
 
@@ -13,17 +13,18 @@
 
 ```
 USDA FoodData Central (1,000 req/hr limit)
-        ↑  (async, token-bucket rate-limited)
+        ↑  (async, rolling-60-min-window rate-limited)
         │
 Fargate consumer worker  ← LISTEN/NOTIFY ─┐
-   (token bucket @ 1,000 req/hr)          │
+   (rolling 60-min window: ≤1,000 calls    │
+    in any trailing 60 min; pause @ 90%)   │
         ↓                                 │
 PostgreSQL  (kitchensink_food on the shared kitchensink-data-{stage} instance)
   • foods (local store)                   │
   • fetch_queue (Postgres-as-queue) ──────┘ pg_notify('fetch_queued')
         ↑
 ALB → ECS/Fargate NestJS service (FoodService)
-   FoodAuthGuard (in-process Clerk verifyToken + azp + per-sub quota)
+   FoodAuthGuard (in-process Clerk verifyToken + azp)
         ↑
    Commise App (user token) / downstream services (M2M token) / Search UX
 
@@ -31,14 +32,15 @@ EventBridge (scheduled only): stale-refresh cron + bulk-sync → enqueue
 ```
 
 > Every entry point (incl. WebSocket `$connect`) is fronted by **`FoodAuthGuard`** (§2A) —
-> networkless Clerk verification + per-`sub` quota — before any DB/queue/USDA work. Async
-> producers (EventBridge/cron/bulk-sync) are gated by least-privilege IAM (FR-048).
+> networkless Clerk verification — before any DB/queue/USDA work. Fairness is enforced by
+> **demotion** at queue drain time (no per-`sub` enqueue quota; §2A.4). Async producers
+> (EventBridge/cron/bulk-sync) are gated by least-privilege IAM (FR-048).
 
 ### Data Flow
 
 1. **Lookup path** (synchronous): ALB → ECS/Fargate NestJS service → PostgreSQL → response (no USDA call; optional in-process LRU per §6)
-2. **Fetch path** (async): cache miss → `INSERT INTO fetch_queue … ON CONFLICT` + `pg_notify('fetch_queued')` → Fargate worker wakes (LISTEN/NOTIFY), drains by demand-weighted priority, token-bucket-limited USDA call → upsert `foods`, mark fetched
-3. **Bulk path**: multiple unknown fdcIds → one enqueue per id (deduped) → USDA batch endpoint (≤20 ids / 1 token)
+2. **Fetch path** (async): cache miss → `INSERT INTO fetch_queue … ON CONFLICT` + `pg_notify('fetch_queued')` → Fargate worker wakes (LISTEN/NOTIFY), drains by demand-weighted priority (demoting `sub`s with >50 pending items to the back), rolling-60-min-window-limited USDA call → upsert `foods`, mark fetched
+3. **Bulk path**: multiple unknown fdcIds → one enqueue per id (deduped) → USDA batch endpoint (≤20 ids / 1 windowed call)
 4. **Scheduled path**: EventBridge cron → stale-refresh / bulk-sync → enqueue rows on `fetch_queue`
 
 ### Key Architecture Decision
@@ -127,25 +129,22 @@ fetch_queue (
 )
 -- INDEX (request_count DESC, first_requested ASC) WHERE status='pending'  -- FR-015
 
--- USDA token-bucket rate limiter state (FR-019/FR-020; Postgres in lean launch)
-rate_limiter_state (
-  id           int PRIMARY KEY DEFAULT 1,  -- singleton
-  tokens       numeric NOT NULL,           -- 0..1000
-  last_refill  timestamptz NOT NULL
+-- USDA rolling-60-min-window call log (FR-019/FR-020; Postgres in lean launch).
+-- One timestamped row per USDA call; the trailing-60-min count = COUNT(*) over
+-- the last 60 min. Pruned/filtered to the trailing 60 min (older rows are
+-- irrelevant and may be deleted). Replaces the old token-bucket `rate_limiter_state`
+-- row (a refilling bucket could emit ~2,000 calls across a rolling hour and breach
+-- the hard cap). Deferred Redis variant: a sorted set (ZADD ts / ZCOUNT last 60 min).
+usda_call_log (
+  id        bigserial PRIMARY KEY,
+  called_at timestamptz NOT NULL DEFAULT now()
 )
+-- INDEX (called_at)  -- windowed count + prune
 
--- Per-`sub` enqueue quota (FR-043) + distinct-requester demand (FR-044) + global
--- fairness window (SC-012). See §2A.4 / MOD-013.
-user_fetch_quota (
-  sub          text NOT NULL,
-  window_start timestamptz NOT NULL,
-  count        int NOT NULL DEFAULT 0,
-  PRIMARY KEY (sub, window_start)
-)
-global_fetch_quota (
-  window_start timestamptz PRIMARY KEY,    -- global rolling-hour budget (SC-002/SC-012)
-  count        int NOT NULL DEFAULT 0
-)
+-- Distinct-requester demand (FR-044) + WS targeting. Also the source for the
+-- per-`sub` pending count that drives fairness-by-demotion (§2A.4): a `sub` with
+-- >50 pending `fetch_queue` items is ranked to the back of the priority order.
+-- (No per-`sub`/global enqueue quota tables — fairness is by demotion, not rejection.)
 fetch_requesters (
   fdc_id       text NOT NULL,              -- distinct-`sub` demand + WS targeting
   sub          text NOT NULL,
@@ -159,7 +158,11 @@ fetch_requesters (
 > `request_count`, `created_at`, `updated_at`) — T-005 is the source of truth for the DDL.
 > The old `usda_fetch_failures` and `usda_pending` tables are **removed**: failure
 > tracking is `fetch_queue.{attempts,last_error,status}` and dedup is the `fetch_queue`
-> `ON CONFLICT` (FR-014). All tables live in the `kitchensink_food` database.
+> `ON CONFLICT` (FR-014). The food schema tables are: `foods`, `fetch_queue`,
+> `fetch_requesters`, `usda_call_log`, and `usda_sync_metadata` (all in the
+> `kitchensink_food` database). There is **no** `rate_limiter_state` (replaced by
+> `usda_call_log`, the rolling-60-min window) and **no** `user_fetch_quota` /
+> `global_fetch_quota` (fairness is by demotion at drain time, not a per-`sub` quota).
 
 ### Integration with 001
 
@@ -202,8 +205,8 @@ ECS` purely to host it — an extra edge layer for no gain, since the token veri
   `ClerkAuthService` verify logic (`verifyToken` + `azp`) into a shared
   **`@kitchensink/clerk-verify`** package (`packages/shared/clerk-verify`) consumed by both
   the identity service and `food-service` — one implementation, no drift.
-- No cold start → SC-011 (≤10ms p95) is met without provisioned concurrency; the per-`sub`
-  quota (FR-043) lives in the same process, right before enqueue.
+- No cold start → SC-011 (≤10ms p95) is met without provisioned concurrency; fairness-by-demotion
+  (FR-043) lives in the same service, computed at queue drain time (not a pre-enqueue quota check).
 - **FR-050 reframed for middleware:** the middleware runs on **every** route (there is no
   authorizer result cache to fall open); the cache-TTL/route-binding form of FR-050 applies
   only to the WebSocket `$connect` authorizer below.
@@ -229,22 +232,34 @@ paths that lack a user token MUST use an M2M token — they are **not** exempt f
 - **Response precedence (FR-051):** `401` (authn) → `403` (authz scope) → `400` (input validation)
   → `404`/`202`/`200` (business logic). Applies to FR-002/003/005/006.
 
-### 2A.4 Per-user quota & queue fairness (FR-043, FR-044, FR-045, FR-046 — denial-of-wallet)
+### 2A.4 Queue fairness by demotion (FR-043, FR-044, FR-045, FR-046 — denial-of-wallet)
 
-Auth ≠ rate limiting. New mechanisms, enforced **after** auth and **before** `INSERT INTO fetch_queue`:
+Auth ≠ rate limiting. Fairness is enforced **without rejecting any authenticated request for a
+personal quota** — the food service only calls USDA on a cache miss, and the rolling-60-min-window
+limiter (§4, FR-019) already guarantees the system never exceeds 1,000 req/hr. Within that budget,
+fairness is by **demotion at drain time**, not by a per-`sub` enqueue quota:
 
-- **Per-`sub` enqueue quota** (FR-043): leaky/token bucket of N enqueues/hr per principal; exceed → **`429`**.
-  No single `sub` may consume > ~20% of the global 1,000/hr USDA budget (SC-012). State in Redis
-  (`quota:{sub}`) or a Postgres table `user_fetch_quota(sub, window_start, count)`.
+- **Fairness by demotion** (FR-043): a `sub` with **more than 50 items currently pending** in the
+  `fetch_queue` has their queued items ranked to the **back** of the priority order (below the FR-015
+  demand ordering), so a heavy user cannot starve other users. This is **dynamic** — priority is
+  computed **at drain time** from the requester's _current_ per-`sub` pending count (the scorer reads
+  live state, not a frozen flag), so items auto re-promote to normal priority the moment the `sub`
+  drops below 50. The scheme is **work-conserving**: a demoted user still drains on spare capacity,
+  and **no enqueue is ever rejected with `429`** for a personal quota. The per-`sub` pending count is
+  **derived** from `fetch_queue` + `fetch_requesters` (DEMOTE_THRESHOLD = 50) — no quota counter
+  table is stored.
 - **Distinct-requester demand** (FR-044): `request_count` (FR-015 priority) counts **distinct `sub`s**
-  via a new `fetch_requesters(fdc_id, sub, requested_at)` table — a `sub` cannot inflate priority by
+  via the `fetch_requesters(fdc_id, sub, requested_at)` table — a `sub` cannot inflate priority by
   repeating; contribution capped; ordering aged so no `fdcId` is pinned to the front. This table also
-  drives WebSocket targeting (§2A.5).
-- **Max batch size** (FR-045): `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s; over → `400`;
-  accepted IDs count against the per-`sub` quota. (USDA's 20-ID/token cap, FR-023, stays an internal detail.)
+  drives WebSocket targeting (§2A.5) **and** supplies the per-`sub` pending count used by demotion above.
+- **Max batch size** (FR-045): `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s; over → `400`.
+  A mixed cached+miss batch returns a **per-item partial response** — cached foods inline and a `pending`
+  entry per miss (each enqueued) in one response, so the caller gets available data immediately and polls
+  only the pending ids. (USDA's 20-ID/call cap, FR-023, stays an internal detail.)
 - **Queue backpressure + circuit breaker** (FR-046): enforced max `fetch_queue` depth; when exceeded, or
   when the USDA circuit breaker is **open**, new enqueues fail closed with **`503`** (jittered recovery,
-  no thundering herd). The breaker is a normative requirement, not the §6 footnote.
+  no thundering herd). The breaker is a normative requirement, not the §6 footnote. (This is a global
+  backpressure / availability control, not a per-`sub` quota.)
 
 ### 2A.5 WebSocket auth (FR-041, FR-049)
 
@@ -275,7 +290,8 @@ saturate the verifier and breach SC-009. SC-011's ≤10ms p95 is validated **und
 ### 2A.8 Config (FR-042)
 
 `CLERK_JWT_KEY` (public PEM) + `CLERK_AUTHORIZED_PARTIES` (azp allowlist) — both non-secret. USDA API key
-remains the only secret (Secrets Manager). New data: `user_fetch_quota` (or Redis), `fetch_requesters`.
+remains the only secret (Secrets Manager). New data: `fetch_requesters` (distinct-requester demand +
+per-`sub` pending count for demotion) and `usda_call_log` (rolling-60-min window). No quota tables.
 
 ---
 
@@ -284,19 +300,19 @@ remains the only secret (Secrets Manager). New data: `user_fetch_quota` (or Redi
 ### Endpoints
 
 Auth column: **U** = user session token, **M** = M2M/service token, **scope** = additionally requires
-a `public_metadata` scope. All endpoints reject with `401` (no/invalid token) before any other handling;
-`429` when the per-`sub` quota (FR-043) is exceeded.
+a `public_metadata` scope. All endpoints reject with `401` (no/invalid token) before any other handling.
+There is **no** per-`sub` `429` — fairness is by demotion at drain time (FR-043), not request rejection.
 
-| Method | Path                            | Auth      | Description                                         |
-| ------ | ------------------------------- | --------- | --------------------------------------------------- |
-| GET    | `/v1/foods/{fdcId}`             | U or M    | Get food by USDA FDC ID (`200`/`202`/`404`)         |
-| GET    | `/v1/foods/{fdcId}/status`      | U or M    | Poll fetch status                                   |
-| GET    | `/v1/foods/search?query=`       | U or M    | Search local foods                                  |
-| POST   | `/v1/foods/batch`               | U or M    | Batch fetch; ≤100 ids (`400` over), counts to quota |
-| GET    | `/v1/foods/{fdcId}/nutrients`   | U or M    | Get full nutrient breakdown                         |
-| GET    | `/v1/foods/autocomplete?query=` | U or M    | Autocomplete suggestions                            |
-| POST   | `/v1/foods/{fdcId}/refetch`     | U + scope | Operational manual re-fetch (`403` w/o scope)       |
-| WS     | `$connect`                      | U         | WebSocket subscribe (`403` reject; FR-049)          |
+| Method | Path                            | Auth      | Description                                                                               |
+| ------ | ------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
+| GET    | `/v1/foods/{fdcId}`             | U or M    | Get food by USDA FDC ID (`200`/`202`/`404`)                                               |
+| GET    | `/v1/foods/{fdcId}/status`      | U or M    | Poll fetch status                                                                         |
+| GET    | `/v1/foods/search?query=`       | U or M    | Search local foods                                                                        |
+| POST   | `/v1/foods/batch`               | U or M    | Batch fetch; ≤100 ids (`400` over); per-item partial (cached inline + `pending` per miss) |
+| GET    | `/v1/foods/{fdcId}/nutrients`   | U or M    | Get full nutrient breakdown                                                               |
+| GET    | `/v1/foods/autocomplete?query=` | U or M    | Autocomplete suggestions                                                                  |
+| POST   | `/v1/foods/{fdcId}/refetch`     | U + scope | Operational manual re-fetch (`403` w/o scope)                                             |
+| WS     | `$connect`                      | U         | WebSocket subscribe (`403` reject; FR-049)                                                |
 
 ### Response Shapes
 
@@ -325,12 +341,25 @@ a `public_metadata` scope. All endpoints reject with `401` (no/invalid token) be
   "estimatedWaitSeconds": 3
 }
 
-// GET /v1/foods/{fdcId} — not found (tombstoned)
+// GET /v1/foods/{fdcId} — not found (tombstoned, within TTL)
 404 Not Found
 {
   "error": "Food not found",
   "fdcId": 999999,
-  "message": "This food has been tombstoned after failed USDA lookup"
+  "message": "This food was not found in USDA; tombstoned until TTL expiry (default 30 days), after which a re-attempt is allowed"
+}
+
+// GET /v1/foods/{fdcId} — stale record (older than 30-day threshold)
+// Serve stale immediately as 200 (stale-while-revalidate) + trigger a background re-fetch;
+// the read never blocks and stale data is served indefinitely if re-fetch keeps failing (FR-031).
+200 OK
+{
+  "fdcId": 171688,
+  "description": "Apple, raw, granny smith",
+  "dataType": "Foundation",
+  "nutrients": { "calories": 58, "proteinG": 0.3, "carbsG": 13.4, "fatG": 0.2, "fiberG": 2.4 },
+  "fetchStatus": "stale",
+  "stale": true
 }
 
 // Any endpoint — unauthenticated / invalid / expired / wrong-azp token (FR-035, FR-040)
@@ -341,9 +370,16 @@ a `public_metadata` scope. All endpoints reject with `401` (no/invalid token) be
 403 Forbidden
 { "error": "Forbidden", "message": "Operation requires elevated scope" }
 
-// Per-sub enqueue quota exceeded (FR-043)
-429 Too Many Requests
-{ "error": "Rate limited", "retryAfterSeconds": 120, "message": "Per-user fetch quota exceeded" }
+// POST /v1/foods/batch — per-item partial response (FR-045): cached inline + pending per miss
+200 OK
+{
+  "items": [
+    { "fdcId": 171688, "status": "fetched", "description": "Apple, raw, granny smith", "nutrients": { "calories": 58 } },
+    { "fdcId": 99999,  "status": "pending", "estimatedWaitSeconds": 30 }
+  ]
+}
+
+// NOTE: there is no per-`sub` quota `429` (FR-043 fairness is by demotion at drain time, not rejection).
 
 // Batch over the max id limit (FR-045) — or queue/circuit backpressure (FR-046 → 503)
 400 Bad Request   { "error": "Batch too large", "maxIds": 100 }
@@ -409,7 +445,7 @@ CREATE INDEX idx_fetch_queue_priority
 
 **Wakeup channel**: Postgres `LISTEN/NOTIFY` on channel `fetch_queued`. Enqueue statement is paired with `pg_notify('fetch_queued', fdc_id)`. No SQS, no Redis on the critical path.
 
-**Rate limiter**: Single shared token bucket (USDA 1000 req/hr = 1 token / 3.6s) maintained in the consumer process (and refilled from a Postgres `rate_limiter_state` row if multiple consumers ever run).
+**Rate limiter**: Single shared **rolling 60-minute window** — ≤1,000 USDA calls in any trailing 60 min (FR-019). Before each USDA call the consumer does an atomic check-and-record against the shared `usda_call_log` (count rows in the trailing 60 min, insert the new call in one transaction); at 90% (900) it pauses draining and resumes as older calls age out of the window. This replaces the old token bucket (a 1,000-cap bucket refilling 1,000/hr could emit ~2,000 calls across a rolling hour, breaching the hard cap). Deferred Redis variant: a sorted set (`ZADD` ts / `ZCOUNT` last 60 min).
 
 **Lease timeout**: Rows stuck in `status='in_flight'` for >30s are reverted to `pending` by a watchdog query run on consumer start and every minute (recovers from consumer crashes).
 
@@ -425,7 +461,7 @@ CREATE INDEX idx_fetch_queue_priority
 - **Memory**: 512 MB
 - **Trigger**: Postgres `LISTEN fetch_queued` (one connection held open for the worker lifetime)
 - **Drain loop**: On notify wakeup → `SELECT … FOR UPDATE SKIP LOCKED LIMIT 1 ORDER BY request_count DESC, first_requested ASC` → process → `UPDATE` → loop until queue empty → block on next NOTIFY
-- **Rate limiting**: In-process token bucket capped at 1,000 req/hr to USDA API
+- **Rate limiting**: Rolling 60-minute window — ≤1,000 USDA calls in any trailing 60 min; atomic check-and-record against `usda_call_log`, pause draining at 90% (900), resume as calls age out. On USDA `429`, treat the window as full and back off (do not call)
 - **Error handling**: 5 attempts with exponential backoff (`last_requested = now() + interval '2^attempts seconds'`) → `status='tombstone'`
 - **Lease recovery**: Watchdog query reverts `in_flight` rows older than 30s to `pending`
 
@@ -448,7 +484,7 @@ CREATE INDEX idx_fetch_queue_priority
 
 ### USDA API (external)
 
-- **Rate limit**: 1,000 req/hr — enforced via token bucket
+- **Rate limit**: ≤1,000 calls in any trailing 60 minutes — enforced via a rolling 60-min window (`usda_call_log`); worker pauses at 90% (900)
 - **Timeout**: 10s per request
 - **Degraded mode**: If USDA API unavailable, return 503 with retry-after header
 - **Circuit breaker**: After 5 consecutive failures, open circuit for 60s
@@ -475,8 +511,10 @@ ALTER TABLE ingredients ADD COLUMN brand_owner TEXT;
 ALTER TABLE ingredients ADD COLUMN last_synced_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS usda_sync_metadata (...);
-CREATE TABLE IF NOT EXISTS usda_fetch_failures (...);
-CREATE TABLE IF NOT EXISTS usda_pending (...);
+CREATE TABLE IF NOT EXISTS fetch_queue (...);          -- see §4 (dedup, demand, retry, tombstone)
+CREATE TABLE IF NOT EXISTS fetch_requesters (...);     -- distinct-requester demand + per-sub pending count (demotion)
+CREATE TABLE IF NOT EXISTS usda_call_log (...);        -- rolling 60-min window limiter
+-- No rate_limiter_state, user_fetch_quota, or global_fetch_quota tables.
 
 -- Indexes
 CREATE INDEX idx_foods_fetch_status ON foods(fetch_status) WHERE fetch_status = 'pending';
@@ -493,7 +531,7 @@ CREATE INDEX idx_foods_data_type ON foods(data_type);
 - `usda-fetch-queue-depth` — Postgres `fetch_queue` pending-row depth
 - `usda-api-request-count` — success/failure rate
 - `usda-api-latency` — p50/p95/p99
-- `usda-token-bucket-available` — remaining capacity
+- `usda-rolling-window-count` — USDA calls in the trailing 60 min (alarm approaching 900/1,000)
 - `food-cache-hit-rate` — local cache hit rate (in-process LRU; Postgres fallback)
 
 ### Alarms
@@ -515,9 +553,9 @@ CREATE INDEX idx_foods_data_type ON foods(data_type);
 
 1. **Packages + workspace wiring** — `@kitchensink/{food-service,usda-client,clerk-verify}`, register `packages/clients/*` (T-060, T-046, T-003)
 2. **Global DataStack: `kitchensink_food` database** on the shared instance + food-service CDK (T-001b, T-001)
-3. **PostgreSQL schema** — `foods`, `fetch_queue`, `rate_limiter_state`, `user_fetch_quota`/`global_fetch_quota`/`fetch_requesters`, indexes (T-004–T-009, T-056)
-4. **Auth slice (US-0)** — `FoodAuthGuard` middleware + M2M + scopes/403 + per-`sub` quota + backpressure + DoS (T-033, T-046–T-056; Test-first)
+3. **PostgreSQL schema** — `foods`, `fetch_queue`, `fetch_requesters`, `usda_call_log`, `usda_sync_metadata`, indexes (T-004–T-009, T-056)
+4. **Auth slice (US-0)** — `FoodAuthGuard` middleware + M2M + scopes/403 + fairness-by-demotion + backpressure + DoS (T-033, T-046–T-056; Test-first)
 5. **REST API endpoints** — `GET /v1/foods/{fdcId}`, `/status`, `/search`, `/batch` (auth-gated)
-6. **Postgres fetch_queue + Fargate consumer worker** — LISTEN/NOTIFY, token-bucket rate limiter (T-016–T-026)
+6. **Postgres fetch_queue + Fargate consumer worker** — LISTEN/NOTIFY, rolling-60-min-window rate limiter, fairness-by-demotion at drain time (T-016–T-026)
 7. **Bulk sync + stale-refresh lambdas** — EventBridge scheduled (T-030–T-032)
 8. **Monitoring + alarms**, then **WebSocket notifications** (P3, deferred)

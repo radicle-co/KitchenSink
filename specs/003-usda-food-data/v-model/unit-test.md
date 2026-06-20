@@ -236,6 +236,95 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 ---
 
+#### Test Case: UTP-001-F (handleGetFood — stale-while-revalidate: serve stale 200 + enqueue re-fetch, serve indefinitely on repeated failure)
+
+**Technique**: Statement & Branch Coverage + State Transition Testing
+**Target View**: Algorithmic/Logic View + State Machine View (Fetched → Stale → (Revalidating) → Fetched/Stale)
+**Description**: Verifies the stale-read (SWR) branch of `handleGetFood()` (FR-031, clarified 2026-06-20): when the record is held but `stale` (older than the staleness threshold), the read **serves the existing data immediately as `200`** (with a staleness indicator) **and enqueues a background re-fetch** — the read never blocks and never returns `202` for a record it already holds. If the background re-fetch keeps failing (prolonged USDA outage), repeated reads **continue serving the stale data indefinitely** (availability over freshness) and keep enqueuing the re-fetch (subject to dedup) — there is no max-staleness cutoff that withholds an already-held record. The re-fetch enqueue is mocked so only the read decision logic is tested.
+
+**Dependency & Mock Registry:**
+
+| Dependency             | Source   | Mock/Stub Strategy                                                                 | Rationale                                         |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `CacheService`         | ARCH-007 | Mock: `get()` returns null (force DB read)                                         | Isolate cache layer from the stale-detection path |
+| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns a row with `fetch_status='stale'` / old `fetched_at` | Drive the stale branch deterministically          |
+| `EventBridgePublisher` | ARCH-002 | Spy: `publishFoodRequested()` — assert re-fetch enqueued                           | Verify SWR enqueues the background re-fetch       |
+| `MonitoringLogger`     | ARCH-011 | Stub: no-op                                                                        | Prevent CloudWatch side-effects                   |
+
+- **Unit Scenario: UTS-001-F1**
+    - **Arrange**: `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `{ fdcId: 12345, fetch_status: "stale", fetched_at: <31 days ago> }`
+    - **Act**: Call `handleGetFood(event)`
+    - **Assert**: Returns `{ statusCode: 200, body: contains foodData AND a staleness indicator (e.g. "stale": true) }` (NOT `202` — the held record is served immediately); `EventBridgePublisher.publishFoodRequested` called with `{ fdcId: 12345 }` (background re-fetch enqueued, stale-while-revalidate)
+
+- **Unit Scenario: UTS-001-F2**
+    - **Arrange**: As F1, but the background re-fetch has repeatedly failed (USDA outage for days); the row is still `stale` on a subsequent read
+    - **Act**: Call `handleGetFood(event)` again
+    - **Assert**: Still returns `{ statusCode: 200, body: contains the stale foodData + staleness indicator }` — the stale record is served **indefinitely** (availability over freshness; no max-staleness cutoff withholds the held data); `EventBridgePublisher.publishFoodRequested` is invoked again to keep retrying the re-fetch (subject to `ON CONFLICT` dedup)
+
+---
+
+#### Test Case: UTP-001-G (handleGetFood — tombstone TTL: within TTL → 404 no enqueue; after TTL → re-attempt)
+
+**Technique**: Boundary Value Analysis + Statement & Branch Coverage
+**Target View**: Algorithmic/Logic View (tombstone TTL branch)
+**Description**: Verifies the `not_found` tombstone TTL branch of `handleGetFood()` (FR-025, clarified 2026-06-20): a `fdcId` tombstoned as `not_found` returns `404` **without enqueueing** while the tombstone is **within its configurable TTL (default 30 days)**; once the TTL has lapsed, a later lookup **MAY re-attempt** the fetch (USDA may have since added the food) by enqueueing a re-fetch — and that re-attempt counts against the normal rolling-window budget so it cannot bypass the rate limit. The repository/clock and enqueue are mocked so only the TTL decision boundary is tested.
+
+**Dependency & Mock Registry:**
+
+| Dependency             | Source   | Mock/Stub Strategy                                                                                   | Rationale                                               |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns a `not_found` tombstone row with controlled `fetched_at`/tombstone age | Drive the within-TTL vs after-TTL boundary              |
+| `EventBridgePublisher` | ARCH-002 | Spy: `publishFoodRequested()` — assert zero within TTL, one after TTL                                | Verify enqueue suppression within TTL, re-attempt after |
+| `now`                  | Internal | Mock: returns a controlled epoch so the TTL boundary can be crossed                                  | Deterministic TTL boundary                              |
+
+- **Unit Scenario: UTS-001-G1**
+    - **Arrange**: `TOMBSTONE_TTL_DAYS = 30`; `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns `{ fdcId: 12345, fetch_status: "not_found", fetched_at: <29 days ago> }` (within TTL, boundary max-1)
+    - **Act**: Call `handleGetFood(event)`
+    - **Assert**: Returns `{ statusCode: 404 }`; `EventBridgePublisher.publishFoodRequested` called **zero** times (within TTL → `404` with no enqueue, FR-025)
+
+- **Unit Scenario: UTS-001-G2**
+    - **Arrange**: `TOMBSTONE_TTL_DAYS = 30`; `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns a `not_found` tombstone with `fetched_at = <31 days ago>` (after TTL)
+    - **Act**: Call `handleGetFood(event)`
+    - **Assert**: A re-attempt is enqueued — `EventBridgePublisher.publishFoodRequested` called once with `{ fdcId: 12345 }` (after TTL → re-attempt, counting against the normal rolling-window budget per FR-025); response is `202`/pending (a re-fetch is now in flight)
+
+- **Unit Scenario: UTS-001-G3**
+    - **Arrange**: `TOMBSTONE_TTL_DAYS = 30`; tombstone `fetched_at = exactly 30 days ago` (boundary at-TTL)
+    - **Act**: Call `handleGetFood(event)`
+    - **Assert**: At the exact TTL boundary the tombstone is treated as lapsed (TTL **has** elapsed) → `EventBridgePublisher.publishFoodRequested` called once (confirms the branch is gated on TTL elapse, not an always-404)
+
+---
+
+#### Test Case: UTP-001-H (handleGetFoodBatch — per-item partial: cached inline + pending per miss)
+
+**Technique**: Statement & Branch Coverage + Boundary Value Analysis
+**Target View**: Algorithmic/Logic View (per-item partial assembly)
+**Description**: Verifies the per-item partial response of `handleGetFoodBatch()` (`POST /v1/foods/batch`, FR-045, clarified 2026-06-20): for an accepted batch mixing cached/stale and uncached ids, the response returns **cached/stale foods inline** and **each miss as a `pending` entry whose fetch is enqueued**, in a single response body (no all-or-nothing withholding). Over-limit batches (>100) are rejected `400` with no enqueue (see also UTP-012-F). Cache/DB and enqueue are mocked so only the partial-assembly logic is tested.
+
+**Dependency & Mock Registry:**
+
+| Dependency             | Source   | Mock/Stub Strategy                                                                          | Rationale                         |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------- | --------------------------------- |
+| `CacheService`         | ARCH-007 | Mock: `get()` returns FoodData for cached ids, null for misses                              | Drive the mixed cached/miss split |
+| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns rows for cached ids, null for misses                          | Resolve cached ids inline         |
+| `EventBridgePublisher` | ARCH-002 | Spy: `publishFoodRequested()` / `publishFoodBatchRequested()` — assert one enqueue per miss | Verify each miss is enqueued      |
+
+- **Unit Scenario: UTS-001-H1**
+    - **Arrange**: `fdcIds = [101, 102, 103]`; `CacheService.get` resolves `101` and `102` (cached HIT), `null` for `103` (miss); `PostgresRepository.findByFdcId(103)` returns `null`; `CacheService.isPending(103)` returns `false`
+    - **Act**: Call `handleGetFoodBatch(event)`
+    - **Assert**: Returns `{ statusCode: 200, body: { results: [ { fdcId: 101, foodData }, { fdcId: 102, foodData }, { fdcId: 103, status: "pending" } ] } }` — cached foods inline, the miss as a `pending` entry in one body; `EventBridgePublisher.publish*` enqueues a fetch for `103` only (per-item partial, FR-045)
+
+- **Unit Scenario: UTS-001-H2**
+    - **Arrange**: `fdcIds = [201, 202]`; both resolve from cache/DB (all cached)
+    - **Act**: Call `handleGetFoodBatch(event)`
+    - **Assert**: Returns `{ statusCode: 200 }` with both inline; `EventBridgePublisher.publish*` called **zero** times (no misses → no enqueue)
+
+- **Unit Scenario: UTS-001-H3**
+    - **Arrange**: `fdcIds` array of length `101` (over the `MAX_BATCH = 100` cap)
+    - **Act**: Call `handleGetFoodBatch(event)`
+    - **Assert**: Returns `{ statusCode: 400 }`; `EventBridgePublisher.publish*` called **zero** times — an oversized batch is rejected before any enqueue (FR-045, boundary max+1; cross-refs UTP-012-F)
+
+---
+
 ### Module: MOD-002 (EventBridgePublisher — Event Emitter)
 
 **Parent Architecture Modules**: ARCH-002
@@ -404,20 +493,20 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 
 **Technique**: Statement & Branch Coverage + State Transition Testing
 **Target View**: Algorithmic/Logic View + State Machine View (CheckingRateLimit → ReleasingLease)
-**Description**: Verifies `processRecord()` extends the `fetch_queue` row lease (FR-018) and returns `{ failed: false }` when token bucket is exhausted.
+**Description**: Verifies `processRecord()` releases/extends the `fetch_queue` row lease (FR-018/FR-021) and returns `{ failed: false }` when the rolling-window limiter is paused (trailing-60-min count at the 90% threshold).
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                                               | Rationale                                  |
-| ------------------------ | -------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
-| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: false }`; `getWaitTime()` returns `25` | Simulate exhausted bucket                  |
-| `FetchQueueRouter`       | ARCH-003 | Mock: `extendLease()` records args                                               | Prevent real Postgres `fetch_queue` writes |
-| `UsdaApiClient`          | ARCH-008 | Mock: NOT called (assert)                                                        | Verify USDA not called when limited        |
+| Dependency             | Source   | Mock/Stub Strategy                                                                                | Rationale                                        |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `RollingWindowLimiter` | ARCH-005 | Mock: `checkAndRecord()` returns `{ allowed: false, paused: true }`; `getWaitTime()` returns `25` | Simulate the window paused at the 90% threshold  |
+| `FetchQueueRouter`     | ARCH-003 | Mock: `extendLease()` records args                                                                | Prevent real Postgres `fetch_queue` writes       |
+| `UsdaApiClient`        | ARCH-008 | Mock: NOT called (assert)                                                                         | Verify USDA not called when the window is paused |
 
 - **Unit Scenario: UTS-004-A1**
-    - **Arrange**: Set `record = { rowId: "row-1", fdcId: 12345, body: '{"fdcId":12345}' }`; `TokenBucketRateLimiter.checkTokens` returns `{ allowed: false }`; `TokenBucketRateLimiter.getWaitTime` returns `25`
+    - **Arrange**: Set `record = { rowId: "row-1", fdcId: 12345, body: '{"fdcId":12345}' }`; `RollingWindowLimiter.checkAndRecord` returns `{ allowed: false, paused: true }` (window at the 90% pause threshold); `RollingWindowLimiter.getWaitTime` returns `25`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, rowId: "row-1" }`; `FetchQueueRouter.extendLease` called with `("row-1", 30)` (25 + 5; row-lease extension per FR-018); `UsdaApiClient.fetchFoods` NOT called
+    - **Assert**: Returns `{ failed: false, rowId: "row-1" }`; `FetchQueueRouter.extendLease` called with `("row-1", 30)` (25 + 5; row-lease extension while the worker waits for calls to age out of the window per FR-018/FR-021); `UsdaApiClient.fetchFoods` NOT called (no call recorded against the window)
 
 ---
 
@@ -429,18 +518,18 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                                   | Rationale                          |
-| ------------------------ | -------- | -------------------------------------------------------------------- | ---------------------------------- |
-| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: true }`                    | Allow rate limit to pass           |
-| `UsdaApiClient`          | ARCH-008 | Mock: `fetchFoods()` throws `UsdaApiError` with varying status codes | Simulate USDA error responses      |
-| `FetchQueueRouter`       | ARCH-003 | Mock: `extendLease()` / `tombstone()` record args                    | Verify row-lease / tombstone calls |
-| `PostgresRepository`     | ARCH-006 | Mock: `updateFetchStatus()` records args                             | Verify DB update on 404            |
-| `CacheService`           | ARCH-007 | Mock: `clearPending()` records args                                  | Verify pending cleared on 404      |
+| Dependency             | Source   | Mock/Stub Strategy                                                   | Rationale                          |
+| ---------------------- | -------- | -------------------------------------------------------------------- | ---------------------------------- |
+| `RollingWindowLimiter` | ARCH-005 | Mock: `checkAndRecord()` returns `{ allowed: true }`                 | Allow rate limit to pass           |
+| `UsdaApiClient`        | ARCH-008 | Mock: `fetchFoods()` throws `UsdaApiError` with varying status codes | Simulate USDA error responses      |
+| `FetchQueueRouter`     | ARCH-003 | Mock: `extendLease()` / `tombstone()` record args                    | Verify row-lease / tombstone calls |
+| `PostgresRepository`   | ARCH-006 | Mock: `updateFetchStatus()` records args                             | Verify DB update on 404            |
+| `CacheService`         | ARCH-007 | Mock: `clearPending()` records args                                  | Verify pending cleared on 404      |
 
 - **Unit Scenario: UTS-004-B1**
     - **Arrange**: `UsdaApiClient.fetchFoods` throws `UsdaApiError` with `status = 429`; `record.rowId = "row-1"`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `FetchQueueRouter.extendLease` called with `("row-1", 60)` (backoff-extended row lease, FR-016/FR-018)
+    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `FetchQueueRouter.extendLease` called with `("row-1", 60)` (the consumer treats the rolling window as full and **backs off** — leaving the row `pending` for retry after the backoff gate — rather than resetting the window count; the row is not dropped, FR-026/FR-016/FR-018)
 
 - **Unit Scenario: UTS-004-B2**
     - **Arrange**: `UsdaApiClient.fetchFoods` throws `UsdaApiError` with `status = 503`
@@ -462,15 +551,15 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                                      | Rationale                                 |
-| ------------------------ | -------- | ----------------------------------------------------------------------- | ----------------------------------------- |
-| `TokenBucketRateLimiter` | ARCH-005 | Mock: `checkTokens()` returns `{ allowed: true }`                       | Allow rate limit to pass                  |
-| `UsdaApiClient`          | ARCH-008 | Mock: `fetchFoods()` returns `[{ fdcId: 12345, description: "Apple" }]` | Simulate successful USDA fetch            |
-| `PostgresRepository`     | ARCH-006 | Mock: `upsertFood()` returns `{ success: true }`                        | Prevent real DB writes                    |
-| `CacheService`           | ARCH-007 | Mock: `invalidate()` and `clearPending()` record args                   | Verify cache operations                   |
-| `FetchQueueRouter`       | ARCH-003 | Mock: `complete()` records args                                         | Verify the leased row is completed        |
-| `EventBridgePublisher`   | ARCH-002 | Mock: `publishFoodDataReceived()` records args                          | Verify `FoodDataReceived` event published |
-| `MonitoringLogger`       | ARCH-011 | Mock: `incrementMetric()` records args                                  | Verify metric emitted                     |
+| Dependency             | Source   | Mock/Stub Strategy                                                      | Rationale                                 |
+| ---------------------- | -------- | ----------------------------------------------------------------------- | ----------------------------------------- |
+| `RollingWindowLimiter` | ARCH-005 | Mock: `checkAndRecord()` returns `{ allowed: true }`                    | Allow rate limit to pass                  |
+| `UsdaApiClient`        | ARCH-008 | Mock: `fetchFoods()` returns `[{ fdcId: 12345, description: "Apple" }]` | Simulate successful USDA fetch            |
+| `PostgresRepository`   | ARCH-006 | Mock: `upsertFood()` returns `{ success: true }`                        | Prevent real DB writes                    |
+| `CacheService`         | ARCH-007 | Mock: `invalidate()` and `clearPending()` record args                   | Verify cache operations                   |
+| `FetchQueueRouter`     | ARCH-003 | Mock: `complete()` records args                                         | Verify the leased row is completed        |
+| `EventBridgePublisher` | ARCH-002 | Mock: `publishFoodDataReceived()` records args                          | Verify `FoodDataReceived` event published |
+| `MonitoringLogger`     | ARCH-011 | Mock: `incrementMetric()` records args                                  | Verify metric emitted                     |
 
 - **Unit Scenario: UTS-004-C1**
     - **Arrange**: `record.body = '{"fdcId":12345}'`; `UsdaApiClient.fetchFoods` returns `[{ fdcId: 12345, description: "Apple" }]`
@@ -503,97 +592,102 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 
 ---
 
-### Module: MOD-005 (TokenBucketRateLimiter — Postgres-Backed Atomic Token Bucket; deferred Redis-Lua variant)
+### Module: MOD-005 (RollingWindowLimiter — Postgres-Backed Atomic Rolling 60-Minute Window; deferred Redis sorted-set variant)
 
 **Parent Architecture Modules**: ARCH-005 [CROSS-CUTTING]
-**Target Source File(s)**: `packages/services/food-service/src/rate-limiter/token-bucket.ts`
+**Target Source File(s)**: `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`
 
 ---
 
-#### Test Case: UTP-005-A (token bucket logic — token refill and consumption)
+#### Test Case: UTP-005-A (rolling-window logic — trailing-60-min count, 90% pause, hard cap)
 
 **Technique**: Statement & Branch Coverage + Boundary Value Analysis
-**Target View**: Algorithmic/Logic View (atomic token-bucket update)
-**Description**: Verifies the token refill calculation and the allowed/denied branch at the token boundary. By default the bucket is an atomic Postgres `UPDATE ... RETURNING` (single-instance consumer + advisory lock); the deferred Redis variant runs the same arithmetic as a Lua script. The store is mocked to execute the update logic in-process.
+**Target View**: Algorithmic/Logic View (atomic count-and-record over the trailing 60 minutes)
+**Description**: Verifies the rolling-window count-and-record at its boundaries (FR-019, FR-020): the limiter counts USDA calls in the trailing 60 minutes from the `usda_call_log`, admits-and-records below 900, pauses at the 90% (900) threshold, and blocks the 1,001st call in any trailing-60-min window (the hard cap is never breached). By default this is an atomic Postgres count+insert on the `usda_call_log` (`INSERT ... WHERE (SELECT count(...)) < cap RETURNING`); the deferred Redis variant runs the same logic as a sorted-set Lua script (`ZADD` timestamp / `ZCOUNT` last 60 min). The store is mocked to execute the count-and-record logic in-process.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source                                     | Mock/Stub Strategy                                                                                      | Rationale                               |
-| ------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `BucketStore` | Postgres (default; deferred Redis variant) | Mock: executes the atomic bucket update in-process (`UPDATE ... RETURNING`, or the deferred Lua `eval`) | Isolate from real bucket infrastructure |
+| Dependency     | Source                                                                | Mock/Stub Strategy                                                                                                                         | Rationale                                 |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: executes the atomic count-and-record in-process (`INSERT ... WHERE count < cap RETURNING`, or the deferred Lua `eval` over `ZCOUNT`) | Isolate from real call-log infrastructure |
 
 - **Unit Scenario: UTS-005-A1**
-    - **Arrange**: Set `tokens = 1.0`, `last_refill = now - 0` (no elapsed time), `capacity = 1000`, `refill_rate = 0.2778`
-    - **Act**: Execute the atomic bucket update via mock `BucketStore`
-    - **Assert**: Returns `[1, 0]` (allowed=true, tokensRemaining=0); bucket row updated to `tokens = 0`; `last_refill` updated to `now`
+    - **Arrange**: Set `cap = 1000`, `pauseThreshold = 900`; mock `CallLogStore` so the trailing-60-min count is `0` (window empty)
+    - **Act**: Execute the atomic count-and-record via mock `CallLogStore`
+    - **Assert**: Returns `{ allowed: true, trailingCount: 1 }` (recorded the new call's timestamp); a new row/member is appended to the window (boundary: empty window admits)
 
 - **Unit Scenario: UTS-005-A2**
-    - **Arrange**: Set `tokens = 0.5`, `last_refill = now - 0` (no elapsed time, tokens < 1)
-    - **Act**: Execute the bucket update
-    - **Assert**: Returns `[0, 0]` (allowed=false, tokensRemaining=0 after clamp); bucket row updated with value < 1
+    - **Arrange**: Set `cap = 1000`, `pauseThreshold = 900`; mock `CallLogStore` so the trailing-60-min count is `899` (max-1, under the pause threshold)
+    - **Act**: Execute the count-and-record
+    - **Assert**: Returns `{ allowed: true, trailingCount: 900 }`; the call is recorded (boundary: count below 900 still admits)
 
 - **Unit Scenario: UTS-005-A3**
-    - **Arrange**: Set `tokens = 0`, `last_refill = now - 3600` (1 hour elapsed); `capacity = 1000`, `refill_rate = 0.2778`
-    - **Act**: Execute the bucket update
-    - **Assert**: `new_tokens` clamped to `1000` (capacity); returns `[1, 999]` (allowed=true, 999 remaining after consuming 1)
+    - **Arrange**: Set `pauseThreshold = 900`; mock `CallLogStore` so the trailing-60-min count is `900` (at the 90% pause threshold)
+    - **Act**: Execute the count-and-record
+    - **Assert**: Returns `{ allowed: false, paused: true, trailingCount: 900 }`; **no** new timestamp recorded — the worker pauses draining at 90% rather than advancing (boundary: count == 900 → pause, FR-019)
 
 - **Unit Scenario: UTS-005-A4**
-    - **Arrange**: Set `tokens = 0`, `last_refill = now - 1` (1 second elapsed, refill = 0.2778 < 1)
-    - **Act**: Execute the bucket update
-    - **Assert**: Returns `[0, ...]` (allowed=false; 0.2778 tokens insufficient to consume 1)
+    - **Arrange**: Set `cap = 1000`; mock `CallLogStore` so the trailing-60-min count is `1000` (the call would be the 1,001st in the window)
+    - **Act**: Execute the count-and-record
+    - **Assert**: Returns `{ allowed: false, trailingCount: 1000 }`; the call is **not** recorded and **not** made — the 1,001st call in any trailing-60-min window is blocked, so the hard cap of ≤1,000 is never breached (boundary: at-cap rejects, FR-019/SC-002)
 
 ---
 
-#### Test Case: UTP-005-B (checkTokens — bucket-store unavailability error propagation)
+#### Test Case: UTP-005-B (count-and-record — call-log-store unavailability error propagation)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Error Handling Return Codes
-**Description**: Verifies `checkTokens()` throws `RateLimiterError` when the bucket store (Postgres by default; deferred Redis variant) is unavailable or times out.
+**Description**: Verifies the count-and-record operation throws `RateLimiterError` when the call-log store (Postgres `usda_call_log` by default; deferred Redis sorted-set variant) is unavailable or times out — the limiter fails closed (no USDA call proceeds) rather than assuming the window is empty.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source                                     | Mock/Stub Strategy                                  | Rationale                            |
-| ------------- | ------------------------------------------ | --------------------------------------------------- | ------------------------------------ |
-| `BucketStore` | Postgres (default; deferred Redis variant) | Mock: bucket update throws `ConnectionRefusedError` | Simulate bucket-store unavailability |
+| Dependency     | Source                                                                | Mock/Stub Strategy                                     | Rationale                              |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------- |
+| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: count-and-record throws `ConnectionRefusedError` | Simulate call-log-store unavailability |
 
 - **Unit Scenario: UTS-005-B1**
-    - **Arrange**: `BucketStore` update mock throws `ConnectionRefusedError`
-    - **Act**: Call `checkTokens()`
+    - **Arrange**: `CallLogStore` count-and-record mock throws `ConnectionRefusedError`
+    - **Act**: Call `checkAndRecord()`
     - **Assert**: Throws `RateLimiterError`; error message contains "unavailable" or "connection"
 
 - **Unit Scenario: UTS-005-B2**
-    - **Arrange**: `BucketStore` update mock throws `TimeoutError` after 100ms
-    - **Act**: Call `checkTokens()`
+    - **Arrange**: `CallLogStore` count-and-record mock throws `TimeoutError` after 100ms
+    - **Act**: Call `checkAndRecord()`
     - **Assert**: Throws `RateLimiterError`
 
 ---
 
-#### Test Case: UTP-005-C (state transitions — TokensAvailable ↔ TokensExhausted)
+#### Test Case: UTP-005-C (state transitions — WindowOpen ↔ WindowFull as calls age out)
 
 **Technique**: State Transition Testing
 **Target View**: State Machine View
-**Description**: Verifies the state machine transitions between `TokensAvailable` and `TokensExhausted` as tokens are consumed and time elapses.
+**Description**: Verifies the state machine transitions between `WindowOpen` and `WindowFull` as the trailing-60-min count rises to the 90% pause threshold and then drops back as earlier calls age out of the trailing window (FR-019/FR-021). The call-log store is mocked to return controlled trailing counts.
 
 **Dependency & Mock Registry:**
 
-| Dependency    | Source                                     | Mock/Stub Strategy                                                         | Rationale                               |
-| ------------- | ------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------- |
-| `BucketStore` | Postgres (default; deferred Redis variant) | Mock: bucket update returns controlled `[allowed, tokensRemaining]` tuples | Drive state machine through transitions |
+| Dependency     | Source                                                                | Mock/Stub Strategy                                                             | Rationale                               |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------- |
+| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: count-and-record returns controlled `{ allowed, trailingCount }` results | Drive state machine through transitions |
 
 - **Unit Scenario: UTS-005-C1**
-    - **Arrange**: `BucketStore` update returns `[1, 5]` (tokens available)
-    - **Act**: Call `checkTokens()`
-    - **Assert**: Returns `{ allowed: true, tokensRemaining: 5 }` (state: TokensAvailable)
+    - **Arrange**: `CallLogStore` returns a trailing-60-min count of `500` (well under the pause threshold)
+    - **Act**: Call `checkAndRecord()`
+    - **Assert**: Returns `{ allowed: true, trailingCount: 501 }` (state: WindowOpen)
 
 - **Unit Scenario: UTS-005-C2**
-    - **Arrange**: `BucketStore` update returns `[1, 0]` (last token consumed)
-    - **Act**: Call `checkTokens()`
-    - **Assert**: Returns `{ allowed: true, tokensRemaining: 0 }` (transition: TokensAvailable → TokensExhausted)
+    - **Arrange**: `CallLogStore` returns a trailing-60-min count of `899`, and the recorded call brings the trailing count to `900`
+    - **Act**: Call `checkAndRecord()`
+    - **Assert**: Returns `{ allowed: true, trailingCount: 900 }` (transition: WindowOpen → WindowFull at the 90% pause threshold)
 
 - **Unit Scenario: UTS-005-C3**
-    - **Arrange**: `BucketStore` update returns `[0, 0]` (exhausted)
-    - **Act**: Call `checkTokens()`
-    - **Assert**: Returns `{ allowed: false, tokensRemaining: 0 }` (state: TokensExhausted)
+    - **Arrange**: `CallLogStore` returns a trailing-60-min count of `900` (at the pause threshold)
+    - **Act**: Call `checkAndRecord()`
+    - **Assert**: Returns `{ allowed: false, paused: true, trailingCount: 900 }` (state: WindowFull — the worker pauses)
+
+- **Unit Scenario: UTS-005-C4**
+    - **Arrange**: After the window was full, enough earlier calls age out of the trailing 60 minutes that `CallLogStore` now returns a trailing-60-min count of `850`
+    - **Act**: Call `checkAndRecord()`
+    - **Assert**: Returns `{ allowed: true, trailingCount: 851 }` (transition: WindowFull → WindowOpen — calls aged out of the window, the worker resumes draining, FR-021)
 
 ---
 
@@ -1097,13 +1191,13 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 ---
 
-### Module: MOD-012 (ClerkAuthMiddleware — Networkless Clerk Verification & Scope Gate) + MOD-013 (QuotaAndFairness — Per-`sub` Quota, Batch Cap & Distinct-Requester Demand)
+### Module: MOD-012 (ClerkAuthMiddleware — Networkless Clerk Verification & Scope Gate) + MOD-013 (DemotionAndFairness — Per-`sub` Pending-Count Demotion, Batch Cap & Distinct-Requester Demand)
 
 **Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
 **Requirements Under Test**: REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
-**Target Source File(s)**: `packages/services/food-service/src/auth/clerk-auth.middleware.ts` (MOD-012, uses shared `@kitchensink/clerk-verify`), `packages/services/food-service/src/auth/quota-and-fairness.ts` (MOD-013)
+**Target Source File(s)**: `packages/services/food-service/src/auth/clerk-auth.middleware.ts` (MOD-012, uses shared `@kitchensink/clerk-verify`), `packages/services/food-service/src/auth/demotion-and-fairness.service.ts` (MOD-013)
 
-> The auth slice fronts every food-data entry point. MOD-012 verifies the Clerk session/M2M token networklessly (signature/`exp`/`nbf`/`azp` via the public `CLERK_JWT_KEY`), fails closed to `401`, derives the `AuthenticatedCaller` solely from the verified `sub`, and gates operational scopes (`403`) from `public_metadata`. MOD-013 enforces the per-`sub` enqueue quota (`429`), the batch-size cap (`400`), and distinct-requester demand counting before any fetch is enqueued. Unit scenarios isolate `@clerk/backend` `verifyToken` and all I/O behind mocks; only the module's internal control flow, boundaries, and state are exercised.
+> The auth slice fronts every food-data entry point. MOD-012 verifies the Clerk session/M2M token networklessly (signature/`exp`/`nbf`/`azp` via the public `CLERK_JWT_KEY`), fails closed to `401`, derives the `AuthenticatedCaller` solely from the verified `sub`, and gates operational scopes (`403`) from `public_metadata`. MOD-013 enforces **fairness by demotion, not rejection** (FR-043, revised 2026-06-20): there is **no per-user quota and no `429`** — instead, when a single `sub` has **more than 50 items currently pending** in the `fetch_queue` (counted live from `fetch_queue` + `fetch_requesters`), that requester's queued items are ranked to the **back** of the priority order, with dynamic re-promotion once the pending count falls back below 50. It also enforces the batch-size cap (`400`) and distinct-requester demand counting before any fetch is enqueued; no authenticated cache-miss request is ever rejected for a personal limit (work-conserving). Unit scenarios isolate `@clerk/backend` `verifyToken` and all I/O behind mocks; only the module's internal control flow, boundaries, and state are exercised.
 
 ---
 
@@ -1220,33 +1314,33 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 ---
 
-#### Test Case: UTP-012-E (checkQuota — per-`sub` enqueue quota exceeded → 429, no enqueue)
+#### Test Case: UTP-012-E (computePriority — per-`sub` pending-count demotion, dynamic re-promotion, never rejected)
 
 **Technique**: Boundary Value Analysis + State Transition Testing + Strict Isolation
 **Target View**: Internal Data Structures + State Machine View
-**Description**: Verifies the per-`sub` leaky/token bucket boundary in MOD-013: requests up to the quota are admitted; the request crossing the quota (and the configured ≤20% global share) is rejected with `429` and enqueues nothing (REQ-039, SC-012). The bucket store is mocked so only the decision logic is tested.
+**Description**: Verifies fairness-by-demotion in MOD-013 (FR-043, SC-012, revised 2026-06-20): the drain-time priority scorer computes a `sub`'s rank from its **current pending count** read live from `fetch_queue` + `fetch_requesters`. A request from a `sub` with **more than 50 items currently pending** is **still admitted** (no `429`, never rejected for a personal limit) but its queued items are ranked to the **back** of the priority order; once the `sub`'s pending count falls back below 50 the scorer **dynamically re-promotes** the items to normal priority (it reads live state, not a frozen flag). Demotion is work-conserving — a demoted `sub` still drains on spare capacity. The pending-count source is mocked so only the demotion decision logic is tested.
 
 **Dependency & Mock Registry:**
 
-| Dependency   | Source                                              | Mock/Stub Strategy                                        | Rationale                                    |
-| ------------ | --------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------- |
-| `QuotaStore` | ARCH-007 (Postgres default; deferred Redis variant) | Mock: returns controlled remaining-token counts per `sub` | Isolate quota arithmetic from the real store |
-| `FetchQueue` | ARCH-003 (Postgres `fetch_queue`)                   | Spy: `enqueue()` — assert call count                      | Verify no fetch is enqueued on quota breach  |
+| Dependency          | Source                                        | Mock/Stub Strategy                                      | Rationale                                                             |
+| ------------------- | --------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------- |
+| `PendingCountStore` | ARCH-003 (`fetch_queue` + `fetch_requesters`) | Mock: returns a controlled live pending count per `sub` | Isolate the demotion decision from the real queue tables              |
+| `FetchQueue`        | ARCH-003 (Postgres `fetch_queue`)             | Spy: `enqueue()` — assert call count                    | Verify every authenticated request is still enqueued (never rejected) |
 
 - **Unit Scenario: UTS-012-E1**
-    - **Arrange**: Per-`sub` quota `N = 10` enqueues/hour; mock `QuotaStore` so `sub='user_abc'` has `remaining = 1` (at boundary, one left)
-    - **Act**: Invoke `checkQuota('user_abc', 1)`
-    - **Assert**: Admitted (returns `{ allowed: true }`); `QuotaStore` decremented to `0`; `FetchQueue.enqueue` permitted (boundary: max valid)
+    - **Arrange**: Demotion threshold `T = 50`; mock `PendingCountStore` so `sub='user_abc'` has `pending = 50` (at the boundary, not yet over)
+    - **Act**: Invoke `computePriority('user_abc', { fdcId: 12345 })`
+    - **Assert**: Returns normal (non-demoted) priority and `{ admitted: true }`; `FetchQueue.enqueue` called once — at exactly 50 pending the `sub` is **not** demoted (boundary: == 50 is not "more than 50")
 
 - **Unit Scenario: UTS-012-E2**
-    - **Arrange**: Mock `QuotaStore` so `sub='user_abc'` has `remaining = 0` (quota exhausted)
-    - **Act**: Invoke `checkQuota('user_abc', 1)`
-    - **Assert**: Returns `{ allowed: false, status: 429 }`; `FetchQueue.enqueue` called **zero** times (boundary: max+1 — over quota, no enqueue)
+    - **Arrange**: Mock `PendingCountStore` so `sub='user_abc'` has `pending = 51` (more than 50)
+    - **Act**: Invoke `computePriority('user_abc', { fdcId: 12345 })`
+    - **Assert**: Returns **back-of-queue** (lowest, below FR-015 demand ordering) priority and `{ admitted: true }`; `FetchQueue.enqueue` **still called once** — the request is accepted (no `429`, never rejected for a personal limit); only its rank is demoted (boundary: 51 → demoted, FR-043)
 
 - **Unit Scenario: UTS-012-E3**
-    - **Arrange**: `sub='user_abc'` already holds ≥ 20% of the global 1,000 req/hr budget within the rolling window (global-share cap reached) though its per-user `remaining > 0`
-    - **Act**: Invoke `checkQuota('user_abc', 1)`
-    - **Assert**: Returns `{ allowed: false, status: 429 }` — the configured global-share ceiling (SC-012) trips independently of the per-user bucket; no enqueue
+    - **Arrange**: `sub='user_abc'` was demoted while at `pending = 80`; its pending count later drops to `pending = 49` (below the threshold) as items drain
+    - **Act**: Invoke `computePriority('user_abc', { fdcId: 12345 })` again at the new live count
+    - **Assert**: Returns normal (non-demoted) priority — the scorer **dynamically re-promotes** from live state once pending falls below 50, with no frozen demotion flag persisted; the heavy `sub` still drained on spare capacity throughout (work-conserving, FR-043/SC-012)
 
 ---
 
@@ -1254,7 +1348,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Boundary Value Analysis + Statement & Branch Coverage
 **Target View**: Internal Data Structures + Algorithmic/Logic View
-**Description**: Verifies the hard batch-size cap (e.g. ≤ 100 `fdcId`s) across the boundary: at-limit accepted, over-limit rejected with `400` before any enqueue and before quota debit (REQ-040, FR-045).
+**Description**: Verifies the hard batch-size cap (e.g. ≤ 100 `fdcId`s) across the boundary: at-limit accepted, over-limit rejected with `400` before any enqueue (REQ-040, FR-045). (There is no per-user quota to debit — fairness is by demotion, UTP-012-E.)
 
 **Dependency & Mock Registry:**
 
@@ -1308,40 +1402,40 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 ---
 
-#### Test Case: UTP-012-H (enqueueGate — 503 fail-closed family: backpressure, open circuit, quota-store unavailable)
+#### Test Case: UTP-012-H (enqueueGate — 503 fail-closed family: backpressure, open circuit, pending-count store unavailable)
 
 **Technique**: Boundary Value Analysis + Statement & Branch Coverage + Error Guessing
 **Target View**: Internal Data Structures + Algorithmic/Logic View + Error Handling & Return Codes
-**Description**: Verifies the `503` decision branches of MOD-013's enqueue gate for an authenticated, within-quota caller: (a) the `fetch_queue` is at/over its enforced `MAX_QUEUE_DEPTH` → `503` with no enqueue; (b) the USDA circuit breaker is `OPEN` → `503` with no enqueue; (c) the quota store (Redis/Postgres) is unavailable → **fail closed** to `503` (never fail open to unlimited enqueue). These are the unit-level counterparts to the seam test ITP-012-D; the queue-depth probe, circuit breaker, and quota store are all mocked so only the gate's decision logic is exercised (REQ-040, FR-046). Fail-closed is **defined** here: any error or unavailability of the quota/depth/breaker signals resolves to a reject (`503`), and `FetchQueue.enqueue` is never called and the per-`sub` quota is never debited.
+**Description**: Verifies the `503` decision branches of MOD-013's enqueue gate for an authenticated caller (note: there is no per-user quota — fairness is by demotion per UTP-012-E, not by `429`): (a) the `fetch_queue` is at/over its enforced `MAX_QUEUE_DEPTH` → `503` with no enqueue; (b) the USDA circuit breaker is `OPEN` → `503` with no enqueue; (c) the pending-count store (`fetch_queue` + `fetch_requesters`) used to compute demotion is unavailable → **fail closed** to `503` (never fail open to unbounded enqueue). These are the unit-level counterparts to the seam test ITP-012-D; the queue-depth probe, circuit breaker, and pending-count store are all mocked so only the gate's decision logic is exercised (REQ-040, FR-046). Fail-closed is **defined** here: any error or unavailability of the demotion/depth/breaker signals resolves to a reject (`503`) and `FetchQueue.enqueue` is never called. (The system-wide `MAX_QUEUE_DEPTH` backstop is distinct from per-`sub` demotion: demotion never rejects, but the global depth ceiling can `503`.)
 
 **Dependency & Mock Registry:**
 
-| Dependency        | Source                                              | Mock/Stub Strategy                                                          | Rationale                                             |
-| ----------------- | --------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `QueueDepthProbe` | ARCH-003                                            | Mock: `currentDepth()` returns a controlled integer at/over/under the bound | Drive the backpressure boundary without a real queue  |
-| `CircuitBreaker`  | ARCH-008                                            | Mock: `state()` returns `'closed'` or `'open'`                              | Drive the open-circuit branch without real USDA state |
-| `QuotaStore`      | ARCH-007 (Postgres default; deferred Redis variant) | Mock: `remaining()` resolves a count **or** throws `ConnectionRefusedError` | Drive the within-quota and store-unavailable branches |
-| `FetchQueue`      | ARCH-003                                            | Spy: `enqueue()` — assert zero on every `503`                               | Verify nothing is enqueued when the gate fails closed |
+| Dependency          | Source                                        | Mock/Stub Strategy                                                           | Rationale                                               |
+| ------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `QueueDepthProbe`   | ARCH-003                                      | Mock: `currentDepth()` returns a controlled integer at/over/under the bound  | Drive the backpressure boundary without a real queue    |
+| `CircuitBreaker`    | ARCH-008                                      | Mock: `state()` returns `'closed'` or `'open'`                               | Drive the open-circuit branch without real USDA state   |
+| `PendingCountStore` | ARCH-003 (`fetch_queue` + `fetch_requesters`) | Mock: `pendingFor()` resolves a count **or** throws `ConnectionRefusedError` | Drive the demotion-input and store-unavailable branches |
+| `FetchQueue`        | ARCH-003                                      | Spy: `enqueue()` — assert zero on every `503`                                | Verify nothing is enqueued when the gate fails closed   |
 
 - **Unit Scenario: UTS-012-H1**
-    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; mock `QueueDepthProbe.currentDepth()` returns `1000` (at the ceiling); `CircuitBreaker.state()` returns `'closed'`; `QuotaStore.remaining('user_abc')` returns `5` (within quota)
+    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; mock `QueueDepthProbe.currentDepth()` returns `1000` (at the ceiling); `CircuitBreaker.state()` returns `'closed'`; `PendingCountStore.pendingFor('user_abc')` returns `5`
     - **Act**: Invoke `enqueueGate('user_abc', [12345])`
-    - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times; per-`sub` quota NOT debited (boundary: depth == max is over-full, reject)
+    - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times (boundary: depth == max is over-full, reject — the global backstop, not a per-user limit)
 
 - **Unit Scenario: UTS-012-H2**
-    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; `QueueDepthProbe.currentDepth()` returns `999` (max-1, under the ceiling); `CircuitBreaker.state()` returns `'closed'`; `QuotaStore.remaining('user_abc')` returns `5`
+    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; `QueueDepthProbe.currentDepth()` returns `999` (max-1, under the ceiling); `CircuitBreaker.state()` returns `'closed'`; `PendingCountStore.pendingFor('user_abc')` returns `5`
     - **Act**: Invoke `enqueueGate('user_abc', [12345])`
     - **Assert**: Returns `{ allowed: true }`; `FetchQueue.enqueue` called once (boundary: max-1 admitted — confirms the `503` branch is the depth ceiling, not an always-reject)
 
 - **Unit Scenario: UTS-012-H3**
-    - **Arrange**: `QueueDepthProbe.currentDepth()` returns `10` (well under ceiling); `CircuitBreaker.state()` returns `'open'` (USDA breaker tripped); `QuotaStore.remaining('user_abc')` returns `5`
+    - **Arrange**: `QueueDepthProbe.currentDepth()` returns `10` (well under ceiling); `CircuitBreaker.state()` returns `'open'` (USDA breaker tripped); `PendingCountStore.pendingFor('user_abc')` returns `5`
     - **Act**: Invoke `enqueueGate('user_abc', [12345])`
-    - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times; per-`sub` quota NOT debited (open circuit fails closed independently of queue depth)
+    - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times (open circuit fails closed independently of queue depth)
 
 - **Unit Scenario: UTS-012-H4**
-    - **Arrange**: `QueueDepthProbe.currentDepth()` returns `10`; `CircuitBreaker.state()` returns `'closed'`; mock `QuotaStore.remaining('user_abc')` **throws** `ConnectionRefusedError` (quota store unavailable)
+    - **Arrange**: `QueueDepthProbe.currentDepth()` returns `10`; `CircuitBreaker.state()` returns `'closed'`; mock `PendingCountStore.pendingFor('user_abc')` **throws** `ConnectionRefusedError` (pending-count store unavailable)
     - **Act**: Invoke `enqueueGate('user_abc', [12345])`
-    - **Assert**: Returns `{ allowed: false, status: 503 }` — **fail closed**: an unavailable quota store rejects rather than failing open to unlimited enqueue; `FetchQueue.enqueue` called **zero** times; no quota debit attempted after the failure
+    - **Assert**: Returns `{ allowed: false, status: 503 }` — **fail closed**: an unavailable pending-count store (which feeds the demotion scorer) rejects rather than failing open to unbounded enqueue; `FetchQueue.enqueue` called **zero** times
 
 ---
 
@@ -1571,19 +1665,19 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 | Total MOD modules                      | 14                                                                                                                                         |
 | Non-[EXTERNAL] MODs requiring coverage | 14                                                                                                                                         |
 | MODs with at least one UTP             | 14 / 14 (100%)                                                                                                                             |
-| Total Unit Test Cases (UTP)            | 50                                                                                                                                         |
-| Total Unit Test Scenarios (UTS)        | 138                                                                                                                                        |
+| Total Unit Test Cases (UTP)            | 53                                                                                                                                         |
+| Total Unit Test Scenarios (UTS)        | 147                                                                                                                                        |
 | Techniques applied                     | Statement & Branch Coverage, Boundary Value Analysis, Equivalence Partitioning, Strict Isolation, State Transition Testing, Error Guessing |
 
 ## Technique Distribution
 
 | Technique                   | UTP Count |
 | --------------------------- | --------- |
-| Statement & Branch Coverage | 39        |
-| Boundary Value Analysis     | 14        |
+| Statement & Branch Coverage | 42        |
+| Boundary Value Analysis     | 16        |
 | Equivalence Partitioning    | 10        |
 | Strict Isolation            | 17        |
-| State Transition Testing    | 9         |
+| State Transition Testing    | 10        |
 | Error Guessing              | 7         |
 
 > Note: Many UTPs apply multiple techniques simultaneously; counts reflect primary + secondary technique pairings.

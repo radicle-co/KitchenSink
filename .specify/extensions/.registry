@@ -196,6 +196,55 @@
       },
       "registered_skills": [],
       "installed_at": "2026-06-19T03:27:04.239938+00:00"
+    },
+    "speckit-superpowers-bridge": {
+      "version": "1.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:f83ce1777a458c2ef9f019fec92065ba5621382f89d6d4db4282ad550772329f",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.speckit-superpowers-bridge.handoff",
+          "speckit.speckit-superpowers-bridge.guard",
+          "speckit.speckit-superpowers-bridge.execute",
+          "speckit.superpowers-bridge"
+        ],
+        "copilot": [
+          "speckit.speckit-superpowers-bridge.handoff",
+          "speckit.speckit-superpowers-bridge.guard",
+          "speckit.speckit-superpowers-bridge.execute",
+          "speckit.superpowers-bridge"
+        ],
+        "opencode": [
+          "speckit.speckit-superpowers-bridge.handoff",
+          "speckit.speckit-superpowers-bridge.guard",
+          "speckit.speckit-superpowers-bridge.execute",
+          "speckit.superpowers-bridge"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-06-20T18:39:58.924346+00:00"
+    },
+    "staff-review": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:320fa967c40ae943e37ceb0a1fb0f8dda42eb22b07be8428674ce72532e28e1e",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.staff-review.run"
+        ],
+        "copilot": [
+          "speckit.staff-review.run"
+        ],
+        "opencode": [
+          "speckit.staff-review.run"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-06-20T18:53:29.309644+00:00"
     }
   }
 }

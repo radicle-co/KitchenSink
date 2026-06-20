@@ -2,6 +2,8 @@ installed:
 - agent-context
 - product-forge
 - red-team
+- speckit-superpowers-bridge
+- staff-review
 - v-model
 settings:
   auto_execute_hooks: true
@@ -13,6 +15,13 @@ hooks:
     optional: true
     prompt: Run traceability matrix to validate requirement coverage?
     description: Builds the traceability matrix after tasks are generated
+    condition: null
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.handoff
+    enabled: true
+    optional: false
+    prompt: Execute speckit.speckit-superpowers-bridge.handoff?
+    description: Create the Superpowers handoff after Spec Kit task generation
     condition: null
   after_specify:
   - extension: agent-context
@@ -31,4 +40,48 @@ hooks:
     priority: 10
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after planning
+    condition: null
+  before_clarify:
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Prevent Spec Kit contract changes while Superpowers implementation
+      is executing
+    condition: null
+  before_plan:
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Prevent Spec Kit contract changes while Superpowers implementation
+      is executing
+    condition: null
+  before_tasks:
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Prevent Spec Kit contract changes while Superpowers implementation
+      is executing
+    condition: null
+  before_implement:
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Block speckit.implement for features handed off to Superpowers
+    condition: null
+  after_implement:
+  - extension: staff-review
+    command: speckit.staff-review.run
+    enabled: true
+    optional: true
+    prompt: Run staff-level code review?
+    description: Reviews implementation changes against spec for correctness, security,
+      and quality
     condition: null

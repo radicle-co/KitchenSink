@@ -187,3 +187,29 @@ jobs:
                   ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
                   echo "Result: $(cat /tmp/migrate-out.json)"
                   if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi
+
+            # Post-deploy smoke test. `cdk deploy` returning success only means the stack converged —
+            # it does NOT prove the service serves traffic. Hit the public /health end-to-end
+            # (DNS -> shared ALB -> host-based listener rule -> ECS task) so a broken ALB host rule, an
+            # unhealthy/crash-looping task, or a cert/DNS regression fails the deploy instead of
+            # silently shipping a dead service. Sandbox stage => identity.sandbox.<domain>.
+            - name: Smoke test — identity service live & reachable (sandbox)
+              if: steps.flags.outputs.deploy_service == 'true'
+              env:
+                  HEALTH_URL: https://identity.sandbox.${{ vars.DOMAIN_NAME }}/health
+              run: |
+                  set -uo pipefail
+                  echo "Smoke-testing $HEALTH_URL"
+                  attempts=20; delay=15; code=000
+                  for i in $(seq 1 "$attempts"); do
+                    code=$(curl -s -o /tmp/health.out -w '%{http_code}' --max-time 10 "$HEALTH_URL" || true)
+                    [ -z "$code" ] && code=000
+                    if [ "$code" = "200" ]; then
+                      echo "✅ identity healthy (HTTP 200) on attempt $i: $(cat /tmp/health.out)"
+                      exit 0
+                    fi
+                    echo "attempt $i/$attempts: HTTP $code at $HEALTH_URL — retrying in ${delay}s"
+                    sleep "$delay"
+                  done
+                  echo "::error::identity not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
+                  exit 1

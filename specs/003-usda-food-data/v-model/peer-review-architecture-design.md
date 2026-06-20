@@ -1,62 +1,106 @@
 # Peer Review — architecture-design
 
 **Reviewer**: AI Peer Review (spec-kit V-Model)
-**Date**: 2026-06-19
-**Artifact**: architecture-design.md (12 architecture modules) — auth slice (ARCH-012 FoodAuthGuard) and the HTTP read entry point (ARCH-001 FoodApiController)
+**Date**: 2026-06-20
+**Artifact**: architecture-design.md (12 architecture modules, ARCH-001…ARCH-012)
 **Standard**: IEEE 42010 / Kruchten 4+1
-**Scope**: ARCH-001 + ARCH-012 — 4+1 view coverage (Logical / Process / Physical / Development / Scenarios), upward traceability to SYS-001 / SYS-013, interface-definition completeness, and consistency of the deployment model with `../plan.md` §2A and within the document itself.
+**Source of truth**: `../spec.md` (FR-011/014/015/016/018/019/020/023/025/031/032/035–053, SC-006/011/012, A-005/010/012), `../v-model/module-design.md` (MOD-001…MOD-014), `../plan.md` §2A
+**Scope**: full-document review against the reconciled + clarified locked design — Postgres-as-queue + Fargate worker (no SQS), MOD-005 `RollingWindowLimiter` rolling-60-min window (not token bucket), MOD-013 `DemotionAndFairness` (DEMOTE*THRESHOLD=50, dynamic re-promotion, no `429`; quota tables dropped), SWR serve-stale-indefinitely, tombstone TTL 30d, batch per-item partial, ARCH-012 in-process auth. Checks: stale-vocabulary purge (token-bucket / per-`sub` quota / SQS as \_live* design), ARCH↔MOD name agreement, 4+1 view completeness, traceability, and design correctness of the demand/demotion path.
 
 ## Summary
 
 | Severity           | Count |
 | ------------------ | ----- |
 | Critical           | 0     |
-| Major              | 0     |
-| Minor              | 1     |
+| Major              | 2     |
+| Minor              | 3     |
 | Observation        | 1     |
-| **Total Findings** | **2** |
+| **Total Findings** | **6** |
 
-Overall assessment: **PASS**. The prior Major is **RESOLVED**: the Scenarios "+1" view now carries two concrete, load-bearing auth scenarios (lines 372–428) rather than a single boilerplate paragraph. **Scenario A** (authenticated user, cache miss → verify → quota gate → enqueue) and **Scenario B** (unauthenticated request → `401` before any work) each traverse all four other views in a per-view table (Logical / Process / Development / Physical) and include a mermaid sequence diagram, exercising ARCH-012's accept and fail-closed branches, the `401`/`403`/`429`/`503` outcomes, status precedence, the M2M/session token path, and the shared-`ClerkAuthService` build boundary — tracing to SYS-013 / FR-053 / FR-035/FR-039/FR-043/FR-046. The criterion "populated across the 4+1 views" is now met for ARCH-012. The prior Critical deployment contradiction and the two prior Physical/Development Majors remain resolved and were not regressed. One residual Minor (Interaction 0 call-direction) and one Observation (CROSS-CUTTING tag) remain — neither blocks the gate.
+Overall assessment: **PASS WITH MAJORS**. The document is cleanly reconciled to the locked design at the prose/overview level: the rolling-window limiter is named `RollingWindowLimiter` (ARCH-005) and described as a windowed count+record over `usda_call_log` with a 90%/900 pause and "treat the window as full" on USDA `429` (no token/refill language survives); the demand path is Postgres-as-queue (`INSERT … ON CONFLICT` + `pg_notify`, no SQS/consumer Lambda); fairness is described everywhere as **demotion, not `429`** (DEMOTE_THRESHOLD=50, dynamic at drain time); SWR / tombstone-TTL-30d / batch-per-item-partial are all present on ARCH-001; and ARCH-012 is a first-class in-process `AuthMiddleware` component with the WS `$connect` authorizer as the sole Lambda surface (FR-053). The prior Scenarios "+1" Major remains resolved (Scenario A/B load-bearing).
+
+Two **Majors** remain and are load-bearing against the locked design: (1) the demand-priority mechanism shown in ARCH-003 / Interaction 2 / Data Flow 2 still increments a **raw per-request `request_count`** (`ON CONFLICT … DO UPDATE SET request_count = request_count + 1`), which **contradicts** the locked **distinct-requester** demand model (FR-044, MOD-013 `recordDemand` capped at `PRIORITY_CAP = 1`); and (2) the `fetch_queue` status vocabulary is internally and cross-artifact **inconsistent** (`'pending'` / `'done'` in ARCH vs `'queued'`/`'leased'` in MOD-003/004 vs spec's `'pending'`/`'in_flight'`), which matters because MOD-013's demotion pending-count query keys on a specific status literal. Minors cover the ARCH-012 interface op name (`scoreEnqueue` vs MOD-013 `admitEnqueue`/`isDemoted`), residual "Redis-first" depiction in two diagrams, and the carried Interaction-0 call-direction note.
 
 ## Findings
 
 ---
 
-### PRF-ARCH-001 — Scenarios "+1" view auth coverage
+### PRF-ARCH-001 — Demand priority still increments raw per-request `request_count`, contradicting the locked distinct-requester (FR-044) model
 
-**Severity**: Observation (Resolved — prior Major: Scenarios view was boilerplate)
-**Defect type**: Completeness / 4+1 Scenarios coverage
-**Location**: architecture-design.md Scenarios — Architecture Validation (lines 372–428)
+**Severity**: Major
+**Defect type**: Consistency with spec.md + ARCH↔MOD disagreement
+**Location**: architecture-design.md ARCH-003 row (line 25); Interaction 2 (line 110); Data Flow 2 (line 291); ARCH-001 (implicit enqueue)
 
-**Description**: **RESOLVED.** The "+1" view now validates ARCH-012 with concrete walkthroughs. Two scenarios are added, each with a four-row view table and a mermaid sequence:
+**Description**: ARCH-003 and the demand-path diagrams describe the enqueue as `INSERT … ON CONFLICT (fdc_id) DO UPDATE SET request_count = request_count + 1`, and demand priority as `ORDER BY request_count DESC, first_requested ASC`. That increments demand **once per request** — i.e. raw request volume. The locked design (FR-044, and MOD-013 `recordDemand`) requires demand to count **distinct authenticated `sub`s** per `fdcId`, recorded via a `fetch_requesters` (PK `fdc_id+sub`) upsert with a per-`sub` contribution **capped at `PRIORITY_CAP = 1`** — a single `sub`'s repeat requests must NOT bump priority more than once. As written, ARCH-003 lets one caller inflate `request_count` arbitrarily by re-requesting, which is precisely the priority-inversion starvation FR-044 closes. The architecture also never mentions the `fetch_requesters` table that MOD-013 and FR-041/FR-044 depend on.
 
-- **Scenario A** — valid session token, cache miss: Interaction 0 (Auth Edge) passes, the per-`sub` quota check runs after auth and before the EventBridge publish, status precedence `401 → 403 → 400 → 404/202/200` holds, and the request reaches `202 Accepted`. The Logical row threads ARCH-012 → ARCH-001 → ARCH-007 → ARCH-006 → ARCH-002 → ARCH-003; Development names the shared `@kitchensink/*` `ClerkAuthService` reuse; Physical lands it on ALB → ECS/Fargate (networkless, no Lambda authorizer).
-- **Scenario B** — missing/malformed/expired/wrong-`azp` token: ARCH-012 fails closed to `401`, no other module is reached, no quota check, no enqueue, no USDA consumption (validates US-0). Physical notes the in-process reject and the deferred WebSocket `$connect` pinned `403` equivalent.
-
-The closing note ties both to FR-053 and the `401`/`403`/`429`/`503` outcomes of FR-035/FR-039/FR-043/FR-046. The prior boilerplate paragraph (line 370) remains as a lead-in but is now explicitly superseded by the two load-bearing scenarios, so the criterion is met for ARCH-012.
-
-Minor structural note (not a defect): Scenario A diagrams the happy `429`/`403`/`503` branches in prose/table but its mermaid shows only the admitted path; a third scenario (or an alt-branch in Scenario A's diagram) exercising the `403` scope denial and the `429`/`503` admission gate end-to-end would fully complete the FR-039/FR-043–FR-046 walkthrough. Optional — the per-view tables already assert these outcomes.
+**Recommendation**: Change the ARCH-003 / Interaction 2 / Data Flow 2 enqueue depiction to the distinct-requester model: `fetch_requesters` upsert on `(fdc_id, sub)` + a capped demand bump (delta = `PRIORITY_CAP`), with demand priority computed from distinct-`sub` count, and add `fetch_requesters` to the Logical/Physical views so the architecture matches FR-044 and MOD-013.
 
 ---
 
-### PRF-ARCH-002 — Interaction 0 sequence misattributes the post-auth quota/backpressure gate to FoodAuthGuard after the handler returns
+### PRF-ARCH-002 — `fetch_queue` status vocabulary is inconsistent within ARCH and against MOD/spec (`pending`/`done` vs `queued`/`leased` vs `in_flight`)
+
+**Severity**: Major
+**Defect type**: Internal consistency / cross-artifact data-model agreement
+**Location**: architecture-design.md Interaction 1 (line 87 `fetch_status:'fetched'`), Interaction 2/4 (`status:'pending'`, lines 113, 151, 327), Interaction 3 / Data Flow 3 (`UPDATE … SET status='done'`, lines 136, 315); cross-check MOD-003/MOD-004 (`'queued'`/`'leased'`/`'tombstone'`), MOD-013 `pendingCountForSub` (`q.status = 'queued'`), spec.md FetchQueueRow (`pending` | `in_flight` | `tombstone`)
+
+**Description**: Three different status enums are in play for the same `fetch_queue` row. ARCH uses `'pending'` (queued state) and `'done'` (completion). MOD-003/MOD-004 use `'queued'` / `'leased'` / `'tombstone'` and **ack by `DELETE`** (no `'done'` state at all — MOD-004 calls `FetchQueue.delete(row.fdc_id)`). spec.md's FetchQueueRow defines `'pending'` | `'in_flight'` | `'tombstone'`. This is load-bearing rather than cosmetic: MOD-013's demotion pending-count query (`WHERE … q.status = 'queued'`) and the FR-043/SC-012 fairness guarantee depend on a single agreed "currently pending" status literal; if the demand-path INSERT writes `'pending'` (ARCH) while the demotion query filters `'queued'` (MOD-013), the per-`sub` pending count silently returns 0 and demotion never engages.
+
+**Recommendation**: Pick one canonical `fetch_queue.status` enum across spec.md, architecture-design.md, and module-design.md (and decide ack-by-`DELETE` vs `status='done'`), then reconcile Interaction 3 / Data Flow 3 and MOD-013's `pendingCountForSub` filter to it.
+
+---
+
+### PRF-ARCH-003 — ARCH-012 interface op `scoreEnqueue(sub)` does not match the locked MOD-013 surface (`admitEnqueue` / `isDemoted` / `drainPriorityTier`)
 
 **Severity**: Minor
-**Defect type**: Process-view precision
-**Location**: architecture-design.md Process View Interaction 0 (lines 57–68) and Scenario A diagram (line 399)
+**Defect type**: ARCH↔MOD name agreement
+**Location**: architecture-design.md ARCH-012 interface table (line 260); module-design.md MOD-013 §1 (`admitEnqueue`, `isDemoted`, `drainPriorityTier`, `recordDemand`, `checkBackpressure`, `enforceBatchCap`)
 
-**Description**: In the success branch the Process View still shows the handler (ARCH-001) calling back into FoodAuthGuard for the quota/backpressure check after control already passed to it — Scenario A's diagram likewise shows `A->>AG: pre-enqueue quota/fairness check (per-sub)` (line 399) followed by `AG-->>A: within budget (admit)`. This implies ARCH-001 invokes ARCH-012 after `next()`, which muddles the admission-control ordering ("after authentication and before `INSERT INTO fetch_queue`," plan §2A.4). The ARCH-012 interface table correctly lists `enforceQuota`/`checkBackpressure` as ARCH-012 operations (lines 260–261), so the diagram and the interface table describe the call direction slightly differently. (Unchanged from prior review — not in the remediation scope; the new Scenario A inherits the same call-direction depiction.)
+**Description**: The ARCH-012 interface table exposes `scoreEnqueue(sub) → { demote: boolean }` as the fairness operation. MOD-013 (`DemotionAndFairness`) does not define `scoreEnqueue`; its admission orchestrator is `admitEnqueue(reqUser, fdcIds)` and the demotion decision is `isDemoted(sub)` / `drainPriorityTier(row)`. The names are close enough to read as the same concept, but the audit criterion is exact ARCH↔MOD name agreement, and `scoreEnqueue` appears in no MOD. (`checkBackpressure` on the same ARCH table _does_ match MOD-013 — so the table is half-aligned.)
 
-**Recommendation**: Model it explicitly as ARCH-001 invoking ARCH-012's `enforceQuota`/`checkBackpressure` synchronously and short-circuiting on `429`/`503` (which the `A->>AG` arrow already implies), or redraw so the gate runs within the ARCH-012 admission path before ARCH-001 performs the enqueue — so the sequence matches the interface contract and the "before enqueue" ordering unambiguously.
+**Recommendation**: Rename the ARCH-012 row to the MOD-013 surface (`admitEnqueue` for the admit path, `isDemoted`/`drainPriorityTier` for the drain-time decision), or add a one-line note that `scoreEnqueue` is the architecture-level alias for MOD-013 `isDemoted`/`drainPriorityTier`.
 
 ---
 
-### PRF-ARCH-003 — ARCH-012 is not tagged CROSS-CUTTING despite fronting every entry point
+### PRF-ARCH-004 — Two diagrams still depict Redis as the primary lookup tier, against the lean-launch Postgres default
 
-**Severity**: Observation
+**Severity**: Minor
+**Defect type**: Consistency (lean-launch default)
+**Location**: architecture-design.md Interaction 1 (lines 84–89), Interaction 2 (lines 104–107), Scenario A Logical row + diagram (lines 376, 393)
+
+**Description**: ARCH-007's row, the Overview, and the Physical view all correctly state Redis is an **optional, deferred post-launch** cache and the lean-launch default is Postgres. But Interaction 1 ("Redis GET food:12345 → HIT"), Interaction 2 ("Redis GET … MISS"), and Scenario A's Logical row ("ARCH-007 (Redis)") present Redis as the first lookup tier without the "(optional)" qualifier that Interaction 2's own arrow carries. A reader of the Process/Scenarios views alone would conclude Redis is required at launch.
+
+**Recommendation**: Annotate these arrows/rows as "cache tier (lean-launch = Postgres; Redis deferred)" consistent with ARCH-007 and the Physical view, so the default deployment topology is unambiguous.
+
+---
+
+### PRF-ARCH-005 — Interaction 0 / Scenario A model ARCH-001 calling back into the auth guard for the post-auth fairness/backpressure gate
+
+**Severity**: Minor (carried from prior review)
+**Defect type**: Process-view precision
+**Location**: architecture-design.md Interaction 0 (lines 60–68), Scenario A diagram (line 395)
+
+**Description**: In the success branch the Process View shows `A->>AG: pre-enqueue fairness/backpressure check (per-sub)` — i.e. the handler (ARCH-001) calling back into the guard (ARCH-012) after `next()` already transferred control. This muddles admission-control ordering ("after authentication and before `INSERT INTO fetch_queue`"). The locked decomposition has the handler invoke MOD-013 `admitEnqueue` (batch cap → `400`, backpressure → `503`, demand recording) synchronously before the enqueue; demotion itself is computed at **drain time** by ARCH-004, not "checked" at enqueue. The diagram conflates the enqueue-time admit with the drain-time demotion.
+
+**Recommendation**: Redraw so ARCH-001 invokes MOD-013 `admitEnqueue` (admit/backpressure/demand) before the `INSERT`, and depict demotion as a drain-time scorer step in Interaction 3 (it is partly there already, line 128) rather than an enqueue-time call back into the guard.
+
+---
+
+### PRF-ARCH-006 — ARCH-012 is not tagged CROSS-CUTTING despite fronting every entry point
+
+**Severity**: Observation (carried from prior review)
 **Defect type**: Classification consistency
 **Location**: architecture-design.md ARCH-012 Logical row (line 34); ID Schema CROSS-CUTTING convention (lines 16–17)
 
-**Description**: ARCH-005, ARCH-009, ARCH-010, ARCH-011 carry the `[CROSS-CUTTING; …]` tag because they support multiple SYS components. ARCH-012 maps 1:1 to SYS-013, so the strict tagging rule (multiple SYS) does not apply, yet it is the most cross-cutting module in the system — it fronts every HTTP route and the WS `$connect` and reuses a shared cross-service package. The classification is defensible (dedicated parent SYS) but the asymmetry is worth a note so reviewers do not read the absent tag as "auth is not cross-cutting." (Unchanged from prior review.)
+**Description**: ARCH-005/009/010/011 carry `[CROSS-CUTTING; …]` because they support multiple SYS components. ARCH-012 maps 1:1 to SYS-013, so the strict rule does not apply, yet it fronts every HTTP route + the WS `$connect` and reuses the shared `@kitchensink/clerk-verify` package — functionally the most cross-cutting module. The classification is defensible (dedicated parent SYS per FR-053) but the asymmetry invites the misread "auth is not cross-cutting."
 
-**Recommendation**: No change required. Optionally add a one-line rationale on ARCH-012 noting it is intentionally a first-class Component (1:1 with SYS-013 per FR-053) even though its concern is cross-cutting, to pre-empt the question.
+**Recommendation**: No change required. Optionally add a one-line rationale on ARCH-012 that it is intentionally a first-class Component (1:1 with SYS-013 per FR-053) even though its concern is cross-cutting.
+
+---
+
+_End of Peer Review — architecture-design, 003-usda-food-data_
+
+---
+
+## Remediation Status (2026-06-20, round 4)
+
+All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.

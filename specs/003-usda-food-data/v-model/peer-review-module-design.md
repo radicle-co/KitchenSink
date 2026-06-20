@@ -1,104 +1,134 @@
-# Peer Review — module-design (auth slice)
+# Peer Review — module-design
 
 **Reviewer**: Independent V-Model Peer Reviewer
-**Date**: 2026-06-19
-**Artifact**: module-design.md — auth slice: **MOD-012 (ClerkAuthMiddleware)**, **MOD-013 (QuotaAndFairness)**, and **MOD-014 (AsyncProducerAuthz)**, all three decomposing **ARCH-012 (FoodAuthGuard)**; plus the FR-049(b) WS expiry path now carried in **MOD-009 (WebSocketNotifier)**
-**Standard**: IEEE 1016 (low-level / module design)
-**Cross-checked against**: `../spec.md` FR-035–FR-053, SC-011/SC-012, A-010/A-011/A-012; `../plan.md` §2A; `architecture-design.md` ARCH-012; `unit-test.md` UTP-012; `integration-test.md` ITP-012
+**Date**: 2026-06-20
+**Artifact**: module-design.md — full document (MOD-001…MOD-014), with focus on the locked rate-limiter and fairness slice: **MOD-005 `RollingWindowLimiter`** (decomposing ARCH-005) and the ARCH-012 decomposition **MOD-012 `ClerkAuthMiddleware` / MOD-013 `DemotionAndFairness` / MOD-014 `AsyncProducerAuthz`**
+**Standard**: IEEE 1016 / DO-178C-style low-level module design
+**Source of truth**: `../spec.md` (FR-019/020/023/043/044/045/046/048/052/053, SC-011/012, A-012) + clarifications (token-bucket→rolling-window, quota→demotion); `../v-model/architecture-design.md` ARCH-005/ARCH-012; `../plan.md` §2A
+**Locked design checked for**: rolling-60-min window (atomic count+record, no token bucket); demotion fairness (DEMOTE_THRESHOLD=50, dynamic re-promotion, no `429`, per-`sub` pending derived from `fetch_queue`+`fetch_requesters`, quota tables dropped); SWR / tombstone-TTL-30d / batch-partial; in-process auth; correct source paths.
 
 ## Summary
 
 | Severity           | Count |
 | ------------------ | ----- |
 | Critical           | 0     |
-| Major              | 0     |
-| Minor              | 2     |
-| Observation        | 2     |
-| **Total Findings** | **4** |
+| Major              | 2     |
+| Minor              | 3     |
+| Observation        | 1     |
+| **Total Findings** | **6** |
 
-Overall assessment: **PASS.** ARCH-012 now decomposes into three modules (MOD-012 verify/authz, MOD-013 quota/fairness, MOD-014 async-producer authz), each carrying all four mandatory IEEE 1016 views (Algorithmic/Logic, State Machine, Internal Data Structures, Error Handling) with explicit error/return tables; the algorithms are clean pseudocode and all three trace to ARCH-012 in the ARCH↔MOD matrix and the coverage summary (14 MODs total, 100% ARCH coverage).
+Overall assessment: **PASS WITH MAJORS**. The slice is well-reconciled to the locked design. **MOD-005** is fully re-modeled as a rolling-60-min window: an explicit "(formerly TokenBucketRateLimiter)" note with the breach rationale, an atomic single-statement count+conditional-insert against `usda_call_log` (FR-020), `HARD_CAP=1000` / `PAUSE_THRESHOLD=900`, a `shouldPauseDraining` soft gate, "treat the window as full / back off (NOT a state reset)" on USDA `429`, and a deferred-Redis Lua variant — no token/refill/capacity concept survives. **MOD-013** is fully re-modeled as `DemotionAndFairness`: "(formerly QuotaAndFairness)", `DEMOTE_THRESHOLD=50`, **dynamic** drain-time re-promotion (`isDemoted`/`drainPriorityTier` read live `pendingCountForSub`, no frozen flag), explicit "no `429`, never rejected for a personal quota," per-`sub` pending derived by joining `fetch_queue`↔`fetch_requesters` (no `user_fetch_quota`/`global_fetch_quota`/`QUOTA_PER_HOUR`/`GLOBAL_SHARE_CAP`), with FR-044 distinct-requester demand + `PRIORITY_CAP=1` and FR-045/FR-046 retained. MOD-012 (DoS load-shed gates, fail-closed `401`, `azp`, `403`, M2M) and MOD-014 (FR-048 async-producer provenance) carry all four IEEE 1016 views and trace to ARCH-012. Source paths match the lock (`rate-limiter` lives in MOD-005; `auth/demotion-and-fairness.service.ts` for MOD-013; `food-service`/`usda-client`/`clerk-verify` packages). 14 MODs, 100% ARCH coverage.
 
-**All three prior Majors are RESOLVED:**
-
-- **PRF-MOD-002 (FR-052 / SC-011 auth-layer DoS) — RESOLVED.** MOD-012 §1 now models two bounded load-shed gates ahead of the CPU-bound verify: a process-local **verification-concurrency semaphore** (`VERIFY_CONCURRENCY_MAX`, sheds `503` when exhausted) and a **per-source rolling `401`-rate cap** (`SOURCE_401_RATE_MAX`/`SOURCE_401_WINDOW_S`, sheds `429`), with `sourceKey()` deriving source identity from the ALB-attested client IP (never a forgeable client header). The §3 data structures (`VerifySemaphore`, `Source401Counter`, `DosConfig`) and the §4 error table (429 over-cap, 503 saturated) back it, and a dedicated DoS note pins SC-011's ≤10ms p95 "under an invalid-token flood."
-- **PRF-MOD-003 (FR-048 async-producer authorization) — RESOLVED.** A new **MOD-014 (AsyncProducerAuthz)** owns the async/internal-producer leg with all four views: a two-layer model (IAM least-privilege producer allowlist on `events:PutEvents`/`fetch_queue` INSERT, plus event-provenance validation that `requestedBy` is an authenticated `sub` or a named service principal — never empty/`'system'`), a state machine, internal data structures (`ProducerAllowlist`, `InvocationContext`, `EventProvenance`), an error table that fails closed on missing allowlist config, and a traceability row in the ARCH↔MOD matrix.
-- **PRF-MOD-004 (FR-049(b) mid-connection WS token expiry) — RESOLVED.** The mid-connection-expiry path is modeled as a state machine in **MOD-009** (the WS connection-lifecycle owner): `enforceTokenExpiry` server-side-closes a connection whose captured `tokenExp ≤ now`, the `ConnectionRecord` carries `tokenExp`, and the state machine adds the `Connected/Notified → Disconnected : token exp passes mid-connection → server-side close (FR-049b)` transitions plus `re-auth required on reconnect (FR-049c)`. MOD-012 `authorizeConnect` captures `claims.exp` onto the connection context and explicitly cross-references MOD-009 as the owner. Placement differs from the prior review's literal "add it to MOD-012" action, but the requirement is now fully modeled with an owning module and a traceable transition — the IEEE 1016 obligation is met.
-
-The symbol drift the prior PRF-MOD-008 flagged is now **one-sided**: MOD-012/MOD-013 commit to a single canonical shape (`req.user`, `tokenClass`, `use`/`requireScope`/`enforceQuota`/`admitEnqueue`), but `unit-test.md` was not reconciled to it (it still uses `req.caller`/`isService`/`middleware.verify`/`checkQuota`/`enqueueGate`). The design side is now internally consistent; the unresolved half is a test-artifact defect tracked in the companion `peer-review-unit-test.md` (PRF-UTP-006), so it is downgraded to an Observation here.
-
-Residual findings are non-blocking consistency/under-specification items that do not affect the auth slice's correctness or fail-closed posture.
-
----
+Two **Majors** block clean implementation of the fairness path: (1) **MOD-013's admission gate is never invoked on the single-food cache-miss path** — MOD-001's single-food and SWR-refetch and tombstone-expiry branches call `markPending` + `EventBridgePublisher.publishFoodRequested` directly, with only an inline `// admit (MOD-013)` _comment_ and no actual `admitEnqueue` call (the real call exists **only** in the batch handler), so the primary path skips backpressure (FR-046 `503`), distinct-requester demand (FR-044), and demotion enrollment (FR-043); and (2) `MAX_QUEUE_DEPTH` / the demand model remain under-specified and divergent from spec (`M` symbolic vs FR-046's binding 10,000; the demand-counting status literal disagrees with the queue's status enum). Minors cover the MOD-013/MOD-014 symbol mix-up in MOD-001 (`AsyncEnqueueAuthz.admitEnqueue`), FR-044 aging with no owning MOD, and the unawaited `verifyToken`. The token-bucket / quota / SQS purge is complete on the design side.
 
 ## Findings
 
 ---
 
-### PRF-MOD-005 — `MAX_QUEUE_DEPTH` and the demand cap remain symbolic placeholders in MOD-013 (Minor)
+### PRF-MOD-001 — MOD-013 `admitEnqueue` is not actually called on the single-food cache-miss / SWR / tombstone-expiry paths (only the batch path); the others carry a comment, not a call
 
-**Defect type**: Under-specification
-**Artifact**: `module-design.md` MOD-013 §1 (`MAX_QUEUE_DEPTH = M`), §3 `QuotaConfig` (`maxQueueDepth: number`)
+**Severity**: Major
+**Defect type**: Completeness / wiring correctness (fairness + backpressure not enforced on the primary demand path)
+**Artifact**: module-design.md MOD-001 §1 — single-food miss (lines 80–84), SWR re-fetch (lines 60–63 + `triggerBackgroundRefetch` 155–157), tombstone-TTL-lapse re-attempt (lines 69–73); contrast batch path (line 121); MOD-013 `admitEnqueue` (lines 1301–1306)
 
 **Evidence**:
 
-- The PRF-MOD-001 remediation fixed `QUOTA_PER_HOUR = floor(GLOBAL_BUDGET_HOUR × GLOBAL_SHARE_CAP) = 200`, and `QuotaConfig` (§3) now carries concrete `quotaPerHour: 200, globalBudgetHour: 1000, globalShareCap: 0.20, priorityCap: 1`. Good.
-- However MOD-013 §1 still declares `MAX_QUEUE_DEPTH = M` (symbolic) and `QuotaConfig` lists `maxQueueDepth: number` with no default. `requirements.md` REQ-040b fixes a concrete **10,000-entry** ceiling and `unit-test.md` UTS-012-H1/H2 hard-code `MAX_QUEUE_DEPTH = 1000` — neither matches the design (which commits to nothing) and the two consumers disagree with each other.
-- The distinct-requester **demand cap** appears as `DEMAND_CAP = 50` only in `unit-test.md` UTS-012-G3; MOD-013 §1/§3 fixes only `priorityCap: 1` and never states a per-`fdcId` distinct-`sub` contribution ceiling.
+- The **batch** handler correctly calls `AsyncEnqueueAuthz.admitEnqueue(req.user, fdcIds)` (line 121) before enqueueing misses.
+- The **single-food** miss (Layer 4, lines 80–84) does `CacheService.markPending(fdcId)` then `EventBridgePublisher.publishFoodRequested(...)` — the only MOD-013 reference is the inline comment `// Layer 4: Trigger async backfill — admit (MOD-013) then INSERT …`. There is no `admitEnqueue` / `checkBackpressure` / `recordDemand` invocation.
+- Same for the **SWR background re-fetch** (`triggerBackgroundRefetch`, lines 155–157, comment "admit (MOD-013)" at line 61) and the **tombstone-TTL-lapsed re-attempt** (lines 69–73).
+- Consequence: on the highest-traffic path (single-food cache miss), `fetch_queue` backpressure / circuit-breaker (FR-046 → `503`), distinct-requester demand recording (FR-044, `fetch_requesters` upsert + capped bump), and the per-`sub` demotion enrollment that SC-012/FR-043 rely on are all bypassed. The demotion query `pendingCountForSub` joins `fetch_requesters`, but no single-food path writes `fetch_requesters` (only MOD-013 `recordDemand` does, which is unreached) — so demotion would see an empty requester set and never engage.
 
-**Impact**: An implementer cannot derive the queue ceiling or demand cap from the design alone, and the two test artifacts already diverge (`M` vs `1000` vs REQ-040b's `10,000`). Low risk to the auth invariants, but a traceable consistency gap.
+**Impact**: FR-043 (demotion), FR-044 (distinct-requester demand), and FR-046 (backpressure `503`) are unenforced for single-food lookups and SWR/tombstone re-fetches — i.e. for the dominant request mix. SC-012's "no single `sub` starves others" cannot hold. This is the locked-design fairness mechanism failing to fire on its primary path.
 
-**Required Action**: Fix a concrete default for `maxQueueDepth` in §1/§3 reconciled to REQ-040b (`10,000`, configurable), and add the distinct-`sub` demand cap (e.g. `demandCap`) to `QuotaConfig`, then point UTS-012-G3/UTS-012-H at the design's value rather than a test-local literal.
+**Required Action**: Make MOD-001's single-food miss, `triggerBackgroundRefetch`, and tombstone-lapse branches call `DemotionAndFairness.admitEnqueue(req.user, [fdcId])` (which runs `checkBackpressure` + `recordDemand`) before `publishFoodRequested`, so every demand-path enqueue records `fetch_requesters` and is subject to backpressure — matching the batch path and the ARCH-012 "before/at enqueue" contract.
 
 ---
 
-### PRF-MOD-006 — FR-044 anti-starvation aging is delegated to "the queue scorer" with no traceable owning MOD (Minor)
+### PRF-MOD-002 — `MAX_QUEUE_DEPTH` stays symbolic (`M`) and the demand/status model diverges from spec.md (FR-046 binds 10,000; demotion query keys on `'queued'`)
 
+**Severity**: Major
+**Defect type**: Under-specification + cross-artifact consistency
+**Artifact**: module-design.md MOD-013 §1 (`MAX_QUEUE_DEPTH = M`, line 1252), §3 `FairnessConfig.maxQueueDepth: number` (line 1339), `pendingCountForSub` (`q.status = 'queued'`, line 1281); cross-check spec.md FR-046 (10,000, configurable), FetchQueueRow status enum (`pending|in_flight|tombstone`), MOD-003/MOD-004 (`queued|leased|tombstone`)
+
+**Evidence**:
+
+- FR-046 fixes a **binding** `fetch_queue` ceiling of **10,000 entries (configurable)**, but MOD-013 §1 still declares `MAX_QUEUE_DEPTH = M` (symbolic) and §3 `maxQueueDepth: number` carries no default. An implementer cannot derive the ceiling from the design; this was flagged in the prior review and is still open.
+- The per-`sub` pending-count query filters `q.status = 'queued'`, but spec.md's FetchQueueRow status enum is `pending | in_flight | tombstone` (MOD-003/MOD-004 use `queued|leased|tombstone`). The status literal that defines "currently pending" is not agreed across the three artifacts, so the demotion count can silently mismatch the rows actually queued (see also peer-review-architecture-design PRF-ARCH-002).
+
+**Impact**: Backpressure `503` (FR-046) and the demotion pending-count (FR-043/SC-012) both depend on values the design leaves symbolic or inconsistent. Low risk to the auth invariants, but a traceable correctness gap on the fairness path.
+
+**Required Action**: Set `maxQueueDepth` to the concrete FR-046 default (10,000, configurable) in MOD-013 §1/§3, and reconcile the `pendingCountForSub` status filter to the single canonical `fetch_queue.status` enum once the spec/ARCH/MOD vocabulary is unified.
+
+---
+
+### PRF-MOD-003 — MOD-001 references the wrong owning module for `admitEnqueue` (`AsyncEnqueueAuthz` ≠ MOD-013 `DemotionAndFairness` / MOD-014 `AsyncProducerAuthz`)
+
+**Severity**: Minor
+**Defect type**: ARCH↔MOD / inter-module name agreement
+**Artifact**: module-design.md MOD-001 §1 (line 121, `AsyncEnqueueAuthz.admitEnqueue(req.user, fdcIds)`); MOD-013 owns `admitEnqueue` (line 1301); MOD-014 is `AsyncProducerAuthz` (line 1356)
+
+**Evidence**:
+
+- The batch handler calls `AsyncEnqueueAuthz.admitEnqueue(...)`. No module named `AsyncEnqueueAuthz` exists. `admitEnqueue` is defined on **MOD-013 `DemotionAndFairness`**; the similarly-named **MOD-014 `AsyncProducerAuthz`** owns the _async-producer provenance_ leg (`admitAsyncEvent`/`assertEnqueueProvenance`), a different concern.
+- This collides two distinct auth-slice modules under an invented name and will mislead an implementer into wiring the wrong service on the synchronous demand path.
+
+**Required Action**: Call `DemotionAndFairness.admitEnqueue(req.user, fdcIds)` in MOD-001 (and apply the same correction when fixing PRF-MOD-001's single-food path), reserving `AsyncProducerAuthz` (MOD-014) for the consumer-side provenance gate.
+
+---
+
+### PRF-MOD-004 — FR-044 anti-starvation aging is still delegated to "the queue scorer" with no owning MOD
+
+**Severity**: Minor (carried from prior review)
 **Defect type**: Traceability gap
-**Artifact**: `module-design.md` MOD-013 §1 (`recordDemand` — comment "aging applied by the queue scorer"); `../spec.md` FR-044
+**Artifact**: module-design.md MOD-013 §1 (`recordDemand`, line 1273 comment "aging applied by the queue scorer"), `drainPriorityTier` (lines 1294–1296); spec.md FR-044
 
 **Evidence**:
 
 - FR-044 requires three behaviours: distinct-`sub` counting, capped contribution, **and** "queue ordering MUST apply aging so no `fdcId` can be pinned to the front indefinitely."
-- MOD-013 models the first two (`fetch_requesters` upsert idempotency + `PRIORITY_CAP = 1`), but the aging clause is still offloaded inline to "the queue scorer" with no MOD/ARCH reference. No MOD in the document owns the queue scorer / aging function (MOD-003 SqsQueueRouter is infrastructure routing, not a demand scorer).
-- This is the one sub-clause of the prior PRF-MOD-007 that the remediation did not pick up.
+- MOD-013 models the first two (`fetch_requesters` upsert + `PRIORITY_CAP=1`) and adds `drainPriorityTier` for the demotion tier, but the **aging** clause is still offloaded inline to "the queue scorer" with no MOD/ARCH home. `drainPriorityTier` returns only the demoted/normal tier; it does not encode FIFO-aging within a tier, and no MOD owns it (MOD-003 is the `fetch_queue` schema/claim SQL, MOD-004 the drain loop — neither is named as the aging owner).
 
-**Impact**: One-third of FR-044 (anti-starvation aging) has no owning module. Per FR-053's stated anti-pattern, an aging requirement with no module home risks being dropped during implementation.
+**Impact**: One-third of FR-044 has no owning module; per FR-053's anti-pattern, an aging requirement with no module home risks being dropped at implementation.
 
-**Required Action**: Point the aging behaviour at a concrete MOD/ARCH (e.g. model it as an explicit step in MOD-013's `recordDemand`/scorer, or reference the owning consumer/priority-queue module), so all three FR-044 clauses trace to a module.
+**Required Action**: Make aging an explicit step in MOD-013's `drainPriorityTier` (or name MOD-003/MOD-004's claim `ORDER BY` as the aging owner — the ARCH-004 claim already sorts `first_requested ASC`), so all three FR-044 clauses trace to a module.
 
 ---
 
-### PRF-MOD-007 — MOD-013 internal-data-structure names commit to `req.user`/`tokenClass`, but the unit-test plan was not reconciled (Observation)
+### PRF-MOD-005 — MOD-012 §1 `verifyToken` is invoked without an explicit `await`, leaving the async fail-closed + semaphore-release boundary unpinned
 
-**Defect type**: Consistency (naming) — design side now canonical, test side stale
-**Artifact**: `module-design.md` MOD-012 §1/§3 (`use`, `requireScope`, `req.user`, `tokenClass`, `enforceQuota`, `enforceBatchCap`, `recordDemand`, `admitEnqueue`); `unit-test.md` UTP-012 (`middleware.verify`, `authorizeScope`, `req.caller`, `isService`, `checkQuota`, `validateBatch`, `countDemand`, `enqueueGate`)
+**Severity**: Minor (carried from prior review)
+**Defect type**: Interface ambiguity / fail-closed + concurrency correctness
+**Artifact**: module-design.md MOD-012 §1 (`claims = verifyToken(...)` inside `TRY/CATCH/FINALLY`, lines 1129–1141)
 
 **Evidence**:
 
-- MOD-012/MOD-013 now use one consistent symbol set internally (`req.user.{sub,azp,scopes,permissions,tokenClass}`; orchestrator `admitEnqueue`). The design is no longer self-inconsistent.
-- The unit-test plan still references the old shape (`req.caller`/`isService`) and old function names (`middleware.verify`, `checkQuota`, `validateBatch`, `enqueueGate`), so the design↔test names no longer match 1:1. The newly added UTP-012-H's `enqueueGate` symbol does not exist in MOD-013 (the orchestrator is `admitEnqueue` + `checkBackpressure`).
+- `@clerk/backend` `verifyToken` returns a Promise, but MOD-012 writes `claims = verifyToken(token, {...})` inside a synchronous `TRY/CATCH AnyVerificationError` whose `FINALLY` releases `verifySemaphore`.
+- Without `await`, a rejected verification would not be caught by the synchronous `CATCH`, so the fail-closed `401` branch (FR-040) would not fire, and the `FINALLY` would release the concurrency slot **before** verification settles — under-counting in-flight verifies and undermining the FR-052/SC-011 load-shed guarantee.
 
-**Impact**: Not a design defect — the module design is the authoritative low-level contract and is internally coherent. The unreconciled half lives in the test artifact and is the responsibility of the companion unit-test finding (PRF-UTP-006). Flagged here only so the design↔test traceability audit records the divergence.
-
-**Required Action**: No change required in module-design. Reconcile `unit-test.md` UTP-012 to the canonical MOD-012/MOD-013 names (tracked in `peer-review-unit-test.md` PRF-UTP-006).
+**Required Action**: Make `use(...)` `async` and write `claims = AWAIT verifyToken(...)`, so the `CATCH` intercepts the rejection (fail-closed `401`) and the `FINALLY` releases the semaphore only after settlement. Mirror in `authorizeConnect`.
 
 ---
 
-### PRF-MOD-008 — MOD-012 §1 `verifyToken` is invoked without an explicit `await`, leaving the async fail-closed boundary unpinned (Observation)
+### PRF-MOD-006 — Design↔unit-test symbol drift is one-sided (design now canonical; unit-test.md still stale)
 
-**Defect type**: Interface ambiguity / fail-closed correctness
-**Artifact**: `module-design.md` MOD-012 §1 (`claims = verifyToken(...)` inside `TRY/CATCH`); `unit-test.md` UTP-012-A/B ("resolves"/"throws")
+**Severity**: Observation
+**Defect type**: Consistency (naming) — design side canonical, test side not reconciled
+**Artifact**: module-design.md MOD-012/MOD-013 (`use`/`requireScope`/`req.user`/`tokenClass`/`admitEnqueue`/`isDemoted`); `unit-test.md` UTP-012 (`middleware.verify`/`req.caller`/`isService`/`checkQuota`/`enqueueGate`)
 
 **Evidence**:
 
-- MOD-012 §1 writes `claims = verifyToken(token, {...})` inside a synchronous `TRY/CATCH`/`FINALLY` (the FINALLY releasing the new `verifySemaphore`). `@clerk/backend` `verifyToken` returns a Promise.
-- UTP-012-A/B/I/J mock registries describe `verifyToken` as "resolves"/"throws", consistent with an awaited async call.
-- As written, an unawaited async call would not have its rejection caught by the synchronous `CATCH AnyVerificationError`, so the security-critical fail-closed `401` branch (FR-040) would not fire — and the `FINALLY` semaphore release would run before the verification settled, returning the concurrency slot early.
+- MOD-012/MOD-013 commit to one canonical internal symbol set (`req.user.{sub,azp,scopes,permissions,tokenClass}`, `admitEnqueue`, `isDemoted`, `drainPriorityTier`); the module design is internally coherent and quota-free.
+- `unit-test.md` was not reconciled — it still references `req.caller`/`isService`/`checkQuota`/`enqueueGate` (the latter does not exist in MOD-013, whose orchestrator is `admitEnqueue` + `checkBackpressure`), and uses pre-demotion "quota" vocabulary.
 
-**Impact**: Minor as design intent (verification is clearly meant to be awaited and fail closed), but the async boundary is not pinned in the pseudocode, and the new semaphore-release-in-`FINALLY` makes the missing `await` materially relevant to both fail-closed behaviour and correct concurrency accounting.
+**Impact**: Not a defect in module-design — it is the authoritative low-level contract and is consistent. The unreconciled half is a test-artifact defect tracked in `peer-review-unit-test.md`; recorded here only so the design↔test traceability audit captures the divergence.
 
-**Required Action**: Make MOD-012 §1 `claims = AWAIT verifyToken(...)` inside an `async use(...)`, so the `CATCH` intercepts the rejected Promise (fail-closed `401`) and the `FINALLY` releases the semaphore only after verification settles.
+**Required Action**: No change required in module-design. Reconcile `unit-test.md` UTP-012 to the canonical MOD-012/MOD-013 names and the demotion (not quota) model.
 
 ---
 
-_End of Peer Review — module-design (auth slice), 003-usda-food-data_
+_End of Peer Review — module-design, 003-usda-food-data_
+
+---
+
+## Remediation Status (2026-06-20, round 4)
+
+All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.

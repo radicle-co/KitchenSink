@@ -338,13 +338,16 @@ INTEGRATION TESTS (T-040–T-045)
       **Implements**: FR-003, FR-004, FR-011, FR-013, FR-014, FR-017
 
     Extend the lookup handler for async backfill:
-    1. Food not in local store → execute idempotent enqueue:
+    1. Food not in local store → execute idempotent enqueue with **distinct-requester** demand (FR-044 — each `sub` contributes at most 1; never a raw `request_count + 1`):
         ```sql
+        -- distinct-requester demand (PRIORITY_CAP=1 is inherent in COUNT(DISTINCT sub))
+        INSERT INTO fetch_requesters (fdc_id, sub) VALUES ($1, $2)
+          ON CONFLICT (fdc_id, sub) DO NOTHING;
         INSERT INTO fetch_queue (fdc_id) VALUES ($1)
         ON CONFLICT (fdc_id) DO UPDATE
-        SET request_count = fetch_queue.request_count + 1,
+        SET request_count = (SELECT count(*) FROM fetch_requesters WHERE fdc_id = $1),
             last_requested = now()
-        WHERE fetch_queue.status = 'pending';
+        WHERE fetch_queue.status IN ('pending', 'in_flight');
         ```
     2. Pair with `pg_notify('fetch_queued', fdc_id)`
     3. Return `202 Accepted` with `{ status: "pending", fdcId, estimatedWaitSeconds: 30 }`
@@ -503,7 +506,7 @@ INTEGRATION TESTS (T-040–T-045)
     1. Extract `fdc_id` from locked row
     2. Check the rolling-window limiter (`RollingWindowLimiter.tryRecord()`); if it returns `false` (window full / at 90% pause), leave the row `pending` and stop draining
     3. Call `UsdaApiClient.getFood(fdcId)`
-    4. On 200: upsert `foods` with `fetch_status='fetched'`, update `fetch_queue` `status='done'`, `fetched_at=now()`
+    4. On 200: upsert `foods` with `fetch_status='fetched'`, `fetched_at=now()`, and **delete the `fetch_queue` row** (success removes it — the canonical `fetch_queue` status enum is `pending | in_flight | tombstone`; there is no `done`)
     5. On 404: tombstone immediately — `fetch_queue.status='tombstone'`, `foods.fetch_status='not_found'` (no retry)
     6. On 5xx: set `fetch_queue.status='pending'`, `attempts=attempts+1`, `last_error=<code>`, `last_requested=now()+backoff(attempts)` (US-005 scenario 5)
 
@@ -524,7 +527,7 @@ INTEGRATION TESTS (T-040–T-045)
     1. Select up to 20 pending rows with `source='batch'` or adjacent `fdc_id`s (lock all with `FOR UPDATE SKIP LOCKED`)
     2. Record exactly 1 USDA call against the rolling window (`RollingWindowLimiter.tryRecord()`) for the whole batch
     3. Call `UsdaApiClient.getFoodsBatch(fdcIds)` (POST `/v1/foods`)
-    4. For each result: upsert `fetch_status='fetched'`, mark `fetch_queue.status='done'`
+    4. For each result: upsert `fetch_status='fetched'` and **delete the `fetch_queue` row**
     5. For each 404 in batch response: write tombstone
     6. On partial 5xx: successful items marked `done`, failed items returned to `pending` with `attempts++`
 

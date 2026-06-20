@@ -197,10 +197,22 @@ red_team:
 #       SWR/tombstone-TTL-30d/batch-per-item-partial.
 # Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
 # both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
-next_action: re-verify before implement — (1) refresh peer-review of the v-model vs the 2026-06-20 reconciled+clarified design, (2) regenerate checklists/requirements.md, (3) auth/rate-limit/demotion tests still unexecuted
-next_command: /speckit.product-forge.sync-verify   # then peer-review refresh + checklist regen, then implement
-prior_next_action: advance to implement — peer-review gate CLEAN (2026-06-19, now stale)
-peer_review_gate: STALE # 2026-06-19 review (0C/0M) predates the 2026-06-20 reconciliation + clarify re-propagation; needs refresh
+next_action: implement — v-model peer-review refreshed + remediated, checklist regenerated. Optional final step before code: an independent peer-review re-run for a 0C/0M confirmation. Auth/rate-limit/demotion tests still unexecuted.
+next_command: /speckit.product-forge.implement
+prior_next_action: re-verify before implement — refresh peer-review + regenerate checklist (2026-06-20)
+peer_review_gate: REMEDIATED # round 4 (2026-06-20): re-review vs the reconciled v-model found 6 Critical + 17 Major (demand-path/queue still on SQS/EventBridge+high/low; demotion not wired to single-food path → SC-012 would fail; missing rolling-window state-loss hazard; test symbol/value drift). ALL closed + verified (grep-clean, cross-file consistent) same session. Independent re-review optional.
+checklist_gate: REGENERATED # checklists/requirements.md rebuilt vs current spec — 16/17 (item 13 pends the out-of-folder architecture doc; spec-internal architecture is consistent)
+peer_review_history_round4: >
+    Round 4 (2026-06-20): refreshed all 9 peer-review records against the reconciled+clarified
+    v-model. Found 6 Critical + 17 Major — root cause: the SQS→Postgres + clarify re-propagations
+    updated the NEW requirements (auth/rate-limiter/demotion/lifecycle) but left the original
+    demand-path/queue model (REQ-011..017 → SYS-002/003/004) on SQS/EventBridge + static
+    high/low priority, and never wired demotion admission (admitEnqueue) into the single-food
+    enqueue path (FR-043/044/046 + SC-012 would silently never engage). Remediated all C+M +
+    the trace-artifact ripple (trace/traceability-matrix/release-audit) + high/low-priority and
+    EventBridge-demand-path residue + naming (EnqueueEmitter, windowCount, MAX_QUEUE_DEPTH=10000,
+    DemotionAndFairness). Added HAZ-041 (rolling-window state-loss) + STP-006-D. acceptance-plan
+    passed clean (0/0). Verified grep-clean + cross-file consistent.
 repropagation_2026_06_20: complete # rate-limiter/demotion/lifecycle propagated to plan/tasks/12 v-model artifacts; names harmonized (RollingWindowLimiter, RateLimitWindowFullError, DemotionAndFairness)
 peer_review_history: >
     Round 1 (2026-06-19): 7 Critical + ~26 Major. Round 2 (remediate Criticals + re-review):

@@ -39,17 +39,17 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-002: SYS-001 → SYS-007)
-**Description**: Verifies that FoodApiController serves all responses exclusively from PostgreSQL/Redis and never invokes the USDA API during the request lifecycle.
+**Description**: Verifies that FoodApiController serves all responses exclusively from the local store (lean default: PostgreSQL; deferred variant adds a Redis cache) and never invokes the USDA API during the request lifecycle.
 
 - **System Scenario: STS-001-A1**
-    - **Given** a food record exists in PostgreSQL with `fdc_id = 12345` and `fetch_status = 'fetched'`; Redis cache is cold for `food:12345`
+    - **Given** a food record exists in PostgreSQL with `fdc_id = 12345` and `fetch_status = 'fetched'` (lean default: no separate cache layer)
     - **When** FoodApiController receives `GET /v1/foods/12345`
     - **Then** FoodApiController executes `SELECT * FROM foods WHERE fdc_id = 12345` against SYS-007; no outbound HTTP call to `api.nal.usda.gov` is made; response is `200 OK` with `fdcId`, `description`, `calories`, `protein`, `carbs`, `fat`, and available micronutrients
 
-- **System Scenario: STS-001-A2**
-    - **Given** Redis cache contains `food:12345` with `fetch_status = 'fetched'`
+- **System Scenario: STS-001-A2** _(deferred Redis variant)_
+    - **Given** the deferred Redis cache is enabled and contains `food:12345` with `fetch_status = 'fetched'`
     - **When** FoodApiController receives `GET /v1/foods/12345`
-    - **Then** FoodApiController executes `GET food:12345` against SYS-008 (cache hit); no PostgreSQL query is issued; no outbound HTTP call to USDA API; response is `200 OK` with full nutrition payload
+    - **Then** FoodApiController executes `GET food:12345` against SYS-008 (cache hit); no PostgreSQL query is issued; no outbound HTTP call to USDA API; response is `200 OK` with full nutrition payload. _(Under the lean Postgres default this read is served by STS-001-A1's indexed `SELECT` instead.)_
 
 #### Test Case: STP-001-B (HTTP Status Code Contract per fetch_status)
 
@@ -63,14 +63,14 @@ Each test case identifies its technique by name:
     - **Then** response status is `200 OK`; body contains `fdcId: 11111` and all required nutrition fields
 
 - **System Scenario: STS-001-B2**
-    - **Given** no record exists in PostgreSQL or Redis for `fdc_id = 22222`; `pending_fetch` Redis set does not contain `22222`
+    - **Given** no record exists in PostgreSQL for `fdc_id = 22222` and no pending marker exists for it (lean default: no `foods` row in `fetch_status = 'pending'`; deferred variant: `pending_fetch` Redis set does not contain `22222`)
     - **When** FoodApiController receives `GET /v1/foods/22222`
-    - **Then** response status is `202 Accepted`; body is `{ "status": "pending", "fdcId": 22222, "estimatedWaitSeconds": <positive integer> }`; a `FoodRequested` event is published to SYS-002
+    - **Then** response status is `202 Accepted`; body is `{ "status": "pending", "fdcId": 22222, "estimatedWaitSeconds": <positive integer> }`; a `FoodRequested` enqueue is published to SYS-002
 
 - **System Scenario: STS-001-B3**
-    - **Given** PostgreSQL contains `fdc_id = 33333` with `fetch_status = 'pending'`; `pending_fetch` Redis set contains `33333`
+    - **Given** PostgreSQL contains `fdc_id = 33333` with `fetch_status = 'pending'` (lean default: the pending `foods` row + active `fetch_queue` row is the dedup marker; deferred variant: `pending_fetch` Redis set contains `33333`)
     - **When** FoodApiController receives `GET /v1/foods/33333`
-    - **Then** response status is `202 Accepted`; no new `FoodRequested` event is published to SYS-002 (deduplication enforced)
+    - **Then** response status is `202 Accepted`; no new `FoodRequested` enqueue is published to SYS-002 — the `INSERT ... ON CONFLICT DO NOTHING` is a no-op (deduplication enforced)
 
 - **System Scenario: STS-001-B4**
     - **Given** PostgreSQL contains `fdc_id = 44444` with `fetch_status = 'not_found'`
@@ -138,35 +138,37 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-001-E1**
     - **Given** PostgreSQL contains `fdc_id = 100` (`fetch_status = 'fetched'`) and `fdc_id = 200` (`fetch_status = 'stale'`); `fdc_id = 300` and `fdc_id = 400` have no local record
     - **When** FoodApiController receives `POST /v1/foods/batch` with `{ "fdcIds": [100, 200, 300, 400] }`
-    - **Then** the response is a single body returning `100` and `200` inline with their food data (`200` carries a staleness indicator), and `300` and `400` each as a `pending` entry; high-priority `fetch_queue` rows are enqueued for `300` and `400` (and a background re-fetch for the stale `200`); the caller receives available data immediately and polls only the pending ids
+    - **Then** the response is a single body returning `100` and `200` inline with their food data (`200` carries a staleness indicator), and `300` and `400` each as a `pending` entry; `fetch_queue` rows are enqueued for `300` and `400` (and a background re-fetch for the stale `200`); the caller receives available data immediately and polls only the pending ids
 
 ---
 
-### Component Verification: SYS-002 (EventBridgeBus)
+### Component Verification: SYS-002 (EnqueueRouter — `fetch_queue` + `LISTEN/NOTIFY`; EventBridge scheduled-only)
 
 **Parent Requirements**: REQ-011, REQ-012
 
-#### Test Case: STP-002-A (Enqueue Routing — FoodRequested to High-Priority fetch_queue Row)
+> **Demand path is not EventBridge.** The user-facing cache-miss/batch **demand** path enqueues by inserting `fetch_queue` rows and signalling `NOTIFY fetch_queue` (Postgres `LISTEN/NOTIFY`), drained by the Fargate consumer — EventBridge is **not** on the request/demand path. EventBridge is used **only** for scheduled producers (e.g. stale-refresh cron) and the asynchronous `FoodDataReceived` completion notification. The scenarios below therefore assert `fetch_queue` insert + `NOTIFY` routing, not EventBridge rule delivery, for the demand path.
+
+#### Test Case: STP-002-A (Enqueue Routing — FoodRequested to the Single fetch_queue + Demand Recorded in fetch_requesters)
 
 **Technique**: Interface Contract Testing
-**Target View**: Interface View (IC-001: SYS-001 → SYS-002; SYS-002 → SYS-003)
-**Description**: Verifies that a `FoodRequested` cache-miss results in a high-priority row inserted into SYS-003 (HighPriorityFetchQueue: `fetch_queue` rows with `priority = 'high'`).
+**Target View**: Interface View (IC-001: SYS-001 → SYS-002; SYS-002 → SYS-003; SYS-002 → SYS-004)
+**Description**: Verifies that a `FoodRequested` cache-miss inserts one row into the single demand-weighted `fetch_queue` (SYS-003) and records the distinct requester in `fetch_requesters` (SYS-004) — there is no static priority tier and no separate high/low queue.
 
 - **System Scenario: STS-002-A1**
-    - **Given** SYS-001 resolves a single-food cache miss for `fdc_id = 12345`
-    - **When** SYS-001 executes `INSERT INTO fetch_queue (fdc_id, priority, ...) VALUES (12345, 'high', ...)` and issues a `NOTIFY fetch_queue` signal
-    - **Then** a high-priority row is present in SYS-003 (HighPriorityFetchQueue); no low-priority row is written to SYS-004 (LowPriorityFetchQueue)
+    - **Given** SYS-001 resolves a single-food cache miss for `fdc_id = 12345` requested by `sub = "user_abc"`
+    - **When** SYS-001 executes `INSERT INTO fetch_queue (fdc_id, ...) VALUES (12345, ...) ON CONFLICT (fdc_id) DO NOTHING`, upserts `(12345, "user_abc")` into `fetch_requesters` (`ON CONFLICT DO NOTHING`), and issues a `NOTIFY fetch_queue` signal
+    - **Then** exactly one row exists in SYS-003 (`fetch_queue`) for `12345` and exactly one row exists in SYS-004 (`fetch_requesters`) for `(12345, "user_abc")`; no static `priority` column is written (ordering is demand-weighted, not tier-based)
 
-#### Test Case: STP-002-B (Enqueue Routing — FoodBatchRequested to Low-Priority fetch_queue Rows)
+#### Test Case: STP-002-B (Enqueue Routing — FoodBatchRequested to the Single fetch_queue, Deduped, + Demand Recorded)
 
 **Technique**: Interface Contract Testing
-**Target View**: Interface View (SYS-002 → SYS-004)
-**Description**: Verifies that a batch request results in low-priority rows inserted into SYS-004 (LowPriorityFetchQueue: `fetch_queue` rows with `priority = 'low'`).
+**Target View**: Interface View (SYS-002 → SYS-003; SYS-002 → SYS-004)
+**Description**: Verifies that a batch request inserts N deduplicated rows into the single `fetch_queue` (SYS-003) and records N distinct-requester rows in `fetch_requesters` (SYS-004); batch fetches are not a "low priority" tier — they simply carry low/zero user demand so they sort after high-demand rows.
 
 - **System Scenario: STS-002-B1**
-    - **Given** a producer resolves a batch request for `fdcIds = [1, 2, 3]` with `correlationId = "abc"`
-    - **When** the producer inserts the batch rows into `fetch_queue` with `priority = 'low'` and issues a `NOTIFY fetch_queue` signal
-    - **Then** the low-priority rows are present in SYS-004 (LowPriorityFetchQueue); no high-priority row is written to SYS-003
+    - **Given** a producer resolves a batch request for `fdcIds = [1, 2, 3]` requested by `sub = "user_abc"` with `correlationId = "abc"`
+    - **When** the producer inserts the rows into `fetch_queue` with `ON CONFLICT (fdc_id) DO NOTHING` and upserts `(1, "user_abc")`, `(2, "user_abc")`, `(3, "user_abc")` into `fetch_requesters`, then issues a `NOTIFY fetch_queue` signal
+    - **Then** three deduplicated rows are present in SYS-003 (`fetch_queue`) and three `(fdc_id, sub)` rows are present in SYS-004 (`fetch_requesters`); no static priority tier is written — these rows naturally sort after high-demand rows by `request_count`
 
 #### Test Case: STP-002-C (Fault Injection — fetch_queue Insert Failure)
 
@@ -177,24 +179,26 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-002-C1**
     - **Given** the `fetch_queue` insert is unavailable (simulated via Postgres error or permission deny)
     - **When** FoodApiController attempts to enqueue a fetch for `fdc_id = 99999`
-    - **Then** FoodApiController returns `202 Accepted` to the caller (or propagates an error); the food record remains in `fetch_status = 'pending'` or is not created; no row reaches SYS-003
+    - **Then** FoodApiController returns `202 Accepted` to the caller (or propagates an error); the food record remains in `fetch_status = 'pending'` or is not created; no row reaches SYS-003 (`fetch_queue`)
 
 ---
 
-### Component Verification: SYS-003 (HighPriorityFetchQueue)
+### Component Verification: SYS-003 (FetchQueue)
 
 **Parent Requirements**: REQ-011, REQ-012, REQ-014
 
-#### Test Case: STP-003-A (Priority-Ordered Row Delivery Contract)
+> **Single demand-weighted queue.** SYS-003 is the one `fetch_queue` table. There is no static high/low priority split and no `priority` column. Drain order is purely `ORDER BY request_count DESC, first_requested ASC` (where `request_count` is the distinct-requester count maintained from SYS-004), with dynamic demotion (a `sub` with >50 pending rows is pushed back) and aging.
+
+#### Test Case: STP-003-A (Demand-Weighted Ordering + Lease Delivery Contract)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-002 → SYS-003; SYS-003 → SYS-005)
-**Description**: Verifies that HighPriorityFetchQueue (`fetch_queue` rows with `priority = 'high'`) is drained in insertion order and delivers leased rows to SYS-005 with the correct schema.
+**Description**: Verifies that the single `fetch_queue` is drained in demand-weighted order — `ORDER BY request_count DESC, first_requested ASC` — and delivers leased rows to SYS-005 with the correct schema under a single 30s lease (FR-018).
 
 - **System Scenario: STS-003-A1**
-    - **Given** HighPriorityFetchQueue holds no pending high-priority rows; SYS-002 inserts a high-priority `FoodRequested` row
-    - **When** the `fetch_queue` row `{ "fdc_id": 12345, "priority": "high", "correlation_id": "xyz" }` is inserted and a `NOTIFY fetch_queue` signal fires
-    - **Then** SYS-005 (Fargate consumer worker) leases the row (via `SELECT ... FOR UPDATE SKIP LOCKED`) with all three fields intact; rows are drained in `created_at` order relative to other high-priority rows
+    - **Given** `fetch_queue` holds three pending rows: `{ "fdc_id": 100, "request_count": 5, "first_requested": "t0" }`, `{ "fdc_id": 200, "request_count": 1, "first_requested": "t1" }`, and `{ "fdc_id": 300, "request_count": 5, "first_requested": "t2" }` (`t0 < t1 < t2`)
+    - **When** SYS-005 (Fargate consumer worker) claims pending rows (via `SELECT ... FOR UPDATE SKIP LOCKED ORDER BY request_count DESC, first_requested ASC`) and transitions each to `in_flight` under a single 30s lease
+    - **Then** rows are delivered highest-demand-first with the oldest `first_requested` breaking ties — `100` (count 5, t0) before `300` (count 5, t2) before `200` (count 1) — each leased row carries `fdc_id` and `correlation_id` intact; background/SWR rows (request_count 0–1) naturally sort last
 
 #### Test Case: STP-003-B (Tombstone Routing After Max Attempts)
 
@@ -203,37 +207,39 @@ Each test case identifies its technique by name:
 **Description**: Verifies that rows exceeding the max attempt count (≤5 attempts with backoff, FR-016) are tombstoned (`status = 'tombstone'`, the DLQ-equivalent).
 
 - **System Scenario: STS-003-B1**
-    - **Given** a row `{ "fdc_id": 55555 }` is pending in HighPriorityFetchQueue; SYS-005 fails to process it and does not mark it done on each attempt (the row lease, FR-018, expires for retry between attempts)
+    - **Given** a row `{ "fdc_id": 55555 }` is pending in `fetch_queue`; SYS-005 fails to process it and does not mark it done on each attempt (the row lease, FR-018, expires for retry between attempts)
     - **When** the row has been attempted 5 times without success
     - **Then** the row is set to `status = 'tombstone'` (DLQ-equivalent); it is no longer leasable from the pending set
 
 ---
 
-### Component Verification: SYS-004 (LowPriorityFetchQueue)
+### Component Verification: SYS-004 (FetchRequesters)
 
 **Parent Requirements**: REQ-011, REQ-013
 
-#### Test Case: STP-004-A (Row Delivery — Batch Schema)
+> **Demand table, not a second queue.** SYS-004 is the `fetch_requesters` distinct-requester table — it records which `sub` requested which `fdc_id`. It is NOT a queue and does NOT deliver rows to SYS-005. Its `count(*)` per `fdc_id` (capped at PRIORITY_CAP = 1 per `sub` via `ON CONFLICT DO NOTHING`) is what drives `fetch_queue.request_count`, which in turn drives SYS-003's demand-weighted ordering.
+
+#### Test Case: STP-004-A (Distinct-Requester Demand Recording — Idempotent Upsert Drives request_count)
 
 **Technique**: Interface Contract Testing
-**Target View**: Interface View (SYS-002 → SYS-004)
-**Description**: Verifies that LowPriorityFetchQueue (`fetch_queue` rows with `priority = 'low'`) delivers batch rows with the correct schema to SYS-005.
+**Target View**: Interface View (SYS-002 → SYS-004; SYS-004 → SYS-003 request_count)
+**Description**: Verifies that `fetch_requesters` records distinct `(fdc_id, sub)` pairs with `ON CONFLICT DO NOTHING` idempotency (one row per requester, PRIORITY_CAP = 1 per `sub`), and that the `count(*)` per `fdc_id` drives `fetch_queue.request_count` — it does NOT deliver batch rows to SYS-005.
 
 - **System Scenario: STS-004-A1**
-    - **Given** LowPriorityFetchQueue holds no pending low-priority rows; SYS-002 inserts `FoodBatchRequested` rows
-    - **When** the `fetch_queue` rows `{ "fdc_ids": [1, 2, 3], "priority": "low", "correlation_id": "batch-001" }` are inserted
-    - **Then** SYS-005 leases the rows with `fdc_ids` intact; rows are drained in `created_at` order
+    - **Given** `fetch_requesters` is empty for `fdc_id = 1`
+    - **When** SYS-002 upserts `(1, "user_a")`, then `(1, "user_b")`, then `(1, "user_a")` again — each via `INSERT INTO fetch_requesters (fdc_id, sub) VALUES (...) ON CONFLICT (fdc_id, sub) DO NOTHING`
+    - **Then** exactly two rows exist for `fdc_id = 1` — `(1, "user_a")` and `(1, "user_b")` — the repeated `(1, "user_a")` upsert is a no-op (idempotent, capped at 1 per `sub`); `count(*) WHERE fdc_id = 1` is `2`, and that count drives `fetch_queue.request_count = 2` for `fdc_id = 1`; no row is delivered to SYS-005 from this table
 
-#### Test Case: STP-004-B (Tombstone Routing After Max Attempts)
+#### Test Case: STP-004-B (Demand Decay on Completion — Requester Rows Cleared with the Queue Row)
 
 **Technique**: Fault Injection
-**Target View**: Dependency View (SYS-004 → SYS-005 failure path)
-**Description**: Verifies that low-priority rows exceeding the max attempt count are tombstoned (`status = 'tombstone'`, the DLQ-equivalent).
+**Target View**: Dependency View (SYS-004 ↔ SYS-003 lifecycle)
+**Description**: Verifies that `fetch_requesters` demand rows are tied to the `fetch_queue` row lifecycle — when a `fetch_queue` row is terminally resolved (success-delete or tombstone after ≤5 attempts), its backing `fetch_requesters` rows are no longer counted toward demand.
 
 - **System Scenario: STS-004-B1**
-    - **Given** a batch row `{ "fdc_ids": [77777, 88888] }` is pending in LowPriorityFetchQueue; SYS-005 fails to process it 5 times
-    - **When** the row has been attempted 5 times without success
-    - **Then** the row is set to `status = 'tombstone'` (DLQ-equivalent); it is no longer leasable from the pending set
+    - **Given** `fdc_id = 77777` has two `fetch_requesters` rows (`request_count = 2`) and its `fetch_queue` row repeatedly fails; SYS-005 fails to process it 5 times
+    - **When** the `fetch_queue` row has been attempted 5 times without success and is set to `status = 'tombstone'` (DLQ-equivalent)
+    - **Then** the tombstoned `fetch_queue` row is no longer leasable from the pending set; its `fetch_requesters` demand rows no longer contribute to any active `request_count` ordering for `77777`
 
 ---
 
@@ -241,21 +247,21 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-011, REQ-012, REQ-014, REQ-015, REQ-016, REQ-017
 
-#### Test Case: STP-005-A (High-Priority Lease Priority)
+#### Test Case: STP-005-A (Demand-Weighted Lease Order)
 
 **Technique**: Interface Contract Testing
-**Target View**: Dependency View (SYS-003 → SYS-005; SYS-004 → SYS-005)
-**Description**: Verifies that the Fargate consumer worker leases from HighPriorityFetchQueue first and only leases from LowPriorityFetchQueue when no high-priority rows are pending.
+**Target View**: Dependency View (SYS-003 → SYS-005)
+**Description**: Verifies that the Fargate consumer worker leases from the single `fetch_queue` (SYS-003) in demand-weighted order — `request_count DESC, first_requested ASC` — so high-demand rows drain before low/zero-demand (background/SWR) rows, without any static priority tier.
 
 - **System Scenario: STS-005-A1**
-    - **Given** both SYS-003 and SYS-004 contain pending rows
+    - **Given** `fetch_queue` contains both high-demand rows (`request_count ≥ 2`) and low/zero-demand background rows (`request_count` 0–1)
     - **When** the consumer worker begins a drain cycle
-    - **Then** the consumer worker processes all available high-priority rows from SYS-003 before leasing any row from SYS-004
+    - **Then** the consumer worker processes the available high-demand rows before leasing any low/zero-demand row (ordering is `request_count DESC, first_requested ASC`)
 
 - **System Scenario: STS-005-A2**
-    - **Given** SYS-003 has no pending rows; SYS-004 contains pending rows
+    - **Given** `fetch_queue` contains only low/zero-demand background rows (no high-demand rows pending)
     - **When** the consumer worker begins a drain cycle
-    - **Then** the consumer worker leases rows from SYS-004 and processes the available rows
+    - **Then** the consumer worker leases and processes the available background rows (they sort last only relative to high-demand rows; with none pending they drain normally)
 
 #### Test Case: STP-005-B (Successful USDA Fetch — Full Success Path)
 
@@ -298,7 +304,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-005-D2**
     - **Given** a tombstone record `{ fdc_id: 99999, fetch_status: 'not_found' }` exists in SYS-007 whose tombstone age exceeds the configured TTL (default 30 days)
     - **When** FoodApiController receives `GET /v1/foods/99999` after the TTL has lapsed
-    - **Then** the lookup re-attempts the fetch (a new high-priority `fetch_queue` row is enqueued for `99999`, response `202 Accepted`); within the TTL the same lookup would instead return `404` without enqueueing; the re-attempt counts against the SYS-006 rolling-window budget so it cannot bypass the rate limit (FR-025)
+    - **Then** the lookup re-attempts the fetch (a new `fetch_queue` row is enqueued for `99999`, response `202 Accepted`); within the TTL the same lookup would instead return `404` without enqueueing; the re-attempt counts against the SYS-006 rolling-window budget so it cannot bypass the rate limit (FR-025)
 
 #### Test Case: STP-005-E (USDA 429 — Treat Rolling Window as Full and Back Off)
 
@@ -337,12 +343,12 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-006-A1**
     - **Given** the `usda_call_log` contains 500 call timestamps within the trailing 60 minutes (below the 1,000 cap)
     - **When** SYS-005 executes the atomic check-and-record operation
-    - **Then** the operation returns `{ "allowed": true, "trailingCount": 501 }`; exactly one new call timestamp is appended to `usda_call_log` in a single atomic operation
+    - **Then** the operation returns `{ "allowed": true, "windowCount": 501 }`; exactly one new call timestamp is appended to `usda_call_log` in a single atomic operation
 
 - **System Scenario: STS-006-A2**
     - **Given** the `usda_call_log` contains 1,000 call timestamps within the trailing 60 minutes (at the cap)
     - **When** SYS-005 executes the atomic check-and-record operation
-    - **Then** the operation returns `{ "allowed": false, "trailingCount": 1000 }`; no new timestamp is recorded in `usda_call_log`
+    - **Then** the operation returns `{ "allowed": false, "windowCount": 1000 }`; no new timestamp is recorded in `usda_call_log`
 
 #### Test Case: STP-006-B (Rolling-Window Cap and Aging Boundary Values)
 
@@ -358,7 +364,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-006-B2**
     - **Given** the `usda_call_log` holds 899 call timestamps within the trailing 60 minutes
     - **When** SYS-005 executes a check-and-record
-    - **Then** the operation returns `{ "allowed": true, "trailingCount": 900 }`; recording the 900th call reaches the pause threshold, so the next check pauses draining
+    - **Then** the operation returns `{ "allowed": true, "windowCount": 900 }`; recording the 900th call reaches the pause threshold, so the next check pauses draining
 
 - **System Scenario: STS-006-B3**
     - **Given** the `usda_call_log` holds 900 timestamps and the consumer is paused; enough time elapses that the oldest timestamps fall outside the trailing 60-minute window, dropping the count below the threshold
@@ -375,6 +381,22 @@ Each test case identifies its technique by name:
     - **Given** the rolling-window store (SYS-006) is unreachable (connection timeout)
     - **When** the consumer worker attempts the atomic rolling-window check-and-record
     - **Then** the consumer worker does NOT call the USDA API; the `fetch_queue` row is left incomplete (its row lease, FR-018, expires for retry); an error is logged to CloudWatch (SYS-012)
+
+#### Test Case: STP-006-D (State Loss — Bounded Burst on `usda_call_log` Reset, Self-Converging, No Sustained Breach)
+
+**Technique**: Fault Injection
+**Target View**: Dependency View (SYS-006 rolling-window state loss → bounded transient SC-002 breach; verifies HAZ-041)
+**Description**: Verifies the rolling-window limiter's **state-loss** failure mode (spec.md Edge Case ~L261, HAZ-041): when the durable `usda_call_log` is truncated/reset, the limiter restarts with windowCount = 0 and can fire a bounded burst before the log refills. The test confirms the burst is **bounded (≤ ~1,000 calls)** and **self-converging** — the limiter re-pins to the ≤1,000/trailing-hr cap on its own with **no sustained** SC-002 breach — and that conservative startup (treat window as full / seed from recent `foods.fetched_at`) prevents the burst entirely. Distinct from STP-006-A/B (math/aging on intact state).
+
+- **System Scenario: STS-006-D1** (bounded, self-converging burst on naive restart)
+    - **Given** the `usda_call_log` already reflects a near-cap trailing-60-min count (e.g. ~900 real calls in the live hour) and a large backlog of pending `fetch_queue` rows is ready to drain; the durable `usda_call_log` is then **truncated** (state loss), so the limiter's observed windowCount resets to 0 while the real trailing-hour call total is unchanged
+    - **When** the consumer worker resumes draining and the limiter performs check-and-record against the now-empty log under naive (non-conservative) startup
+    - **Then** the limiter allows new calls until the log refills, firing a burst **bounded above by ~1,000 calls** (the cap) before windowCount re-reaches the threshold; the true trailing-60-min total briefly exceeds 1,000 (a **transient SC-002 breach**) but the window is **self-converging** — as the new timestamps accumulate the limiter pauses at 900/90% and the total re-converges to ≤1,000 within one trailing-hour with **no sustained** overage; the SC-002 monitor (SYS-012) records the transient excursion and its return to budget
+
+- **System Scenario: STS-006-D2** (conservative startup suppresses the burst)
+    - **Given** the same near-cap real trailing-hour state and a truncated/empty `usda_call_log`
+    - **When** the limiter performs **conservative startup** on detected state loss — treating the window as full (or seeding windowCount from recent `foods.fetched_at` timestamps within the trailing hour) instead of trusting the empty log
+    - **Then** the limiter pauses draining at/above the 900 threshold immediately; **no burst fires** and **no SC-002 breach occurs**; draining resumes only as the seeded window genuinely ages out (mitigation per HAZ-041 / spec.md Edge Case)
 
 ---
 
@@ -427,58 +449,60 @@ Each test case identifies its technique by name:
 
 ---
 
-### Component Verification: SYS-008 (FoodDataRedisCache)
+### Component Verification: SYS-008 (FoodDataCacheAndPendingSet — Postgres default; Redis deferred)
 
 **Parent Requirements**: REQ-001, REQ-002, REQ-003, REQ-004, REQ-022, REQ-023
 
-#### Test Case: STP-008-A (Cache Hit — Hot Food Data Served from Redis)
+> **Deferred-component caveat (mirrors SYS-006).** The lean-launch default for SYS-008 is **PostgreSQL** itself: hot-read serving is satisfied by the indexed `foods` table read (no separate cache layer), and pending-fetch deduplication is enforced by the `fetch_queue`/`foods` row state via `INSERT ... ON CONFLICT DO NOTHING` (idempotent enqueue), **not** a Redis set. **Redis is a deferred variant**, not a first-class live component. The scenarios below are written against the Postgres lean default; the parenthetical Redis variant is the deferred equivalent that MUST hold only if Redis is later adopted.
+
+#### Test Case: STP-008-A (Hot-Read Serving — Food Data Served from the Local Store)
 
 **Technique**: Interface Contract Testing
-**Target View**: Interface View (SYS-001 → SYS-008 GET)
-**Description**: Verifies that a Redis cache hit bypasses PostgreSQL and returns food data directly.
+**Target View**: Interface View (SYS-001 → SYS-007 read; deferred: SYS-001 → Redis GET)
+**Description**: Verifies that a hot food record is served from the local store on a single indexed read. (Lean default: a PostgreSQL primary-key `SELECT` on `foods`; deferred variant: a Redis `GET food:{id}` hit that bypasses PostgreSQL.)
 
 - **System Scenario: STS-008-A1**
-    - **Given** Redis key `food:12345` exists with TTL > 0 and contains serialized food data with `fetch_status = 'fetched'`
-    - **When** FoodApiController executes `GET food:12345`
-    - **Then** FoodApiController returns the cached data as `200 OK`; no `SELECT` query is issued to SYS-007
+    - **Given** PostgreSQL `foods` holds `fdc_id = 12345` with `fetch_status = 'fetched'`
+    - **When** FoodApiController resolves `GET /v1/foods/12345`
+    - **Then** FoodApiController returns the food data as `200 OK` from a single indexed `SELECT ... WHERE fdc_id = 12345` against SYS-007; no outbound USDA call. _(Deferred Redis variant: a `GET food:12345` cache hit returns `200 OK` and no `SELECT` is issued to SYS-007.)_
 
-#### Test Case: STP-008-B (Cache TTL Boundary — 24-Hour Expiry)
+#### Test Case: STP-008-B (Freshness/TTL Boundary — Staleness Threshold)
 
 **Technique**: Boundary Value Analysis
-**Target View**: Data Design View (Redis TTL: 24 hours = 86,400 seconds)
-**Description**: Verifies that cached food data expires after exactly 24 hours.
+**Target View**: Data Design View (staleness threshold; deferred Redis TTL: 24 hours = 86,400 seconds)
+**Description**: Verifies that held food data is treated as fresh up to the staleness threshold and as stale beyond it. (Lean default: freshness is derived from `foods.fetched_at` vs the staleness threshold — the row is never evicted, it is re-fetched stale-while-revalidate; deferred variant: a Redis key expires after a 24-hour TTL and the next read falls through to PostgreSQL.)
 
 - **System Scenario: STS-008-B1**
-    - **Given** the consumer worker writes `SET food:12345 <data> EX 86400` to Redis after a successful USDA fetch
-    - **When** 86,400 seconds elapse
-    - **Then** `GET food:12345` returns nil (key expired); FoodApiController falls through to PostgreSQL on the next request
+    - **Given** PostgreSQL `foods` holds `fdc_id = 12345` whose `fetched_at` has just crossed the staleness threshold
+    - **When** FoodApiController resolves `GET /v1/foods/12345`
+    - **Then** the held row is served `200 OK` with a staleness indicator and a background re-fetch is enqueued (stale-while-revalidate, FR-031); the row is not evicted. _(Deferred Redis variant: after the 86,400 s TTL elapses, `GET food:12345` returns nil and FoodApiController falls through to PostgreSQL on the next request.)_
 
-#### Test Case: STP-008-C (Pending-Set Deduplication — SISMEMBER / SADD)
+#### Test Case: STP-008-C (Pending-Fetch Deduplication — Idempotent Enqueue)
 
 **Technique**: Interface Contract Testing
-**Target View**: Interface View (SYS-001 → SYS-008 pending_fetch set)
-**Description**: Verifies that the `pending_fetch` Redis set prevents duplicate `FoodRequested` events for the same `fdcId`.
+**Target View**: Interface View (SYS-001 → SYS-007/SYS-003 pending dedup; deferred: SYS-001 → Redis pending_fetch set)
+**Description**: Verifies that concurrent/repeat cache-miss lookups for the same `fdcId` produce exactly one `fetch_queue` row. (Lean default: the dedup is enforced by `INSERT INTO fetch_queue (...) ON CONFLICT (fdc_id) DO NOTHING` plus the `foods` row transitioning to `fetch_status = 'pending'` — a second miss observes the pending row and does not re-enqueue, though it still records its distinct demand via `fetch_requesters`; deferred variant: a Redis `SISMEMBER`/`SADD pending_fetch` set guard.)
 
 - **System Scenario: STS-008-C1**
-    - **Given** `pending_fetch` Redis set contains `12345`
-    - **When** FoodApiController receives `GET /v1/foods/12345` (cache miss, DB miss)
-    - **Then** FoodApiController executes `SISMEMBER pending_fetch 12345` → returns 1; no `FoodRequested` event is published; response is `202 Accepted`
+    - **Given** `fdc_id = 12345` already has a pending marker — its `foods` row is `fetch_status = 'pending'` (an active `fetch_queue` row exists)
+    - **When** FoodApiController receives `GET /v1/foods/12345` (store miss on fetched data)
+    - **Then** FoodApiController observes the pending state and inserts **no** new `fetch_queue` row (the `ON CONFLICT (fdc_id) DO NOTHING` insert is a no-op; only the requester's `fetch_requesters` demand is recorded); response is `202 Accepted`. _(Deferred Redis variant: `SISMEMBER pending_fetch 12345` → 1, no event published.)_
 
 - **System Scenario: STS-008-C2**
-    - **Given** `pending_fetch` Redis set does NOT contain `99999`
-    - **When** FoodApiController receives `GET /v1/foods/99999` (cache miss, DB miss)
-    - **Then** FoodApiController executes `SADD pending_fetch 99999`; a `FoodRequested` event is published to SYS-002; response is `202 Accepted`
+    - **Given** `fdc_id = 99999` has no local record and no pending marker
+    - **When** FoodApiController receives `GET /v1/foods/99999` (store miss)
+    - **Then** FoodApiController inserts a `fetch_queue` row for `99999` (`ON CONFLICT (fdc_id) DO NOTHING` succeeds as a new row), records the requester in `fetch_requesters`, and the `foods` row transitions to `pending`; a `FoodRequested` enqueue is published to SYS-002; response is `202 Accepted`. _(Deferred Redis variant: `SADD pending_fetch 99999` then publish.)_
 
-#### Test Case: STP-008-D (Fault Injection — Redis Unavailable, Fallthrough to PostgreSQL)
+#### Test Case: STP-008-D (Fault Injection — Deferred Cache Unavailable, Fallthrough to PostgreSQL)
 
 **Technique**: Fault Injection
-**Target View**: Dependency View (SYS-001 → SYS-008: Redis unavailable)
-**Description**: Verifies that Redis unavailability causes FoodApiController to fall through to PostgreSQL without returning an error.
+**Target View**: Dependency View (deferred: SYS-001 → Redis unavailable)
+**Description**: Verifies that, **in the deferred Redis variant**, cache unavailability causes FoodApiController to fall through to PostgreSQL without returning an error. (Under the lean Postgres default there is no separate cache layer to lose, so this fault degenerates to the SYS-007-unavailable case in STP-007-C; this case is meaningful only once the deferred Redis cache is adopted.)
 
 - **System Scenario: STS-008-D1**
-    - **Given** Redis (SYS-008) is unreachable; PostgreSQL contains `fdc_id = 12345` with `fetch_status = 'fetched'`
+    - **Given** the deferred Redis cache is enabled but unreachable; PostgreSQL contains `fdc_id = 12345` with `fetch_status = 'fetched'`
     - **When** FoodApiController receives `GET /v1/foods/12345`
-    - **Then** FoodApiController falls through to SYS-007; response is `200 OK` with food data; no `503` is returned due to Redis failure alone
+    - **Then** FoodApiController falls through to SYS-007; response is `200 OK` with food data; no `503` is returned due to the deferred cache failure alone
 
 ---
 
@@ -620,12 +644,12 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 
 **Technique**: Equivalence Partitioning
 **Target View**: Interface View (SYS-013 → SYS-001, SYS-010); Dependency View (SYS-013 → SYS-002)
-**Description**: Verifies that SYS-013 rejects unauthenticated, expired, malformed, and wrong-`azp`/wrong-instance requests with `401` at every HTTP route and the WebSocket `$connect`, before SYS-001/SYS-010 business logic runs, and that no `FoodDataReceived` event reaches SYS-002 and no row is enqueued to SYS-003/SYS-004 `fetch_queue` (SC-010). _(Invalid-credential equivalence classes: missing token, expired `exp`, not-yet-valid `nbf`, malformed/garbage, valid signature but wrong `azp`, token signed for a different Clerk instance — fail-closed config error.)_
+**Description**: Verifies that SYS-013 rejects unauthenticated, expired, malformed, and wrong-`azp`/wrong-instance requests with `401` at every HTTP route and the WebSocket `$connect`, before SYS-001/SYS-010 business logic runs, and that no `FoodDataReceived` event reaches SYS-002 and no row is enqueued to the SYS-003 `fetch_queue` (nor demand recorded in the SYS-004 `fetch_requesters` table) (SC-010). _(Invalid-credential equivalence classes: missing token, expired `exp`, not-yet-valid `nbf`, malformed/garbage, valid signature but wrong `azp`, token signed for a different Clerk instance — fail-closed config error.)_
 
 - **System Scenario: STS-013-A1**
     - **Given** SYS-013 is attached to every `/v1/foods/*` route; no `Authorization` header is present
     - **When** each entry point is exercised in turn — `GET /v1/foods/12345`, `GET /v1/foods/12345/status`, `GET /v1/foods/search?query=chicken`, `GET /v1/foods/12345/nutrients`, `GET /v1/foods/autocomplete?prefix=chic`, and `POST /v1/foods/batch`
-    - **Then** every endpoint returns `401 Unauthorized`; SYS-001 business logic is not reached; no `fetch_queue` row is inserted for SYS-003 or SYS-004; no outbound call to `api.nal.usda.gov` is made
+    - **Then** every endpoint returns `401 Unauthorized`; SYS-001 business logic is not reached; no row is inserted into the SYS-003 `fetch_queue` and no demand is recorded in the SYS-004 `fetch_requesters` table; no outbound call to `api.nal.usda.gov` is made
 
 - **System Scenario: STS-013-A2**
     - **Given** SYS-013 fronts the WebSocket API Gateway `$connect` route
@@ -637,8 +661,8 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
     - **When** each request is processed
     - **Then** every request returns `401 Unauthorized`; no `fetch_queue` row is enqueued for any of them; verification is performed networklessly (no outbound call to Clerk or any IdP observed on the request path)
 
-- **System Scenario: STS-013-A4**
-    - **Given** `CLERK_JWT_KEY` is missing or malformed in SYS-013 configuration (verifier cannot initialize)
+- **System Scenario: STS-013-A4** _(config-state fault, not a per-request credential partition)_
+    - **Given** `CLERK_JWT_KEY` is missing or malformed in SYS-013 **configuration** (the verifier cannot initialize) — this is a deployment/config-state fault that holds for the whole process, distinct from the per-request invalid-credential equivalence classes (STS-013-A3) and from the wrong-instance token case (a credential whose signature fails against an otherwise-valid key); it is included here because it exercises the same fail-closed property at every entry point
     - **When** any `/v1/foods/*` request arrives — even one bearing an otherwise-valid token
     - **Then** SYS-013 fails closed with `401`; no request proceeds unauthenticated; no enqueue and no USDA call occur
 
@@ -656,7 +680,7 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 - **System Scenario: STS-013-B1**
     - **Given** the verifier concurrency bound under test is `C = 50` in-flight signature checks and the per-source `401`-rate cap is `200` `401`/min/source; **and** a sustained flood of well-formed-but-invalid tokens (valid structure, signature fails against `CLERK_JWT_KEY`) is generated against `GET /v1/foods/{fdcId}` at **2,000 req/s** (= `40×C`, ≥ a stated multiple of the concurrency bound) from a bounded set of **8** source identities for a **120 s** measurement window; **and** a separate baseline of legitimate valid-token requests is interleaved at **100 req/s** (valid:invalid mix ≈ 1:20)
     - **When** SYS-013 processes the mixed load over the 120 s window (first 10 s discarded as warm-up; metrics taken over the remaining 110 s, ≥ 11,000 valid-request latency samples)
-    - **Then** the per-source `401`-rate cap / concurrency bound engages — **≥ 95%** of the invalid flood is load-shed (fast-rejected at the cap or rejected without a full CPU-bound signature check), in-flight signature checks stay **≤ `C` (50)** and the verifier queue depth stays bounded (does not grow monotonically across the window), i.e. the verifier does not saturate; **and** valid-token requests continue to be served with auth-attributable verification overhead **≤ 10ms at p95** (SC-011), where auth-attributable latency is measured as the time from request receipt to the authn decision (verify-start → verify-complete span), isolated from downstream SYS-001/SYS-007 handling; **and** no invalid request is enqueued to the SYS-003/SYS-004 `fetch_queue` or reaches the USDA path. _Pass = (valid-token p95 ≤ 10ms) AND (in-flight ≤ C across the window) AND (≥ 95% of invalid requests shed). The scenario is reproducible: same C, cap, rates, mix, window, and sample size yield the same verdict._
+    - **Then** the per-source `401`-rate cap / concurrency bound engages — **≥ 95%** of the invalid flood is load-shed (fast-rejected at the cap or rejected without a full CPU-bound signature check), in-flight signature checks stay **≤ `C` (50)** and the verifier queue depth stays bounded (does not grow monotonically across the window), i.e. the verifier does not saturate; **and** valid-token requests continue to be served with auth-attributable verification overhead **≤ 10ms at p95** (SC-011), where auth-attributable latency is measured as the time from request receipt to the authn decision (verify-start → verify-complete span), isolated from downstream SYS-001/SYS-007 handling; **and** no invalid request is enqueued to the SYS-003 `fetch_queue` (nor recorded as demand in the SYS-004 `fetch_requesters` table) or reaches the USDA path. _Pass = (valid-token p95 ≤ 10ms) AND (in-flight ≤ C across the window) AND (≥ 95% of invalid requests shed). The scenario is reproducible: same C, cap, rates, mix, window, and sample size yield the same verdict._
 
 #### Test Case: STP-013-C (Per-`sub` Fairness by Queue Demotion — No `429`, Dynamic Re-Promotion)
 
@@ -665,12 +689,12 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 **Description**: Verifies that fairness is enforced by **queue demotion, not rejection**: a `sub` with more than 50 items currently pending in the `fetch_queue` has its queued (and subsequent) items ranked to the **back** of the priority order, while other `sub`s continue to be served. No authenticated cache-miss request is rejected — there is **no per-user quota and no `429`**. Demotion is **dynamic**: priority is computed at drain time from the requester's live pending count, so items auto-return to normal priority once the `sub` falls below 50 (SC-012, FR-043). The boundary under test is the **50-pending** demotion threshold.
 
 - **System Scenario: STS-013-C1**
-    - **Given** an authenticated `sub` `A` already has more than 50 items pending in the `fetch_queue`
+    - **Given** the `fetch_queue` and `fetch_requesters` demand state are **reset to empty at the start of the scenario** (no residual pending rows for any `sub`), then authenticated `sub` `A` is **seeded to a known pending count of 51** (just over the 50-item demotion threshold) by enqueuing 51 distinct cache-miss lookups for `A` and **holding the consumer drain paused** so the count stays fixed at 51
     - **When** `sub` `A` triggers another cache-miss lookup (`GET /v1/foods/{newFdcId}` for an unknown id)
     - **Then** the response is `202 Accepted` (the request is **not** rejected; no `429`); the fetch **is** enqueued, but `sub` `A`'s items are ranked to the back of the priority order (lowest priority, below FR-015 demand ordering) so they drain only on spare capacity
 
 - **System Scenario: STS-013-C2**
-    - **Given** authenticated `sub` `A` is scripting cache-miss lookups continuously (driving its pending count above 50) while authenticated `sub` `B` issues occasional cache-miss lookups, against the global 1,000 req/hr USDA budget (SYS-006 rolling window)
+    - **Given** the `fetch_queue` and `fetch_requesters` demand state are **reset to empty at the start of the scenario**, the SYS-006 rolling window is **seeded to a known below-pause level** (so drain capacity is deterministic against the global 1,000 req/hr budget), and authenticated `sub` `A` is scripting cache-miss lookups continuously (driving its pending count above 50) while authenticated `sub` `B` issues occasional cache-miss lookups
     - **When** the consumer drains the `fetch_queue` and `sub` `A`'s pending count later falls back below 50
     - **Then** while `A` is above 50, `A`'s demoted items yield to `B`'s normally-prioritized items (one account cannot starve the shared budget for others); none of `A`'s requests receive `429`; once `A`'s live pending count drops below 50, the drain-time scorer re-promotes `A`'s remaining items to normal priority (no frozen demotion flag)
 
@@ -736,22 +760,22 @@ The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using 
 
 ## Traceability Summary
 
-| SYS ID  | Component Name              | Test Cases               | Scenarios                                                              |
-| ------- | --------------------------- | ------------------------ | ---------------------------------------------------------------------- |
-| SYS-001 | FoodApiController           | STP-001-A, B, C, D, E    | STS-001-A1, A2, B1, B2, B3, B4, B5, B6, C1, C2, C3, C4, D1, D2, E1     |
-| SYS-002 | EventBridgeBus              | STP-002-A, B, C          | STS-002-A1, B1, C1                                                     |
-| SYS-003 | HighPriorityFetchQueue      | STP-003-A, B             | STS-003-A1, B1                                                         |
-| SYS-004 | LowPriorityFetchQueue       | STP-004-A, B             | STS-004-A1, B1                                                         |
-| SYS-005 | FoodConsumerWorker          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, D2, E1, F1                             |
-| SYS-006 | RollingWindowLimiter        | STP-006-A, B, C          | STS-006-A1, A2, B1, B2, B3, C1                                         |
-| SYS-007 | FoodDataPostgresRepository  | STP-007-A, B, C          | STS-007-A1, A2, B1, B2, C1                                             |
-| SYS-008 | FoodDataRedisCache          | STP-008-A, B, C, D       | STS-008-A1, B1, C1, C2, D1                                             |
-| SYS-009 | USDAFoodDataCentralApi      | STP-009-A, B             | STS-009-A1, B1                                                         |
-| SYS-010 | WebSocketNotificationLambda | STP-010-A, B             | STS-010-A1, B1                                                         |
-| SYS-011 | SecretManagement            | STP-011-A, B             | STS-011-A1, B1                                                         |
-| SYS-012 | MonitoringAndLogging        | STP-012-A, B, C          | STS-012-A1, A2, B1, C1                                                 |
-| SYS-013 | AuthnAuthzLayer             | STP-013-A, B, C, D, E, F | STS-013-A1, A2, A3, A4, A5, B1, C1, C2, D1, D2, E1, E2, E3, F1, F2, F3 |
+| SYS ID  | Component Name                              | Test Cases               | Scenarios                                                              |
+| ------- | ------------------------------------------- | ------------------------ | ---------------------------------------------------------------------- |
+| SYS-001 | FoodApiController                           | STP-001-A, B, C, D, E    | STS-001-A1, A2, B1, B2, B3, B4, B5, B6, C1, C2, C3, C4, D1, D2, E1     |
+| SYS-002 | EnqueueRouter (EventBridge scheduled-only)  | STP-002-A, B, C          | STS-002-A1, B1, C1                                                     |
+| SYS-003 | FetchQueue (single demand-weighted queue)   | STP-003-A, B             | STS-003-A1, B1                                                         |
+| SYS-004 | FetchRequesters (distinct-requester demand) | STP-004-A, B             | STS-004-A1, B1                                                         |
+| SYS-005 | FoodConsumerWorker                          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, D2, E1, F1                             |
+| SYS-006 | RollingWindowLimiter                        | STP-006-A, B, C, D       | STS-006-A1, A2, B1, B2, B3, C1, D1, D2                                 |
+| SYS-007 | FoodDataPostgresRepository                  | STP-007-A, B, C          | STS-007-A1, A2, B1, B2, C1                                             |
+| SYS-008 | FoodDataCacheAndPendingSet                  | STP-008-A, B, C, D       | STS-008-A1, B1, C1, C2, D1                                             |
+| SYS-009 | USDAFoodDataCentralApi                      | STP-009-A, B             | STS-009-A1, B1                                                         |
+| SYS-010 | WebSocketNotificationLambda                 | STP-010-A, B             | STS-010-A1, B1                                                         |
+| SYS-011 | SecretManagement                            | STP-011-A, B             | STS-011-A1, B1                                                         |
+| SYS-012 | MonitoringAndLogging                        | STP-012-A, B, C          | STS-012-A1, A2, B1, C1                                                 |
+| SYS-013 | AuthnAuthzLayer                             | STP-013-A, B, C, D, E, F | STS-013-A1, A2, A3, A4, A5, B1, C1, C2, D1, D2, E1, E2, E3, F1, F2, F3 |
 
-**Total Test Cases**: 36 STP
-**Total Scenarios**: 63 STS
+**Total Test Cases**: 37 STP
+**Total Scenarios**: 65 STS
 **Components Covered**: 13 / 13 (100%)

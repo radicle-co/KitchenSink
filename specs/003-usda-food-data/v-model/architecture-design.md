@@ -7,7 +7,7 @@
 
 ## Overview
 
-The architecture decomposes the USDA food data integration into 12 software modules (ARCH-001 through ARCH-012) mapped to 13 system components. User-facing food lookups are served exclusively from local storage (PostgreSQL + optional Redis; lean-launch default is Postgres) — the USDA API is never called in the request path. Cache misses trigger an event-driven backfill pipeline: the ECS/Fargate NestJS API service → `INSERT … ON CONFLICT` into the Postgres `fetch_queue` (Postgres-as-queue) + `pg_notify` → Fargate consumer worker draining over `LISTEN/NOTIFY` (single instance via advisory lock) → USDA API → PostgreSQL/Redis. EventBridge is used only for scheduled producers (stale-refresh / bulk-sync) and the `FoodDataReceived` completion event — never the demand-path enqueue. A rolling-60-minute-window rate-limiter (Postgres `usda_call_log` by default; Redis sorted set is a deferred post-launch variant) caps USDA API usage at ≤1,000 calls in any trailing 60 minutes (the worker pauses draining at 90% / 900). Every entry point — every HTTP route and the WebSocket `$connect` — is fronted by **ARCH-012 FoodAuthGuard**, which networklessly verifies the Clerk session/M2M token, enforces `azp`, fails closed to `401`, and applies per-`sub` demotion fairness (>50 pending → ranked to back, dynamic at drain time; no `429`) at enqueue.
+The architecture decomposes the USDA food data integration into 12 software modules (ARCH-001 through ARCH-012) mapped to 13 system components. User-facing food lookups are served exclusively from local storage (PostgreSQL + optional Redis; lean-launch default is Postgres) — the USDA API is never called in the request path. Cache misses trigger an event-driven backfill pipeline: the ECS/Fargate NestJS API service records **distinct-requester** demand (FR-044) by upserting `(fdc_id, sub)` into `fetch_requesters` (`ON CONFLICT DO NOTHING`) and setting the `fetch_queue` row's `request_count` to the capped distinct-`sub` count (PRIORITY_CAP=1) — not a raw increment — then `pg_notify` → Fargate consumer worker draining the Postgres `fetch_queue` over `LISTEN/NOTIFY` (single instance via advisory lock) → USDA API → PostgreSQL (optional Redis). The `fetch_queue` status enum is `pending | in_flight | tombstone` (a completed row is deleted, leaving the pending set; tombstones are the audit trail). EventBridge is used only for scheduled producers (stale-refresh / bulk-sync) and the `FoodDataReceived` completion event — never the demand-path enqueue. A rolling-60-minute-window rate-limiter (Postgres `usda_call_log` by default; Redis sorted set is a deferred post-launch variant) caps USDA API usage at ≤1,000 calls in any trailing 60 minutes (the worker pauses draining at 90% / 900). Every entry point — every HTTP route and the WebSocket `$connect` — is fronted by **ARCH-012 FoodAuthGuard**, which networklessly verifies the Clerk session/M2M token, enforces `azp`, fails closed to `401`, and applies per-`sub` demotion fairness (>50 pending → ranked to back, dynamic at drain time; no `429`) at enqueue.
 
 ## ID Schema
 
@@ -18,20 +18,20 @@ The architecture decomposes the USDA food data integration into 12 software modu
 
 ## Logical View — Component Breakdown (IEEE 42010 / Kruchten 4+1)
 
-| ARCH ID  | Name                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Parent System Components                                                                   | Type      |
-| -------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------- |
-| ARCH-001 | FoodApiController      | NestJS controller in the food read service on ECS/Fargate behind a public ALB (in-process `FoodAuthGuard`/`AuthMiddleware`, ARCH-012). Validates fdcId, queries local store (optional Redis then PostgreSQL), returns 200/202/404/400. On cache miss, enqueues via `INSERT … ON CONFLICT` into the Postgres `fetch_queue` + `pg_notify` (not EventBridge). On a `stale` hit it serves the stale data as `200` immediately and enqueues a background re-fetch (stale-while-revalidate; serves stale indefinitely if re-fetch keeps failing). A tombstoned `not_found` returns `404` within its TTL (default 30d) and re-attempts after TTL. Batch lookups return per-item partial results (cached/stale inline + each miss `pending`). Never calls USDA API directly.                    | SYS-001                                                                                    | Component |
-| ARCH-002 | EventBridgePublisher   | Publishes **scheduled-producer** events (stale-refresh / bulk-sync) and the `FoodDataReceived` completion event to the EventBridge default bus. Performs input validation on event payload before publish. **Not** on the demand path — cache-miss enqueues are `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify` direct from ARCH-001.                                                                                                                                                                                                                                                                                                                                                                                                                                           | SYS-002                                                                                    | Component |
-| ARCH-003 | FetchQueueRouter       | Postgres-as-queue access module for `fetch_queue`. Demand-path enqueue via `INSERT … ON CONFLICT (fdc_id) DO UPDATE SET request_count = request_count + 1` + `pg_notify('fetch_queued')`; demand priority `ORDER BY request_count DESC, first_requested ASC`. Tombstone rows (`status='tombstone'`) are the audit trail (no DLQ).                                                                                                                                                                                                                                                                                                                                                                                                                                                       | SYS-002, SYS-003, SYS-004                                                                  | Component |
-| ARCH-004 | FoodConsumerService    | Fargate consumer worker (single instance via advisory lock) draining the Postgres `fetch_queue` via `LISTEN/NOTIFY`. Calls USDA API via the rolling-window rate limiter, writes results to PostgreSQL, invalidates Redis cache, publishes FoodDataReceived events. Handles retries with exponential backoff (FR-016) and tombstones after 5 attempts.                                                                                                                                                                                                                                                                                                                                                                                                                                   | SYS-005                                                                                    | Component |
-| ARCH-005 | RollingWindowLimiter   | Atomic rolling-60-minute window on the Postgres `usda_call_log` (Redis sorted-set Lua-script variant deferred post-launch). Allows ≤1,000 USDA API calls in any trailing 60 minutes; on every consumer-worker drain it atomically counts the calls in the trailing 60 min and records the new call. The worker pauses draining at 90% (900) and resumes as earlier calls age out of the window; on USDA `429` it backs off (treats the window as full).                                                                                                                                                                                                                                                                                                                                 | SYS-006 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] | Utility   |
-| ARCH-006 | FoodPostgresRepository | Drizzle ORM repository for foods table. Handles all PostgreSQL operations: lookup by fdcId, upsert on fetch, status updates, search queries with full-text index. Manages fetch_status field lifecycle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | SYS-007                                                                                    | Component |
-| ARCH-007 | FoodCacheService       | Optional Redis client for hot cache (food:\* keys, TTL 24h); deferred post-launch variant (lean-launch default is Postgres). Pending-fetch deduplication is the `fetch_queue` `ON CONFLICT` row, not a Redis set. Provides cache-through and cache-invalidate operations. Falls through to PostgreSQL on Redis miss.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | SYS-008                                                                                    | Component |
-| ARCH-008 | UsdaApiClient          | HTTP client for USDA FoodData Central API. Handles authentication (API key from Secrets Manager via env var), batch requests (up to 20 IDs per call), response parsing, and error classification.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | SYS-009                                                                                    | Adapter   |
-| ARCH-009 | WebSocketNotifier      | EventBridge target for FoodDataReceived events. Lambda that pushes real-time notifications to connected clients via API Gateway WebSocket API. Optional — launch deferred (US-9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | SYS-010 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] | Component |
-| ARCH-010 | SecretManager          | AWS Secrets Manager integration. Retrieves and caches USDA API key. Handles rotation triggers. Injected as a Fargate consumer-worker environment variable — never exposed in logs or responses.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | SYS-011 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] | Utility   |
-| ARCH-011 | MonitoringLogger       | CloudWatch logging + X-Ray tracing for the ECS/Fargate API service and the Fargate consumer worker. Structured JSON logs with requestId correlation. Metrics: latency histogram, error rate, queue depth, trailing-60-min USDA call count (rolling-window utilization).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | SYS-012 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] | Utility   |
-| ARCH-012 | FoodAuthGuard          | Auth subsystem fronting every food-data entry point (all HTTP routes + WebSocket `$connect`). Networklessly verifies the Clerk session/M2M token (signature/`exp`/`nbf`/`azp` via public `CLERK_JWT_KEY`), fails closed to `401`, derives `AuthenticatedCaller` solely from the verified `sub` (no client-suppliable identity header), gates operational scopes from `public_metadata` (`403`), and enforces per-`sub` demotion fairness (>50 pending → ranked to back, dynamic at drain time; no `429`), distinct-requester demand, batch cap (with per-item partial responses), and queue backpressure/circuit-breaker before/at enqueue. Runs in-process as NestJS `AuthMiddleware` on ECS/Fargate (ALB); the WebSocket `$connect` authorizer is the only Lambda-authorizer surface. | SYS-013                                                                                    | Component |
+| ARCH ID  | Name                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Parent System Components                                                                                                 | Type                                                     |
+| -------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | ------------------------- | --------- |
+| ARCH-001 | FoodApiController      | NestJS controller in the food read service on ECS/Fargate behind a public ALB (in-process `FoodAuthGuard`/`AuthMiddleware`, ARCH-012). Validates fdcId, queries local store (PostgreSQL by default; optional Redis hot-cache checked first only when the deferred variant is enabled), returns 200/202/404/400. On cache miss, enqueues via `INSERT … ON CONFLICT` into the Postgres `fetch_queue` + `pg_notify` (not EventBridge). On a `stale` hit it serves the stale data as `200` immediately and enqueues a background re-fetch (stale-while-revalidate; serves stale indefinitely if re-fetch keeps failing). A tombstoned `not_found` returns `404` within its TTL (default 30d) and re-attempts after TTL. Batch lookups return per-item partial results (cached/stale inline + each miss `pending`). Never calls USDA API directly.                                           | SYS-001                                                                                                                  | Component                                                |
+| ARCH-002 | EnqueueEmitter         | Publishes **scheduled-producer** events (stale-refresh / bulk-sync) and the `FoodDataReceived` completion event to the EventBridge default bus. Performs input validation on event payload before publish. **Not** on the demand path — cache-miss enqueues are `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify` direct from ARCH-001.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | SYS-002                                                                                                                  | Component                                                |
+| ARCH-003 | FetchQueueRouter       | Postgres-as-queue access module for `fetch_queue` (+ companion `fetch_requesters`). Demand-path enqueue is **distinct-requester** demand (FR-044): upsert `(fdc_id, sub)` into `fetch_requesters` via `INSERT … ON CONFLICT (fdc_id, sub) DO NOTHING`, then set `fetch_queue.request_count` to the capped distinct-`sub` count (PRIORITY_CAP=1) — never a raw `request_count = request_count + 1` increment — and `pg_notify('fetch_queued')`. Demand priority `ORDER BY request_count DESC, first_requested ASC`. The status enum is `pending                                                                                                                                                                                                                                                                                                                                          | in_flight                                                                                                                | tombstone`; tombstone rows are the audit trail (no DLQ). | SYS-002, SYS-003, SYS-004 | Component |
+| ARCH-004 | FoodConsumerService    | Fargate consumer worker (single instance via advisory lock) draining the Postgres `fetch_queue` via `LISTEN/NOTIFY`. Calls USDA API via the rolling-window rate limiter, writes results to PostgreSQL, invalidates Redis cache, publishes FoodDataReceived events. Handles retries with exponential backoff (FR-016) and tombstones after 5 attempts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | SYS-005                                                                                                                  | Component                                                |
+| ARCH-005 | RollingWindowLimiter   | Atomic rolling-60-minute window on the Postgres `usda_call_log` (Redis sorted-set Lua-script variant deferred post-launch). Allows ≤1,000 USDA API calls in any trailing 60 minutes; on every consumer-worker drain it atomically counts the calls in the trailing 60 min and records the new call. The worker pauses draining at 90% (900) and resumes as earlier calls age out of the window; on USDA `429` it backs off (treats the window as full).                                                                                                                                                                                                                                                                                                                                                                                                                                 | SYS-006 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]                               | Utility                                                  |
+| ARCH-006 | FoodPostgresRepository | Drizzle ORM repository for foods table. Handles all PostgreSQL operations: lookup by fdcId, upsert on fetch, status updates, search queries with full-text index. Manages fetch_status field lifecycle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | SYS-007                                                                                                                  | Component                                                |
+| ARCH-007 | FoodCacheService       | Optional Redis client for hot cache (food:\* keys, TTL 24h); deferred post-launch variant (lean-launch default is Postgres). Pending-fetch deduplication is the `fetch_queue` `ON CONFLICT` row, not a Redis set. Provides cache-through and cache-invalidate operations. Falls through to PostgreSQL on Redis miss.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | SYS-008                                                                                                                  | Component                                                |
+| ARCH-008 | UsdaApiClient          | HTTP client for USDA FoodData Central API. Handles authentication (API key from Secrets Manager via env var), batch requests (up to 20 IDs per call), response parsing, and error classification.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | SYS-009                                                                                                                  | Adapter                                                  |
+| ARCH-009 | WebSocketNotifier      | EventBridge target for FoodDataReceived events. Lambda that pushes real-time notifications to connected clients via API Gateway WebSocket API. Optional — launch deferred (US-9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | SYS-010 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]                               | Component                                                |
+| ARCH-010 | SecretManager          | AWS Secrets Manager integration. Retrieves and caches USDA API key. Handles rotation triggers. Injected as a Fargate consumer-worker environment variable — never exposed in logs or responses.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | SYS-011 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]                               | Utility                                                  |
+| ARCH-011 | MonitoringLogger       | CloudWatch logging + X-Ray tracing for the ECS/Fargate API service and the Fargate consumer worker. Structured JSON logs with requestId correlation. Metrics: latency histogram, error rate, queue depth, trailing-60-min USDA call count (rolling-window utilization).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | SYS-012 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]                               | Utility                                                  |
+| ARCH-012 | FoodAuthGuard          | Auth subsystem fronting every food-data entry point (all HTTP routes + WebSocket `$connect`). Networklessly verifies the Clerk session/M2M token (signature/`exp`/`nbf`/`azp` via public `CLERK_JWT_KEY`), fails closed to `401`, derives `AuthenticatedCaller` solely from the verified `sub` (no client-suppliable identity header), gates operational scopes from `public_metadata` (`403`), and enforces per-`sub` demotion fairness (>50 pending → ranked to back, dynamic at drain time; no `429`), distinct-requester demand, batch cap (with per-item partial responses), and queue backpressure/circuit-breaker before/at enqueue. Runs in-process as NestJS `AuthMiddleware` on ECS/Fargate (ALB); the WebSocket `$connect` authorizer is the only Lambda-authorizer surface. Enqueue-admission op is `admitEnqueue` (+ `isDemoted`), matching MOD-013 `DemotionAndFairness`. | SYS-013 [CROSS-CUTTING; rationale: auth/fairness edge fronts every food-data entry point across multiple SYS components] | Component                                                |
 
 ## Process View — Dynamic Behavior (Kruchten 4+1)
 
@@ -57,15 +57,15 @@ sequenceDiagram
     else valid — req.user = AuthenticatedCaller { sub, azp, scopes }
         AG->>A: next() — handler runs
         Note over AG,A: status precedence 401 → 403 → 400 → 404/202/200
-        A->>AG: pre-enqueue fairness/backpressure check (per-sub)
+        A->>AG: admitEnqueue(sub) — pre-enqueue fairness/backpressure check (per-sub)
         alt queue depth exceeded / circuit open
             AG-->>C: 503 Service Unavailable (fail closed)
         else sub has >50 pending
-            AG-->>A: admit but demote (rank to back; dynamic at drain time; no 429)
-            A->>Q: INSERT INTO fetch_queue … ON CONFLICT + pg_notify (enqueue, demoted)
+            AG-->>A: isDemoted=true — admit but demote (rank to back; dynamic at drain time; no 429)
+            A->>Q: upsert (fdc_id, sub) into fetch_requesters ON CONFLICT DO NOTHING; set request_count (capped distinct-sub, PRIORITY_CAP=1) + pg_notify (enqueue, demoted)
             A-->>C: 202 Accepted
         else within budget
-            A->>Q: INSERT INTO fetch_queue … ON CONFLICT + pg_notify (enqueue)
+            A->>Q: upsert (fdc_id, sub) into fetch_requesters ON CONFLICT DO NOTHING; set request_count (capped distinct-sub, PRIORITY_CAP=1) + pg_notify (enqueue)
             A-->>C: 202 Accepted
         end
     end
@@ -78,13 +78,14 @@ sequenceDiagram
     participant C as Client
     participant G as ALB
     participant A as FoodApiController<br/>(ARCH-001, ECS/Fargate)
-    participant R as FoodCacheService<br/>(ARCH-007)
-    participant P as FoodPostgresRepository<br/>(ARCH-006)
+    participant P as FoodPostgresRepository<br/>(ARCH-006, default store)
+    participant R as FoodCacheService<br/>(ARCH-007, optional Redis)
 
     C->>G: GET /v1/foods/12345
     G->>A: Forward to ECS/Fargate service
-    A->>R: Redis GET food:12345
-    R-->>A: HIT: { fdcId, nutrition, fetch_status: 'fetched' }
+    A->>P: SELECT … WHERE fdcId = 12345 (Postgres default)
+    P-->>A: HIT: { fdcId, nutrition, fetch_status: 'fetched' }
+    Note over A,R: optional Redis hot-cache (deferred variant) consulted first only when enabled
     A-->>G: 200 OK { food data }
     G-->>C: 200 OK
 ```
@@ -96,19 +97,17 @@ sequenceDiagram
     participant C as Client
     participant G as ALB
     participant A as FoodApiController<br/>(ARCH-001, ECS/Fargate)
-    participant R as FoodCacheService<br/>(ARCH-007)
-    participant P as FoodPostgresRepository<br/>(ARCH-006)
+    participant P as FoodPostgresRepository<br/>(ARCH-006, default store)
+    participant R as FoodCacheService<br/>(ARCH-007, optional Redis)
     participant Q as FetchQueueRouter<br/>(ARCH-003)
-    participant PG as Postgres fetch_queue
+    participant PG as Postgres fetch_queue + fetch_requesters
 
     C->>G: GET /v1/foods/12345
     G->>A: Forward to ECS/Fargate service
-    A->>R: Redis GET food:12345 (optional cache)
-    R-->>A: MISS
-    A->>P: SELECT * FROM foods WHERE fdcId = 12345
+    A->>P: SELECT * FROM foods WHERE fdcId = 12345 (Postgres default; Redis optional)
     P-->>A: NOT EXISTS (no row)
-    A->>Q: INSERT INTO fetch_queue (12345, ...) ON CONFLICT (fdc_id) DO UPDATE SET request_count = request_count + 1
-    Q->>PG: row enqueued (dedup via ON CONFLICT)
+    A->>Q: INSERT INTO fetch_requesters (12345, sub) ON CONFLICT (fdc_id, sub) DO NOTHING (distinct-requester, FR-044)
+    Q->>PG: requester recorded; fetch_queue.request_count = capped distinct-sub count (PRIORITY_CAP=1)
     A->>Q: pg_notify('fetch_queued', '12345')
     A-->>G: 202 Accepted { status: 'pending', estimatedWaitSeconds: 30 }
     G-->>C: 202 Accepted
@@ -125,15 +124,15 @@ sequenceDiagram
     participant P as FoodPostgresRepository<br/>(ARCH-006)
     participant R as FoodCacheService<br/>(ARCH-007)
 
-    Q->>L: NOTIFY fetch_queued → SELECT … FOR UPDATE SKIP LOCKED ORDER BY (requester pending-count > 50) ASC, request_count DESC, first_requested ASC LIMIT 1 (lease, dynamic demotion)
+    Q->>L: NOTIFY fetch_queued → SELECT … WHERE status IN ('pending','in_flight') FOR UPDATE SKIP LOCKED ORDER BY (requester pending-count > 50) ASC, request_count DESC, first_requested ASC LIMIT 1 (lease, set status='in_flight', dynamic demotion)
     L->>T: checkAndRecordCall()
-    T-->>L: { allowed: true, trailingCount: 153 }
+    T-->>L: { allowed: true, windowCount: 153 }
     L->>U: POST /v1/foods { fdcIds: [12345] }
     U-->>L: 200 OK { foods: [...] }
     L->>P: UPSERT foods SET fetch_status = 'fetched'
     P-->>L: success
     L->>R: DEL food:12345 (optional cache)
-    L->>Q: UPDATE fetch_queue SET status='done' WHERE fdc_id=12345
+    L->>Q: DELETE FROM fetch_queue WHERE fdc_id=12345 (completed — leaves pending set; status enum is pending | in_flight | tombstone, no 'done')
 ```
 
 ### Interaction 4: Rate Limiter Block
@@ -146,7 +145,7 @@ sequenceDiagram
 
     Q->>L: NOTIFY fetch_queued → lease row { fdcId: 12345 }
     L->>T: checkAndRecordCall()
-    T-->>L: { allowed: false, trailingCount: 1000 } (cap reached / ≥90% pause threshold)
+    T-->>L: { allowed: false, windowCount: 1000 } (cap reached / ≥90% pause threshold)
     L->>Q: release lease (no status change); pause draining / back off
     Note over L: Row stays 'pending'; resumes once earlier calls age out of the window
 ```
@@ -174,7 +173,7 @@ sequenceDiagram
 | `GET /v1/foods/{fdcId}/status`    | fdcId (path)          | 200: { status, foodData? }                                           | 400, 404                  |
 | `GET /v1/foods/{fdcId}/nutrition` | fdcId (path)          | 200: NutritionData                                                   | 400, 404, 503             |
 
-### ARCH-002 (EventBridgePublisher)
+### ARCH-002 (EnqueueEmitter)
 
 | Operation                        | Input                                       | Output                | Errors                 |
 | -------------------------------- | ------------------------------------------- | --------------------- | ---------------------- |
@@ -183,26 +182,26 @@ sequenceDiagram
 
 ### ARCH-003 (FetchQueueRouter)
 
-| Operation             | Input                                       | Output                                                     | Errors               |
-| --------------------- | ------------------------------------------- | ---------------------------------------------------------- | -------------------- |
-| `enqueue(fdcId, sub)` | `number, string`                            | `{ enqueued: boolean }` (INSERT … ON CONFLICT + pg_notify) | Postgres unavailable |
-| `leaseNext()`         | none (FOR UPDATE SKIP LOCKED, demand order) | `FetchQueueRow \| null`                                    | Postgres unavailable |
-| `markDone(fdcId)`     | `number`                                    | `{ success: boolean }`                                     | Postgres unavailable |
-| `tombstone(fdcId)`    | `number`                                    | `{ success: boolean }` (status='tombstone')                | Postgres unavailable |
+| Operation             | Input                                                                                                            | Output                                                                                                                                                                          | Errors               |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `enqueue(fdcId, sub)` | `number, string`                                                                                                 | `{ enqueued: boolean }` (upsert `(fdc_id, sub)` into `fetch_requesters` ON CONFLICT DO NOTHING; set `request_count` = capped distinct-`sub` count, PRIORITY_CAP=1; + pg_notify) | Postgres unavailable |
+| `leaseNext()`         | none (`WHERE status IN ('pending','in_flight')` FOR UPDATE SKIP LOCKED, demand order; sets `status='in_flight'`) | `FetchQueueRow \| null`                                                                                                                                                         | Postgres unavailable |
+| `markComplete(fdcId)` | `number`                                                                                                         | `{ success: boolean }` (deletes the completed row — leaves the pending set; no `done` status)                                                                                   | Postgres unavailable |
+| `tombstone(fdcId)`    | `number`                                                                                                         | `{ success: boolean }` (status='tombstone')                                                                                                                                     | Postgres unavailable |
 
 ### ARCH-004 (FoodConsumerService)
 
-| Operation               | Input                    | Output                                  | Errors                           |
-| ----------------------- | ------------------------ | --------------------------------------- | -------------------------------- |
-| `drainOnNotify()`       | `LISTEN/NOTIFY` wakeup   | leases + processes rows in demand order | Retry with backoff               |
-| `processFetchRow(row)`  | leased `fetch_queue` row | `status='done'` on success              | Retry w/ backoff (5 → tombstone) |
-| `fetchFromUsda(fdcIds)` | `number[]` (max 20)      | `USDAFoodResponse[]`                    | USDA API errors                  |
+| Operation               | Input                    | Output                                          | Errors                           |
+| ----------------------- | ------------------------ | ----------------------------------------------- | -------------------------------- |
+| `drainOnNotify()`       | `LISTEN/NOTIFY` wakeup   | leases + processes rows in demand order         | Retry with backoff               |
+| `processFetchRow(row)`  | leased `fetch_queue` row | row deleted on success (leaves the pending set) | Retry w/ backoff (5 → tombstone) |
+| `fetchFromUsda(fdcIds)` | `number[]` (max 20)      | `USDAFoodResponse[]`                            | USDA API errors                  |
 
 ### ARCH-005 (RollingWindowLimiter)
 
 | Operation              | Input | Output                                                      | Errors                                        |
 | ---------------------- | ----- | ----------------------------------------------------------- | --------------------------------------------- |
-| `checkAndRecordCall()` | none  | `{ allowed: boolean, trailingCount: number }`               | Postgres unavailable (Redis variant deferred) |
+| `checkAndRecordCall()` | none  | `{ allowed: boolean, windowCount: number }`                 | Postgres unavailable (Redis variant deferred) |
 | `getWaitTime()`        | none  | `number` (seconds until the oldest in-window call ages out) | Postgres unavailable (Redis variant deferred) |
 
 ### ARCH-006 (FoodPostgresRepository)
@@ -253,13 +252,13 @@ sequenceDiagram
 
 ### ARCH-012 (FoodAuthGuard)
 
-| Operation                      | Input                                                              | Output                                                                          | Errors                                                                   |
-| ------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `verify(req)` (middleware)     | `Authorization: Bearer <Clerk token>`                              | `req.user: AuthenticatedCaller { sub, azp, scopes }`                            | 401: missing/invalid/expired token, `azp` mismatch, or verify exception  |
-| `requireScope(scope)`          | required operational scope + `req.user`                            | pass-through to handler                                                         | 403: scope absent from verified `public_metadata`                        |
-| `scoreEnqueue(sub)`            | `sub` (live pending count from `fetch_queue` + `fetch_requesters`) | `{ demote: boolean }` (demote when sub has >50 pending; computed at drain time) | none — never rejects; demotion only (no `429`)                           |
-| `checkBackpressure()`          | none                                                               | `{ admit: boolean }`                                                            | 503: `fetch_queue` depth exceeded or USDA circuit breaker open           |
-| `authorizeConnect(event)` (WS) | `$connect` token (query param / subprotocol)                       | allow + persist requester `sub`→`fdcId` set                                     | 403: `$connect` rejected (pinned status per API GW WebSocket authorizer) |
+| Operation                      | Input                                                                                                           | Output                                                                                                                     | Errors                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `verify(req)` (middleware)     | `Authorization: Bearer <Clerk token>`                                                                           | `req.user: AuthenticatedCaller { sub, azp, scopes }`                                                                       | 401: missing/invalid/expired token, `azp` mismatch, or verify exception  |
+| `requireScope(scope)`          | required operational scope + `req.user`                                                                         | pass-through to handler                                                                                                    | 403: scope absent from verified `public_metadata`                        |
+| `admitEnqueue(sub)`            | `sub` (live pending count from `fetch_queue` joined with `fetch_requesters`, status IN ('pending','in_flight')) | `{ isDemoted: boolean }` (demote when sub has >50 pending; computed at drain time) — matches MOD-013 `DemotionAndFairness` | none — never rejects; demotion only (no `429`)                           |
+| `checkBackpressure()`          | none                                                                                                            | `{ admit: boolean }`                                                                                                       | 503: `fetch_queue` depth exceeded or USDA circuit breaker open           |
+| `authorizeConnect(event)` (WS) | `$connect` token (query param / subprotocol)                                                                    | allow + persist requester `sub`→`fdcId` set                                                                                | 403: `$connect` rejected (pinned status per API GW WebSocket authorizer) |
 
 ## Data Flow View (IEEE 1016 §5.4)
 
@@ -269,8 +268,9 @@ sequenceDiagram
 Client Request
     ↓ (ALB → ECS/Fargate NestJS service)
 ARCH-001 FoodApiController
-    ↓ Redis GET food:{fdcId}
-ARCH-007 FoodCacheService [HIT]
+    ↓ SELECT … WHERE fdcId = {fdcId} (Postgres default store)
+ARCH-006 FoodPostgresRepository [HIT]
+    ↓ (optional Redis hot-cache — ARCH-007 — consulted first only when the deferred variant is enabled)
     ↓ return food data
 ARCH-001 → 200 OK
     ↓
@@ -283,12 +283,10 @@ Client Response
 Client Request
     ↓
 ARCH-001 (validates fdcId format)
-    ↓ Redis MISS (optional cache)
-ARCH-007
-    ↓ PostgreSQL MISS (no row)
-ARCH-006
-    ↓ enqueue (demand path)
-ARCH-003 FetchQueueRouter → INSERT INTO fetch_queue … ON CONFLICT (fdc_id) DO UPDATE SET request_count = request_count + 1 + pg_notify('fetch_queued')
+    ↓ PostgreSQL MISS (no row) — Postgres is the default store
+ARCH-006  (optional Redis hot-cache consulted first only when the deferred variant is enabled — ARCH-007)
+    ↓ enqueue (demand path — distinct-requester, FR-044)
+ARCH-003 FetchQueueRouter → INSERT INTO fetch_requesters (fdc_id, sub) ON CONFLICT (fdc_id, sub) DO NOTHING; set fetch_queue.request_count = capped distinct-sub count (PRIORITY_CAP=1) + pg_notify('fetch_queued')
     ↓
 202 Accepted to Client (polls /status)
 ```
@@ -312,7 +310,7 @@ ARCH-007 FoodCacheService
     ↓ publish event
 ARCH-002 → EventBridge FoodDataReceived
     ↓
-UPDATE fetch_queue SET status='done'
+DELETE FROM fetch_queue (completed — leaves the pending set; status enum is pending | in_flight | tombstone, no 'done')
 ```
 
 ### Data Flow 4: Rate Limited (tokens exhausted)
@@ -345,7 +343,7 @@ The feature deploys within the Commise AWS topology. The HTTP read API (ARCH-001
 | ARCH Module                     | Runtime / AWS Resource                                                                                                     |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | ARCH-001 FoodApiController      | ECS/Fargate service (NestJS) behind a public ALB                                                                           |
-| ARCH-002 EventBridgePublisher   | EventBridge default bus — scheduled producers + `FoodDataReceived` only (invoked in-process by the API service / worker)   |
+| ARCH-002 EnqueueEmitter         | EventBridge default bus — scheduled producers + `FoodDataReceived` only (invoked in-process by the API service / worker)   |
 | ARCH-003 FetchQueueRouter       | Postgres `fetch_queue` (Postgres-as-queue) — `INSERT … ON CONFLICT` + `pg_notify`; tombstone rows (no DLQ)                 |
 | ARCH-004 FoodConsumerService    | Fargate consumer worker (single instance via advisory lock; LISTEN/NOTIFY drain)                                           |
 | ARCH-005 RollingWindowLimiter   | Postgres `usda_call_log` atomic count+insert (Redis sorted-set Lua-script variant deferred post-launch)                    |
@@ -383,18 +381,17 @@ sequenceDiagram
     participant C as Client (session token)
     participant AG as FoodAuthGuard (ARCH-012)
     participant A as FoodApiController (ARCH-001)
-    participant R as Redis (ARCH-007)
-    participant P as Postgres (ARCH-006)
+    participant P as Postgres (ARCH-006, default store)
+    participant R as Redis (ARCH-007, optional)
     participant Q as FetchQueueRouter (ARCH-003)
 
     C->>AG: GET /v1/foods/12345 + Bearer <token>
     AG->>AG: verifyToken(CLERK_JWT_KEY, azp) — networkless [valid]
     AG->>A: next() — req.user = AuthenticatedCaller { sub, azp, scopes }
-    A->>R: GET food:12345 → MISS
-    A->>P: SELECT … WHERE fdcId = 12345 → NOT EXISTS
-    A->>AG: pre-enqueue fairness/backpressure check (per-sub)
-    AG-->>A: within budget, <50 pending (admit, normal priority; no 429)
-    A->>Q: INSERT INTO fetch_queue (fdcId, sub) … ON CONFLICT + pg_notify
+    A->>P: SELECT … WHERE fdcId = 12345 → NOT EXISTS (Postgres default; optional Redis checked first only when enabled)
+    A->>AG: admitEnqueue(sub) — pre-enqueue fairness/backpressure check (per-sub)
+    AG-->>A: isDemoted=false (within budget, <50 pending; admit, normal priority; no 429)
+    A->>Q: INSERT INTO fetch_requesters (fdc_id, sub) ON CONFLICT (fdc_id, sub) DO NOTHING; set request_count = capped distinct-sub count (PRIORITY_CAP=1) + pg_notify
     A-->>C: 202 Accepted { status: 'pending' }
 ```
 

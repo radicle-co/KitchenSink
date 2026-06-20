@@ -58,7 +58,7 @@ FUNCTION handleGetFood(event):
     // failing (USDA down for days), the stale data is served INDEFINITELY — there is no
     // max-staleness cutoff that withholds data; the row self-heals on the next successful fetch.
     IF isStale(row.fetched_at):
-      triggerBackgroundRefetch(fdcId)                 // admit (MOD-013) + INSERT low-priority fetch_queue row
+      triggerBackgroundRefetch(fdcId)                 // admit (MOD-013) + INSERT low-demand fetch_queue row
       MonitoringLogger.incrementMetric("read.stale.served", 1)
       RETURN 200 { food: row, stale: true }           // serve stale 200; re-fetch in background
     RETURN 200 { food: row }
@@ -68,8 +68,12 @@ FUNCTION handleGetFood(event):
   // rolling-window budget (MOD-005), so it cannot bypass the rate limit (FR-025).
   IF row IS NOT NULL AND row.fetch_status == "not_found":
     IF tombstoneTtlExpired(row):                      // older than TOMBSTONE_TTL_DAYS (30)
+      // Enqueue admission (MOD-013) runs on the tombstone-TTL-lapse re-attempt too: backpressure
+      // (FR-046), distinct-requester demand (FR-044), demotion enrollment (FR-043), and the
+      // fetch_requesters write all happen here — not only on batch (PRF-MOD-001).
+      DemotionAndFairness.admitEnqueue(req.user, [fdcId])  // MOD-013: backpressure 503 + demand/demotion
       CacheService.markPending(fdcId)
-      EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub })
+      EnqueueEmitter.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub })
       RETURN 202 { status: "pending", estimatedWaitSeconds: 30 }
     RETURN 404 { error: "Food not found in USDA" }    // within TTL — no re-fetch
 
@@ -78,8 +82,13 @@ FUNCTION handleGetFood(event):
     RETURN 202 { status: "pending", estimatedWaitSeconds: 30 }
 
   // Layer 4: Trigger async backfill — admit (MOD-013) then INSERT INTO fetch_queue (Postgres-as-queue)
+  // admitEnqueue MUST run on the single-food cache+DB miss (PRF-MOD-001): it enforces backpressure
+  // (FR-046 → 503), records distinct-requester demand + writes fetch_requesters (FR-044), and enrolls
+  // the sub for demotion (FR-043). WITHOUT this call here, FR-043/FR-044/FR-046 never engage on single
+  // lookups and SC-012 fails. This is MOD-013 DemotionAndFairness — NOT MOD-014 AsyncProducerAuthz.
+  DemotionAndFairness.admitEnqueue(req.user, [fdcId])  // MOD-013: backpressure 503 + demand/demotion (no 429)
   CacheService.markPending(fdcId)
-  EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now() })  // INSERT INTO fetch_queue + LISTEN/NOTIFY
+  EnqueueEmitter.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub })  // INSERT INTO fetch_queue + LISTEN/NOTIFY
   MonitoringLogger.incrementMetric("backfill.triggered", 1)
   RETURN 202 { status: "pending", estimatedWaitSeconds: 30 }
 
@@ -118,7 +127,7 @@ FUNCTION handleBatchFoods(event):
   fdcIds = parseBody(event, "fdcIds")
   IF length(fdcIds) == 0 OR length(fdcIds) > 100:
     RETURN 400 { error: "fdcIds must be 1–100 items" }   // batch cap (FR-045, MOD-013)
-  AsyncEnqueueAuthz.admitEnqueue(req.user, fdcIds)        // MOD-013: batch cap + backpressure (no 429)
+  DemotionAndFairness.admitEnqueue(req.user, fdcIds)     // MOD-013: batch cap 400 + backpressure 503 + demand/demotion (no 429)
 
   resolved = []
   misses   = []
@@ -137,7 +146,7 @@ FUNCTION handleBatchFoods(event):
 
   IF length(misses) > 0:
     CacheService.markPending(misses)
-    EventBridgePublisher.publishFoodBatchRequested({ fdcIds: misses, requestedAt: now(), requestedBy: req.user.sub })
+    EnqueueEmitter.publishFoodBatchRequested({ fdcIds: misses, requestedAt: now(), requestedBy: req.user.sub })
   pending = misses.map(id => ({ fdcId: id, status: "pending", estimatedWaitSeconds: 30 }))
   RETURN 200 { foods: resolved, pending: pending }        // per-item partial response
 
@@ -153,8 +162,14 @@ FUNCTION tombstoneTtlExpired(row):
   RETURN now() - row.fetched_at > TOMBSTONE_TTL_DAYS * 86400
 
 FUNCTION triggerBackgroundRefetch(fdcId):
-  // Non-blocking: enqueue a LOW-priority re-fetch so the read returns immediately (SWR).
-  EventBridgePublisher.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub, priority: "low" })
+  // Non-blocking: enqueue a re-fetch so the read returns immediately (SWR). The row carries low/zero
+  // user demand (request_count 0–1), so it sorts after high-demand rows naturally — no separate tier.
+  // The SWR re-fetch is an enqueue path too, so admission (MOD-013) runs here as well (PRF-MOD-001):
+  // backpressure (FR-046), distinct-requester demand + fetch_requesters write (FR-044), demotion
+  // enrollment (FR-043). admitEnqueue throws BackpressureError (503) if the queue is saturated; the
+  // caller serves the already-fetched stale row and skips the enqueue (SWR never blocks the read).
+  DemotionAndFairness.admitEnqueue(req.user, [fdcId])  // MOD-013: same admission as the cache-miss path
+  EnqueueEmitter.publishFoodRequested({ fdcId, requestedAt: now(), requestedBy: req.user.sub })
 
 FUNCTION isValidFdcId(fdcId):
   RETURN fdcId IS integer AND fdcId > 0 AND fdcId <= 9999999
@@ -178,11 +193,14 @@ stateDiagram-v2
   CheckingTombstone --> Responding404 : tombstone within TTL (30d)
   CheckingTombstone --> TriggeringBackfill : tombstone TTL lapsed → re-attempt (FR-025)
   CheckingPending --> Responding202 : already pending
-  CheckingPending --> TriggeringBackfill : not pending
+  CheckingPending --> Admitting : not pending → MOD-013 admitEnqueue
+  Admitting --> Responding503 : backpressure / queue saturated (FR-046)
+  Admitting --> TriggeringBackfill : admitted (demand recorded, FR-044)
   TriggeringBackfill --> Responding202 : event published
   Responding200 --> [*]
   Responding202 --> [*]
   Responding404 --> [*]
+  Responding503 --> [*]
   Rejected --> [*]
 ```
 
@@ -197,18 +215,19 @@ stateDiagram-v2
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                  | HTTP Status | Response Body                                  | Action                                  |
-| ------------------------------------------------ | ----------- | ---------------------------------------------- | --------------------------------------- |
-| Invalid fdcId format (non-numeric, ≤0, >9999999) | 400         | `{ error: "Invalid fdcId format" }`            | Return immediately, no downstream calls |
-| Query string too short (<2 chars)                | 400         | `{ error: "Query too short" }`                 | Return immediately                      |
-| Cache unavailable (get)                          | —           | Fallthrough to PostgreSQL                      | Log warning, continue                   |
-| PostgreSQL connection error                      | 503         | `{ error: "Service temporarily unavailable" }` | Log error, return 503                   |
-| `fetch_queue` INSERT / NOTIFY failure            | 503         | `{ error: "Failed to queue backfill" }`        | Clear pending flag, return 503          |
-| Unknown route                                    | 404         | `{ error: "Not found" }`                       | Return immediately                      |
+| Error Condition                                                                        | HTTP Status | Response Body                                  | Action                                                                                                               |
+| -------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Invalid fdcId format (non-numeric, ≤0, >9999999)                                       | 400         | `{ error: "Invalid fdcId format" }`            | Return immediately, no downstream calls                                                                              |
+| Query string too short (<2 chars)                                                      | 400         | `{ error: "Query too short" }`                 | Return immediately                                                                                                   |
+| Cache unavailable (get)                                                                | —           | Fallthrough to PostgreSQL                      | Log warning, continue                                                                                                |
+| PostgreSQL connection error                                                            | 503         | `{ error: "Service temporarily unavailable" }` | Log error, return 503                                                                                                |
+| `fetch_queue` INSERT / NOTIFY failure                                                  | 503         | `{ error: "Failed to queue backfill" }`        | Clear pending flag, return 503                                                                                       |
+| Backpressure — `fetch_queue` saturated / circuit open (MOD-013 `admitEnqueue`, FR-046) | 503         | `{ error: "Fetch queue saturated" }`           | `BackpressureError` from MOD-013 on any enqueue path (single miss, SWR, tombstone re-attempt, batch); do not enqueue |
+| Unknown route                                                                          | 404         | `{ error: "Not found" }`                       | Return immediately                                                                                                   |
 
 ---
 
-## MOD-002 — EventBridgePublisher (Enqueue Emitter)
+## MOD-002 — EnqueueEmitter (Postgres-as-queue enqueue + FoodDataReceived fan-out)
 
 **Parent ARCH**: ARCH-002
 **Type**: Stateless
@@ -228,11 +247,11 @@ FUNCTION publishFoodRequested(payload: { fdcId, requestedAt, requestedBy }):
   IF NOT isValidISO8601(payload.requestedAt):
     THROW ValidationError("Invalid requestedAt timestamp")
 
-  // Postgres-as-queue: insert a queued row, then NOTIFY the consumer worker.
+  // Postgres-as-queue: insert a queued row, then NOTIFY the consumer worker. The row is
+  // demand-ordered (request_count DESC, first_requested ASC) — there is no priority column/tier.
   row = {
     fdc_id: payload.fdcId,
-    priority: "high",
-    status: "queued",
+    status: "pending",                   // canonical enum: pending | in_flight | tombstone
     requested_by: payload.requestedBy,   // authenticated provenance (FR-048)
     requested_at: payload.requestedAt,
     attempts: 0
@@ -248,8 +267,9 @@ FUNCTION publishFoodBatchRequested(payload: { fdcIds, requestedAt, requestedBy }
     IF NOT isValidFdcId(fdcId):
       THROW ValidationError("Invalid fdcId: " + fdcId)
 
+  // Batch rows carry low/zero user demand, so they sort after high-demand rows naturally (no tier).
   rows = payload.fdcIds.map(fdcId => ({
-    fdc_id: fdcId, priority: "low", status: "queued",
+    fdc_id: fdcId, status: "pending",                    // canonical enum: pending | in_flight | tombstone
     requested_by: payload.requestedBy, requested_at: payload.requestedAt, attempts: 0
   }))
   inserted = FetchQueue.insertMany(rows)   // INSERT ... ON CONFLICT (fdc_id) DO NOTHING
@@ -272,16 +292,16 @@ FUNCTION publishFoodDataReceived(payload: { fdcId, foodData }):
 
 ### 2. State Machine View
 
-`N/A Stateless` — EventBridgePublisher is a pure function module. Each call is independent with no retained state between invocations.
+`N/A Stateless` — EnqueueEmitter is a pure function module. Each call is independent with no retained state between invocations.
 
 ### 3. Internal Data Structures
 
-| Name                      | Type                                                                                  | Description                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `FetchQueueRow`           | `{ fdc_id, priority: 'high' \| 'low', status, requested_by, requested_at, attempts }` | Row inserted into the Postgres `fetch_queue` for enqueue requests        |
-| `EnqueueResult`           | `{ queueRowId: string }`                                                              | Successful `fetch_queue` INSERT + NOTIFY response                        |
-| `EventEntry`              | `{ Source, DetailType, Detail, EventBusName }`                                        | EventBridge PutEvents entry shape (FoodDataReceived fan-out only)        |
-| `EventBridgeClientConfig` | `{ region: string, endpoint?: string }`                                               | SDK client configuration (injected at cold start; FoodDataReceived only) |
+| Name                      | Type                                                                                       | Description                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `FetchQueueRow`           | `{ fdc_id, status, requested_by, requested_at, request_count, first_requested, attempts }` | Row inserted into the Postgres `fetch_queue` for enqueue requests (demand-ordered) |
+| `EnqueueResult`           | `{ queueRowId: string }`                                                                   | Successful `fetch_queue` INSERT + NOTIFY response                                  |
+| `EventEntry`              | `{ Source, DetailType, Detail, EventBusName }`                                             | EventBridge PutEvents entry shape (FoodDataReceived fan-out only)                  |
+| `EventBridgeClientConfig` | `{ region: string, endpoint?: string }`                                                    | SDK client configuration (injected at cold start; FoodDataReceived only)           |
 
 ### 4. Error Handling Return Codes
 
@@ -296,39 +316,46 @@ FUNCTION publishFoodDataReceived(payload: { fdcId, foodData }):
 
 ---
 
-## MOD-003 — FetchQueueRouter (Postgres-as-Queue Priority Router)
+## MOD-003 — FetchQueueRouter (Postgres-as-Queue Demand-Weighted Router)
 
 **Parent ARCH**: ARCH-003
-**Type**: Stateless (Postgres `fetch_queue` schema + lease/priority claim logic)
+**Type**: Stateless (Postgres `fetch_queue` schema + lease/demand claim logic)
 **Runtime**: Postgres `fetch_queue` table + `LISTEN/NOTIFY`; claim queries run inside the Fargate consumer worker (ARCH-004)
 
-> No SQS, no EventBridge rules, no DLQ. Routing is expressed as a `priority` column on `fetch_queue`
-> ('high' for FoodRequested, 'low' for FoodBatchRequested). The single Fargate consumer worker
-> (one instance via a Postgres advisory lock) claims rows highest-priority-first under a row lease
-> (`FOR UPDATE SKIP LOCKED` + `lease_expires_at`, the visibility-timeout analog — FR-018). Exhausted
-> rows become tombstones (`status='tombstone'`), the DLQ analog.
+> No SQS, no EventBridge rules, no DLQ. There is NO static priority column and NO separate high/low
+> queue — ordering is purely demand-weighted: `request_count DESC, first_requested ASC`, where
+> `request_count` is the capped distinct-requester count (PRIORITY_CAP=1) derived from `fetch_requesters`
+> (FR-044). Background / SWR / batch enqueues simply carry low/zero user demand (request_count 0–1), so
+> they sort after high-demand rows naturally — they are not a separate low-priority tier. The single
+> Fargate consumer worker (one instance via a Postgres advisory lock) claims the highest-demand rows
+> first under a row lease (`FOR UPDATE SKIP LOCKED` + `lease_expires_at`, the visibility-timeout analog —
+> FR-018), with the drain-time demotion of over-demand `sub`s (>50 pending) applied on top (FR-043).
+> Exhausted rows become tombstones (`status='tombstone'`), the DLQ analog.
 
 ### 1. Algorithmic / Logic View
 
 ```
-// fetch_queue schema (Postgres-as-queue). Priority is a column, not a separate queue.
-//   fetch_queue(fdc_id PK, priority 'high'|'low', status 'queued'|'leased'|'tombstone',
-//               requested_by, requested_at, attempts, lease_expires_at)
+// fetch_queue schema (Postgres-as-queue). Ordering is demand-weighted — there is NO priority column.
+//   fetch_queue(fdc_id PK, status 'pending'|'in_flight'|'tombstone', requested_by, requested_at,
+//               request_count, first_requested, attempts, lease_expires_at)
+// request_count = capped distinct-requester count (PRIORITY_CAP=1) from fetch_requesters (FR-044) —
+//   NEVER a raw request_count + 1; a single sub contributes at most once.
+// Canonical status enum = pending | in_flight | tombstone (a leased/in-flight row has status='in_flight').
 // ON CONFLICT (fdc_id) DO NOTHING makes repeat enqueues idempotent — the dedup analog (no FIFO needed).
 
 // Single-instance worker guard: one consumer drains the queue (advisory lock).
 FUNCTION acquireWorkerLock():
   RETURN Postgres.query("SELECT pg_try_advisory_lock($1)", [FETCH_QUEUE_LOCK_KEY])
 
-// Claim the next batch, highest priority first, under a row lease (visibility-timeout analog, FR-018).
+// Claim the next batch, highest-demand first, under a row lease (visibility-timeout analog, FR-018).
 FUNCTION claimNext(batchSize, leaseSeconds):
   sql = """
     UPDATE fetch_queue
-    SET status = 'leased', lease_expires_at = NOW() + ($2 || ' seconds')::interval, attempts = attempts + 1
+    SET status = 'in_flight', lease_expires_at = NOW() + ($2 || ' seconds')::interval, attempts = attempts + 1
     WHERE fdc_id IN (
       SELECT fdc_id FROM fetch_queue
-      WHERE status = 'queued' OR (status = 'leased' AND lease_expires_at < NOW())  -- reclaim expired leases
-      ORDER BY (priority = 'high') DESC, requested_at ASC
+      WHERE status = 'pending' OR (status = 'in_flight' AND lease_expires_at < NOW())  -- reclaim expired leases
+      ORDER BY request_count DESC, first_requested ASC   -- pure demand weighting (FR-044), no priority tier
       LIMIT $1
       FOR UPDATE SKIP LOCKED
     )
@@ -343,15 +370,15 @@ FUNCTION listenForWork():
 
 ### 2. State Machine View
 
-`N/A Stateless` — FetchQueueRouter is the `fetch_queue` schema plus deterministic claim/lease SQL. No in-process runtime state; routing is a `priority` ORDER BY and rows are leased/reclaimed by timestamp.
+`N/A Stateless` — FetchQueueRouter is the `fetch_queue` schema plus deterministic claim/lease SQL. No in-process runtime state; ordering is a demand-weighted `request_count DESC, first_requested ASC` ORDER BY and rows are leased/reclaimed by timestamp.
 
 ### 3. Internal Data Structures
 
-| Name            | Type                                                                                                                                         | Description                                                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `FetchQueueRow` | `{ fdc_id, priority: 'high' \| 'low', status: 'queued' \| 'leased' \| 'tombstone', requested_by, requested_at, attempts, lease_expires_at }` | Postgres `fetch_queue` row — the unit of work                 |
-| `ClaimBatch`    | `{ rows: FetchQueueRow[], leaseExpiresAt: timestamp }`                                                                                       | Result of a `FOR UPDATE SKIP LOCKED` priority claim           |
-| `WorkerLock`    | `{ lockKey: number, acquired: boolean }`                                                                                                     | `pg_try_advisory_lock` result enforcing single-instance drain |
+| Name            | Type                                                                                                                                                  | Description                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `FetchQueueRow` | `{ fdc_id, status: 'pending' \| 'in_flight' \| 'tombstone', requested_by, requested_at, request_count, first_requested, attempts, lease_expires_at }` | Postgres `fetch_queue` row — the unit of work (demand-ordered) |
+| `ClaimBatch`    | `{ rows: FetchQueueRow[], leaseExpiresAt: timestamp }`                                                                                                | Result of a `FOR UPDATE SKIP LOCKED` demand-weighted claim     |
+| `WorkerLock`    | `{ lockKey: number, acquired: boolean }`                                                                                                              | `pg_try_advisory_lock` result enforcing single-instance drain  |
 
 ### 4. Error Handling Return Codes
 
@@ -435,7 +462,7 @@ FUNCTION processRow(row):
     PostgresRepository.upsertFood(food)
     CacheService.invalidate(food.fdcId)
     CacheService.clearPending(food.fdcId)
-    EventBridgePublisher.publishFoodDataReceived({ fdcId: food.fdcId, foodData: food })  // EventBridge fan-out
+    EnqueueEmitter.publishFoodDataReceived({ fdcId: food.fdcId, foodData: food })  // EventBridge fan-out
 
   FetchQueue.delete(row.fdc_id)   // ack: remove the completed row
   MonitoringLogger.incrementMetric("consumer.processed", length(foods))
@@ -467,12 +494,12 @@ stateDiagram-v2
 
 ### 3. Internal Data Structures
 
-| Name            | Type                                                                                   | Description                                                       |
-| --------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `FetchQueueRow` | `{ fdc_id, priority, status, requested_by, requested_at, attempts, lease_expires_at }` | Leased `fetch_queue` row being processed                          |
-| `ProcessResult` | `{ acked: boolean, fdcId: number }`                                                    | Per-row processing outcome                                        |
-| `LeaseAction`   | `'delete' \| 'extend' \| 'requeue_backoff' \| 'tombstone'`                             | Disposition applied to a leased row after processing              |
-| `RetryState`    | `{ attempts: number, lastError: string }`                                              | Carried on the `fetch_queue` row for exponential backoff (FR-016) |
+| Name            | Type                                                                                                         | Description                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `FetchQueueRow` | `{ fdc_id, status, requested_by, requested_at, request_count, first_requested, attempts, lease_expires_at }` | Leased `fetch_queue` row being processed                          |
+| `ProcessResult` | `{ acked: boolean, fdcId: number }`                                                                          | Per-row processing outcome                                        |
+| `LeaseAction`   | `'delete' \| 'extend' \| 'requeue_backoff' \| 'tombstone'`                                                   | Disposition applied to a leased row after processing              |
+| `RetryState`    | `{ attempts: number, lastError: string }`                                                                    | Carried on the `fetch_queue` row for exponential backoff (FR-016) |
 
 ### 4. Error Handling Return Codes
 
@@ -1128,7 +1155,11 @@ FUNCTION use(req, res, next):
 
   TRY:
     // Networkless verification (FR-036): @clerk/backend verifyToken, public key only.
-    claims = verifyToken(token, {
+    // verifyToken is async — it MUST be awaited so a rejected promise is caught by the CATCH below
+    // (fail-closed 401, FR-040) rather than escaping as an unhandled rejection. The FINALLY releases
+    // the semaphore on every outcome (success OR throw), so a flood of invalid tokens can never leak
+    // permits and wedge the verifier (FR-052).
+    claims = await verifyToken(token, {
       jwtKey: CLERK_JWT_KEY,
       authorizedParties: AUTHORIZED_PARTIES   // enforces azp (FR-037)
     })
@@ -1138,7 +1169,7 @@ FUNCTION use(req, res, next):
     Source401RateLimiter.record(src, SOURCE_401_WINDOW_S)   // count this 401 toward the per-source cap
     RETURN res.status(401).json({ error: "Invalid token" })          // fail closed (FR-040)
   FINALLY:
-    verifySemaphore.release()
+    verifySemaphore.release()   // released on success AND on throw — permits never leak under flood
 
   // Identity derived SOLELY from verified token (FR-038). Ignore any client identity header.
   DELETE req.headers["x-authorizer-context"]
@@ -1165,7 +1196,7 @@ FUNCTION authorizeConnect(event):
   // Browsers cannot set Authorization on WS: token from query param or Sec-WebSocket-Protocol.
   token = event.queryStringParameters?.token OR subprotocolToken(event)
   TRY:
-    claims = verifyToken(token, { jwtKey: CLERK_JWT_KEY, authorizedParties: AUTHORIZED_PARTIES })
+    claims = await verifyToken(token, { jwtKey: CLERK_JWT_KEY, authorizedParties: AUTHORIZED_PARTIES })  // async — must await so a rejection is caught (fail-closed)
   CATCH AnyVerificationError:
     RETURN deny()    // API GW WebSocket → pinned 403 on $connect (FR-049d)
   // The verified token's `exp` (claims.exp) is captured onto the ConnectionRecord by the $connect
@@ -1249,7 +1280,7 @@ stateDiagram-v2
 ```
 MAX_BATCH_IDS    = 100          // client-facing batch cap (FR-045) — distinct from USDA 20/call (FR-023)
 DEMOTE_THRESHOLD = 50           // a sub with > 50 pending fetch_queue items is demoted to the back (FR-043)
-MAX_QUEUE_DEPTH  = M            // enforced fetch_queue ceiling (FR-046)
+MAX_QUEUE_DEPTH  = 10000        // enforced fetch_queue ceiling (FR-046) — concrete default, not symbolic
 PRIORITY_CAP     = 1            // a single sub contributes at most once to demand (FR-044)
 
 // Step 1 — batch cap (FR-045). Runs at input-validation tier (precedence 400 after 401/403; FR-051).
@@ -1270,7 +1301,8 @@ FUNCTION recordDemand(sub, fdcId):
   // fetch_requesters(fdc_id, sub, requested_at) — PK (fdc_id, sub) makes repeat requests idempotent.
   inserted = FetchRequesters.upsert({ fdcId, sub, requestedAt: now() })  // no-op if (fdcId,sub) exists
   IF inserted:
-    // priority contribution capped at PRIORITY_CAP per sub; aging applied by the queue scorer
+    // priority contribution capped at PRIORITY_CAP per sub; FR-044 aging is applied at drain time by the
+    // queue scorer in MOD-004 (FoodConsumerService) — the same drain pass that computes demotion tiers.
     FetchQueue.bumpDemand(fdcId, delta = PRIORITY_CAP)
 
 // Derived per-sub pending count — NOT a stored quota counter. Counts the sub's items still
@@ -1278,7 +1310,8 @@ FUNCTION recordDemand(sub, fdcId):
 // (no window, no reset): once items drain or tombstone, the count falls and demotion lifts.
 FUNCTION pendingCountForSub(sub):
   // SELECT count(*) FROM fetch_queue q JOIN fetch_requesters r USING (fdc_id)
-  //   WHERE r.sub = $1 AND q.status = 'queued'
+  //   WHERE r.sub = $1 AND q.status IN ('pending', 'in_flight')
+  // Canonical fetch_queue status enum = pending | in_flight | tombstone (NOT 'queued'/'leased'/'done').
   RETURN Postgres.query(PENDING_COUNT_SQL, [sub]).count
 
 // Step 4 — fairness by DEMOTION, not rejection (FR-043). NO 429: every authenticated request is
@@ -1331,13 +1364,13 @@ stateDiagram-v2
 
 ### 3. Internal Data Structures
 
-| Name               | Type                                                                               | Description                                                                                                                                                                               |
-| ------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fetch_queue`      | table `{ fdc_id, status, requested_by, request_count, first_requested, ... }`      | Pending work; the per-`sub` pending count is derived by joining this to `fetch_requesters` (no separate quota counter). The drain-time scorer reads it to compute demotion tiers (FR-043) |
-| `fetch_requesters` | table `{ fdc_id: number, sub: string, requested_at: timestamp }` (PK fdc_id+sub)   | Distinct-requester set; PK makes repeat requests idempotent (FR-044) + WS recipient set (FR-041); joined to `fetch_queue` to derive a sub's live pending count                            |
-| `PendingCount`     | `{ sub: string, count: number }`                                                   | Derived (not stored) per-`sub` count of currently-pending queue items; computed live at admit and at drain time — drives dynamic demotion/re-promotion (FR-043)                           |
-| `FairnessConfig`   | `{ demoteThreshold: 50, maxBatchIds: 100, maxQueueDepth: number, priorityCap: 1 }` | Static fairness/backpressure thresholds; a sub with `pendingCount > demoteThreshold` is ranked to the back (no quota, no global-share cap)                                                |
-| `AdmitResult`      | `{ admitted: boolean }`                                                            | Always `{ admitted: true }` once batch-cap and backpressure pass — no personal-quota rejection (FR-043)                                                                                   |
+| Name               | Type                                                                              | Description                                                                                                                                                                               |
+| ------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fetch_queue`      | table `{ fdc_id, status, requested_by, request_count, first_requested, ... }`     | Pending work; the per-`sub` pending count is derived by joining this to `fetch_requesters` (no separate quota counter). The drain-time scorer reads it to compute demotion tiers (FR-043) |
+| `fetch_requesters` | table `{ fdc_id: number, sub: string, requested_at: timestamp }` (PK fdc_id+sub)  | Distinct-requester set; PK makes repeat requests idempotent (FR-044) + WS recipient set (FR-041); joined to `fetch_queue` to derive a sub's live pending count                            |
+| `PendingCount`     | `{ sub: string, count: number }`                                                  | Derived (not stored) per-`sub` count of currently-pending queue items; computed live at admit and at drain time — drives dynamic demotion/re-promotion (FR-043)                           |
+| `FairnessConfig`   | `{ demoteThreshold: 50, maxBatchIds: 100, maxQueueDepth: 10000, priorityCap: 1 }` | Static fairness/backpressure thresholds; a sub with `pendingCount > demoteThreshold` is ranked to the back (no quota, no global-share cap)                                                |
+| `AdmitResult`      | `{ admitted: boolean }`                                                           | Always `{ admitted: true }` once batch-cap and backpressure pass — no personal-quota rejection (FR-043)                                                                                   |
 
 ### 4. Error Handling Return Codes
 
@@ -1454,22 +1487,22 @@ stateDiagram-v2
 
 This matrix maps each Architecture Module (ARCH) to its corresponding low-level Module Design (MOD), and traces both back to parent System Components (SYS).
 
-| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                                | Parent SYS                | Notes                                                                                                                                             |
-| -------- | ---------------------- | ------- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                     | SYS-001                   | NestJS controller on ECS/Fargate (ALB-fronted); 4-layer cache lookup chain                                                                        |
-| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Enqueue Emitter)                  | SYS-002                   | FoodRequested/FoodBatchRequested → `fetch_queue` INSERT + LISTEN/NOTIFY; FoodDataReceived → EventBridge                                           |
-| ARCH-003 | FetchQueueRouter       | MOD-003 | FetchQueueRouter (Postgres-as-Queue Priority Router)    | SYS-002, SYS-003, SYS-004 | `fetch_queue` priority column + lease (FOR UPDATE SKIP LOCKED); ON CONFLICT dedup; tombstone rows                                                 |
-| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (fetch_queue Worker)                | SYS-005                   | Single Fargate worker (advisory lock); lease-claim drain; exponential backoff then tombstone                                                      |
-| ARCH-005 | RollingWindowLimiter   | MOD-005 | RollingWindowLimiter (Atomic Rolling 60-Min Window)     | [CROSS-CUTTING]           | Atomic `usda_call_log` windowed count+insert (Redis sorted-set deferred); ≤1,000 calls in any trailing 60 min, pause at 90%                       |
-| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)          | SYS-006                   | pg_trgm FTS; JSONB nutrients; `kitchensink_food` DB on shared instance                                                                            |
-| ARCH-007 | FoodCacheService       | MOD-007 | FoodCacheService (Cache & Pending-Set Manager)          | SYS-007                   | Postgres pending-set + TTL sentinel by default (Redis deferred)                                                                                   |
-| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central)   | SYS-008                   | `@kitchensink/usda-client`; abridged format; 6 nutrient IDs; 10s timeout                                                                          |
-| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)       | SYS-009                   | Launch-deferred; DynamoDB connection store; WS `$connect` Lambda authorizer (sole Lambda-authorizer surface)                                      |
-| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)             | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                           |
-| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)         | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                     |
-| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)    | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                  |
-| ARCH-012 | FoodAuthGuard          | MOD-013 | DemotionAndFairness (Per-`sub` Demotion & Backpressure) | SYS-013                   | Per-`sub` demotion (>50 pending → ranked to back, dynamic, no 429); distinct-requester demand; batch cap 400; backpressure 503                    |
-| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)          | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT) |
+| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                                    | Parent SYS                | Notes                                                                                                                                                  |
+| -------- | ---------------------- | ------- | ----------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                         | SYS-001                   | NestJS controller on ECS/Fargate (ALB-fronted); 4-layer cache lookup chain                                                                             |
+| ARCH-002 | EnqueueEmitter         | MOD-002 | EnqueueEmitter (Enqueue Emitter)                            | SYS-002                   | FoodRequested/FoodBatchRequested → `fetch_queue` INSERT + LISTEN/NOTIFY; FoodDataReceived → EventBridge                                                |
+| ARCH-003 | FetchQueueRouter       | MOD-003 | FetchQueueRouter (Postgres-as-Queue Demand-Weighted Router) | SYS-002, SYS-003, SYS-004 | `fetch_queue` demand-weighted ordering (`request_count DESC, first_requested ASC`) + lease (FOR UPDATE SKIP LOCKED); ON CONFLICT dedup; tombstone rows |
+| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (fetch_queue Worker)                    | SYS-005                   | Single Fargate worker (advisory lock); lease-claim drain; exponential backoff then tombstone                                                           |
+| ARCH-005 | RollingWindowLimiter   | MOD-005 | RollingWindowLimiter (Atomic Rolling 60-Min Window)         | [CROSS-CUTTING]           | Atomic `usda_call_log` windowed count+insert (Redis sorted-set deferred); ≤1,000 calls in any trailing 60 min, pause at 90%                            |
+| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)              | SYS-006                   | pg_trgm FTS; JSONB nutrients; `kitchensink_food` DB on shared instance                                                                                 |
+| ARCH-007 | FoodCacheService       | MOD-007 | FoodCacheService (Cache & Pending-Set Manager)              | SYS-007                   | Postgres pending-set + TTL sentinel by default (Redis deferred)                                                                                        |
+| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central)       | SYS-008                   | `@kitchensink/usda-client`; abridged format; 6 nutrient IDs; 10s timeout                                                                               |
+| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)           | SYS-009                   | Launch-deferred; DynamoDB connection store; WS `$connect` Lambda authorizer (sole Lambda-authorizer surface)                                           |
+| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)                 | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                                |
+| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)             | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                          |
+| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)        | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                       |
+| ARCH-012 | FoodAuthGuard          | MOD-013 | DemotionAndFairness (Per-`sub` Demotion & Backpressure)     | SYS-013                   | Per-`sub` demotion (>50 pending → ranked to back, dynamic, no 429); distinct-requester demand; batch cap 400; backpressure 503                         |
+| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)              | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT)      |
 
 ### Coverage Summary
 

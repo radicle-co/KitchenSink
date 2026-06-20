@@ -1,84 +1,147 @@
 # Peer Review — system-design
 
 **Reviewer**: AI Peer Review (spec-kit V-Model)
-**Date**: 2026-06-19
-**Artifact**: system-design.md (13 system components) — auth slice (SYS-013 AuthnAuthzLayer) and the HTTP read entry point (SYS-001 FoodApiController)
+**Date**: 2026-06-20
+**Artifact**: system-design.md (13 system components, SYS-001..SYS-013) — full 4-view sweep against the reconciled Postgres-as-queue + rolling-window + demotion-fairness + SWR/tombstone-TTL/batch-partial design
 **Standard**: IEEE 1016
-**Scope**: SYS-001 + SYS-013 — 4-view coverage (Decomposition / Dependency / Interface / Data Flow), upward traceability to REQ-IF-008 + REQ-037a..044d, interface error-response completeness (400/401/403/429/503), Physical-view runtime placement, and consistency with `../spec.md` and `../plan.md` §2A.
+**Supersedes**: the 2026-06-19 peer-review (STALE — reviewed a `429` per-user quota gate in Path 0 / IC-007 and a token-bucket limiter; both are no longer the design).
 
 ## Summary
 
-| Severity           | Count |
-| ------------------ | ----- |
-| Critical           | 0     |
-| Major              | 0     |
-| Minor              | 2     |
-| Observation        | 1     |
-| **Total Findings** | **3** |
+| Severity           | Count  |
+| ------------------ | ------ |
+| Critical           | 2      |
+| Major              | 3      |
+| Minor              | 2      |
+| Observation        | 3      |
+| **Total Findings** | **10** |
 
-Overall assessment: **PASS**. Both prior Majors are **RESOLVED**. SYS-013 now appears in the Data Flow view: a dedicated **Path 0: Auth Edge** (§5.4, lines 127–143) models verify → `401`/`403` fail-closed → pre-enqueue quota/backpressure → `429`/`503`, and the prose explicitly states "Every entry point flows through SYS-013 before SYS-001 business logic … Paths 1–4 below begin only after this gate is passed," so the auth/admission layer is now visible in the request-execution view and SYS-013 has full 4-view coverage. The machine-readable Interface Contracts Table gains **IC-008** (`SYS-013→SYS-001 ValidateBatch → Accepted (≤ 100 IDs) | 400`) and **IC-009** (`SYS-013→SYS-010 AuthorizeConnect → Allow | 403`), closing the prior batch-cap-`400` and WebSocket-`403` contract gaps; error-response coverage (400/401/403/429/503) is now complete in the table. The prior Critical deployment contradiction remains resolved and was not regressed. Residual findings are interface-precision Minors and a decomposition-granularity Observation — none blocks the gate.
+Overall assessment: **FAIL — 2 Critical / 3 Major.** The auth/admission edge is **correctly reconciled**: SYS-013's row, Path 0, IC-007, and the Trade-off table all model **demotion (>50 pending → ranked to back, dynamic at drain time; no `429`)** rather than a per-user quota, and SYS-006 (RollingWindowLimiter) and Path 2b (stale-while-revalidate, serve-stale-indefinitely) match the locked design. **However the queue decomposition still encodes the superseded model**: SYS-002 (EventBridgeBus) traces to the stale demand-path REQ-011/REQ-012, and SYS-003/SYS-004 are split into **HighPriorityFetchQueue / LowPriorityFetchQueue** as if static origin-based priority were the ordering — contradicting the single demand-weighted `fetch_queue` with dynamic demotion that the same document describes in Path 4, SYS-013, and the Trade-off table. The decomposition view and the data-flow/dependency views therefore disagree internally. Those are the blocking findings.
 
 ## Findings
 
 ---
 
-### PRF-SYS-001 — SYS-013 Data Flow coverage
+### PRF-SYS-001 — SYS-002 (EventBridgeBus) traces to the superseded demand-path enqueue
 
-**Severity**: Observation (Resolved — prior Major: SYS-013 absent from the Data Flow view)
-**Defect type**: Completeness / View coverage
-**Location**: system-design.md Data Flow View §5.4, Path 0 (lines 127–143)
+**Severity**: Critical
+**Defect type**: Internal consistency / traceability vs spec.md
+**Location**: SYS-002 Decomposition row (line 23) + Parent Requirements (REQ-011, REQ-012); Component Traceability Detail (lines 253–257); Dependency View SYS-002→SYS-003/004 (lines 43–44)
 
-**Description**: **RESOLVED.** SYS-013 is now present in the Data Flow view. The new **Path 0: Auth Edge** models the full fronting sequence — `ALB → ECS/Fargate → AuthMiddleware/FoodAuthGuard (SYS-013) → verifyToken(CLERK_JWT_KEY, azp)` with the fail-closed branches `401` (missing/invalid/expired/`azp` mismatch), `403` (scope absent), then the post-auth `pre-enqueue quota/fairness gate` emitting `429` (quota) and `503` (queue depth | circuit open) before the SYS-002 publish / `fetch_queue` insert — and pins the status precedence `401 → 403 → 400 → 404/202/200`. The explicit guard sentence ("Paths 1–4 below begin only after this gate is passed") binds the auth edge ahead of the request-execution paths, so the prior gap (no auth/quota step shown before `EventBridge Publish`) is closed. The 4-view-coverage criterion is met for SYS-013.
+**Description**: SYS-002's **Parent Requirements are REQ-011, REQ-012** — the requirements that say "publish a `FoodRequested`/`FoodBatchRequested` event **to EventBridge** on cache miss." That is the superseded SQS/EventBridge demand path. SYS-002's own description correctly states it is "for **scheduled producers only** … **not** on the demand-path enqueue — cache-miss enqueues are `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify`," so the **component narrative contradicts its own traceability**: it claims it is not on the demand path while tracing to the two demand-path requirements. Per the locked design (spec.md FR-011) EventBridge carries only `IngestionScheduled` (FR-032) and `FoodDataReceived` (FR-034). A V-model trace keyed on REQ→SYS would conclude the demand-path enqueue is implemented by EventBridge, which the design forbids.
 
-Minor structural note (not a defect): Paths 1–3 bodies still begin at `FoodApiController (SYS-001)` without re-stating the SYS-013 hop inline; coverage is satisfied by the Path 0 preamble and its explicit gating statement. Inlining a one-line "(after Path 0)" marker at the head of Paths 1–3 would make the composition self-evident without cross-reading, but is optional.
-
----
-
-### PRF-SYS-002 — Interface Contracts Table error-response coverage
-
-**Severity**: Observation (Resolved — prior Major: IC table omits 400 and WS 403)
-**Defect type**: Completeness / Interface error-response coverage
-**Location**: system-design.md Interface Contracts Table (IC-008, IC-009 — lines 122–123)
-
-**Description**: **RESOLVED.** The two missing machine-readable contracts are added:
-
-- **IC-008** `SYS-013 → SYS-001 ValidateBatch {sub, fdcIds: number[]} (POST /v1/foods/batch) → Accepted (≤ 100 IDs) | 400 (batch cap exceeded — no enqueue)` covers the REQ-040a/FR-045 batch-cap rejection.
-- **IC-009** `SYS-013 → SYS-010 AuthorizeConnect ($connect token via query param / Sec-WebSocket-Protocol subprotocol) → Allow { $context.authorizer.sub } | 403 (pinned $connect rejection)` covers the REQ-043/FR-049 WebSocket `$connect` rejection.
-
-Combined with IC-006 (`401|403`) and IC-007 (`429|503`), the table now expresses the full 400/401/403/429/503 error surface, so SYS-013's enforce-`400` and WS-`403` behaviours are verifiable from the contracts table that downstream module/interface design consumes. No further action.
+**Recommendation**: Re-parent SYS-002 to the scheduled-producer + completion requirements (REQ-032 / REQ-IF-005 `IngestionScheduled`+`FoodDataReceived`), and re-parent the demand-path enqueue (corrected REQ-011/012/013/014) to SYS-003 + SYS-001. This depends on the requirements.md fix (peer-review-requirements PRF-REQ-001); flag both together.
 
 ---
 
-### PRF-SYS-003 — IC-006 response schema does not distinguish user `sub` from M2M/service identity
+### PRF-SYS-002 — SYS-003 / SYS-004 split the single demand-weighted queue into static high/low priority components
+
+**Severity**: Critical
+**Defect type**: Internal consistency / correctness of the new mechanism
+**Location**: SYS-003 "HighPriorityFetchQueue" (line 24), SYS-004 "LowPriorityFetchQueue" (line 25); Physical View rows (lines 222–223); vs Path 4 (line 197), SYS-013 row (line 34), Trade-off "Queue priority" (line 242)
+
+**Description**: SYS-003 and SYS-004 are modeled as two components — "**High**PriorityFetchQueue" (individual lookups) and "**Low**PriorityFetchQueue" (batch/scheduled) — keyed on static origin-based priority (parents REQ-011/012/013/014, the static-`priority` model). The locked design is **one** `fetch_queue` ordered `request_count DESC, first_requested ASC` with **dynamic per-`sub` demotion at drain time** (>50 pending → back). The same document already states this correctly elsewhere: Path 4 selects `ORDER BY (requester pending-count > 50) ASC, request_count DESC, first_requested ASC`; the Trade-off "Queue priority" row says "Demand-weighted `fetch_queue` (`ORDER BY request_count DESC, first_requested ASC`)"; SYS-013 enforces demotion not static class. So the Decomposition view (two static-priority queue components) contradicts the Data-Flow and Trade-off views (one demand-weighted queue). The descriptions hedge ("same Postgres `fetch_queue`, lower `request_count`") but the component split itself reifies a two-class static model that the ordering does not use — there is no "high" vs "low" partition at drain time, only a live `request_count`/demotion score.
+
+**Recommendation**: Collapse SYS-003 and SYS-004 into a single `FetchQueue` component (Postgres `fetch_queue`) whose ordering is demand-weighted with dynamic demotion; if a "scheduled/low-demand" sub-aspect is worth naming, model it as a property of enqueued rows (lower `request_count`, low-priority origin tag), not a separate queue component. Re-parent to corrected REQ-014/REQ-015/FR-043/FR-044. Update the two Physical-View rows accordingly.
+
+---
+
+### PRF-SYS-003 — SYS-005 lease/processing model not anchored to the 30s lease; high/low drain language leaks from SYS-003/004
+
+**Severity**: Major
+**Defect type**: Traceability / consistency vs spec.md FR-018
+**Location**: SYS-005 (line 26), Dependency View SYS-003→SYS-005 / SYS-004→SYS-005 (lines 45–46), Path 4 (line 197)
+
+**Description**: SYS-005 (FoodConsumerWorker) drains "via `LISTEN/NOTIFY`" and is rate-limited correctly, but the dependency view describes it feeding from a **high** queue and a **low** queue (inheriting the PRF-SYS-002 split), and neither the SYS-005 row nor Path 4 anchors the **30-second `in_flight` lease** that FR-018 / spec Edge Cases require for crash recovery. Path 4 mentions "row lease, FR-018" parenthetically but the value is absent, and requirements.md REQ-017 (its parent) currently states a contradictory 60s/120s. The worker's crash-recovery behavior (revert `in_flight` → `pending` after 30s) is a load-bearing reliability property and is not pinned in any view.
+
+**Recommendation**: After collapsing SYS-003/004, state in SYS-005 (and Path 4) the single `fetch_queue` drain with the 30s lease revert. Keep the upstream requirements.md REQ-017 fix (30s) in sync.
+
+---
+
+### PRF-SYS-004 — Path 4 / REQ-024 success path: "delete" vs durable tombstone audit row inconsistency
+
+**Severity**: Major
+**Defect type**: Consistency vs spec.md FR-024/FR-025 + SC-006
+**Location**: Path 4 (line 202) "UPDATE fetch_queue SET status='done'"; SYS-005 description; vs spec.md FR-025 / US-5 AS-6/AS-7
+
+**Description**: Path 4 resolves a successful fetch with `UPDATE fetch_queue SET status='done'` — but the schema/glossary statuses for `fetch_queue` are `pending | in_flight | tombstone` (FoodDataEntity glossary; FR-027), with no `'done'` state, and the foods-table `fetch_status` enum is `pending|fetched|failed|not_found|stale`. The design uses two different status vocabularies and Path 4 introduces a third value (`'done'`) that appears nowhere in the requirements. Separately, on USDA `404` the consumer must **set the `fetch_queue` row `status='tombstone'`** (durable audit row queried by US-5 AS-7 and counted by SC-006), but requirements.md REQ-025 says "delete the row" (flagged in the requirements review). The system-design must not depend on a row state (`'done'`) that the data model does not define.
+
+**Recommendation**: Reconcile the `fetch_queue` status vocabulary to one enumerated set (e.g. `pending | in_flight | fetched | tombstone`) and use it consistently in Path 4, SYS-003/005, and IC-001/IC-005. Ensure the `404` path sets `status='tombstone'` (not delete) so the audit row survives for SC-006/US-5.
+
+---
+
+### PRF-SYS-005 — FR-044 distinct-requester / capped / aged demand counting not represented in any view
+
+**Severity**: Major
+**Defect type**: Completeness / traceability
+**Location**: SYS-003 (request_count semantics), SYS-013 row (fetch_requesters), Path 4 ordering; vs spec.md FR-044
+
+**Description**: The reconciled priority mechanism depends on `request_count` counting **distinct authenticated `sub`s** per `fdcId` (via `fetch_requesters`), with a **cap** and **aging** to prevent a single account pinning an `fdcId` to the front (FR-044). SYS-013 mentions `fetch_requesters` for WebSocket recipient targeting and demotion, but **no component or interface contract models the distinct-`sub` demand-count derivation** that feeds Path 4's `ORDER BY request_count`. As designed, `request_count` is incremented by raw `ON CONFLICT DO UPDATE SET request_count = request_count + 1` (IC-001, SYS-001→SYS-003), i.e. raw request volume — which is exactly the FR-044 anti-pattern. The design currently contradicts FR-044's "MUST NOT increment priority more than once per `sub`."
+
+**Recommendation**: Add an interface/data contract (SYS-001/SYS-013 → SYS-003 via `fetch_requesters`) that derives `request_count` as a distinct-`sub` count with a cap and aging, and reflect it in IC-001 and Path 4's ordering expression.
+
+---
+
+### PRF-SYS-006 — IC-006 response schema does not distinguish user `sub` from M2M/service identity
 
 **Severity**: Minor
 **Defect type**: Interface precision
-**Location**: system-design.md IC-006 (line 120) and External Interfaces "Clerk session/M2M token" (line 92)
+**Location**: IC-006 (line 120), External Interfaces "Clerk session/M2M token" (line 92), SYS-013 (REQ-041)
 
-**Description**: SYS-013's decomposition and the external-interface table both acknowledge the M2M token class (REQ-041/FR-047, A-012), where `AuthenticatedCaller` carries a service identity rather than a human `sub`. IC-006's response schema is still just `AuthenticatedCaller | 401 | 403` with no field-level shape, so the user-vs-service principal distinction (and which fields are populated for an M2M caller) is not expressed at the contract boundary the module design implements against. (Unchanged from prior review — not in the remediation scope.)
+**Description**: Carried forward and still valid. SYS-013 and the external-interface table acknowledge the M2M token class (REQ-041/FR-047, A-012), but IC-006's response schema is `AuthenticatedCaller | 401 | 403` with no field shape, so the user-vs-service principal distinction is not contract-visible at the boundary the module design implements against.
 
-**Recommendation**: Expand IC-006's response schema to enumerate `AuthenticatedCaller { sub, azp, scopes, tokenClass: 'user' | 'm2m' }` (or equivalent), so the M2M classification required by REQ-041 is contract-visible.
+**Recommendation**: Expand IC-006 to `AuthenticatedCaller { sub, azp, scopes, tokenClass: 'user' | 'm2m' }`.
 
 ---
 
-### PRF-SYS-004 — SYS-013 → SYS-002 "Gates" omits the FR-048 async-producer provenance check from the dependency/interface contract
+### PRF-SYS-007 — SYS-013 → SYS-005 async-producer provenance (FR-048) still uncontracted
 
 **Severity**: Minor
 **Defect type**: Traceability precision
-**Location**: system-design.md Dependency View `SYS-013 → SYS-002` (line 57), Internal Interfaces `SYS-013 → SYS-002` (line 109), IC-007 (line 121)
+**Location**: Dependency View SYS-013→SYS-003 (line 57), Internal Interfaces (line 109), IC-007 (line 121); vs spec.md FR-048
 
-**Description**: REQ-042/FR-048 (async-producer authorization: only named IAM principals may publish to EventBridge / insert `fetch_queue`, and the consumer validates event provenance) is listed as a SYS-013 parent and named in the rationale, and the dependency cell now appends "async producers must present an authorized principal" (line 57). However, the consumer-side provenance validation (which involves SYS-005) is still not represented as a dependency or interface contract — IC-007 covers only the synchronous per-`sub` quota/backpressure gate. REQ-042's consumer-validation leg therefore still traces to SYS-013 by prose only. (Partially addressed; producer-side mention added, consumer-side validation still uncontracted.)
+**Description**: Carried forward. REQ-042/FR-048 (only named IAM principals may publish to EventBridge / insert `fetch_queue`; the **consumer validates event provenance**) names producer-side authorization in the SYS-013→SYS-003 cell, but the **consumer-side provenance validation** (SYS-005) is still not a dependency or interface contract — IC-007 covers only the synchronous per-`sub` demotion/backpressure gate. REQ-042's consumer leg traces to SYS-013 by prose only.
 
-**Recommendation**: Add a `SYS-013 → SYS-005` provenance-validation relationship (or an interface note) capturing that accepted events carry an authenticated `requestedBy` principal and the consumer validates it, so REQ-042's consumer leg is anchored in a view and not only the rationale.
+**Recommendation**: Add a SYS-013 → SYS-005 (or SYS-002 → SYS-005) provenance-validation relationship/interface note so the consumer-validation leg is anchored in a view.
 
 ---
 
-### PRF-SYS-005 — SYS-013 collapses three distinct concerns (authn, quota/fairness, DoS load-shed) into one component
+### PRF-SYS-008 — Auth/admission edge fully reconciled to demotion (no 429)
 
-**Severity**: Observation
-**Defect type**: Decomposition granularity
-**Location**: system-design.md SYS-013 Decomposition row (line 34) and Traceability Rationale (line 311)
+**Severity**: Observation (Resolved — prior design reviewed a `429` quota gate)
+**Defect type**: Correctness of the new mechanism
+**Location**: SYS-013 row (line 34), Path 0 (lines 127–143), IC-007 (line 121), Trade-off "Fairness model" (line 240), Dependency SYS-013→SYS-003 (line 57)
 
-**Description**: SYS-013 carries nine parent requirements spanning cryptographic token verification (REQ-037), authorization scopes (REQ-038), per-`sub` enqueue quota / fairness (REQ-039/040), M2M classification (REQ-041), async provenance (REQ-042), WebSocket auth (REQ-043), and auth-layer DoS load-shed (REQ-044). These are cohesive as "the auth/admission edge" but operate at different layers (the quota/backpressure gate is admission control that runs after authn and is arguably closer to SYS-002). This is acceptable at system-design granularity. (Unchanged from prior review.)
+**Description**: **RESOLVED / correct.** Every auth-edge surface models the locked demotion model, not a per-user quota: SYS-013 — "per-`sub` demotion fairness (>50 pending → ranked to back; no `429`)"; Path 0 — "sub has >50 pending → enqueue accepted but ranked to BACK (demotion; no 429), dynamic at drain time"; IC-007 GateEnqueue → "Allow (normal) | Allow (demoted — sub >50 pending) | 503 (backpressure)" (no `429` branch); Trade-off "Fairness model" → "Demotion … not per-user quota `429`." The prior review's IC-007 `429` and the `200/hr` quota are gone. SYS-006 RollingWindowLimiter correctly uses the Postgres `usda_call_log` rolling-window (≤1,000 trailing-hr, pause at 90%/900; Redis sorted-set deferred) — not a token bucket. No action.
 
-**Recommendation**: No change required at the system-design level. Confirm at module design that the verify/authn concern is split from the quota/fairness/backpressure admission-control concern so REQ-039/040/044 get independent module-level coverage. (Note: `module-design.md` already separates `QuotaConfig`/quota enforcement from the verifier, so this is on track.)
+---
+
+### PRF-SYS-009 — Lifecycle paths (SWR, batch partial) reconciled
+
+**Severity**: Observation (Resolved)
+**Defect type**: Completeness / correctness
+**Location**: Path 2b (lines 169–178), IC-008 (line 122), Trade-off "Stale-record read" (line 241), Path 5 (rate-limited)
+
+**Description**: **RESOLVED / correct.** Path 2b models stale-while-revalidate exactly per FR-031: serve stale `200` immediately + `INSERT … ON CONFLICT` background re-fetch, "never blocks," and "if re-fetch keeps failing, stale data served indefinitely." IC-008 (ValidateBatch) models the FR-045 per-item partial response ("cached/stale inline + each miss `pending` (enqueued)") and the 100-id `400` cap. Path 5 models the rolling-window pause (release lease, no status change, reprocess when calls age out). These match the 2026-06-20 clarifications. No action.
+
+---
+
+### PRF-SYS-010 — SYS-008 (Redis) correctly deferred; no token-bucket residue in limiter state
+
+**Severity**: Observation (Resolved)
+**Defect type**: Internal consistency
+**Location**: SYS-008 (line 29), SYS-006 (line 27), Trade-off "Cache layer" / "Rate limiter implementation" (lines 238–239), Physical View RollingWindowLimiter row (line 225)
+
+**Description**: **RESOLVED / correct.** SYS-008 is "Optional Redis cache (deferred post-launch variant; lean-launch default is Postgres)" and explicitly notes "Pending-fetch deduplication is the `fetch_queue` `ON CONFLICT` row, not a Redis set." SYS-006 / Physical View place the rolling-window state in Postgres `usda_call_log` by default with the Redis sorted-set as the deferred variant. No co-equal-Redis or token-bucket framing remains in the limiter/cache design. No action. (Residual: SYS-008 still lists REQ-022/REQ-023 as parents which are worker/USDA-API requirements, a minor mis-parent, but not design-blocking — fold into the PRF-SYS-002 re-parenting pass.)
+
+---
+
+## Verdict
+
+**Verdict: FAIL — 2 Critical / 3 Major.** The auth/admission edge (SYS-013, Path 0, IC-007), the rolling-window limiter (SYS-006), and the lifecycle paths (Path 2b SWR, IC-008 batch-partial, Path 5) are correctly reconciled to the locked design with no token-bucket/`429`/co-equal-Redis residue. The blocking defects are in the queue decomposition: SYS-002 traces to the superseded EventBridge demand-path (REQ-011/012), and SYS-003/SYS-004 reify a static high/low-priority split that contradicts the single demand-weighted `fetch_queue` with dynamic demotion described in Path 4 / the Trade-off table. Collapse SYS-003/SYS-004 into one demand-weighted `FetchQueue`, re-parent SYS-002 to the scheduled-producer/completion requirements, reconcile the `fetch_queue` status vocabulary (drop `'done'`; keep `tombstone` audit rows), and model FR-044 distinct-requester demand counting before this artifact passes the gate.
+
+---
+
+## Remediation Status (2026-06-20, round 4)
+
+All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.

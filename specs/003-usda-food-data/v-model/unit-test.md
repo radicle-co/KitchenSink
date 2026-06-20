@@ -99,12 +99,12 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Dependency & Mock Registry:**
 
-| Dependency             | Source   | Mock/Stub Strategy                                   | Rationale                                                                                             |
-| ---------------------- | -------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `CacheService`         | ARCH-007 | Mock: `get()` returns null or FoodData stub          | Isolate cache layer (in-process LRU / Postgres default; deferred Redis variant) from controller logic |
-| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns null or FoodData stub  | Isolate DB layer from controller logic                                                                |
-| `EventBridgePublisher` | ARCH-002 | Mock: `publishFoodRequested()` returns `{ eventId }` | Prevent real EventBridge calls                                                                        |
-| `MonitoringLogger`     | ARCH-011 | Stub: no-op                                          | Prevent CloudWatch side-effects                                                                       |
+| Dependency           | Source   | Mock/Stub Strategy                                   | Rationale                                                                                             |
+| -------------------- | -------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `CacheService`       | ARCH-007 | Mock: `get()` returns null or FoodData stub          | Isolate cache layer (in-process LRU / Postgres default; deferred Redis variant) from controller logic |
+| `PostgresRepository` | ARCH-006 | Mock: `findByFdcId()` returns null or FoodData stub  | Isolate DB layer from controller logic                                                                |
+| `EnqueueEmitter`     | ARCH-002 | Mock: `publishFoodRequested()` returns `{ eventId }` | Prevent real EventBridge calls                                                                        |
+| `MonitoringLogger`   | ARCH-011 | Stub: no-op                                          | Prevent CloudWatch side-effects                                                                       |
 
 - **Unit Scenario: UTS-001-B1**
     - **Arrange**: Set `event.pathParameters.fdcId = "abc"`; `isValidFdcId` returns `false`
@@ -124,12 +124,12 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 - **Unit Scenario: UTS-001-B4**
     - **Arrange**: Set `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `null`; `CacheService.isPending` returns `true`
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `EventBridgePublisher.publishFoodRequested` NOT called; `CacheService.markPending` NOT called
+    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `EnqueueEmitter.publishFoodRequested` NOT called; `CacheService.markPending` NOT called
 
 - **Unit Scenario: UTS-001-B5**
     - **Arrange**: Set `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `null`; `CacheService.isPending` returns `false`
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `CacheService.markPending` called with `12345`; `EventBridgePublisher.publishFoodRequested` called with `{ fdcId: 12345 }`; `MonitoringLogger.incrementMetric` called with `"backfill.triggered", 1`
+    - **Assert**: Returns `{ statusCode: 202, body: contains "pending" }`; `CacheService.markPending` called with `12345`; `EnqueueEmitter.publishFoodRequested` called with `{ fdcId: 12345 }`; `MonitoringLogger.incrementMetric` called with `"backfill.triggered", 1`
 
 ---
 
@@ -244,22 +244,22 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Dependency & Mock Registry:**
 
-| Dependency             | Source   | Mock/Stub Strategy                                                                 | Rationale                                         |
-| ---------------------- | -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `CacheService`         | ARCH-007 | Mock: `get()` returns null (force DB read)                                         | Isolate cache layer from the stale-detection path |
-| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns a row with `fetch_status='stale'` / old `fetched_at` | Drive the stale branch deterministically          |
-| `EventBridgePublisher` | ARCH-002 | Spy: `publishFoodRequested()` — assert re-fetch enqueued                           | Verify SWR enqueues the background re-fetch       |
-| `MonitoringLogger`     | ARCH-011 | Stub: no-op                                                                        | Prevent CloudWatch side-effects                   |
+| Dependency           | Source   | Mock/Stub Strategy                                                                 | Rationale                                         |
+| -------------------- | -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `CacheService`       | ARCH-007 | Mock: `get()` returns null (force DB read)                                         | Isolate cache layer from the stale-detection path |
+| `PostgresRepository` | ARCH-006 | Mock: `findByFdcId()` returns a row with `fetch_status='stale'` / old `fetched_at` | Drive the stale branch deterministically          |
+| `EnqueueEmitter`     | ARCH-002 | Spy: `publishFoodRequested()` — assert re-fetch enqueued                           | Verify SWR enqueues the background re-fetch       |
+| `MonitoringLogger`   | ARCH-011 | Stub: no-op                                                                        | Prevent CloudWatch side-effects                   |
 
 - **Unit Scenario: UTS-001-F1**
     - **Arrange**: `fdcId = "12345"`; `CacheService.get` returns `null`; `PostgresRepository.findByFdcId` returns `{ fdcId: 12345, fetch_status: "stale", fetched_at: <31 days ago> }`
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 200, body: contains foodData AND a staleness indicator (e.g. "stale": true) }` (NOT `202` — the held record is served immediately); `EventBridgePublisher.publishFoodRequested` called with `{ fdcId: 12345 }` (background re-fetch enqueued, stale-while-revalidate)
+    - **Assert**: Returns `{ statusCode: 200, body: contains foodData AND a staleness indicator (e.g. "stale": true) }` (NOT `202` — the held record is served immediately); `EnqueueEmitter.publishFoodRequested` called with `{ fdcId: 12345 }` (background re-fetch enqueued, stale-while-revalidate)
 
 - **Unit Scenario: UTS-001-F2**
     - **Arrange**: As F1, but the background re-fetch has repeatedly failed (USDA outage for days); the row is still `stale` on a subsequent read
     - **Act**: Call `handleGetFood(event)` again
-    - **Assert**: Still returns `{ statusCode: 200, body: contains the stale foodData + staleness indicator }` — the stale record is served **indefinitely** (availability over freshness; no max-staleness cutoff withholds the held data); `EventBridgePublisher.publishFoodRequested` is invoked again to keep retrying the re-fetch (subject to `ON CONFLICT` dedup)
+    - **Assert**: Still returns `{ statusCode: 200, body: contains the stale foodData + staleness indicator }` — the stale record is served **indefinitely** (availability over freshness; no max-staleness cutoff withholds the held data); `EnqueueEmitter.publishFoodRequested` is invoked again to keep retrying the re-fetch (subject to `ON CONFLICT` dedup)
 
 ---
 
@@ -271,26 +271,26 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Dependency & Mock Registry:**
 
-| Dependency             | Source   | Mock/Stub Strategy                                                                                   | Rationale                                               |
-| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns a `not_found` tombstone row with controlled `fetched_at`/tombstone age | Drive the within-TTL vs after-TTL boundary              |
-| `EventBridgePublisher` | ARCH-002 | Spy: `publishFoodRequested()` — assert zero within TTL, one after TTL                                | Verify enqueue suppression within TTL, re-attempt after |
-| `now`                  | Internal | Mock: returns a controlled epoch so the TTL boundary can be crossed                                  | Deterministic TTL boundary                              |
+| Dependency           | Source   | Mock/Stub Strategy                                                                                   | Rationale                                               |
+| -------------------- | -------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `PostgresRepository` | ARCH-006 | Mock: `findByFdcId()` returns a `not_found` tombstone row with controlled `fetched_at`/tombstone age | Drive the within-TTL vs after-TTL boundary              |
+| `EnqueueEmitter`     | ARCH-002 | Spy: `publishFoodRequested()` — assert zero within TTL, one after TTL                                | Verify enqueue suppression within TTL, re-attempt after |
+| `now`                | Internal | Mock: returns a controlled epoch so the TTL boundary can be crossed                                  | Deterministic TTL boundary                              |
 
 - **Unit Scenario: UTS-001-G1**
     - **Arrange**: `TOMBSTONE_TTL_DAYS = 30`; `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns `{ fdcId: 12345, fetch_status: "not_found", fetched_at: <29 days ago> }` (within TTL, boundary max-1)
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: Returns `{ statusCode: 404 }`; `EventBridgePublisher.publishFoodRequested` called **zero** times (within TTL → `404` with no enqueue, FR-025)
+    - **Assert**: Returns `{ statusCode: 404 }`; `EnqueueEmitter.publishFoodRequested` called **zero** times (within TTL → `404` with no enqueue, FR-025)
 
 - **Unit Scenario: UTS-001-G2**
     - **Arrange**: `TOMBSTONE_TTL_DAYS = 30`; `fdcId = "12345"`; `PostgresRepository.findByFdcId` returns a `not_found` tombstone with `fetched_at = <31 days ago>` (after TTL)
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: A re-attempt is enqueued — `EventBridgePublisher.publishFoodRequested` called once with `{ fdcId: 12345 }` (after TTL → re-attempt, counting against the normal rolling-window budget per FR-025); response is `202`/pending (a re-fetch is now in flight)
+    - **Assert**: A re-attempt is enqueued — `EnqueueEmitter.publishFoodRequested` called once with `{ fdcId: 12345 }` (after TTL → re-attempt, counting against the normal rolling-window budget per FR-025); response is `202`/pending (a re-fetch is now in flight)
 
 - **Unit Scenario: UTS-001-G3**
     - **Arrange**: `TOMBSTONE_TTL_DAYS = 30`; tombstone `fetched_at = exactly 30 days ago` (boundary at-TTL)
     - **Act**: Call `handleGetFood(event)`
-    - **Assert**: At the exact TTL boundary the tombstone is treated as lapsed (TTL **has** elapsed) → `EventBridgePublisher.publishFoodRequested` called once (confirms the branch is gated on TTL elapse, not an always-404)
+    - **Assert**: At the exact TTL boundary the tombstone is treated as lapsed (TTL **has** elapsed) → `EnqueueEmitter.publishFoodRequested` called once (confirms the branch is gated on TTL elapse, not an always-404)
 
 ---
 
@@ -302,30 +302,30 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Dependency & Mock Registry:**
 
-| Dependency             | Source   | Mock/Stub Strategy                                                                          | Rationale                         |
-| ---------------------- | -------- | ------------------------------------------------------------------------------------------- | --------------------------------- |
-| `CacheService`         | ARCH-007 | Mock: `get()` returns FoodData for cached ids, null for misses                              | Drive the mixed cached/miss split |
-| `PostgresRepository`   | ARCH-006 | Mock: `findByFdcId()` returns rows for cached ids, null for misses                          | Resolve cached ids inline         |
-| `EventBridgePublisher` | ARCH-002 | Spy: `publishFoodRequested()` / `publishFoodBatchRequested()` — assert one enqueue per miss | Verify each miss is enqueued      |
+| Dependency           | Source   | Mock/Stub Strategy                                                                          | Rationale                         |
+| -------------------- | -------- | ------------------------------------------------------------------------------------------- | --------------------------------- |
+| `CacheService`       | ARCH-007 | Mock: `get()` returns FoodData for cached ids, null for misses                              | Drive the mixed cached/miss split |
+| `PostgresRepository` | ARCH-006 | Mock: `findByFdcId()` returns rows for cached ids, null for misses                          | Resolve cached ids inline         |
+| `EnqueueEmitter`     | ARCH-002 | Spy: `publishFoodRequested()` / `publishFoodBatchRequested()` — assert one enqueue per miss | Verify each miss is enqueued      |
 
 - **Unit Scenario: UTS-001-H1**
     - **Arrange**: `fdcIds = [101, 102, 103]`; `CacheService.get` resolves `101` and `102` (cached HIT), `null` for `103` (miss); `PostgresRepository.findByFdcId(103)` returns `null`; `CacheService.isPending(103)` returns `false`
     - **Act**: Call `handleGetFoodBatch(event)`
-    - **Assert**: Returns `{ statusCode: 200, body: { results: [ { fdcId: 101, foodData }, { fdcId: 102, foodData }, { fdcId: 103, status: "pending" } ] } }` — cached foods inline, the miss as a `pending` entry in one body; `EventBridgePublisher.publish*` enqueues a fetch for `103` only (per-item partial, FR-045)
+    - **Assert**: Returns `{ statusCode: 200, body: { results: [ { fdcId: 101, foodData }, { fdcId: 102, foodData }, { fdcId: 103, status: "pending" } ] } }` — cached foods inline, the miss as a `pending` entry in one body; `EnqueueEmitter.publish*` enqueues a fetch for `103` only (per-item partial, FR-045)
 
 - **Unit Scenario: UTS-001-H2**
     - **Arrange**: `fdcIds = [201, 202]`; both resolve from cache/DB (all cached)
     - **Act**: Call `handleGetFoodBatch(event)`
-    - **Assert**: Returns `{ statusCode: 200 }` with both inline; `EventBridgePublisher.publish*` called **zero** times (no misses → no enqueue)
+    - **Assert**: Returns `{ statusCode: 200 }` with both inline; `EnqueueEmitter.publish*` called **zero** times (no misses → no enqueue)
 
 - **Unit Scenario: UTS-001-H3**
     - **Arrange**: `fdcIds` array of length `101` (over the `MAX_BATCH = 100` cap)
     - **Act**: Call `handleGetFoodBatch(event)`
-    - **Assert**: Returns `{ statusCode: 400 }`; `EventBridgePublisher.publish*` called **zero** times — an oversized batch is rejected before any enqueue (FR-045, boundary max+1; cross-refs UTP-012-F)
+    - **Assert**: Returns `{ statusCode: 400 }`; `EnqueueEmitter.publish*` called **zero** times — an oversized batch is rejected before any enqueue (FR-045, boundary max+1; cross-refs UTP-012-F)
 
 ---
 
-### Module: MOD-002 (EventBridgePublisher — Event Emitter)
+### Module: MOD-002 (EnqueueEmitter — Event Emitter)
 
 **Parent Architecture Modules**: ARCH-002
 **Target Source File(s)**: `packages/services/food-service/src/events/event-bridge-publisher.ts`
@@ -371,7 +371,7 @@ None — `isValidFdcId` is a pure function with no external dependencies.
 
 **Technique**: Boundary Value Analysis
 **Target View**: Internal Data Structures (`fdcIds` array length)
-**Description**: Verifies `publishFoodBatchRequested()` enforces the 1–20 item batch size constraint at boundaries.
+**Description**: Verifies `publishFoodBatchRequested()` enforces the 1–100 client batch size constraint (FR-045) at boundaries.
 
 **Dependency & Mock Registry:**
 
@@ -558,13 +558,13 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 | `PostgresRepository`   | ARCH-006 | Mock: `upsertFood()` returns `{ success: true }`                        | Prevent real DB writes                    |
 | `CacheService`         | ARCH-007 | Mock: `invalidate()` and `clearPending()` record args                   | Verify cache operations                   |
 | `FetchQueueRouter`     | ARCH-003 | Mock: `complete()` records args                                         | Verify the leased row is completed        |
-| `EventBridgePublisher` | ARCH-002 | Mock: `publishFoodDataReceived()` records args                          | Verify `FoodDataReceived` event published |
+| `EnqueueEmitter`       | ARCH-002 | Mock: `publishFoodDataReceived()` records args                          | Verify `FoodDataReceived` event published |
 | `MonitoringLogger`     | ARCH-011 | Mock: `incrementMetric()` records args                                  | Verify metric emitted                     |
 
 - **Unit Scenario: UTS-004-C1**
     - **Arrange**: `record.body = '{"fdcId":12345}'`; `UsdaApiClient.fetchFoods` returns `[{ fdcId: 12345, description: "Apple" }]`
     - **Act**: Call `processRecord(record)`
-    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `PostgresRepository.upsertFood` called with `{ fdcId: 12345 }`; `CacheService.invalidate` called with `12345`; `CacheService.clearPending` called with `12345`; `EventBridgePublisher.publishFoodDataReceived` called with `{ fdcId: 12345 }` (EventBridge `FoodDataReceived` only); `FetchQueueRouter.complete` called with `record.rowId` (leased row marked done); `MonitoringLogger.incrementMetric` called with `("consumer.processed", 1)`
+    - **Assert**: Returns `{ failed: false, rowId: record.rowId }`; `PostgresRepository.upsertFood` called with `{ fdcId: 12345 }`; `CacheService.invalidate` called with `12345`; `CacheService.clearPending` called with `12345`; `EnqueueEmitter.publishFoodDataReceived` called with `{ fdcId: 12345 }` (EventBridge `FoodDataReceived` only); `FetchQueueRouter.complete` called with `record.rowId` (leased row marked done); `MonitoringLogger.incrementMetric` called with `("consumer.processed", 1)`
 
 ---
 
@@ -603,33 +603,33 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 
 **Technique**: Statement & Branch Coverage + Boundary Value Analysis
 **Target View**: Algorithmic/Logic View (atomic count-and-record over the trailing 60 minutes)
-**Description**: Verifies the rolling-window count-and-record at its boundaries (FR-019, FR-020): the limiter counts USDA calls in the trailing 60 minutes from the `usda_call_log`, admits-and-records below 900, pauses at the 90% (900) threshold, and blocks the 1,001st call in any trailing-60-min window (the hard cap is never breached). By default this is an atomic Postgres count+insert on the `usda_call_log` (`INSERT ... WHERE (SELECT count(...)) < cap RETURNING`); the deferred Redis variant runs the same logic as a sorted-set Lua script (`ZADD` timestamp / `ZCOUNT` last 60 min). The store is mocked to execute the count-and-record logic in-process.
+**Description**: Verifies the rolling-window count-and-record at its boundaries (FR-019, FR-020, FR-021): the limiter counts USDA calls in the trailing 60 minutes from the `usda_call_log`, admits-and-records below the `PAUSE_THRESHOLD` (900), pauses at the 90% (`PAUSE_THRESHOLD` = 900) threshold, and blocks the 1,001st call in any trailing-60-min window (the `HARD_CAP` of 1000 is never breached). By default this is an atomic Postgres count+insert on the `usda_call_log` (`INSERT ... WHERE (SELECT count(...)) < HARD_CAP RETURNING`); the deferred Redis variant runs the same logic as a sorted-set Lua script (`ZADD` timestamp / `ZCOUNT` last 60 min). The store is mocked to execute the count-and-record logic in-process.
 
 **Dependency & Mock Registry:**
 
-| Dependency     | Source                                                                | Mock/Stub Strategy                                                                                                                         | Rationale                                 |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: executes the atomic count-and-record in-process (`INSERT ... WHERE count < cap RETURNING`, or the deferred Lua `eval` over `ZCOUNT`) | Isolate from real call-log infrastructure |
+| Dependency     | Source                                                                | Mock/Stub Strategy                                                                                                                              | Rationale                                 |
+| -------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: executes the atomic count-and-record in-process (`INSERT ... WHERE count < HARD_CAP RETURNING`, or the deferred Lua `eval` over `ZCOUNT`) | Isolate from real call-log infrastructure |
 
 - **Unit Scenario: UTS-005-A1**
-    - **Arrange**: Set `cap = 1000`, `pauseThreshold = 900`; mock `CallLogStore` so the trailing-60-min count is `0` (window empty)
+    - **Arrange**: Set `HARD_CAP = 1000`, `PAUSE_THRESHOLD = 900`; mock `CallLogStore` so the trailing-60-min count is `0` (window empty)
     - **Act**: Execute the atomic count-and-record via mock `CallLogStore`
-    - **Assert**: Returns `{ allowed: true, trailingCount: 1 }` (recorded the new call's timestamp); a new row/member is appended to the window (boundary: empty window admits)
+    - **Assert**: Returns `{ allowed: true, windowCount: 1 }` (recorded the new call's timestamp); a new row/member is appended to the window (boundary: empty window admits)
 
 - **Unit Scenario: UTS-005-A2**
-    - **Arrange**: Set `cap = 1000`, `pauseThreshold = 900`; mock `CallLogStore` so the trailing-60-min count is `899` (max-1, under the pause threshold)
+    - **Arrange**: Set `HARD_CAP = 1000`, `PAUSE_THRESHOLD = 900`; mock `CallLogStore` so the trailing-60-min count is `899` (max-1, under the pause threshold)
     - **Act**: Execute the count-and-record
-    - **Assert**: Returns `{ allowed: true, trailingCount: 900 }`; the call is recorded (boundary: count below 900 still admits)
+    - **Assert**: Returns `{ allowed: true, windowCount: 900 }`; the call is recorded (boundary: count below 900 still admits)
 
 - **Unit Scenario: UTS-005-A3**
-    - **Arrange**: Set `pauseThreshold = 900`; mock `CallLogStore` so the trailing-60-min count is `900` (at the 90% pause threshold)
+    - **Arrange**: Set `PAUSE_THRESHOLD = 900`; mock `CallLogStore` so the trailing-60-min count is `900` (at the 90% pause threshold)
     - **Act**: Execute the count-and-record
-    - **Assert**: Returns `{ allowed: false, paused: true, trailingCount: 900 }`; **no** new timestamp recorded — the worker pauses draining at 90% rather than advancing (boundary: count == 900 → pause, FR-019)
+    - **Assert**: Returns `{ allowed: false, paused: true, windowCount: 900 }`; **no** new timestamp recorded — the worker pauses draining at 90% rather than advancing (boundary: count == 900 → pause, FR-019)
 
 - **Unit Scenario: UTS-005-A4**
-    - **Arrange**: Set `cap = 1000`; mock `CallLogStore` so the trailing-60-min count is `1000` (the call would be the 1,001st in the window)
+    - **Arrange**: Set `HARD_CAP = 1000`; mock `CallLogStore` so the trailing-60-min count is `1000` (the call would be the 1,001st in the window)
     - **Act**: Execute the count-and-record
-    - **Assert**: Returns `{ allowed: false, trailingCount: 1000 }`; the call is **not** recorded and **not** made — the 1,001st call in any trailing-60-min window is blocked, so the hard cap of ≤1,000 is never breached (boundary: at-cap rejects, FR-019/SC-002)
+    - **Assert**: Returns `{ allowed: false, windowCount: 1000 }`; the call is **not** recorded and **not** made — the 1,001st call in any trailing-60-min window is blocked, so the `HARD_CAP` of ≤1,000 is never breached (boundary: at-cap rejects, FR-019/SC-002)
 
 ---
 
@@ -665,29 +665,29 @@ None — `configureRetry` is a pure configuration function operating on a `fetch
 
 **Dependency & Mock Registry:**
 
-| Dependency     | Source                                                                | Mock/Stub Strategy                                                             | Rationale                               |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------- |
-| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: count-and-record returns controlled `{ allowed, trailingCount }` results | Drive state machine through transitions |
+| Dependency     | Source                                                                | Mock/Stub Strategy                                                           | Rationale                               |
+| -------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
+| `CallLogStore` | Postgres `usda_call_log` (default; deferred Redis sorted-set variant) | Mock: count-and-record returns controlled `{ allowed, windowCount }` results | Drive state machine through transitions |
 
 - **Unit Scenario: UTS-005-C1**
     - **Arrange**: `CallLogStore` returns a trailing-60-min count of `500` (well under the pause threshold)
     - **Act**: Call `checkAndRecord()`
-    - **Assert**: Returns `{ allowed: true, trailingCount: 501 }` (state: WindowOpen)
+    - **Assert**: Returns `{ allowed: true, windowCount: 501 }` (state: WindowOpen)
 
 - **Unit Scenario: UTS-005-C2**
     - **Arrange**: `CallLogStore` returns a trailing-60-min count of `899`, and the recorded call brings the trailing count to `900`
     - **Act**: Call `checkAndRecord()`
-    - **Assert**: Returns `{ allowed: true, trailingCount: 900 }` (transition: WindowOpen → WindowFull at the 90% pause threshold)
+    - **Assert**: Returns `{ allowed: true, windowCount: 900 }` (transition: WindowOpen → WindowFull at the 90% pause threshold)
 
 - **Unit Scenario: UTS-005-C3**
     - **Arrange**: `CallLogStore` returns a trailing-60-min count of `900` (at the pause threshold)
     - **Act**: Call `checkAndRecord()`
-    - **Assert**: Returns `{ allowed: false, paused: true, trailingCount: 900 }` (state: WindowFull — the worker pauses)
+    - **Assert**: Returns `{ allowed: false, paused: true, windowCount: 900 }` (state: WindowFull — the worker pauses)
 
 - **Unit Scenario: UTS-005-C4**
     - **Arrange**: After the window was full, enough earlier calls age out of the trailing 60 minutes that `CallLogStore` now returns a trailing-60-min count of `850`
     - **Act**: Call `checkAndRecord()`
-    - **Assert**: Returns `{ allowed: true, trailingCount: 851 }` (transition: WindowFull → WindowOpen — calls aged out of the window, the worker resumes draining, FR-021)
+    - **Assert**: Returns `{ allowed: true, windowCount: 851 }` (transition: WindowFull → WindowOpen — calls aged out of the window, the worker resumes draining, FR-021)
 
 ---
 
@@ -1377,7 +1377,7 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 **Technique**: Equivalence Partitioning + Statement & Branch Coverage + Strict Isolation
 **Target View**: Algorithmic/Logic View + Internal Data Structures
-**Description**: Verifies demand-weighting counts **distinct authenticated `sub`s** per `fdcId` (via the requester subscription set), so a single `sub`'s repeated requests do not inflate priority more than once, and the contribution is capped (REQ-039 demand / FR-044).
+**Description**: Verifies demand-weighting counts **distinct authenticated `sub`s** per `fdcId` (via the requester subscription set), so a single `sub`'s repeated requests do not inflate priority more than once — each distinct `sub` contributes exactly `PRIORITY_CAP = 1`, and there is **no** per-`fdcId` demand ceiling, so demand scales linearly with the number of distinct requesters (REQ-039 demand / FR-044).
 
 **Dependency & Mock Registry:**
 
@@ -1396,9 +1396,9 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
     - **Assert**: `getDemand(12345) === 3` — distinct requesters each contribute exactly one
 
 - **Unit Scenario: UTS-012-G3**
-    - **Arrange**: `DEMAND_CAP = 50`; 60 distinct subs request `fdcId=12345`
+    - **Arrange**: 60 distinct subs each request `fdcId=12345` once (each `sub` contributes `PRIORITY_CAP = 1` to the distinct-requester demand — there is no per-`fdcId` demand ceiling)
     - **Act**: Record all 60, then `getDemand(12345)`
-    - **Assert**: `getDemand(12345) === 50` — the priority contribution is capped (prevents priority-inversion starvation of single-request items)
+    - **Assert**: `getDemand(12345) === 60` — distinct requesters each contribute exactly one (consistent with UTS-012-G2); demand scales linearly with distinct subs, with no per-`fdcId` cap clamping the total
 
 ---
 
@@ -1418,12 +1418,12 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 | `FetchQueue`        | ARCH-003                                      | Spy: `enqueue()` — assert zero on every `503`                                | Verify nothing is enqueued when the gate fails closed   |
 
 - **Unit Scenario: UTS-012-H1**
-    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; mock `QueueDepthProbe.currentDepth()` returns `1000` (at the ceiling); `CircuitBreaker.state()` returns `'closed'`; `PendingCountStore.pendingFor('user_abc')` returns `5`
+    - **Arrange**: `MAX_QUEUE_DEPTH = 10000`; mock `QueueDepthProbe.currentDepth()` returns `10000` (at the ceiling); `CircuitBreaker.state()` returns `'closed'`; `PendingCountStore.pendingFor('user_abc')` returns `5`
     - **Act**: Invoke `enqueueGate('user_abc', [12345])`
     - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times (boundary: depth == max is over-full, reject — the global backstop, not a per-user limit)
 
 - **Unit Scenario: UTS-012-H2**
-    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; `QueueDepthProbe.currentDepth()` returns `999` (max-1, under the ceiling); `CircuitBreaker.state()` returns `'closed'`; `PendingCountStore.pendingFor('user_abc')` returns `5`
+    - **Arrange**: `MAX_QUEUE_DEPTH = 10000`; `QueueDepthProbe.currentDepth()` returns `9999` (max-1, under the ceiling); `CircuitBreaker.state()` returns `'closed'`; `PendingCountStore.pendingFor('user_abc')` returns `5`
     - **Act**: Invoke `enqueueGate('user_abc', [12345])`
     - **Assert**: Returns `{ allowed: true }`; `FetchQueue.enqueue` called once (boundary: max-1 admitted — confirms the `503` branch is the depth ceiling, not an always-reject)
 

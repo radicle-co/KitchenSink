@@ -402,7 +402,8 @@ FoodRequested {
   timestamp: ISO8601,
   fdcId: number,
   requestedBy: string,      // authenticated Clerk sub or named service principal (FR-048; never an unauthenticated 'system' shortcut)
-  priority: 'high' | 'normal'
+  // No priority field — the single fetch_queue is ordered purely by demand
+  // (request_count DESC, first_requested ASC); request_count is the capped distinct-requester count (FR-044).
 }
 
 // Batch import — multiple foods
@@ -425,7 +426,7 @@ FoodFetchCompleted {
 
 ### Fetch Queue (Postgres)
 
-**Table**: `fetch_queue` — durable priority queue for missing-ingredient lookups.
+**Table**: `fetch_queue` — single durable demand-weighted queue for missing-ingredient lookups (ordered by `request_count DESC, first_requested ASC`; no high/low priority tier).
 
 ```sql
 CREATE TABLE fetch_queue (

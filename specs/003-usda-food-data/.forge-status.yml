@@ -3,7 +3,8 @@
 # Last updated: 2026-05-10
 
 feature: 003-usda-food-data
-mode: retroactive-bootstrap
+feature_mode: v-model # Product Forge v1.7.0 (v3 schema) mode resolution
+mode: retroactive-bootstrap # original bootstrap provenance (legacy field)
 pilot: true
 
 phases:
@@ -54,10 +55,23 @@ phases:
     plan:
         state: complete
         artifact: plan.md
+        replanned_at: 2026-06-19
+        digest_path: plan/digest.md
+        note: >
+            Re-plan added §2A Authentication & Authorization (FR-035–FR-053);
+            auth FR coverage 0 → 19. Deployment LOCKED: in-process NestJS
+            AuthMiddleware on ECS/Fargate (ALB) with shared ClerkAuthService
+            verification; $connect Lambda authorizer only for the deferred
+            API Gateway WebSocket API.
 
     tasks:
         state: complete
         artifact: tasks.md
+        replanned_at: 2026-06-19
+        note: >
+            Re-plan added Phase 7 auth task group (T-033 + T-046–T-056) covering
+            FR-035–FR-053; WS auth folded into Phase 9 (T-038/039). FR coverage
+            audit updated to 53 FRs. Auth FR coverage in tasks 0 → 19. 8 Test-first.
 
     pre-impl-review:
         state: skipped
@@ -131,5 +145,60 @@ v-model:
         artifact: release-audit-report.md
         completed_at: 2026-05-10
 
-next_action: revalidation
-next_command: /speckit.product-forge.revalidate
+sync_runs:
+    last_run: '2026-06-19'
+    total_runs: 3
+    last_verdict: RESOLVED
+    last_critical_count: 0
+    notes: >
+        Run #3 (2026-06-19): DRIFT-101 RESOLVED. The Clerk auth slice
+        (US-0, FR-035–FR-053) now has full coverage across spec (19/19),
+        plan §2A (19/19), tasks Phase 7 (19/19), the v-model V&V chain
+        (18/18: REQ-037..044/REQ-IF-008 → SYS-013/ARCH-012 → MOD-012/013 →
+        UTP-012/ITP-012/STP-013/ATP-008 → HAZ-036/037, fully traced), and
+        the product-spec (Epic 0 + US-0). Remaining: auth artifacts are
+        NOT peer-reviewed, release-audit-report.md needs regen, and auth
+        tests are unexecuted. See sync-report.md Run #3.
+    history:
+        - 'Run #2 (2026-06-18): DRIFT-101 OPEN-CRITICAL — see sync-report.md.'
+
+red_team:
+    state: completed
+    session: RT-003-usda-food-data-2026-06-19
+    artifact: red-team-findings-2026-06-19.md
+    findings: { total: 15, critical: 5, high: 7, medium: 3 }
+    resolution: spec-fix (all 15) — FR-041 revised; FR-043–FR-053 added; US-0 AS-9..12; SC-011 revised + SC-012; A-010 revised + A-012
+    completed_at: 2026-06-19
+    note: >
+        Spec hardened against the red-team findings (per-user quota, M2M/service
+        auth, async-surface + WebSocket auth, status-precedence + 403, batch/queue
+        caps, authorizer fail-closed). DRIFT-101 NOT yet cleared — the hardened
+        auth requirements still need to propagate into plan → tasks → v-model.
+
+# DRIFT-101 RESOLVED across spec/plan/tasks/v-model/product-spec (auth fully traced).
+# Before implement: (1) peer-review the auth v-model slice, (2) regenerate
+# release-audit-report.md (stale REQ-035 wording), (3) tests still unexecuted.
+next_action: advance to implement — peer-review gate CLEAN (0 Critical / 0 Major)
+next_command: /speckit.product-forge.implement
+prior_next_action: remediate Criticals + Majors + re-review (2026-06-19)
+peer_review_gate: PASS # all 9 v-model artifacts 0 Critical / 0 Major after 3 review rounds
+peer_review_history: >
+    Round 1 (2026-06-19): 7 Critical + ~26 Major. Round 2 (remediate Criticals + re-review):
+    0 Critical, ~20 Major. Round 3 (remediate Majors + re-review): 0 Critical, 0 Major.
+    Remediation added MOD-014 (FR-048), HAZ-038/039/040, concrete thresholds (quota 200/hr,
+    ≤20%, batch 100, queue depth 10,000), atomic REQ splits, FR-052 DoS + FR-049b WS modeling,
+    UTP-014/UTP-012-I/J, ITP-012-G/H, measurable STP-013-B, and reconciled the food API
+    deployment to NestJS-on-ECS/Fargate across spec/plan/v-model. Only non-blocking
+    Minors/Observations remain (FR-050 trace, REQ-036 gap, naming hygiene).
+v_model_auth_slice:
+    state: added
+    reviewed: true
+    peer_review: FAIL # gate blocked — ~6 Critical + ~26 Major across 9 artifacts (2026-06-19)
+    ids: REQ-IF-008, REQ-037..044, SYS-013, ARCH-012, MOD-012, MOD-013, UTP-012, ITP-012, STP-013, ATP-008/ATS-036, HAZ-036, HAZ-037
+    added_at: 2026-06-19
+    top_findings:
+        - 'Deployment contradiction: spec A-011 + AuthenticatedCaller entity + v-model SYS-001/ARCH-001 still describe the Lambda authorizer / API-Gateway model, contradicting the locked NestJS-middleware-on-ECS decision (plan §2A). Leftover from the 2026-06-19 lock-in.'
+        - 'Undefined thresholds written as illustrative (quota N, ≤20% as "target", batch "e.g. 100", queue depth) — not binding/testable.'
+        - 'SC-012 ≤20% global-share only in a comment; MOD-013 enforceQuota never computes it (denial-of-wallet not actually closed in design).'
+        - 'Missing hazards: quota-store fail-open/closed, user-vs-M2M token confusion, async-producer requestedBy:system bypass (plan §4 still has it, contradicting §2A.6), WS $connect authorizer cache fall-open.'
+        - 'FR-046 503 backpressure family has zero unit tests; FR-050 untraced by a REQ; REQ-036 numbering gap unexplained.'

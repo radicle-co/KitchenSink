@@ -531,6 +531,170 @@ Examples:
 
 ---
 
+### Tier 1 — Feature/Epic (US-0): Authenticated & Authorized Access to the Food Data API
+
+**User Goal**: As a Commise client (or a backend Commise service), I want every food data entry point to authenticate my Clerk token networklessly and authorize my request before any business logic runs, so that no unauthenticated or unfair caller can read food data or drive USDA API consumption. Maps to spec US-0 acceptance scenarios AS-1..AS-12.
+
+**Acceptance Test Plan**: `ATP-008` — verifies the end-to-end auth contract from the client's perspective: `401` on missing/expired/wrong-instance tokens, `200`/`202`/`404` on valid tokens, no broadcast leakage on WebSocket push, `429` quota fairness, `403` scope, M2M service-token acceptance, and oversized-batch `400`. (Internal verifier mechanics — networkless verify, load-shed — are covered by the System Test Plan STP-013.)
+
+---
+
+#### Tier 2 — REQ-037: No token → `401` at every entry point; no enqueue, no USDA call (US-0 AS-1)
+
+**ATP-008-A** — Unauthenticated requests are rejected before any business logic, enqueue, or USDA call
+
+**Technique**: Interface Contract Testing
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-036-A1**
+
+- **Given** no `Authorization` header is present
+- **When** a client calls each of the six food data entry points in turn — `GET /v1/foods/12345`, `GET /v1/foods/12345/status`, `GET /v1/foods/search?query=chicken`, `GET /v1/foods/12345/nutrients`, `GET /v1/foods/autocomplete?prefix=chick`, and `POST /v1/foods/batch`
+- **Then** every endpoint returns `401 Unauthorized`; no fetch is enqueued and no USDA API call is made for any of them (matching STS-013-A1's six-endpoint sweep, so SC-010's "each endpoint" is discharged literally)
+
+---
+
+#### Tier 2 — REQ-037: Valid Clerk session token → normal `200`/`202`/`404` handling (US-0 AS-2, AS-5)
+
+**ATP-008-B** — A valid Bearer token authenticates the caller and normal handling applies, networklessly
+
+**Technique**: Interface Contract Testing
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-037-B1** (AS-2 — client-observable valid-token handling)
+
+- **Given** a valid Clerk session token is presented as a Bearer credential and `fdcId = 12345` exists locally as `fetched`
+- **When** the client sends `GET /v1/foods/12345`
+- **Then** the response is `200 OK`; the caller identity carried into the response (e.g. the request-scoped `sub` echoed in audit/log correlation, or the per-`sub` rate-limit bucket charged) is the verified Clerk `sub`
+
+**ATS-037-B2** (AS-5 — networkless verification, measured at the network boundary)
+
+- **Given** the API is deployed in a network-isolation harness whose egress policy **denies all outbound traffic to every Clerk/IdP host** (the Clerk frontend/instance domains and any IdP JWKS endpoint are blackholed), and a valid Clerk session token is presented as a Bearer credential for `fdcId = 12345` (existing locally as `fetched`)
+- **When** the client sends `GET /v1/foods/12345` and the harness records all outbound connection attempts crossing the service network boundary for the duration of the request
+- **Then** the response is still `200 OK` (the egress deny does **not** change the outcome, proving no request-path IdP dependency); **and** the harness observes **zero** outbound connection attempts to any Clerk/IdP host during request verification — making the networkless guarantee measurable at the network boundary, not merely asserted. _(The internal verifier mechanics — `@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY` — are exercised at system level by STP-013-A / STS-013-A3; this acceptance scenario discharges the FR-036 networkless guarantee from a controllable external vantage.)_
+
+---
+
+#### Tier 2 — REQ-037: Expired or malformed token → `401` (US-0 AS-3)
+
+**ATP-008-C** — Expired and malformed tokens are rejected fail-closed
+
+**Technique**: Equivalence Partitioning
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-038-C1**
+
+- **Given** a token whose `exp` is in the past (and, separately, a malformed/garbage Bearer string)
+- **When** the client calls `GET /v1/foods/12345`
+- **Then** each request returns `401 Unauthorized`; no fetch is enqueued and no USDA call is made
+
+---
+
+#### Tier 2 — REQ-037: Wrong-`azp` or wrong-instance token → `401` (US-0 AS-4, AS-6)
+
+**ATP-008-D** — Tokens failing the `azp` allowlist, the instance signature, or supplying a forged identity header are rejected
+
+**Technique**: Equivalence Partitioning
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-039-D1**
+
+- **Given** a well-formed Clerk token whose `azp` is not in `CLERK_AUTHORIZED_PARTIES` (and, separately, a token signed for a different Clerk instance, and a request with no valid token but a forged `x-authorizer-context`/`x-user-id` header)
+- **When** the client calls `GET /v1/foods/12345`
+- **Then** each request returns `401 Unauthorized`; identity is taken only from the verified token, never from a client-supplied header; no fetch is enqueued and no USDA call is made
+
+---
+
+#### Tier 2 — REQ-043: WebSocket `$connect` requires a token; pushes are not broadcast (US-0 AS-7, AS-8)
+
+**ATP-008-E** — WebSocket auth at `$connect` and per-recipient push targeting
+
+**Technique**: Interface Contract Testing
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-040-E1**
+
+- **Given** a WebSocket `$connect` is attempted without a valid Clerk token
+- **When** the connection is initiated
+- **Then** it is rejected with `403` before the connection is established
+
+**ATS-040-E2**
+
+- **Given** two authenticated WebSocket connections, where only `sub` `A` requested `fdcId = 12345` (recorded in the requester subscription set) and `sub` `B` did not
+- **When** a `FoodDataReceived` notification for `fdcId = 12345` is pushed
+- **Then** the notification is delivered only to `A`'s connection; `B`'s connection receives nothing (no broadcast to connections that did not request that food)
+
+---
+
+#### Tier 2 — REQ-039: Per-`sub` quota exceeded → `429`, no enqueue (US-0 AS-9)
+
+**ATP-008-F** — One user cannot exhaust the shared USDA budget for others
+
+**Technique**: Boundary Value Analysis
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-041-F1**
+
+- **Given** an authenticated user who has exceeded their per-`sub` enqueue quota for the rolling hour
+- **When** they trigger another cache-miss lookup for an unknown `fdcId`
+- **Then** the response is `429 Too Many Requests`; no fetch is enqueued; concurrently, a different authenticated user's cache-miss lookup is still accepted (the quota protects users from each other)
+
+---
+
+#### Tier 2 — REQ-038: Insufficient operational scope → `403`, distinct from `401` (US-0 AS-10)
+
+**ATP-008-G** — Authenticated-but-unauthorized is `403`, not `401`
+
+**Technique**: Equivalence Partitioning
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-042-G1**
+
+- **Given** an authenticated user whose verified token `public_metadata` lacks the required operational scope
+- **When** they call an admin/operational endpoint (e.g. a manual re-fetch trigger)
+- **Then** the response is `403 Forbidden` (authenticated but unauthorized), distinct from the `401` unauthenticated case
+
+---
+
+#### Tier 2 — REQ-041: Backend service M2M token is accepted (US-0 AS-11)
+
+**ATP-008-H** — Server-to-server callers authenticate with a Clerk M2M token, not forced to `401`
+
+**Technique**: Interface Contract Testing
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-043-H1**
+
+- **Given** a backend Commise service (e.g. 006 meal-planning) with no end-user session token, presenting a Clerk machine (M2M) token whose `azp` is in the authorized-parties allowlist
+- **When** it calls `GET /v1/foods/{fdcId}`
+- **Then** the request is accepted (the M2M token is verified networklessly); the server-to-server call is not forced to `401`
+
+---
+
+#### Tier 2 — REQ-040: Oversized batch → `400`, enqueues nothing (US-0 AS-12)
+
+**ATP-008-I** — Batch hard-limit is enforced before any enqueue
+
+**Technique**: Boundary Value Analysis
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-044-I1**
+
+- **Given** an authenticated client submits `POST /v1/foods/batch` with an `fdcId` count exceeding the maximum allowed (e.g. > 100)
+- **When** the request is processed
+- **Then** the response is `400 Bad Request`; nothing is enqueued for any id in the batch
+
+---
+
 ### Tier 1 — Feature/Epic: Non-Functional Acceptance
 
 **User Goal**: As a Commise operator, I want the food data system to meet its latency, rate-limit, data fidelity, and reliability targets so that the feature is safe to ship.
@@ -680,45 +844,51 @@ Examples:
 
 ## Feature Test Summary Matrix
 
-| Requirement          | BDD Scenario Count                 | Test Method                   | Pass Criteria                                                              |
-| -------------------- | ---------------------------------- | ----------------------------- | -------------------------------------------------------------------------- |
-| REQ-001              | 2                                  | Interface Contract Testing    | Zero USDA API calls observed in request path across all scenarios          |
-| REQ-002              | 1                                  | Equivalence Partitioning      | All required nutrient fields present and non-null in `200 OK` response     |
-| REQ-003              | 1                                  | Equivalence Partitioning      | `202 Accepted` with correct pending body; backfill event published         |
-| REQ-004              | 1                                  | Equivalence Partitioning      | `202 Accepted`; exactly one event in EventBridge (no duplicate)            |
-| REQ-005              | 1                                  | Equivalence Partitioning      | `404 Not Found`; no event published                                        |
-| REQ-006              | 4                                  | Boundary Value Analysis       | `400 Bad Request` for all invalid input variants                           |
-| REQ-007 / REQ-033    | 3                                  | Equivalence Partitioning      | Status endpoint returns correct schema for each `fetch_status` partition   |
-| REQ-008              | 2                                  | Equivalence Partitioning      | Ranked results returned; empty array for no-match query                    |
-| REQ-009              | 1                                  | Interface Contract Testing    | Zero USDA API calls during search request                                  |
-| REQ-010              | 1                                  | Performance Measurement       | p95 search latency under 200ms at 50,000 records                           |
-| REQ-011              | 1                                  | Interface Contract Testing    | `FoodRequested` event observable within 5 seconds of cache miss            |
-| REQ-012              | 1                                  | Interface Contract Testing    | Single `FoodBatchRequested` event with all unknown IDs                     |
-| REQ-013              | 1                                  | Concurrency / Fault Injection | Exactly one event published under concurrent lookups                       |
-| REQ-014              | 2                                  | Interface Contract Testing    | Correct queue routing for each event type                                  |
-| REQ-015              | 1                                  | Equivalence Partitioning      | High Priority messages fully drained before Low Priority processing begins |
-| REQ-016              | 1                                  | Fault Injection               | Message in DLQ after 3 failed receive attempts                             |
-| REQ-019              | 1                                  | Performance Measurement       | At most 1,000 USDA calls in 60 minutes; zero `429` responses               |
-| REQ-021              | 1                                  | Fault Injection               | No USDA call when token bucket empty; message deferred                     |
-| REQ-023              | 2                                  | Interface Contract Testing    | Correct USDA endpoint per message type; 1 token consumed per call          |
-| REQ-024              | 1                                  | Interface Contract Testing    | All five success-path side effects confirmed                               |
-| REQ-025              | 1                                  | Fault Injection               | Tombstone written; SQS message deleted; no retry                           |
-| REQ-026              | 1                                  | Fault Injection               | Token bucket reset; message undeleted; no further USDA calls               |
-| REQ-027              | 1                                  | Fault Injection               | Message in DLQ after 3 SQS retry cycles                                    |
-| REQ-031 / REQ-032    | 1                                  | Equivalence Partitioning      | Stale food re-queued and refreshed; `fetched_at` updated                   |
-| REQ-035 / REQ-IF-007 | 3                                  | Interface Contract Testing    | `401 Unauthorized` for all unauthenticated endpoint variants               |
-| REQ-IF-001           | Covered by REQ-001 through REQ-006 | Interface Contract Testing    | Correct response per `fetch_status`; `/v1/` prefix honored                 |
-| REQ-IF-002           | Covered by REQ-007                 | Interface Contract Testing    | Status response matches documented schema                                  |
-| REQ-IF-003           | Covered by REQ-008                 | Interface Contract Testing    | Ranked array from local store                                              |
-| REQ-IF-004           | Covered by REQ-023                 | Interface Contract Testing    | Correct USDA endpoint per message type                                     |
-| REQ-NF-007           | 1                                  | Static Analysis               | `turbo run typecheck lint format:check` exits 0                            |
-| REQ-NF-011           | 1                                  | Performance Measurement       | p95 cache-hit latency under 50ms                                           |
-| REQ-NF-012           | 1                                  | Performance Measurement       | At most 1,000 USDA calls/hour; zero `429` in CloudWatch                    |
-| REQ-NF-013           | 1                                  | Performance Measurement       | `pending` to `fetched` within 60 seconds at p95                            |
-| REQ-NF-016           | 1                                  | Fault Injection               | All failed messages captured in DLQ; none silently dropped                 |
-| REQ-NF-018           | 1                                  | Equivalence Partitioning      | Stored nutrient values match USDA source exactly                           |
+| Requirement          | BDD Scenario Count                 | Test Method                      | Pass Criteria                                                                                                                                                                                                                               |
+| -------------------- | ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REQ-001              | 2                                  | Interface Contract Testing       | Zero USDA API calls observed in request path across all scenarios                                                                                                                                                                           |
+| REQ-002              | 1                                  | Equivalence Partitioning         | All required nutrient fields present and non-null in `200 OK` response                                                                                                                                                                      |
+| REQ-003              | 1                                  | Equivalence Partitioning         | `202 Accepted` with correct pending body; backfill event published                                                                                                                                                                          |
+| REQ-004              | 1                                  | Equivalence Partitioning         | `202 Accepted`; exactly one event in EventBridge (no duplicate)                                                                                                                                                                             |
+| REQ-005              | 1                                  | Equivalence Partitioning         | `404 Not Found`; no event published                                                                                                                                                                                                         |
+| REQ-006              | 4                                  | Boundary Value Analysis          | `400 Bad Request` for all invalid input variants                                                                                                                                                                                            |
+| REQ-007 / REQ-033    | 3                                  | Equivalence Partitioning         | Status endpoint returns correct schema for each `fetch_status` partition                                                                                                                                                                    |
+| REQ-008              | 2                                  | Equivalence Partitioning         | Ranked results returned; empty array for no-match query                                                                                                                                                                                     |
+| REQ-009              | 1                                  | Interface Contract Testing       | Zero USDA API calls during search request                                                                                                                                                                                                   |
+| REQ-010              | 1                                  | Performance Measurement          | p95 search latency under 200ms at 50,000 records                                                                                                                                                                                            |
+| REQ-011              | 1                                  | Interface Contract Testing       | `FoodRequested` event observable within 5 seconds of cache miss                                                                                                                                                                             |
+| REQ-012              | 1                                  | Interface Contract Testing       | Single `FoodBatchRequested` event with all unknown IDs                                                                                                                                                                                      |
+| REQ-013              | 1                                  | Concurrency / Fault Injection    | Exactly one event published under concurrent lookups                                                                                                                                                                                        |
+| REQ-014              | 2                                  | Interface Contract Testing       | Correct queue routing for each event type                                                                                                                                                                                                   |
+| REQ-015              | 1                                  | Equivalence Partitioning         | High Priority messages fully drained before Low Priority processing begins                                                                                                                                                                  |
+| REQ-016              | 1                                  | Fault Injection                  | Message in DLQ after 3 failed receive attempts                                                                                                                                                                                              |
+| REQ-019              | 1                                  | Performance Measurement          | At most 1,000 USDA calls in 60 minutes; zero `429` responses                                                                                                                                                                                |
+| REQ-021              | 1                                  | Fault Injection                  | No USDA call when token bucket empty; message deferred                                                                                                                                                                                      |
+| REQ-023              | 2                                  | Interface Contract Testing       | Correct USDA endpoint per message type; 1 token consumed per call                                                                                                                                                                           |
+| REQ-024              | 1                                  | Interface Contract Testing       | All five success-path side effects confirmed                                                                                                                                                                                                |
+| REQ-025              | 1                                  | Fault Injection                  | Tombstone written; SQS message deleted; no retry                                                                                                                                                                                            |
+| REQ-026              | 1                                  | Fault Injection                  | Token bucket reset; message undeleted; no further USDA calls                                                                                                                                                                                |
+| REQ-027              | 1                                  | Fault Injection                  | Message in DLQ after 3 SQS retry cycles                                                                                                                                                                                                     |
+| REQ-031 / REQ-032    | 1                                  | Equivalence Partitioning         | Stale food re-queued and refreshed; `fetched_at` updated                                                                                                                                                                                    |
+| REQ-035 / REQ-IF-007 | 3                                  | Interface Contract Testing       | `401 Unauthorized` for all unauthenticated endpoint variants                                                                                                                                                                                |
+| REQ-037 (US-0)       | 5 (ATP-008-A..D; B has B1+B2)      | Interface Contract / Equivalence | `401` on no/expired/malformed/wrong-`azp`/wrong-instance token + forged header; valid token → `200`/`202`/`404`; AS-5 networkless verified via egress-deny harness (zero IdP calls at the network boundary); no enqueue/USDA call on reject |
+| REQ-038 (US-0)       | 1 (ATP-008-G)                      | Equivalence Partitioning         | Insufficient operational scope → `403`, distinct from `401`                                                                                                                                                                                 |
+| REQ-039 (US-0)       | 1 (ATP-008-F)                      | Boundary Value Analysis          | Per-`sub` quota exceeded → `429`, no enqueue; one user cannot starve others                                                                                                                                                                 |
+| REQ-040 (US-0)       | 1 (ATP-008-I)                      | Boundary Value Analysis          | Oversized batch → `400`; nothing enqueued                                                                                                                                                                                                   |
+| REQ-041 (US-0)       | 1 (ATP-008-H)                      | Interface Contract Testing       | Backend M2M token accepted; server-to-server not forced to `401`                                                                                                                                                                            |
+| REQ-043 (US-0)       | 2 (ATP-008-E)                      | Interface Contract Testing       | `$connect` rejected (`403`) without token; `FoodDataReceived` delivered only to requesting `sub` (no broadcast)                                                                                                                             |
+| REQ-IF-001           | Covered by REQ-001 through REQ-006 | Interface Contract Testing       | Correct response per `fetch_status`; `/v1/` prefix honored                                                                                                                                                                                  |
+| REQ-IF-002           | Covered by REQ-007                 | Interface Contract Testing       | Status response matches documented schema                                                                                                                                                                                                   |
+| REQ-IF-003           | Covered by REQ-008                 | Interface Contract Testing       | Ranked array from local store                                                                                                                                                                                                               |
+| REQ-IF-004           | Covered by REQ-023                 | Interface Contract Testing       | Correct USDA endpoint per message type                                                                                                                                                                                                      |
+| REQ-NF-007           | 1                                  | Static Analysis                  | `turbo run typecheck lint format:check` exits 0                                                                                                                                                                                             |
+| REQ-NF-011           | 1                                  | Performance Measurement          | p95 cache-hit latency under 50ms                                                                                                                                                                                                            |
+| REQ-NF-012           | 1                                  | Performance Measurement          | At most 1,000 USDA calls/hour; zero `429` in CloudWatch                                                                                                                                                                                     |
+| REQ-NF-013           | 1                                  | Performance Measurement          | `pending` to `fetched` within 60 seconds at p95                                                                                                                                                                                             |
+| REQ-NF-016           | 1                                  | Fault Injection                  | All failed messages captured in DLQ; none silently dropped                                                                                                                                                                                  |
+| REQ-NF-018           | 1                                  | Equivalence Partitioning         | Stored nutrient values match USDA source exactly                                                                                                                                                                                            |
 
-**Total BDD Scenarios**: 43
+**Total BDD Scenarios**: 54 _(43 base + 11 US-0 auth scenarios under ATP-008: ATS-036-A1, ATS-037-B1, ATS-037-B2, ATS-038-C1, ATS-039-D1, ATS-040-E1, ATS-040-E2, ATS-041-F1, ATS-042-G1, ATS-043-H1, ATS-044-I1)_
 
 ---
 
@@ -753,6 +923,7 @@ The feature is considered shippable when **all** of the following conditions are
 ### Security Gate
 
 - [ ] All `/v1/foods/*` endpoints return `401 Unauthorized` for unauthenticated requests (REQ-035)
+- [ ] US-0 auth contract green (ATP-008): every entry point + WebSocket `$connect` rejects no/expired/malformed/wrong-`azp`/wrong-instance tokens (`401`/`403`) with no enqueue or USDA call; valid token → `200`/`202`/`404`; per-`sub` quota → `429`; insufficient scope → `403`; M2M token accepted; oversized batch → `400`; `FoodDataReceived` not broadcast (REQ-037..REQ-043)
 - [ ] USDA API key is not present in any client-facing response body or application log (REQ-IF-006)
 
 ### Out of Scope for This Gate

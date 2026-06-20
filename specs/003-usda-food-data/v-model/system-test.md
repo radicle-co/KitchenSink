@@ -24,13 +24,14 @@ Each test case identifies its technique by name:
 - **Interface Contract Testing** — Verifies API contracts from the Interface View
 - **Boundary Value Analysis** — Tests data limits from the Data Design View
 - **Equivalence Partitioning** — Tests representative data classes
+- **State Transition** — Tests ordered/sequenced behavior (e.g. status-precedence resolution between competing faults)
 - **Fault Injection** — Tests failure propagation from the Dependency View
 
 ## System Tests
 
 ---
 
-### Component Verification: SYS-001 (FoodApiLambda)
+### Component Verification: SYS-001 (FoodApiController)
 
 **Parent Requirements**: REQ-001, REQ-002, REQ-003, REQ-004, REQ-005, REQ-006, REQ-007, REQ-008, REQ-009, REQ-010
 
@@ -38,69 +39,69 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-002: SYS-001 → SYS-007)
-**Description**: Verifies that FoodApiLambda serves all responses exclusively from PostgreSQL/Redis and never invokes the USDA API during the request lifecycle.
+**Description**: Verifies that FoodApiController serves all responses exclusively from PostgreSQL/Redis and never invokes the USDA API during the request lifecycle.
 
 - **System Scenario: STS-001-A1**
     - **Given** a food record exists in PostgreSQL with `fdc_id = 12345` and `fetch_status = 'fetched'`; Redis cache is cold for `food:12345`
-    - **When** FoodApiLambda receives `GET /v1/foods/12345`
-    - **Then** FoodApiLambda executes `SELECT * FROM foods WHERE fdc_id = 12345` against SYS-007; no outbound HTTP call to `api.nal.usda.gov` is made; response is `200 OK` with `fdcId`, `description`, `calories`, `protein`, `carbs`, `fat`, and available micronutrients
+    - **When** FoodApiController receives `GET /v1/foods/12345`
+    - **Then** FoodApiController executes `SELECT * FROM foods WHERE fdc_id = 12345` against SYS-007; no outbound HTTP call to `api.nal.usda.gov` is made; response is `200 OK` with `fdcId`, `description`, `calories`, `protein`, `carbs`, `fat`, and available micronutrients
 
 - **System Scenario: STS-001-A2**
     - **Given** Redis cache contains `food:12345` with `fetch_status = 'fetched'`
-    - **When** FoodApiLambda receives `GET /v1/foods/12345`
-    - **Then** FoodApiLambda executes `GET food:12345` against SYS-008 (cache hit); no PostgreSQL query is issued; no outbound HTTP call to USDA API; response is `200 OK` with full nutrition payload
+    - **When** FoodApiController receives `GET /v1/foods/12345`
+    - **Then** FoodApiController executes `GET food:12345` against SYS-008 (cache hit); no PostgreSQL query is issued; no outbound HTTP call to USDA API; response is `200 OK` with full nutrition payload
 
 #### Test Case: STP-001-B (HTTP Status Code Contract per fetch_status)
 
 **Technique**: Equivalence Partitioning
 **Target View**: Data Design View (fetch_status state machine)
-**Description**: Verifies that FoodApiLambda returns the correct HTTP status code for each `fetch_status` partition.
+**Description**: Verifies that FoodApiController returns the correct HTTP status code for each `fetch_status` partition.
 
 - **System Scenario: STS-001-B1**
     - **Given** PostgreSQL contains `fdc_id = 11111` with `fetch_status = 'fetched'`
-    - **When** FoodApiLambda receives `GET /v1/foods/11111`
+    - **When** FoodApiController receives `GET /v1/foods/11111`
     - **Then** response status is `200 OK`; body contains `fdcId: 11111` and all required nutrition fields
 
 - **System Scenario: STS-001-B2**
     - **Given** no record exists in PostgreSQL or Redis for `fdc_id = 22222`; `pending_fetch` Redis set does not contain `22222`
-    - **When** FoodApiLambda receives `GET /v1/foods/22222`
+    - **When** FoodApiController receives `GET /v1/foods/22222`
     - **Then** response status is `202 Accepted`; body is `{ "status": "pending", "fdcId": 22222, "estimatedWaitSeconds": <positive integer> }`; a `FoodRequested` event is published to SYS-002
 
 - **System Scenario: STS-001-B3**
     - **Given** PostgreSQL contains `fdc_id = 33333` with `fetch_status = 'pending'`; `pending_fetch` Redis set contains `33333`
-    - **When** FoodApiLambda receives `GET /v1/foods/33333`
+    - **When** FoodApiController receives `GET /v1/foods/33333`
     - **Then** response status is `202 Accepted`; no new `FoodRequested` event is published to SYS-002 (deduplication enforced)
 
 - **System Scenario: STS-001-B4**
     - **Given** PostgreSQL contains `fdc_id = 44444` with `fetch_status = 'not_found'`
-    - **When** FoodApiLambda receives `GET /v1/foods/44444`
+    - **When** FoodApiController receives `GET /v1/foods/44444`
     - **Then** response status is `404 Not Found`; no event is published to SYS-002; no SQS message is enqueued
 
 #### Test Case: STP-001-C (Input Validation — fdcId Boundary Values)
 
 **Technique**: Boundary Value Analysis
 **Target View**: Data Design View (fdcId: numeric, positive integer)
-**Description**: Verifies that FoodApiLambda rejects invalid `fdcId` inputs before any downstream component is invoked.
+**Description**: Verifies that FoodApiController rejects invalid `fdcId` inputs before any downstream component is invoked.
 
 - **System Scenario: STS-001-C1**
-    - **Given** FoodApiLambda is running
-    - **When** FoodApiLambda receives `GET /v1/foods/0`
+    - **Given** FoodApiController is running
+    - **When** FoodApiController receives `GET /v1/foods/0`
     - **Then** response status is `400 Bad Request`; no query is issued to SYS-007 or SYS-008; no event is published to SYS-002
 
 - **System Scenario: STS-001-C2**
-    - **Given** FoodApiLambda is running
-    - **When** FoodApiLambda receives `GET /v1/foods/-1`
+    - **Given** FoodApiController is running
+    - **When** FoodApiController receives `GET /v1/foods/-1`
     - **Then** response status is `400 Bad Request`; no downstream component is invoked
 
 - **System Scenario: STS-001-C3**
-    - **Given** FoodApiLambda is running
-    - **When** FoodApiLambda receives `GET /v1/foods/abc`
+    - **Given** FoodApiController is running
+    - **When** FoodApiController receives `GET /v1/foods/abc`
     - **Then** response status is `400 Bad Request`; no downstream component is invoked
 
 - **System Scenario: STS-001-C4**
-    - **Given** FoodApiLambda is running
-    - **When** FoodApiLambda receives `GET /v1/foods/1` (minimum valid positive integer)
-    - **Then** FoodApiLambda proceeds to query SYS-007/SYS-008; response is not `400`
+    - **Given** FoodApiController is running
+    - **When** FoodApiController receives `GET /v1/foods/1` (minimum valid positive integer)
+    - **Then** FoodApiController proceeds to query SYS-007/SYS-008; response is not `400`
 
 #### Test Case: STP-001-D (Search Endpoint — Local-Only Execution)
 
@@ -110,12 +111,12 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-001-D1**
     - **Given** PostgreSQL contains 1,000 food records with `fetch_status = 'fetched'`; no outbound network route to USDA API is available
-    - **When** FoodApiLambda receives `GET /v1/foods/search?query=chicken`
-    - **Then** FoodApiLambda issues a pg_trgm or tsvector query against SYS-007; results are returned ranked by relevance; no outbound HTTP call to USDA API; response time is under 200ms
+    - **When** FoodApiController receives `GET /v1/foods/search?query=chicken`
+    - **Then** FoodApiController issues a pg_trgm or tsvector query against SYS-007; results are returned ranked by relevance; no outbound HTTP call to USDA API; response time is under 200ms
 
 - **System Scenario: STS-001-D2**
     - **Given** PostgreSQL contains 50,000 food records
-    - **When** FoodApiLambda receives `GET /v1/foods/search?query=broccoli`
+    - **When** FoodApiController receives `GET /v1/foods/search?query=broccoli`
     - **Then** response is returned within 200ms; results are ranked by relevance score descending
 
 ---
@@ -154,8 +155,8 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-002-C1**
     - **Given** EventBridgeBus is unavailable (simulated via IAM deny or endpoint failure)
-    - **When** FoodApiLambda attempts to publish `FoodRequested` for `fdc_id = 99999`
-    - **Then** FoodApiLambda returns `202 Accepted` to the caller (or propagates an error); the food record remains in `fetch_status = 'pending'` or is not created; no SQS message reaches SYS-003
+    - **When** FoodApiController attempts to publish `FoodRequested` for `fdc_id = 99999`
+    - **Then** FoodApiController returns `202 Accepted` to the caller (or propagates an error); the food record remains in `fetch_status = 'pending'` or is not created; no SQS message reaches SYS-003
 
 ---
 
@@ -379,24 +380,24 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-007-B1**
     - **Given** a food record is inserted with `fetch_status = 'pending'`
-    - **When** FoodApiLambda queries `SELECT * FROM foods WHERE fdc_id = $1`
-    - **Then** the returned row has `fetch_status = 'pending'`; FoodApiLambda returns `202 Accepted`
+    - **When** FoodApiController queries `SELECT * FROM foods WHERE fdc_id = $1`
+    - **Then** the returned row has `fetch_status = 'pending'`; FoodApiController returns `202 Accepted`
 
 - **System Scenario: STS-007-B2**
     - **Given** a food record has `fetch_status = 'not_found'`
-    - **When** FoodApiLambda queries the record
-    - **Then** the returned row has `fetch_status = 'not_found'`; FoodApiLambda returns `404 Not Found`
+    - **When** FoodApiController queries the record
+    - **Then** the returned row has `fetch_status = 'not_found'`; FoodApiController returns `404 Not Found`
 
 #### Test Case: STP-007-C (Fault Injection — PostgreSQL Unavailable)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-001 → SYS-007: PostgreSQL unavailable)
-**Description**: Verifies FoodApiLambda behavior when PostgreSQL is unreachable.
+**Description**: Verifies FoodApiController behavior when PostgreSQL is unreachable.
 
 - **System Scenario: STS-007-C1**
     - **Given** PostgreSQL (SYS-007) is unreachable (connection refused)
-    - **When** FoodApiLambda receives `GET /v1/foods/12345`
-    - **Then** FoodApiLambda returns `503 Service Unavailable`; no USDA API call is made; the error is logged to CloudWatch (SYS-012)
+    - **When** FoodApiController receives `GET /v1/foods/12345`
+    - **Then** FoodApiController returns `503 Service Unavailable`; no USDA API call is made; the error is logged to CloudWatch (SYS-012)
 
 ---
 
@@ -412,8 +413,8 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-008-A1**
     - **Given** Redis key `food:12345` exists with TTL > 0 and contains serialized food data with `fetch_status = 'fetched'`
-    - **When** FoodApiLambda executes `GET food:12345`
-    - **Then** FoodApiLambda returns the cached data as `200 OK`; no `SELECT` query is issued to SYS-007
+    - **When** FoodApiController executes `GET food:12345`
+    - **Then** FoodApiController returns the cached data as `200 OK`; no `SELECT` query is issued to SYS-007
 
 #### Test Case: STP-008-B (Cache TTL Boundary — 24-Hour Expiry)
 
@@ -424,7 +425,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-008-B1**
     - **Given** ConsumerLambda writes `SET food:12345 <data> EX 86400` to Redis after a successful USDA fetch
     - **When** 86,400 seconds elapse
-    - **Then** `GET food:12345` returns nil (key expired); FoodApiLambda falls through to PostgreSQL on the next request
+    - **Then** `GET food:12345` returns nil (key expired); FoodApiController falls through to PostgreSQL on the next request
 
 #### Test Case: STP-008-C (Pending-Set Deduplication — SISMEMBER / SADD)
 
@@ -434,24 +435,24 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-008-C1**
     - **Given** `pending_fetch` Redis set contains `12345`
-    - **When** FoodApiLambda receives `GET /v1/foods/12345` (cache miss, DB miss)
-    - **Then** FoodApiLambda executes `SISMEMBER pending_fetch 12345` → returns 1; no `FoodRequested` event is published; response is `202 Accepted`
+    - **When** FoodApiController receives `GET /v1/foods/12345` (cache miss, DB miss)
+    - **Then** FoodApiController executes `SISMEMBER pending_fetch 12345` → returns 1; no `FoodRequested` event is published; response is `202 Accepted`
 
 - **System Scenario: STS-008-C2**
     - **Given** `pending_fetch` Redis set does NOT contain `99999`
-    - **When** FoodApiLambda receives `GET /v1/foods/99999` (cache miss, DB miss)
-    - **Then** FoodApiLambda executes `SADD pending_fetch 99999`; a `FoodRequested` event is published to SYS-002; response is `202 Accepted`
+    - **When** FoodApiController receives `GET /v1/foods/99999` (cache miss, DB miss)
+    - **Then** FoodApiController executes `SADD pending_fetch 99999`; a `FoodRequested` event is published to SYS-002; response is `202 Accepted`
 
 #### Test Case: STP-008-D (Fault Injection — Redis Unavailable, Fallthrough to PostgreSQL)
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-001 → SYS-008: Redis unavailable)
-**Description**: Verifies that Redis unavailability causes FoodApiLambda to fall through to PostgreSQL without returning an error.
+**Description**: Verifies that Redis unavailability causes FoodApiController to fall through to PostgreSQL without returning an error.
 
 - **System Scenario: STS-008-D1**
     - **Given** Redis (SYS-008) is unreachable; PostgreSQL contains `fdc_id = 12345` with `fetch_status = 'fetched'`
-    - **When** FoodApiLambda receives `GET /v1/foods/12345`
-    - **Then** FoodApiLambda falls through to SYS-007; response is `200 OK` with food data; no `503` is returned due to Redis failure alone
+    - **When** FoodApiController receives `GET /v1/foods/12345`
+    - **Then** FoodApiController falls through to SYS-007; response is `200 OK` with food data; no `503` is returned due to Redis failure alone
 
 ---
 
@@ -491,12 +492,12 @@ Each test case identifies its technique by name:
 
 **Technique**: Fault Injection
 **Target View**: Dependency View (SYS-010 → SYS-001: fire-and-forget)
-**Description**: Verifies that WebSocketNotificationLambda failure does not affect FoodApiLambda or the core data pipeline.
+**Description**: Verifies that WebSocketNotificationLambda failure does not affect FoodApiController or the core data pipeline.
 
 - **System Scenario: STS-010-A1**
     - **Given** WebSocketNotificationLambda (SYS-010) is unavailable or throws an exception
     - **When** a `FoodDataReceived` event is published to SYS-002 by ConsumerLambda
-    - **Then** the event routing to SYS-010 fails silently; FoodApiLambda continues to serve requests normally; ConsumerLambda continues processing; no error propagates to the core pipeline
+    - **Then** the event routing to SYS-010 fails silently; FoodApiController continues to serve requests normally; ConsumerLambda continues processing; no error propagates to the core pipeline
 
 #### Test Case: STP-010-B (WebSocket Push on FoodDataReceived Event)
 
@@ -547,12 +548,12 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-001 → SYS-012; SYS-005 → SYS-012)
-**Description**: Verifies that both FoodApiLambda and ConsumerLambda emit structured logs to CloudWatch.
+**Description**: Verifies that both FoodApiController and ConsumerLambda emit structured logs to CloudWatch.
 
 - **System Scenario: STS-012-A1**
-    - **Given** FoodApiLambda is invoked with `GET /v1/foods/12345`
+    - **Given** FoodApiController is invoked with `GET /v1/foods/12345`
     - **When** the request completes (success or error)
-    - **Then** a structured log entry is written to the FoodApiLambda CloudWatch log group containing at minimum: `fdcId`, `fetch_status`, HTTP response code, and request duration
+    - **Then** a structured log entry is written to the FoodApiController CloudWatch log group containing at minimum: `fdcId`, `fetch_status`, HTTP response code, and request duration
 
 - **System Scenario: STS-012-A2**
     - **Given** ConsumerLambda processes a message from SYS-003
@@ -563,11 +564,11 @@ Each test case identifies its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-001 → SYS-012 tracing)
-**Description**: Verifies that X-Ray traces are emitted for distributed request flows spanning FoodApiLambda and ConsumerLambda.
+**Description**: Verifies that X-Ray traces are emitted for distributed request flows spanning FoodApiController and ConsumerLambda.
 
 - **System Scenario: STS-012-B1**
-    - **Given** X-Ray active tracing is enabled on FoodApiLambda and ConsumerLambda
-    - **When** a food lookup triggers the full pipeline: FoodApiLambda → EventBridge → SQS → ConsumerLambda → USDA API → PostgreSQL
+    - **Given** X-Ray active tracing is enabled on FoodApiController and ConsumerLambda
+    - **When** a food lookup triggers the full pipeline: FoodApiController → EventBridge → SQS → ConsumerLambda → USDA API → PostgreSQL
     - **Then** an X-Ray trace is recorded with segments for each component; the trace is queryable in the X-Ray console by `fdcId` or `correlationId`
 
 #### Test Case: STP-012-C (CloudWatch Alarm — Consumer Lambda Error Rate)
@@ -583,23 +584,148 @@ Each test case identifies its technique by name:
 
 ---
 
+### Component Verification: SYS-013 (AuthnAuthzLayer)
+
+**Parent Requirements**: REQ-IF-008, REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
+
+The auth layer fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any downstream component is reached (no EventBridge publish, no `fetch_queue` insert, no USDA call), the load-shed property under an invalid-token flood, per-`sub` quota fairness, the scope-`403`/M2M authorization classes, the `401`→`403`→`400`→business status-precedence ordering, and the batch-size boundary. Verification is networkless (`@clerk/backend` `verifyToken` against the non-secret `CLERK_JWT_KEY`), fail-closed.
+
+#### Test Case: STP-013-A (Fail-Closed `401` at Every Entry Point — No Enqueue, No USDA Call)
+
+**Technique**: Equivalence Partitioning
+**Target View**: Interface View (SYS-013 → SYS-001, SYS-010); Dependency View (SYS-013 → SYS-002)
+**Description**: Verifies that SYS-013 rejects unauthenticated, expired, malformed, and wrong-`azp`/wrong-instance requests with `401` at every HTTP route and the WebSocket `$connect`, before SYS-001/SYS-010 business logic runs, and that no event reaches SYS-002 and no message is enqueued to SYS-003/SYS-004 (SC-010). _(Invalid-credential equivalence classes: missing token, expired `exp`, not-yet-valid `nbf`, malformed/garbage, valid signature but wrong `azp`, token signed for a different Clerk instance — fail-closed config error.)_
+
+- **System Scenario: STS-013-A1**
+    - **Given** SYS-013 is attached to every `/v1/foods/*` route; no `Authorization` header is present
+    - **When** each entry point is exercised in turn — `GET /v1/foods/12345`, `GET /v1/foods/12345/status`, `GET /v1/foods/search?query=chicken`, `GET /v1/foods/12345/nutrients`, `GET /v1/foods/autocomplete?prefix=chic`, and `POST /v1/foods/batch`
+    - **Then** every endpoint returns `401 Unauthorized`; SYS-001 business logic is not reached; no `FoodRequested`/`FoodBatchRequested` event is published to SYS-002; no message is enqueued to SYS-003 or SYS-004; no outbound call to `api.nal.usda.gov` is made
+
+- **System Scenario: STS-013-A2**
+    - **Given** SYS-013 fronts the WebSocket API Gateway `$connect` route
+    - **When** a `$connect` is attempted with no token (and, separately, with an expired token and with a wrong-`azp` token)
+    - **Then** the connection is rejected with `403` (pinned `$connect` status) before the connection is established; no `connectionId` is registered; no subscription row is written; no downstream component is invoked
+
+- **System Scenario: STS-013-A3**
+    - **Given** SYS-013 receives, across separate requests to `GET /v1/foods/12345`, each invalid-credential class — an expired token (`exp` in the past), a not-yet-valid token (`nbf` in the future), a malformed/garbage Bearer string, a well-formed token whose `azp` is not in `CLERK_AUTHORIZED_PARTIES`, and a token signed for a different Clerk instance (signature fails against `CLERK_JWT_KEY`)
+    - **When** each request is processed
+    - **Then** every request returns `401 Unauthorized`; no event is published to SYS-002 and no SQS message is enqueued for any of them; verification is performed networklessly (no outbound call to Clerk or any IdP observed on the request path)
+
+- **System Scenario: STS-013-A4**
+    - **Given** `CLERK_JWT_KEY` is missing or malformed in SYS-013 configuration (verifier cannot initialize)
+    - **When** any `/v1/foods/*` request arrives — even one bearing an otherwise-valid token
+    - **Then** SYS-013 fails closed with `401`; no request proceeds unauthenticated; no enqueue and no USDA call occur
+
+- **System Scenario: STS-013-A5**
+    - **Given** a request to `GET /v1/foods/12345` carries no valid token but supplies a forged identity header (`x-authorizer-context` and `x-user-id` claiming an authenticated `sub`)
+    - **When** SYS-013 processes the request
+    - **Then** the response is `401`; the forged headers are ignored (identity is derived solely from the verified token); no enqueue and no USDA call occur
+
+#### Test Case: STP-013-B (Verification Load-Shed Under Invalid-Token Flood — p95 ≤ 10ms)
+
+**Technique**: Fault Injection
+**Target View**: Dependency View (SYS-013 verifier concurrency bound + per-source `401`-rate cap)
+**Description**: Verifies that SYS-013 sheds load rather than saturating when flooded with well-formed-but-unverifiable tokens (each forcing a full CPU-bound signature check before the fail-closed `401`), so SC-011's ≤10ms p95 holds under attack and SC-009 availability is not breached (FR-052).
+
+- **System Scenario: STS-013-B1**
+    - **Given** the verifier concurrency bound under test is `C = 50` in-flight signature checks and the per-source `401`-rate cap is `200` `401`/min/source; **and** a sustained flood of well-formed-but-invalid tokens (valid structure, signature fails against `CLERK_JWT_KEY`) is generated against `GET /v1/foods/{fdcId}` at **2,000 req/s** (= `40×C`, ≥ a stated multiple of the concurrency bound) from a bounded set of **8** source identities for a **120 s** measurement window; **and** a separate baseline of legitimate valid-token requests is interleaved at **100 req/s** (valid:invalid mix ≈ 1:20)
+    - **When** SYS-013 processes the mixed load over the 120 s window (first 10 s discarded as warm-up; metrics taken over the remaining 110 s, ≥ 11,000 valid-request latency samples)
+    - **Then** the per-source `401`-rate cap / concurrency bound engages — **≥ 95%** of the invalid flood is load-shed (fast-rejected at the cap or rejected without a full CPU-bound signature check), in-flight signature checks stay **≤ `C` (50)** and the verifier queue depth stays bounded (does not grow monotonically across the window), i.e. the verifier does not saturate; **and** valid-token requests continue to be served with auth-attributable verification overhead **≤ 10ms at p95** (SC-011), where auth-attributable latency is measured as the time from request receipt to the authn decision (verify-start → verify-complete span), isolated from downstream SYS-001/SYS-007 handling; **and** no invalid request is enqueued to SYS-003/SYS-004 or reaches the USDA path. _Pass = (valid-token p95 ≤ 10ms) AND (in-flight ≤ C across the window) AND (≥ 95% of invalid requests shed). The scenario is reproducible: same C, cap, rates, mix, window, and sample size yield the same verdict._
+
+#### Test Case: STP-013-C (Per-`sub` Enqueue Quota — `429`, USDA Budget Fairness)
+
+**Technique**: Boundary Value Analysis
+**Target View**: Dependency View (SYS-013 → SYS-002: quota gate applied after authn, before publish/insert)
+**Description**: Verifies that the per-`sub` enqueue quota is enforced after authentication and before `INSERT INTO fetch_queue` / EventBridge publish, returning `429` over quota, so no single authenticated `sub` can consume more than its configured share (≤ 20%) of the global USDA budget within a rolling hour (SC-012, FR-043).
+
+- **System Scenario: STS-013-C1**
+    - **Given** an authenticated `sub` `A` has reached its configured per-hour enqueue quota of N cache-miss fetches
+    - **When** `sub` `A` triggers another cache-miss lookup (`GET /v1/foods/{newFdcId}` for an unknown id)
+    - **Then** the response is `429 Too Many Requests`; no `FoodRequested` event is published to SYS-002; no message is enqueued; the request did pass authentication (quota is post-authn)
+
+- **System Scenario: STS-013-C2**
+    - **Given** authenticated `sub` `A` is scripting cache-miss lookups continuously while authenticated `sub` `B` issues occasional cache-miss lookups, against the global 1,000 req/hr USDA budget (SYS-006)
+    - **When** the rolling-hour window is observed
+    - **Then** `sub` `A`'s accepted enqueues do not exceed its configured share (target ≤ 20%) of the global budget; `sub` `B`'s lookups are still accepted (one account cannot starve the shared budget for others); excess `A` requests receive `429`
+
+#### Test Case: STP-013-D (Scope `403` vs `401` Authorization Class; M2M Service-Token Acceptance)
+
+**Technique**: Equivalence Partitioning
+**Target View**: Interface View (SYS-013 → SYS-001: authorization-outcome class, principal class)
+**Description**: Verifies the two principal/authorization equivalence classes whose representatives partition cleanly: an authenticated-but-unauthorized session token (insufficient scope) → `403`, distinct from the unauthenticated `401` class; and a valid Clerk M2M (service) principal → accepted (FR-039/FR-047). _(Ordering/precedence and input-bound concerns are intentionally split out to STP-013-E and STP-013-F respectively — EP partitions outcome classes, it does not express either an ordering property or a numeric limit.)_
+
+- **System Scenario: STS-013-D1**
+    - **Given** an authenticated user whose verified token `public_metadata` lacks the required operational scope
+    - **When** the user calls an operational/administrative endpoint (e.g. a manual re-fetch trigger)
+    - **Then** the response is `403 Forbidden` (authenticated but unauthorized), distinct from the `401` unauthenticated case; no re-fetch is enqueued
+
+- **System Scenario: STS-013-D2**
+    - **Given** a server-initiated caller (e.g. SYS for feature 006 meal-planning) presents a Clerk **machine (M2M)** token whose `azp` is in `CLERK_AUTHORIZED_PARTIES` and no end-user session token
+    - **When** it calls `GET /v1/foods/{fdcId}`
+    - **Then** SYS-013 verifies the M2M token networklessly and accepts the request (the `AuthenticatedCaller` carries a service identity); the server-to-server call is **not** forced to `401`
+
+#### Test Case: STP-013-E (Status-Precedence Ordering — `401` → `403` → `400` → business logic)
+
+**Technique**: State Transition
+**Target View**: Interface View (SYS-013 → SYS-001: ordered resolution of competing request defects per FR-051)
+**Description**: Verifies the normative status-precedence chain `401` → `403` → `400`/`404` → business logic (FR-051) as an ordered decision sequence. Each scenario presents a request carrying **two simultaneous** defects at adjacent precedence levels and asserts the higher-precedence status wins, exercising each adjacent ordering pair as a discrete transition (EP cannot express "given two faults, the earlier-precedence one wins").
+
+- **System Scenario: STS-013-E1** (`401` precedes `403`)
+    - **Given** a request bearing **no** valid token that **also** targets an endpoint for which the (absent) principal would lack scope
+    - **When** SYS-013 evaluates the request
+    - **Then** the response is `401` (authentication is evaluated before authorization); the scope check is never reached; no `403` is emitted
+
+- **System Scenario: STS-013-E2** (`403` precedes `400`)
+    - **Given** a request bearing a **valid** token with **insufficient scope** that **also** carries a malformed/oversized payload (a `400`-class input defect)
+    - **When** SYS-013/SYS-001 evaluate the request
+    - **Then** the response is `403` — authorization is resolved **before** input validation, so the `400`/`404` defect is never evaluated; no enqueue and no business logic run
+
+- **System Scenario: STS-013-E3** (`400` precedes business logic / `404`)
+    - **Given** an authenticated, authorized request whose payload is malformed (e.g. non-numeric `fdcId`) and that would also miss in the local store
+    - **When** SYS-013/SYS-001 evaluate the request
+    - **Then** the response is `400` — input validation resolves before business logic, so no `404`/lookup is performed and nothing is enqueued; confirming the full chain `401` → `403` → `400` → business is honored across the three adjacent transitions
+
+#### Test Case: STP-013-F (Batch Hard-Limit `400` — `fdcId`-Array Size Boundary)
+
+**Technique**: Boundary Value Analysis
+**Target View**: Interface View (SYS-013 → SYS-001: batch input bound, FR-045)
+**Description**: Verifies the `POST /v1/foods/batch` hard maximum of **100** `fdcId`s as a boundary, exercising just-under (99, accepted), at-limit (100, accepted), and just-over (101, `400`) cases (FR-045). All requests are authenticated and authorized so the boundary is isolated from the precedence chain.
+
+- **System Scenario: STS-013-F1** (just-under — 99)
+    - **Given** an authenticated, authorized `POST /v1/foods/batch` whose `fdcId` array contains exactly **99** ids
+    - **When** SYS-013/SYS-001 process the request
+    - **Then** the request is accepted (not rejected on size); the batch proceeds to normal handling
+
+- **System Scenario: STS-013-F2** (at-limit — 100)
+    - **Given** an authenticated, authorized `POST /v1/foods/batch` whose `fdcId` array contains exactly **100** ids (the hard maximum)
+    - **When** SYS-013/SYS-001 process the request
+    - **Then** the request is accepted (the limit is inclusive); the batch proceeds to normal handling
+
+- **System Scenario: STS-013-F3** (just-over — 101)
+    - **Given** an authenticated, authorized `POST /v1/foods/batch` whose `fdcId` array contains **101** ids (one over the hard maximum)
+    - **When** SYS-013/SYS-001 process the request (authentication and authorization having passed)
+    - **Then** the response is `400 Bad Request`; no fetch is enqueued for any id in the batch; nothing counts against quota for the rejected request
+
+---
+
 ## Traceability Summary
 
-| SYS ID  | Component Name              | Test Cases               | Scenarios                                              |
-| ------- | --------------------------- | ------------------------ | ------------------------------------------------------ |
-| SYS-001 | FoodApiLambda               | STP-001-A, B, C, D       | STS-001-A1, A2, B1, B2, B3, B4, C1, C2, C3, C4, D1, D2 |
-| SYS-002 | EventBridgeBus              | STP-002-A, B, C          | STS-002-A1, B1, C1                                     |
-| SYS-003 | HighPriorityFoodQueue       | STP-003-A, B             | STS-003-A1, B1                                         |
-| SYS-004 | LowPriorityFoodQueue        | STP-004-A, B             | STS-004-A1, B1                                         |
-| SYS-005 | FoodConsumerLambda          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, E1, F1                 |
-| SYS-006 | TokenBucketRateLimiter      | STP-006-A, B, C          | STS-006-A1, A2, B1, B2, B3, C1                         |
-| SYS-007 | FoodDataPostgresRepository  | STP-007-A, B, C          | STS-007-A1, A2, B1, B2, C1                             |
-| SYS-008 | FoodDataRedisCache          | STP-008-A, B, C, D       | STS-008-A1, B1, C1, C2, D1                             |
-| SYS-009 | USDAFoodDataCentralApi      | STP-009-A, B             | STS-009-A1, B1                                         |
-| SYS-010 | WebSocketNotificationLambda | STP-010-A, B             | STS-010-A1, B1                                         |
-| SYS-011 | SecretManagement            | STP-011-A, B             | STS-011-A1, B1                                         |
-| SYS-012 | MonitoringAndLogging        | STP-012-A, B, C          | STS-012-A1, A2, B1, C1                                 |
+| SYS ID  | Component Name              | Test Cases               | Scenarios                                                              |
+| ------- | --------------------------- | ------------------------ | ---------------------------------------------------------------------- |
+| SYS-001 | FoodApiController           | STP-001-A, B, C, D       | STS-001-A1, A2, B1, B2, B3, B4, C1, C2, C3, C4, D1, D2                 |
+| SYS-002 | EventBridgeBus              | STP-002-A, B, C          | STS-002-A1, B1, C1                                                     |
+| SYS-003 | HighPriorityFoodQueue       | STP-003-A, B             | STS-003-A1, B1                                                         |
+| SYS-004 | LowPriorityFoodQueue        | STP-004-A, B             | STS-004-A1, B1                                                         |
+| SYS-005 | FoodConsumerLambda          | STP-005-A, B, C, D, E, F | STS-005-A1, A2, B1, C1, C2, D1, E1, F1                                 |
+| SYS-006 | TokenBucketRateLimiter      | STP-006-A, B, C          | STS-006-A1, A2, B1, B2, B3, C1                                         |
+| SYS-007 | FoodDataPostgresRepository  | STP-007-A, B, C          | STS-007-A1, A2, B1, B2, C1                                             |
+| SYS-008 | FoodDataRedisCache          | STP-008-A, B, C, D       | STS-008-A1, B1, C1, C2, D1                                             |
+| SYS-009 | USDAFoodDataCentralApi      | STP-009-A, B             | STS-009-A1, B1                                                         |
+| SYS-010 | WebSocketNotificationLambda | STP-010-A, B             | STS-010-A1, B1                                                         |
+| SYS-011 | SecretManagement            | STP-011-A, B             | STS-011-A1, B1                                                         |
+| SYS-012 | MonitoringAndLogging        | STP-012-A, B, C          | STS-012-A1, A2, B1, C1                                                 |
+| SYS-013 | AuthnAuthzLayer             | STP-013-A, B, C, D, E, F | STS-013-A1, A2, A3, A4, A5, B1, C1, C2, D1, D2, E1, E2, E3, F1, F2, F3 |
 
-**Total Test Cases**: 29 STP
-**Total Scenarios**: 43 STS
-**Components Covered**: 12 / 12 (100%)
+**Total Test Cases**: 35 STP
+**Total Scenarios**: 59 STS
+**Components Covered**: 13 / 13 (100%)

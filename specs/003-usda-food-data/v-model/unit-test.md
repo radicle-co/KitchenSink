@@ -1096,26 +1096,494 @@ None — `mapUsdaResponseToFoodData` and `extractNutrients` are pure functions.
 
 ---
 
+### Module: MOD-012 (ClerkAuthMiddleware — Networkless Clerk Verification & Scope Gate) + MOD-013 (QuotaAndFairness — Per-`sub` Quota, Batch Cap & Distinct-Requester Demand)
+
+**Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
+**Requirements Under Test**: REQ-037, REQ-038, REQ-039, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044
+**Target Source File(s)**: `src/auth/clerk-auth.middleware.ts` (MOD-012), `src/auth/quota-and-fairness.ts` (MOD-013)
+
+> The auth slice fronts every food-data entry point. MOD-012 verifies the Clerk session/M2M token networklessly (signature/`exp`/`nbf`/`azp` via the public `CLERK_JWT_KEY`), fails closed to `401`, derives the `AuthenticatedCaller` solely from the verified `sub`, and gates operational scopes (`403`) from `public_metadata`. MOD-013 enforces the per-`sub` enqueue quota (`429`), the batch-size cap (`400`), and distinct-requester demand counting before any fetch is enqueued. Unit scenarios isolate `@clerk/backend` `verifyToken` and all I/O behind mocks; only the module's internal control flow, boundaries, and state are exercised.
+
+---
+
+#### Test Case: UTP-012-A (verify — valid token → AuthenticatedCaller principal)
+
+**Technique**: Statement & Branch Coverage + Strict Isolation
+**Target View**: Algorithmic/Logic View + Architecture Interface View
+**Description**: Verifies that on a syntactically valid Clerk token with a matching `azp`, MOD-012 returns the verified claims and builds an `AuthenticatedCaller` whose `sub`/`azp`/scopes are sourced **only** from the `verifyToken` result — covering the success branch of the verification control flow (REQ-037). `verifyToken` is mocked; no network call is made.
+
+**Dependency & Mock Registry:**
+
+| Dependency         | Source         | Mock/Stub Strategy                                                                                    | Rationale                                           |
+| ------------------ | -------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `verifyToken`      | @clerk/backend | Mock: resolves `{ sub: 'user_abc', azp: 'https://app.commise.app', public_metadata: { scopes: [] } }` | Networkless verification; no IdP round trip in unit |
+| `MonitoringLogger` | ARCH-011       | Stub: no-op                                                                                           | Prevent CloudWatch side-effects                     |
+
+- **Unit Scenario: UTS-012-A1**
+    - **Arrange**: Set `Authorization = 'Bearer good.jwt.token'`; configure `CLERK_AUTHORIZED_PARTIES = ['https://app.commise.app']`; mock `verifyToken` to resolve `{ sub: 'user_abc', azp: 'https://app.commise.app', public_metadata: { scopes: [] } }`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: `verifyToken` called exactly once with `{ jwtKey: <CLERK_JWT_KEY>, authorizedParties: ['https://app.commise.app'] }` (networkless — no `secretKey`, no fetch); `req.caller` equals `{ sub: 'user_abc', azp: 'https://app.commise.app', scopes: [], isService: false }`; `next()` called with no error
+
+- **Unit Scenario: UTS-012-A2**
+    - **Arrange**: As A1 but `verifyToken` resolves with `public_metadata: { scopes: ['foods:refetch'] }`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: `req.caller.scopes` deep-equals `['foods:refetch']` — scopes are read solely from the verified token's `public_metadata`, not from any request field
+
+---
+
+#### Test Case: UTP-012-B (verify — no / malformed / invalid / expired / wrong-`azp` token → 401, fail closed)
+
+**Technique**: Error Guessing + Statement & Branch Coverage + Strict Isolation
+**Target View**: Error Handling & Return Codes + Algorithmic/Logic View
+**Description**: Verifies every fail-closed branch yields `401` networklessly and never produces an `AuthenticatedCaller` or calls downstream logic (REQ-037, REQ-044). Each rejection path is driven by mocking `verifyToken` to throw, or by omitting the header — no real signature math, no IdP call.
+
+**Dependency & Mock Registry:**
+
+| Dependency    | Source         | Mock/Stub Strategy                                 | Rationale                                             |
+| ------------- | -------------- | -------------------------------------------------- | ----------------------------------------------------- |
+| `verifyToken` | @clerk/backend | Mock: throws `TokenVerificationError` per scenario | Drive each fail-closed branch without real crypto/IdP |
+| `next`        | NestJS         | Spy                                                | Assert downstream handler is never reached            |
+
+- **Unit Scenario: UTS-012-B1**
+    - **Arrange**: `req.headers` has no `Authorization` header
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401`; `verifyToken` **not** called; `req.caller` is `undefined`; `next()` not called with the request continuing — request never reaches business logic
+
+- **Unit Scenario: UTS-012-B2**
+    - **Arrange**: `Authorization = 'Bearer not-a-jwt'`; mock `verifyToken` to throw `new Error('malformed token')`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401`; `req.caller` is `undefined` (malformed token rejected)
+
+- **Unit Scenario: UTS-012-B3**
+    - **Arrange**: `Authorization = 'Bearer expired.jwt'`; mock `verifyToken` to throw a verification error with reason `token-expired` (`exp` in the past)
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401` (expiry rejected, fail closed)
+
+- **Unit Scenario: UTS-012-B4**
+    - **Arrange**: `Authorization = 'Bearer wrong.azp.jwt'`; `CLERK_AUTHORIZED_PARTIES = ['https://app.commise.app']`; mock `verifyToken` to throw a verification error with reason `azp-mismatch` (token `azp = 'https://evil.example'`)
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401`; `verifyToken` was called with `authorizedParties: ['https://app.commise.app']` (the `azp` allowlist is enforced by the verifier, not the handler)
+
+- **Unit Scenario: UTS-012-B5**
+    - **Arrange**: `Authorization = 'Bearer good.jwt'`; `CLERK_JWT_KEY` config is empty/undefined so `verifyToken` throws a configuration error
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401` (missing key config fails closed — never proceeds unauthenticated)
+
+---
+
+#### Test Case: UTP-012-C (verify — client-supplied identity header is ignored)
+
+**Technique**: Error Guessing + Strict Isolation
+**Target View**: Algorithmic/Logic View
+**Description**: Verifies that a forged identity header (`x-authorizer-context` / `x-user-id`) is never read; the `AuthenticatedCaller.sub` comes solely from the verified token, even when the header claims a different `sub` (REQ-037, mirrors PR #39 decision).
+
+**Dependency & Mock Registry:**
+
+| Dependency    | Source         | Mock/Stub Strategy                                                    | Rationale                     |
+| ------------- | -------------- | --------------------------------------------------------------------- | ----------------------------- |
+| `verifyToken` | @clerk/backend | Mock: resolves `{ sub: 'user_real', azp: 'https://app.commise.app' }` | Isolate verified-claim source |
+
+- **Unit Scenario: UTS-012-C1**
+    - **Arrange**: `Authorization = 'Bearer good.jwt'`; also set `req.headers['x-authorizer-context'] = JSON.stringify({ sub: 'user_admin_forged' })` and `req.headers['x-user-id'] = 'user_admin_forged'`; mock `verifyToken` to resolve `{ sub: 'user_real', azp: 'https://app.commise.app', public_metadata: {} }`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: `req.caller.sub === 'user_real'` (the verified token wins); the `x-authorizer-context` / `x-user-id` headers are never parsed into `req.caller`
+
+---
+
+#### Test Case: UTP-012-D (authorizeScope — missing operational scope → 403; precedence after 401)
+
+**Technique**: Equivalence Partitioning + Statement & Branch Coverage
+**Target View**: Algorithmic/Logic View + State Machine View (status precedence)
+**Description**: Verifies the scope gate on an operational endpoint: an authenticated caller lacking the required scope receives `403` (distinct from the `401` unauthenticated case), and a caller holding the scope passes — covering both branches of the authorization check (REQ-038, FR-051 precedence `401 → 403 → 400`).
+
+**Dependency & Mock Registry:**
+
+| Dependency            | Source  | Mock/Stub Strategy                         | Rationale                                          |
+| --------------------- | ------- | ------------------------------------------ | -------------------------------------------------- |
+| `AuthenticatedCaller` | MOD-012 | Stub principal built from a verified token | Scope gate runs on an already-authenticated caller |
+
+- **Unit Scenario: UTS-012-D1**
+    - **Arrange**: `req.caller = { sub: 'user_abc', scopes: [], isService: false }`; route requires scope `'foods:refetch'`
+    - **Act**: Invoke `authorizeScope(req, 'foods:refetch')`
+    - **Assert**: Responds `403 Forbidden` (authenticated but unauthorized — not `401`); downstream handler not reached
+
+- **Unit Scenario: UTS-012-D2**
+    - **Arrange**: `req.caller = { sub: 'user_abc', scopes: ['foods:refetch'], isService: false }`; route requires scope `'foods:refetch'`
+    - **Act**: Invoke `authorizeScope(req, 'foods:refetch')`
+    - **Assert**: Passes (no `403`); `next()` called — scope present authorizes the operational route
+
+- **Unit Scenario: UTS-012-D3**
+    - **Arrange**: A read endpoint (`GET /v1/foods/{fdcId}`) requiring no operational scope; `req.caller = { sub: 'user_abc', scopes: [] }`
+    - **Act**: Invoke `authorizeScope(req, undefined)`
+    - **Assert**: Passes — all authenticated users may read shared food reference data (no per-record ownership), per REQ-038
+
+---
+
+#### Test Case: UTP-012-E (checkQuota — per-`sub` enqueue quota exceeded → 429, no enqueue)
+
+**Technique**: Boundary Value Analysis + State Transition Testing + Strict Isolation
+**Target View**: Internal Data Structures + State Machine View
+**Description**: Verifies the per-`sub` leaky/token bucket boundary in MOD-013: requests up to the quota are admitted; the request crossing the quota (and the configured ≤20% global share) is rejected with `429` and enqueues nothing (REQ-039, SC-012). The bucket store is mocked so only the decision logic is tested.
+
+**Dependency & Mock Registry:**
+
+| Dependency           | Source   | Mock/Stub Strategy                                        | Rationale                                   |
+| -------------------- | -------- | --------------------------------------------------------- | ------------------------------------------- |
+| `QuotaStore` (Redis) | ARCH-007 | Mock: returns controlled remaining-token counts per `sub` | Isolate quota arithmetic from real Redis    |
+| `FetchQueue`         | ARCH-003 | Spy: `enqueue()` — assert call count                      | Verify no fetch is enqueued on quota breach |
+
+- **Unit Scenario: UTS-012-E1**
+    - **Arrange**: Per-`sub` quota `N = 10` enqueues/hour; mock `QuotaStore` so `sub='user_abc'` has `remaining = 1` (at boundary, one left)
+    - **Act**: Invoke `checkQuota('user_abc', 1)`
+    - **Assert**: Admitted (returns `{ allowed: true }`); `QuotaStore` decremented to `0`; `FetchQueue.enqueue` permitted (boundary: max valid)
+
+- **Unit Scenario: UTS-012-E2**
+    - **Arrange**: Mock `QuotaStore` so `sub='user_abc'` has `remaining = 0` (quota exhausted)
+    - **Act**: Invoke `checkQuota('user_abc', 1)`
+    - **Assert**: Returns `{ allowed: false, status: 429 }`; `FetchQueue.enqueue` called **zero** times (boundary: max+1 — over quota, no enqueue)
+
+- **Unit Scenario: UTS-012-E3**
+    - **Arrange**: `sub='user_abc'` already holds ≥ 20% of the global 1,000 req/hr budget within the rolling window (global-share cap reached) though its per-user `remaining > 0`
+    - **Act**: Invoke `checkQuota('user_abc', 1)`
+    - **Assert**: Returns `{ allowed: false, status: 429 }` — the configured global-share ceiling (SC-012) trips independently of the per-user bucket; no enqueue
+
+---
+
+#### Test Case: UTP-012-F (validateBatch — oversized batch → 400, no enqueue)
+
+**Technique**: Boundary Value Analysis + Statement & Branch Coverage
+**Target View**: Internal Data Structures + Algorithmic/Logic View
+**Description**: Verifies the hard batch-size cap (e.g. ≤ 100 `fdcId`s) across the boundary: at-limit accepted, over-limit rejected with `400` before any enqueue and before quota debit (REQ-040, FR-045).
+
+**Dependency & Mock Registry:**
+
+| Dependency   | Source   | Mock/Stub Strategy                      | Rationale                                  |
+| ------------ | -------- | --------------------------------------- | ------------------------------------------ |
+| `FetchQueue` | ARCH-003 | Spy: `enqueue()` — assert zero on `400` | Verify nothing enqueues on oversized batch |
+
+- **Unit Scenario: UTS-012-F1**
+    - **Arrange**: `MAX_BATCH = 100`; `fdcIds` array of length `100`
+    - **Act**: Invoke `validateBatch(fdcIds)`
+    - **Assert**: Returns `{ valid: true }` (boundary: max accepted)
+
+- **Unit Scenario: UTS-012-F2**
+    - **Arrange**: `MAX_BATCH = 100`; `fdcIds` array of length `101`
+    - **Act**: Invoke `validateBatch(fdcIds)`
+    - **Assert**: Returns `{ valid: false, status: 400 }`; `FetchQueue.enqueue` called zero times (boundary: max+1 — rejected, no enqueue)
+
+- **Unit Scenario: UTS-012-F3**
+    - **Arrange**: `fdcIds = []` (empty batch)
+    - **Act**: Invoke `validateBatch([])`
+    - **Assert**: Returns `{ valid: false, status: 400 }` (degenerate min-1 boundary — empty batch rejected)
+
+---
+
+#### Test Case: UTP-012-G (countDemand — distinct-requester demand counts distinct subs only)
+
+**Technique**: Equivalence Partitioning + Statement & Branch Coverage + Strict Isolation
+**Target View**: Algorithmic/Logic View + Internal Data Structures
+**Description**: Verifies demand-weighting counts **distinct authenticated `sub`s** per `fdcId` (via the requester subscription set), so a single `sub`'s repeated requests do not inflate priority more than once, and the contribution is capped (REQ-039 demand / FR-044).
+
+**Dependency & Mock Registry:**
+
+| Dependency                 | Source   | Mock/Stub Strategy                                      | Rationale                                 |
+| -------------------------- | -------- | ------------------------------------------------------- | ----------------------------------------- |
+| `RequesterSubscriptionSet` | ARCH-007 | Mock: backed by an in-memory `Set` keyed `fdcId → subs` | Isolate distinct-counting from Redis SADD |
+
+- **Unit Scenario: UTS-012-G1**
+    - **Arrange**: For `fdcId=12345`, `sub='user_a'` records a request 5 times in a row
+    - **Act**: Invoke `recordDemand(12345, 'user_a')` five times, then `getDemand(12345)`
+    - **Assert**: `getDemand(12345) === 1` — repeated requests by the same `sub` count once (idempotent SADD semantics), not 5
+
+- **Unit Scenario: UTS-012-G2**
+    - **Arrange**: For `fdcId=12345`, three distinct subs `user_a`, `user_b`, `user_c` each request once
+    - **Act**: Record each, then `getDemand(12345)`
+    - **Assert**: `getDemand(12345) === 3` — distinct requesters each contribute exactly one
+
+- **Unit Scenario: UTS-012-G3**
+    - **Arrange**: `DEMAND_CAP = 50`; 60 distinct subs request `fdcId=12345`
+    - **Act**: Record all 60, then `getDemand(12345)`
+    - **Assert**: `getDemand(12345) === 50` — the priority contribution is capped (prevents priority-inversion starvation of single-request items)
+
+---
+
+#### Test Case: UTP-012-H (enqueueGate — 503 fail-closed family: backpressure, open circuit, quota-store unavailable)
+
+**Technique**: Boundary Value Analysis + Statement & Branch Coverage + Error Guessing
+**Target View**: Internal Data Structures + Algorithmic/Logic View + Error Handling & Return Codes
+**Description**: Verifies the `503` decision branches of MOD-013's enqueue gate for an authenticated, within-quota caller: (a) the `fetch_queue` is at/over its enforced `MAX_QUEUE_DEPTH` → `503` with no enqueue; (b) the USDA circuit breaker is `OPEN` → `503` with no enqueue; (c) the quota store (Redis/Postgres) is unavailable → **fail closed** to `503` (never fail open to unlimited enqueue). These are the unit-level counterparts to the seam test ITP-012-D; the queue-depth probe, circuit breaker, and quota store are all mocked so only the gate's decision logic is exercised (REQ-040, FR-046). Fail-closed is **defined** here: any error or unavailability of the quota/depth/breaker signals resolves to a reject (`503`), and `FetchQueue.enqueue` is never called and the per-`sub` quota is never debited.
+
+**Dependency & Mock Registry:**
+
+| Dependency           | Source   | Mock/Stub Strategy                                                          | Rationale                                             |
+| -------------------- | -------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `QueueDepthProbe`    | ARCH-003 | Mock: `currentDepth()` returns a controlled integer at/over/under the bound | Drive the backpressure boundary without a real queue  |
+| `CircuitBreaker`     | ARCH-008 | Mock: `state()` returns `'closed'` or `'open'`                              | Drive the open-circuit branch without real USDA state |
+| `QuotaStore` (Redis) | ARCH-007 | Mock: `remaining()` resolves a count **or** throws `ConnectionRefusedError` | Drive the within-quota and store-unavailable branches |
+| `FetchQueue`         | ARCH-003 | Spy: `enqueue()` — assert zero on every `503`                               | Verify nothing is enqueued when the gate fails closed |
+
+- **Unit Scenario: UTS-012-H1**
+    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; mock `QueueDepthProbe.currentDepth()` returns `1000` (at the ceiling); `CircuitBreaker.state()` returns `'closed'`; `QuotaStore.remaining('user_abc')` returns `5` (within quota)
+    - **Act**: Invoke `enqueueGate('user_abc', [12345])`
+    - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times; per-`sub` quota NOT debited (boundary: depth == max is over-full, reject)
+
+- **Unit Scenario: UTS-012-H2**
+    - **Arrange**: `MAX_QUEUE_DEPTH = 1000`; `QueueDepthProbe.currentDepth()` returns `999` (max-1, under the ceiling); `CircuitBreaker.state()` returns `'closed'`; `QuotaStore.remaining('user_abc')` returns `5`
+    - **Act**: Invoke `enqueueGate('user_abc', [12345])`
+    - **Assert**: Returns `{ allowed: true }`; `FetchQueue.enqueue` called once (boundary: max-1 admitted — confirms the `503` branch is the depth ceiling, not an always-reject)
+
+- **Unit Scenario: UTS-012-H3**
+    - **Arrange**: `QueueDepthProbe.currentDepth()` returns `10` (well under ceiling); `CircuitBreaker.state()` returns `'open'` (USDA breaker tripped); `QuotaStore.remaining('user_abc')` returns `5`
+    - **Act**: Invoke `enqueueGate('user_abc', [12345])`
+    - **Assert**: Returns `{ allowed: false, status: 503 }`; `FetchQueue.enqueue` called **zero** times; per-`sub` quota NOT debited (open circuit fails closed independently of queue depth)
+
+- **Unit Scenario: UTS-012-H4**
+    - **Arrange**: `QueueDepthProbe.currentDepth()` returns `10`; `CircuitBreaker.state()` returns `'closed'`; mock `QuotaStore.remaining('user_abc')` **throws** `ConnectionRefusedError` (quota store unavailable)
+    - **Act**: Invoke `enqueueGate('user_abc', [12345])`
+    - **Assert**: Returns `{ allowed: false, status: 503 }` — **fail closed**: an unavailable quota store rejects rather than failing open to unlimited enqueue; `FetchQueue.enqueue` called **zero** times; no quota debit attempted after the failure
+
+---
+
+#### Test Case: UTP-012-I (loadShedVerify — invalid-token flood load-shed: per-source `401`-rate cap + concurrency cap, SC-011 holds)
+
+**Technique**: Boundary Value Analysis + Statement & Branch Coverage + Error Guessing
+**Target View**: Internal Data Structures + Algorithmic/Logic View + Error Handling & Return Codes
+**Description**: Verifies MOD-012's DoS-protection branch (FR-052, SC-011): under a flood of well-formed-but-invalid tokens — each of which would otherwise force a CPU-bound `verifyToken` signature check before the fail-closed `401` — the verifier **load-sheds** rather than saturating. Two independent guards are exercised at their boundaries: (a) a **per-source `401`-rate cap** that short-circuits to `401` **without** invoking `verifyToken` once a source crosses its rolling `401` budget; and (b) a **bounded verification concurrency** semaphore that sheds (immediate `503`/`401` without a signature check) when in-flight verifications are at the ceiling, so a single flooding source cannot pin every worker and breach SC-011's ≤10ms p95 for legitimate callers. The rate-counter store, the clock, and `verifyToken` are mocked so only the load-shed decision logic is tested — no real crypto, no real timer. This is the unit-level counterpart to the seam/load behavior; it asserts the shed branch never produces an `AuthenticatedCaller`.
+
+**Dependency & Mock Registry:**
+
+| Dependency               | Source         | Mock/Stub Strategy                                                                                      | Rationale                                                                 |
+| ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `verifyToken`            | @clerk/backend | Spy: throws `TokenVerificationError`; assert **call count** to prove the cap short-circuits ahead of it | Prove load-shed bypasses the CPU-bound signature check                    |
+| `FailureRateStore`       | ARCH-007       | Mock: `count(source)` returns a controlled rolling `401` count at/over/under the cap                    | Drive the per-source `401`-rate-cap boundary without a real Redis counter |
+| `VerifyConcurrencyGuard` | MOD-012        | Mock: `inFlight()` returns a controlled integer at/over/under `MAX_VERIFY_CONCURRENCY`                  | Drive the concurrency-cap shed branch deterministically                   |
+| `MonitoringLogger`       | ARCH-011       | Mock: `incrementMetric()` records args                                                                  | Verify the `auth.load_shed` metric is emitted (observability of the shed) |
+
+- **Unit Scenario: UTS-012-I1**
+    - **Arrange**: `MAX_SOURCE_401_RATE = 100`/window; mock `FailureRateStore.count('1.2.3.4')` returns `99` (max-1, under the cap); `Authorization = 'Bearer well-formed.but.invalid'`; spy `verifyToken` throws `TokenVerificationError`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401`; `verifyToken` **called exactly once** (under the cap → the signature check still runs, then fails closed); `req.caller` is `undefined` (boundary: max-1 — not yet shedding)
+
+- **Unit Scenario: UTS-012-I2**
+    - **Arrange**: `MAX_SOURCE_401_RATE = 100`; mock `FailureRateStore.count('1.2.3.4')` returns `100` (at the cap); same well-formed-but-invalid token; spy `verifyToken`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Responds `401`; `verifyToken` **called zero times** — the per-source cap short-circuits ahead of the CPU-bound verify (load-shed); `MonitoringLogger.incrementMetric` called with `("auth.load_shed", 1)`; `req.caller` is `undefined` (boundary: at-cap == shedding)
+
+- **Unit Scenario: UTS-012-I3**
+    - **Arrange**: `MAX_VERIFY_CONCURRENCY = 64`; mock `VerifyConcurrencyGuard.inFlight()` returns `64` (at the ceiling); `FailureRateStore.count` under cap; spy `verifyToken`
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Sheds without a signature check — responds `503`/`401` (per the pinned shed status) and `verifyToken` **called zero times**; `MonitoringLogger.incrementMetric` called with `("auth.load_shed", 1)` — the concurrency semaphore caps in-flight verifications so a flood cannot saturate the verifier (boundary: in-flight == max → shed)
+
+- **Unit Scenario: UTS-012-I4**
+    - **Arrange**: `MAX_VERIFY_CONCURRENCY = 64`; mock `VerifyConcurrencyGuard.inFlight()` returns `63` (max-1, a slot free); `FailureRateStore.count` under cap; mock `verifyToken` to **resolve** a valid `{ sub: 'user_legit', azp: <authorized>, public_metadata: { scopes: [] } }` (a legitimate caller arriving during the flood)
+    - **Act**: Invoke `middleware.verify(req)`
+    - **Assert**: Admitted — `verifyToken` called once and `req.caller.sub === 'user_legit'`; **not** shed (boundary: max-1 — a free slot admits the legitimate request even while invalid traffic is shed elsewhere), demonstrating SC-011's ≤10ms p95 path stays open under the invalid-token flood
+
+---
+
+#### Test Case: UTP-012-J (authorizeConnect — WebSocket `$connect` auth + mid-connection `exp` → close)
+
+**Technique**: State Transition Testing + Statement & Branch Coverage + Strict Isolation
+**Target View**: State Machine View (Unauthenticated → Connected → Expired/Closed) + Algorithmic/Logic View
+**Description**: Verifies the WebSocket auth path (FR-049, FR-041): MOD-012's shared Clerk verification, reused by the `$connect` REQUEST authorizer, (a) extracts the token from the `Sec-WebSocket-Protocol` subprotocol (or query param — browsers cannot set an `Authorization` header on a WS handshake), (b) admits a valid token and emits an `Allow` policy whose principal/`sub` is sourced solely from the verified claims, (c) **pins `$connect` rejection to `403`** for a missing/invalid token (per API Gateway WebSocket authorizers, not `401`), and (d) on a **mid-connection token expiry** — when `exp` passes during a long-lived connection and the next message (or a periodic re-auth check) re-verifies — transitions Connected → Closed (re-auth required on reconnect after the 10-minute idle close). `verifyToken` and the clock are mocked; no real socket, no IdP call.
+
+**Dependency & Mock Registry:**
+
+| Dependency        | Source         | Mock/Stub Strategy                                                                            | Rationale                                                              |
+| ----------------- | -------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `verifyToken`     | @clerk/backend | Mock: resolves a valid claim set, or throws a `token-expired` verification error per scenario | Networkless `$connect` verification; drive expiry without a real clock |
+| `now`             | Internal       | Mock: returns a controlled epoch so `exp` can be crossed deterministically                    | Drive the mid-connection expiry transition                             |
+| `ConnectionStore` | DynamoDB       | Mock: `putConnection()` / `deleteConnection()` record args                                    | Verify the subscription row is written on connect, removed on close    |
+
+- **Unit Scenario: UTS-012-J1**
+    - **Arrange**: `$connect` event carries the token via `Sec-WebSocket-Protocol` (no `Authorization` header on the WS handshake); `CLERK_AUTHORIZED_PARTIES = ['https://app.commise.app']`; mock `verifyToken` to resolve `{ sub: 'user_ws', azp: 'https://app.commise.app', exp: now() + 600, public_metadata: {} }`
+    - **Act**: Invoke `authorizeConnect(connectEvent)`
+    - **Assert**: Returns an `Allow` IAM policy whose `principalId`/`context.sub === 'user_ws'` (sourced solely from the verified token); `verifyToken` called once with `authorizedParties: ['https://app.commise.app']` (token read from the subprotocol, never an `Authorization` header)
+
+- **Unit Scenario: UTS-012-J2**
+    - **Arrange**: `$connect` event with **no** token presented in the subprotocol or query param
+    - **Act**: Invoke `authorizeConnect(connectEvent)`
+    - **Assert**: Rejects the handshake with the pinned `403` `$connect` status (NOT `401` — API Gateway WebSocket authorizer convention, FR-049d); `verifyToken` not called; no `Allow` policy emitted; `ConnectionStore.putConnection` not called (no `fetch_requesters` row written)
+
+- **Unit Scenario: UTS-012-J3**
+    - **Arrange**: `$connect` event with a well-formed but invalid token in the subprotocol; mock `verifyToken` to throw a `TokenVerificationError`
+    - **Act**: Invoke `authorizeConnect(connectEvent)`
+    - **Assert**: Rejects with the pinned `403` `$connect` status (fail closed); no `Allow` policy; the connection is never established
+
+- **Unit Scenario: UTS-012-J4**
+    - **Arrange**: A connection was admitted at `now() = 1000` with a token whose `exp = 1300`; the clock advances to `now() = 1301` (token now expired); a subsequent message (or periodic re-auth check) triggers re-verification; mock `verifyToken` to throw a `token-expired` verification error at the new time
+    - **Act**: Invoke `authorizeMessage(connectionId, req)` (the mid-connection re-auth path) at `now() = 1301`
+    - **Assert**: The connection transitions Connected → Closed — the handler closes the socket (or returns the close directive) and `ConnectionStore.deleteConnection` is called with the `connectionId`; the expired token does NOT continue to authorize traffic (FR-049b: mid-connection `exp` → close, re-auth required on reconnect)
+
+- **Unit Scenario: UTS-012-J5**
+    - **Arrange**: A connection admitted at `now() = 1000` with `exp = 1300`; the clock is at `now() = 1299` (token still valid, max-1 boundary); mock `verifyToken` to resolve the still-valid claims
+    - **Act**: Invoke `authorizeMessage(connectionId, req)` at `now() = 1299`
+    - **Assert**: The connection remains Connected (no close); `ConnectionStore.deleteConnection` NOT called — confirms the close branch is gated on actual expiry, not an always-close (boundary: `exp - 1` still authorizes)
+
+---
+
+### Module: MOD-014 (AsyncProducerAuthz — Async-Producer Provenance & Least-Privilege Enforcement)
+
+**Parent Architecture Modules**: ARCH-012 (FoodAuthGuard)
+**Requirements Under Test**: REQ-037, FR-048
+**Target Source File(s)**: `src/auth/async-producer-authz.service.ts` (MOD-014)
+
+> US-0's guarantee — _"no unauthenticated path may drive USDA consumption"_ — must also hold on the **async/internal** producer leg (EventBridge events, cron/scheduled jobs, bulk-sync, recipe import), not only the synchronous HTTP edge that MOD-012 fronts. MOD-014 enforces two layers before any USDA fetch or `INSERT INTO fetch_queue`: **(1)** the delivering IAM principal — taken from the AWS-attested invocation context, never a forgeable event-body field — must be on the least-privilege producer allowlist; and **(2)** the event's `requestedBy` provenance must be an authenticated human `sub` (carried from MOD-012) or a named `svc_` service principal — never empty and never the anonymous `'system'` shortcut. Every deny path is **fail-closed**: the event is dropped, nothing is fetched or enqueued. Unit scenarios mock the invocation context, the allowlist config, and `MonitoringLogger`; only the module's internal control flow and boundaries are exercised — no real EventBridge, no DB.
+
+---
+
+#### Test Case: UTP-014-A (admitAsyncEvent — allowlisted principal + valid provenance → admitted)
+
+**Technique**: Statement & Branch Coverage + Strict Isolation
+**Target View**: Algorithmic/Logic View + State Machine View (ReceivingAsyncEvent → CheckingProducerPrincipal → CheckingProvenance → Admitted)
+**Description**: Verifies the happy-path admit branch of `admitAsyncEvent` (FR-048): when the AWS-attested delivering principal is on the least-privilege allowlist **and** the event's `requestedBy` is an authenticated human `sub`, the gate admits and returns the carried provenance with `requesterClass: 'user'` — covering the success traversal of both enforcement layers before any fetch/enqueue. The invocation context, allowlist, and logger are mocked; no real bus.
+
+**Dependency & Mock Registry:**
+
+| Dependency          | Source         | Mock/Stub Strategy                                                                    | Rationale                                                              |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `InvocationContext` | AWS (attested) | Stub: `{ callerArn: 'arn:aws:iam::…:role/food-consumer', eventSource: 'aws.events' }` | Delivery identity is AWS-attested, never client-suppliable — stub it   |
+| `ProducerAllowlist` | Config (IaC)   | Stub: `Set(['arn:aws:iam::…:role/food-consumer', 'arn:aws:iam::…:role/import-job'])`  | Least-privilege allowlist is config, not request input                 |
+| `isClerkSub`        | MOD-012        | Stub: returns `true` for `'user_async'`                                               | Shape-validate the carried authenticated sub without real verification |
+| `MonitoringLogger`  | ARCH-011       | Spy: records `incrementMetric` calls                                                  | Assert the `async.producer.admitted` metric; no CloudWatch side-effect |
+
+- **Unit Scenario: UTS-014-A1**
+    - **Arrange**: `invocationContext.callerArn = 'arn:aws:iam::…:role/food-consumer'` (on the allowlist); `event = { DetailType: 'FoodRequested', Detail: JSON.stringify({ requestedBy: 'user_async' }) }`; `isClerkSub('user_async')` → `true`
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Returns `{ admitted: true, requestedBy: 'user_async', requesterClass: 'user' }`; `MonitoringLogger.incrementMetric` called once with `('async.producer.admitted', 1)`; no error thrown — both the principal and provenance layers passed
+
+---
+
+#### Test Case: UTP-014-B (assertProducerPrincipal — non-allowlisted IAM principal → UnauthorizedProducerError, fail closed)
+
+**Technique**: Equivalence Partitioning + Error Guessing + Strict Isolation
+**Target View**: Error Handling & Return Codes + State Machine View (CheckingProducerPrincipal → RejectedUnauthorizedProducer)
+**Description**: Verifies the layer-1 deny branch (FR-048): a delivering IAM principal that is **not** on the least-privilege allowlist is rejected with `UnauthorizedProducerError` **before** provenance is even evaluated — the event is dropped, no fetch and no enqueue occur, and an alarm metric is emitted (possible bus/role misconfig or abuse). The principal ARN is read from the AWS-attested context, never an event-body field, so a forged `Detail` cannot bypass this. The allowlist and logger are mocked.
+
+**Dependency & Mock Registry:**
+
+| Dependency          | Source         | Mock/Stub Strategy                                                            | Rationale                                   |
+| ------------------- | -------------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
+| `InvocationContext` | AWS (attested) | Stub: `{ callerArn: 'arn:aws:iam::…:role/rogue', eventSource: 'aws.events' }` | Drive a principal absent from the allowlist |
+| `ProducerAllowlist` | Config (IaC)   | Stub: `Set(['arn:aws:iam::…:role/food-consumer'])`                            | Rogue ARN is not a member                   |
+| `FetchQueue`        | MOD-006        | Spy: `enqueue()`                                                              | Assert nothing is enqueued on the deny path |
+
+- **Unit Scenario: UTS-014-B1**
+    - **Arrange**: `invocationContext.callerArn = 'arn:aws:iam::…:role/rogue'` (not on the allowlist); `event = { DetailType: 'FoodRequested', Detail: JSON.stringify({ requestedBy: 'user_async' }) }` (provenance would otherwise be valid)
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `UnauthorizedProducerError` (with the offending `principalArn`); `assertProvenance` is never reached (layer-1 short-circuits before layer-2); `FetchQueue.enqueue` NOT called; `async.producer.admitted` metric NOT incremented — fail-closed, event dropped
+    - **`isUnauthorizedProducerError(err)` type guard returns `true`** for the thrown error
+
+- **Unit Scenario: UTS-014-B2**
+    - **Arrange**: A `fetch_queue` direct-insert path: `assertEnqueueProvenance(dbSessionRole = 'arn:aws:iam::…:role/rogue-db', requestedBy = 'user_async')`; `'…role/rogue-db'` is not on the allowlist
+    - **Act**: Invoke `assertEnqueueProvenance(dbSessionRole, requestedBy)`
+    - **Assert**: Throws `UnauthorizedProducerError` (non-allowlisted DB session role); the INSERT is rejected — defense-in-depth behind the least-privilege DB grant (FR-048)
+
+---
+
+#### Test Case: UTP-014-C (assertProvenance — requestedBy missing / empty / 'system' → ProvenanceError, fail closed)
+
+**Technique**: Equivalence Partitioning + Boundary Value Analysis + Error Guessing
+**Target View**: Error Handling & Return Codes + Algorithmic/Logic View
+**Description**: Verifies the layer-2 anonymous-origin deny branch (FR-048) — the one that closes the unauthenticated async path: for an **allowlisted** delivering principal, an event whose `requestedBy` is `null`, empty-string, or the generic `'system'` marker is rejected with `ProvenanceError`; the event is dropped and nothing is fetched or enqueued. The three anonymous-origin inputs form one equivalence class (each must reject) with `'system'` as the explicitly-named boundary that an unauthenticated producer would most plausibly supply. The allowlist passes so only the provenance branch is exercised.
+
+**Dependency & Mock Registry:**
+
+| Dependency          | Source         | Mock/Stub Strategy                                  | Rationale                                               |
+| ------------------- | -------------- | --------------------------------------------------- | ------------------------------------------------------- |
+| `InvocationContext` | AWS (attested) | Stub: `callerArn` on the allowlist (layer-1 passes) | Isolate the layer-2 provenance branch                   |
+| `ProducerAllowlist` | Config (IaC)   | Stub: contains the stubbed `callerArn`              | Ensure the principal check does not short-circuit first |
+| `FetchQueue`        | MOD-006        | Spy: `enqueue()`                                    | Assert no enqueue on every reject                       |
+
+- **Unit Scenario: UTS-014-C1**
+    - **Arrange**: Allowlisted principal; `event.Detail = JSON.stringify({ requestedBy: null })`
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `ProvenanceError` ("Missing/anonymous requestedBy"); `FetchQueue.enqueue` NOT called; no admit metric — missing provenance fails closed
+
+- **Unit Scenario: UTS-014-C2**
+    - **Arrange**: Allowlisted principal; `event.Detail = JSON.stringify({ requestedBy: '' })` (empty string boundary)
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `ProvenanceError`; nothing fetched/enqueued — empty `requestedBy` is rejected identically to `null`
+
+- **Unit Scenario: UTS-014-C3**
+    - **Arrange**: Allowlisted principal; `event.Detail = JSON.stringify({ requestedBy: 'system' })` (the named anonymous-origin boundary)
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `ProvenanceError` — the generic `'system'` string is explicitly rejected (no unauthenticated `'system'` shortcut); event dropped, fail closed (FR-048)
+
+- **Unit Scenario: UTS-014-C4**
+    - **Arrange**: Allowlisted principal; `event.Detail = JSON.stringify({ requestedBy: 'unknown_token_42' })`; `isClerkSub('unknown_token_42')` → `false` and it lacks the `svc_` prefix
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `ProvenanceError` ("neither an authenticated sub nor a named service principal") — a present-but-unrecognized `requestedBy` is not admitted
+
+---
+
+#### Test Case: UTP-014-D (assertProvenance — named svc\_ service principal → admitted as requesterClass 'service')
+
+**Technique**: Equivalence Partitioning + Statement & Branch Coverage + Strict Isolation
+**Target View**: Algorithmic/Logic View + State Machine View (CheckingProvenance → Admitted)
+**Description**: Verifies the second admit equivalence class of layer-2 (FR-048): an allowlisted principal carrying a `requestedBy` that begins with the `svc_` service-principal prefix is admitted and classified `requesterClass: 'service'` (distinct from the human-`sub` class of UTP-014-A) — covering the `isNamedService` branch and confirming named service identities are a first-class authenticated provenance, not a `'system'`-style anonymous shortcut. `isClerkSub` is stubbed `false` to prove the admit comes from the service-prefix branch alone.
+
+**Dependency & Mock Registry:**
+
+| Dependency          | Source         | Mock/Stub Strategy                                           | Rationale                                                            |
+| ------------------- | -------------- | ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `InvocationContext` | AWS (attested) | Stub: `callerArn` on the allowlist (e.g. the scheduler role) | Layer-1 passes so the service-prefix branch is isolated              |
+| `ProducerAllowlist` | Config (IaC)   | Stub: contains the stubbed `callerArn`                       | Allow the principal through to provenance                            |
+| `isClerkSub`        | MOD-012        | Stub: returns `false`                                        | Prove admit is via the `svc_` prefix branch, not the human-`sub` one |
+| `MonitoringLogger`  | ARCH-011       | Spy: records `incrementMetric`                               | Assert the admit metric on the service path                          |
+
+- **Unit Scenario: UTS-014-D1**
+    - **Arrange**: Allowlisted scheduler principal; `event = { DetailType: 'IngestionScheduled', Detail: JSON.stringify({ requestedBy: 'svc_nightly_sync' }) }`; `SERVICE_PRINCIPAL_PREFIX = 'svc_'`; `isClerkSub('svc_nightly_sync')` → `false`
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Returns `{ admitted: true, requestedBy: 'svc_nightly_sync', requesterClass: 'service' }`; `MonitoringLogger.incrementMetric('async.producer.admitted', 1)` called once — the `svc_`-prefixed identity is admitted as a named service principal
+
+- **Unit Scenario: UTS-014-D2**
+    - **Arrange**: Allowlisted principal; `event.DetailType = 'PaymentSettled'` (not in `ALLOWED_DETAIL_TYPES = ['FoodRequested', 'FoodBatchRequested', 'IngestionScheduled']`); `Detail` carries a valid `svc_` `requestedBy`
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `UnauthorizedProducerError` ("Unrecognized detail-type") — even a valid service provenance is dropped on an unrecognized detail-type; no work performed (FR-048)
+
+---
+
+#### Test Case: UTP-014-E (admitAsyncEvent — missing/empty allowlist config at boot → ProducerConfigError, fail closed)
+
+**Technique**: Error Guessing + Statement & Branch Coverage
+**Target View**: Error Handling & Return Codes
+**Description**: Verifies the boot-time fail-closed posture (FR-048, mirrors FR-040): if the least-privilege allowlist config is missing or empty when async processing starts, the module **refuses to process async events** (`ProducerConfigError`) rather than defaulting open — an empty allowlist must never be read as "allow all". This guards the configuration-error class that would otherwise silently disable layer-1.
+
+**Dependency & Mock Registry:**
+
+| Dependency          | Source       | Mock/Stub Strategy                | Rationale                                         |
+| ------------------- | ------------ | --------------------------------- | ------------------------------------------------- |
+| `ProducerAllowlist` | Config (IaC) | Stub: empty `Set()` / `undefined` | Drive the missing/empty-config fail-closed branch |
+
+- **Unit Scenario: UTS-014-E1**
+    - **Arrange**: `ALLOWED_PRODUCER_PRINCIPAL_ARNS` resolves to an empty set (or undefined) at construction; a well-formed event with an allowlisted-looking principal and valid `svc_` provenance
+    - **Act**: Invoke `admitAsyncEvent(invocationContext, event)`
+    - **Assert**: Throws `ProducerConfigError` — the module fails closed (refuses to admit any async event) rather than treating an empty allowlist as allow-all; no fetch, no enqueue
+
+---
+
 ## Coverage Summary
 
-| Metric                                 | Count                                                                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Total MOD modules                      | 11                                                                                                                         |
-| Non-[EXTERNAL] MODs requiring coverage | 11                                                                                                                         |
-| MODs with at least one UTP             | 11 / 11 (100%)                                                                                                             |
-| Total Unit Test Cases (UTP)            | 33                                                                                                                         |
-| Total Unit Test Scenarios (UTS)        | 82                                                                                                                         |
-| Techniques applied                     | Statement & Branch Coverage, Boundary Value Analysis, Equivalence Partitioning, Strict Isolation, State Transition Testing |
+| Metric                                 | Count                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Total MOD modules                      | 14                                                                                                                                         |
+| Non-[EXTERNAL] MODs requiring coverage | 14                                                                                                                                         |
+| MODs with at least one UTP             | 14 / 14 (100%)                                                                                                                             |
+| Total Unit Test Cases (UTP)            | 50                                                                                                                                         |
+| Total Unit Test Scenarios (UTS)        | 138                                                                                                                                        |
+| Techniques applied                     | Statement & Branch Coverage, Boundary Value Analysis, Equivalence Partitioning, Strict Isolation, State Transition Testing, Error Guessing |
 
 ## Technique Distribution
 
 | Technique                   | UTP Count |
 | --------------------------- | --------- |
-| Statement & Branch Coverage | 28        |
-| Boundary Value Analysis     | 9         |
-| Equivalence Partitioning    | 5         |
-| Strict Isolation            | 8         |
-| State Transition Testing    | 7         |
+| Statement & Branch Coverage | 39        |
+| Boundary Value Analysis     | 14        |
+| Equivalence Partitioning    | 10        |
+| Strict Isolation            | 17        |
+| State Transition Testing    | 9         |
+| Error Guessing              | 7         |
 
 > Note: Many UTPs apply multiple techniques simultaneously; counts reflect primary + secondary technique pairings.
 

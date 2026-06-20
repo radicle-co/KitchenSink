@@ -3,7 +3,7 @@
 
 # ─── Project Identity ──────────────────────────────────────────────────────────
 project_name: 'KitchenSink'
-project_tech_stack: 'TypeScript 5.x + Node 24 + NestJS 11 + Drizzle ORM + Next.js (web) + Expo/React Native (mobile) + Auth0 + AWS (RDS/S3/SQS/Lambda) + CDK v2'
+project_tech_stack: 'TypeScript 5.x + Node 24 + NestJS 11 + Drizzle ORM + Next.js (web) + Expo/React Native (mobile) + Clerk (networkless verifyToken; @clerk/nextjs, @clerk/expo, @clerk/backend) + AWS (RDS/S3/SQS/Lambda/ECS-Fargate) + CDK v2'
 project_domain: 'cross-platform commise recipe & meal-planning app (web + mobile)'
 
 # ─── Paths ─────────────────────────────────────────────────────────────────────

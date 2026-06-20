@@ -10,7 +10,7 @@
 
 ## Overview
 
-This document decomposes each of the 11 architecture modules (ARCH-001 through ARCH-011) into low-level module designs. Each module is assigned a unique `MOD-NNN` identifier and includes four mandatory views:
+This document decomposes each of the 12 architecture modules (ARCH-001 through ARCH-012) into low-level module designs. Each module is assigned a unique `MOD-NNN` identifier and includes four mandatory views. ARCH-012 (FoodAuthGuard) decomposes into three modules — MOD-012 (`ClerkAuthMiddleware`), MOD-013 (`QuotaAndFairness`), and MOD-014 (`AsyncProducerAuthz`):
 
 1. **Algorithmic / Logic View** — pseudocode describing the module's core logic
 2. **State Machine View** — `stateDiagram-v2` (or `N/A Stateless` for pure functions)
@@ -750,6 +750,18 @@ FUNCTION onConnect(connectionId: string, fdcId: number): void
 
 FUNCTION onDisconnect(connectionId: string): void
   ConnectionStore.deleteConnection(connectionId)
+
+// Mid-connection token expiry (FR-049b). The token verified at $connect (MOD-012 authorizeConnect)
+// carries a fixed `exp`. A long-lived WS connection MUST NOT outlive its token: when `exp` passes,
+// the connection is CLOSED (re-auth happens on reconnect). The connection's tokenExp is captured at
+// $connect and stored on the ConnectionRecord; an expiry sweep (or a per-message check on $default)
+// closes connections whose tokenExp ≤ now.
+FUNCTION enforceTokenExpiry(connectionId: string, tokenExp: number): void
+  IF tokenExp <= now():
+    ApiGatewayManagementClient.deleteConnection({ ConnectionId: connectionId })  // server-side close
+    ConnectionStore.deleteConnection(connectionId)
+    MonitoringLogger.incrementMetric("ws.closed.token_expired", 1)
+    // Client reconnects with a fresh token → MOD-012 authorizeConnect re-verifies (FR-049c).
 ```
 
 ### 2. State Machine View
@@ -757,31 +769,34 @@ FUNCTION onDisconnect(connectionId: string): void
 ```mermaid
 stateDiagram-v2
   [*] --> Disconnected
-  Disconnected --> Connected : WebSocket $connect (onConnect)
+  Disconnected --> Connected : WebSocket $connect (onConnect, token verified — MOD-012)
   Connected --> Notified : FoodDataReceived event → postToConnection
   Notified --> Connected : client remains connected
   Connected --> Disconnected : WebSocket $disconnect (onDisconnect)
   Connected --> Disconnected : GoneException (stale connection cleaned up)
-  Disconnected --> [*]
+  Connected --> Disconnected : token exp passes mid-connection → server-side close (FR-049b)
+  Notified --> Disconnected : token exp passes mid-connection → server-side close (FR-049b)
+  Disconnected --> [*] : re-auth required on reconnect with fresh token (FR-049c)
 ```
 
 ### 3. Internal Data Structures
 
-| Name               | Type                                                              | Description                                                  |
-| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------ |
-| `ConnectionRecord` | `{ connectionId: string, fdcId: number, ttl: number }`            | DynamoDB item tracking active WebSocket subscriptions        |
-| `WsMessage`        | `{ type: 'FoodDataReceived', fdcId: number, foodData: FoodData }` | JSON payload sent to WebSocket clients                       |
-| `ApiGwMgmtConfig`  | `{ endpoint: string }`                                            | API Gateway Management API endpoint (wss://.../@connections) |
+| Name               | Type                                                                                  | Description                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ConnectionRecord` | `{ connectionId: string, fdcId: number, sub: string, tokenExp: number, ttl: number }` | DynamoDB item tracking active WebSocket subscriptions; `tokenExp` (from the `$connect`-verified token) drives mid-connection expiry close (FR-049b) |
+| `WsMessage`        | `{ type: 'FoodDataReceived', fdcId: number, foodData: FoodData }`                     | JSON payload sent to WebSocket clients                                                                                                              |
+| `ApiGwMgmtConfig`  | `{ endpoint: string }`                                                                | API Gateway Management API endpoint (wss://.../@connections)                                                                                        |
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                           | Action                          | Impact                                                 |
-| ----------------------------------------- | ------------------------------- | ------------------------------------------------------ |
-| `GoneException` (stale connection)        | Delete connection from DynamoDB | Stale entry cleaned up; no client impact               |
-| `ForbiddenException`                      | Log warning, skip               | Connection not owned by this API; skip                 |
-| DynamoDB `getConnectionsForFdcId` failure | Log error, return 0             | No clients notified; non-fatal                         |
-| `postToConnection` timeout                | Log warning, continue           | Client misses notification; will see data on next poll |
-| No connections for fdcId                  | Return 0                        | Normal case; no clients subscribed                     |
+| Error Condition                           | Action                            | Impact                                                                                 |
+| ----------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
+| `GoneException` (stale connection)        | Delete connection from DynamoDB   | Stale entry cleaned up; no client impact                                               |
+| `ForbiddenException`                      | Log warning, skip                 | Connection not owned by this API; skip                                                 |
+| DynamoDB `getConnectionsForFdcId` failure | Log error, return 0               | No clients notified; non-fatal                                                         |
+| `postToConnection` timeout                | Log warning, continue             | Client misses notification; will see data on next poll                                 |
+| No connections for fdcId                  | Return 0                          | Normal case; no clients subscribed                                                     |
+| Token `exp` passes mid-connection         | Server-side close + delete record | Connection closed (FR-049b); client re-auths with a fresh token on reconnect (FR-049c) |
 
 ---
 
@@ -938,35 +953,412 @@ FUNCTION startTrace(requestId: string): Segment
 
 ---
 
+## MOD-012 — ClerkAuthMiddleware (Networkless Token Verification & Authorization)
+
+**Parent ARCH**: ARCH-012
+**Type**: Stateful (per-request lifecycle; populates `req.user`)
+**Runtime**: NestJS `AuthMiddleware` on ECS/Fargate (Node.js 22.x), ALB-fronted; reuses shared `@kitchensink/*` clerk-verify package. WebSocket `$connect` reuses the same verification in a Lambda authorizer (the only Lambda-authorizer surface).
+**Target source file**: `src/auth/clerk-auth.middleware.ts` (+ shared `@kitchensink/*` clerk-verify package)
+
+### 1. Algorithmic / Logic View
+
+```
+// Non-secret config (FR-042): no Clerk secret key, no JWKS fetch, no IdP round trip.
+CLERK_JWT_KEY          = ENV.CLERK_JWT_KEY            // public PEM verification key
+AUTHORIZED_PARTIES     = ENV.CLERK_AUTHORIZED_PARTIES // allowlist of permitted azp values
+
+// Auth-layer DoS protection (FR-052, SC-011). A flood of well-formed-but-invalid tokens each
+// forces a CPU-bound signature verify before the fail-closed 401. Two bounded gates shed that
+// load so the verifier never saturates and SC-011's ≤10ms p95 holds UNDER an invalid-token flood:
+//   (1) a global verification-concurrency semaphore (in-flight verifyToken calls capped), and
+//   (2) a per-source rolling 401-rate cap (load-shed) keyed on source identity.
+VERIFY_CONCURRENCY_MAX = ENV.VERIFY_CONCURRENCY_MAX OR 64   // max concurrent verifyToken() calls
+SOURCE_401_RATE_MAX    = ENV.SOURCE_401_RATE_MAX OR 20      // max 401s per source per rolling window
+SOURCE_401_WINDOW_S    = 10                                  // rolling window for the 401-rate cap
+verifySemaphore        = Semaphore(VERIFY_CONCURRENCY_MAX)   // process-local, fail-closed on exhaustion
+
+// sourceKey: derive a stable source identity WITHOUT trusting a forgeable client header.
+// Prefer the ALB-attested client IP (X-Forwarded-For left-most, set by the trusted ALB), else
+// the connection remote addr. Never a client-suppliable identity header (FR-038).
+FUNCTION sourceKey(req):
+  RETURN albAttestedClientIp(req) OR req.connection.remoteAddr
+
+// NestJS middleware — runs before EVERY route (FR-035, FR-050-equivalent). Fail-closed (FR-040).
+FUNCTION use(req, res, next):
+  token = extractBearer(req.headers.authorization)
+  IF token IS NULL OR token == "":
+    RETURN res.status(401).json({ error: "Missing bearer token" })   // fail closed
+
+  src = sourceKey(req)
+
+  // Load-shed (FR-052): a source already over its 401-rate cap is shed BEFORE any CPU-bound
+  // verify, so an invalid-token flood from one source cannot burn verifier CPU for everyone.
+  IF Source401RateLimiter.isOverCap(src, SOURCE_401_RATE_MAX, SOURCE_401_WINDOW_S):
+    RETURN res.status(429).json({ error: "Too many failed auth attempts", retryAfterSeconds: SOURCE_401_WINDOW_S })
+
+  // Concurrency cap (FR-052): bound in-flight signature verifications. If the verifier is
+  // saturated, shed rather than queue unboundedly — keeps p95 within SC-011 under flood.
+  IF NOT verifySemaphore.tryAcquire():
+    RETURN res.status(503).json({ error: "Auth verifier saturated", retryAfterSeconds: 1 })
+
+  TRY:
+    // Networkless verification (FR-036): @clerk/backend verifyToken, public key only.
+    claims = verifyToken(token, {
+      jwtKey: CLERK_JWT_KEY,
+      authorizedParties: AUTHORIZED_PARTIES   // enforces azp (FR-037)
+    })
+    // verifyToken checks signature, exp, nbf, and azp ∈ authorizedParties.
+  CATCH AnyVerificationError:
+    // malformed token, bad signature, exp/nbf fail, azp mismatch, or missing/invalid key config
+    Source401RateLimiter.record(src, SOURCE_401_WINDOW_S)   // count this 401 toward the per-source cap
+    RETURN res.status(401).json({ error: "Invalid token" })          // fail closed (FR-040)
+  FINALLY:
+    verifySemaphore.release()
+
+  // Identity derived SOLELY from verified token (FR-038). Ignore any client identity header.
+  DELETE req.headers["x-authorizer-context"]
+  DELETE req.headers["x-user-id"]
+
+  req.user = {
+    sub: claims.sub,                       // human sub OR M2M service identity (A-012, FR-047)
+    azp: claims.azp,
+    scopes: claims.public_metadata?.scopes OR [],        // operational scopes (FR-039)
+    permissions: claims.public_metadata?.permissions OR [],
+    tokenClass: claims.sub.startsWith("svc_") ? "m2m" : "user"
+  }
+  next()
+
+// Operational/admin endpoints only (FR-039). Shared foods are readable by ANY authenticated caller.
+FUNCTION requireScope(requiredScope):
+  RETURN FUNCTION(req, res, next):
+    IF requiredScope NOT IN req.user.scopes:
+      RETURN res.status(403).json({ error: "Insufficient scope" })   // 403 ≠ 401 (FR-051)
+    next()
+
+// WebSocket $connect authorizer (FR-041, FR-049) — Lambda authorizer surface.
+FUNCTION authorizeConnect(event):
+  // Browsers cannot set Authorization on WS: token from query param or Sec-WebSocket-Protocol.
+  token = event.queryStringParameters?.token OR subprotocolToken(event)
+  TRY:
+    claims = verifyToken(token, { jwtKey: CLERK_JWT_KEY, authorizedParties: AUTHORIZED_PARTIES })
+  CATCH AnyVerificationError:
+    RETURN deny()    // API GW WebSocket → pinned 403 on $connect (FR-049d)
+  // The verified token's `exp` (claims.exp) is captured onto the ConnectionRecord by the $connect
+  // handler so the connection cannot outlive its token. Mid-connection expiry handling (FR-049b) —
+  // server-side close when exp passes, re-auth on reconnect (FR-049c) — is modeled in MOD-009
+  // (WebSocketNotifier) `enforceTokenExpiry` / state machine, the WS connection-lifecycle owner.
+  RETURN allow(principalId = claims.sub, context = { tokenExp: claims.exp })  // sub + exp persisted to subscription set
+```
+
+### 2. State Machine View
+
+```mermaid
+stateDiagram-v2
+  [*] --> AwaitingRequest
+  AwaitingRequest --> ExtractingToken : request received
+  ExtractingToken --> Rejected401 : no bearer token
+  ExtractingToken --> Verifying : token present
+  Verifying --> Rejected401 : signature/exp/nbf/azp fail or verify exception (fail closed)
+  Verifying --> Authenticated : claims valid → req.user populated
+  Authenticated --> Rejected403 : operational endpoint, scope missing
+  Authenticated --> HandlerRuns : read endpoint or scope present
+  Rejected401 --> [*]
+  Rejected403 --> [*]
+  HandlerRuns --> [*]
+```
+
+### 3. Internal Data Structures
+
+| Name                  | Type                                                                                                 | Description                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `AuthenticatedCaller` | `{ sub: string, azp: string, scopes: string[], permissions: string[], tokenClass: 'user' \| 'm2m' }` | Verified principal attached to `req.user`; never persisted, never from a header                                |
+| `VerifyOptions`       | `{ jwtKey: string, authorizedParties: string[] }`                                                    | Options for networkless `verifyToken` — no secret key, no JWKS URL                                             |
+| `ClerkClaims`         | `{ sub, azp, exp, nbf, public_metadata?: { scopes?, permissions? } }`                                | Decoded + verified Clerk token claims                                                                          |
+| `WsAuthResult`        | `{ effect: 'Allow' \| 'Deny', principalId?: string }`                                                | API Gateway WebSocket `$connect` authorizer result                                                             |
+| `VerifySemaphore`     | `Semaphore(VERIFY_CONCURRENCY_MAX)`                                                                  | Process-local cap on concurrent `verifyToken` calls; sheds (503) when exhausted (FR-052)                       |
+| `Source401Counter`    | `Map<sourceKey, { count: number, windowStart: number }>` (or Redis `auth401:{src}:{window}`)         | Per-source rolling 401-rate counter for load-shed (FR-052); source from ALB-attested IP, never a client header |
+| `DosConfig`           | `{ verifyConcurrencyMax: 64, source401RateMax: 20, source401WindowSeconds: 10 }`                     | Auth-layer DoS-protection thresholds (FR-052; SC-011 validated under invalid-token flood)                      |
+
+### 4. Error Handling Return Codes
+
+| Error Condition                                    | HTTP Status  | Response                                     | Action                                                                                    |
+| -------------------------------------------------- | ------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Missing / empty bearer token                       | 401          | `{ error: "Missing bearer token" }`          | Fail closed; no handler, no enqueue                                                       |
+| Invalid signature / `exp` / `nbf`                  | 401          | `{ error: "Invalid token" }`                 | Fail closed                                                                               |
+| `azp` not in `CLERK_AUTHORIZED_PARTIES`            | 401          | `{ error: "Invalid token" }`                 | Fail closed (FR-037)                                                                      |
+| Missing / malformed `CLERK_JWT_KEY` config         | 401          | `{ error: "Invalid token" }`                 | Fail closed — never proceed unauthenticated (FR-040)                                      |
+| Authenticated but scope missing (operational)      | 403          | `{ error: "Insufficient scope" }`            | Distinct from 401; precedence 401→403 (FR-051)                                            |
+| Client-supplied `x-authorizer-context`/`x-user-id` | —            | Header stripped, ignored                     | Identity only from verified `sub` (FR-038)                                                |
+| WebSocket `$connect` token invalid                 | 403 (pinned) | API GW deny policy                           | Reject before connection established (FR-049d)                                            |
+| Source over per-source 401-rate cap (token flood)  | 429          | `{ error: "Too many failed auth attempts" }` | Load-shed BEFORE any CPU-bound verify (FR-052; protects SC-011 under invalid-token flood) |
+| Verification-concurrency cap exhausted             | 503          | `{ error: "Auth verifier saturated" }`       | Shed not queue; bounds in-flight `verifyToken` so p95 stays within SC-011 (FR-052)        |
+
+> **DoS protection note (FR-052 / SC-011):** Both the per-source `401`-rate cap and the
+> verification-concurrency semaphore are bounded load-shedding gates, not authentication
+> outcomes — they sit ahead of the fail-closed `401` so a flood of well-formed-but-invalid
+> tokens (each forcing a full signature verify) cannot saturate the verifier. SC-011's
+> ≤10ms p95 MUST be validated under an invalid-token flood, not only the happy path.
+
+---
+
+## MOD-013 — QuotaAndFairness (Per-`sub` Quota, Distinct-Requester Demand & Backpressure)
+
+**Parent ARCH**: ARCH-012
+**Type**: Stateful (state in Redis and/or PostgreSQL: `user_fetch_quota`, `global_fetch_quota`, `fetch_requesters`)
+**Runtime**: NestJS service invoked inline after MOD-012, **before** `INSERT INTO fetch_queue`
+**Target source file**: `src/auth/quota-and-fairness.service.ts`
+
+### 1. Algorithmic / Logic View
+
+```
+MAX_BATCH_IDS      = 100          // client-facing batch cap (FR-045) — distinct from USDA 20/call (FR-023)
+GLOBAL_BUDGET_HOUR = 1000         // shared USDA budget per hour (A-001 hard cap; SC-002)
+GLOBAL_SHARE_CAP   = 0.20         // any single sub ≤ 20% of the global budget (FR-043 / SC-012)
+QUOTA_PER_HOUR     = floor(GLOBAL_BUDGET_HOUR * GLOBAL_SHARE_CAP)  // per-sub enqueue quota = 200/hr (FR-043; ≤20% of 1000/hr, SC-012)
+MAX_QUEUE_DEPTH    = M            // enforced fetch_queue ceiling (FR-046)
+PRIORITY_CAP       = 1            // a single sub contributes at most once to demand (FR-044)
+
+// Step 1 — batch cap (FR-045). Runs at input-validation tier (precedence 400 after 401/403; FR-051).
+FUNCTION enforceBatchCap(fdcIds):
+  IF length(fdcIds) > MAX_BATCH_IDS:
+    THROW BatchTooLargeError(400, "Batch exceeds max of 100 ids")   // enqueue NOTHING
+
+// Step 2 — per-sub enqueue quota (FR-043) → 429. Applied after auth, before enqueue.
+// Enforces BOTH a per-sub bucket AND a global rolling-window counter so that no single
+// `sub` can ever consume more than GLOBAL_SHARE_CAP (≤20%) of the global 1000/hr USDA
+// budget (SC-012). Without the global-share check, a per-sub bucket alone would let one
+// principal drain 100% of the budget once QUOTA_PER_HOUR was (mis)configured high — the
+// exact denial-of-wallet hole FR-043/SC-012 close.
+FUNCTION enforceQuota(sub, acceptedCount):
+  windowStart = floor(now() / 3600) * 3600
+  retryAfter  = (windowStart + 3600) - now()
+
+  // (a) Per-sub bucket. Redis token/leaky bucket keyed quota:{sub}:{windowStart},
+  //     OR Postgres user_fetch_quota(sub, window_start, count).
+  subCount = QuotaStore.getCount(sub, windowStart)
+  IF subCount + acceptedCount > QUOTA_PER_HOUR:
+    THROW QuotaExceededError(429, retryAfter)   // per-sub cap hit → MUST NOT enqueue (FR-043)
+
+  // (b) Global rolling-window share. Single global counter global_fetch_quota:{windowStart}
+  //     (Redis INCRBY key OR Postgres global_fetch_quota row). The per-sub admission is
+  //     additionally clamped so this `sub`'s cumulative share in the window cannot exceed
+  //     GLOBAL_SHARE_CAP of GLOBAL_BUDGET_HOUR (≤20%). This is the real global-window gate;
+  //     it is NOT advisory — it returns 429 even when the per-sub bucket still has headroom.
+  subShareCeiling = floor(GLOBAL_BUDGET_HOUR * GLOBAL_SHARE_CAP)   // == QUOTA_PER_HOUR (200)
+  IF subCount + acceptedCount > subShareCeiling:
+    THROW QuotaExceededError(429, retryAfter)   // sub would exceed its ≤20% global share (SC-012)
+
+  // Defense-in-depth: never let the aggregate global window be overshot either, even if a
+  // future config raised QUOTA_PER_HOUR above the share ceiling for some subs.
+  globalCount = QuotaStore.getGlobalCount(windowStart)
+  IF globalCount + acceptedCount > GLOBAL_BUDGET_HOUR:
+    THROW QuotaExceededError(429, retryAfter)   // global budget exhausted → MUST NOT enqueue (SC-002)
+
+  // Commit both counters atomically (single Lua MULTI / single Postgres txn) so the
+  // per-sub and global windows can never diverge under concurrency.
+  QuotaStore.increment(sub, windowStart, acceptedCount)        // per-sub bucket
+  QuotaStore.incrementGlobal(windowStart, acceptedCount)       // global rolling window
+
+// Step 3 — backpressure + circuit breaker (FR-046) → 503. Fail closed, do not grow queue unbounded.
+FUNCTION checkBackpressure():
+  IF CircuitBreaker.state == "open":
+    THROW BackpressureError(503, "USDA circuit open")       // jittered drain on recovery
+  depth = FetchQueue.depth()
+  IF depth >= MAX_QUEUE_DEPTH:
+    THROW BackpressureError(503, "Fetch queue saturated")
+
+// Step 4 — distinct-requester demand (FR-044). request_count = DISTINCT subs, capped + aged.
+FUNCTION recordDemand(sub, fdcId):
+  // fetch_requesters(fdc_id, sub, requested_at) — PK (fdc_id, sub) makes repeat requests idempotent.
+  inserted = FetchRequesters.upsert({ fdcId, sub, requestedAt: now() })  // no-op if (fdcId,sub) exists
+  IF inserted:
+    // priority contribution capped at PRIORITY_CAP per sub; aging applied by the queue scorer
+    FetchQueue.bumpDemand(fdcId, delta = PRIORITY_CAP)
+
+// Orchestration — invoked by ARCH-001 on a cache+DB miss, before publishing FoodRequested.
+// `reqUser` is the verified `req.user` (AuthenticatedCaller) populated by MOD-012.
+FUNCTION admitEnqueue(reqUser, fdcIds):
+  enforceBatchCap(fdcIds)                  // 400
+  checkBackpressure()                      // 503
+  enforceQuota(reqUser.sub, length(fdcIds))// 429 — canonical enforceQuota (not checkQuota)
+  FOR EACH fdcId IN fdcIds:
+    recordDemand(reqUser.sub, fdcId)
+  RETURN { admitted: true }
+```
+
+### 2. State Machine View
+
+```mermaid
+stateDiagram-v2
+  [*] --> Admitting
+  Admitting --> Rejected400 : batch > 100 ids (FR-045)
+  Admitting --> CheckingBackpressure : batch ok
+  CheckingBackpressure --> Rejected503 : queue full OR circuit open (FR-046)
+  CheckingBackpressure --> CheckingQuota : capacity available
+  CheckingQuota --> Rejected429 : per-sub bucket OR ≤20% global share OR global budget exceeded (FR-043 / SC-012 / SC-002)
+  CheckingQuota --> RecordingDemand : within per-sub AND global share AND global budget
+  RecordingDemand --> Admitted : distinct-requester upsert + capped demand bump (FR-044)
+  Rejected400 --> [*]
+  Rejected503 --> [*]
+  Rejected429 --> [*]
+  Admitted --> [*]
+```
+
+### 3. Internal Data Structures
+
+| Name                 | Type                                                                                                                           | Description                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user_fetch_quota`   | table `{ sub: string, window_start: number, count: number }` (PK sub+window)                                                   | Per-`sub` rolling-hour enqueue counter (Postgres form; Redis `quota:{sub}:{window}` bucket is the alt)                                                                                                                   |
+| `global_fetch_quota` | table `{ window_start: number, count: number }` (PK window_start)                                                              | **Global** rolling-hour counter across ALL subs (Postgres form; Redis `global_fetch_quota:{window}` INCRBY is the alt). Backs the ≤20% global-share check and the GLOBAL_BUDGET_HOUR hard cap (FR-043 / SC-012 / SC-002) |
+| `fetch_requesters`   | table `{ fdc_id: number, sub: string, requested_at: timestamp }` (PK fdc_id+sub)                                               | Distinct-requester set; PK makes repeat requests idempotent (FR-044) + WS recipient set (FR-041)                                                                                                                         |
+| `QuotaConfig`        | `{ quotaPerHour: 200, maxBatchIds: 100, maxQueueDepth: number, priorityCap: 1, globalBudgetHour: 1000, globalShareCap: 0.20 }` | Static fairness/backpressure thresholds; `quotaPerHour == floor(globalBudgetHour × globalShareCap)` so per-sub ≤20% share holds by construction                                                                          |
+| `AdmitResult`        | `{ admitted: boolean }`                                                                                                        | Returned only when all four gates pass                                                                                                                                                                                   |
+
+### 4. Error Handling Return Codes
+
+| Error Condition                        | Error Type / Status        | Action                                                                                                     |
+| -------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Batch size > 100 `fdcId`s              | `BatchTooLargeError` / 400 | Reject; enqueue nothing (FR-045)                                                                           |
+| `fetch_queue` depth ≥ MAX_QUEUE_DEPTH  | `BackpressureError` / 503  | Fail closed; do not grow queue (FR-046)                                                                    |
+| USDA circuit breaker open              | `BackpressureError` / 503  | Fail closed; jittered drain on recovery (FR-046)                                                           |
+| Per-`sub` bucket exceeded in window    | `QuotaExceededError` / 429 | Reject with `Retry-After`; enqueue nothing (FR-043)                                                        |
+| `sub` would exceed ≤20% global share   | `QuotaExceededError` / 429 | Reject with `Retry-After`; enqueue nothing — no single `sub` may exceed 20% of the 1000/hr budget (SC-012) |
+| Global budget (1000/hr) exhausted      | `QuotaExceededError` / 429 | Reject with `Retry-After`; enqueue nothing — global hard cap (SC-002)                                      |
+| Repeat request for same `(fdcId, sub)` | — (idempotent upsert)      | No double demand increment; priority capped (FR-044)                                                       |
+| Redis/Postgres quota store unavailable | `BackpressureError` / 503  | Fail closed — never default-open the enqueue path                                                          |
+
+---
+
+## MOD-014 — AsyncProducerAuthz (Async-Producer Provenance & Least-Privilege Enforcement)
+
+**Parent ARCH**: ARCH-012
+**Type**: Stateful (per-event validation in the consumer/worker; reads IAM-principal allowlist + event attributes)
+**Runtime**: Invoked inline in the Fargate consumer worker (ARCH-004) before any USDA fetch or `INSERT INTO fetch_queue`, and at the EventBridge/queue ingress boundary
+**Target source file**: `src/auth/async-producer-authz.service.ts`
+
+US-0's guarantee — _"no unauthenticated path may drive USDA consumption"_ — must hold for **async/internal producers** (EventBridge events, cron/scheduled jobs, bulk-sync, recipe import) just as MOD-012 enforces it on the synchronous HTTP edge. MOD-014 closes the gap where a producer could publish `FoodRequested`/`FoodBatchRequested`/`IngestionScheduled` (or insert into `fetch_queue`) without an authenticated provenance, bypassing FR-035 (FR-048). Two enforcement layers: **(1)** infrastructure — only named, least-privilege IAM principals are granted `events:PutEvents` on the bus / `INSERT` on `fetch_queue`; **(2)** application — the consumer validates each event's provenance (`requestedBy` is an authenticated `sub` or a named service principal, and the delivering IAM principal is on the allowlist) before doing work.
+
+### 1. Algorithmic / Logic View
+
+```
+// Least-privilege producer allowlist (FR-048). Named IAM principals only — no wildcard,
+// no unauthenticated 'system' shortcut. Provisioned by IaC; loaded as config, not client input.
+ALLOWED_PRODUCER_PRINCIPALS = ENV.ALLOWED_PRODUCER_PRINCIPAL_ARNS   // e.g. consumer role, import job role, scheduler role
+ALLOWED_DETAIL_TYPES        = ["FoodRequested", "FoodBatchRequested", "IngestionScheduled"]
+SERVICE_PRINCIPAL_PREFIX    = "svc_"   // named service identities carried in requestedBy
+
+// Validate the IAM principal that DELIVERED the event/insert. The principal ARN is taken from the
+// trusted invocation context (EventBridge → Lambda/worker execution identity, or DB session role),
+// NEVER from an event-body field a producer could forge.
+FUNCTION assertProducerPrincipal(invocationContext):
+  principalArn = invocationContext.callerArn   // attested by AWS, not client-suppliable
+  IF principalArn NOT IN ALLOWED_PRODUCER_PRINCIPALS:
+    THROW UnauthorizedProducerError("Producer principal not on least-privilege allowlist", principalArn)
+
+// Validate event provenance (FR-048). requestedBy MUST be either an authenticated human `sub`
+// (carried from the synchronous edge, MOD-012) or a named service principal — never empty,
+// never a generic 'system' string that would represent an unauthenticated origin.
+FUNCTION assertProvenance(event):
+  IF event.DetailType NOT IN ALLOWED_DETAIL_TYPES:
+    THROW UnauthorizedProducerError("Unrecognized detail-type", event.DetailType)
+  detail = JSON.parse(event.Detail)
+  requestedBy = detail.requestedBy
+  IF requestedBy IS NULL OR requestedBy == "" OR requestedBy == "system":
+    THROW ProvenanceError("Missing/anonymous requestedBy — no unauthenticated producer path (FR-048)")
+  isNamedService = startsWith(requestedBy, SERVICE_PRINCIPAL_PREFIX)
+  isHumanSub     = isClerkSub(requestedBy)   // shape-validate the carried authenticated sub
+  IF NOT (isNamedService OR isHumanSub):
+    THROW ProvenanceError("requestedBy is neither an authenticated sub nor a named service principal")
+  RETURN { requestedBy, requesterClass: isNamedService ? "service" : "user" }
+
+// Gate applied at the consumer ingress (ARCH-004), before TokenBucket / USDA fetch / enqueue.
+FUNCTION admitAsyncEvent(invocationContext, event):
+  assertProducerPrincipal(invocationContext)   // layer 1: IAM least-privilege (who delivered it)
+  provenance = assertProvenance(event)         // layer 2: authenticated provenance (on whose behalf)
+  MonitoringLogger.incrementMetric("async.producer.admitted", 1)
+  RETURN { admitted: true, requestedBy: provenance.requestedBy, requesterClass: provenance.requesterClass }
+
+// Direct-insert guard: any code path inserting into fetch_queue (recipe import FR-012,
+// stale-refresh FR-032) MUST carry requestedBy and run under an allowlisted DB role.
+FUNCTION assertEnqueueProvenance(dbSessionRole, requestedBy):
+  IF dbSessionRole NOT IN ALLOWED_PRODUCER_PRINCIPALS:
+    THROW UnauthorizedProducerError("DB session role not allowlisted for fetch_queue INSERT", dbSessionRole)
+  IF requestedBy IS NULL OR requestedBy == "" OR requestedBy == "system":
+    THROW ProvenanceError("fetch_queue INSERT requires authenticated requestedBy (FR-048)")
+```
+
+### 2. State Machine View
+
+```mermaid
+stateDiagram-v2
+  [*] --> ReceivingAsyncEvent
+  ReceivingAsyncEvent --> CheckingProducerPrincipal : EventBridge/queue/insert ingress
+  CheckingProducerPrincipal --> RejectedUnauthorizedProducer : principal not on least-privilege allowlist (FR-048)
+  CheckingProducerPrincipal --> CheckingProvenance : principal allowlisted
+  CheckingProvenance --> RejectedProvenance : requestedBy missing / 'system' / unrecognized detail-type (FR-048)
+  CheckingProvenance --> Admitted : requestedBy is authenticated sub OR named service principal
+  Admitted --> [*] : proceed to TokenBucket → USDA fetch / enqueue (ARCH-004)
+  RejectedUnauthorizedProducer --> [*] : event dropped + alarmed; no fetch, no enqueue
+  RejectedProvenance --> [*] : event dropped + alarmed; no fetch, no enqueue
+```
+
+### 3. Internal Data Structures
+
+| Name                | Type                                                                                                       | Description                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `ProducerAllowlist` | `Set<string>` (IAM principal ARNs)                                                                         | Named least-privilege producers granted `events:PutEvents` / `fetch_queue` INSERT (FR-048); IaC-provisioned, config-loaded |
+| `InvocationContext` | `{ callerArn: string, eventSource: string }`                                                               | AWS-attested delivery identity (Lambda/worker exec role or DB session role); never a forgeable event-body field            |
+| `EventProvenance`   | `{ requestedBy: string, requesterClass: 'user' \| 'service' }`                                             | Validated provenance carried from the synchronous edge (MOD-012 `sub`) or a named service principal                        |
+| `AsyncAdmitResult`  | `{ admitted: boolean, requestedBy: string, requesterClass: 'user' \| 'service' }`                          | Returned only when BOTH the IAM principal and the event provenance pass                                                    |
+| `AsyncAuthzConfig`  | `{ allowedProducerPrincipalArns: string[], allowedDetailTypes: string[], servicePrincipalPrefix: 'svc_' }` | Static least-privilege configuration                                                                                       |
+
+### 4. Error Handling Return Codes
+
+| Error Condition                                         | Error Type                  | Action                                                                                             |
+| ------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------- |
+| Delivering IAM principal not on allowlist               | `UnauthorizedProducerError` | Drop event; no fetch, no enqueue; CloudWatch alarm (possible bus/role misconfig or abuse) (FR-048) |
+| `requestedBy` missing / empty / `'system'`              | `ProvenanceError`           | Drop event; no fetch, no enqueue; alarm — closes the unauthenticated async path (FR-048)           |
+| `requestedBy` neither authenticated `sub` nor named svc | `ProvenanceError`           | Drop event; no fetch, no enqueue; alarm                                                            |
+| Unrecognized `detail-type` on the bus                   | `UnauthorizedProducerError` | Drop event; no work performed                                                                      |
+| `fetch_queue` INSERT under non-allowlisted DB role      | `UnauthorizedProducerError` | Reject INSERT; least-privilege DB grants are the primary control, this is defense-in-depth         |
+| `fetch_queue` INSERT without `requestedBy`              | `ProvenanceError`           | Reject INSERT; every enqueue carries authenticated provenance (FR-048)                             |
+| Allowlist config missing/empty at boot                  | `ProducerConfigError`       | Fail closed — refuse to process async events rather than default-open (mirrors FR-040 posture)     |
+
+---
+
 ## ARCH ↔ MOD Traceability Matrix
 
 This matrix maps each Architecture Module (ARCH) to its corresponding low-level Module Design (MOD), and traces both back to parent System Components (SYS).
 
-| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                               | Parent SYS                | Notes                                                          |
-| -------- | ---------------------- | ------- | ------------------------------------------------------ | ------------------------- | -------------------------------------------------------------- |
-| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                    | SYS-001                   | API Gateway Lambda; 4-layer cache lookup chain                 |
-| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Event Emitter)                   | SYS-002                   | Publishes FoodRequested, FoodBatchRequested, FoodDataReceived  |
-| ARCH-003 | SqsQueueRouter         | MOD-003 | SqsQueueRouter (EventBridge Rule Router)               | SYS-002, SYS-003, SYS-004 | Infrastructure-level routing; FIFO dedup for HighPriorityQueue |
-| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (SQS Message Processor)            | SYS-005                   | Partial batch failure support; exponential backoff             |
-| ARCH-005 | TokenBucketRateLimiter | MOD-005 | TokenBucketRateLimiter (Redis Lua Script Rate Limiter) | [CROSS-CUTTING]           | Atomic Lua script; 1,000 calls/hour cap                        |
-| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)         | SYS-006                   | pg_trgm FTS; JSONB nutrients; RDS Proxy pooling                |
-| ARCH-007 | FoodRedisCacheService  | MOD-007 | FoodRedisCacheService (Cache & Pending-Set Manager)    | SYS-007                   | Redis Set for pending dedup; TTL sentinel for stale pending    |
-| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central)  | SYS-008                   | Abridged format; 6 nutrient IDs; 10s timeout                   |
-| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)      | SYS-009                   | Launch-deferred; DynamoDB connection store                     |
-| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)            | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                        |
-| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)        | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                  |
+| ARCH ID  | ARCH Name              | MOD ID  | MOD Name                                               | Parent SYS                | Notes                                                                                                                                             |
+| -------- | ---------------------- | ------- | ------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ARCH-001 | FoodApiController      | MOD-001 | FoodApiController (Request Handler)                    | SYS-001                   | API Gateway Lambda; 4-layer cache lookup chain                                                                                                    |
+| ARCH-002 | EventBridgePublisher   | MOD-002 | EventBridgePublisher (Event Emitter)                   | SYS-002                   | Publishes FoodRequested, FoodBatchRequested, FoodDataReceived                                                                                     |
+| ARCH-003 | SqsQueueRouter         | MOD-003 | SqsQueueRouter (EventBridge Rule Router)               | SYS-002, SYS-003, SYS-004 | Infrastructure-level routing; FIFO dedup for HighPriorityQueue                                                                                    |
+| ARCH-004 | FoodConsumerService    | MOD-004 | FoodConsumerService (SQS Message Processor)            | SYS-005                   | Partial batch failure support; exponential backoff                                                                                                |
+| ARCH-005 | TokenBucketRateLimiter | MOD-005 | TokenBucketRateLimiter (Redis Lua Script Rate Limiter) | [CROSS-CUTTING]           | Atomic Lua script; 1,000 calls/hour cap                                                                                                           |
+| ARCH-006 | FoodPostgresRepository | MOD-006 | FoodPostgresRepository (Database Access Layer)         | SYS-006                   | pg_trgm FTS; JSONB nutrients; RDS Proxy pooling                                                                                                   |
+| ARCH-007 | FoodRedisCacheService  | MOD-007 | FoodRedisCacheService (Cache & Pending-Set Manager)    | SYS-007                   | Redis Set for pending dedup; TTL sentinel for stale pending                                                                                       |
+| ARCH-008 | UsdaApiClient          | MOD-008 | UsdaApiClient (HTTP Client for USDA FoodData Central)  | SYS-008                   | Abridged format; 6 nutrient IDs; 10s timeout                                                                                                      |
+| ARCH-009 | WebSocketNotifier      | MOD-009 | WebSocketNotifier (Real-Time Client Notification)      | SYS-009                   | Launch-deferred; DynamoDB connection store                                                                                                        |
+| ARCH-010 | SecretManager          | MOD-010 | SecretManager (AWS Secrets Manager Wrapper)            | [CROSS-CUTTING]           | 5-min in-memory cache; rotation support                                                                                                           |
+| ARCH-011 | MonitoringLogger       | MOD-011 | MonitoringLogger (Structured Logging & Metrics)        | [CROSS-CUTTING]           | EMF metrics; X-Ray tracing; Powertools logger                                                                                                     |
+| ARCH-012 | FoodAuthGuard          | MOD-012 | ClerkAuthMiddleware (Networkless Token Verification)   | SYS-013                   | NestJS AuthMiddleware; networkless `verifyToken`; fail-closed 401; azp; 403; M2M                                                                  |
+| ARCH-012 | FoodAuthGuard          | MOD-013 | QuotaAndFairness (Per-`sub` Quota & Backpressure)      | SYS-013                   | Per-`sub` quota 429; distinct-requester demand; batch cap 400; backpressure 503                                                                   |
+| ARCH-012 | FoodAuthGuard          | MOD-014 | AsyncProducerAuthz (Async-Producer Provenance)         | SYS-013                   | FR-048 — least-privilege IAM producers + event-provenance (`requestedBy`) validation on async/internal paths (EventBridge / `fetch_queue` INSERT) |
 
 ### Coverage Summary
 
-| Metric                                   | Count                                           |
-| ---------------------------------------- | ----------------------------------------------- |
-| Total ARCH modules                       | 11                                              |
-| Total MOD modules                        | 11                                              |
-| ARCH modules with full MOD coverage      | 11 / 11 (100%)                                  |
-| MOD modules with Stateful state machine  | 4 (MOD-001, MOD-004, MOD-005, MOD-010)          |
-| MOD modules marked N/A Stateless         | 5 (MOD-002, MOD-006, MOD-007, MOD-008, MOD-011) |
-| MOD modules with WebSocket state machine | 1 (MOD-009)                                     |
-| MOD modules with SQS state machine       | 1 (MOD-003 — infrastructure, N/A Stateless)     |
+| Metric                                   | Count                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| Total ARCH modules                       | 12                                                                                  |
+| Total MOD modules                        | 14                                                                                  |
+| ARCH modules with full MOD coverage      | 12 / 12 (100%)                                                                      |
+| MOD modules with Stateful state machine  | 7 (MOD-001, MOD-004, MOD-005, MOD-010, MOD-012, MOD-013, MOD-014)                   |
+| MOD modules marked N/A Stateless         | 5 (MOD-002, MOD-006, MOD-007, MOD-008, MOD-011)                                     |
+| MOD modules with WebSocket state machine | 1 (MOD-009)                                                                         |
+| MOD modules with SQS state machine       | 1 (MOD-003 — infrastructure, N/A Stateless)                                         |
+| ARCH-012 (FoodAuthGuard) decomposition   | 3 MODs (MOD-012 verify/authz, MOD-013 quota/fairness, MOD-014 async-producer authz) |
 
 ---
 

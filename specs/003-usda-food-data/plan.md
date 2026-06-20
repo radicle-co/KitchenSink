@@ -23,11 +23,18 @@ Lambda Consumer (token bucket @ 1,000 req/hr)
 PostgreSQL (local food store + Redis cache)
         ↑________________________|
         │                      |
-REST API Gateway         API Gateway
-(Lambda authorizer)      (search queries)
+REST API edge           API edge
+(FoodAuthGuard:         (FoodAuthGuard)
+ Clerk verifyToken      (search queries)
+ + per-sub quota)
         ↑                      ↑
-   Commise App         Search UX
+   Commise App /        Search UX
+   downstream svcs (M2M)
 ```
+
+> Every entry point (incl. WebSocket `$connect`) is fronted by **`FoodAuthGuard`** (§2A) —
+> networkless Clerk verification + per-`sub` quota — before any DB/queue/USDA work. Async
+> producers (EventBridge/cron/bulk-sync) are gated by least-privilege IAM (FR-048).
 
 ### Data Flow
 
@@ -110,18 +117,135 @@ The `ingredients` table in 001 already has `usda_fdc_id` and 4 macro columns. 00
 
 ---
 
+## 2A. Authentication & Authorization (FR-035–FR-053)
+
+> Added by the 2026-06-19 re-plan to close sync-verify DRIFT-101 and the red-team
+> findings (RT-003-usda-food-data-2026-06-19). The pre-auth plan had **zero** auth
+> coverage; this section is the design source for the auth slice of tasks + the
+> v-model V&V chain.
+
+### 2A.1 `FoodAuthGuard` — the named auth component (FR-053)
+
+A single auth component fronts **every** food data entry point — all HTTP routes
+**and** the WebSocket `$connect`. It is a first-class architecture module (not spec
+prose), and every auth FR (FR-035–FR-052) traces to it.
+
+- **Verification is networkless** (FR-036/FR-037): `verifyToken` from `@clerk/backend`
+  using the public `CLERK_JWT_KEY`, enforcing `azp` ∈ `CLERK_AUTHORIZED_PARTIES`.
+  No IdP round trip, no Clerk secret key, no Auth0/Cognito authorizer. Mirrors the
+  identity service's `ClerkAuthService`/`AuthMiddleware` (`packages/services/identity/src/auth/`).
+- **Identity from the verified token only** (FR-038): `sub` (+ `azp`, `public_metadata`)
+  come from the validated JWT; no client-suppliable identity header is ever trusted.
+
+**Deployment decision (locked 2026-06-19): in-process NestJS middleware on ECS/Fargate.**
+FoodService is a NestJS service on **ECS/Fargate behind a public ALB** (same topology as
+the identity service). Therefore `FoodAuthGuard` is implemented as **NestJS `AuthMiddleware`
+running in-process**, not as a Lambda authorizer:
+
+- An **API Gateway Lambda authorizer cannot front an ALB** — Lambda authorizers are an API
+  Gateway / AppSync feature; ALB has no equivalent (its only native auth is redirect-based
+  `authenticate-oidc`/`authenticate-cognito`, the wrong shape for verifying a Clerk bearer
+  token). Using a Lambda authorizer would require inserting `API Gateway → VPC Link → ALB →
+ECS` purely to host it — an extra edge layer for no gain, since the token verifies
+  networklessly in ~1ms in-process.
+- The middleware **reuses the identity service's Clerk verification**: extract the
+  `ClerkAuthService` verify logic (`verifyToken` + `azp`) into a shared `@kitchensink/*`
+  package consumed by both services — one implementation, no drift.
+- No cold start → SC-011 (≤10ms p95) is met without provisioned concurrency; the per-`sub`
+  quota (FR-043) lives in the same process, right before enqueue.
+- **FR-050 reframed for middleware:** the middleware runs on **every** route (there is no
+  authorizer result cache to fall open); the cache-TTL/route-binding form of FR-050 applies
+  only to the WebSocket `$connect` authorizer below.
+- _If_ API Gateway is later added in front of FoodService for other reasons (WAF, usage
+  plans, unified edge), a Clerk REQUEST Lambda authorizer becomes the right tool and FR-050's
+  cache rules re-apply — but that is out of scope for this plan.
+
+### 2A.2 Token classes (FR-047, A-012)
+
+| Class                   | Caller                                                                                             | `azp`                           | Verified by               |
+| ----------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------- |
+| **User session token**  | web/mobile end users                                                                               | web/mobile origins              | networkless `verifyToken` |
+| **Machine (M2M) token** | downstream services (001/006/007/009) + internal jobs (recipe import FR-012, stale-refresh FR-032) | service client ids in allowlist | networkless `verifyToken` |
+
+Every endpoint is classified user-token / service-token / both (see §3 table). Server-initiated
+paths that lack a user token MUST use an M2M token — they are **not** exempt from auth.
+
+### 2A.3 Authorization (FR-039, FR-051)
+
+- Food data is shared reference data → **any authenticated principal may read** (no per-record ownership).
+- Operational/admin endpoints (manual re-fetch, stale-refresh trigger) require an **elevated scope**
+  read from the token's signed `public_metadata`; missing scope → **`403 Forbidden`** (distinct from `401`).
+- **Response precedence (FR-051):** `401` (authn) → `403` (authz scope) → `400` (input validation)
+  → `404`/`202`/`200` (business logic). Applies to FR-002/003/005/006.
+
+### 2A.4 Per-user quota & queue fairness (FR-043, FR-044, FR-045, FR-046 — denial-of-wallet)
+
+Auth ≠ rate limiting. New mechanisms, enforced **after** auth and **before** `INSERT INTO fetch_queue`:
+
+- **Per-`sub` enqueue quota** (FR-043): leaky/token bucket of N enqueues/hr per principal; exceed → **`429`**.
+  No single `sub` may consume > ~20% of the global 1,000/hr USDA budget (SC-012). State in Redis
+  (`quota:{sub}`) or a Postgres table `user_fetch_quota(sub, window_start, count)`.
+- **Distinct-requester demand** (FR-044): `request_count` (FR-015 priority) counts **distinct `sub`s**
+  via a new `fetch_requesters(fdc_id, sub, requested_at)` table — a `sub` cannot inflate priority by
+  repeating; contribution capped; ordering aged so no `fdcId` is pinned to the front. This table also
+  drives WebSocket targeting (§2A.5).
+- **Max batch size** (FR-045): `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s; over → `400`;
+  accepted IDs count against the per-`sub` quota. (USDA's 20-ID/token cap, FR-023, stays an internal detail.)
+- **Queue backpressure + circuit breaker** (FR-046): enforced max `fetch_queue` depth; when exceeded, or
+  when the USDA circuit breaker is **open**, new enqueues fail closed with **`503`** (jittered recovery,
+  no thundering herd). The breaker is a normative requirement, not the §6 footnote.
+
+### 2A.5 WebSocket auth (FR-041, FR-049)
+
+The WebSocket notifier (US-9, deferred P3) runs on an **API Gateway WebSocket API** — separate
+from the ECS HTTP service. This is the one surface where a **`$connect` Lambda authorizer** is the
+right tool (it reuses the same shared Clerk-verification package), and FR-050's cache-TTL/route-binding
+rules apply here.
+
+- Token presented at `$connect` via query param or `Sec-WebSocket-Protocol` (browsers can't set
+  `Authorization` on WS); `$connect` rejection pinned to **`403`**.
+- Mid-connection expiry (`exp` passes): connection closed (re-auth on reconnect after the 10-min idle close).
+- `FoodDataReceived` pushes resolve recipients from `fetch_requesters` (the requester `sub`→`fdcId` set) —
+  **no broadcast** to non-requesting connections (fixes the previously-unimplementable ownership guarantee).
+
+### 2A.6 Async-producer authorization (FR-048)
+
+Only named, least-privilege IAM roles may `events:PutEvents` (`FoodRequested`/`FoodBatchRequested`/
+`IngestionScheduled`) or `INSERT` into `fetch_queue`; the consumer validates event provenance. The
+`requestedBy` field on events (§4) carries the authenticated `sub` or the named service principal —
+never an unauthenticated `'system'` shortcut that bypasses the edge.
+
+### 2A.7 Auth-layer DoS protection (FR-052, SC-011)
+
+Bound auth-verification concurrency + per-source `401`-rate cap (load-shed) so a flood of well-formed-
+but-invalid tokens (each forcing a CPU-bound signature verify before the fail-closed `401`) cannot
+saturate the verifier and breach SC-009. SC-011's ≤10ms p95 is validated **under an invalid-token flood**.
+
+### 2A.8 Config (FR-042)
+
+`CLERK_JWT_KEY` (public PEM) + `CLERK_AUTHORIZED_PARTIES` (azp allowlist) — both non-secret. USDA API key
+remains the only secret (Secrets Manager). New data: `user_fetch_quota` (or Redis), `fetch_requesters`.
+
+---
+
 ## 3. API Contracts
 
 ### Endpoints
 
-| Method | Path                            | Auth     | Description                             |
-| ------ | ------------------------------- | -------- | --------------------------------------- |
-| GET    | `/v1/foods/{fdcId}`             | Required | Get food by USDA FDC ID                 |
-| GET    | `/v1/foods/{fdcId}/status`      | Required | Poll fetch status                       |
-| GET    | `/v1/foods/search?query=`       | Required | Search local foods                      |
-| POST   | `/v1/foods/batch`               | Required | Request batch fetch for multiple fdcIds |
-| GET    | `/v1/foods/{fdcId}/nutrients`   | Required | Get full nutrient breakdown             |
-| GET    | `/v1/foods/autocomplete?query=` | Required | Autocomplete suggestions                |
+Auth column: **U** = user session token, **M** = M2M/service token, **scope** = additionally requires
+a `public_metadata` scope. All endpoints reject with `401` (no/invalid token) before any other handling;
+`429` when the per-`sub` quota (FR-043) is exceeded.
+
+| Method | Path                            | Auth      | Description                                         |
+| ------ | ------------------------------- | --------- | --------------------------------------------------- |
+| GET    | `/v1/foods/{fdcId}`             | U or M    | Get food by USDA FDC ID (`200`/`202`/`404`)         |
+| GET    | `/v1/foods/{fdcId}/status`      | U or M    | Poll fetch status                                   |
+| GET    | `/v1/foods/search?query=`       | U or M    | Search local foods                                  |
+| POST   | `/v1/foods/batch`               | U or M    | Batch fetch; ≤100 ids (`400` over), counts to quota |
+| GET    | `/v1/foods/{fdcId}/nutrients`   | U or M    | Get full nutrient breakdown                         |
+| GET    | `/v1/foods/autocomplete?query=` | U or M    | Autocomplete suggestions                            |
+| POST   | `/v1/foods/{fdcId}/refetch`     | U + scope | Operational manual re-fetch (`403` w/o scope)       |
+| WS     | `$connect`                      | U         | WebSocket subscribe (`403` reject; FR-049)          |
 
 ### Response Shapes
 
@@ -157,7 +281,26 @@ The `ingredients` table in 001 already has `usda_fdc_id` and 4 macro columns. 00
   "fdcId": 999999,
   "message": "This food has been tombstoned after failed USDA lookup"
 }
+
+// Any endpoint — unauthenticated / invalid / expired / wrong-azp token (FR-035, FR-040)
+401 Unauthorized
+{ "error": "Unauthorized", "message": "Valid Clerk session or M2M token required" }
+
+// Operational endpoint — authenticated but missing required scope (FR-039, FR-051)
+403 Forbidden
+{ "error": "Forbidden", "message": "Operation requires elevated scope" }
+
+// Per-sub enqueue quota exceeded (FR-043)
+429 Too Many Requests
+{ "error": "Rate limited", "retryAfterSeconds": 120, "message": "Per-user fetch quota exceeded" }
+
+// Batch over the max id limit (FR-045) — or queue/circuit backpressure (FR-046 → 503)
+400 Bad Request   { "error": "Batch too large", "maxIds": 100 }
+503 Service Unavailable   { "error": "Fetch temporarily unavailable", "retryAfterSeconds": 30 }
 ```
+
+> **Status precedence (FR-051):** `401` → `403` → `400` → `404`/`202`/`200`. A malformed
+> `fdcId` with a bad token returns `401` (not `400`); a valid token on a tombstoned food returns `404`.
 
 ---
 
@@ -171,7 +314,7 @@ FoodRequested {
   eventId: string,
   timestamp: ISO8601,
   fdcId: number,
-  requestedBy: string,      // user ID or 'system'
+  requestedBy: string,      // authenticated Clerk sub or named service principal (FR-048; never an unauthenticated 'system' shortcut)
   priority: 'high' | 'normal'
 }
 

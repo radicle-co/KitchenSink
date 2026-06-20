@@ -12,6 +12,7 @@
 
 | US     | Name                                | Priority | FRs                                                    |
 | ------ | ----------------------------------- | -------- | ------------------------------------------------------ |
+| US-0   | Authenticated & Authorized Access   | P1       | FR-035–FR-053 (auth slice; T-033, T-046–T-056)         |
 | US-001 | Single Food Lookup (Cache Hit)      | P1       | FR-001, FR-002, FR-005, FR-006                         |
 | US-002 | Cache Miss / Async Backfill         | P1       | FR-003, FR-004, FR-007, FR-011, FR-013, FR-024, FR-025 |
 | US-003 | Rate-Limited USDA Consumption       | P1       | FR-019, FR-020, FR-021, FR-022, FR-026, FR-027         |
@@ -36,7 +37,7 @@ SETUP (T-001–T-004)
               │           └─► BATCH PROCESSING (T-027–T-029)
               ├─► SEARCH INDEXER (T-023)
               ├─► STALE REFRESH (T-030–T-032)
-              ├─► AUTH INTEGRATION (T-033)
+              ├─► AUTH & AUTHZ (T-033, T-046–T-056) [US-0, FR-035–FR-053]
               └─► MONITORING (T-034–T-037)
 
 WEBSOCKET (T-038–T-039) [P3 — Deferred]
@@ -682,21 +683,67 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-## Phase 7 — Auth Integration (FR-035)
+## Phase 7 — Authentication & Authorization (US-0, FR-035–FR-053)
 
-- [ ] **T-033** [P1] [FR-035] Lambda Authorizer Integration — `—`
-      **Story**: FR-035
-      **Priority**: P1
-      **Depends on**: T-010
-      **Implements**: FR-035
+> Expanded by the 2026-06-19 re-plan to cover the full auth slice (plan §2A). Closes
+> sync-verify DRIFT-101 (tasks layer) and the red-team findings. Deployment: in-process
+> NestJS `AuthMiddleware` on ECS/Fargate (ALB), shared `ClerkAuthService` verification.
 
-    Wire the shared Clerk auth middleware from feature 002 to all `/v1/foods/*` routes:
-    - All 6 endpoints require a valid Clerk session token
-    - Verification is networkless: `verifyToken` from `@clerk/backend` using the public `CLERK_JWT_KEY`, with authorized parties enforced via `CLERK_AUTHORIZED_PARTIES` (`azp`)
+- [ ] **T-033** [P1] [FR-035..038,040] `FoodAuthGuard` — NestJS AuthMiddleware — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-010, T-046 · **Implements**: FR-035, FR-036, FR-037, FR-038, FR-040
+      In-process NestJS `AuthMiddleware` on every `/v1/foods/*` route (mirrors `packages/services/identity` `AuthMiddleware`). Networkless `verifyToken` via shared package (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed.
+      **Acceptance**: no/invalid/expired/wrong-`azp` token → `401`, no enqueue, no USDA call; valid token → `req.user.sub` set; verification makes zero outbound network calls.
 
-    **Acceptance**:
-    - Unauthenticated request to any `/v1/foods/*` endpoint returns 401
-    - Valid Clerk session token returns expected response
+- [ ] **T-046** [P1] [FR-036,053] Shared Clerk-verification package — `—`
+      **Story**: US-0 · **Depends on**: — · **Implements**: FR-036, FR-053
+      Extract `verifyToken(jwtKey, authorizedParties)` from the identity service's `ClerkAuthService` into a shared `@kitchensink/*` package consumed by both identity and food services (one implementation, no drift). FoodAuthGuard is the named, traceable auth component fronting all entry points.
+
+- [ ] **T-047** [P1] [FR-047] M2M / service-token support — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-033 · **Implements**: FR-047 (A-012)
+      Accept Clerk **machine (M2M) tokens** (azp-allowlisted) for downstream services (001/006/007/009) and internal jobs (recipe import FR-012, stale-refresh FR-032). Classify each endpoint user-token / service-token / both.
+      **Acceptance**: a backend caller with a valid M2M token is accepted (not `401`); a user-only endpoint rejects a service token where disallowed.
+
+- [ ] **T-048** [P1] [FR-039,051] Authorization scopes + status precedence — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-033 · **Implements**: FR-039, FR-051
+      `403` for authenticated-but-insufficient `public_metadata` scope on operational endpoints; enforce precedence `401`→`403`→`400`→`404`/`202`/`200` (governs FR-002/003/005/006).
+      **Acceptance**: valid token without scope on `POST /v1/foods/{fdcId}/refetch` → `403`; malformed `fdcId` with bad token → `401` (not `400`).
+
+- [ ] **T-049** [P1] [FR-043] Per-`sub` enqueue quota — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-033, T-056 · **Implements**: FR-043 (SC-012)
+      Per-`sub` leaky/token bucket (Postgres `user_fetch_quota` for lean launch, Redis later), enforced **after** auth and **before** `INSERT INTO fetch_queue`; exceed → `429`; cap any `sub` at ≤20% of the global hourly budget.
+      **Acceptance**: one account scripting lookups gets `429` past its quota and cannot starve other users of the 1,000/hr budget (SC-012 test).
+
+- [ ] **T-050** [P1] [FR-044] Distinct-requester demand counting — `Test-first: true`
+      **Story**: US-0/US-5 · **Depends on**: T-056, T-018 (queue) · **Implements**: FR-044
+      `request_count` priority counts **distinct `sub`s** via `fetch_requesters(fdc_id, sub, requested_at)`; repeat requests from one `sub` don't inflate priority; contribution capped; ordering aged.
+      **Acceptance**: a single `sub` repeatedly requesting one `fdcId` cannot pin it ahead of genuine distinct-requester demand.
+
+- [ ] **T-051** [P1] [FR-045] Max batch size enforcement — `Test-first: true`
+      **Story**: US-0/US-4 · **Depends on**: T-024 (batch) · **Implements**: FR-045
+      `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s → `400` over limit, no enqueue; accepted IDs count to the per-`sub` quota.
+      **Acceptance**: oversized batch returns `400` and enqueues nothing.
+
+- [ ] **T-052** [P1] [FR-046] Queue backpressure + circuit breaker — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-018, T-020 · **Implements**: FR-046
+      Enforced max `fetch_queue` depth; when exceeded or the USDA circuit breaker is open → new enqueues fail closed with `503`; jittered recovery (no thundering herd).
+      **Acceptance**: at max depth / breaker-open, enqueue returns `503`; recovery drains without a burst spike.
+
+- [ ] **T-053** [P2] [FR-048] Async-producer least-privilege IAM + provenance — `—`
+      **Story**: US-0 · **Depends on**: T-006 (infra) · **Implements**: FR-048
+      Only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates event provenance; `requestedBy` carries the authenticated `sub` or named service principal (no unauthenticated `'system'` shortcut).
+
+- [ ] **T-054** [P2] [FR-052] Auth-layer DoS protection — `Test-first: true`
+      **Story**: US-0 · **Depends on**: T-033 · **Implements**: FR-052 (SC-009/SC-011)
+      Bound verification concurrency + per-source `401`-rate cap (load-shed) so an invalid-token flood can't saturate the verifier.
+      **Acceptance**: SC-011 (≤10ms p95) holds under an invalid-token flood, not just the happy path.
+
+- [ ] **T-056** [P1] [FR-043,044] Migration: `user_fetch_quota` + `fetch_requesters` — `—`
+      **Story**: US-0 · **Depends on**: T-010 · **Implements**: FR-043, FR-044
+      Drizzle migration for both tables (+ indexes). Includes **user-erasure handling**: on a user-deletion event, `fetch_requesters`/`user_fetch_quota` rows for that `sub` are deleted (or TTL'd) — closes the constitution data-privacy warning.
+
+> **WebSocket auth (FR-041, FR-049)** is tracked with the deferred WebSocket work in **Phase 9**
+> (`$connect` Lambda authorizer on the API Gateway WebSocket API + per-`sub` notification
+> targeting from `fetch_requesters`), since the WS API itself is P3-deferred.
 
 ---
 
@@ -786,14 +833,16 @@ INTEGRATION TESTS (T-040–T-045)
 
     > **Deferred**: Implement only if polling UX (US-008) is validated as insufficient.
 
-    Create API Gateway WebSocket API:
-    - `$connect` / `$disconnect` routes
-    - Store connection IDs in DynamoDB (`usda_ws_connections`)
-    - Associate `fdcId` subscriptions with connection IDs
+    Create API Gateway WebSocket API (the one surface where a `$connect` **Lambda authorizer** is the right tool — reuses the shared Clerk-verify package; FR-050 cache rules apply here):
+    - `$connect` Lambda authorizer verifies the Clerk token (token via query param or `Sec-WebSocket-Protocol`, since browsers can't set `Authorization` on WS); reject → `403` (FR-041, FR-049)
+    - mid-connection `exp` → close; reconnect re-auth after the 10-min idle close
+    - Store connection IDs + authenticated `sub` in DynamoDB (`usda_ws_connections`); associate `fdcId` subscriptions with `sub` (drives no-broadcast targeting from `fetch_requesters`)
+
+    **Implements**: FR-034, FR-041, FR-049
 
     **Acceptance**:
-    - Client can establish WebSocket connection with valid Clerk session token
-    - Connection ID stored in DynamoDB on connect, removed on disconnect
+    - `$connect` without a valid token → `403` (no connection); with a valid token → connection + `sub` stored
+    - `FoodDataReceived` push reaches only connections whose `sub` requested that `fdcId` (no broadcast)
 
 ---
 
@@ -960,4 +1009,18 @@ INTEGRATION TESTS (T-040–T-045)
 | FR-034 | T-038, T-039        | ✅ (deferred)             |
 | FR-035 | T-033               | ✅                        |
 
-**Gap**: None. All 35 FRs trace to at least one task. FR-030 maps to T-045 (in-process LRU) because the new architecture explicitly removes Redis; the functional intent (cache acceleration) is preserved without ElastiCache infrastructure.
+**Gap**: None. All **53 FRs** trace to at least one task. FR-030 maps to T-045 (in-process LRU) because the new architecture explicitly removes Redis; the functional intent (cache acceleration) is preserved without ElastiCache infrastructure.
+
+**Auth coverage (FR-035–FR-053, added 2026-06-19 re-plan):**
+
+| FR                                     | Task(s)                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| FR-035, FR-036, FR-037, FR-038, FR-040 | T-033 (FoodAuthGuard middleware) + T-046 (shared verify pkg)                       |
+| FR-039, FR-051                         | T-048 (scopes + `403` + status precedence)                                         |
+| FR-041, FR-049                         | Phase 9 (T-038/T-039 — `$connect` authorizer + per-`sub` targeting, deferred)      |
+| FR-042                                 | T-033 / config                                                                     |
+| FR-043                                 | T-049 (per-`sub` quota + `429`) · FR-044 → T-050 · FR-045 → T-051 · FR-046 → T-052 |
+| FR-047                                 | T-047 (M2M) · FR-048 → T-053 · FR-052 → T-054 · FR-053 → T-046                     |
+| migrations                             | T-056 (`user_fetch_quota`, `fetch_requesters`, user-erasure)                       |
+
+Test-first tasks: T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054 (auth `401`/`403`/`429`, azp rejection, no-broadcast WS, one-user-can't-starve-others).

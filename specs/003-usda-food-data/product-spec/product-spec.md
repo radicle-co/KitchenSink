@@ -104,6 +104,10 @@ USDA Food Data Integration makes nutritional data in Commise trustworthy, low-la
 
 ## Epics
 
+### Epic 0: Authenticated & Authorized Access (P1)
+
+Every food data surface (HTTP lookups/search/status, batch, and the deferred WebSocket) is reachable only by an authenticated Commise principal. Identity is verified from a Clerk token (networkless), and — critically — authentication is paired with **per-user fairness** so that no single authenticated account can exhaust the shared USDA budget or starve others. This epic is the connective protection layer beneath Epics 1–4. _(Added 2026-06-19; FoodAuthGuard, plan §2A.)_
+
 ### Epic 1: Deterministic Food Lookup (P1)
 
 Serve food data from local persistence with clear responses for fetched/pending/not-found states, while preserving strict request-path isolation from USDA.
@@ -125,6 +129,10 @@ Instrument queue health, latency, and failure signals with optional real-time cl
 ## Stories (MoSCoW)
 
 ### Must Have
+
+0. **US-0 — Authenticated & authorized access**
+   As any caller of the food data service, I must present a valid Clerk token (user session or service M2M) to reach any endpoint; unauthenticated/expired/wrong-party requests are rejected (`401`) before any work, insufficient scope is `403`, and per-user quotas (`429`) keep one account from exhausting the shared USDA budget. No anonymous access; no unauthenticated path drives USDA spend.
+   **FRs**: FR-035–FR-053 (SC-010, SC-011, SC-012)
 
 1. **US-001 — Cache-hit single food lookup**
    As a recipe author, I can request an already-fetched food and receive complete nutrition quickly, so recipe workflows stay responsive.

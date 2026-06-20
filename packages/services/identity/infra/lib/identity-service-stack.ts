@@ -248,7 +248,13 @@ export class IdentityServiceStack extends Stack {
             zoneName: domainName,
         });
 
-        const targetGroup = new elbv2.ApplicationTargetGroup(this, 'IdentityServiceTargets', {
+        // NOTE: a target group cannot be MOVED between load balancers — attaching an existing TG to a
+        // second LB fails with "target groups cannot be associated with more than one load balancer".
+        // Migrating identity from its own ALB to the shared ALB therefore requires a NEW TG (new logical
+        // id 'IdentityServiceSharedTargets', replacing the old 'IdentityServiceTargets'): CloudFormation
+        // creates the fresh TG on the shared ALB and deletes the old TG with the old ALB. Do not rename
+        // back to the old id while any stage still has the pre-shared-ALB topology deployed.
+        const targetGroup = new elbv2.ApplicationTargetGroup(this, 'IdentityServiceSharedTargets', {
             vpc,
             port: 3000,
             protocol: elbv2.ApplicationProtocol.HTTP,

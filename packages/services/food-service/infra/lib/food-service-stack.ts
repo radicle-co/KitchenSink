@@ -311,7 +311,9 @@ export class FoodServiceStack extends Stack {
             zoneName: domainName,
         });
 
-        const targetGroup = new elbv2.ApplicationTargetGroup(this, 'FoodServiceTargets', {
+        // Named '…SharedTargets' to match identity's shared-ALB convention (a TG belongs to exactly one
+        // load balancer — the shared ALB — and cannot be moved). See identity-service-stack.ts.
+        const targetGroup = new elbv2.ApplicationTargetGroup(this, 'FoodServiceSharedTargets', {
             vpc,
             port: 3000,
             protocol: elbv2.ApplicationProtocol.HTTP,

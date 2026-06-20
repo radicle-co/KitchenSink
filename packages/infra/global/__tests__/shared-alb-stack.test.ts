@@ -1,6 +1,6 @@
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, beforeAll } from 'vitest';
 
 import { DomainStack } from '../lib/platform/domain-stack.js';
 import { NetworkStack } from '../lib/platform/network-stack.js';

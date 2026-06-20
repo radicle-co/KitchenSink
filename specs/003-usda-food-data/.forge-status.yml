@@ -85,8 +85,50 @@ phases:
         artifact: null
 
     implement:
-        state: not-started
-        note: tasks.md present; no implementation completion markers recorded.
+        state: in-progress
+        executor: superpowers-bridge
+        note: >
+            Phase-by-phase execution via the Superpowers bridge (handoff status=executing).
+            Phase 0 (Setup & Infrastructure) COMPLETE 2026-06-20: T-001/T-001b/T-002/T-003/T-004/T-060
+            done (6/61). Scaffolded @kitchensink/food-service (NestJS + own CDK), @kitchensink/usda-client
+            (TDD, 9/9 tests), placeholder @kitchensink/food-service-client, kitchensink_food logical DB
+            in global DataStack (no new RDS), Zod env config (4/4 tests), Drizzle schema (5 tables).
+            Independently verified: tests + typecheck pass; synth parity with identity (fromLookup needs
+            creds offline — accepted). Lambda/worker handlers are skeletons (fleshed out in later phases).
+        progress: { phase_0: complete, tasks_done: 6, tasks_total: 62 }
+        phase_0_amendments_2026_06_20: >
+            Post-Phase-0 review (user-driven) landed 3 changes: (#1) added zod runtime validation
+            to @kitchensink/usda-client — validates the raw USDA wire shape at the external boundary,
+            new UsdaSchemaError (distinct from UsdaServerError), 12/12 tests (amends T-003; public
+            normalized types kept, raw schemas z.infer'd separately to avoid drift). (#4) plan.md §4
+            reclassified FoodRequested/FoodBatchRequested OUT of "EventBridge Events" → in-process
+            fetch_queue enqueue (now matches spec FoodDataEvent + the whole v-model, which were already
+            correct; CDK was already correct — only plan §4 was stale). §2A.6 IAM line corrected too.
+            (#5) added T-064 E2E harness task (booted Nest + testcontainers Postgres + supertest;
+            API→queue→worker→DB) — tasks_total 61→62. usda-client + food-service tests/typecheck
+            independently re-verified green.
+    follow_ups:
+        - id: FU-MIGRATE
+          item: '#3 migration runner — DEFERRED to deploy/release-readiness (user decision 2026-06-20)'
+          detail: >
+              plan §7 defines the DDL and T-005..T-009/T-056 say "apply" migrations, but NO runner
+              mechanism is defined and migrations CANNOT run in GitHub (RDS is PRIVATE_ISOLATED). The
+              repo pattern is an in-VPC migration-runner Lambda (identity-webhooks/src/handlers/migrate.ts,
+              esbuild-bundled .sql, tracked in schema_migrations, invoked at deploy). food-service needs
+              the equivalent wired to the new FoodMigrationPlanSecretArn (T-001b). Phases 1–11 build
+              against a local/test DB (testcontainers, see T-064) until then. Design the runner at the
+              deploy phase.
+        - id: FU-EVENTNAME
+          item: 'Naming drift: completion event is FoodFetchCompleted (plan §4 + CDK rule) vs FoodDataReceived (spec.md + v-model)'
+          detail: >
+              Same event, two names. plan §4 now annotates FoodFetchCompleted as an alias of v-model
+              FoodDataReceived; the CDK rule matches detailType "FoodFetchCompleted". Harmonize to one
+              canonical name across spec/plan/CDK/v-model before the worker emits it (Phase 3/T-023).
+        - id: FU-ESBUILD
+          item: 'esbuild needed for the 3 food Lambdas (stale-refresh, bulk-sync, search-indexer) when their real handlers land'
+          detail: >
+              Currently inline placeholder handlers in FoodServiceStack. Real handlers (T-023/T-030/T-032)
+              need @kitchensink/esbuild bundling like identity-webhooks (esbuild.mjs → single-file dist).
 
     code-review:
         state: not-applicable
@@ -204,7 +246,7 @@ red_team:
 # Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
 # both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
 next_action: implement via the Superpowers bridge (gate decision 2026-06-20). Design complete + peer-review PASS; routing Phase 6 through speckit-superpowers-bridge → Superpowers (TDD + verify + review), NOT direct speckit.implement. BLOCKED on a session reload — the bridge commands + the mandatory before_implement guard hook are not yet loaded.
-next_command: "/reload-plugins, then /speckit-product-forge-forge (resumes at Phase 6, guard routes the handoff) OR /speckit.speckit-superpowers-bridge.handoff → /speckit-superpowers-bridge (execute via Superpowers executing-plans against tasks.md)"
+next_command: '/reload-plugins, then /speckit-product-forge-forge (resumes at Phase 6, guard routes the handoff) OR /speckit.speckit-superpowers-bridge.handoff → /speckit-superpowers-bridge (execute via Superpowers executing-plans against tasks.md)'
 implement_gate_decision: >
     2026-06-20: at the Phase 6 implement gate, chose to route the build through the
     speckit-superpowers-bridge → Superpowers (executing-plans: TDD honoring the 9 Test-first

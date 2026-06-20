@@ -74,14 +74,14 @@ GLOBAL DB (T-001b: kitchensink_food) ─► FOOD-SERVICE CDK (T-001)
 
 PERF/LOAD TESTS (T-062) [SC-001/003/004/007]
 WEBSOCKET (T-038–T-039) [P3 — Deferred] · MULTI-AZ UPGRADE (T-061) [deferred, SC-009]
-INTEGRATION TESTS (T-040–T-045)
+INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testcontainers Postgres]
 ```
 
 ---
 
 ## Phase 0 — Setup & Infrastructure
 
-- [ ] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
+- [x] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001b
@@ -100,7 +100,7 @@ INTEGRATION TESTS (T-040–T-045)
     - `cdk synth` produces valid CloudFormation with no errors and **no new RDS resource**
     - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret
 
-- [ ] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
+- [x] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: —
@@ -117,7 +117,7 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-002** [P0] [Foundation] Environment Config (Zod) — `—`
+- [x] **T-002** [P0] [Foundation] Environment Config (Zod) — `—`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001
@@ -138,7 +138,7 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-003** [P0] [Foundation] `@kitchensink/usda-client` package + USDA API client — `packages/clients/usda/src/usda-api.client.ts`
+- [x] **T-003** [P0] [Foundation] `@kitchensink/usda-client` package + USDA API client — `packages/clients/usda/src/usda-api.client.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-002, T-060
@@ -157,7 +157,7 @@ INTEGRATION TESTS (T-040–T-045)
 
 ---
 
-- [ ] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/services/food-service/src/db/schema/usda.ts`
+- [x] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/services/food-service/src/db/schema/usda.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001
@@ -830,7 +830,7 @@ INTEGRATION TESTS (T-040–T-045)
 
 ## Phase 7b — Packages & Workspace Wiring (Foundation)
 
-- [ ] **T-060** [P0] [Foundation] Register new packages in root workspaces — `package.json`
+- [x] **T-060** [P0] [Foundation] Register new packages in root workspaces — `package.json`
       **Story**: Foundation · **Depends on**: — · **Implements**: NFR-006
       Add explicit paths `"packages/clients/usda"` and `"packages/clients/food-service"` to the root
       `package.json` `workspaces` array (`packages/clients` stays a grouping folder, not a glob —
@@ -1067,6 +1067,31 @@ INTEGRATION TESTS (T-040–T-045)
     - Repeated lookup of same `fdcId` within 5 minutes served from memory
     - Cache miss falls through to PostgreSQL
     - No Redis infrastructure provisioned
+
+---
+
+- [ ] **T-064** [P1] [US-001/002/004] E2E Harness: booted food-service + real Postgres — `packages/services/food-service/vitest.e2e.config.ts`
+      **Story**: US-001/US-002/US-004 · **Depends on**: T-010, T-012, T-017, T-019 · **Implements**: FR-001..FR-006, FR-011, FR-013, FR-014, FR-024 (E2E coverage)
+
+    Stand up a **true end-to-end** harness for the headless food API (the Phase 10 T-040–T-045 tests
+    are component/integration-level with stubs; this exercises the real wiring). Mirror the existing
+    `identity` / `identity-webhooks` e2e pattern (`test:e2e` script + `vitest.e2e.config.ts`):
+    - **Ephemeral Postgres via testcontainers** (`@testcontainers/postgresql`), migrated to the
+      `kitchensink_food` schema (the same Drizzle migrations from Phase 1) — this is also the agreed
+      local/test DB strategy standing in for the deferred deploy-time migration runner (see
+      `.forge-status.yml` follow-up FU-MIGRATE).
+    - **Booted Nest app** via `supertest` (real `FoodAuthGuard` with a test Clerk JWT key, real
+      controllers/services/DAOs, real `fetch_queue` + `pg_notify`), with the USDA HTTP client mocked
+      at the network boundary only.
+    - **Scenarios:** cache-hit `200` (no USDA call); cache-miss → `202` + `fetch_queue` row + worker
+      drains → re-request `200`; concurrent same-`fdcId` dedup (one row); batch per-item partial.
+    - Wire `npm run test:e2e --workspace=packages/services/food-service` and add it to CI (`_ci.yml`)
+      as a separate job (not the default `test`), matching the identity-webhooks e2e job.
+
+    **Acceptance**:
+    - `npm run test:e2e --workspace=packages/services/food-service` boots the app against a
+      testcontainers Postgres and the cache-hit / cache-miss→fetch / dedup / batch scenarios pass green
+    - The e2e job runs in CI and is required on the food-service path
 
 ---
 

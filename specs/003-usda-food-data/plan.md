@@ -276,10 +276,11 @@ rules apply here.
 
 ### 2A.6 Async-producer authorization (FR-048)
 
-Only named, least-privilege IAM roles may `events:PutEvents` (`FoodRequested`/`FoodBatchRequested`/
-`IngestionScheduled`) or `INSERT` into `fetch_queue`; the consumer validates event provenance. The
-`requestedBy` field on events (§4) carries the authenticated `sub` or the named service principal —
-never an unauthenticated `'system'` shortcut that bypasses the edge.
+Only named, least-privilege IAM roles may drive fetch work, across **both** producer surfaces (§4):
+the demand path — `INSERT` into `fetch_queue` (the in-process `FoodRequested`/`FoodBatchRequested`
+enqueues) — and the scheduled path — `events:PutEvents` for `IngestionScheduled`. The consumer
+validates event/row provenance on both. The `requestedBy` field carries the authenticated `sub` or
+the named service principal — never an unauthenticated `'system'` shortcut that bypasses the edge.
 
 ### 2A.7 Auth-layer DoS protection (FR-052, SC-011)
 
@@ -393,34 +394,70 @@ There is **no** per-`sub` `429` — fairness is by demotion at drain time (FR-04
 
 ## 4. Event Contracts
 
-### EventBridge Events
+> **Event taxonomy (reconciled 2026-06-20).** Two distinct mechanisms — do not conflate them.
+> The **demand path** (`FoodRequested`/`FoodBatchRequested`) is an **in-process Postgres
+> `fetch_queue` enqueue**, NOT an EventBridge event (corrected here to match spec.md
+> `FoodDataEvent` + v-model `REQ-IF-005`/`ARCH-002`; the pre-reconciliation SQS/EventBridge
+> demand model is dead). EventBridge carries **only** the scheduled producers and the
+> completion signal. The CDK (`FoodServiceStack`) already reflects this — its only EventBridge
+> rules are the two schedules + the `FoodFetchCompleted` completion rule; there is no
+> demand-event rule.
+
+#### Demand-path enqueue (in-process — NOT EventBridge)
+
+`FoodRequested` / `FoodBatchRequested` are the names of the in-process enqueue operations
+(`EnqueueEmitter.publishFoodRequested` / `publishFoodBatchRequested`, ARCH-002). Each performs a
+direct `INSERT … ON CONFLICT` into the Postgres `fetch_queue` paired with `pg_notify('fetch_queued', fdc_id)`
+(FR-011/FR-014/FR-017) — no `events:PutEvents`, no EventBridge topic, no SQS.
 
 ```typescript
-// Cache miss — single food
+// Cache miss — single food (→ fetch_queue INSERT … ON CONFLICT + pg_notify)
 FoodRequested {
-  eventId: string,
-  timestamp: ISO8601,
   fdcId: number,
+  requestedAt: ISO8601,
   requestedBy: string,      // authenticated Clerk sub or named service principal (FR-048; never an unauthenticated 'system' shortcut)
   // No priority field — the single fetch_queue is ordered purely by demand
   // (request_count DESC, first_requested ASC); request_count is the capped distinct-requester count (FR-044).
 }
 
-// Batch import — multiple foods
+// Batch import — multiple foods (→ per-id fetch_queue rows, deduped via ON CONFLICT)
 FoodBatchRequested {
-  eventId: string,
-  timestamp: ISO8601,
-  fdcIds: number[],
+  fdcIds: number[],         // ≤100 ids/request (FR-045); each becomes one fetch_queue row
+  requestedAt: ISO8601,
+  requestedBy: string,
   source: 'import' | 'recipe',
   correlationId: string
 }
+```
 
-// Fetch completed — for WebSocket notification
-FoodFetchCompleted {
+#### EventBridge Events (scheduled producers + completion only)
+
+```typescript
+// Scheduled producer — stale-refresh / bulk-sync cron enqueues low-demand fetch_queue rows (FR-031/FR-032)
+IngestionScheduled {
+  eventId: string,
+  timestamp: ISO8601,
+  source: 'stale-refresh' | 'bulk-sync',
+  requestedBy: string,      // named, least-privilege producer principal (FR-048)
+}
+
+// Fetch completed — Fargate worker → search-indexer + WebSocket notification (FR-034)
+// (spec.md + v-model name this `FoodDataReceived`; `FoodFetchCompleted` is the plan/CDK alias —
+//  the CDK rule matches detailType `FoodFetchCompleted`. Naming-harmonization is a tracked follow-up.)
+FoodFetchCompleted {  // alias of v-model FoodDataReceived
   eventId: string,
   timestamp: ISO8601,
   fdcId: number,
   status: 'fetched' | 'not_found' | 'failed'
+}
+
+// Terminal failure — emitted to CloudWatch/SNS on tombstone (not a bus consumer fan-out)
+FetchFailed {
+  eventId: string,
+  timestamp: ISO8601,
+  fdcId: number,
+  attempts: number,
+  lastError: string,
 }
 ```
 

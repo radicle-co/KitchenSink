@@ -203,8 +203,14 @@ red_team:
 #       SWR/tombstone-TTL-30d/batch-per-item-partial.
 # Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
 # both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
-next_action: implement — independent re-review (round 5) PASSED on the core design and its findings on the V&V layer were remediated + verified. Auth/rate-limit/demotion tests still unexecuted (that is the implement+test work).
-next_command: /speckit.product-forge.implement
+next_action: implement via the Superpowers bridge (gate decision 2026-06-20). Design complete + peer-review PASS; routing Phase 6 through speckit-superpowers-bridge → Superpowers (TDD + verify + review), NOT direct speckit.implement. BLOCKED on a session reload — the bridge commands + the mandatory before_implement guard hook are not yet loaded.
+next_command: "/reload-plugins, then /speckit-product-forge-forge (resumes at Phase 6, guard routes the handoff) OR /speckit.speckit-superpowers-bridge.handoff → /speckit-superpowers-bridge (execute via Superpowers executing-plans against tasks.md)"
+implement_gate_decision: >
+    2026-06-20: at the Phase 6 implement gate, chose to route the build through the
+    speckit-superpowers-bridge → Superpowers (executing-plans: TDD honoring the 9 Test-first
+    Red-gate tasks, then verify + code-review + branch finishing), then staff-review.run.
+    Pending a /reload-plugins so the bridge's guard/handoff/execute commands resolve. No code
+    written yet (0 of 61 tasks); spec/plan/tasks/v-model all committed + consistent.
 prior_next_action: re-verify before implement — refresh peer-review + regenerate checklist (2026-06-20)
 peer_review_gate: PASS # core design (requirements/architecture/module-design) independently re-reviewed 0C/0M round 5; V&V-layer findings from rounds 4–5 all remediated + verified
 peer_review_history_round5: >

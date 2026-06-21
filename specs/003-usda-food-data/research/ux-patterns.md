@@ -3,6 +3,8 @@
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
 **Status**: Complete | **Source**: [spec.md](../spec.md), [research.md](../research.md), [plan.md](../plan.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## 1. Food Search and Selection
@@ -113,7 +115,7 @@ If USDA returns 404:
 
 ### 4.2 Rate-Limit Backpressure Pattern
 
-When token bucket depleted:
+When the rolling-window limiter is at capacity:
 
 - User-facing reads remain functional from local store.
 - Pending requests continue queued with realistic ETA.
@@ -123,9 +125,9 @@ When token bucket depleted:
 
 ---
 
-### 4.3 DLQ Visibility Pattern
+### 4.3 Tombstone Visibility Pattern
 
-Operational, not end-user UI: failures after retries are surfaced in monitoring dashboards and alerts.
+Operational, not end-user UI: terminal failures recorded as tombstone rows (no DLQ) are surfaced in monitoring dashboards and alerts.
 
 **FR references**: FR-016, FR-018, SC-006.
 

@@ -1,5 +1,5 @@
 import { App } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
 import { IdentityServiceStack } from '../lib/identity-service-stack.js';
@@ -130,5 +130,45 @@ describe('Alarms notify via SNS (A4)', () => {
             Threshold: 1,
             TreatMissingData: 'breaching',
         });
+    });
+});
+
+describe('Shared ALB topology (no per-service ALB)', () => {
+    it('does NOT create its own Application Load Balancer (uses the shared per-stage ALB)', () => {
+        serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
+    });
+
+    it('attaches exactly one host-based listener rule to the shared HTTPS listener', () => {
+        serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: 100,
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'host-header',
+                    HostHeaderConfig: Match.objectLike({
+                        Values: ['identity.test.example.com'],
+                    }),
+                }),
+            ]),
+        });
+    });
+
+    it('still creates exactly one target group', () => {
+        serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::TargetGroup', 1);
+    });
+
+    it('still creates the service A-record (aliased to the shared ALB)', () => {
+        serviceTemplate.resourceCountIs('AWS::Route53::RecordSet', 1);
+        serviceTemplate.hasResourceProperties('AWS::Route53::RecordSet', {
+            Type: 'A',
+            Name: 'identity.test.example.com.',
+        });
+    });
+
+    it('no longer exports an IdentityAlbArn (canonical ALB outputs live on the shared ALB stack)', () => {
+        const outputs = serviceTemplate.findOutputs('*');
+        const exportNames = Object.values(outputs).map((o: any) => o.Export?.Name);
+        expect(exportNames).not.toContain('TestService:IdentityAlbArn');
+        expect(exportNames).not.toContain('TestService:IdentityAlbDnsName');
     });
 });

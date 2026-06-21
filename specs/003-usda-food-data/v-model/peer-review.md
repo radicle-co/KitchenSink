@@ -324,3 +324,17 @@ UTP-010-A through UTP-010-C verify Secrets Manager retrieval and in-memory cachi
 | P3       | PRF-003-A10 — UI accessibility requirements have no verification path                  | Requirements author        | Before any UI work                                 |
 | P3       | PRF-003-A11 — Rate-limit-exhausted branch under-tested                                 | Test author                | Before unit test implementation                    |
 | P3       | PRF-003-A13 — Index coverage not independently verified                                | Test author                | Before schema migration                            |
+
+---
+
+## Addendum — Auth V&V slice pending review (2026-06-19)
+
+The Clerk authentication/authorization slice (US-0, FR-035–FR-053) was added across the
+v-model on 2026-06-19 to close sync-verify DRIFT-101 and the red-team findings
+(`../red-team-findings-2026-06-19.md`): **REQ-IF-008, REQ-037..044 · SYS-013 · ARCH-012 ·
+MOD-012/MOD-013 · UTP-012 · ITP-012 · STP-013 · ATP-008/ATS-036 · HAZ-036/HAZ-037**.
+
+**These auth artifacts have NOT yet been peer-reviewed** — the review above (2026-05-09)
+predates them. A `speckit.v-model.peer-review` pass over the auth slice, and a regeneration
+of `release-audit-report.md` (its REQ-035 row still carries the old "shared API Gateway
+authorizer" wording), are required before release readiness. Auth tests remain unexecuted.

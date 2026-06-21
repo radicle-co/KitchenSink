@@ -5,6 +5,8 @@
 **Status**: Draft
 **Source**: [product-spec.md](./product-spec.md), [spec.md](../spec.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Journey Notation
@@ -21,10 +23,8 @@ Each journey covers one end-to-end flow per persona. Steps reference FR IDs in b
 sequenceDiagram
     participant U as Avery (Web/Mobile)
     participant API as Foods API
-    participant DB as PostgreSQL/Redis
-    participant EB as EventBridge
-    participant Q as SQS (High/Low)
-    participant C as Consumer Lambda
+    participant DB as PostgreSQL (fetch_queue + fetch_requesters)
+    participant W as Fargate consumer worker
     participant USDA as USDA API
 
     Note over U,DB: P1 — Local lookup + pending contract
@@ -41,8 +41,7 @@ sequenceDiagram
 
     U->>API: GET /v1/foods/99999
     API->>DB: lookup miss
-    API->>EB: publish FoodRequested
-    EB->>Q: route to High Priority queue
+    API->>DB: INSERT … ON CONFLICT into fetch_queue + record requester (fetch_requesters, PRIORITY_CAP=1) + pg_notify
     API-->>U: 202 pending (FR-003, FR-011, FR-014)
 
     loop status polling
@@ -51,12 +50,12 @@ sequenceDiagram
       API-->>U: pending/fetched/not_found
     end
 
-    Q->>C: deliver message
-    C->>C: token bucket check
-    C->>USDA: GET /v1/food/99999
-    USDA-->>C: 200 food record
-    C->>DB: upsert fetched + cache fill
-    C-->>Q: delete message
+    DB-->>W: LISTEN/NOTIFY wake
+    W->>DB: SELECT … ORDER BY distinct-requester demand DESC, first_requested ASC FOR UPDATE SKIP LOCKED
+    W->>W: rolling 60-min window check (usda_call_log; pause at 90%/900)
+    W->>USDA: GET /v1/food/99999
+    USDA-->>W: 200 food record
+    W->>DB: upsert fetched + mark row done (cache fill)
 ```
 
 ---
@@ -101,26 +100,26 @@ sequenceDiagram
 sequenceDiagram
     participant O as Jordan
     participant CW as CloudWatch
-    participant Q as SQS Queues + DLQ
-    participant C as Consumer Lambda
+    participant DB as PostgreSQL (fetch_queue)
+    participant W as Fargate consumer worker
     participant USDA as USDA API
 
     Note over O,USDA: P1/P3 — reliability and observability
 
-    O->>CW: View dashboard (queue depth, token level, latency)
-    CW-->>O: high queue depth warning
+    O->>CW: View dashboard (fetch_queue pending depth, rolling-window utilization, latency)
+    CW-->>O: high pending-row depth warning
 
-    C->>C: enforce token bucket
-    alt tokens available
-      C->>USDA: batch fetch call
-      USDA-->>C: 200
-    else tokens exhausted
-      C->>Q: extend visibility timeout, skip call
+    W->>W: rolling 60-min window check (usda_call_log)
+    alt under cap
+      W->>USDA: batch fetch call
+      USDA-->>W: 200
+    else at cap (>=900/1000)
+      W->>W: pause and retry after window frees up
     end
 
     alt repeated 5xx failures
-      Q->>Q: message retried 3x then moved to DLQ
-      CW-->>O: DLQ alarm fired
+      W->>DB: retry w/ backoff up to 5x, then UPDATE status='tombstone'
+      CW-->>O: tombstone-row alarm fired
     end
 ```
 
@@ -142,23 +141,23 @@ sequenceDiagram
 
 ### Flow X3: Rate-Limit Delay Handling
 
-1. Token bucket depleted (FR-019..FR-021).
-2. Consumer pauses processing and preserves message retry path.
+1. Rolling-window at cap (FR-019..FR-021).
+2. Consumer worker pauses processing and resumes when the trailing 60-min window frees up; queue rows remain durable.
 3. UI remains accurate through pending status rather than timeout/failure mislabeling.
 
 ---
 
 ## Journey Coverage Matrix
 
-| Story                       | Journey A | Journey B | Journey C   | Cross Flows |
-| --------------------------- | --------- | --------- | ----------- | ----------- |
-| US-001 Cache-hit lookup     | ✅        | ✅        | —           | —           |
-| US-002 Async backfill       | ✅        | —         | ✅          | X1          |
-| US-003 Rate limiting        | —         | —         | ✅          | X3          |
-| US-004 Batch lookup         | ✅        | —         | ✅          | —           |
-| US-005 Queue priority + DLQ | ✅        | —         | ✅          | X2/X3       |
-| US-006 Local search         | ✅        | ✅        | —           | —           |
-| US-007 Stale refresh        | —         | ✅        | ✅          | —           |
-| US-008 Polling status       | ✅        | ✅        | —           | X1/X2       |
-| US-009 WebSocket (optional) | —         | —         | ⚪ Deferred | —           |
-| US-010 Observability        | —         | —         | ✅          | X3          |
+| Story                                      | Journey A | Journey B | Journey C   | Cross Flows |
+| ------------------------------------------ | --------- | --------- | ----------- | ----------- |
+| US-001 Cache-hit lookup                    | ✅        | ✅        | —           | —           |
+| US-002 Async backfill                      | ✅        | —         | ✅          | X1          |
+| US-003 Rate limiting                       | —         | —         | ✅          | X3          |
+| US-004 Batch lookup                        | ✅        | —         | ✅          | —           |
+| US-005 Queue priority + tombstone recovery | ✅        | —         | ✅          | X2/X3       |
+| US-006 Local search                        | ✅        | ✅        | —           | —           |
+| US-007 Stale refresh                       | —         | ✅        | ✅          | —           |
+| US-008 Polling status                      | ✅        | ✅        | —           | X1/X2       |
+| US-009 WebSocket (optional)                | —         | —         | ⚪ Deferred | —           |
+| US-010 Observability                       | —         | —         | ✅          | X3          |

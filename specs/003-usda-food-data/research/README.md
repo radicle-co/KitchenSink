@@ -3,6 +3,8 @@
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
 **Status**: Complete | **Input**: [spec.md](../spec.md), [plan.md](../plan.md), [research.md](../research.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 This directory contains the Product Forge Phase 1 research artifacts for feature 003. Each file synthesizes existing SpecKit/V-Model output into a focused domain document.
@@ -23,7 +25,7 @@ Monorepo and implementation fit analysis grounded in root `package.json`, `AGENT
 
 ### [tech-stack.md](./tech-stack.md)
 
-Technology stack rationale extracted from `research.md` RQ-1..RQ-8 and `plan.md`. Covers API + data model, SQS/EventBridge/Lambda queueing model, token bucket strategy (Redis/PostgreSQL variants), PostgreSQL search (`pg_trgm` + FTS), and observability stack.
+Technology stack rationale extracted from `research.md` RQ-1..RQ-8 and `plan.md`. Covers API + data model, Postgres-as-queue (fetch_queue + LISTEN/NOTIFY) + Fargate worker, rolling-60-min-window rate limiter, PostgreSQL search (`pg_trgm` + FTS), and observability stack.
 
 ### [metrics-roi.md](./metrics-roi.md)
 
@@ -41,5 +43,5 @@ Success metrics and ROI hypothesis for the food data layer. Covers SLOs from `SC
 
 ## What Is Grounded vs. TBD
 
-- **Grounded**: Rate limits, queue priorities, polling-first launch approach, USDA endpoint boundaries, and strict local-read architecture.
+- **Grounded**: Rate limits, single demand-weighted fetch_queue with dynamic demotion, polling-first launch approach, USDA endpoint boundaries, and strict local-read architecture.
 - **TBD / Warning-surfaced**: First-class substitution semantics and hard unit-conversion requirements (currently represented as UX guidance, not explicit FRs).

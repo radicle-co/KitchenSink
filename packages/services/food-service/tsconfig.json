@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "module": "preserve",
+        "moduleResolution": "Bundler",
+        "target": "ES2022",
+        "outDir": "dist",
+        "rootDir": ".",
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true
+    },
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
+    "exclude": ["node_modules", "dist", "infra", "src/**/__tests__", "src/**/*.test.ts"]
+}

@@ -5,6 +5,8 @@
 **Status**: Draft
 **Source**: [spec.md](../spec.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Vision
@@ -95,8 +97,8 @@ USDA Food Data Integration makes nutritional data in Commise trustworthy, low-la
 **Responsibilities in this feature**:
 
 - Manages the scheduled USDA bulk-import cadence (frequency, retry policy, rollback on bad data drops).
-- Monitors the SQS backfill queue and DLQ for growth trends, processing lag, and poison-message accumulation.
-- Enforces token-bucket rate limits so USDA API consumption never exceeds hourly caps, even under traffic spikes.
+- Monitors the `fetch_queue` pending-row depth and tombstone-row count (`status='tombstone'`) for growth trends, processing lag, and poison-row accumulation.
+- Enforces the rolling 60-minute-window rate limit so USDA API consumption never exceeds hourly caps, even under traffic spikes.
 - Responds to data-quality alerts (mismatched nutrient units, missing required fields, duplicate fdcId collisions) before they surface to users.
 - Maintains 99.9% monthly availability for food-data endpoints and owns the runbook for USDA outage fallback behavior.
 
@@ -104,13 +106,17 @@ USDA Food Data Integration makes nutritional data in Commise trustworthy, low-la
 
 ## Epics
 
+### Epic 0: Authenticated & Authorized Access (P1)
+
+Every food data surface (HTTP lookups/search/status, batch, and the deferred WebSocket) is reachable only by an authenticated Commise principal. Identity is verified from a Clerk token (networkless), and — critically — authentication is paired with **per-user fairness** so that no single authenticated account can exhaust the shared USDA budget or starve others. This epic is the connective protection layer beneath Epics 1–4. _(Added 2026-06-19; FoodAuthGuard, plan §2A.)_
+
 ### Epic 1: Deterministic Food Lookup (P1)
 
 Serve food data from local persistence with clear responses for fetched/pending/not-found states, while preserving strict request-path isolation from USDA.
 
 ### Epic 2: Rate-Limited Async Backfill (P1)
 
-Use event-driven queue processing with token bucket control to fetch and upsert missing foods safely under USDA constraints.
+Use event-driven queue processing with rolling 60-minute-window rate-limit control to fetch and upsert missing foods safely under USDA constraints.
 
 ### Epic 3: Search and Resolution UX (P2)
 
@@ -126,6 +132,10 @@ Instrument queue health, latency, and failure signals with optional real-time cl
 
 ### Must Have
 
+0. **US-0 — Authenticated & authorized access**
+   As any caller of the food data service, I must present a valid Clerk token (user session or service M2M) to reach any endpoint; unauthenticated/expired/wrong-party requests are rejected (`401`) before any work, insufficient scope is `403`, and dynamic queue demotion (no quota, no `429`) keeps one account from exhausting the shared USDA budget — an account with >50 pending items is ranked to the back of `fetch_queue` and auto re-promoted once it drops below 50. No anonymous access; no unauthenticated path drives USDA spend.
+   **FRs**: FR-035–FR-053 (SC-010, SC-011, SC-012)
+
 1. **US-001 — Cache-hit single food lookup**
    As a recipe author, I can request an already-fetched food and receive complete nutrition quickly, so recipe workflows stay responsive.
    **FRs**: FR-001, FR-002, FR-005, FR-006
@@ -135,7 +145,7 @@ Instrument queue health, latency, and failure signals with optional real-time cl
    **FRs**: FR-003, FR-004, FR-007, FR-011, FR-013, FR-024, FR-025
 
 3. **US-003 — Rate-limit-safe USDA consumption**
-   As an operations engineer, the consumer enforces token-bucket and queue visibility behavior, so USDA limits are never exceeded.
+   As an operations engineer, the consumer enforces the rolling 60-minute-window rate limit and queue-drain behavior, so USDA limits are never exceeded.
    **FRs**: FR-019, FR-020, FR-021, FR-022, FR-026, FR-027
 
 4. **US-004 — Batch ingredient lookup for recipe workflows**
@@ -144,7 +154,7 @@ Instrument queue health, latency, and failure signals with optional real-time cl
 
 5. **US-005 — Demand-weighted backfill priority and durable recovery**
    As an operations engineer, user-facing misses naturally rise in priority as demand grows and failed messages are recoverable, so the pipeline remains reliable and fair under traffic spikes.
-   **Mechanism**: A durable Postgres `fetch_queue` table is the priority queue, the dedup, and the audit trail in one row per `fdc_id`. Enqueue is a single `INSERT … ON CONFLICT DO UPDATE SET request_count = request_count + 1` — duplicate requests increment a counter rather than spawning new rows. The consumer (a Fargate worker rate-limited to the USDA 1000 req/hr cap via a token bucket) selects via `ORDER BY request_count DESC, first_requested ASC FOR UPDATE SKIP LOCKED`, so the most-requested item wins and FIFO is the tie-breaker. Wakeup is event-driven via Postgres `LISTEN/NOTIFY` (no cron, no SQS, no Redis). A single user request gets baseline priority; a viral recipe driving 50 polls for the same missing food jumps to the front automatically; background batch enrichment enqueues at `request_count=0` and drains during idle periods. No explicit escalation policy is needed — priority is emergent from demand. Transient 5xx errors retry with exponential backoff up to 5 attempts before being marked `status='tombstone'` (the operational DLQ-equivalent, queryable in SQL and re-runnable by flipping the status back to `pending`). 404s tombstone immediately. In-app notifications inform the requester when a pending food becomes available.
+   **Mechanism**: A durable Postgres `fetch_queue` table is the priority queue, the dedup, and the audit trail in one row per `fdc_id`. Enqueue is a single `INSERT … ON CONFLICT` plus `pg_notify`, where demand is tracked as a **distinct-requester** count: each requesting `sub` is recorded at most once in a companion `fetch_requesters` table (PRIORITY_CAP=1), so a row's demand reflects how many distinct accounts want it rather than a raw `request_count + 1` increment that a single poller could inflate. The consumer (a single Fargate worker, guarded by a Postgres advisory lock and rate-limited to the USDA 1000 req/hr cap via a **rolling 60-minute window** over `usda_call_log`, pausing at 90%/900 calls) selects by distinct-requester demand descending with `first_requested ASC` as the FIFO tie-breaker, via `FOR UPDATE SKIP LOCKED`, so the most-demanded item wins. Wakeup is event-driven via Postgres `LISTEN/NOTIFY` (no cron, no SQS, no Redis). A single user request gets baseline priority; a viral recipe wanted by many distinct accounts rises to the front automatically; background batch enrichment enqueues at baseline demand and drains during idle periods. Fairness is enforced by **dynamic queue demotion** — a `sub` with >50 pending items is ranked to the back and auto re-promoted once it drops below 50 (work-conserving; no per-user quota, no `429`). No explicit escalation policy is needed — priority is emergent from demand. Transient 5xx errors retry with exponential backoff up to 5 attempts before being marked `status='tombstone'` (the operational DLQ-equivalent, queryable in SQL and re-runnable by flipping the status back to `pending`); tombstones become eligible for re-attempt after a 30-day TTL. 404s tombstone immediately. In-app notifications inform the requester when a pending food becomes available.
    **FRs**: FR-014, FR-015, FR-016, FR-017, FR-018
 
 ### Should Have
@@ -168,7 +178,7 @@ Instrument queue health, latency, and failure signals with optional real-time cl
    **FRs**: FR-034
 
 10. **US-010 — Operational observability dashboard**
-    As an operations engineer, I can inspect queue depth, latency, token levels, and DLQ events in one place, so I can intervene early.
+    As an operations engineer, I can inspect `fetch_queue` pending-row depth, latency, rolling-window utilization, and tombstone rows in one place, so I can intervene early.
     **FRs**: FR-016, FR-018, FR-035 (authenticated endpoint scope context)
 
 ### Won't Have (v1)
@@ -208,10 +218,10 @@ Instrument queue health, latency, and failure signals with optional real-time cl
 - **Cache hit rate**: ≥ 85% of food lookup requests served from local PostgreSQL/Redis without a USDA API call, measured over a rolling 7-day window.
 - **p99 lookup latency (cached)**: ≤ 200 ms end-to-end for `GET /api/v1/foods/{fdcId}` when `fetch_status = 'fetched'`.
 - **p99 lookup latency (cold / async)**: Initial `202 Accepted` response returned in ≤ 1.5 s; subsequent poll resolves within 60 s under normal queue depth.
-- **Backfill queue depth SLO**: SQS `usda-fetch-queue` depth ≤ 500 messages during steady-state; CloudWatch alarm fires if depth exceeds 2,000 for > 5 minutes.
+- **Backfill queue depth SLO**: `fetch_queue` pending-row depth (`status='pending'`) ≤ 500 rows during steady-state; CloudWatch alarm fires if depth exceeds 2,000 for > 5 minutes.
 - **USDA upstream availability awareness**: System degrades gracefully (returns `503` with `Retry-After`) when USDA FoodData Central is unavailable; circuit breaker opens after 5 consecutive failures; no user-facing 500 errors attributable to USDA outage.
 - **Ingredient resolution accuracy**: ≥ 90% of recipe-import ingredient names resolve to a confirmed FDC ID without requiring manual override by the user, measured over a 30-day cohort.
-- **DLQ accumulation**: `usda-fetch-dlq` depth = 0 under normal operations; Operations Engineer MTTR for DLQ events ≤ 4 hours (alerted via CloudWatch alarm).
+- **Tombstone accumulation**: `fetch_queue` tombstone-row count (`status='tombstone'`, the DLQ-equivalent) = 0 under normal operations; Operations Engineer MTTR for tombstone events ≤ 4 hours (alerted via CloudWatch alarm).
 - **Stale data refresh coverage**: ≥ 95% of `foods` rows with `last_synced_at` > 30 days are re-queued within the weekly `usda-bulk-sync` window.
 
 ---

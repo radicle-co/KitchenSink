@@ -3,8 +3,8 @@ name: speckit-speckit-superpowers-bridge-execute
 description: Execute Spec Kit tasks.md through the Superpowers bridge
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-    author: github-spec-kit
-    source: speckit-superpowers-bridge:commands/speckit.speckit-superpowers-bridge.execute.md
+  author: github-spec-kit
+  source: speckit-superpowers-bridge:commands/speckit.speckit-superpowers-bridge.execute.md
 ---
 
 # Bridge Execute

@@ -3,6 +3,8 @@
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
 **Status**: Complete | **Source**: [research.md](../research.md), domain constraints from [spec.md](../spec.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Competitive Landscape Overview
@@ -91,14 +93,14 @@ USDA integration competes less on frontend polish and more on data coverage, lic
 
 ## Feature Parity Matrix
 
-| Capability                        | USDA FDC     | Edamam | Spoonacular | Open Food Facts | 003 Direction                   |
-| --------------------------------- | ------------ | ------ | ----------- | --------------- | ------------------------------- |
-| Authoritative nutrient baseline   | ✅           | ⚠️     | ⚠️          | ⚠️              | ✅ USDA-first                   |
-| Free at launch scale              | ✅           | ❌     | ❌          | ✅              | ✅                              |
-| Brand vs generic distinction      | ✅           | ✅     | ✅          | ✅              | ✅ (explicit UX disambiguation) |
-| Hard external rate limit pressure | ⚠️           | ⚠️     | ⚠️          | ⚠️              | Managed via SQS + token bucket  |
-| Search-as-you-type ergonomics     | Raw API only | ✅     | ✅          | ⚠️              | ✅ local pg_trgm search         |
-| Licensing simplicity              | ✅           | ⚠️     | ⚠️          | ✅              | ✅                              |
+| Capability                        | USDA FDC     | Edamam | Spoonacular | Open Food Facts | 003 Direction                                          |
+| --------------------------------- | ------------ | ------ | ----------- | --------------- | ------------------------------------------------------ |
+| Authoritative nutrient baseline   | ✅           | ⚠️     | ⚠️          | ⚠️              | ✅ USDA-first                                          |
+| Free at launch scale              | ✅           | ❌     | ❌          | ✅              | ✅                                                     |
+| Brand vs generic distinction      | ✅           | ✅     | ✅          | ✅              | ✅ (explicit UX disambiguation)                        |
+| Hard external rate limit pressure | ⚠️           | ⚠️     | ⚠️          | ⚠️              | Managed via Postgres-as-queue + rolling-window limiter |
+| Search-as-you-type ergonomics     | Raw API only | ✅     | ✅          | ⚠️              | ✅ local pg_trgm search                                |
+| Licensing simplicity              | ✅           | ⚠️     | ⚠️          | ✅              | ✅                                                     |
 
 ---
 

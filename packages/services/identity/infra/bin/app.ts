@@ -1,7 +1,7 @@
 import { config as dotenvConfig } from 'dotenv';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { App } from 'aws-cdk-lib';
+import { App, Tags } from 'aws-cdk-lib';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
@@ -9,6 +9,8 @@ dotenvConfig({ path: join(__dirname, '../../.env') });
 import { IdentityServiceStack } from '../lib/identity-service-stack.js';
 
 const app = new App();
+// Identity is persistent global platform infra (auth service) — never per-PR. See ADR-0005.
+Tags.of(app).add('Environment', 'global');
 const stage = app.node.tryGetContext('stage') ?? process.env.STAGE ?? 'dev';
 const region = process.env.CDK_DEFAULT_REGION ?? process.env.DEFAULT_AWS_REGION ?? 'us-east-1';
 const account = process.env.CDK_DEFAULT_ACCOUNT ?? process.env.AWS_ACCOUNT_ID;

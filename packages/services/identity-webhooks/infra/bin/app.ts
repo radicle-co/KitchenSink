@@ -1,4 +1,4 @@
-import { Fn, App } from 'aws-cdk-lib';
+import { Fn, App, Tags } from 'aws-cdk-lib';
 import { config as dotenvConfig } from 'dotenv';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,8 @@ dotenvConfig({ path: join(__dirname, '../../.env') });
 import { WebhooksStack } from '../lib/webhooks-stack.js';
 
 const app = new App();
+// Identity webhooks are persistent global platform lambdas — never per-PR. See ADR-0005.
+Tags.of(app).add('Environment', 'global');
 const stage = app.node.tryGetContext('stage') ?? process.env.STAGE ?? 'dev';
 const region = process.env.CDK_DEFAULT_REGION ?? process.env.DEFAULT_AWS_REGION ?? 'us-east-1';
 const account = process.env.CDK_DEFAULT_ACCOUNT ?? process.env.AWS_ACCOUNT_ID;

@@ -1,0 +1,94 @@
+name: PR cleanup (ephemeral pr-{N} resources)
+
+# When a PR closes (merged or not), tear down its ephemeral feature-service resources: anything
+# tagged `Environment=pr-{N}` OR whose NAME is `pr-{N}` / starts with `pr-{N}-`. Persistent global
+# infra is tagged `Environment=global` and named `kitchensink-*`, so it can never match a `pr-{N}`
+# tag or prefix — that precision is the safety, so there is deliberately NO denylist (ADR-0005).
+#
+# The trailing-delimiter match (`pr-{N}` exactly, or `pr-{N}-…`) is load-bearing: a plain
+# starts-with would let pr-1 match pr-15 / pr-100. Do not relax it.
+
+on:
+    pull_request:
+        types: [closed]
+
+concurrency:
+    group: pr-cleanup-${{ github.event.pull_request.number }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    cleanup:
+        name: Tear down pr-${{ github.event.pull_request.number }}
+        runs-on: ubuntu-latest
+        env:
+            PR: pr-${{ github.event.pull_request.number }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            - name: Delete ephemeral resources for ${{ env.PR }}
+              run: |
+                  set -uo pipefail
+                  echo "Tearing down ephemeral resources for: $PR (region $REGION)"
+
+                  # belongs <name>: true if <name> is exactly $PR or starts with "$PR-". The trailing
+                  # dash prevents pr-1 from matching pr-15 / pr-100.
+                  belongs() { case "$1" in "$PR" | "$PR"-*) return 0 ;; *) return 1 ;; esac; }
+                  # path_belongs <name>: same, but also matches a "$PR" / "$PR-" segment inside a path
+                  # (e.g. an auto-created /aws/ecs/containerinsights/$PR-cluster.../performance group).
+                  path_belongs() {
+                      belongs "$1" && return 0
+                      case "$1" in *"/$PR" | *"/$PR-"* | *"/$PR/"*) return 0 ;; *) return 1 ;; esac
+                  }
+
+                  ## 1. CloudFormation stacks — tagged Environment=$PR OR name matches $PR.
+                  for s in $(aws cloudformation list-stacks --region "$REGION" \
+                      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED DELETE_FAILED \
+                      --query 'StackSummaries[].StackName' --output text 2>/dev/null); do
+                      envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$s" \
+                          --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
+                      if belongs "$s" || [ "$envtag" = "$PR" ]; then
+                          echo "[stack] delete $s (Environment=$envtag)"
+                          aws cloudformation delete-stack --region "$REGION" --stack-name "$s"
+                          aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s" 2>/dev/null || \
+                              echo "::warning::stack $s did not finish deleting in time — check it"
+                      fi
+                  done
+
+                  ## 2. Tag sweep — anything else tagged Environment=$PR that the stacks did not own.
+                  ##    Delete the types we know how to (log groups, ECR); report the rest.
+                  for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
+                      --tag-filters "Key=Environment,Values=$PR" \
+                      --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
+                      case "$arn" in
+                          *:log-group:*) lg="${arn##*:log-group:}"; lg="${lg%:\*}"
+                              echo "[logs/tag] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true ;;
+                          *:repository/*) repo="${arn##*:repository/}"
+                              echo "[ecr/tag] delete $repo"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true ;;
+                          *) echo "::warning::tagged $PR but not auto-deleted (add a handler for its type): $arn" ;;
+                      esac
+                  done
+
+                  ## 3. Name-prefix sweep — auto-created resources that could not be tagged.
+                  for lg in $(aws logs describe-log-groups --region "$REGION" \
+                      --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
+                      if path_belongs "$lg"; then
+                          echo "[logs/name] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
+                      fi
+                  done
+                  for repo in $(aws ecr describe-repositories --region "$REGION" \
+                      --query 'repositories[].repositoryName' --output text 2>/dev/null); do
+                      if belongs "$repo"; then
+                          echo "[ecr/name] delete $repo (force)"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true
+                      fi
+                  done
+
+                  echo "Cleanup for $PR complete."

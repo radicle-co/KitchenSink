@@ -15,7 +15,7 @@
  * - FR-008 (trigram fuzzy)           → "misspelled query returns the fuzzy match"
  */
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
@@ -33,28 +33,23 @@ const DATABASE_URL = process.env['DATABASE_URL'];
 const DAY_MS = 86_400_000;
 
 const here = dirname(fileURLToPath(import.meta.url));
-const MIGRATION_PATH = join(here, '../src/db/migrations/0000_mute_stryfe.sql');
+const migrationsDir = join(here, '../src/db/migrations');
 
-/** Apply the Phase-1 migration + search bootstrap, then truncate, before each test. */
+/** Apply the Phase-1 ordered migration(s) + search bootstrap on a clean schema, before each test. */
 async function resetSchema(pool: pg.Pool): Promise<void> {
-    const migration = readFileSync(MIGRATION_PATH, 'utf8');
+    // Reset to a clean schema, then apply the hand-authored ordered migration(s) — the source of
+    // truth the in-VPC runner applies (mirrors tests/schema.integration.test.ts; bare CREATE TABLE,
+    // so it must run on an empty schema). pg_trgm is created by the migration itself.
+    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
 
-    // Drop everything so the migration applies cleanly on a fresh container or a re-run.
-    await pool.query(`
-        DROP TABLE IF EXISTS foods, fetch_queue, fetch_requesters, usda_call_log, usda_sync_metadata CASCADE;
-    `);
-    await pool.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
-
-    // The migration is one file with `--> statement-breakpoint` separators (drizzle journal).
-    for (const statement of migration.split('--> statement-breakpoint')) {
-        const trimmed = statement.trim();
-
-        if (trimmed.length > 0) {
-            await pool.query(trimmed);
-        }
+    const files = readdirSync(migrationsDir)
+        .filter((file) => file.endsWith('.sql'))
+        .sort();
+    for (const file of files) {
+        await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
     }
 
-    // search_vector is maintained by the search indexer in prod; for tests, populate it via a
+    // search_vector is maintained by the Phase-3 search indexer in prod; for tests, populate it via a
     // trigger so FTS has data (Phase 2 reads the column; Phase 3 owns the indexer).
     await pool.query(`
         CREATE OR REPLACE FUNCTION foods_search_vector_update() RETURNS trigger AS $$

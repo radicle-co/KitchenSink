@@ -118,6 +118,8 @@ Infrastructure lives in `infra/` subfolders of each service package using CDK v2
 The identity service infra is split across stacks in `packages/services/identity/infra/lib/`:
 `NetworkStack` → `DataStack` → `IdentityServiceStack` (ECS/Fargate, ALB, RDS credentials) plus the `WebhooksStack` (API Gateway + webhook/worker Lambdas) in `packages/services/identity-webhooks/infra/lib/`. The `packages/infra/global` package owns shared foundational resources.
 
+**Egress / NAT (cost-minimized).** The VPC uses a single **`t4g.nano` NAT instance** (not a managed NAT Gateway — ~$3–4/mo vs ~$32/mo; see ADR-0004). Fargate services run in **public subnets with `assignPublicIp`** (inbound locked to the ALB SG) and egress to Clerk/AWS via the Internet Gateway, so they do **not** use the NAT. The **only** NAT consumers are the four DB-bound webhook lambdas (`webhook`, `deletion-worker`, `reconciliation`, `migrate`), which must be VPC-attached to reach the private RDS.
+
 ### Cross-platform rule (enforced)
 
 Every user-facing feature ships to **both** web and mobile in the same release. Platform-specific implementations use `.native.ts(x)` suffix (never `.mobile.*`). Shared business logic, types, and API clients live in shared packages. See `docs/CODING_STANDARDS.md §14` for the full rules.
@@ -128,6 +130,7 @@ Some choices look like bugs to "fix" but are intentional. Before reverting one, 
 
 - **Sandbox front-end addressing — path routing, NOT per-PR subdomains.** Sandbox web previews are served from one stable origin (`sandbox.commise.app`) with the PR in the **URL path** (and static resources selected via a manifest query param), not from `pr-{N}.commise.app` subdomains. This is deliberate: Clerk's `azp` check is exact-string match (no wildcards), and the sandbox identity service is **shared**, so per-PR origins would 401 every preview. Before changing sandbox routing, the web app's serving origin, or `CLERK_AUTHORIZED_PARTIES` / `azp` handling, read **`docs/architecture/decisions/0001-sandbox-front-end-addressing.md`**.
 - **Per-stage VPC CIDRs — prod stays 10.0.0.0/16, sandbox 10.1.0.0/16.** `NetworkStack.cidrForStage` sets each stage's VPC CIDR; prod's explicit value equals the historical CDK default on purpose, so it produces no diff. Changing the prod CIDR (or a construct ID feeding the VPC) replaces the prod VPC **and its RDS** (`removalPolicy: DESTROY`, no snapshot). A CIDR change is also never a one-shot `cdk deploy --all` (export-in-use deadlock), and you must never `cdk destroy` the global/data stack to recover (autoDeleteObjects buckets). Before touching VPC CIDRs, stack/construct names, or the teardown order, read **`docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md`**.
+- **NAT is a t4g.nano instance, and only the DB-bound webhook lambdas use it.** Don't "fix" the NAT instance back to a managed Gateway (~10× cost), and don't move the `webhook`/`deletion-worker`/`reconciliation`/`migrate` lambdas off the NAT or delete it — they're VPC-attached solely to reach the private RDS, and `assignPublicIp` does **not** give a VPC Lambda egress (Fargate only). The NAT instance SG is scoped to the VPC CIDR, not `0.0.0.0/0`. Before changing NAT topology, ECS subnet placement, or the webhook lambdas' VPC attachment, read **`docs/architecture/decisions/0004-minimize-nat-egress.md`**.
 
 ## Key conventions
 

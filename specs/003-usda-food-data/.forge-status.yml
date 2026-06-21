@@ -118,6 +118,18 @@ phases:
               the equivalent wired to the new FoodMigrationPlanSecretArn (T-001b). Phases 1–11 build
               against a local/test DB (testcontainers, see T-064) until then. Design the runner at the
               deploy phase.
+        - id: FU-INGREDIENTS
+          item: 'T-009 DEFERRED — ingredients↔foods link is a soft usda_fdc_id INT column owned by feature 001, no cross-DB FK'
+          detail: >
+              The `ingredients` table is owned by feature 001 (packages/shared/db/src/schema/
+              ingredients.ts, not built yet) and lives in a DIFFERENT logical database than
+              kitchensink_food. The original plan §7 `ALTER TABLE ingredients … usda_fdc_id INT
+              REFERENCES foods(fdc_id)` is an impossible cross-database FK (Postgres has no
+              cross-database foreign keys) and 003 cannot ALTER a table it does not own. Correct
+              integration: when 001 builds `ingredients`, IT adds a soft `usda_fdc_id INT` column
+              (no cross-DB FK) plus the nutrient/sync columns, with linkage validated at the
+              application layer (food-service client). Revisit when 001 builds ingredients. See
+              plan §7 + §2 "Integration with 001" and tasks.md T-009.
         - id: FU-EVENTNAME
           item: 'Naming drift: completion event is FoodFetchCompleted (plan §4 + CDK rule) vs FoodDataReceived (spec.md + v-model)'
           detail: >

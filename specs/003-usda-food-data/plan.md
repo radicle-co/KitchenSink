@@ -166,7 +166,13 @@ fetch_requesters (
 
 ### Integration with 001
 
-The `ingredients` table in 001 already has `usda_fdc_id` and 4 macro columns. 003 extends it with additional nutrient columns and `fetch_status` tracking.
+The `ingredients` table is **owned by feature 001** (`packages/shared/db/src/schema/ingredients.ts`,
+not built yet) and lives in a **different logical database** than `kitchensink_food`. The integration
+column is a **soft `usda_fdc_id INT` (no cross-database foreign key)** that **001 adds** to its
+`ingredients` table — Postgres cannot FK across databases, and 003 cannot `ALTER` 001's table. The
+link between an ingredient and a `foods(fdc_id)` row is validated at the **application layer** (via
+the food-service client), not by a DB constraint. 001 also adds the additional nutrient and
+sync-tracking columns. Tracked as `FU-INGREDIENTS` (revisit when 001 builds `ingredients`); see §7.
 
 ---
 
@@ -541,15 +547,24 @@ CREATE INDEX idx_fetch_queue_priority
 ## 7. Migration / Schema Changes
 
 ```sql
--- Migration for 003 usda-food-data
-ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS usda_fdc_id INT REFERENCES foods(fdc_id);
-ALTER TABLE ingredients ADD COLUMN fetch_status TEXT DEFAULT 'unlinked';
-ALTER TABLE ingredients ADD COLUMN fiber_g_per_100g DECIMAL;
-ALTER TABLE ingredients ADD COLUMN sodium_mg_per_100g DECIMAL;
-ALTER TABLE ingredients ADD COLUMN serving_size_g DECIMAL;
-ALTER TABLE ingredients ADD COLUMN serving_description TEXT;
-ALTER TABLE ingredients ADD COLUMN brand_owner TEXT;
-ALTER TABLE ingredients ADD COLUMN last_synced_at TIMESTAMP;
+-- Migration for 003 usda-food-data (kitchensink_food database)
+
+-- NOTE — `ingredients` extensions are NOT part of 003. The `ingredients` table is owned by
+-- feature 001 and lives in a DIFFERENT logical database than kitchensink_food, so a
+-- `usda_fdc_id INT REFERENCES foods(fdc_id)` cross-database FK is IMPOSSIBLE (Postgres has no
+-- cross-database foreign keys) and 003 cannot ALTER a table it does not own. When 001 builds
+-- `ingredients`, IT adds a SOFT column (no cross-DB FK) — linkage validated at the application
+-- layer (food-service client). Deferred as FU-INGREDIENTS; see tasks.md T-009.
+--
+--   -- (added by feature 001, not 003)
+--   ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS usda_fdc_id INT;  -- soft column, NO cross-DB FK
+--   ALTER TABLE ingredients ADD COLUMN fetch_status TEXT DEFAULT 'unlinked';
+--   ALTER TABLE ingredients ADD COLUMN fiber_g_per_100g DECIMAL;
+--   ALTER TABLE ingredients ADD COLUMN sodium_mg_per_100g DECIMAL;
+--   ALTER TABLE ingredients ADD COLUMN serving_size_g DECIMAL;
+--   ALTER TABLE ingredients ADD COLUMN serving_description TEXT;
+--   ALTER TABLE ingredients ADD COLUMN brand_owner TEXT;
+--   ALTER TABLE ingredients ADD COLUMN last_synced_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS usda_sync_metadata (...);
 CREATE TABLE IF NOT EXISTS fetch_queue (...);          -- see §4 (dedup, demand, retry, tombstone)

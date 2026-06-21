@@ -186,6 +186,46 @@ jobs:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_test
               run: npm run test:integration --workspace=@kitchensink/identity-service
 
+    integration-food:
+        name: Integration (food — Postgres)
+        runs-on: ubuntu-latest
+        needs: [install]
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: food_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # Self-contained: the integration suite bootstraps the kitchensink_food schema from the
+            # ordered migration SQL against the Postgres service and validates the FR-028 CHECK,
+            # fetch_queue dedup, the singleton seed, indexes, and pg_trgm. No AWS/Clerk secrets.
+            - name: Run food integration tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_test
+              run: npm run test:integration --workspace=packages/services/food-service
+
     build:
         name: Build ${{ matrix.workspace }}
         runs-on: ubuntu-latest

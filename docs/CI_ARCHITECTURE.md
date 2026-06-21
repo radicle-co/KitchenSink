@@ -22,10 +22,10 @@ per run-type": the callers supply the only thing that differs — the `stage`.
   `kitchensink/prod/identity/keys`.
 
 **Exception — the web E2E always uses the sandbox (dev) Clerk keys, even on `main`.** Clerk
-*production* instances (`pk_live`) are domain-locked and refuse to initialize on any origin other than
+_production_ instances (`pk_live`) are domain-locked and refuse to initialize on any origin other than
 their production domain. The web E2E runs ClerkJS in a browser against the Playwright dev server on
-`http://localhost:3000`, so a `pk_live` key aborts with *"Production Keys are only allowed for domain
-…"* and `<SignIn>` never mounts. Only a *development* instance (`pk_test`) permits localhost, so the
+`http://localhost:3000`, so a `pk_live` key aborts with _"Production Keys are only allowed for domain
+…"_ and `<SignIn>` never mounts. Only a _development_ instance (`pk_test`) permits localhost, so the
 `e2e-web` job pins `load-secrets` to `stage: sandbox` regardless of pipeline stage. Backend/mobile E2E
 don't run ClerkJS in a localhost browser, so they keep using the stage's own secrets.
 
@@ -39,6 +39,37 @@ keys `PUBLISHABLE_KEY` / `SECRET_KEY` / `WEBHOOK_SIGNING_SECRET`). The web build
 prerenders Clerk-wrapped pages, so it needs a real publishable key; the composite supplies the
 stage-correct one. If AWS creds are unavailable (e.g. a fork PR), secret-dependent steps skip rather
 than fail.
+
+## Per-PR ephemeral lifecycle — deploy + teardown (ADR-0005)
+
+The CI pipeline above (`_ci.yml`) only **tests**; it never deploys. Deploys are separate workflows,
+split by whether the infra is **persistent** or **ephemeral**:
+
+- **Persistent / global** — networking, RDS, domain, the shared ALB, and the identity service +
+  webhooks. These deploy via `prod-deploy.yml` (on `main`) and `sandbox-identity-deploy.yml`
+  (the persistent shared sandbox env, `STAGE=sandbox`). Every one of these CDK apps tags
+  **`Environment=global`** at the `App` level and is named `kitchensink-*`. They are **never** torn
+  down per-PR.
+- **Ephemeral / per-PR feature services** — food and every future non-global service. These deploy
+  via `sandbox-deploy.yml` on PR open/update (`stage=pr-{N}`, tagged **`Environment=pr-{N}`**), and
+  are **torn down when the PR closes** by the `cleanup` job in that same workflow.
+
+**Teardown (the `cleanup` job in `sandbox-deploy.yml`, on `pull_request: closed`).** It deletes
+everything belonging to the closing PR — a resource belongs if it is tagged `Environment=pr-{N}`
+**or** its name is `pr-{N}` / starts with `pr-{N}-`. It removes the PR's CloudFormation stacks, then
+sweeps any remaining `Environment=pr-{N}`-tagged resources (log groups + ECR; other types are
+reported), then sweeps `pr-{N}`-named log groups + ECR repos that no stack owned.
+
+There is deliberately **no denylist**: global infra is `Environment=global` / `kitchensink-*`, so it
+can never match a `pr-{N}` tag or prefix — that precision _is_ the safety. The match is
+**delimiter-aware** (`pr-{N}` exactly or `pr-{N}-…`), so `pr-1` cannot match `pr-15` / `pr-100`.
+Feature stacks keep the existing suffix naming (`kitchensink-{service}-pr-{N}`) and are caught by the
+**tag**; the `pr-{N}` name-prefix is the fallback for resources that cannot be tagged (auto-created
+ECS Container Insights log groups, out-of-band ECR repos). See
+`docs/architecture/decisions/0005-environment-tagging-and-pr-cleanup.md`.
+
+> Until a feature service actually deploys per-PR, the `cleanup` job has nothing to match. Pre-existing
+> orphans created before this convention carry no `Environment` tag and need a one-off manual sweep.
 
 ## Recommended hardening (needs repo/IAM setup — not yet done)
 

@@ -32,59 +32,87 @@ env:
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
 
 jobs:
-    # ── Cleanup: PR closed → destroy all sandbox stacks for this PR ──
+    # ── Cleanup: on PR close, tear down THIS PR's ephemeral resources (ADR-0005) ──
+    # Deletes everything tagged Environment=pr-{N} OR named `pr-{N}` / `pr-{N}-…` — the PR's feature
+    # stacks (tagged via the App-level Environment tag), plus log groups + ECR repos the stacks don't
+    # own. There is deliberately NO denylist: persistent global infra is Environment=global and named
+    # kitchensink-*, so it can never match a pr-{N} tag or prefix — that precision IS the safety. The
+    # match is delimiter-aware (pr-{N} exactly or pr-{N}-…) so pr-1 != pr-15/pr-100. Static job name
+    # (no ${{ }}) so the open-PR skipped state shows a clean title.
     cleanup:
-        # Static name (no ${{ }}) so the open-PR skipped state shows a clean title, not a raw
-        # template. This job only runs on PR close; the PR number is in the STAGE env below.
         name: Destroy sandbox preview
         runs-on: ubuntu-latest
         if: github.event_name == 'pull_request' && github.event.action == 'closed'
         env:
-            STAGE: pr-${{ github.event.pull_request.number }}
-
+            PR: pr-${{ github.event.pull_request.number }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
-            - name: Checkout
-              uses: actions/checkout@v6
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v6
-              with:
-                  node-version: ${{ env.NODE_VERSION }}
-                  cache: npm
-
-            - name: Install dependencies
-              run: npm ci
-
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
 
-            - name: Destroy all PR sandbox stacks
+            - name: Delete ephemeral resources for ${{ env.PR }}
               run: |
-                  echo "Cleaning up all sandbox stacks for stage=$STAGE"
-                  STACKS=$(aws cloudformation describe-stacks \
-                    --query "Stacks[?contains(StackName, '-$STAGE')].StackName" \
-                    --output text 2>/dev/null || true)
+                  set -uo pipefail
+                  echo "Tearing down ephemeral resources for: $PR (region $REGION)"
 
-                  if [ -z "$STACKS" ]; then
-                    echo "No sandbox stacks found for $STAGE"
-                    exit 0
-                  fi
+                  # belongs <name>: true if <name> is exactly $PR or starts with "$PR-". The trailing
+                  # dash prevents pr-1 from matching pr-15 / pr-100.
+                  belongs() { case "$1" in "$PR" | "$PR"-*) return 0 ;; *) return 1 ;; esac; }
+                  # path_belongs: same, but also matches a "$PR" / "$PR-" segment inside a path (e.g. an
+                  # auto-created /aws/ecs/containerinsights/$PR-cluster.../performance group).
+                  path_belongs() {
+                      belongs "$1" && return 0
+                      case "$1" in *"/$PR" | *"/$PR-"* | *"/$PR/"*) return 0 ;; *) return 1 ;; esac
+                  }
 
-                  for stack in $STACKS; do
-                    echo "Destroying stack: $stack"
-                    aws cloudformation delete-stack --stack-name "$stack"
+                  ## 1. CloudFormation stacks — tagged Environment=$PR OR name matches $PR.
+                  for s in $(aws cloudformation list-stacks --region "$REGION" \
+                      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED DELETE_FAILED \
+                      --query 'StackSummaries[].StackName' --output text 2>/dev/null); do
+                      envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$s" \
+                          --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
+                      # The feature-stack naming convention is the suffix kitchensink-{service}-pr-{N};
+                      # those are caught by the Environment=$PR tag (belongs() also catches any pr-{N}-prefixed stack).
+                      if belongs "$s" || [ "$envtag" = "$PR" ]; then
+                          echo "[stack] delete $s (Environment=$envtag)"
+                          aws cloudformation delete-stack --region "$REGION" --stack-name "$s"
+                          aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s" 2>/dev/null || \
+                              echo "::warning::stack $s did not finish deleting in time — check it"
+                      fi
                   done
 
-                  echo "Waiting for stack deletion to complete..."
-                  for stack in $STACKS; do
-                    aws cloudformation wait stack-delete-complete --stack-name "$stack" || \
-                      echo "Warning: $stack may still be deleting (timeout or in progress)"
+                  ## 2. Tag sweep — anything else tagged Environment=$PR the stacks did not own.
+                  for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
+                      --tag-filters "Key=Environment,Values=$PR" \
+                      --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
+                      case "$arn" in
+                          *:log-group:*) lg="${arn##*:log-group:}"; lg="${lg%:\*}"
+                              echo "[logs/tag] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true ;;
+                          *:repository/*) repo="${arn##*:repository/}"
+                              echo "[ecr/tag] delete $repo"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true ;;
+                          *) echo "::warning::tagged $PR but not auto-deleted (add a handler for its type): $arn" ;;
+                      esac
                   done
-                  echo "Sandbox cleanup complete"
+
+                  ## 3. Name-prefix sweep — auto-created resources that could not be tagged.
+                  for lg in $(aws logs describe-log-groups --region "$REGION" \
+                      --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
+                      if path_belongs "$lg"; then
+                          echo "[logs/name] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
+                      fi
+                  done
+                  for repo in $(aws ecr describe-repositories --region "$REGION" \
+                      --query 'repositories[].repositoryName' --output text 2>/dev/null); do
+                      if belongs "$repo"; then
+                          echo "[ecr/name] delete $repo (force)"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true
+                      fi
+                  done
+
+                  echo "Cleanup for $PR complete."
 
     # ═══════════════════════════════════════════════════════════════════
     # Per-service sandbox deploy jobs.

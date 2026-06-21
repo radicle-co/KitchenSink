@@ -100,5 +100,5 @@ describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)'
     //   cache-miss → 202 + a `fetch_queue` row, then the worker drains and a re-request returns 200,
     //   plus concurrent same-fdcId dedup and batch partial-success, all through the booted HTTP API.
     // TODO(Phase 3, T-023): assert the fetch-completion fan-out lands on EventBridge via LocalStack
-    //   (`events` is provisioned in infra/localstack/docker-compose.yml; needs LOCALSTACK_AUTH_TOKEN).
+    //   (`events` is provisioned in infra/localstack/docker-compose.yml; Community tier, no token).
 });

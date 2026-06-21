@@ -4,11 +4,13 @@
 #
 #   localstack — emulates the AWS services KitchenSink uses (Secrets Manager,
 #                EventBridge=`events`, SQS, SNS, STS, IAM, CloudWatch Logs,
-#                CloudWatch, SSM). The Hobby auth token is read from the
-#                `LOCALSTACK_AUTH_TOKEN` env var (empty by default). KitchenSink
-#                services are NestJS apps on ECS (not Lambda+API Gateway), so the
-#                harness boots the Nest app as a process and runs E2E against its
-#                HTTP API — it does NOT deploy CDK stacks into LocalStack.
+#                CloudWatch, SSM) on the FREE Community tier — no auth token.
+#                Every service here is Community; the Pro-only services (RDS, ECS)
+#                are deliberately avoided (Docker Postgres for the DB; the Nest app
+#                boots as a process). KitchenSink services are NestJS apps on ECS
+#                (not Lambda+API Gateway), so the harness boots the Nest app as a
+#                process and runs E2E against its HTTP API — it does NOT deploy CDK
+#                stacks into LocalStack.
 #
 #   postgres   — the database the services connect to. This is a PLAIN Postgres
 #                container ("Docker for RDS"), NOT LocalStack RDS. food-service's
@@ -17,8 +19,8 @@
 #
 # food-service has no `@aws-sdk/*` runtime deps today (it only needs Postgres);
 # the EventBridge/SQS/Secrets wiring lands in Phases 3/8. The LocalStack container
-# is provisioned now so those flows plug straight in, but the current /health + DB
-# E2E exercises only the booted app + Postgres and does NOT require the token.
+# is provisioned now so those flows plug straight in. All of them are Community-tier,
+# so no auth token is needed.
 #
 # Usage:
 #   docker compose -f infra/localstack/docker-compose.yml up -d --wait
@@ -31,9 +33,8 @@ services:
         ports:
             - '4566:4566'
         environment:
-            # events = EventBridge (Phase 3 fetch-completion fan-out).
+            # events = EventBridge (Phase 3 fetch-completion fan-out). All Community-tier — no token.
             SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm
-            LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
             DEBUG: 0
         volumes:
             - localstack-cache:/var/lib/localstack

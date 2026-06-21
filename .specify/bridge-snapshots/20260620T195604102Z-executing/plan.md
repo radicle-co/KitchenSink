@@ -49,12 +49,12 @@ Use Architecture 5 (Event-Driven Queue-Based) per user selection. This treats th
 
 ### Package & Infrastructure Layout (locked 2026-06-19)
 
-| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB** (owned by the global infra) via a **host-based listener rule** (priority 200) — not its own ALB — `/v1/foods/*` API + in-process `FoodAuthGuard`, Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`). |
-| `@kitchensink/usda-client`         | `packages/clients/usda`          | External USDA FoodData Central client library (typed wrapper; no DB/server).                                                                                                                                                                                                                                                                       |
-| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for our `/v1/foods/*` API used by web/mobile + downstream (001/006/007/009 M2M callers).                                                                                                                                                                                                                                              |
-| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification, extracted from the identity service.                                                                                                                                                                                                                                                                        |
+| Package                            | Path                             | Role                                                                                                                                                                                                                          |
+| ---------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate behind the shared ALB** — `/v1/foods/*` API + in-process `FoodAuthGuard`, Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`). |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | External USDA FoodData Central client library (typed wrapper; no DB/server).                                                                                                                                                  |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for our `/v1/foods/*` API used by web/mobile + downstream (001/006/007/009 M2M callers).                                                                                                                         |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification, extracted from the identity service.                                                                                                                                                   |
 
 **Database — reuse, no new RDS, no cluster.** The food tables live in a **separate logical
 database `kitchensink_food`** on the **existing shared instance `kitchensink-data-{stage}`** (a
@@ -166,13 +166,7 @@ fetch_requesters (
 
 ### Integration with 001
 
-The `ingredients` table is **owned by feature 001** (`packages/shared/db/src/schema/ingredients.ts`,
-not built yet) and lives in a **different logical database** than `kitchensink_food`. The integration
-column is a **soft `usda_fdc_id INT` (no cross-database foreign key)** that **001 adds** to its
-`ingredients` table — Postgres cannot FK across databases, and 003 cannot `ALTER` 001's table. The
-link between an ingredient and a `foods(fdc_id)` row is validated at the **application layer** (via
-the food-service client), not by a DB constraint. 001 also adds the additional nutrient and
-sync-tracking columns. Tracked as `FU-INGREDIENTS` (revisit when 001 builds `ingredients`); see §7.
+The `ingredients` table in 001 already has `usda_fdc_id` and 4 macro columns. 003 extends it with additional nutrient columns and `fetch_status` tracking.
 
 ---
 
@@ -197,12 +191,9 @@ prose), and every auth FR (FR-035–FR-052) traces to it.
   come from the validated JWT; no client-suppliable identity header is ever trusted.
 
 **Deployment decision (locked 2026-06-19): in-process NestJS middleware on ECS/Fargate.**
-FoodService is a NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB**
-(owned by the global infra; the service adds a host-based listener rule at priority 200 rather
-than creating its own ALB — same topology as the identity service, which uses priority 100).
-The service is still fronted by a **public, internet-facing ALB**, so the auth rationale is
-unchanged. Therefore `FoodAuthGuard` is implemented as **NestJS `AuthMiddleware` running
-in-process**, not as a Lambda authorizer:
+FoodService is a NestJS service on **ECS/Fargate behind a public ALB** (same topology as
+the identity service). Therefore `FoodAuthGuard` is implemented as **NestJS `AuthMiddleware`
+running in-process**, not as a Lambda authorizer:
 
 - An **API Gateway Lambda authorizer cannot front an ALB** — Lambda authorizers are an API
   Gateway / AppSync feature; ALB has no equivalent (its only native auth is redirect-based
@@ -285,11 +276,10 @@ rules apply here.
 
 ### 2A.6 Async-producer authorization (FR-048)
 
-Only named, least-privilege IAM roles may drive fetch work, across **both** producer surfaces (§4):
-the demand path — `INSERT` into `fetch_queue` (the in-process `FoodRequested`/`FoodBatchRequested`
-enqueues) — and the scheduled path — `events:PutEvents` for `IngestionScheduled`. The consumer
-validates event/row provenance on both. The `requestedBy` field carries the authenticated `sub` or
-the named service principal — never an unauthenticated `'system'` shortcut that bypasses the edge.
+Only named, least-privilege IAM roles may `events:PutEvents` (`FoodRequested`/`FoodBatchRequested`/
+`IngestionScheduled`) or `INSERT` into `fetch_queue`; the consumer validates event provenance. The
+`requestedBy` field on events (§4) carries the authenticated `sub` or the named service principal —
+never an unauthenticated `'system'` shortcut that bypasses the edge.
 
 ### 2A.7 Auth-layer DoS protection (FR-052, SC-011)
 
@@ -403,70 +393,34 @@ There is **no** per-`sub` `429` — fairness is by demotion at drain time (FR-04
 
 ## 4. Event Contracts
 
-> **Event taxonomy (reconciled 2026-06-20).** Two distinct mechanisms — do not conflate them.
-> The **demand path** (`FoodRequested`/`FoodBatchRequested`) is an **in-process Postgres
-> `fetch_queue` enqueue**, NOT an EventBridge event (corrected here to match spec.md
-> `FoodDataEvent` + v-model `REQ-IF-005`/`ARCH-002`; the pre-reconciliation SQS/EventBridge
-> demand model is dead). EventBridge carries **only** the scheduled producers and the
-> completion signal. The CDK (`FoodServiceStack`) already reflects this — its only EventBridge
-> rules are the two schedules + the `FoodFetchCompleted` completion rule; there is no
-> demand-event rule.
-
-#### Demand-path enqueue (in-process — NOT EventBridge)
-
-`FoodRequested` / `FoodBatchRequested` are the names of the in-process enqueue operations
-(`EnqueueEmitter.publishFoodRequested` / `publishFoodBatchRequested`, ARCH-002). Each performs a
-direct `INSERT … ON CONFLICT` into the Postgres `fetch_queue` paired with `pg_notify('fetch_queued', fdc_id)`
-(FR-011/FR-014/FR-017) — no `events:PutEvents`, no EventBridge topic, no SQS.
+### EventBridge Events
 
 ```typescript
-// Cache miss — single food (→ fetch_queue INSERT … ON CONFLICT + pg_notify)
+// Cache miss — single food
 FoodRequested {
+  eventId: string,
+  timestamp: ISO8601,
   fdcId: number,
-  requestedAt: ISO8601,
   requestedBy: string,      // authenticated Clerk sub or named service principal (FR-048; never an unauthenticated 'system' shortcut)
   // No priority field — the single fetch_queue is ordered purely by demand
   // (request_count DESC, first_requested ASC); request_count is the capped distinct-requester count (FR-044).
 }
 
-// Batch import — multiple foods (→ per-id fetch_queue rows, deduped via ON CONFLICT)
+// Batch import — multiple foods
 FoodBatchRequested {
-  fdcIds: number[],         // ≤100 ids/request (FR-045); each becomes one fetch_queue row
-  requestedAt: ISO8601,
-  requestedBy: string,
+  eventId: string,
+  timestamp: ISO8601,
+  fdcIds: number[],
   source: 'import' | 'recipe',
   correlationId: string
 }
-```
 
-#### EventBridge Events (scheduled producers + completion only)
-
-```typescript
-// Scheduled producer — stale-refresh / bulk-sync cron enqueues low-demand fetch_queue rows (FR-031/FR-032)
-IngestionScheduled {
-  eventId: string,
-  timestamp: ISO8601,
-  source: 'stale-refresh' | 'bulk-sync',
-  requestedBy: string,      // named, least-privilege producer principal (FR-048)
-}
-
-// Fetch completed — Fargate worker → search-indexer + WebSocket notification (FR-034)
-// (spec.md + v-model name this `FoodDataReceived`; `FoodFetchCompleted` is the plan/CDK alias —
-//  the CDK rule matches detailType `FoodFetchCompleted`. Naming-harmonization is a tracked follow-up.)
-FoodFetchCompleted {  // alias of v-model FoodDataReceived
+// Fetch completed — for WebSocket notification
+FoodFetchCompleted {
   eventId: string,
   timestamp: ISO8601,
   fdcId: number,
   status: 'fetched' | 'not_found' | 'failed'
-}
-
-// Terminal failure — emitted to CloudWatch/SNS on tombstone (not a bus consumer fan-out)
-FetchFailed {
-  eventId: string,
-  timestamp: ISO8601,
-  fdcId: number,
-  attempts: number,
-  lastError: string,
 }
 ```
 
@@ -547,24 +501,15 @@ CREATE INDEX idx_fetch_queue_priority
 ## 7. Migration / Schema Changes
 
 ```sql
--- Migration for 003 usda-food-data (kitchensink_food database)
-
--- NOTE — `ingredients` extensions are NOT part of 003. The `ingredients` table is owned by
--- feature 001 and lives in a DIFFERENT logical database than kitchensink_food, so a
--- `usda_fdc_id INT REFERENCES foods(fdc_id)` cross-database FK is IMPOSSIBLE (Postgres has no
--- cross-database foreign keys) and 003 cannot ALTER a table it does not own. When 001 builds
--- `ingredients`, IT adds a SOFT column (no cross-DB FK) — linkage validated at the application
--- layer (food-service client). Deferred as FU-INGREDIENTS; see tasks.md T-009.
---
---   -- (added by feature 001, not 003)
---   ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS usda_fdc_id INT;  -- soft column, NO cross-DB FK
---   ALTER TABLE ingredients ADD COLUMN fetch_status TEXT DEFAULT 'unlinked';
---   ALTER TABLE ingredients ADD COLUMN fiber_g_per_100g DECIMAL;
---   ALTER TABLE ingredients ADD COLUMN sodium_mg_per_100g DECIMAL;
---   ALTER TABLE ingredients ADD COLUMN serving_size_g DECIMAL;
---   ALTER TABLE ingredients ADD COLUMN serving_description TEXT;
---   ALTER TABLE ingredients ADD COLUMN brand_owner TEXT;
---   ALTER TABLE ingredients ADD COLUMN last_synced_at TIMESTAMP;
+-- Migration for 003 usda-food-data
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS usda_fdc_id INT REFERENCES foods(fdc_id);
+ALTER TABLE ingredients ADD COLUMN fetch_status TEXT DEFAULT 'unlinked';
+ALTER TABLE ingredients ADD COLUMN fiber_g_per_100g DECIMAL;
+ALTER TABLE ingredients ADD COLUMN sodium_mg_per_100g DECIMAL;
+ALTER TABLE ingredients ADD COLUMN serving_size_g DECIMAL;
+ALTER TABLE ingredients ADD COLUMN serving_description TEXT;
+ALTER TABLE ingredients ADD COLUMN brand_owner TEXT;
+ALTER TABLE ingredients ADD COLUMN last_synced_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS usda_sync_metadata (...);
 CREATE TABLE IF NOT EXISTS fetch_queue (...);          -- see §4 (dedup, demand, retry, tombstone)

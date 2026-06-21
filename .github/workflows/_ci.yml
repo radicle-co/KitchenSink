@@ -186,6 +186,107 @@ jobs:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_test
               run: npm run test:integration --workspace=@kitchensink/identity-service
 
+    integration-food:
+        name: Integration (food — Postgres)
+        runs-on: ubuntu-latest
+        needs: [install]
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: food_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # Self-contained: the integration suite bootstraps the kitchensink_food schema from the
+            # ordered migration SQL against the Postgres service and validates the FR-028 CHECK,
+            # fetch_queue dedup, the singleton seed, indexes, and pg_trgm. No AWS/Clerk secrets.
+            - name: Run food integration tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_test
+              run: npm run test:integration --workspace=packages/services/food-service
+
+    e2e-food:
+        name: E2E (food — booted app + Postgres + LocalStack)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # Two service containers mirror infra/localstack/docker-compose.yml: a plain Postgres (the DB,
+        # NOT LocalStack RDS) and a LocalStack container for the AWS services food-service will use from
+        # Phase 3 (EventBridge=`events`, SQS, Secrets Manager). The CURRENT E2E only boots the Nest app
+        # and exercises /health + the migrated Postgres, so it does NOT yet call LocalStack; the
+        # container is provisioned now so the Phase 3 AWS-service flows plug straight in.
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: food_e2e
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0
+                env:
+                    # Community tier — no auth token. Every service food-service uses (EventBridge=`events`,
+                    # SQS, SNS, Secrets Manager, SSM, IAM, STS, CloudWatch Logs) is free/Community; the
+                    # Pro-only services (RDS, ECS) are deliberately avoided (Docker Postgres for the DB,
+                    # the Nest app boots as a process). Add LOCALSTACK_AUTH_TOKEN only if a Pro feature is
+                    # ever adopted.
+                    SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # Boots the real food-service Nest app against the Postgres service, applies the
+            # kitchensink_food migration, and asserts GET /health + DB reachability end to end.
+            - name: Run food E2E tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_e2e
+                  USDA_API_KEY: e2e-dummy-key
+              run: npm run test:e2e --workspace=packages/services/food-service
+
     build:
         name: Build ${{ matrix.workspace }}
         runs-on: ubuntu-latest

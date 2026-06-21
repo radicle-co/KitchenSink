@@ -116,8 +116,22 @@ phases:
               repo pattern is an in-VPC migration-runner Lambda (identity-webhooks/src/handlers/migrate.ts,
               esbuild-bundled .sql, tracked in schema_migrations, invoked at deploy). food-service needs
               the equivalent wired to the new FoodMigrationPlanSecretArn (T-001b). Phases 1–11 build
-              against a local/test DB (testcontainers, see T-064) until then. Design the runner at the
-              deploy phase.
+              against a local/test DB until then: the **Docker Postgres** (`postgres:16`) in
+              `infra/localstack/docker-compose.yml` (the "Docker for RDS" decision, NOT LocalStack RDS),
+              migrated from the same Phase-1 ordered SQL. See FU-LOCALSTACK-E2E and T-064. Design the
+              deploy-time runner at the deploy phase.
+        - id: FU-INGREDIENTS
+          item: 'T-009 DEFERRED — ingredients↔foods link is a soft usda_fdc_id INT column owned by feature 001, no cross-DB FK'
+          detail: >
+              The `ingredients` table is owned by feature 001 (packages/shared/db/src/schema/
+              ingredients.ts, not built yet) and lives in a DIFFERENT logical database than
+              kitchensink_food. The original plan §7 `ALTER TABLE ingredients … usda_fdc_id INT
+              REFERENCES foods(fdc_id)` is an impossible cross-database FK (Postgres has no
+              cross-database foreign keys) and 003 cannot ALTER a table it does not own. Correct
+              integration: when 001 builds `ingredients`, IT adds a soft `usda_fdc_id INT` column
+              (no cross-DB FK) plus the nutrient/sync columns, with linkage validated at the
+              application layer (food-service client). Revisit when 001 builds ingredients. See
+              plan §7 + §2 "Integration with 001" and tasks.md T-009.
         - id: FU-EVENTNAME
           item: 'Naming drift: completion event is FoodFetchCompleted (plan §4 + CDK rule) vs FoodDataReceived (spec.md + v-model)'
           detail: >
@@ -129,6 +143,25 @@ phases:
           detail: >
               Currently inline placeholder handlers in FoodServiceStack. Real handlers (T-023/T-030/T-032)
               need @kitchensink/esbuild bundling like identity-webhooks (esbuild.mjs → single-file dist).
+        - id: FU-LOCALSTACK-E2E
+          item: 'E2E harness foundation in place (LocalStack + Docker Postgres); food AWS-service E2E flows land in Phases 3/8'
+          detail: >
+              T-064 reshaped from testcontainers to LocalStack (Community tier) + Docker Postgres,
+              mirroring the user's Armoury pattern. FOUNDATION DONE: repo-root
+              `infra/localstack/docker-compose.yml` (a `localstack/localstack:4.4.0` service with
+              secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm + a plain `postgres:16` for the
+              `food_e2e` DB), root `localstack:up`/`localstack:down` scripts, `infra/localstack/README.md`,
+              the `e2e-food` CI job in `_ci.yml` (Postgres + LocalStack service containers), food-service
+              `vitest.e2e.config.ts` + `test:e2e` script, and `tests/e2e/health.e2e.test.ts` (migrates
+              the Docker Postgres, boots the real Nest app, asserts GET /health 200 + DB reachability).
+              Validated locally green (booted app against real Postgres). food-service has no @aws-sdk/*
+              runtime deps today, so LocalStack is wired-but-unexercised until Phase 3 (EventBridge
+              fetch-completion fan-out) / Phase 8 (SQS, Secrets Manager); those flows plug into the
+              `events`/`sqs`/`secretsmanager` services already provisioned. The full `GET /v1/foods/:id`
+              cache-hit/miss/dedup/batch + EventBridge E2E fills in with Phases 2/3; T-064 stays unticked.
+              TIER: LocalStack Community — NO auth token (local or CI). Every service food uses is
+              Community; the Pro-only ones (RDS, ECS) are avoided by design (Docker Postgres + boot the
+              app as a process). Token wiring was stripped from the compose and the `e2e-food` CI job.
 
     code-review:
         state: not-applicable

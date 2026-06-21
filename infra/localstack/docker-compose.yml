@@ -1,0 +1,67 @@
+# docker-compose.yml
+#
+# Shared E2E harness foundation for the KitchenSink monorepo. Two containers:
+#
+#   localstack — emulates the AWS services KitchenSink uses (Secrets Manager,
+#                EventBridge=`events`, SQS, SNS, STS, IAM, CloudWatch Logs,
+#                CloudWatch, SSM) on the FREE Community tier — no auth token.
+#                Every service here is Community; the Pro-only services (RDS, ECS)
+#                are deliberately avoided (Docker Postgres for the DB; the Nest app
+#                boots as a process). KitchenSink services are NestJS apps on ECS
+#                (not Lambda+API Gateway), so the harness boots the Nest app as a
+#                process and runs E2E against its HTTP API — it does NOT deploy CDK
+#                stacks into LocalStack.
+#
+#   postgres   — the database the services connect to. This is a PLAIN Postgres
+#                container ("Docker for RDS"), NOT LocalStack RDS. food-service's
+#                E2E suite migrates `food_e2e` from the ordered SQL and boots the
+#                app against it.
+#
+# food-service has no `@aws-sdk/*` runtime deps today (it only needs Postgres);
+# the EventBridge/SQS/Secrets wiring lands in Phases 3/8. The LocalStack container
+# is provisioned now so those flows plug straight in. All of them are Community-tier,
+# so no auth token is needed.
+#
+# Usage:
+#   docker compose -f infra/localstack/docker-compose.yml up -d --wait
+#   docker compose -f infra/localstack/docker-compose.yml down -v
+
+services:
+    localstack:
+        image: localstack/localstack:4.4.0
+        container_name: kitchensink-localstack
+        ports:
+            - '4566:4566'
+        environment:
+            # events = EventBridge (Phase 3 fetch-completion fan-out). All Community-tier — no token.
+            SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm
+            DEBUG: 0
+        volumes:
+            - localstack-cache:/var/lib/localstack
+            - /var/run/docker.sock:/var/run/docker.sock
+        healthcheck:
+            test: ['CMD-SHELL', 'curl -sf http://localhost:4566/_localstack/health | grep -q available']
+            interval: 3s
+            timeout: 3s
+            retries: 20
+        restart: unless-stopped
+
+    postgres:
+        image: postgres:16
+        container_name: kitchensink-e2e-postgres
+        ports:
+            - '5432:5432'
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: food_e2e
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U postgres -d food_e2e']
+            interval: 3s
+            timeout: 3s
+            retries: 20
+        restart: unless-stopped
+
+volumes:
+    localstack-cache:
+        name: kitchensink-localstack-cache

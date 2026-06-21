@@ -11,6 +11,7 @@
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import {
     bigserial,
+    check,
     customType,
     decimal,
     index,
@@ -70,6 +71,11 @@ export const foods = pgTable(
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
+        // FR-028 lifecycle enum — the ORM documents the constraint the migration enforces.
+        check(
+            'foods_fetch_status_check',
+            sql`${table.fetchStatus} IN ('pending', 'fetched', 'not_found', 'failed', 'stale')`,
+        ),
         index('idx_foods_fetch_status_fetched_at').on(table.fetchStatus, table.fetchedAt),
         index('idx_foods_last_requested').on(table.lastRequestedAt),
         index('idx_foods_search').using('gin', table.searchVector),
@@ -101,6 +107,8 @@ export const fetchQueue = pgTable(
         fetchedAt: timestamp('fetched_at', { withTimezone: true }),
     },
     (table) => [
+        // FR-014/FR-015 status enum — the ORM documents the constraint the migration enforces.
+        check('fetch_queue_status_check', sql`${table.status} IN ('pending', 'in_flight', 'tombstone')`),
         index('idx_fetch_queue_priority')
             .on(sql`${table.requestCount} DESC`, sql`${table.firstRequested} ASC`)
             .where(sql`${table.status} = 'pending'`),

@@ -1,9 +1,9 @@
 # 0005 — `Environment` tagging + tag/name-driven per-PR teardown
 
-- **Status:** Accepted — _convention + cleanup workflow implemented_. The four CDK apps tag at the `App` level (propagates to every resource); `.github/workflows/pr-cleanup.yml` runs on PR close. Per-PR feature **deploy** (food etc.) is wired in the feature's deploy phase; until a feature deploys per-PR there is simply nothing for cleanup to match.
+- **Status:** Accepted — _convention + cleanup implemented_. The four CDK apps tag at the `App` level (propagates to every resource); the **`cleanup` job in `.github/workflows/sandbox-deploy.yml`** runs on PR close. That job _replaced_ the prior name-only `*-pr-{N}` stack destroy with this tag/name-driven sweep — the per-PR feature workflow owns both deploy (templates) and teardown, so there is no separate cleanup workflow. Per-PR feature **deploy** (food etc.) is wired in the feature's deploy phase; until a feature deploys per-PR there is simply nothing for cleanup to match.
 - **Date:** 2026-06-21
 - **Area:** AWS resource lifecycle · cost · CDK tagging · CI teardown · global-vs-ephemeral split
-- **Related:** `.github/workflows/pr-cleanup.yml`, `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, ADR-0002 (the global infra it protects)
+- **Related:** `.github/workflows/sandbox-deploy.yml` (the `cleanup` job), `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, `docs/CI_ARCHITECTURE.md`, ADR-0002 (the global infra it protects)
 
 ## ⚠️ Before you change this — the trap
 
@@ -24,7 +24,7 @@
     - **`pr-{N}`** — a non-global feature service deployed for an open PR (`stage = pr-{N}`). Ephemeral.
     - food's app sets `Environment = stage.startsWith('pr-') ? stage : 'global'`.
 2. **Name ephemeral resources with a `pr-{N}` prefix** where the resource type allows it (stacks, ECR repos), so the cleanup can find resources that could not be tagged (auto-created log groups, etc.) by name as well as by tag.
-3. **`pr-cleanup.yml` (on PR close) deletes anything matching `pr-{N}` — by tag OR by name — with no denylist.** It deletes the PR's CloudFormation stacks, sweeps remaining `Environment=pr-{N}`-tagged resources (deleting log groups + ECR, reporting any other type for a future handler), and sweeps `pr-{N}`-named log groups + ECR repos.
+3. **The `cleanup` job in `sandbox-deploy.yml` (on PR close) deletes anything matching `pr-{N}` — by tag OR by name — with no denylist.** It deletes the PR's CloudFormation stacks (feature stacks use the suffix `kitchensink-{service}-pr-{N}` convention and are caught by the `Environment=pr-{N}` tag), sweeps remaining `Environment=pr-{N}`-tagged resources (deleting log groups + ECR, reporting any other type for a future handler), and sweeps `pr-{N}`-named log groups + ECR repos.
 
 ## Consequences
 
@@ -35,7 +35,7 @@
 
 **Negative / costs**
 
-- Discipline required: every **feature** service MUST tag `Environment=pr-{N}` and prefix its names with `pr-{N}` (the food app does; a shared helper is worth extracting when the second feature service lands).
+- Discipline required: every **feature** service MUST tag `Environment=pr-{N}` (the food app does — this is what catches its suffix-named `kitchensink-{service}-pr-{N}` stacks); untaggable resources (auto-created log groups, out-of-band ECR repos) should additionally be named with a `pr-{N}` prefix so the name sweep finds them. A shared helper is worth extracting when the second feature service lands.
 - A resource type that the sweep does not yet know how to delete is **reported, not deleted** (it shows as a `::warning::`) — extend the `case` in step 2 when a new taggable-but-not-stack-owned type appears.
 - Pre-existing orphans (created before this convention) carry no `Environment` tag and are not matched — they need a one-off manual sweep.
 
@@ -47,5 +47,5 @@
 
 ## Implementation guards
 
-- The `pr-{N}` match in `.github/workflows/pr-cleanup.yml` uses an exact-or-`pr-{N}-` delimiter (`belongs` / `path_belongs`), not a bare prefix.
+- The `pr-{N}` match in the `cleanup` job of `.github/workflows/sandbox-deploy.yml` uses an exact-or-`pr-{N}-` delimiter (`belongs` / `path_belongs`), not a bare prefix.
 - Global apps tag `Environment=global` at the `App` root (`Tags.of(app).add(...)`), verified by `cdk synth` (the tag appears on stack resources).

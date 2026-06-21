@@ -185,7 +185,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ## Phase 1 — Database Schema (US-001 foundation)
 
-- [ ] **T-005** [P1] [US-001] Migration: `foods` Table — `—`
+- [x] **T-005** [P1] [US-001] Migration: `foods` Table — `—`
       **Story**: US-001
       **Priority**: P1
       **Depends on**: T-004
@@ -206,7 +206,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [ ] **T-006** [P1] [US-005] Migration: `fetch_queue` Table — `—`
+- [x] **T-006** [P1] [US-005] Migration: `fetch_queue` Table — `—`
       **Story**: US-005
       **Priority**: P1
       **Depends on**: T-004
@@ -236,7 +236,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [ ] **T-007** [P1] [US-001] Migration: Supporting Tables — `—`
+- [x] **T-007** [P1] [US-001] Migration: Supporting Tables — `—`
       **Story**: US-001 / US-005
       **Priority**: P1
       **Depends on**: T-005, T-006
@@ -253,7 +253,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [ ] **T-008** [P1] [US-001] Migration: Indexes — `—`
+- [x] **T-008** [P1] [US-001] Migration: Indexes — `—`
       **Story**: US-001 / US-006
       **Priority**: P1
       **Depends on**: T-005, T-006, T-007
@@ -274,25 +274,33 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [ ] **T-009** [P1] [US-004] Migration: `ingredients` Table Extensions — `—`
+- [ ] **T-009** [P1] [US-004] Migration: `ingredients` Table Extensions — **DEFERRED (owned by feature 001)** — `—`
       **Story**: US-004
       **Priority**: P1
       **Depends on**: T-005
       **Implements**: FR-001 (downstream integration)
+      **Follow-up**: `FU-INGREDIENTS` (`.forge-status.yml`)
 
-    Apply `ALTER TABLE ingredients` from plan.md §7:
-    - `usda_fdc_id INT REFERENCES foods(fdc_id)` (nullable FK)
-    - `fetch_status TEXT DEFAULT 'unlinked'`
-    - `fiber_g_per_100g DECIMAL`
-    - `sodium_mg_per_100g DECIMAL`
-    - `serving_size_g DECIMAL`
-    - `serving_description TEXT`
-    - `brand_owner TEXT`
-    - `last_synced_at TIMESTAMP`
+    > **DEFERRED — do NOT implement under 003.** The `ingredients` table is owned by feature
+    > **001** (`packages/shared/db/src/schema/ingredients.ts`, **not built yet**) and lives in a
+    > **different logical database** than `kitchensink_food`. The original plan §7
+    > `ALTER TABLE ingredients … usda_fdc_id INT REFERENCES foods(fdc_id)` is therefore an
+    > **impossible cross-database foreign key** (Postgres cannot FK across databases) **and** 003
+    > cannot `ALTER` a table it does not own / that does not exist.
+    >
+    > **Correct integration (owned by 001):** when 001 builds `ingredients`, it adds a **soft
+    > `usda_fdc_id INT` column (no cross-DB FK)** plus the nutrient/sync columns below. Linkage to
+    > `foods(fdc_id)` is validated at the **application layer** (the food-service client), not by a
+    > DB constraint. See plan.md §7 and §2 "Integration with 001".
+    >
+    > Deferred column set (added by 001, not 003): `usda_fdc_id INT` (soft, no FK),
+    > `fetch_status TEXT DEFAULT 'unlinked'`, `fiber_g_per_100g DECIMAL`,
+    > `sodium_mg_per_100g DECIMAL`, `serving_size_g DECIMAL`, `serving_description TEXT`,
+    > `brand_owner TEXT`, `last_synced_at TIMESTAMP`.
 
-    **Acceptance**:
-    - Migration is idempotent (`IF NOT EXISTS` guards)
-    - FK constraint enforced; `NULL` allowed
+    **Acceptance** (when 001 implements this, not under 003):
+    - 001's `ingredients` migration adds `usda_fdc_id INT` as a **soft column (no cross-DB FK)**; `NULL` allowed
+    - Application-layer linkage validation against `food-service` covers what the FK cannot
 
 ---
 

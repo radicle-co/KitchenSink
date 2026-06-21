@@ -1,15 +1,18 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 
 import { AppConfigModule } from './config/config.module.js';
+import { DatabaseModule } from './database/database.module.js';
+import { FoodsModule } from './foods/foods.module.js';
 import { HealthModule } from './health/health.module.js';
 
 /**
- * Root module for the food service. Foundation scaffold (T-001): config validation + the `/health`
- * probe. The `/v1/foods/*` controllers, Drizzle database module, `FoodAuthGuard` middleware, the
- * Postgres-queue services, and the worker are added by later-phase tasks (T-010+).
+ * Root module for the food service. Wires config validation, the `/health` probe, the global
+ * {@link DatabaseModule} (Drizzle + `pg` pool over `kitchensink_food`), and {@link FoodsModule}
+ * (the `/v1/foods/*` read API, T-010). The `FoodAuthGuard` middleware and the Fargate worker are
+ * added by later-phase tasks (Phase 3 / Phase 7).
  */
 @Module({
-    imports: [AppConfigModule, HealthModule],
+    imports: [AppConfigModule, DatabaseModule, FoodsModule, HealthModule],
     controllers: [],
     providers: [
         {

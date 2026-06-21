@@ -10,12 +10,12 @@
 
 ## Package Layout & Database (locked 2026-06-19)
 
-| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB** (global infra, host-based listener rule at priority 200 — not its own ALB) — `/v1/foods/*` API + `FoodAuthGuard` (in-process Clerk `AuthMiddleware`), Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`, like `@kitchensink/identity-service`). |
-| `@kitchensink/usda-client`         | `packages/clients/usda`          | External **USDA FoodData Central** client library (typed `getFood`/`getFoodsBatch`/`searchFoods` + error types). No DB, no HTTP server. Consumed by `food-service`.                                                                                                                                                                                                                          |
-| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services (001/006/007/009 — the M2M callers).                                                                                                                                                                                                                                                              |
-| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service's `ClerkAuthService`; consumed by both identity and food-service.                                                                                                                                                                                                                         |
+| Package                            | Path                             | Role                                                                                                                                                                                                                                                                              |
+| ---------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate behind ALB** — `/v1/foods/*` API + `FoodAuthGuard` (in-process Clerk `AuthMiddleware`), Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`, like `@kitchensink/identity-service`). |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | External **USDA FoodData Central** client library (typed `getFood`/`getFoodsBatch`/`searchFoods` + error types). No DB, no HTTP server. Consumed by `food-service`.                                                                                                               |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services (001/006/007/009 — the M2M callers).                                                                                                                                                   |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service's `ClerkAuthService`; consumed by both identity and food-service.                                                                                                              |
 
 > `packages/clients/usda` and `packages/clients/food-service` MUST be added to the root
 > `package.json` `workspaces` array as **explicit paths** (`packages/clients` is a semantic
@@ -74,39 +74,33 @@ GLOBAL DB (T-001b: kitchensink_food) ─► FOOD-SERVICE CDK (T-001)
 
 PERF/LOAD TESTS (T-062) [SC-001/003/004/007]
 WEBSOCKET (T-038–T-039) [P3 — Deferred] · MULTI-AZ UPGRADE (T-061) [deferred, SC-009]
-INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testcontainers Postgres]
+INTEGRATION TESTS (T-040–T-045)
 ```
 
 ---
 
 ## Phase 0 — Setup & Infrastructure
 
-- [x] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
+- [ ] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001b
       **Implements**: ARCH-001
 
     Create the food-service's own CDK (mirroring `packages/services/identity/infra/lib/`). The
-    `FoodServiceStack` defines the **ECS/Fargate** NestJS service, the Fargate consumer worker, the
-    lambdas (stale-refresh, bulk-sync, search-indexer), and the EventBridge (scheduled-producer)
-    wiring — **no SQS** (the demand queue is the Postgres `fetch_queue`). It does **NOT** create its
-    own ALB: it `Fn.importValue`s the **single shared per-stage ALB** (owned by the global infra,
-    `kitchensink-alb-{stage}`) HTTPS listener and adds a **host-based listener rule** (priority 200)
-    routing `food[.stage].{domain}` to its own target group, plus the A-record aliased to the shared
-    ALB. It also does **NOT** create an RDS — it `Fn.importValue`s the shared
+    `FoodServiceStack` defines the **ECS/Fargate** NestJS service (behind the shared ALB), the
+    Fargate consumer worker, the lambdas (stale-refresh, bulk-sync, search-indexer), and the
+    EventBridge (scheduled-producer) wiring — **no SQS** (the demand queue is the Postgres
+    `fetch_queue`). It does **NOT** create an RDS — it `Fn.importValue`s the shared
     `kitchensink-data-{stage}:Database{Endpoint,Port,SecretArn}` and the new
     `kitchensink-data-{stage}:FoodDbSecretArn` (T-001b) and connects to the `kitchensink_food`
     database.
 
     **Acceptance**:
-    - `cdk synth` produces valid CloudFormation with no errors, **no new RDS resource**, and
-      **no per-service ALB** (0 `AWS::ElasticLoadBalancingV2::LoadBalancer`) — the stack instead
-      adds exactly one `AWS::ElasticLoadBalancingV2::ListenerRule` (host-header condition, priority 200) + one target group on the shared ALB's imported HTTPS listener, plus the A-record
-    - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret and the
-      shared ALB listener/ARN exports
+    - `cdk synth` produces valid CloudFormation with no errors and **no new RDS resource**
+    - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret
 
-- [x] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
+- [ ] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: —
@@ -123,7 +117,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-002** [P0] [Foundation] Environment Config (Zod) — `—`
+- [ ] **T-002** [P0] [Foundation] Environment Config (Zod) — `—`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001
@@ -144,7 +138,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-003** [P0] [Foundation] `@kitchensink/usda-client` package + USDA API client — `packages/clients/usda/src/usda-api.client.ts`
+- [ ] **T-003** [P0] [Foundation] `@kitchensink/usda-client` package + USDA API client — `packages/clients/usda/src/usda-api.client.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-002, T-060
@@ -163,7 +157,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/services/food-service/src/db/schema/usda.ts`
+- [ ] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/services/food-service/src/db/schema/usda.ts`
       **Story**: Foundation
       **Priority**: P0
       **Depends on**: T-001
@@ -298,7 +292,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ## Phase 2 — REST API Layer (US-001, US-002, US-006, US-008)
 
-- [x] **T-010** [P1] [US-001] NestJS Module: `FoodsModule` — `packages/services/food-service/src/foods/foods.module.ts`
+- [ ] **T-010** [P1] [US-001] NestJS Module: `FoodsModule` — `packages/services/food-service/src/foods/foods.module.ts`
       **Story**: US-001
       **Priority**: P1
       **Depends on**: T-005, T-006, T-007, T-008
@@ -316,7 +310,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-011** [P1] [US-001] `GET /v1/foods/{fdcId}` — Cache Hit & Tombstone Path — `—`
+- [ ] **T-011** [P1] [US-001] `GET /v1/foods/{fdcId}` — Cache Hit & Tombstone Path — `—`
       **Story**: US-001
       **Priority**: P1
       **Depends on**: T-010
@@ -337,7 +331,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-012** [P1] [US-002] `GET /v1/foods/{fdcId}` — Cache Miss / Enqueue Path — `—`
+- [ ] **T-012** [P1] [US-002] `GET /v1/foods/{fdcId}` — Cache Miss / Enqueue Path — `—`
       **Story**: US-002
       **Priority**: P1
       **Depends on**: T-011, T-016
@@ -366,7 +360,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-063** [P2] [US-007] `GET /v1/foods/{fdcId}` — Stale-While-Revalidate Read Path — `—`
+- [ ] **T-063** [P2] [US-007] `GET /v1/foods/{fdcId}` — Stale-While-Revalidate Read Path — `—`
       **Story**: US-007
       **Priority**: P2
       **Depends on**: T-011, T-016
@@ -384,7 +378,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-013** [P2] [US-008] `GET /v1/foods/{fdcId}/status` — `—`
+- [ ] **T-013** [P2] [US-008] `GET /v1/foods/{fdcId}/status` — `—`
       **Story**: US-008
       **Priority**: P2
       **Depends on**: T-010
@@ -403,7 +397,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-014** [P2] [US-006] `GET /v1/foods/search?query=` & Autocomplete — `—`
+- [ ] **T-014** [P2] [US-006] `GET /v1/foods/search?query=` & Autocomplete — `—`
       **Story**: US-006
       **Priority**: P2
       **Depends on**: T-008, T-010
@@ -424,7 +418,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ---
 
-- [x] **T-015** [P2] [US-001] `GET /v1/foods/{fdcId}/nutrients` — `—`
+- [ ] **T-015** [P2] [US-001] `GET /v1/foods/{fdcId}/nutrients` — `—`
       **Story**: US-001 / US-004
       **Priority**: P2
       **Depends on**: T-011
@@ -443,7 +437,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ## Phase 3 — Postgres Queue + Fargate Consumer (US-002, US-003, US-005)
 
-- [x] **T-016** [P1] [US-002] Enqueue Service (`FetchQueueService`) — `packages/services/food-service/src/foods/fetch-queue.service.ts`
+- [ ] **T-016** [P1] [US-002] Enqueue Service (`FetchQueueService`) — `packages/services/food-service/src/foods/fetch-queue.service.ts`
       **Story**: US-002 / US-005
       **Priority**: P1
       **Depends on**: T-006
@@ -836,7 +830,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
 
 ## Phase 7b — Packages & Workspace Wiring (Foundation)
 
-- [x] **T-060** [P0] [Foundation] Register new packages in root workspaces — `package.json`
+- [ ] **T-060** [P0] [Foundation] Register new packages in root workspaces — `package.json`
       **Story**: Foundation · **Depends on**: — · **Implements**: NFR-006
       Add explicit paths `"packages/clients/usda"` and `"packages/clients/food-service"` to the root
       `package.json` `workspaces` array (`packages/clients` stays a grouping folder, not a glob —
@@ -1073,31 +1067,6 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + testc
     - Repeated lookup of same `fdcId` within 5 minutes served from memory
     - Cache miss falls through to PostgreSQL
     - No Redis infrastructure provisioned
-
----
-
-- [ ] **T-064** [P1] [US-001/002/004] E2E Harness: booted food-service + real Postgres — `packages/services/food-service/vitest.e2e.config.ts`
-      **Story**: US-001/US-002/US-004 · **Depends on**: T-010, T-012, T-017, T-019 · **Implements**: FR-001..FR-006, FR-011, FR-013, FR-014, FR-024 (E2E coverage)
-
-    Stand up a **true end-to-end** harness for the headless food API (the Phase 10 T-040–T-045 tests
-    are component/integration-level with stubs; this exercises the real wiring). Mirror the existing
-    `identity` / `identity-webhooks` e2e pattern (`test:e2e` script + `vitest.e2e.config.ts`):
-    - **Ephemeral Postgres via testcontainers** (`@testcontainers/postgresql`), migrated to the
-      `kitchensink_food` schema (the same Drizzle migrations from Phase 1) — this is also the agreed
-      local/test DB strategy standing in for the deferred deploy-time migration runner (see
-      `.forge-status.yml` follow-up FU-MIGRATE).
-    - **Booted Nest app** via `supertest` (real `FoodAuthGuard` with a test Clerk JWT key, real
-      controllers/services/DAOs, real `fetch_queue` + `pg_notify`), with the USDA HTTP client mocked
-      at the network boundary only.
-    - **Scenarios:** cache-hit `200` (no USDA call); cache-miss → `202` + `fetch_queue` row + worker
-      drains → re-request `200`; concurrent same-`fdcId` dedup (one row); batch per-item partial.
-    - Wire `npm run test:e2e --workspace=packages/services/food-service` and add it to CI (`_ci.yml`)
-      as a separate job (not the default `test`), matching the identity-webhooks e2e job.
-
-    **Acceptance**:
-    - `npm run test:e2e --workspace=packages/services/food-service` boots the app against a
-      testcontainers Postgres and the cache-hit / cache-miss→fetch / dedup / batch scenarios pass green
-    - The e2e job runs in CI and is required on the food-service path
 
 ---
 

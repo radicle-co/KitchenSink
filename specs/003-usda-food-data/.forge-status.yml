@@ -146,8 +146,8 @@ phases:
         - id: FU-LOCALSTACK-E2E
           item: 'E2E harness foundation in place (LocalStack + Docker Postgres); food AWS-service E2E flows land in Phases 3/8'
           detail: >
-              T-064 reshaped from testcontainers to LocalStack(Hobby) + Docker Postgres, mirroring the
-              user's Armoury pattern. FOUNDATION DONE (tree dirty, not yet committed): repo-root
+              T-064 reshaped from testcontainers to LocalStack (Community tier) + Docker Postgres,
+              mirroring the user's Armoury pattern. FOUNDATION DONE: repo-root
               `infra/localstack/docker-compose.yml` (a `localstack/localstack:4.4.0` service with
               secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm + a plain `postgres:16` for the
               `food_e2e` DB), root `localstack:up`/`localstack:down` scripts, `infra/localstack/README.md`,
@@ -159,9 +159,9 @@ phases:
               fetch-completion fan-out) / Phase 8 (SQS, Secrets Manager); those flows plug into the
               `events`/`sqs`/`secretsmanager` services already provisioned. The full `GET /v1/foods/:id`
               cache-hit/miss/dedup/batch + EventBridge E2E fills in with Phases 2/3; T-064 stays unticked.
-              ACTION REQUIRED: add the `LOCALSTACK_AUTH_TOKEN` GitHub Actions secret (LocalStack Hobby
-              token) before the Phase 3 AWS-service E2E flows — the current /health + DB E2E does NOT
-              depend on it (community-tier services boot without a token).
+              TIER: LocalStack Community — NO auth token (local or CI). Every service food uses is
+              Community; the Pro-only ones (RDS, ECS) are avoided by design (Docker Postgres + boot the
+              app as a process). Token wiring was stripped from the compose and the `e2e-food` CI job.
 
     code-review:
         state: not-applicable

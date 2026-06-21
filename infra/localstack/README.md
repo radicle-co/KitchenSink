@@ -35,22 +35,17 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_e2e \
 The suite **skips cleanly** when no `DATABASE_URL` (or `TEST_DATABASE_URL`) is set, so it never fails
 a developer who has not started the harness.
 
-## LocalStack Hobby auth token
+## Tier: Community (no auth token)
 
-`docker-compose.yml` reads the LocalStack Hobby token from `LOCALSTACK_AUTH_TOKEN` (defaulting to
-empty). The community-tier services above boot without a token, which is why the **current** food
-E2E (`/health` + Postgres) needs no token.
+This harness runs entirely on LocalStack's **free Community tier — no `LOCALSTACK_AUTH_TOKEN`
+required**, locally or in CI. Every AWS service KitchenSink uses (EventBridge=`events`, SQS, SNS,
+Secrets Manager, SSM, IAM, STS, CloudWatch Logs) is Community. The Pro-gated services are
+deliberately avoided: the DB is a plain Postgres container (not LocalStack RDS), and the Nest app
+boots as a process (not LocalStack ECS). This holds through the Phase 3 (EventBridge) and Phase 8
+(SQS / Secrets Manager) E2E flows.
 
-The AWS-service E2E flows arrive with **Phase 3** (EventBridge fetch-completion fan-out) and **Phase
-8** (SQS / Secrets Manager). Those will require the Hobby token:
-
-- **Locally:** export it in your shell or `.env` before `npm run localstack:up`:
-    ```bash
-    export LOCALSTACK_AUTH_TOKEN=ls-...
-    ```
-- **In CI:** the `e2e-food` job in `.github/workflows/_ci.yml` reads it from the
-  `LOCALSTACK_AUTH_TOKEN` GitHub Actions secret. Add that secret before the Phase 3 AWS-service E2E
-  flows land.
+If a Pro-only feature is ever adopted, add `LOCALSTACK_AUTH_TOKEN` back to the compose `environment`
+and the `e2e-food` CI job (from a GitHub Actions secret) at that point.
 
 ## Status
 

@@ -252,11 +252,12 @@ jobs:
             localstack:
                 image: localstack/localstack:4.4.0
                 env:
+                    # Community tier — no auth token. Every service food-service uses (EventBridge=`events`,
+                    # SQS, SNS, Secrets Manager, SSM, IAM, STS, CloudWatch Logs) is free/Community; the
+                    # Pro-only services (RDS, ECS) are deliberately avoided (Docker Postgres for the DB,
+                    # the Nest app boots as a process). Add LOCALSTACK_AUTH_TOKEN only if a Pro feature is
+                    # ever adopted.
                     SERVICES: secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm
-                    # LOCALSTACK_AUTH_TOKEN is a REQUIRED GitHub secret (LocalStack Hobby token) for the
-                    # AWS-service E2E flows landing in Phase 3. The current /health + DB E2E does NOT
-                    # depend on it; an empty value still lets the community-tier services boot.
-                    LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
                 ports:
                     - 4566:4566
                 options: >-

@@ -1089,7 +1089,7 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + Local
 
     Stand up a **true end-to-end** harness for the headless food API (the Phase 10 T-040–T-045 tests
     are component/integration-level with stubs; this exercises the real wiring). Harness =
-    **LocalStack (Hobby) + Docker Postgres**, mirroring the user's Armoury pattern
+    **LocalStack (Community tier) + Docker Postgres**, mirroring the user's Armoury pattern
     (`infra/localstack/docker-compose.yml` at the repo root), runnable identically locally and in CI.
     Mirror the existing `identity` / `identity-webhooks` e2e pattern (`test:e2e` script +
     `vitest.e2e.config.ts`):
@@ -1102,8 +1102,9 @@ INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + Local
       `secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm`; `events` = EventBridge) for the AWS
       services food-service will exercise once they land. food-service has **no `@aws-sdk/*` runtime
       deps today** (it only needs Postgres), so the LocalStack container is wired and ready but is not
-      exercised by the current E2E. Needs the `LOCALSTACK_AUTH_TOKEN` Hobby secret for Pro features
-      (CI: `secrets.LOCALSTACK_AUTH_TOKEN`); the current /health + DB E2E does not depend on it.
+      exercised by the current E2E. **Community tier — no auth token** (every service here is
+      Community; the Pro-only RDS/ECS are avoided by design). No `LOCALSTACK_AUTH_TOKEN` needed locally
+      or in CI.
     - **Booted Nest app** via `NestFactory.create(AppModule)` + `app.listen(0)` (HTTP via `fetch`;
       supertest is not a repo dep). The full flow adds the real `FoodAuthGuard` with a test Clerk JWT
       key, real controllers/services/DAOs, real `fetch_queue` + `pg_notify`, with the USDA HTTP client

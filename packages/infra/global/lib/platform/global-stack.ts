@@ -4,6 +4,7 @@ import type { Construct } from 'constructs';
 import { DataStack } from './data-stack.js';
 import { DomainStack } from './domain-stack.js';
 import { NetworkStack } from './network-stack.js';
+import { SharedAlbStack } from './shared-alb-stack.js';
 
 export interface GlobalStackProps extends StackProps {
     readonly stage: string;
@@ -21,6 +22,7 @@ export class GlobalStack extends Stack {
     public readonly network: NetworkStack;
     public readonly data: DataStack;
     public readonly domain: DomainStack;
+    public readonly alb: SharedAlbStack;
     public readonly stage: string;
 
     public constructor(scope: Construct, id: string, props: GlobalStackProps) {
@@ -47,6 +49,14 @@ export class GlobalStack extends Stack {
             env: props.env,
             stackName: `kitchensink-domain-${stage}`,
             domainName,
+        });
+
+        this.alb = new SharedAlbStack(this, `SharedAlb-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-alb-${stage}`,
+            network: this.network,
+            domain: this.domain,
+            stage,
         });
     }
 }

@@ -1,0 +1,47 @@
+# Red Team Lens Catalog — KitchenSink / Commise
+#
+# Calibrated for a cross-platform recipe/meal-planning backend on AWS with
+# Clerk auth, internet-facing API Gateway + Lambda services, RDS/SQS, and
+# rate-limited third-party integrations (e.g. USDA FoodData Central).
+#
+# Consumed by `speckit.red-team.run` to select which adversarial lenses apply
+# to a given spec, based on trigger_match vs the spec's detected categories.
+# Schema: see config-template.yml.
+
+version: "v1"
+
+defaults:
+  finding_bound: 5
+  severity_weight: 5
+
+lenses:
+  - name: "Trust-Boundary Adversary"
+    description: "Attacks the spec's authentication and authorization assumptions — implicitly-trusted inputs, auth bypass, privilege escalation, and identity spoofing across service boundaries."
+    core_questions:
+      - "Which inputs or headers does the spec trust without cryptographic verification?"
+      - "Where could an unauthenticated or low-privilege caller reach a gated capability (admin/operational endpoints, write paths)?"
+      - "Can a token from a different Clerk instance, audience, or `azp` be replayed against this service, and would it be rejected?"
+      - "Is identity ever derived from a client-suppliable value (header, query, body) rather than the verified token?"
+      - "What happens on verifier failure — does the request fail closed (401) or could it fall open?"
+    trigger_match: [multi_party, contracts]
+    severity_weight: 9
+
+  - name: "API Contract Adversary"
+    description: "Attacks the request/response contract — undefined error paths, status-code ambiguity, versioning breaks, and consumer assumptions that the spec does not actually guarantee."
+    core_questions:
+      - "Which status codes / response shapes can a consumer receive that the spec does not document (e.g. 401 vs 202 vs 404 ordering, partial batch results)?"
+      - "Does every endpoint (and the WebSocket `$connect`) have a defined behavior for malformed, oversized, or hostile input?"
+      - "Where do upstream consumers (001 recipes, 006 meal-planning, 007 grocery, 009 nutrition) assume a guarantee the spec doesn't make?"
+      - "Can a breaking change slip in without a version bump under the `/v1/` prefix rule?"
+    trigger_match: [contracts]
+    severity_weight: 6
+
+  - name: "Availability / Denial-of-Wallet Adversary"
+    description: "Attacks resource-exhaustion and cost surfaces — rate-limit budgets, queue amplification, retry storms, and third-party spend an attacker (or a viral load spike) could drive."
+    core_questions:
+      - "Can any caller (authenticated or not) drive consumption of the finite USDA 1,000 req/hr budget, and what gates that before spend occurs?"
+      - "Where can request volume amplify into queue depth, retries, or fan-out faster than it drains?"
+      - "If a dependency (USDA, Redis, Postgres) is down or slow, does the system fail closed and bounded, or unbounded?"
+      - "Which limits are assumed but not enforced (per-user quotas, batch sizes, backoff caps)?"
+    trigger_match: [contracts, multi_party]
+    severity_weight: 7

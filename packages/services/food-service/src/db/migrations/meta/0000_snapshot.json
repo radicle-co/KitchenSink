@@ -1,0 +1,514 @@
+{
+    "id": "f3edbcd4-4098-4fe5-870c-530267fd53ed",
+    "prevId": "00000000-0000-0000-0000-000000000000",
+    "version": "7",
+    "dialect": "postgresql",
+    "tables": {
+        "public.fetch_queue": {
+            "name": "fetch_queue",
+            "schema": "",
+            "columns": {
+                "fdc_id": {
+                    "name": "fdc_id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "request_count": {
+                    "name": "request_count",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 1
+                },
+                "first_requested": {
+                    "name": "first_requested",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "last_requested": {
+                    "name": "last_requested",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "status": {
+                    "name": "status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "attempts": {
+                    "name": "attempts",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "last_error": {
+                    "name": "last_error",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "fetched_at": {
+                    "name": "fetched_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                }
+            },
+            "indexes": {
+                "idx_fetch_queue_priority": {
+                    "name": "idx_fetch_queue_priority",
+                    "columns": [
+                        {
+                            "expression": "\"request_count\" DESC",
+                            "asc": true,
+                            "isExpression": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "\"first_requested\" ASC",
+                            "asc": true,
+                            "isExpression": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "where": "\"fetch_queue\".\"status\" = 'pending'",
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fetch_requesters": {
+            "name": "fetch_requesters",
+            "schema": "",
+            "columns": {
+                "fdc_id": {
+                    "name": "fdc_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "sub": {
+                    "name": "sub",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "requested_at": {
+                    "name": "requested_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "idx_fetch_requesters_sub": {
+                    "name": "idx_fetch_requesters_sub",
+                    "columns": [
+                        {
+                            "expression": "sub",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {},
+            "compositePrimaryKeys": {
+                "fetch_requesters_fdc_id_sub_pk": {
+                    "name": "fetch_requesters_fdc_id_sub_pk",
+                    "columns": ["fdc_id", "sub"]
+                }
+            },
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.foods": {
+            "name": "foods",
+            "schema": "",
+            "columns": {
+                "fdc_id": {
+                    "name": "fdc_id",
+                    "type": "integer",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "description": {
+                    "name": "description",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "data_type": {
+                    "name": "data_type",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "fetch_status": {
+                    "name": "fetch_status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "upc_code": {
+                    "name": "upc_code",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "brand_owner": {
+                    "name": "brand_owner",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "brand_name": {
+                    "name": "brand_name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "calories": {
+                    "name": "calories",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "protein_g": {
+                    "name": "protein_g",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "carbs_g": {
+                    "name": "carbs_g",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "fat_g": {
+                    "name": "fat_g",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "fiber_g": {
+                    "name": "fiber_g",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "sodium_mg": {
+                    "name": "sodium_mg",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "sugar_g": {
+                    "name": "sugar_g",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "saturated_fat_g": {
+                    "name": "saturated_fat_g",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "cholesterol_mg": {
+                    "name": "cholesterol_mg",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "vitamin_a_iu": {
+                    "name": "vitamin_a_iu",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "vitamin_c_mg": {
+                    "name": "vitamin_c_mg",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "calcium_mg": {
+                    "name": "calcium_mg",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "iron_mg": {
+                    "name": "iron_mg",
+                    "type": "numeric",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "raw_json": {
+                    "name": "raw_json",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "search_vector": {
+                    "name": "search_vector",
+                    "type": "tsvector",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "request_count": {
+                    "name": "request_count",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "fetched_at": {
+                    "name": "fetched_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "last_requested_at": {
+                    "name": "last_requested_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "idx_foods_fetch_status_fetched_at": {
+                    "name": "idx_foods_fetch_status_fetched_at",
+                    "columns": [
+                        {
+                            "expression": "fetch_status",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "fetched_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "idx_foods_last_requested": {
+                    "name": "idx_foods_last_requested",
+                    "columns": [
+                        {
+                            "expression": "last_requested_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "idx_foods_search": {
+                    "name": "idx_foods_search",
+                    "columns": [
+                        {
+                            "expression": "search_vector",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "gin",
+                    "with": {}
+                },
+                "idx_foods_data_type": {
+                    "name": "idx_foods_data_type",
+                    "columns": [
+                        {
+                            "expression": "data_type",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "idx_foods_upc": {
+                    "name": "idx_foods_upc",
+                    "columns": [
+                        {
+                            "expression": "upc_code",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.usda_call_log": {
+            "name": "usda_call_log",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "bigserial",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "called_at": {
+                    "name": "called_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "idx_usda_call_log_called_at": {
+                    "name": "idx_usda_call_log_called_at",
+                    "columns": [
+                        {
+                            "expression": "called_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.usda_sync_metadata": {
+            "name": "usda_sync_metadata",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "integer",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": 1
+                },
+                "last_full_sync_at": {
+                    "name": "last_full_sync_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "last_incremental_at": {
+                    "name": "last_incremental_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "foundation_version": {
+                    "name": "foundation_version",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "sr_legacy_version": {
+                    "name": "sr_legacy_version",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "branded_version": {
+                    "name": "branded_version",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        }
+    },
+    "enums": {},
+    "schemas": {},
+    "sequences": {},
+    "roles": {},
+    "policies": {},
+    "views": {},
+    "_meta": {
+        "columns": {},
+        "schemas": {},
+        "tables": {}
+    }
+}

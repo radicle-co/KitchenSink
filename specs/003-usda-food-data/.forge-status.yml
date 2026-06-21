@@ -3,7 +3,8 @@
 # Last updated: 2026-05-10
 
 feature: 003-usda-food-data
-mode: retroactive-bootstrap
+feature_mode: v-model # Product Forge v1.7.0 (v3 schema) mode resolution
+mode: retroactive-bootstrap # original bootstrap provenance (legacy field)
 pilot: true
 
 phases:
@@ -48,16 +49,35 @@ phases:
 
     bridge:
         state: complete
-        note: spec.md already exists from SpecKit flow; bridge is a no-op.
+        note: >
+            spec.md already exists from the SpecKit flow; forward bridge is a no-op (retroactive
+            bootstrap — spec.md leads the forge lineage). 2026-06-20: ran a BACKWARD sync instead —
+            product-spec/ (product-spec.md, user-journey.md, metrics.md) + research/ (codebase-analysis,
+            tech-stack, README, ux-patterns, competitors, metrics-roi) updated to reflect the clarified
+            spec design (Postgres-as-queue + Fargate worker, rolling-60-min window, dynamic demotion,
+            SWR/tombstone-TTL/batch-partial). spec.md NOT modified.
         artifact: spec.md
 
     plan:
         state: complete
         artifact: plan.md
+        replanned_at: 2026-06-19
+        digest_path: plan/digest.md
+        note: >
+            Re-plan added §2A Authentication & Authorization (FR-035–FR-053);
+            auth FR coverage 0 → 19. Deployment LOCKED: in-process NestJS
+            AuthMiddleware on ECS/Fargate (ALB) with shared ClerkAuthService
+            verification; $connect Lambda authorizer only for the deferred
+            API Gateway WebSocket API.
 
     tasks:
         state: complete
         artifact: tasks.md
+        replanned_at: 2026-06-19
+        note: >
+            Re-plan added Phase 7 auth task group (T-033 + T-046–T-056) covering
+            FR-035–FR-053; WS auth folded into Phase 9 (T-038/039). FR coverage
+            audit updated to 53 FRs. Auth FR coverage in tasks 0 → 19. 8 Test-first.
 
     pre-impl-review:
         state: skipped
@@ -65,8 +85,50 @@ phases:
         artifact: null
 
     implement:
-        state: not-started
-        note: tasks.md present; no implementation completion markers recorded.
+        state: in-progress
+        executor: superpowers-bridge
+        note: >
+            Phase-by-phase execution via the Superpowers bridge (handoff status=executing).
+            Phase 0 (Setup & Infrastructure) COMPLETE 2026-06-20: T-001/T-001b/T-002/T-003/T-004/T-060
+            done (6/61). Scaffolded @kitchensink/food-service (NestJS + own CDK), @kitchensink/usda-client
+            (TDD, 9/9 tests), placeholder @kitchensink/food-service-client, kitchensink_food logical DB
+            in global DataStack (no new RDS), Zod env config (4/4 tests), Drizzle schema (5 tables).
+            Independently verified: tests + typecheck pass; synth parity with identity (fromLookup needs
+            creds offline — accepted). Lambda/worker handlers are skeletons (fleshed out in later phases).
+        progress: { phase_0: complete, tasks_done: 6, tasks_total: 62 }
+        phase_0_amendments_2026_06_20: >
+            Post-Phase-0 review (user-driven) landed 3 changes: (#1) added zod runtime validation
+            to @kitchensink/usda-client — validates the raw USDA wire shape at the external boundary,
+            new UsdaSchemaError (distinct from UsdaServerError), 12/12 tests (amends T-003; public
+            normalized types kept, raw schemas z.infer'd separately to avoid drift). (#4) plan.md §4
+            reclassified FoodRequested/FoodBatchRequested OUT of "EventBridge Events" → in-process
+            fetch_queue enqueue (now matches spec FoodDataEvent + the whole v-model, which were already
+            correct; CDK was already correct — only plan §4 was stale). §2A.6 IAM line corrected too.
+            (#5) added T-064 E2E harness task (booted Nest + testcontainers Postgres + supertest;
+            API→queue→worker→DB) — tasks_total 61→62. usda-client + food-service tests/typecheck
+            independently re-verified green.
+    follow_ups:
+        - id: FU-MIGRATE
+          item: '#3 migration runner — DEFERRED to deploy/release-readiness (user decision 2026-06-20)'
+          detail: >
+              plan §7 defines the DDL and T-005..T-009/T-056 say "apply" migrations, but NO runner
+              mechanism is defined and migrations CANNOT run in GitHub (RDS is PRIVATE_ISOLATED). The
+              repo pattern is an in-VPC migration-runner Lambda (identity-webhooks/src/handlers/migrate.ts,
+              esbuild-bundled .sql, tracked in schema_migrations, invoked at deploy). food-service needs
+              the equivalent wired to the new FoodMigrationPlanSecretArn (T-001b). Phases 1–11 build
+              against a local/test DB (testcontainers, see T-064) until then. Design the runner at the
+              deploy phase.
+        - id: FU-EVENTNAME
+          item: 'Naming drift: completion event is FoodFetchCompleted (plan §4 + CDK rule) vs FoodDataReceived (spec.md + v-model)'
+          detail: >
+              Same event, two names. plan §4 now annotates FoodFetchCompleted as an alias of v-model
+              FoodDataReceived; the CDK rule matches detailType "FoodFetchCompleted". Harmonize to one
+              canonical name across spec/plan/CDK/v-model before the worker emits it (Phase 3/T-023).
+        - id: FU-ESBUILD
+          item: 'esbuild needed for the 3 food Lambdas (stale-refresh, bulk-sync, search-indexer) when their real handlers land'
+          detail: >
+              Currently inline placeholder handlers in FoodServiceStack. Real handlers (T-023/T-030/T-032)
+              need @kitchensink/esbuild bundling like identity-webhooks (esbuild.mjs → single-file dist).
 
     code-review:
         state: not-applicable
@@ -131,5 +193,111 @@ v-model:
         artifact: release-audit-report.md
         completed_at: 2026-05-10
 
-next_action: revalidation
-next_command: /speckit.product-forge.revalidate
+sync_runs:
+    last_run: '2026-06-20'
+    total_runs: 4
+    last_verdict: RESOLVED
+    last_critical_count: 0
+    reconciliation_2026_06_20: >
+        Post-#3 design reconciliation (analyze-driven): (1) queue mechanism
+        SQS+Lambda → Postgres `fetch_queue` (LISTEN/NOTIFY) + Fargate consumer
+        worker across spec/plan/tasks AND the full v-model V&V chain (12 core
+        artifacts); (2) package layout locked — @kitchensink/food-service
+        (packages/services/food-service, own CDK), @kitchensink/usda-client
+        (packages/clients/usda), @kitchensink/food-service-client
+        (packages/clients/food-service), @kitchensink/clerk-verify
+        (packages/shared/clerk-verify); (3) DB = kitchensink_food logical DB on
+        the shared kitchensink-data-{stage} instance (no new RDS/cluster);
+        (4) Redis demoted to deferred post-launch variant; (5) release-audit
+        REQ-035 auth wording fixed (in-process NestJS middleware, not API-GW
+        authorizer). spec/plan/tasks + 12 v-model files prettier-clean.
+        The 9 peer-review-*.md were left as historical records.
+    notes: >
+        Run #3 (2026-06-19): DRIFT-101 RESOLVED. The Clerk auth slice
+        (US-0, FR-035–FR-053) now has full coverage across spec (19/19),
+        plan §2A (19/19), tasks Phase 7 (19/19), the v-model V&V chain
+        (18/18: REQ-037..044/REQ-IF-008 → SYS-013/ARCH-012 → MOD-012/013 →
+        UTP-012/ITP-012/STP-013/ATP-008 → HAZ-036/037, fully traced), and
+        the product-spec (Epic 0 + US-0). Remaining: auth artifacts are
+        NOT peer-reviewed, release-audit-report.md needs regen, and auth
+        tests are unexecuted. See sync-report.md Run #3.
+    history:
+        - 'Run #2 (2026-06-18): DRIFT-101 OPEN-CRITICAL — see sync-report.md.'
+
+red_team:
+    state: completed
+    session: RT-003-usda-food-data-2026-06-19
+    artifact: red-team-findings-2026-06-19.md
+    findings: { total: 15, critical: 5, high: 7, medium: 3 }
+    resolution: spec-fix (all 15) — FR-041 revised; FR-043–FR-053 added; US-0 AS-9..12; SC-011 revised + SC-012; A-010 revised + A-012
+    completed_at: 2026-06-19
+    note: >
+        Spec hardened against the red-team findings (per-user quota, M2M/service
+        auth, async-surface + WebSocket auth, status-precedence + 403, batch/queue
+        caps, authorizer fail-closed). DRIFT-101 NOT yet cleared — the hardened
+        auth requirements still need to propagate into plan → tasks → v-model.
+
+# DRIFT-101 RESOLVED across spec/plan/tasks/v-model/product-spec (auth fully traced).
+# 2026-06-20: TWO design passes landed across spec/plan/tasks + 12 core v-model artifacts:
+#   (a) SQS→Postgres-as-queue + package layout + kitchensink_food DB reuse + Redis-deferred;
+#   (b) clarify-driven: rate limiter token-bucket→rolling-60-min window (usda_call_log),
+#       fairness quota/429→dynamic demotion (drop user_fetch_quota/global_fetch_quota),
+#       SWR/tombstone-TTL-30d/batch-per-item-partial.
+# Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
+# both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
+next_action: implement via the Superpowers bridge (gate decision 2026-06-20). Design complete + peer-review PASS; routing Phase 6 through speckit-superpowers-bridge → Superpowers (TDD + verify + review), NOT direct speckit.implement. BLOCKED on a session reload — the bridge commands + the mandatory before_implement guard hook are not yet loaded.
+next_command: '/reload-plugins, then /speckit-product-forge-forge (resumes at Phase 6, guard routes the handoff) OR /speckit.speckit-superpowers-bridge.handoff → /speckit-superpowers-bridge (execute via Superpowers executing-plans against tasks.md)'
+implement_gate_decision: >
+    2026-06-20: at the Phase 6 implement gate, chose to route the build through the
+    speckit-superpowers-bridge → Superpowers (executing-plans: TDD honoring the 9 Test-first
+    Red-gate tasks, then verify + code-review + branch finishing), then staff-review.run.
+    Pending a /reload-plugins so the bridge's guard/handoff/execute commands resolve. No code
+    written yet (0 of 61 tasks); spec/plan/tasks/v-model all committed + consistent.
+prior_next_action: re-verify before implement — refresh peer-review + regenerate checklist (2026-06-20)
+peer_review_gate: PASS # core design (requirements/architecture/module-design) independently re-reviewed 0C/0M round 5; V&V-layer findings from rounds 4–5 all remediated + verified
+peer_review_history_round5: >
+    Round 5 (2026-06-20, INDEPENDENT re-review, user-requested): requirements + architecture +
+    module-design verified PASS (0C/0M) — incl. confirmation the round-3 admitEnqueue-on-single-food
+    fix is genuinely wired. Found residuals in the V&V layer: status='done' (system-test/acceptance/
+    tasks), UTP-002-B old 1–20 batch cap, EventBridge-demand test framing (UTP-002-A/B, ITP-002-A),
+    system-design SYS-013→nonexistent-bare-REQ + shifted SYS-006/008/010/011/012/002 parent ids,
+    release-audit regenerated from a pre-auth snapshot (missing REQ-037..044/SYS-013 + HAZ-036..041),
+    hazard SYS-003/004 still High/LowPriorityFoodQueue, missing HAZ-041 in trace/matrix, and a
+    pervasive bare-vs-lettered auth-REQ-id split (66 refs). ALL remediated + verified (grep-clean,
+    cross-file consistent): status='done'→delete-row everywhere; batch cap 100; demand tests →
+    Postgres INSERT+pg_notify; SYS→REQ parent ids corrected to existing lettered defs; release-audit
+    rebuilt w/ auth slice + 41 hazards + recomputed metrics; SYS-003/004 → FetchQueue/FetchRequesters;
+    HAZ-041 added to trace/matrix/audit; auth REQ ids reconciled to lettered (REQ-037a–d etc.).
+checklist_gate: REGENERATED # checklists/requirements.md rebuilt vs current spec — 16/17 (item 13 pends the out-of-folder architecture doc; spec-internal architecture is consistent)
+peer_review_history_round4: >
+    Round 4 (2026-06-20): refreshed all 9 peer-review records against the reconciled+clarified
+    v-model. Found 6 Critical + 17 Major — root cause: the SQS→Postgres + clarify re-propagations
+    updated the NEW requirements (auth/rate-limiter/demotion/lifecycle) but left the original
+    demand-path/queue model (REQ-011..017 → SYS-002/003/004) on SQS/EventBridge + static
+    high/low priority, and never wired demotion admission (admitEnqueue) into the single-food
+    enqueue path (FR-043/044/046 + SC-012 would silently never engage). Remediated all C+M +
+    the trace-artifact ripple (trace/traceability-matrix/release-audit) + high/low-priority and
+    EventBridge-demand-path residue + naming (EnqueueEmitter, windowCount, MAX_QUEUE_DEPTH=10000,
+    DemotionAndFairness). Added HAZ-041 (rolling-window state-loss) + STP-006-D. acceptance-plan
+    passed clean (0/0). Verified grep-clean + cross-file consistent.
+repropagation_2026_06_20: complete # rate-limiter/demotion/lifecycle propagated to plan/tasks/12 v-model artifacts; names harmonized (RollingWindowLimiter, RateLimitWindowFullError, DemotionAndFairness)
+peer_review_history: >
+    Round 1 (2026-06-19): 7 Critical + ~26 Major. Round 2 (remediate Criticals + re-review):
+    0 Critical, ~20 Major. Round 3 (remediate Majors + re-review): 0 Critical, 0 Major.
+    Remediation added MOD-014 (FR-048), HAZ-038/039/040, concrete thresholds (quota 200/hr,
+    ≤20%, batch 100, queue depth 10,000), atomic REQ splits, FR-052 DoS + FR-049b WS modeling,
+    UTP-014/UTP-012-I/J, ITP-012-G/H, measurable STP-013-B, and reconciled the food API
+    deployment to NestJS-on-ECS/Fargate across spec/plan/v-model. Only non-blocking
+    Minors/Observations remain (FR-050 trace, REQ-036 gap, naming hygiene).
+v_model_auth_slice:
+    state: added
+    reviewed: true
+    peer_review: FAIL # gate blocked — ~6 Critical + ~26 Major across 9 artifacts (2026-06-19)
+    ids: REQ-IF-008, REQ-037..044, SYS-013, ARCH-012, MOD-012, MOD-013, UTP-012, ITP-012, STP-013, ATP-008/ATS-036, HAZ-036, HAZ-037
+    added_at: 2026-06-19
+    top_findings:
+        - 'Deployment contradiction: spec A-011 + AuthenticatedCaller entity + v-model SYS-001/ARCH-001 still describe the Lambda authorizer / API-Gateway model, contradicting the locked NestJS-middleware-on-ECS decision (plan §2A). Leftover from the 2026-06-19 lock-in.'
+        - 'Undefined thresholds written as illustrative (quota N, ≤20% as "target", batch "e.g. 100", queue depth) — not binding/testable.'
+        - 'SC-012 ≤20% global-share only in a comment; MOD-013 enforceQuota never computes it (denial-of-wallet not actually closed in design).'
+        - 'Missing hazards: quota-store fail-open/closed, user-vs-M2M token confusion, async-producer requestedBy:system bypass (plan §4 still has it, contradicting §2A.6), WS $connect authorizer cache fall-open.'
+        - 'FR-046 503 backpressure family has zero unit tests; FR-050 untraced by a REQ; REQ-036 numbering gap unexplained.'

@@ -33,6 +33,18 @@ export class DataStack extends Stack {
     public readonly authSecretKey: secretsmanager.ISecret;
     public readonly migrationPlanSecret: secretsmanager.Secret;
     public readonly databaseName: string;
+    /**
+     * Least-privilege credentials for the `food_app` role that owns the second logical database
+     * `kitchensink_food` on this same shared instance (feature 003). No new instance/cluster.
+     */
+    public readonly foodDbCredentialsSecret: secretsmanager.Secret;
+    /** Name of the second logical database provisioned on the shared instance (feature 003). */
+    public readonly foodDatabaseName: string;
+    /**
+     * Bootstrap-SQL secret that the schema-migration runner executes to `CREATE DATABASE
+     * kitchensink_food` and its owning `food_app` role (mirrors {@link migrationPlanSecret}).
+     */
+    public readonly foodMigrationPlanSecret: secretsmanager.Secret;
 
     public constructor(scope: Construct, id: string, props: DataStackProps) {
         super(scope, id, props);
@@ -64,6 +76,41 @@ export class DataStack extends Stack {
         });
 
         this.databaseName = 'kitchensink_identity';
+
+        // Feature 003 — second logical database `kitchensink_food` on this SAME shared instance.
+        // No new instance/cluster: just an additional least-privilege role + credentials secret and
+        // the bootstrap SQL that creates the database and role. `pg_trgm` is already bootstrapped on
+        // the instance (see `migrationPlanSecret`), so FR-008 search needs no extra extension here.
+        this.foodDatabaseName = 'kitchensink_food';
+
+        this.foodDbCredentialsSecret = new secretsmanager.Secret(this, 'FoodDatabaseCredentialsSecret', {
+            description: 'PostgreSQL credentials for the kitchensink_food logical database (feature 003)',
+            generateSecretString: {
+                secretStringTemplate: JSON.stringify({ username: 'food_app' }),
+                generateStringKey: 'password',
+                excludePunctuation: true,
+                includeSpace: false,
+            },
+        });
+
+        // Bootstrap-SQL the schema-migration runner executes against the shared instance to create the
+        // `kitchensink_food` database and its owning least-privilege `food_app` role. The runner injects
+        // the generated password from `foodDbCredentialsSecret` at apply time (it reads both secrets),
+        // mirroring how `migrationPlanSecret` declares ownership without embedding the credential here.
+        this.foodMigrationPlanSecret = new secretsmanager.Secret(this, 'FoodMigrationPlanSecret', {
+            description: 'Bootstrap instructions for the kitchensink_food database + food_app role (feature 003)',
+            secretObjectValue: {
+                bootstrapSql: SecretValue.unsafePlainText(
+                    [
+                        "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'food_app') THEN CREATE ROLE food_app LOGIN; END IF; END $$;",
+                        "SELECT 'CREATE DATABASE kitchensink_food OWNER food_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'kitchensink_food')\\gexec",
+                        'GRANT ALL PRIVILEGES ON DATABASE kitchensink_food TO food_app;',
+                    ].join('\n'),
+                ),
+                migrationOwner: SecretValue.unsafePlainText('@kitchensink/food-service'),
+                credentialsSecretArn: SecretValue.unsafePlainText(this.foodDbCredentialsSecret.secretArn),
+            },
+        });
 
         const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
             description: 'Isolated subnets for identity PostgreSQL',
@@ -160,6 +207,18 @@ export class DataStack extends Stack {
         new CfnOutput(this, 'MigrationPlanSecretArn', {
             value: this.migrationPlanSecret.secretArn,
             exportName: `${this.stackName}:MigrationPlanSecretArn`,
+        });
+        new CfnOutput(this, 'FoodDbSecretArn', {
+            value: this.foodDbCredentialsSecret.secretArn,
+            exportName: `${this.stackName}:FoodDbSecretArn`,
+        });
+        new CfnOutput(this, 'FoodDatabaseName', {
+            value: this.foodDatabaseName,
+            exportName: `${this.stackName}:FoodDatabaseName`,
+        });
+        new CfnOutput(this, 'FoodMigrationPlanSecretArn', {
+            value: this.foodMigrationPlanSecret.secretArn,
+            exportName: `${this.stackName}:FoodMigrationPlanSecretArn`,
         });
         new CfnOutput(this, 'DeletionQueueArn', {
             value: this.deletionQueue.queueArn,

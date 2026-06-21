@@ -3,6 +3,8 @@
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
 **Status**: Complete | **Sources**: [plan.md](../plan.md), [research.md](../research.md), [spec.md](../spec.md)
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Overview
@@ -41,15 +43,15 @@ PostgreSQL as durable source of truth; Redis optional accelerator for full archi
 ### Rationale
 
 - PostgreSQL supports status lifecycle, JSON nutrients, and indexed search.
-- Lean launch supports PostgreSQL-only path (A-002).
-- Redis enables lower p95 reads and token-bucket LUA option at scale.
+- Lean launch supports PostgreSQL-only path (A-002), including the `fetch_queue` and `usda_call_log` rolling-window tables.
+- Redis is a deferred accelerator for lower p95 reads at scale; the rolling-window rate limiter remains Postgres-backed by default.
 
 ### Trade-offs
 
-| Trade-off                           | Mitigated By                                 |
-| ----------------------------------- | -------------------------------------------- |
-| Redis operational overhead          | Start lean; add only when threshold exceeded |
-| PostgreSQL-only higher read latency | Use indexing + targeted cache layer rollout  |
+| Trade-off                           | Mitigated By                                  |
+| ----------------------------------- | --------------------------------------------- |
+| Redis operational overhead          | Defer Redis; add only when threshold exceeded |
+| PostgreSQL-only higher read latency | Use indexing + targeted cache layer rollout   |
 
 ---
 
@@ -67,44 +69,45 @@ Local fuzzy search using PostgreSQL full-text + trigram matching.
 
 ---
 
-## Async Pipeline: EventBridge + SQS + Lambda
+## Async Pipeline: Postgres fetch_queue (LISTEN/NOTIFY) + Fargate worker
 
 ### Choice
 
-Event-driven queue-based architecture with High/Low queues and DLQ.
+Postgres-as-queue architecture: a single demand-weighted `fetch_queue` table drained by a single-instance Fargate consumer worker (held under an advisory lock), woken via `LISTEN/NOTIFY`. The demand path is a direct `INSERT … ON CONFLICT` + `pg_notify`; EventBridge is used only for scheduled producers and the `FoodDataReceived` event. There is no SQS, no consumer Lambda, and no DLQ — terminal failures are recorded as tombstone rows.
 
 ### Rationale
 
 - Matches selected architecture in plan.
-- Supports priority handling for user-facing misses vs bulk/stale jobs.
-- Naturally composes retry semantics and dead-letter capture.
+- Single fetch_queue with dynamic demotion handles user-facing misses vs bulk/stale jobs without separate High/Low queues.
+- Idempotent upsert + tombstone rows compose retry semantics and terminal-failure capture without dead-letter infrastructure.
 
 ### Trade-offs
 
-| Trade-off                          | Mitigated By                                |
-| ---------------------------------- | ------------------------------------------- |
-| Message-order and retry complexity | Idempotent upsert + pending dedupe strategy |
-| Operational tuning burden          | CloudWatch metrics and alarms from day one  |
+| Trade-off                           | Mitigated By                                |
+| ----------------------------------- | ------------------------------------------- |
+| Queue-ordering and retry complexity | Idempotent upsert + pending dedupe strategy |
+| Operational tuning burden           | CloudWatch metrics and alarms from day one  |
 
 ---
 
-## Rate Limiting: Token Bucket (Redis or PostgreSQL Atomic)
+## Rate Limiting: Rolling 60-minute window (usda_call_log)
 
 ### Choice
 
-Token bucket capacity 1,000 with refill 16.67/min, enforced in consumer before USDA call.
+A rolling 60-minute window backed by a `usda_call_log` table: ≤1,000 calls per trailing hour, pausing at 900 (90%), enforced in the consumer before each USDA call. Postgres-backed is the lean-launch default; a Redis variant is deferred.
 
 ### Rationale
 
 - Direct mapping to USDA external limit and FR-019..FR-022.
-- Allows deterministic “skip + visibility extension” behavior under exhaustion.
+- A rolling window enforces ≤1,000/trailing-hour strictly; a 1,000-cap token bucket refilling 1,000/hr could emit ~2,000 across a rolling hour and breach the cap.
+- Allows deterministic “skip + requeue” behavior when the window is at capacity.
 
 ### Trade-offs
 
-| Trade-off                                                | Mitigated By                               |
-| -------------------------------------------------------- | ------------------------------------------ |
-| Under-utilization risk with conservative bucket behavior | Batch endpoint usage (FR-023, SC-005)      |
-| Complexity of atomicity                                  | Single-consumer + atomic DB/Lua operations |
+| Trade-off                                                | Mitigated By                            |
+| -------------------------------------------------------- | --------------------------------------- |
+| Under-utilization risk with conservative pause threshold | Batch endpoint usage (FR-023, SC-005)   |
+| Window-query cost on the hot path                        | Single-consumer + indexed usda_call_log |
 
 ---
 
@@ -126,7 +129,7 @@ Token bucket capacity 1,000 with refill 16.67/min, enforced in consumer before U
 
 ### Choice
 
-CloudWatch metrics, alarms, and dashboard-first operations with DLQ and queue-age alerts.
+CloudWatch metrics, alarms, and dashboard-first operations with tombstone-rate and queue-age alerts.
 
 ### Rationale
 
@@ -137,12 +140,12 @@ CloudWatch metrics, alarms, and dashboard-first operations with DLQ and queue-ag
 
 ## Research Question Mapping
 
-| Research Question                 | Stack Decision                                             |
-| --------------------------------- | ---------------------------------------------------------- |
-| RQ-1 (data types)                 | Preserve USDA data type distinctions in UI and persistence |
-| RQ-2 (API/rate limits)            | Queue + token bucket mandatory                             |
-| RQ-3 (alternative APIs)           | USDA-first; no paid API dependency at launch               |
-| RQ-4 (TypeScript implementations) | Typed client + explicit error taxonomy                     |
-| RQ-5 (Lambda + SQS patterns)      | High/Low queue strategy + DLQ + retry model                |
-| RQ-6/RQ-7 (integration pipeline)  | Optional ingredient linkage path with async backfill       |
-| RQ-8 (UX lookup patterns)         | Search-as-you-type + disambiguation + pending status       |
+| Research Question                 | Stack Decision                                               |
+| --------------------------------- | ------------------------------------------------------------ |
+| RQ-1 (data types)                 | Preserve USDA data type distinctions in UI and persistence   |
+| RQ-2 (API/rate limits)            | Postgres-as-queue + rolling-window limiter mandatory         |
+| RQ-3 (alternative APIs)           | USDA-first; no paid API dependency at launch                 |
+| RQ-4 (TypeScript implementations) | Typed client + explicit error taxonomy                       |
+| RQ-5 (Fargate worker patterns)    | Single demand-weighted fetch_queue + tombstone + retry model |
+| RQ-6/RQ-7 (integration pipeline)  | Optional ingredient linkage path with async backfill         |
+| RQ-8 (UX lookup patterns)         | Search-as-you-type + disambiguation + pending status         |

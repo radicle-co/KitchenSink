@@ -3,6 +3,8 @@
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
 **Status**: Complete | **Sources**: [plan.md](../plan.md), root `package.json`, `AGENTS.md`
 
+_Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+
 ---
 
 ## Monorepo Layout
@@ -46,13 +48,13 @@ Shared UI components for web/mobile surfaces.
 
 From plan architecture, feature 003 introduces backend-focused domains:
 
-| New Workspace / Module Boundary | Purpose                                                   |
-| ------------------------------- | --------------------------------------------------------- |
-| USDA API module                 | Typed USDA client + error taxonomy                        |
-| Food service module             | Local-store lookup, status endpoint, search               |
-| Queue producer module           | EventBridge publish for single/batch requests             |
-| Consumer Lambda module          | SQS consume + token bucket + USDA upsert                  |
-| Token bucket store module       | Redis (full) and PostgreSQL (lean) atomic implementations |
+| New Workspace / Module Boundary | Purpose                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| USDA API module                 | Typed USDA client + error taxonomy                                                                           |
+| Food service module             | Local-store lookup, status endpoint, search                                                                  |
+| Queue producer module           | Direct `INSERT … ON CONFLICT` + `pg_notify` (demand); EventBridge for scheduled producers + FoodDataReceived |
+| Fargate consumer worker module  | Drains fetch_queue (advisory lock, LISTEN/NOTIFY) + USDA upsert + tombstone on terminal failure              |
+| Rolling-window limiter module   | usda_call_log (≤1,000/trailing-hr, pause at 900); Postgres lean default, Redis deferred                      |
 
 ---
 
@@ -110,10 +112,10 @@ Unauthenticated calls return `401` (FR-035).
 Core runtime topology in plan:
 
 - API layer serving from local store
-- EventBridge rules for food request events + scheduled stale checks
-- High/Low priority SQS queues + DLQ
-- Lambda consumer with reserved concurrency = 1
-- Optional Redis accelerator, PostgreSQL as durable source of truth
+- Demand path: direct `INSERT … ON CONFLICT` into fetch_queue + `pg_notify`; EventBridge rules for scheduled producers + FoodDataReceived only
+- Single demand-weighted fetch_queue (+ fetch_requesters) with dynamic demotion (>50 pending → back); tombstone rows for terminal failures (no DLQ)
+- Single-instance Fargate consumer worker (advisory lock, LISTEN/NOTIFY)
+- Rolling-window limiter on usda_call_log; deferred Redis accelerator, PostgreSQL as durable source of truth
 
 ---
 
@@ -122,12 +124,12 @@ Core runtime topology in plan:
 ```
 Commise Web/Mobile
     -> /v1/foods API
-        -> PostgreSQL + optional Redis (read path)
-        -> EventBridge (on miss)
-            -> High/Low SQS
-                -> Consumer Lambda
+        -> PostgreSQL + deferred Redis (read path)
+        -> fetch_queue (+pg_notify) (on miss)
+            -> Fargate worker (advisory lock, LISTEN/NOTIFY)
+                -> rolling-window limiter (usda_call_log)
                     -> USDA API
-                    -> PostgreSQL upsert + cache fill
+                    -> PostgreSQL upsert + cache fill (tombstone on terminal failure)
 ```
 
 ---

@@ -33,6 +33,8 @@
         "lint": "turbo run lint format:check",
         "typecheck": "turbo run typecheck",
         "dev:local": "turbo run dev:local",
+        "localstack:up": "docker compose -f infra/localstack/docker-compose.yml up -d --wait",
+        "localstack:down": "docker compose -f infra/localstack/docker-compose.yml down -v",
         "format": "turbo run format",
         "format:check": "turbo run format:check",
         "prepare": "husky || true"

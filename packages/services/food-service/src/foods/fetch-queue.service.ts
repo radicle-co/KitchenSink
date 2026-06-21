@@ -91,7 +91,11 @@ export class FetchQueueService {
         try {
             await client.query('BEGIN');
 
-            for (const id of payload.fdcIds) {
+            // Acquire the per-id advisory locks (in enqueueOne) in a consistent ascending order so
+            // two overlapping batches can never deadlock on opposite lock orderings.
+            const orderedIds = [...payload.fdcIds].sort((a, b) => a - b);
+
+            for (const id of orderedIds) {
                 await this.enqueueOne(client, String(id), payload.requestedBy);
             }
 
@@ -114,6 +118,13 @@ export class FetchQueueService {
      * alone (its re-attempt is gated by the tombstone TTL in the controller, FR-025).
      */
     private async enqueueOne(client: pg.PoolClient, fdcId: string, requestedBy: string): Promise<void> {
+        // Serialize concurrent enqueues for the SAME fdcId (a popular food can be requested by many
+        // subs at once). Without this, the `request_count` recompute below races on the snapshot of
+        // committed `fetch_requesters` rows and the distinct-requester count (FR-044) is lost/undercounted
+        // under concurrency. The xact lock is released automatically on COMMIT/ROLLBACK; distinct ids
+        // hash to distinct locks so unrelated enqueues don't block each other.
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [fdcId]);
+
         // Distinct-requester demand: each sub contributes at most one row (FR-044).
         await client.query(
             `INSERT INTO fetch_requesters (fdc_id, sub) VALUES ($1, $2)

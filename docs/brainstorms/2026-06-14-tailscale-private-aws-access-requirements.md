@@ -7,6 +7,8 @@ topic: tailscale-private-aws-access
 
 > **Reconciled with the VPC consolidation (`docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`).** That work gives prod and sandbox distinct CIDRs and peers them, so the original two-routers-plus-4via6 approach is superseded by **one prod router reaching both VPCs over peering**. Sections below are updated accordingly.
 
+> Note (2026-06-21): the platform now egresses via a t4g.nano NAT _instance_ (not a managed NAT Gateway) — see ADR-0004. References below to "the existing NAT gateway" mean that NAT instance; the router's NAT dependency and "already-billed / no new fixed cost" framing still hold.
+
 ## Summary
 
 Stand up a single Tailscale subnet router on a dedicated EC2 instance in the prod VPC, reaching private resources in **both** the prod and sandbox VPCs (sandbox over a VPC peering connection), so the developer's solo Tailscale account can reach private VPC resources — primarily the isolated RDS PostgreSQL instances — directly from a laptop. This replaces "no developer access exists" with an on-tailnet path to run and verify migrations and inspect data, without exposing anything to the public internet.

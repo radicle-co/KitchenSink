@@ -16,11 +16,11 @@
 
 ## Tenant Strategy
 
-| Environment | IdP Tenant Name | API GW Domain Prefix | Stack Suffix |
-| ----------- | ----------------- | -------------------- | ------------ |
-| Dev | `kitchensink-dev` | `identity.dev.` | `-dev` |
-| Staging | `kitchensink-staging` | `identity.sandbox.` | `-staging` |
-| Prod | `kitchensink-prod` | `identity.` | `-prod` |
+| Environment | IdP Tenant Name       | API GW Domain Prefix | Stack Suffix |
+| ----------- | --------------------- | -------------------- | ------------ |
+| Dev         | `kitchensink-dev`     | `identity.dev.`      | `-dev`       |
+| Staging     | `kitchensink-staging` | `identity.sandbox.`  | `-staging`   |
+| Prod        | `kitchensink-prod`    | `identity.`          | `-prod`      |
 
 ---
 
@@ -34,8 +34,8 @@
 - [ ] Configure **Webhook Signing Secret**
 - [ ] Enable `user.created` webhook trigger
 - [ ] Configure redirect URLs:
-  - Web: `https://{prefix}{DOMAIN_NAME}/sign-in/callback`
-  - Mobile: `{appScheme}://oauth-native-callback`
+    - Web: `https://{prefix}{DOMAIN_NAME}/sign-in/callback`
+    - Mobile: `{appScheme}://oauth-native-callback`
 - [ ] Verify JWKS endpoint: `https://{tenant}.clerk.accounts.dev/.well-known/jwks.json`
 
 ### 2. Environment Variables
@@ -55,9 +55,9 @@ Populate the secret `kitchensink/{stage}/identity/keys`:
 
 ```json
 {
-  "secretKey": "sk_...",
-  "publishableKey": "pk_...",
-  "webhookSigningSecret": "whsec_..."
+    "secretKey": "sk_...",
+    "publishableKey": "pk_...",
+    "webhookSigningSecret": "whsec_..."
 }
 ```
 
@@ -77,6 +77,7 @@ npm run infra:deploy  # deploy all 6 stacks
 ```
 
 Stacks created:
+
 - `kitchensink-identity-network-{stage}`
 - `kitchensink-identity-data-{stage}`
 - `kitchensink-identity-domain-{stage}`
@@ -124,14 +125,14 @@ curl -H "Authorization: Bearer ${TOKEN}" \
 
 ## Troubleshooting
 
-| Symptom | Root Cause | Resolution |
-| ------- | ---------- | ---------- |
-| `DOMAIN_NAME not set` | Missing env var | `export DOMAIN_NAME=thecommise.app` before synth/deploy |
-| `Cannot find asset` | `dist/` missing | Run `npm run build` in `identity-webhooks` package |
-| RDS connection timeout | Security group rules | Verify `serviceSecurityGroup` allows ingress from ALB SG on port 3000 |
-| Webhook 403 | Signing secret mismatch | Re-sync `webhookSigningSecret` in Secrets Manager |
-| Lambda timeout (authorizer) | JWKS fetch slow | Check VPC NAT gateway / outbound route for Lambda |
-| ECS task fails health check | DB unreachable | Verify `DATABASE_URL` uses correct `dbInstanceEndpointAddress` |
+| Symptom                     | Root Cause              | Resolution                                                                                              |
+| --------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `DOMAIN_NAME not set`       | Missing env var         | `export DOMAIN_NAME=thecommise.app` before synth/deploy                                                 |
+| `Cannot find asset`         | `dist/` missing         | Run `npm run build` in `identity-webhooks` package                                                      |
+| RDS connection timeout      | Security group rules    | Verify `serviceSecurityGroup` allows ingress from ALB SG on port 3000                                   |
+| Webhook 403                 | Signing secret mismatch | Re-sync `webhookSigningSecret` in Secrets Manager                                                       |
+| Lambda timeout (authorizer) | JWKS fetch slow         | Check the VPC NAT instance (t4g.nano, not a managed NAT Gateway — ADR-0004) / outbound route for Lambda |
+| ECS task fails health check | DB unreachable          | Verify `DATABASE_URL` uses correct `dbInstanceEndpointAddress`                                          |
 
 ---
 
@@ -139,11 +140,11 @@ curl -H "Authorization: Bearer ${TOKEN}" \
 
 This feature **does not author new IdP Actions/Triggers**. Existing tenant-template handlers are reused:
 
-| Handler | Trigger | Destination |
-| ------- | ------- | ----------- |
-| `user.created` | Post-registration | POST `/webhooks/users` |
-| Password reset | User-initiated | IdP hosted UI |
-| MFA | Out of scope | See [spec.md §Out of Scope](./spec.md) |
+| Handler        | Trigger           | Destination                            |
+| -------------- | ----------------- | -------------------------------------- |
+| `user.created` | Post-registration | POST `/webhooks/users`                 |
+| Password reset | User-initiated    | IdP hosted UI                          |
+| MFA            | Out of scope      | See [spec.md §Out of Scope](./spec.md) |
 
 ---
 

@@ -64,6 +64,16 @@ describe('NetworkStack DB security-group pairing (ENI_SG_RULES_MISMATCH guard)',
     });
 });
 
+describe('NetworkStack NAT (cost: instance, not Gateway)', () => {
+    it('uses a t4g.nano NAT instance and no managed NAT Gateway (minimize-nat, issue #46)', () => {
+        const t = networkTemplate('sandbox');
+        // A managed NAT Gateway is ~$32/mo/stage; the instance is ~$3-4/mo. Guard the swap so a future
+        // edit does not silently reintroduce the Gateway.
+        t.resourceCountIs('AWS::EC2::NatGateway', 0);
+        t.hasResourceProperties('AWS::EC2::Instance', { InstanceType: 't4g.nano' });
+    });
+});
+
 describe('DataStack credentials secret', () => {
     it('has no Auth0 reference (service migrated to Clerk)', () => {
         const app = new App();

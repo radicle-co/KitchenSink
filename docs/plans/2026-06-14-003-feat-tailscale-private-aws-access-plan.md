@@ -10,6 +10,8 @@ origin: docs/brainstorms/2026-06-14-tailscale-private-aws-access-requirements.md
 
 > **Depends on `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`.** That consolidation gives prod and sandbox **distinct CIDRs** (`10.0.0.0/16` / `10.1.0.0/16`), which is the precondition for the single-router + VPC-peering design below. This plan must not start until 004 has landed. The earlier two-routers-plus-4via6 design is superseded: distinct CIDRs remove the site-ID disambiguation entirely.
 
+> Note (2026-06-21): the platform now egresses via a t4g.nano NAT _instance_ (not a managed NAT Gateway) — see ADR-0004. References below to "the existing NAT gateway" mean that NAT instance; the router (a VPC-attached instance in the `private-app` / `PRIVATE_WITH_EGRESS` subnet) still reaches the tailnet through it.
+
 ## Summary
 
 Add **one** Tailscale subnet router on a dedicated EC2 instance in the **prod** VPC so a solo Tailscale account can reach private resources in **both** the prod and sandbox VPCs — primarily the isolated RDS PostgreSQL — directly from a laptop. The router runs in the prod `private-app` subnet, advertises both VPC CIDRs (prod directly, sandbox over a VPC peering connection), and each stage's database security group is amended (ingress only) to admit the router. Resources land in the deployed **global** CDK app.

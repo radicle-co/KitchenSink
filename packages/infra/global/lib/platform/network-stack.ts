@@ -40,10 +40,22 @@ export class NetworkStack extends Stack {
     public constructor(scope: Construct, id: string, props: NetworkStackProps) {
         super(scope, id, props);
 
+        // Cost: a managed NAT *Gateway* is ~$32/mo/stage + data; a NAT *instance* (t4g.nano) is ~$3-4/mo
+        // for the same job at this scale. The single remaining NAT consumer is the DB-bound webhook
+        // lambda set (they must be VPC-attached to reach the private RDS, then need Secrets/Logs/SQS/
+        // Clerk egress); everything else (Fargate services, log-forwarder) egresses via the IGW and
+        // does not touch the NAT. Single-AZ instance is an accepted SPOF/throughput trade for a lean
+        // stage. OUTBOUND_ONLY by default; inbound is opened only to the VPC CIDR below.
+        const natProvider = ec2.NatProvider.instanceV2({
+            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.NANO),
+            defaultAllowedTraffic: ec2.NatTrafficDirection.OUTBOUND_ONLY,
+        });
+
         this.vpc = new ec2.Vpc(this, 'Vpc', {
             ipAddresses: ec2.IpAddresses.cidr(cidrForStage(props.stage)),
             maxAzs: 2,
             natGateways: 1,
+            natGatewayProvider: natProvider,
             subnetConfiguration: [
                 {
                     name: 'public',
@@ -62,6 +74,14 @@ export class NetworkStack extends Stack {
                 },
             ],
         });
+
+        // The NAT instance defaults to OUTBOUND_ONLY; open inbound only to the VPC CIDR so the
+        // private subnets can route their egress through it (and nothing on the public internet can).
+        natProvider.connections.allowFrom(
+            ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
+            ec2.Port.allTraffic(),
+            'Allow VPC private subnets to route egress through the NAT instance',
+        );
 
         // Platform-wide VPC name (shared across services) — overrides the CDK
         // path-derived Name tag. Scoped to the VPC resource only (not its subnets/

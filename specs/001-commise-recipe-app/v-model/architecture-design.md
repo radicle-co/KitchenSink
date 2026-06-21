@@ -284,7 +284,7 @@ sequenceDiagram
 - **Region strategy**: Primary deployment in one AWS region (for example `us-east-1`) with managed regional services: VPC, RDS PostgreSQL 16, SQS queues, Lambda workers, and ECS Fargate API runtime.
 - **Network layout**:
     - Public edge: CloudFront distribution terminating TLS for web static assets and image/object delivery from S3 via Origin Access Control (ARCH-025).
-    - Private application plane: API runtime in private subnets (ECS Fargate service behind ALB) hosting NestJS modules (ARCH-003, ARCH-004, ARCH-010, ARCH-020, ARCH-021, ARCH-022, ARCH-028, ARCH-029, ARCH-030, ARCH-033).
+    - Application plane: API runtime in public subnets with `assignPublicIp` (ECS Fargate service behind ALB; egress via the Internet Gateway, inbound locked to the ALB security group — see ADR-0004) hosting NestJS modules (ARCH-003, ARCH-004, ARCH-010, ARCH-020, ARCH-021, ARCH-022, ARCH-028, ARCH-029, ARCH-030, ARCH-033).
     - Data plane: RDS PostgreSQL in isolated/private subnets accessed through security groups by API and worker runtimes (ARCH-024).
     - Async plane: SQS main queue + DLQ for version archives (ARCH-017 producer, ARCH-018 worker, ARCH-019 reconciler, ARCH-031 alarm).
 - **Stateful services**:

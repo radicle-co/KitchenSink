@@ -217,9 +217,13 @@ export class IdentityServiceStack extends Stack {
             cluster,
             taskDefinition,
             desiredCount,
-            assignPublicIp: false,
+            // Public subnet + public IP so the task egresses to Clerk/AWS via the Internet Gateway
+            // (free) instead of the NAT. Inbound stays locked to the ALB SG (serviceSecurityGroup),
+            // so the public IP is egress-only; the task still reaches the private RDS intra-VPC by SG.
+            // This keeps the NAT serving ONLY the DB-bound webhook lambdas (minimize-nat).
+            assignPublicIp: true,
             vpcSubnets: {
-                subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+                subnetType: ec2.SubnetType.PUBLIC,
             },
             securityGroups: [serviceSecurityGroup],
             minHealthyPercent: 50,

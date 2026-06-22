@@ -181,7 +181,8 @@ phases:
               Community; the Pro-only ones (RDS, ECS) are avoided by design (Docker Postgres + boot the
               app as a process). Token wiring was stripped from the compose and the `e2e-food` CI job.
         - id: FU-VMODEL-REBASELINE
-          item: 'v-model V&V chain (v-model/*.md) still describes the OLD fdcId design — re-baseline to source-agnostic before/with implementation'
+          item: 'RESOLVED 2026-06-22 — all 12 v-model V&V artifacts regenerated to the source-agnostic model (in dependency order: requirements → system/architecture/module design → unit/integration/system/acceptance tests → hazard → traceability-matrix/trace/release-audit). REQ 84→100, SYS→20, ARCH→19, MOD→21, HAZ 41→47; auth slice preserved + fully traced; fdcId confined to the adapter; release-audit verdict DESIGN-BASELINE-READY (tests unexecuted — implementation pending). Residual Open-2: 8 minor acceptance-test gaps (add ATs for REQ-038a + REQ-044b).'
+          original_item: 'v-model V&V chain (v-model/*.md) still describes the OLD fdcId design — re-baseline to source-agnostic before/with implementation'
           detail: >
               The 2026-06-22 re-baseline regenerated spec/plan/tasks to the source-agnostic model
               but did NOT regenerate the 12 v-model artifacts (requirements, system/architecture/
@@ -312,9 +313,10 @@ next_action: >
     2026-06-22 RE-BASELINE: spec/plan/tasks regenerated + gate-approved to the source-agnostic model
     (see implement.rebaseline_2026_06_22). Resume implementation at the NEW Phase 1 (canonical schema +
     DAOs, TDD) — the merged Phase 0-2 fdcId code is a clean rebuild (infra/auth/usda-client reused).
-    DECISION PENDING at the implement-resume gate: regenerate the v-model V&V chain to the new model now
-    (FU-VMODEL-REBASELINE) vs. proceed and reconcile it at verify/audit. Superseded the 2026-06-20
-    superpowers-bridge routing note below (re-evaluate the executor at resume).
+    v-model V&V chain ALSO regenerated 2026-06-22 (FU-VMODEL-REBASELINE RESOLVED — all 12 artifacts
+    source-agnostic + traced; release-audit = DESIGN-BASELINE-READY). The full design-of-record (spec/
+    plan/tasks + 12 v-model artifacts) is now consistent. NEXT: resume implementation at Phase 1
+    (canonical schema + DAOs, TDD); re-evaluate the executor (superpowers-bridge note below) at resume.
 superseded_next_action_2026_06_20: implement via the Superpowers bridge (gate decision 2026-06-20). Design complete + peer-review PASS; routing Phase 6 through speckit-superpowers-bridge → Superpowers (TDD + verify + review), NOT direct speckit.implement. BLOCKED on a session reload — the bridge commands + the mandatory before_implement guard hook are not yet loaded.
 next_command: '/reload-plugins, then /speckit-product-forge-forge (resumes at Phase 6, guard routes the handoff) OR /speckit.speckit-superpowers-bridge.handoff → /speckit-superpowers-bridge (execute via Superpowers executing-plans against tasks.md)'
 implement_gate_decision: >

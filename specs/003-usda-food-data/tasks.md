@@ -169,7 +169,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 - [ ] **T-102** [M] [Test-first: true] Migration: canonical core tables + constraints — `—` (FR-028, FR-IDN-1)
       Ordered SQL creating the 8 canonical tables with their FKs (`ON DELETE CASCADE` to `food`), the
       `food_normalized_name_unique` UNIQUE index (FR-005/FR-013 dedup), and `food_sources_source_key_unique
-  UNIQUE(source, external_key)` (R4).
+UNIQUE(source, external_key)` (R4).
       **Acceptance**: migration runs cleanly on `kitchensink_food` (Docker Postgres); inserting two foods with the
       same `normalized_name` violates the unique constraint; inserting two `food_sources` with the same
       `(source, external_key)` is rejected.
@@ -187,7 +187,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
       `food_nutrients_food_id_idx`; `food_nutrients_source_id_idx`; the **demand-weighted partial**
       `idx_fetch_queue_priority ON fetch_queue (request_count DESC, first_requested ASC) WHERE status='pending'`;
       `idx_fetch_requesters_sub`; `idx_source_call_log_source_called_at` (windowed count + prune). `CREATE
-  EXTENSION IF NOT EXISTS pg_trgm`.
+EXTENSION IF NOT EXISTS pg_trgm`.
       **Acceptance**: `EXPLAIN ANALYZE` shows GIN index scan on trigram name search, index-only scan on the
       pending-priority partial index, and an index scan for the trailing-60-min `source_call_log` count.
 
@@ -217,7 +217,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 
 - [ ] **T-110** [S] [Test-first: true] DAO: `SourceCallLogDao` (atomic check-and-record for the per-source rolling 60-min window; prune) — `packages/services/food-service/src/foods/dao/source-call-log.dao.ts` (FR-019, FR-020)
       Single-statement atomic `INSERT … SELECT now() WHERE (SELECT count(*) FROM source_call_log WHERE source=$1
-  AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the call only under cap) +
+AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the call only under cap) +
       a prune of rows older than 60 min.
       **Acceptance**: concurrent check-and-record never lets the trailing count exceed the cap (no race);
       the trailing-60-min count slides as old rows age out.
@@ -232,7 +232,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 
 - [ ] **T-120** [M] [Test-first: true] `FoodSourceAdapter` interface + adapter registry + canonical candidate types (`SourceCandidate`, `CanonicalCandidate`) + source-priority config (`['usda']`) — `packages/services/food-service/src/sources/food-source-adapter.ts` (FR-ADP-1, FR-MRG-2, FR-MRG-4)
       `interface FoodSourceAdapter { readonly source; searchByName(name): Promise<SourceCandidate[]>;
-  fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordered priority list (USDA
+fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordered priority list (USDA
       highest) per §9-5. No source-specific structure may appear in these types.
       **Acceptance**: a type-level test asserts the canonical candidate carries `source` + `externalKey` (never
       `fdcId`); the registry resolves the USDA adapter by `source='usda'`.
@@ -258,6 +258,9 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 > **REBUILD.** Replaces the old `fdcId`-keyed `GET /v1/foods/{fdcId}` read/`/nutrients`/`/autocomplete`.
 > All routes are auth-gated by `FoodAuthGuard` (Phase 8) and obey the FR-051 precedence
 > (`401`→`403`→`400`→`404`/`202`/`200`).
+> ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** No `/v1/foods/*` endpoint from Phases 3–4 may be
+> exposed publicly until T-033 (Phase 8 `FoodAuthGuard`) is mounted. Phases 3–7 build/test the routes
+> behind the unmerged auth wiring; the service is not deployed to a public ALB target until auth lands.
 
 - [ ] **T-130** [M] [Test-first: true] `FoodsModule` + `FoodsController`/`FoodsService` rewired to the new DAOs + adapter registry — `packages/services/food-service/src/foods/foods.module.ts` (FR-001, FR-IDN-1)
       **(reuse: module shell exists from old Phase 2; rewire providers to the per-aggregate DAOs, the adapter
@@ -286,6 +289,8 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 ## Phase 4 — Create / Resolve API (add-by-name, PATCH-resolve, batch, enqueue)
 
 > **REBUILD.** The primary path into external sources. Auth-gated; FR-051 precedence applies.
+> ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** Same rule as Phase 3 — these create/resolve routes
+> must not be publicly exposed until T-033 (Phase 8 `FoodAuthGuard`) is mounted.
 
 - [ ] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-IDN-1)
       **Acceptance**: covers US-2 scenarios 1 & 4 — first add → `202` + `id` < 100ms with one `fetch_queue` row;
@@ -361,7 +366,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 - [ ] **T-162** [M] [Test-first: true] Pre-merge dedup + **auto-resolve rule** — collapse candidates confidently (normalized-name exact match + nutrient agreement within ±10% on energy/protein); exactly one surviving candidate → `RESOLVED`; ≥2 non-collapsible → `UNRESOLVED` — `—` (FR-RES-3, FR-MRG-1, §9-1)
       **Acceptance**: one surviving candidate (single hit, or hits collapsing within tolerance) → `RESOLVED`; two
       non-collapsible survivors → `UNRESOLVED`; the tolerance is config-driven (`FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE`).
-      **(Gate item: the ±10% tolerance is a product call — see §9-1 / "Needs your judgment".)**
+      **(Default confirmed at the plan gate 2026-06-22: ±10% via `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE=0.10`, config-overridable without a schema change.)**
 
 - [ ] **T-163** [S] [Test-first: true] Manual-resolution merge path (PATCH pick → merge → `RESOLVED`, pick stored as ordinary provenance so refresh protects it) — `—` (FR-RES-2, FR-031)
       **Acceptance**: a PATCH-driven merge sets `RESOLVED` and records the chosen candidate's `source_id`;
@@ -394,7 +399,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 
 - [ ] **T-172** [S] [Test-first: true] `UNRESOLVED` 30-day TTL sweep — change-refresh cron sweeps `UNRESOLVED` foods older than `FOOD_UNRESOLVED_TTL_DAYS` (default 30, via `food.updated_at`) to `NOT_FOUND` (re-addable); reuses the tombstone TTL machinery — `—` (§9-2, FR-025)
       **Acceptance**: an `UNRESOLVED` food untouched for >30 days is swept to `NOT_FOUND`; a recently-updated one is
-      not. **(Gate item: confirm the 30-day default — see §9-2.)**
+      not. **(Default confirmed at the plan gate 2026-06-22: 30 days via `FOOD_UNRESOLVED_TTL_DAYS=30`, config-overridable.)**
 
 ---
 

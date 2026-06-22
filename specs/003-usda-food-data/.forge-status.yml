@@ -95,7 +95,25 @@ phases:
             in global DataStack (no new RDS), Zod env config (4/4 tests), Drizzle schema (5 tables).
             Independently verified: tests + typecheck pass; synth parity with identity (fromLookup needs
             creds offline — accepted). Lambda/worker handlers are skeletons (fleshed out in later phases).
-        progress: { phase_0: complete, tasks_done: 6, tasks_total: 62 }
+        progress: { phase_0: complete, tasks_done: 6, tasks_total: 68 }
+        rebaseline_2026_06_22: >
+            DESIGN RE-BASELINED to the SOURCE-AGNOSTIC model (brainstorm 2026-06-21 +
+            ce-doc-review walk-through). spec.md, plan.md, tasks.md REGENERATED and gate-approved:
+            internal `id` identity (fdcId confined to the USDA adapter), food_sources crosswalk +
+            per-field provenance (NO raw payload, no recompute pipeline), normalized nutrients
+            (nutrient dict + food_nutrients junction), add-by-name lifecycle
+            PENDING/UNRESOLVED/RESOLVED/NOT_FOUND/FAILED, fan-out + golden-record merge
+            (presence>absence; identity fields by source priority; free-text longer-wins; nutrients
+            normalized per-100g then priority), per-source rolling-window limiter, change-driven
+            refresh (food_sources.item_version), normalized-name dedup + advisory lock, adapter-boundary
+            input validation + HTTPS. Resolved open Qs: auto-RESOLVED iff one surviving candidate
+            (normalized-name + ±10% nutrient agreement), UNRESOLVED 30-day TTL, async candidate search,
+            static ['usda'] source priority. tasks.md now 68 tasks (T-100..T-196 new + reused
+            infra/auth/usda-client), 44 Test-first, FR coverage complete (incl FR-IDN/RES/MRG/ADP).
+            The merged Phase 0-2 code (old fdcId `foods` schema + REST API) is SUPERSEDED — clean
+            rebuild (infra/auth/usda-client reused). Resume at NEW Phase 1 (canonical schema + DAOs,
+            TDD). NEW DRIFT: the 12 v-model V&V artifacts (v-model/*.md) still describe the old fdcId
+            design — see FU-VMODEL-REBASELINE.
         phase_0_amendments_2026_06_20: >
             Post-Phase-0 review (user-driven) landed 3 changes: (#1) added zod runtime validation
             to @kitchensink/usda-client — validates the raw USDA wire shape at the external boundary,
@@ -162,6 +180,18 @@ phases:
               TIER: LocalStack Community — NO auth token (local or CI). Every service food uses is
               Community; the Pro-only ones (RDS, ECS) are avoided by design (Docker Postgres + boot the
               app as a process). Token wiring was stripped from the compose and the `e2e-food` CI job.
+        - id: FU-VMODEL-REBASELINE
+          item: 'v-model V&V chain (v-model/*.md) still describes the OLD fdcId design — re-baseline to source-agnostic before/with implementation'
+          detail: >
+              The 2026-06-22 re-baseline regenerated spec/plan/tasks to the source-agnostic model
+              but did NOT regenerate the 12 v-model artifacts (requirements, system/architecture/
+              module design, unit/integration/system test, acceptance, hazard, traceability matrix,
+              release-audit). They still trace the old fdcId `foods`/denormalized-nutrient design, so
+              the v-model V&V layer is now drifted from spec/plan/tasks. Options: (a) regenerate the
+              v-model chain to the new model (large, mirrors the spec/plan/tasks effort) before
+              resuming v-model-mode implementation, or (b) proceed with implementation on the
+              re-baselined spec/plan/tasks and reconcile the v-model chain at the verify/audit phase.
+              Decide at the implement-resume gate. A sync-verify run will flag this drift.
 
     code-review:
         state: not-applicable
@@ -278,7 +308,14 @@ red_team:
 #       SWR/tombstone-TTL-30d/batch-per-item-partial.
 # Spec/plan/tasks/v-model now internally consistent. The peer review (2026-06-19) PRE-DATES
 # both passes → must be refreshed; the requirements checklist is stale → must be regenerated.
-next_action: implement via the Superpowers bridge (gate decision 2026-06-20). Design complete + peer-review PASS; routing Phase 6 through speckit-superpowers-bridge → Superpowers (TDD + verify + review), NOT direct speckit.implement. BLOCKED on a session reload — the bridge commands + the mandatory before_implement guard hook are not yet loaded.
+next_action: >
+    2026-06-22 RE-BASELINE: spec/plan/tasks regenerated + gate-approved to the source-agnostic model
+    (see implement.rebaseline_2026_06_22). Resume implementation at the NEW Phase 1 (canonical schema +
+    DAOs, TDD) — the merged Phase 0-2 fdcId code is a clean rebuild (infra/auth/usda-client reused).
+    DECISION PENDING at the implement-resume gate: regenerate the v-model V&V chain to the new model now
+    (FU-VMODEL-REBASELINE) vs. proceed and reconcile it at verify/audit. Superseded the 2026-06-20
+    superpowers-bridge routing note below (re-evaluate the executor at resume).
+superseded_next_action_2026_06_20: implement via the Superpowers bridge (gate decision 2026-06-20). Design complete + peer-review PASS; routing Phase 6 through speckit-superpowers-bridge → Superpowers (TDD + verify + review), NOT direct speckit.implement. BLOCKED on a session reload — the bridge commands + the mandatory before_implement guard hook are not yet loaded.
 next_command: '/reload-plugins, then /speckit-product-forge-forge (resumes at Phase 6, guard routes the handoff) OR /speckit.speckit-superpowers-bridge.handoff → /speckit-superpowers-bridge (execute via Superpowers executing-plans against tasks.md)'
 implement_gate_decision: >
     2026-06-20: at the Phase 6 implement gate, chose to route the build through the

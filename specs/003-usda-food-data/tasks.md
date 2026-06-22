@@ -1,1207 +1,627 @@
-# Tasks: Feature 003 — USDA Food Data Integration
+# Tasks: Feature 003 — Source-Agnostic Food Data Integration
 
 **Feature**: `003-usda-food-data`
-**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate Worker + Rolling 60-min Window Limiter)
-**Updated**: 2026-06-20
-**Source Artifacts**: plan.md, spec.md, product-spec.md
-**Design Reference**: plan.md §4 Fetch Queue (Postgres-as-queue), spec.md FR-014..FR-018
+**Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate fan-out/merge worker + per-source rolling 60-min window limiter)
+**Updated**: 2026-06-22 — **re-baselined to the source-agnostic food data model**
+**Source Artifacts**: plan.md (re-baselined), spec.md (re-baselined), product-spec.md
+**Design Reference**: plan.md §2 (12 canonical tables), §2A (auth), §3 (API contracts), §4 (queue/limiter), §5 (fan-out + merge), §9 (deferred decisions)
 
 ---
 
-## Package Layout & Database (locked 2026-06-19)
+> ## Re-baseline note (2026-06-22)
+>
+> This task list was **regenerated to the source-agnostic food data model**, superseding the
+> USDA-coupled Phase 1–2 design. A food is now keyed by an internal surrogate `id` (ULID-valued,
+> named `id`); USDA is **one pluggable source adapter** among many; foods are assembled into a
+> **cross-source golden record** with per-field provenance; users add foods **by name** through a
+> `PENDING → (UNRESOLVED) → RESOLVED` lifecycle (terminal `NOT_FOUND` / `FAILED`). `fdcId` /
+> `fetch_status` / denormalized-nutrient columns are removed from the canonical model and confined
+> to the USDA adapter boundary (`fdcId → external_key` inbound).
+>
+> **What carries over vs. what is rebuilt (Phase 0–2 of the OLD design was built + merged):**
+>
+> | Area                                                                      | Disposition                                                                  |
+> | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+> | `@kitchensink/food-service` NestJS package + its own CDK                  | **REUSE** — `[x]`                                                            |
+> | `kitchensink_food` logical DB on the shared global DataStack              | **REUSE** — `[x]`                                                            |
+> | Shared-ALB host rule (priority 200), Zod env config scaffold              | **REUSE** (env vars renamed source-agnostic)                                 |
+> | LocalStack + Docker-Postgres E2E harness                                  | **REUSE / extend**                                                           |
+> | `@kitchensink/usda-client` (typed USDA HTTP client + zod wire validation) | **REUSE** as the first adapter; **NEW** task wraps it in `FoodSourceAdapter` |
+> | Auth: in-process `AuthMiddleware` + shared `ClerkAuthService`             | **REUSE / wire** (mostly wiring, not from-scratch)                           |
+> | OLD DB schema (`foods` + `fdcId` PK + denormalized nutrient cols)         | **REBUILD** → the 12 normalized tables                                       |
+> | OLD REST API (`/v1/foods/{fdcId}` read/batch, denormalized DTOs)          | **REBUILD** → add-by-name + id-read + candidates + PATCH-resolve + search    |
+> | OLD DAO/repository layer                                                  | **REBUILD** → per-aggregate DAOs over the new schema                         |
+> | OLD worker (single-source fetch)                                          | **REBUILD** → fan-out + merge                                                |
+>
+> This is a **clean replacement — no data to migrate** (A-014). Old `fdcId`-keyed tasks are
+> **removed/replaced**, not left in place. Where an old task's artifact is reused with light change,
+> it is marked `[x]` with an explicit `(reuse: …)` note.
 
-| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on **ECS/Fargate fronted by the single shared per-stage ALB** (global infra, host-based listener rule at priority 200 — not its own ALB) — `/v1/foods/*` API + `FoodAuthGuard` (in-process Clerk `AuthMiddleware`), Drizzle schema/migrations, the Fargate consumer worker, the lambdas, and its **own CDK** (`infra/lib/`, like `@kitchensink/identity-service`). |
-| `@kitchensink/usda-client`         | `packages/clients/usda`          | External **USDA FoodData Central** client library (typed `getFood`/`getFoodsBatch`/`searchFoods` + error types). No DB, no HTTP server. Consumed by `food-service`.                                                                                                                                                                                                                          |
-| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services (001/006/007/009 — the M2M callers).                                                                                                                                                                                                                                                              |
-| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service's `ClerkAuthService`; consumed by both identity and food-service.                                                                                                                                                                                                                         |
+---
 
-> `packages/clients/usda` and `packages/clients/food-service` MUST be added to the root
-> `package.json` `workspaces` array as **explicit paths** (`packages/clients` is a semantic
-> grouping folder, not a glob — matching how `packages/apps/commise/{web,mobile}` are listed).
-> `services/*` and `shared/*` globs already cover `food-service` and `clerk-verify`.
+## Legend
 
-**Database (no new RDS, no cluster):** reuse the existing shared instance
-`kitchensink-data-{stage}` (a single `rds.DatabaseInstance`, db.t4g.small, defined in
-`packages/infra/global/lib/platform/data-stack.ts`). Add a **separate logical database
-`kitchensink_food`** on that instance (own least-privilege role + secret), provisioned in the
-**global DataStack** so it stays platform infra. `food-service` `Fn.importValue`s the shared
-`kitchensink-data-{stage}:Database*` exports and runs its Drizzle migrations against
-`kitchensink_food`. (`pg_trgm` is already bootstrapped on the instance — covers FR-008 search.)
+```
+- [ ] T-NNN [size S/M/L] [Test-first: true|false] description (FR-refs)
+```
 
-**Data-model note (clarified 2026-06-20):** the `kitchensink_food` tables are `foods`,
-`fetch_queue`, `fetch_requesters`, `usda_sync_metadata`, and `usda_call_log` (the rolling
-60-min USDA-call log — timestamped rows pruned to the trailing 60 min, replacing the old
-`rate_limiter_state` token-bucket table). The per-user quota tables `user_fetch_quota` and
-`global_fetch_quota` are **dropped** — fairness is enforced by queue **demotion** (FR-043),
-which derives a `sub`'s pending count at drain time from `fetch_queue` + `fetch_requesters`
-(no quota row, no `429`).
+- `[x]` = already built + merged (Phase 0–2 of the old design) and reusable as-is or with the noted change.
+- `[size]` — S ≤ ~½ day, M ≈ 1–2 days, L ≈ 3+ days.
+- `[Test-first: true]` — TDD red-gate task: write the failing test first (schema constraints, DAO behavior,
+  merge rules, dedup/lock, lifecycle status codes, rate limiter, auth `401`/`403`, demotion fairness).
+- **FR-refs** use the re-baselined spec FR ids, including the grouped ids `FR-IDN-*` (identity/naming),
+  `FR-RES-*` (candidates/resolution), `FR-MRG-*` (fan-out/merge), `FR-ADP-*` (adapters/input-safety),
+  and `FR-035..FR-053` (auth).
+- **All path params are the internal food `id` (ULID), never a source key.**
+
+---
+
+## Package Layout & Database (locked 2026-06-19; re-baselined 2026-06-21)
+
+| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on ECS/Fargate behind the shared per-stage ALB (host rule, priority 200). Canonical Drizzle schema/DAOs, `/v1/foods/*` API, in-process `FoodAuthGuard`, source-adapter interface + fan-out/merge worker, own CDK. **Built (old design); schema/API/worker rebuilt under this plan.** |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | The **USDA source adapter** — typed wrapper over USDA FoodData Central. The **only** place `fdcId` / USDA terms appear; maps `fdcId → external_key` inbound. **Built + zod-validated; wrapped in `FoodSourceAdapter` as a new task.**                                                                          |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API (web/mobile + 001/006/007/009 M2M callers). Exposes only canonical `id`-keyed shapes. **Placeholder built; surface rebuilt to the new API.**                                                                                                                        |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service.                                                                                                                                                                                                            |
+
+**Database (no new RDS, no cluster):** the food tables live in the **separate logical database
+`kitchensink_food`** on the existing shared instance `kitchensink-data-{stage}` (db.t4g.small, global
+DataStack). `pg_trgm` is already bootstrapped on the instance (FR-008 fuzzy search). Migrations run via the
+**in-VPC migration-runner Lambda (FU-MIGRATE)**; phases build/test against **Docker Postgres** until that
+runner is wired.
+
+**Canonical table set (12):** `food`, `food_sources`, `nutrient`, `food_nutrients`, `food_portions`,
+`food_field_provenance`, `food_category`, `food_category_assignment`, `fetch_queue`, `fetch_requesters`,
+`source_call_log`, `source_sync_metadata`. **Removed** from the old design: `foods` (denormalized),
+`usda_sync_metadata`, `usda_call_log`, `rate_limiter_state`, `user_fetch_quota`, `global_fetch_quota`, and
+all denormalized-nutrient / `raw_json` / `fetch_status` columns.
 
 ---
 
 ## User Story Reference
 
-| US     | Name                                | Priority | FRs                                                    |
-| ------ | ----------------------------------- | -------- | ------------------------------------------------------ |
-| US-0   | Authenticated & Authorized Access   | P1       | FR-035–FR-053 (auth slice; T-033, T-046–T-056)         |
-| US-001 | Single Food Lookup (Cache Hit)      | P1       | FR-001, FR-002, FR-005, FR-006                         |
-| US-002 | Cache Miss / Async Backfill         | P1       | FR-003, FR-004, FR-007, FR-011, FR-013, FR-024, FR-025 |
-| US-003 | Rate-Limited USDA Consumption       | P1       | FR-019, FR-020, FR-021, FR-022, FR-026, FR-027         |
-| US-004 | Bulk Ingredient Lookup              | P1       | FR-012, FR-023, FR-024                                 |
-| US-005 | Demand-Weighted Priority + Recovery | P1       | FR-014, FR-015, FR-016, FR-017, FR-018                 |
-| US-006 | Food Search by Name                 | P2       | FR-008, FR-009, FR-010                                 |
-| US-007 | Stale Data Refresh                  | P2       | FR-031, FR-032                                         |
-| US-008 | Fetch Status Polling                | P2       | FR-007, FR-033                                         |
-| US-009 | WebSocket Notifications             | P3       | FR-034                                                 |
-| US-010 | Monitoring Dashboard                | P3       | FR-016, FR-018 (SC-006 DLQ/tombstone alarm)            |
+| US    | Name                                | Priority | FRs                                              |
+| ----- | ----------------------------------- | -------- | ------------------------------------------------ |
+| US-0  | Authenticated & Authorized Access   | P1       | FR-035–FR-053                                    |
+| US-1  | Single Food Read (Resolved Hit)     | P1       | FR-001, FR-002, FR-004, FR-IDN-1                 |
+| US-2  | Add Food By Name (async resolution) | P1       | FR-005, FR-006, FR-011, FR-013, FR-MRG-1, FR-025 |
+| US-2a | Disambiguate Candidates and Resolve | P1       | FR-RES-1, FR-RES-2, FR-RES-3                     |
+| US-3  | Rate-Limited Source Consumption     | P1       | FR-018, FR-019, FR-020, FR-021, FR-022, FR-026   |
+| US-4  | Bulk Ingredient Resolution          | P1       | FR-012, FR-023, FR-045                           |
+| US-5  | Demand-Weighted Priority + Recovery | P1       | FR-014, FR-015, FR-016, FR-017, FR-018, FR-027   |
+| US-6  | Food Search by Name                 | P2       | FR-008, FR-009, FR-010                           |
+| US-7  | Change-Driven Data Refresh          | P2       | FR-031, FR-032                                   |
+| US-8  | Resolution Status Polling           | P2       | FR-007, FR-033                                   |
+| US-9  | WebSocket Real-Time Notifications   | P3       | FR-034, FR-041, FR-049                           |
+| US-10 | Monitoring and Observability        | P3       | FR-016, FR-018, SC-002, SC-006                   |
 
 ---
 
 ## Dependency Graph
 
 ```
-PACKAGES + WORKSPACE (T-060 → T-003, T-046, T-057)
-GLOBAL DB (T-001b: kitchensink_food) ─► FOOD-SERVICE CDK (T-001)
-  └─► SETUP/CONFIG (T-002, T-004)
-        └─► SCHEMA (T-005–T-009, T-056 auth tables)
-              └─► API LAYER (T-010–T-015)
-                    ├─► QUEUE + FARGATE CONSUMER (T-016–T-023)
-                    │     └─► ROLLING-WINDOW LIMITER (T-024–T-026) ─► BATCH (T-027–T-029)
-                    ├─► STALE-WHILE-REVALIDATE READ (T-063) · STALE REFRESH / BULK SYNC (T-030–T-032)
-                    ├─► AUTH & AUTHZ (T-033, T-046–T-056) [US-0, FR-035–FR-053]
-                    └─► MONITORING (T-034–T-037)
+PACKAGES + WORKSPACE (T-060 ✓) ─► FOOD-SERVICE CDK (T-001 ✓) ─► GLOBAL DB kitchensink_food (T-001b ✓)
+  └─► ENV CONFIG source-agnostic (T-002) · usda-client (T-003 ✓)
+        └─► PHASE 1: 12-TABLE SCHEMA + MIGRATIONS + DAOs (T-100..T-110)
+              ├─► PHASE 2: FoodSourceAdapter iface + USDA adapter wrap (T-120..T-122)
+              ├─► PHASE 8: AUTH WIRING (T-046 ✓dep, T-033, T-047..T-056)  [US-0]
+              │     └─► gates ▼
+              ├─► PHASE 3: READ API  GET /{id} · /status · /candidates · /search (T-130..T-134)
+              │     └─► PHASE 4: CREATE/RESOLVE API  POST /v1/foods · PATCH /{id} · /batch (T-140..T-145)
+              │           └─► PHASE 5: QUEUE + FARGATE FAN-OUT WORKER + LIMITER (T-150..T-159)
+              │                 └─► PHASE 6: MERGE ENGINE + GOLDEN RECORD + PROVENANCE (T-160..T-165)
+              │                       └─► PHASE 7: CHANGE-DRIVEN REFRESH + UNRESOLVED TTL (T-170..T-172)
+              └─► PHASE 9: SEARCH-INDEXER / OBSERVABILITY / WS (T-180..T-187)  [P2/P3 deferred bits]
 
-PERF/LOAD TESTS (T-062) [SC-001/003/004/007]
-WEBSOCKET (T-038–T-039) [P3 — Deferred] · MULTI-AZ UPGRADE (T-061) [deferred, SC-009]
-INTEGRATION TESTS (T-040–T-045) · E2E HARNESS (T-064) [booted service + LocalStack + Docker Postgres]
+PHASE 10: E2E HARNESS (T-190 ✓foundation) + MIGRATION-RUNNER FU-MIGRATE (T-191)
+PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [deferred, SC-009]
 ```
 
 ---
 
-## Phase 0 — Setup & Infrastructure
+## Phase 0 — Setup & Infrastructure (mostly DONE — old design, reused)
 
-- [x] **T-001** [P0] [Foundation] `FoodServiceStack` CDK — `packages/services/food-service/infra/lib/food-service-stack.ts`
-      **Story**: Foundation
-      **Priority**: P0
-      **Depends on**: T-001b
-      **Implements**: ARCH-001
+- [x] **T-060** [S] [Test-first: false] Register the four packages in the root `package.json` workspaces — `package.json` (NFR-006)
+      **(reuse: built in old Phase 0 — `packages/clients/usda` + `packages/clients/food-service` added as explicit paths; `services/*`/`shared/*` globs cover the rest. No change needed.)**
 
-    Create the food-service's own CDK (mirroring `packages/services/identity/infra/lib/`). The
-    `FoodServiceStack` defines the **ECS/Fargate** NestJS service, the Fargate consumer worker, the
-    lambdas (stale-refresh, bulk-sync, search-indexer), and the EventBridge (scheduled-producer)
-    wiring — **no SQS** (the demand queue is the Postgres `fetch_queue`). It does **NOT** create its
-    own ALB: it `Fn.importValue`s the **single shared per-stage ALB** (owned by the global infra,
-    `kitchensink-alb-{stage}`) HTTPS listener and adds a **host-based listener rule** (priority 200)
-    routing `food[.stage].{domain}` to its own target group, plus the A-record aliased to the shared
-    ALB. It also does **NOT** create an RDS — it `Fn.importValue`s the shared
-    `kitchensink-data-{stage}:Database{Endpoint,Port,SecretArn}` and the new
-    `kitchensink-data-{stage}:FoodDbSecretArn` (T-001b) and connects to the `kitchensink_food`
-    database.
+- [x] **T-001** [M] [Test-first: false] `FoodServiceStack` CDK (ECS/Fargate, shared-ALB host rule priority 200, fan-out worker, scheduled-producer EventBridge — no SQS, no per-service ALB, no new RDS) — `packages/services/food-service/infra/lib/food-service-stack.ts` (ARCH-001, FR-005..FR-035 deploy surface)
+      **(reuse: built + synth-verified in old Phase 0. Worker/lambda handlers are skeletons fleshed out in Phases 5–7/9. EventBridge demand-rule already correctly absent — demand path is the Postgres `fetch_queue`. No structural change required for the re-baseline.)**
 
-    **Acceptance**:
-    - `cdk synth` produces valid CloudFormation with no errors, **no new RDS resource**, and
-      **no per-service ALB** (0 `AWS::ElasticLoadBalancingV2::LoadBalancer`) — the stack instead
-      adds exactly one `AWS::ElasticLoadBalancingV2::ListenerRule` (host-header condition, priority 200) + one target group on the shared ALB's imported HTTPS listener, plus the A-record
-    - Stack exports `foodFetchWorkerServiceName`; imports the shared DB endpoint/secret and the
-      shared ALB listener/ARN exports
+- [x] **T-001b** [S] [Test-first: false] Global DataStack: `kitchensink_food` logical DB + least-privilege role/secret on the shared instance (exports `FoodDbSecretArn`/`FoodDatabaseName`; reuse bootstrapped `pg_trgm`) — `packages/infra/global/lib/platform/data-stack.ts` (ARCH-001)
+      **(reuse: built in old Phase 0 — no new RDS/cluster. Unchanged by the re-baseline.)**
 
-- [x] **T-001b** [P0] [Foundation] Global DataStack: add `kitchensink_food` database — `packages/infra/global/lib/platform/data-stack.ts`
-      **Story**: Foundation
-      **Priority**: P0
-      **Depends on**: —
-      **Implements**: ARCH-001 (shared data tier)
+- [x] **T-003** [M] [Test-first: true] `@kitchensink/usda-client` — typed USDA HTTP client + zod validation of the USDA wire shape (`getFood`/`getFoodsBatch`/`searchFoods`, error types incl. `UsdaSchemaError`, ≤20-id batch) — `packages/clients/usda/src/usda-api.client.ts` (FR-023, FR-ADP-3)
+      **(reuse: built TDD, 12/12 tests green, validates the raw USDA wire shape at the boundary. The client itself is DONE — it is wrapped in the `FoodSourceAdapter` interface by the NEW T-120/T-121.)**
 
-    Extend the **global** DataStack (no new instance, no cluster) to provision a second logical
-    database `kitchensink_food` on the existing `kitchensink-data-{stage}` instance, with its own
-    least-privilege role + credentials secret, and export `FoodDbSecretArn` / `FoodDatabaseName`.
-    Reuse the instance's already-bootstrapped `pg_trgm` extension.
-
-    **Acceptance**:
-    - `cdk diff` on the data stack adds only a database + role + secret (no instance/cluster change)
-    - New exports `kitchensink-data-{stage}:FoodDbSecretArn`, `:FoodDatabaseName` are present
+- [ ] **T-002** [S] [Test-first: false] Source-agnostic env config (Zod) — rename USDA-coupled vars to the source-neutral set — `packages/services/food-service/src/config/` (FR-019, FR-025, FR-032, FR-042)
+      Adjust the existing Zod env schema (built in old Phase 0) to the re-baselined config: - `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES` (non-secret; FR-042). - `FOOD_DEMOTE_THRESHOLD` (default 50; FR-043), `FOOD_MAX_QUEUE_DEPTH` (default 10000; FR-046),
+      `FOOD_MAX_BATCH_NAMES` (default 100; FR-045), `FOOD_LEASE_TIMEOUT_SECONDS` (default 30; FR-018),
+      `FOOD_NOT_FOUND_TTL_DAYS` (default 30; FR-025), `FOOD_UNRESOLVED_TTL_DAYS` (default 30; §9-2),
+      `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE` (default 0.10; §9-1 auto-resolve rule). - **Per-source** config block keyed by `source` (USDA today): `USDA_API_KEY` (secret), `USDA_API_BASE_URL`,
+      `USDA_RATE_LIMIT_PER_HOUR` (default 1000; rolling-60-min cap, pause at 90%). - The old single-source `USDA_STALE_THRESHOLD_DAYS` is **removed** (refresh is change-driven, not age-based).
+      **Acceptance**: missing `USDA_API_KEY` or `CLERK_JWT_KEY` throws a descriptive Zod error at startup; all
+      vars reachable via `ConfigService` in both the NestJS API and the Fargate worker.
 
 ---
 
-- [x] **T-002** [P0] [Foundation] Environment Config (Zod) — `—`
-      **Story**: Foundation
-      **Priority**: P0
-      **Depends on**: T-001
-      **Implements**: FR-019, FR-031 (env-driven config)
+## Phase 1 — Canonical Schema (12 tables) + Migrations + DAOs
 
-    Add USDA-specific env vars to the Zod schema in `@nestjs/config`:
-    - `USDA_API_KEY` (required, string)
-    - `USDA_API_BASE_URL` (default: `https://api.nal.usda.gov/fdc/v1`)
-    - `USDA_RATE_LIMIT_PER_HOUR` (default: 1000) — the rolling-60-min-window cap (FR-019); the worker pauses draining at 90% of this
-    - `USDA_STALE_THRESHOLD_DAYS` (default: 30)
-    - `USDA_TOMBSTONE_TTL_DAYS` (default: 30) — `not_found` tombstone TTL after which a lookup may re-attempt (FR-025)
-    - `USDA_WORKER_DESIRED_COUNT` (default: 1)
-    - `USDA_LEASE_TIMEOUT_SECONDS` (default: 30)
+> **REBUILD.** Replaces the old `foods`/`usda_*` schema entirely. Build/test on Docker Postgres until
+> FU-MIGRATE (T-191) wires the in-VPC runner. The old T-004..T-009 (`foods` denormalized table, `fdcId` PK,
+> `usda_sync_metadata`, `usda_call_log`, `ingredients` FK) are **removed/replaced** by the tasks below.
 
-    **Acceptance**:
-    - Missing `USDA_API_KEY` at startup throws a descriptive Zod validation error
-    - All env vars accessible via `ConfigService` in Fargate and NestJS contexts
+- [ ] **T-100** [M] [Test-first: true] Drizzle schema — canonical core (`food`, `food_sources`, `nutrient`, `food_nutrients`, `food_portions`, `food_field_provenance`, `food_category`, `food_category_assignment`) + enums (`food_status`, `food_kind`, `food_source`, `food_field`, `nutrient_basis`) — `packages/services/food-service/src/db/schema/food.ts` (FR-028, FR-IDN-1, FR-IDN-3)
+      ULID `text('id')` PKs via a `newFoodId()` helper (reusing `ulidx`, mirroring identity's `newUserId`);
+      `pgEnum` enums; `timestamp(col, { withTimezone: true })`; `numeric` for nutrient amounts/gram weights
+      (SC-008 fidelity). `food_sources.external_key` (mapped from `fdcId`), `item_version` for refresh
+      (FR-032). No `raw_json`, no `fetch_status`, no denormalized nutrient columns.
+      **Acceptance**: `drizzle-kit generate` emits valid SQL; column types/enums match plan.md §2 exactly;
+      a schema test asserts no source-native identifier column (no `fdc_id`) exists on any canonical table (SC-013).
 
----
+- [ ] **T-101** [S] [Test-first: true] Drizzle schema — operational tables (`fetch_queue` keyed on food `id` PK, `fetch_requesters`, `source_call_log` per-source, `source_sync_metadata` per-source) — `packages/services/food-service/src/db/schema/operational.ts` (FR-014, FR-019, FR-043, FR-044, FR-IDN-3)
+      `fetch_queue.food_id text PRIMARY KEY REFERENCES food(id)`; `status CHECK IN ('pending','in_flight','tombstone')`;
+      `fetch_requesters(food_id, sub, requested_at)` PK `(food_id, sub)`; `source_call_log(id bigserial, source, called_at)`;
+      `source_sync_metadata(source PRIMARY KEY, last_full_sync_at, last_incremental_at, source_version)`.
+      **Acceptance**: tables generate cleanly; the `fetch_queue` status CHECK rejects invalid values;
+      `source_call_log` starts empty and the trailing-60-min count query returns 0 on a fresh DB.
 
-- [x] **T-003** [P0] [Foundation] `@kitchensink/usda-client` package + USDA API client — `packages/clients/usda/src/usda-api.client.ts`
-      **Story**: Foundation
-      **Priority**: P0
-      **Depends on**: T-002, T-060
-      **Implements**: FR-023 (USDA API integration)
+- [ ] **T-102** [M] [Test-first: true] Migration: canonical core tables + constraints — `—` (FR-028, FR-IDN-1)
+      Ordered SQL creating the 8 canonical tables with their FKs (`ON DELETE CASCADE` to `food`), the
+      `food_normalized_name_unique` UNIQUE index (FR-005/FR-013 dedup), and `food_sources_source_key_unique
+  UNIQUE(source, external_key)` (R4).
+      **Acceptance**: migration runs cleanly on `kitchensink_food` (Docker Postgres); inserting two foods with the
+      same `normalized_name` violates the unique constraint; inserting two `food_sources` with the same
+      `(source, external_key)` is rejected.
 
-    Scaffold the **`@kitchensink/usda-client`** package (`packages/clients/usda`, extending the shared tooling configs per NFR-006) and create `packages/clients/usda/src/usda-api.client.ts` — a typed HTTP client wrapping the USDA FoodData Central REST API. This package is the external-API client only (no DB, no server); `food-service` depends on it.
-    - `getFood(fdcId: number): Promise<UsdaFoodDetail>`
-    - `getFoodsBatch(fdcIds: number[]): Promise<UsdaFoodDetail[]>` (POST `/v1/foods`, max 20 IDs)
-    - `searchFoods(query: string): Promise<UsdaSearchResult>`
-    - 10s request timeout
-    - Throws `UsdaNotFoundError` on 404, `UsdaRateLimitError` on 429, `UsdaServerError` on 5xx
+- [ ] **T-103** [S] [Test-first: true] Migration: operational tables — `—` (FR-014, FR-019, FR-043)
+      Ordered SQL for `fetch_queue`, `fetch_requesters`, `source_call_log`, `source_sync_metadata`. Includes
+      **user-erasure handling**: on a user-deletion event, `fetch_requesters` rows for that `sub` are deleted
+      (closes the constitution data-privacy warning). **No `user_fetch_quota`/`global_fetch_quota` tables.**
+      **Acceptance**: `ON CONFLICT (food_id) DO UPDATE` on `fetch_queue` works atomically; `fetch_requesters`
+      dedups on `(food_id, sub)`.
 
-    **Acceptance**:
-    - Unit tests mock HTTP layer; all error types are thrown correctly
-    - `getFoodsBatch` rejects arrays > 20 IDs with `InvalidBatchSizeError`
+- [ ] **T-104** [S] [Test-first: true] Migration: indexes (search + lifecycle + queue + limiter) — `—` (FR-008, FR-010, FR-015, FR-019, FR-029)
+      Apply: `food_status_idx`; `food_barcode_idx WHERE barcode IS NOT NULL`; GIN trigram
+      `food_name_trgm_idx` / `food_description_trgm_idx` (`gin_trgm_ops`); `food_sources_food_id_idx`;
+      `food_nutrients_food_id_idx`; `food_nutrients_source_id_idx`; the **demand-weighted partial**
+      `idx_fetch_queue_priority ON fetch_queue (request_count DESC, first_requested ASC) WHERE status='pending'`;
+      `idx_fetch_requesters_sub`; `idx_source_call_log_source_called_at` (windowed count + prune). `CREATE
+  EXTENSION IF NOT EXISTS pg_trgm`.
+      **Acceptance**: `EXPLAIN ANALYZE` shows GIN index scan on trigram name search, index-only scan on the
+      pending-priority partial index, and an index scan for the trailing-60-min `source_call_log` count.
 
----
+- [ ] **T-105** [M] [Test-first: true] DAO: `FoodDao` (golden-record aggregate read/upsert; normalized-name dedup; status transitions; tombstone TTL fields) — `packages/services/food-service/src/foods/dao/food.dao.ts` (FR-002, FR-005, FR-013, FR-028, FR-IDN-1)
+      Per-aggregate DAO behind the existing `FoodsRepository` seam. `getById`, `createByName` (compute
+      `normalized_name`, insert with `status='PENDING'`), `setStatus`, `upsertGoldenScalars`, `readGoldenRecord`
+      (joins nutrients/portions/provenance). No source term leaks (FR-ADP-1).
+      **Acceptance**: `createByName` is idempotent on normalized name (returns the existing `id` on a second add);
+      `readGoldenRecord` returns `id`/name/description/nutrients/portions/provenance with no `fdcId` anywhere.
 
-- [x] **T-004** [P0] [Foundation] Drizzle Schema Files for 003 — `packages/services/food-service/src/db/schema/usda.ts`
-      **Story**: Foundation
-      **Priority**: P0
-      **Depends on**: T-001
-      **Implements**: FR-028 (data persistence schema)
+- [ ] **T-106** [S] [Test-first: true] DAO: `FoodSourcesDao` (crosswalk upsert; `external_key` + `item_version`; barcode/external-key lookup → `id`) — `packages/services/food-service/src/foods/dao/food-sources.dao.ts` (FR-008, FR-028, FR-029, FR-032)
+      **Acceptance**: `findFoodIdByExternalKey(source, key)` resolves via `UNIQUE(source, external_key)`;
+      `upsertSource` records/updates `item_version`.
 
-    Create `packages/services/food-service/src/db/schema/usda.ts` with Drizzle table definitions for:
-    - `foods` (all columns from plan.md §2)
-    - `fetch_queue` (`fdc_id` text PK, `request_count`, `first_requested`, `last_requested`, `status`, `attempts`, `last_error`, `fetched_at`)
-    - `usda_sync_metadata` (singleton)
-    - `usda_call_log` (rolling 60-min window persistence: timestamped rows, one per USDA call, pruned to the trailing 60 min)
+- [ ] **T-107** [S] [Test-first: true] DAO: `NutrientDao` + `FoodNutrientsDao` (dictionary upsert by `external_code`; per-value `source_id`; `UNIQUE(food_id, nutrient_id)` golden winner; per-100g basis) — `packages/services/food-service/src/foods/dao/nutrient.dao.ts`, `food-nutrients.dao.ts` (FR-028, FR-MRG-3, SC-008)
+      **Acceptance**: nutrient amounts stored as `numeric` (no float drift); a second value for the same
+      `(food_id, nutrient_id)` overwrites the golden winner and updates `source_id`.
 
-    Export all tables from `packages/services/food-service/src/db/schema/index.ts`.
+- [ ] **T-108** [S] [Test-first: true] DAO: `FoodPortionsDao`, `FoodFieldProvenanceDao`, `FoodCategoryDao` (per-value `source_id`; single-query "which fields came from source X") — `packages/services/food-service/src/foods/dao/` (FR-028, FR-029, R7)
+      **Acceptance**: a UNION query across `food_field_provenance` + `food_nutrients` + `food_portions` filtered by
+      `source_id IN (food_sources of food X, source S)` returns the provenance set in one query (FR-029/SC-013).
 
-    **Acceptance**:
-    - `drizzle-kit generate` produces valid SQL migration with no errors
-    - All column types match plan.md §2 and spec.md FR-028 exactly
+- [ ] **T-109** [M] [Test-first: true] DAO: `FetchQueueDao` + `FetchRequestersDao` (idempotent `INSERT … ON CONFLICT`; distinct-requester demand; `SELECT … FOR UPDATE SKIP LOCKED` drain; lease watchdog; per-`sub` live pending count) — `packages/services/food-service/src/foods/dao/fetch-queue.dao.ts`, `fetch-requesters.dao.ts` (FR-014, FR-015, FR-018, FR-043, FR-044)
+      **Acceptance**: concurrent enqueues for one `id` produce exactly one row with the demand counter computed
+      from distinct `sub`s; the drain query orders by `request_count DESC, first_requested ASC`; the watchdog
+      reverts `in_flight` rows older than the lease timeout to `pending`.
 
----
-
-## Phase 1 — Database Schema (US-001 foundation)
-
-- [x] **T-005** [P1] [US-001] Migration: `foods` Table — `—`
-      **Story**: US-001
-      **Priority**: P1
-      **Depends on**: T-004
-      **Implements**: FR-028, FR-029
-
-    Write and apply Drizzle migration creating the `foods` table:
-    - Primary key `fdc_id INT`
-    - All macro/micro nutrient columns (`DECIMAL`, nullable)
-    - `fetch_status TEXT` with check constraint (`pending | fetched | not_found | failed | stale`)
-    - `search_vector TSVECTOR`
-    - `raw_json JSONB`
-    - `fetched_at TIMESTAMP`, `last_requested_at TIMESTAMP`, `request_count INT DEFAULT 0`
-    - `created_at`, `updated_at`
-
-    **Acceptance**:
-    - Migration runs cleanly against the `kitchensink_food` database on the shared `kitchensink-data-{stage}` instance
-    - `fetch_status` check constraint rejects invalid values
+- [ ] **T-110** [S] [Test-first: true] DAO: `SourceCallLogDao` (atomic check-and-record for the per-source rolling 60-min window; prune) — `packages/services/food-service/src/foods/dao/source-call-log.dao.ts` (FR-019, FR-020)
+      Single-statement atomic `INSERT … SELECT now() WHERE (SELECT count(*) FROM source_call_log WHERE source=$1
+  AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the call only under cap) +
+      a prune of rows older than 60 min.
+      **Acceptance**: concurrent check-and-record never lets the trailing count exceed the cap (no race);
+      the trailing-60-min count slides as old rows age out.
 
 ---
 
-- [x] **T-006** [P1] [US-005] Migration: `fetch_queue` Table — `—`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-004
-      **Implements**: FR-014, FR-015
+## Phase 2 — Source Adapter Interface + USDA Adapter Wrap
 
-    Write and apply migration creating the `fetch_queue` table per plan.md §4:
+> **NEW.** The `usda-client` (T-003) is done; this phase introduces the `FoodSourceAdapter` boundary and
+> wraps the client so the worker fans out over a registry. USDA is the only wired adapter; the loop is over a
+> registry so adding a source is additive (FR-MRG-4/FR-ADP-1).
 
-    ```sql
-    CREATE TABLE fetch_queue (
-      fdc_id           text PRIMARY KEY,
-      request_count    int  NOT NULL DEFAULT 1,
-      first_requested  timestamptz NOT NULL DEFAULT now(),
-      last_requested   timestamptz NOT NULL DEFAULT now(),
-      status           text NOT NULL DEFAULT 'pending',
-      attempts         int  NOT NULL DEFAULT 0,
-      last_error       text,
-      fetched_at       timestamptz
-    );
-    CREATE INDEX idx_fetch_queue_priority
-      ON fetch_queue (request_count DESC, first_requested ASC)
-      WHERE status = 'pending';
-    ```
+- [ ] **T-120** [M] [Test-first: true] `FoodSourceAdapter` interface + adapter registry + canonical candidate types (`SourceCandidate`, `CanonicalCandidate`) + source-priority config (`['usda']`) — `packages/services/food-service/src/sources/food-source-adapter.ts` (FR-ADP-1, FR-MRG-2, FR-MRG-4)
+      `interface FoodSourceAdapter { readonly source; searchByName(name): Promise<SourceCandidate[]>;
+  fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordered priority list (USDA
+      highest) per §9-5. No source-specific structure may appear in these types.
+      **Acceptance**: a type-level test asserts the canonical candidate carries `source` + `externalKey` (never
+      `fdcId`); the registry resolves the USDA adapter by `source='usda'`.
 
-    **Acceptance**:
-    - `EXPLAIN ANALYZE` shows index-only scan for pending selection
-    - `ON CONFLICT (fdc_id) DO UPDATE` works atomically
+- [ ] **T-121** [M] [Test-first: true] USDA adapter — wrap `@kitchensink/usda-client` to implement `FoodSourceAdapter`: `searchByName` (USDA `searchFoods`), `fetchByKey` (`getFood`, `fdcId → external_key`), `mapToCanonical` (USDA nutrients→`food_nutrients` per-100g, portions→`food_portions`, validate/sanitize) — `packages/clients/usda` consumer in `packages/services/food-service/src/sources/usda/usda.adapter.ts` (FR-IDN-2, FR-023, FR-024, FR-ADP-2, FR-ADP-3)
+      The **only** place `fdcId` and USDA terms appear. Validates/sanitizes mapped values (type/range/length/text)
+      before they enter the store; a response failing validation is rejected, not stored. MAY use the ≤20-key
+      USDA batch (counts as 1 windowed call) once it has resolved which items to fetch (adapter-internal).
+      **Acceptance**: `fetchByKey` returns a `CanonicalCandidate` with `external_key` (mapped from `fdcId`),
+      per-100g nutrients, and `item_version`; an out-of-range/over-length value is rejected before mapping; the
+      public return type exposes no `fdcId`.
 
----
-
-- [x] **T-007** [P1] [US-001] Migration: Supporting Tables — `—`
-      **Story**: US-001 / US-005
-      **Priority**: P1
-      **Depends on**: T-005, T-006
-      **Implements**: FR-019, FR-028
-
-    Write and apply migrations for:
-    - `usda_sync_metadata` (singleton row, `id INT PRIMARY KEY DEFAULT 1`, `last_full_sync_at`, `last_incremental_at`, `foundation_version`, `sr_legacy_version`, `branded_version`)
-    - `usda_call_log` (rolling 60-min window: `id BIGSERIAL PRIMARY KEY`, `called_at TIMESTAMPTZ NOT NULL DEFAULT now()`, plus `idx_usda_call_log_called_at` btree on `called_at` for trailing-window counts and pruning). One row is inserted per USDA call; rows older than 60 min are pruned/ignored. No singleton/token columns — the trailing-60-min count is derived from the row timestamps.
-
-    **Acceptance**:
-    - `usda_sync_metadata` has a default row with `id = 1`
-    - `usda_call_log` starts empty; `SELECT count(*) FROM usda_call_log WHERE called_at > now() - interval '60 minutes'` returns 0 on a fresh DB
-    - `idx_usda_call_log_called_at` supports an index scan for the trailing-60-min count
+- [ ] **T-122** [S] [Test-first: true] Per-source rolling-window limiter (`RollingWindowLimiter` over `SourceCallLogDao`; pause at 90%; `429`-failsafe treats the window as full) — `packages/services/food-service/src/sources/rolling-window-limiter.ts` (FR-019, FR-020, FR-021, FR-026)
+      `tryRecord(source)`, `count(source)`, `isPaused(source)` (true once the trailing count ≥ 90% of that
+      source's cap). USDA cap 1000, pause 900. Keyed per source so each wired source gets its own window.
+      **Acceptance**: covers US-3 scenarios — record below cap → true; pause at 900; reject at 1000; window slides
+      as calls age out; a `429` is treated as window-full and triggers backoff.
 
 ---
 
-- [x] **T-008** [P1] [US-001] Migration: Indexes — `—`
-      **Story**: US-001 / US-006
-      **Priority**: P1
-      **Depends on**: T-005, T-006, T-007
-      **Implements**: FR-029
+## Phase 3 — Read API (id-read, status, candidates, search, key lookup)
 
-    Apply indexes:
-    - `idx_foods_fetch_status_fetched_at` — composite on `(fetch_status, fetched_at)`
-    - `idx_foods_last_requested` — btree on `last_requested_at`
-    - `idx_foods_search` — GIN index on `search_vector`
-    - `idx_foods_data_type` — btree on `data_type`
-    - `idx_foods_upc` — btree on `upc_code` (nullable, for branded foods)
+> **REBUILD.** Replaces the old `fdcId`-keyed `GET /v1/foods/{fdcId}` read/`/nutrients`/`/autocomplete`.
+> All routes are auth-gated by `FoodAuthGuard` (Phase 8) and obey the FR-051 precedence
+> (`401`→`403`→`400`→`404`/`202`/`200`).
 
-    Enable `pg_trgm` extension for fuzzy search.
+- [ ] **T-130** [M] [Test-first: true] `FoodsModule` + `FoodsController`/`FoodsService` rewired to the new DAOs + adapter registry — `packages/services/food-service/src/foods/foods.module.ts` (FR-001, FR-IDN-1)
+      **(reuse: module shell exists from old Phase 2; rewire providers to the per-aggregate DAOs, the adapter
+      registry, and the enqueue emitter.)**
+      **Acceptance**: module bootstraps; controller/service/DAOs injectable; no `UsdaApiModule` import leaks USDA
+      types into the controller layer.
 
-    **Acceptance**:
-    - `EXPLAIN ANALYZE` on `search_vector @@ to_tsquery(...)` shows GIN index scan
-    - `EXPLAIN ANALYZE` on `fetch_status = 'pending' AND fetched_at < ...` shows composite index scan
+- [ ] **T-131** [M] [Test-first: true] `GET /v1/foods/{id}` — golden-record read + lifecycle status codes (`200` only `RESOLVED`; `202` `PENDING`/`UNRESOLVED`; `404` `NOT_FOUND`/`FAILED`/no row, status retrievable); ULID validation `400` — `—` (FR-002, FR-003, FR-004, FR-006)
+      **Acceptance**: covers US-1 scenarios 1–4 and US-8 — `RESOLVED` → `200` golden record < 50ms, no source call;
+      `PENDING`/`UNRESOLVED` → `202`; `NOT_FOUND`/`FAILED` → `404` with `status` in body; malformed `id` → `400`.
 
----
+- [ ] **T-132** [S] [Test-first: false] `GET /v1/foods/{id}/status` — lifecycle poll (+ golden record when `RESOLVED`) — `—` (FR-007, FR-033)
+      **Acceptance**: returns the correct shape per status (US-8 scenarios 1–4).
 
-- [ ] **T-009** [P1] [US-004] Migration: `ingredients` Table Extensions — **DEFERRED (owned by feature 001)** — `—`
-      **Story**: US-004
-      **Priority**: P1
-      **Depends on**: T-005
-      **Implements**: FR-001 (downstream integration)
-      **Follow-up**: `FU-INGREDIENTS` (`.forge-status.yml`)
+- [ ] **T-133** [M] [Test-first: true] `GET /v1/foods/{id}/candidates` — list cross-source candidates for an `UNRESOLVED` food (each carries `source` + that source's item key) — `—` (FR-RES-1)
+      **Acceptance**: an `UNRESOLVED` food returns its candidate list; a `RESOLVED`/`PENDING` food returns an
+      empty/appropriate response (US-2a scenario 1).
 
-    > **DEFERRED — do NOT implement under 003.** The `ingredients` table is owned by feature
-    > **001** (`packages/shared/db/src/schema/ingredients.ts`, **not built yet**) and lives in a
-    > **different logical database** than `kitchensink_food`. The original plan §7
-    > `ALTER TABLE ingredients … usda_fdc_id INT REFERENCES foods(fdc_id)` is therefore an
-    > **impossible cross-database foreign key** (Postgres cannot FK across databases) **and** 003
-    > cannot `ALTER` a table it does not own / that does not exist.
-    >
-    > **Correct integration (owned by 001):** when 001 builds `ingredients`, it adds a **soft
-    > `usda_fdc_id INT` column (no cross-DB FK)** plus the nutrient/sync columns below. Linkage to
-    > `foods(fdc_id)` is validated at the **application layer** (the food-service client), not by a
-    > DB constraint. See plan.md §7 and §2 "Integration with 001".
-    >
-    > Deferred column set (added by 001, not 003): `usda_fdc_id INT` (soft, no FK),
-    > `fetch_status TEXT DEFAULT 'unlinked'`, `fiber_g_per_100g DECIMAL`,
-    > `sodium_mg_per_100g DECIMAL`, `serving_size_g DECIMAL`, `serving_description TEXT`,
-    > `brand_owner TEXT`, `last_synced_at TIMESTAMP`.
-
-    **Acceptance** (when 001 implements this, not under 003):
-    - 001's `ingredients` migration adds `usda_fdc_id INT` as a **soft column (no cross-DB FK)**; `NULL` allowed
-    - Application-layer linkage validation against `food-service` covers what the FK cannot
+- [ ] **T-134** [M] [Test-first: true] `GET /v1/foods/search?query=` — local `pg_trgm` fuzzy/substring/partial search → `id`s ranked by relevance; barcode/`external_key` lookup via `food_sources` crosswalk; never calls a source — `—` (FR-008, FR-009, FR-010)
+      **Acceptance**: covers US-6 — "chicken breast" ranked hits; "avacado" fuzzy-matches "Avocado, raw"; no local
+      match → empty set (no source call); a known barcode/external_key resolves to the food `id`; ≤200ms at 10k
+      foods.
 
 ---
 
-## Phase 2 — REST API Layer (US-001, US-002, US-006, US-008)
+## Phase 4 — Create / Resolve API (add-by-name, PATCH-resolve, batch, enqueue)
 
-- [x] **T-010** [P1] [US-001] NestJS Module: `FoodsModule` — `packages/services/food-service/src/foods/foods.module.ts`
-      **Story**: US-001
-      **Priority**: P1
-      **Depends on**: T-005, T-006, T-007, T-008
-      **Implements**: FR-001
+> **REBUILD.** The primary path into external sources. Auth-gated; FR-051 precedence applies.
 
-    Scaffold `packages/services/food-service/src/foods/foods.module.ts` with:
-    - `FoodsController` (routes)
-    - `FoodsService` (business logic)
-    - `FoodsRepository` (Drizzle queries)
-    - Import `UsdaApiModule`, `EventBridgeModule`
+- [ ] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-IDN-1)
+      **Acceptance**: covers US-2 scenarios 1 & 4 — first add → `202` + `id` < 100ms with one `fetch_queue` row;
+      a concurrent second add for the same normalized name collapses to the same `id` (no duplicate canonical or
+      queue row); empty name → `400`, nothing enqueued.
 
-    **Acceptance**:
-    - Module bootstraps without errors in NestJS app
-    - All providers injectable via DI
+- [ ] **T-141** [S] [Test-first: true] Enqueue emitter (`EnqueueEmitter.publishFoodRequested` / `publishFoodBatchRequested`) — in-process `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify('fetch_queued', food_id)`; `requestedBy` = verified `sub`/service principal (no `'system'` shortcut) — `packages/services/food-service/src/foods/enqueue.emitter.ts` (FR-011, FR-014, FR-017, FR-048)
+      **Acceptance**: each enqueue fires exactly one `pg_notify` with the `food_id`; duplicate enqueue increments
+      distinct-requester demand, not a raw counter.
 
----
+- [ ] **T-142** [M] [Test-first: true] `PATCH /v1/foods/{id}` — resolve from the user's candidate pick: validate each chosen candidate belongs to this food's candidate set (else `400`/`409`, status unchanged), drive the merge (Phase 6) → `RESOLVED`; manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3)
+      **Acceptance**: covers US-2a scenarios 2 & 3 — a valid pick merges → `RESOLVED`; a candidate not in the food's
+      set → `400`/`409` with `status` unchanged.
 
-- [x] **T-011** [P1] [US-001] `GET /v1/foods/{fdcId}` — Cache Hit & Tombstone Path — `—`
-      **Story**: US-001
-      **Priority**: P1
-      **Depends on**: T-010
-      **Implements**: FR-001, FR-002, FR-005, FR-006
+- [ ] **T-143** [M] [Test-first: true] `POST /v1/foods/batch` — ≤100 names (`400` over), per-item partial response (cached `RESOLVED` inline + `PENDING` per miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
+      **Acceptance**: covers US-4 scenarios 1, 2, 4 — 15 names (10 cached, 5 miss) → 10 inline + 5 `PENDING` `id`s
+      in one body; 3-of-5 in flight collapse to existing `id`s; >100 names → `400`, nothing enqueued.
 
-    Implement the synchronous lookup path:
-    1. Validate `fdcId` is a positive integer (400 on invalid)
-    2. Check PostgreSQL `foods` table:
-        - `fetch_status = 'fetched'` → return 200 with full food data
-        - `fetch_status = 'not_found'` (tombstone) → if the tombstone is **within** its TTL (default 30d, `USDA_TOMBSTONE_TTL_DAYS`), return 404 with tombstone message (no queuing); if the TTL has **lapsed**, re-attempt (enqueue per T-012) so USDA can be re-checked (FR-025)
-    3. Response shape per plan.md §3
+- [ ] **T-144** [S] [Test-first: true] Queue backpressure + circuit breaker on enqueue (`fetch_queue` depth ceiling 10,000 or open source breaker → `503`, jittered recovery) — `—` (FR-046)
+      **Acceptance**: at max depth / breaker-open, `POST /v1/foods` and `/batch` return `503`; recovery drains
+      without a burst spike.
 
-    **Acceptance**:
-    - Cache hit returns 200 within 50ms (US-001 scenario 1)
-    - Tombstoned food within TTL returns 404 without queuing (US-001 scenario 4)
-    - Tombstoned food past TTL is re-enqueued on lookup (FR-025 TTL re-attempt)
-    - Invalid `fdcId` returns 400 (FR-006)
+- [ ] **T-145** [S] [Test-first: false] Operational `POST /v1/foods/{id}/refetch` (admin-scoped manual re-enqueue) — `—` (FR-039, FR-051)
+      **Acceptance**: a valid token without the elevated `public_metadata` scope → `403`; with scope → re-enqueues.
 
 ---
 
-- [x] **T-012** [P1] [US-002] `GET /v1/foods/{fdcId}` — Cache Miss / Enqueue Path — `—`
-      **Story**: US-002
-      **Priority**: P1
-      **Depends on**: T-011, T-016
-      **Implements**: FR-003, FR-004, FR-011, FR-013, FR-014, FR-017
+## Phase 5 — Postgres Queue + Fargate Fan-Out Worker + Limiter
 
-    Extend the lookup handler for async backfill:
-    1. Food not in local store → execute idempotent enqueue with **distinct-requester** demand (FR-044 — each `sub` contributes at most 1; never a raw `request_count + 1`):
-        ```sql
-        -- distinct-requester demand (PRIORITY_CAP=1 is inherent in COUNT(DISTINCT sub))
-        INSERT INTO fetch_requesters (fdc_id, sub) VALUES ($1, $2)
-          ON CONFLICT (fdc_id, sub) DO NOTHING;
-        INSERT INTO fetch_queue (fdc_id) VALUES ($1)
-        ON CONFLICT (fdc_id) DO UPDATE
-        SET request_count = (SELECT count(*) FROM fetch_requesters WHERE fdc_id = $1),
-            last_requested = now()
-        WHERE fetch_queue.status IN ('pending', 'in_flight');
-        ```
-    2. Pair with `pg_notify('fetch_queued', fdc_id)`
-    3. Return `202 Accepted` with `{ status: "pending", fdcId, estimatedWaitSeconds: 30 }`
-    4. Duplicate requests increment `request_count` (US-005 scenario 3)
+> **REBUILD.** Replaces the old single-source fetch worker. Fan-out across the adapter registry, per-source
+> rolling-window limiter, demotion at drain time, lease/retry/backoff. The worker scaffold (LISTEN/NOTIFY,
+> single-instance advisory lock) exists as a skeleton from old Phase 0/3.
 
-    **Acceptance**:
-    - First request returns 202 within 100ms (US-002 scenario 1)
-    - Second request increments `request_count`, returns 202 without duplicate row (US-005 scenario 3)
-    - `pg_notify` fires on every enqueue
+- [ ] **T-150** [M] [Test-first: false] Fargate worker scaffold flesh-out — single instance via Postgres advisory lock (FR-022), `LISTEN fetch_queued`, structured logging (powertools), Sentry, SIGTERM lease release — `packages/services/food-service/src/worker/` (FR-017, FR-018, FR-022)
+      **(reuse: skeleton exists; flesh out the lifecycle.)**
+      **Acceptance**: worker holds the `LISTEN` connection; only one instance drains (advisory lock); SIGTERM
+      reverts this worker's `in_flight` rows to `pending`; wake-to-process ≤ 100ms.
 
----
+- [ ] **T-151** [M] [Test-first: true] Drain loop with demand-weighting + **demotion at drain time** — `SELECT … FOR UPDATE SKIP LOCKED` ordered by `request_count DESC, first_requested ASC`, with `sub`s over the 50-pending threshold ranked to the back (live per-`sub` count from `fetch_queue`+`fetch_requesters`; dynamic re-promotion) — `—` (FR-015, FR-043, FR-044)
+      **Acceptance**: covers US-5 scenarios 1–2 + SC-012 — `A` (50) before `B` (1); FIFO tie-break; a `sub` with >50 pending is ranked to the back while others drain, auto re-promoted when it drops below 50; **no `429`**.
 
-- [x] **T-063** [P2] [US-007] `GET /v1/foods/{fdcId}` — Stale-While-Revalidate Read Path — `—`
-      **Story**: US-007
-      **Priority**: P2
-      **Depends on**: T-011, T-016
-      **Implements**: FR-031
+- [ ] **T-152** [L] [Test-first: true] Fan-out across the adapter registry — for each wired adapter `searchByName(name)` (per-source rolling-window-limited via T-122), `fetchByKey` + `mapToCanonical` the hits — `—` (FR-MRG-1, FR-MRG-4, FR-ADP-1, FR-019)
+      **Acceptance**: a queued food fans out over the registry; USDA is called within its window; a source that
+      returns no hits contributes nothing; the limiter pauses USDA draining at 90%.
 
-    Extend the lookup handler for the `stale` read path (stale-while-revalidate):
-    1. Record with `fetch_status = 'stale'` (or `fetched` past `USDA_STALE_THRESHOLD_DAYS`) → **serve the existing data immediately as `200`** with a staleness indicator (the read never blocks and never returns `202` for a record it already holds)
-    2. Trigger a **background re-fetch** by enqueuing via `FetchQueueService` (deduped per FR-014) + `pg_notify`
-    3. If the background re-fetch keeps failing (e.g. prolonged USDA outage), **continue serving the stale data indefinitely** — there is no max-staleness cutoff that withholds an already-held record; the re-fetch keeps retrying (availability over freshness)
+- [ ] **T-153** [M] [Test-first: true] Lease watchdog + tombstone/backoff/retry — `in_flight` >30s → `pending`; source `5xx`/timeout → `pending`, `attempts++`, `last_requested = now()+2^attempts s`; after 5 attempts → food `FAILED`, row `tombstone`, `last_error`; no source has it → `NOT_FOUND` tombstone immediately (no retry) — `—` (FR-016, FR-018, FR-025, FR-026, FR-027)
+      **Acceptance**: covers US-5 scenarios 5–7 — `5xx` cycles `pending→in_flight→pending` with backoff, lands
+      `FAILED`/`tombstone` after 5 attempts; no-source → `NOT_FOUND`/`tombstone` immediately; tombstone rows
+      queryable via SQL with `attempts`/`last_error`.
 
-    **Acceptance**:
-    - A `stale` record returns `200` with the staleness indicator (not `202`) and enqueues a background re-fetch
-    - A repeated read while the re-fetch is still failing keeps returning the stale `200` (served indefinitely)
-    - Once the re-fetch succeeds the record is upserted and subsequent reads return fresh `200`
+- [ ] **T-154** [S] [Test-first: false] Success path — on a confident merge, upsert golden record (Phase 6), write `food_sources` crosswalk, **delete the `fetch_queue` row** (no `done` status), emit `FoodDataReceived` — `—` (FR-024, FR-MRG-1)
+      **Acceptance**: a resolved food has its `fetch_queue` row removed; `FoodDataReceived` carries the food `id`.
+
+- [ ] **T-155** [S] [Test-first: false] Worker uses the USDA adapter's ≤20-key batch where it has resolved multiple items (counts as 1 windowed call) — `—` (FR-023, SC-005)
+      **Acceptance**: a fan-out resolving several USDA items in one drain issues 1 batch call recorded once
+      against the window (US-4 scenario 3).
 
 ---
 
-- [x] **T-013** [P2] [US-008] `GET /v1/foods/{fdcId}/status` — `—`
-      **Story**: US-008
-      **Priority**: P2
-      **Depends on**: T-010
-      **Implements**: FR-007, FR-033
+## Phase 6 — Merge Engine + Golden Record + Per-Field Provenance
 
-    Implement status polling:
-    - Query `foods.fetch_status` or `fetch_queue.status` for the given `fdcId`
-    - `pending` / `in_flight` → `{ fdcId, status: "pending", estimatedWaitSeconds: 20 }`
-    - `fetched` → `{ fdcId, status: "fetched", ...fullFoodData }`
-    - `not_found` (tombstone) → `{ fdcId, status: "not_found" }`
-    - `tombstone` (from fetch_queue) → `{ fdcId, status: "not_found" }`
-    - Food not in DB at all → 404
+> **REBUILD.** The cross-source merge that the old single-source worker had no equivalent of.
 
-    **Acceptance**:
-    - All status transitions return correct shapes (US-008 scenarios 1–4)
+- [ ] **T-160** [L] [Test-first: true] Merge engine (field-level): presence beats absence; identity/short fields (`name`, `brand_*`) → higher-priority source; free-text (`description`, `ingredients`) → longer-wins; nutrients normalized per-100g then higher-priority source wins on conflict — `packages/services/food-service/src/foods/merge/merge-engine.ts` (FR-MRG-2, FR-MRG-3)
+      **Acceptance**: unit tests assert each rule independently — absence filled by another source; short field takes
+      USDA (higher priority) not the longest; description takes the longer; conflicting nutrient takes the
+      higher-priority source; all values normalized to per-100g before blending.
 
----
+- [ ] **T-161** [M] [Test-first: true] Provenance writer — scalar fields → `food_field_provenance(food_id, field, source_id)`; `food_nutrients.source_id` / `food_portions.source_id`; "which fields came from source X" single-query (no payload retained) — `—` (FR-028, FR-029, SC-013, R5, R7)
+      **Acceptance**: every stored scalar/nutrient/portion of a `RESOLVED` food carries a resolvable `source_id`;
+      the provenance UNION query answers source-X in one statement; no `raw_json` is written (SC-013).
 
-- [x] **T-014** [P2] [US-006] `GET /v1/foods/search?query=` & Autocomplete — `—`
-      **Story**: US-006
-      **Priority**: P2
-      **Depends on**: T-008, T-010
-      **Implements**: FR-008, FR-009, FR-010
+- [ ] **T-162** [M] [Test-first: true] Pre-merge dedup + **auto-resolve rule** — collapse candidates confidently (normalized-name exact match + nutrient agreement within ±10% on energy/protein); exactly one surviving candidate → `RESOLVED`; ≥2 non-collapsible → `UNRESOLVED` — `—` (FR-RES-3, FR-MRG-1, §9-1)
+      **Acceptance**: one surviving candidate (single hit, or hits collapsing within tolerance) → `RESOLVED`; two
+      non-collapsible survivors → `UNRESOLVED`; the tolerance is config-driven (`FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE`).
+      **(Gate item: the ±10% tolerance is a product call — see §9-1 / "Needs your judgment".)**
 
-    Implement full-text + fuzzy search:
-    - Use `search_vector @@ plainto_tsquery(query)` for FTS
-    - Fall back to `pg_trgm` similarity for short/misspelled queries
-    - Return max 20 results ranked by relevance (`ts_rank`)
-    - Never calls USDA API (local-only)
-    - `GET /v1/foods/autocomplete?query=` — same logic, returns `[{ fdcId, description }]` (max 10)
+- [ ] **T-163** [S] [Test-first: true] Manual-resolution merge path (PATCH pick → merge → `RESOLVED`, pick stored as ordinary provenance so refresh protects it) — `—` (FR-RES-2, FR-031)
+      **Acceptance**: a PATCH-driven merge sets `RESOLVED` and records the chosen candidate's `source_id`;
+      the value is indistinguishable from a normal stored value to the refresh path.
 
-    **Acceptance**:
-    - "chicken breast" returns relevant results (US-006 scenario 1)
-    - "avacado" returns avocado via fuzzy match (US-006 scenario 2)
-    - Empty result set returned (not USDA call) when no local match (US-006 scenario 3)
-    - 10,000-food dataset returns results within 200ms (US-006 scenario 4)
+- [ ] **T-164** [S] [Test-first: false] Input validation/sanitization + HTTPS enforcement at the merge boundary (reject-not-store on validation failure; cert-validated outbound) — `—` (FR-ADP-2, FR-ADP-3)
+      **Acceptance**: a candidate value failing validation is dropped (food still resolves from valid values/other
+      sources); outbound fetches use HTTPS with certificate validation.
+
+- [ ] **T-165** [S] [Test-first: false] `FoodDataReceived` / `FetchFailed` event emission (canonical name harmonized — see FU-EVENTNAME) — `—` (FR-034)
+      **Acceptance**: completion emits `FoodDataReceived{ id, status }`; a tombstone emits `FetchFailed` to
+      CloudWatch/SNS; the detailType matches the CDK rule.
 
 ---
 
-- [x] **T-015** [P2] [US-001] `GET /v1/foods/{fdcId}/nutrients` — `—`
-      **Story**: US-001 / US-004
-      **Priority**: P2
-      **Depends on**: T-011
-      **Implements**: FR-002
+## Phase 7 — Change-Driven Refresh + UNRESOLVED TTL
 
-    Implement full nutrient breakdown:
-    - Returns all macro + micro columns from `foods` table
-    - Includes `raw_json` nutrient array from USDA response
-    - 404 if food not fetched yet (with pending status hint)
+> **REBUILD.** Replaces the old age-based stale-while-revalidate (T-063/T-030) entirely. The read never
+> blocks on refresh; a field moves only when its originating external item changed upstream.
 
-    **Acceptance**:
-    - Returns all nutrient fields including micros
-    - Null fields included in response (not omitted)
+- [ ] **T-170** [M] [Test-first: false] Change-refresh scheduler (EventBridge `IngestionScheduled` cron) — select `RESOLVED` foods, enqueue low-priority refresh work (deduped via `ON CONFLICT`) — `packages/services/food-service/src/lambdas/change-refresh/handler.ts` (FR-032)
+      **(needs FU-ESBUILD bundling like identity-webhooks.)**
+      **Acceptance**: the cron enqueues `RESOLVED` foods as low-priority `fetch_queue` work; `NOT_FOUND`/`FAILED`
+      tombstones are not refreshed.
 
----
+- [ ] **T-171** [M] [Test-first: true] Change detection on refresh — adapter re-fetches each backing source item, compares `food_sources.item_version`; re-pull a field ONLY when its originating item changed; unchanged + user-resolved fields left intact; re-pulled values pass FR-ADP-2 and update `source_id` — `—` (FR-031, FR-032)
+      **Acceptance**: covers US-7 scenarios 1–4 — only fields from a changed item are re-pulled; an all-unchanged
+      food is untouched; a user-resolved field whose item is unchanged is preserved; a re-pulled value passes
+      validation and updates provenance.
 
-## Phase 3 — Postgres Queue + Fargate Consumer (US-002, US-003, US-005)
-
-- [x] **T-016** [P1] [US-002] Enqueue Service (`FetchQueueService`) — `packages/services/food-service/src/foods/fetch-queue.service.ts`
-      **Story**: US-002 / US-005
-      **Priority**: P1
-      **Depends on**: T-006
-      **Implements**: FR-014, FR-017
-
-    Create `packages/services/food-service/src/foods/fetch-queue.service.ts`:
-    - `enqueue(fdcId: string, source: 'single' | 'batch'): Promise<void>`
-    - Executes `INSERT … ON CONFLICT DO UPDATE` per FR-014
-    - Emits `pg_notify('fetch_queued', fdc_id)` after successful insert
-    - Used by API handlers (T-012, T-027) and stale refresh (T-031)
-
-    **Acceptance**:
-    - Concurrent enqueues for same `fdcId` produce exactly one row with incremented counter
-    - `pg_notify` payload contains the `fdc_id`
+- [ ] **T-172** [S] [Test-first: true] `UNRESOLVED` 30-day TTL sweep — change-refresh cron sweeps `UNRESOLVED` foods older than `FOOD_UNRESOLVED_TTL_DAYS` (default 30, via `food.updated_at`) to `NOT_FOUND` (re-addable); reuses the tombstone TTL machinery — `—` (§9-2, FR-025)
+      **Acceptance**: an `UNRESOLVED` food untouched for >30 days is swept to `NOT_FOUND`; a recently-updated one is
+      not. **(Gate item: confirm the 30-day default — see §9-2.)**
 
 ---
 
-- [ ] **T-017** [P1] [US-005] Fargate Worker Scaffold (`food-fetch-worker`) — `packages/services/food-service/src/worker/`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-001, T-003
-      **Implements**: FR-017, FR-018, FR-022
-
-    Create `packages/services/food-service/src/worker/`:
-    - ECS Fargate task definition (512 MB, Node.js 22.x)
-    - Single desired count (FR-022: exactly one consumer)
-    - `LISTEN fetch_queued` on startup (persistent Postgres connection)
-    - Structured logging via `@aws-lambda-powertools/logger`
-    - Sentry error capture via `@sentry/aws-serverless`
-    - Graceful shutdown on SIGTERM (release `in_flight` leases)
-
-    **Acceptance**:
-    - Worker deploys via CDK and holds `LISTEN` connection open
-    - `pg_notify` wake-to-process latency ≤ 100ms (US-005 scenario 4)
-    - SIGTERM handler reverts all `in_flight` rows for this worker to `pending`
-
----
-
-- [ ] **T-018** [P1] [US-005] Consumer: LISTEN/NOTIFY Wakeup + Drain Loop — `—`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-017, T-016
-      **Implements**: FR-015, FR-017
-
-    Implement the drain loop in the worker:
-    1. Block on `LISTEN fetch_queued` notification
-    2. On wakeup: `SELECT fdc_id FROM fetch_queue WHERE status='pending' AND last_requested <= now() ORDER BY request_count DESC, first_requested ASC FOR UPDATE SKIP LOCKED LIMIT 1`
-    3. Transition selected row `status='in_flight'`
-    4. Process → update row → loop until no pending rows match
-    5. Return to blocking `LISTEN`
-
-    **Acceptance**:
-    - `A` with `request_count=50` processed before `B` with `request_count=1` (US-005 scenario 1)
-    - Tie-break: earlier `first_requested` wins (US-005 scenario 2)
-    - Empty queue → worker blocks, consuming no CPU
-
----
-
-- [ ] **T-019** [P1] [US-002] Consumer: Single Food Fetch Flow — `—`
-      **Story**: US-002
-      **Priority**: P1
-      **Depends on**: T-018, T-003, T-024
-      **Implements**: FR-023, FR-024, FR-025
-
-    Implement single-food fetch in the worker:
-    1. Extract `fdc_id` from locked row
-    2. Check the rolling-window limiter (`RollingWindowLimiter.tryRecord()`); if it returns `false` (window full / at 90% pause), leave the row `pending` and stop draining
-    3. Call `UsdaApiClient.getFood(fdcId)`
-    4. On 200: upsert `foods` with `fetch_status='fetched'`, `fetched_at=now()`, and **delete the `fetch_queue` row** (success removes it — the canonical `fetch_queue` status enum is `pending | in_flight | tombstone`; there is no `done`)
-    5. On 404: tombstone immediately — `fetch_queue.status='tombstone'`, `foods.fetch_status='not_found'` (no retry)
-    6. On 5xx: set `fetch_queue.status='pending'`, `attempts=attempts+1`, `last_error=<code>`, `last_requested=now()+backoff(attempts)` (US-005 scenario 5)
-
-    **Acceptance**:
-    - Successful fetch: food in DB with `fetch_status='fetched'` (US-002 scenario 2)
-    - USDA 404: tombstone written, no retry (US-002 scenario 5)
-    - USDA 5xx: row returned to pending with incremented `attempts` (US-005 scenario 5)
-
----
-
-- [ ] **T-020** [P1] [US-004] Consumer: Batch Food Fetch Flow — `—`
-      **Story**: US-004
-      **Priority**: P1
-      **Depends on**: T-019
-      **Implements**: FR-012, FR-023, FR-024
-
-    Implement batch fetch in the worker:
-    1. Select up to 20 pending rows with `source='batch'` or adjacent `fdc_id`s (lock all with `FOR UPDATE SKIP LOCKED`)
-    2. Record exactly 1 USDA call against the rolling window (`RollingWindowLimiter.tryRecord()`) for the whole batch
-    3. Call `UsdaApiClient.getFoodsBatch(fdcIds)` (POST `/v1/foods`)
-    4. For each result: upsert `fetch_status='fetched'` and **delete the `fetch_queue` row**
-    5. For each 404 in batch response: write tombstone
-    6. On partial 5xx: successful items have their `fetch_queue` row deleted, failed items left `pending` with `attempts++`
-
-    **Acceptance**:
-    - 5 IDs in batch → 1 USDA call recorded against the rolling window (US-004 scenario 3)
-    - Mixed 200/404 batch: 4 fetched + 1 tombstoned (US-004 scenario 4)
-
----
-
-- [ ] **T-021** [P1] [US-005] Consumer: Lease Watchdog — `—`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-017
-      **Implements**: FR-018
-
-    Implement lease recovery:
-    - Watchdog query run on worker start and every 60s:
-        ```sql
-        UPDATE fetch_queue SET status='pending'
-        WHERE status='in_flight' AND last_requested < now() - interval '30 seconds';
-        ```
-    - Also run on SIGTERM to release this worker's leases
-
-    **Acceptance**:
-    - Row stuck `in_flight` for 35s reverted to `pending` on next watchdog tick (US-005 lease recovery)
-    - Worker crash: leases recovered within 60s
-
----
-
-- [ ] **T-022** [P1] [US-005] Consumer: Tombstone & Backoff Logic — `—`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-019
-      **Implements**: FR-016, FR-025, FR-026, FR-027
-
-    Implement error classification and retry policy:
-    - 404 → immediate `status='tombstone'`, `last_error='404'`, no retry. The tombstone carries a **configurable TTL (default 30 days, `USDA_TOMBSTONE_TTL_DAYS`)**; record `fetched_at`/`tombstoned_at` so a later lookup after the TTL has lapsed MAY re-attempt the fetch (FR-025). The re-attempt counts against the normal rolling-window budget (FR-019). Within the TTL the tombstone returns `404` without enqueueing.
-    - 429 → treat the rolling window as full and back off (pause draining), return row to `pending` with `attempts++`, backoff `2^attempts` seconds
-    - 5xx / timeout → return to `pending`, `attempts++`, backoff `2^attempts` seconds
-    - After 5 attempts → `status='tombstone'`, `last_error='max_retries'`
-    - Tombstone rows queryable by ops for audit
-
-    **Acceptance**:
-    - 5xx row cycles `pending → in_flight → pending` with exponential backoff, lands in tombstone after 5 attempts (US-005 scenario 5)
-    - 404 immediate tombstone (US-002 scenario 5)
-    - A `not_found` tombstone older than the TTL is re-attempted on the next lookup; within the TTL it returns `404` without enqueueing (FR-025)
-
----
-
-- [ ] **T-023** [P2] [US-006] Food Search Indexer (EventBridge) — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts`
-      **Story**: US-006
-      **Priority**: P2
-      **Depends on**: T-019
-      **Implements**: FR-008
-
-    Create `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts`:
-    - Triggered by `FoodFetchCompleted` EventBridge event (emitted by worker on successful fetch)
-    - Updates `foods.search_vector`: `to_tsvector('english', description)`
-    - Invalidates any in-process LRU cache
-
-    **Acceptance**:
-    - After fetch, `search_vector` is populated and food appears in search results
-    - No Redis cache to invalidate (architecture uses PostgreSQL directly)
-
----
-
-## Phase 4 — Rolling 60-Minute Window Rate Limiter (US-003)
-
-- [ ] **T-024** [P1] [US-003] Rolling Window Limiter: In-Process Implementation — `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`
-      **Story**: US-003
-      **Priority**: P1
-      **Depends on**: T-007
-      **Implements**: FR-019, FR-020
-
-    Create `packages/services/food-service/src/rate-limiter/rolling-window-limiter.ts`:
-    - `RollingWindowLimiter` class: `tryRecord(): boolean` (count trailing-60-min calls and record the new call atomically; reject when already at cap), `count(): number` (calls in the trailing 60 min), `isPaused(): boolean` (true once the trailing count ≥ 900 / 90%)
-    - Limit: **≤1,000 USDA calls per trailing 60 minutes**; worker pauses draining at **90% (900)** and resumes as calls age out of the window (no continuous refill, no token capacity)
-    - In-process state is a list of recent call timestamps, pruned to the trailing 60 min (single Fargate worker = no shared state needed at MVP)
-    - Thread-safe within the Node.js event loop
-
-    **Acceptance**:
-    - `tryRecord()` with a trailing count of 3 → returns `true`, count becomes 4 (US-003 scenario 1)
-    - `isPaused()` flips to `true` once the trailing count reaches 900 and back to `false` as calls age out below the threshold (US-003 scenario 2)
-    - `tryRecord()` when the trailing count is at 1,000 → returns `false`, worker pauses draining (US-003 scenario 3)
-    - Calls older than 60 min are excluded from the count (window slides)
-
----
-
-- [ ] **T-025** [P2] [US-003] Rolling Window Limiter: Postgres Persistence (`usda_call_log`) — `—`
-      **Story**: US-003
-      **Priority**: P2
-      **Depends on**: T-024
-      **Implements**: FR-020
-
-    Create the `usda_call_log`-backed `RollingWindowLimiter` variant:
-    - Atomic check-and-record in one statement, e.g. `INSERT INTO usda_call_log (called_at) SELECT now() WHERE (SELECT count(*) FROM usda_call_log WHERE called_at > now() - interval '60 minutes') < 1000 RETURNING id` — inserts (and thus permits the call) only when the trailing-60-min count is below the cap
-    - Periodically prune rows older than 60 min (`DELETE FROM usda_call_log WHERE called_at < now() - interval '60 minutes'`)
-    - Falls back to in-process if the call log is unavailable
-
-    **Acceptance**:
-    - Concurrent check-and-record calls are atomic (no race lets the trailing count exceed 1,000)
-    - Trailing-60-min count is computed correctly as old rows age out / are pruned
-
----
-
-- [ ] **T-026** [P1] [US-003] Rolling Window Limiter: Unit Tests — `—`
-      **Story**: US-003
-      **Priority**: P1
-      **Depends on**: T-024, T-025
-      **Implements**: FR-019, FR-020
-
-    Write unit tests for the in-process and `usda_call_log`-backed `RollingWindowLimiter`:
-    - Record with the trailing count below cap (returns true)
-    - Record at the 1,000 cap (returns false / worker pauses)
-    - Pause at 90% (900) and resume as calls age out (mock time)
-    - Window slide: calls older than 60 min drop out of the count (mock time)
-    - Concurrent check-and-record (mock DB for atomicity — never exceeds 1,000)
-    - USDA 429 failsafe: treat the window as full and back off
-
-    **Acceptance**:
-    - All scenarios from US-003 acceptance criteria covered
-    - Tests pass with `npm test`
-
----
-
-## Phase 5 — Batch Processing & Deduplication (US-004)
-
-- [ ] **T-027** [P1] [US-004] `POST /v1/foods/batch` — `—`
-      **Story**: US-004
-      **Priority**: P1
-      **Depends on**: T-012, T-016
-      **Implements**: FR-012
-
-    Implement the batch request endpoint:
-    1. Accept `{ fdcIds: number[] }` (max 20, validated)
-    2. Resolve known foods from PostgreSQL
-    3. Identify unknown IDs (not in `foods` and not `done` in `fetch_queue`)
-    4. Deduplicate against `fetch_queue` pending rows
-    5. Enqueue unknown IDs via `FetchQueueService` with `source='batch'`
-    6. Return: resolved foods + pending IDs
-
-    **Acceptance**:
-    - 15 ingredients (10 known, 5 unknown) → 10 resolved + 5 pending (US-004 scenario 1)
-    - 5 unknown IDs → all enqueued, `request_count` incremented if already pending (US-004 scenario 2)
-
----
-
-- [ ] **T-028** [P1] [US-004] Batch Consumer Integration — `—`
-      **Story**: US-004
-      **Priority**: P1
-      **Depends on**: T-020, T-027
-      **Implements**: FR-012, FR-013
-
-    Wire batch enqueue to batch consumer:
-    - API enqueues at `request_count=0` for background batch enrichment (drains during idle periods)
-    - Worker selects batch-ready rows (adjacent `fdc_id`s or `source='batch'`)
-    - Single `POST /v1/foods` call counts as 1 USDA call against the rolling window for up to 20 items
-
-    **Acceptance**:
-    - Batch of 20 IDs → 1 USDA API call, 1 call recorded against the rolling window
-    - Background batch jobs do not starve high-priority single lookups
-
----
-
-- [ ] **T-029** [P1] [US-005] Demand-Weighted Priority Verification — `—`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-018, T-027
-      **Implements**: FR-015
-
-    Verify and tune priority ordering:
-    - Unit test: enqueue `fdc_id=A` 50 times, `fdc_id=B` once
-    - Assert worker selects `A` before `B`
-    - Background batch enrichment (`request_count=0`) drains only when no `request_count>0` rows exist
-
-    **Acceptance**:
-    - `A` (request_count=50) processed before `B` (request_count=1) (US-005 scenario 1)
-    - Batch rows at `request_count=0` yield to any user-demand row
-
----
-
-## Phase 6 — Stale Data Refresh (US-007)
-
-- [ ] **T-030** [P2] [US-007] Stale Refresh Scheduler (EventBridge) — `packages/services/food-service/src/lambdas/usda-stale-refresh/handler.ts`
-      **Story**: US-007
-      **Priority**: P2
-      **Depends on**: T-001
-      **Implements**: FR-031
-
-    Create `packages/services/food-service/src/lambdas/usda-stale-refresh/handler.ts`:
-    - EventBridge scheduled rule: daily at 3am UTC
-    - Query `foods` where `fetched_at < NOW() - INTERVAL '30 days'` AND `fetch_status = 'fetched'`
-    - Configurable threshold via `USDA_STALE_THRESHOLD_DAYS`
-
-    **Acceptance**:
-    - Food fetched 31 days ago → identified as stale (US-007 scenario 1)
-    - Food fetched 5 days ago → NOT identified (US-007 scenario 2)
-    - Tombstoned foods (`not_found`) → never re-queued (US-007 scenario 3)
-
----
-
-- [ ] **T-031** [P2] [US-007] Stale Refresh Enqueue — `—`
-      **Story**: US-007
-      **Priority**: P2
-      **Depends on**: T-030, T-016
-      **Implements**: FR-032
-
-    Extend stale refresh Lambda to enqueue via `FetchQueueService`:
-    - Batch stale `fdcIds` into groups of 20
-    - Enqueue each group with `source='batch'` and `request_count=0`
-    - `pg_notify('fetch_queued', ...)` triggers worker
-
-    **Acceptance**:
-    - 500 stale foods → 25 batch enqueues (20 per batch)
-    - Worker wakes and drains stale batch during idle periods
-
----
-
-- [ ] **T-032** [P2] [US-007] Bulk Sync Lambda (Weekly Foundation/SR Legacy) — `packages/services/food-service/src/lambdas/usda-bulk-sync/handler.ts`
-      **Story**: US-007 (bulk variant)
-      **Priority**: P2
-      **Depends on**: T-005, T-007
-      **Implements**: FR-031
-
-    Create `packages/services/food-service/src/lambdas/usda-bulk-sync/handler.ts`:
-    - EventBridge scheduled: Sunday 2am UTC
-    - Downloads Foundation + SR Legacy bulk files from USDA
-    - Upserts into `foods` table (batch inserts, 1,000 rows/batch)
-    - Updates `usda_sync_metadata` with version and timestamp
-
-    **Acceptance**:
-    - Lambda completes without timeout for a 10,000-row test dataset
-    - `usda_sync_metadata` updated after successful run
-
----
-
-## Phase 7 — Authentication & Authorization (US-0, FR-035–FR-053)
-
-> Expanded by the 2026-06-19 re-plan to cover the full auth slice (plan §2A). Closes
-> sync-verify DRIFT-101 (tasks layer) and the red-team findings. Deployment: in-process
-> NestJS `AuthMiddleware` on ECS/Fargate (ALB), shared `ClerkAuthService` verification.
-
-- [ ] **T-033** [P1] [FR-035..038,040] `FoodAuthGuard` — NestJS AuthMiddleware — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-010, T-046 · **Implements**: FR-035, FR-036, FR-037, FR-038, FR-040
-      In-process NestJS `AuthMiddleware` on every `/v1/foods/*` route (mirrors `packages/services/identity` `AuthMiddleware`). Networkless `verifyToken` via shared package (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed.
-      **Acceptance**: no/invalid/expired/wrong-`azp` token → `401`, no enqueue, no USDA call; valid token → `req.user.sub` set; verification makes zero outbound network calls.
-
-- [ ] **T-046** [P1] [FR-036,053] `@kitchensink/clerk-verify` shared package — `packages/shared/clerk-verify`
-      **Story**: US-0 · **Depends on**: — · **Implements**: FR-036, FR-053
-      Extract `verifyToken(jwtKey, authorizedParties)` from the identity service's `ClerkAuthService` into a shared `@kitchensink/*` package consumed by both identity and food services (one implementation, no drift). FoodAuthGuard is the named, traceable auth component fronting all entry points.
-
-- [ ] **T-047** [P1] [FR-047] M2M / service-token support — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-033 · **Implements**: FR-047 (A-012)
-      Accept Clerk **machine (M2M) tokens** (azp-allowlisted) for downstream services (001/006/007/009) and internal jobs (recipe import FR-012, stale-refresh FR-032). Classify each endpoint user-token / service-token / both.
-      **Acceptance**: a backend caller with a valid M2M token is accepted (not `401`); a user-only endpoint rejects a service token where disallowed.
-
-- [ ] **T-048** [P1] [FR-039,051] Authorization scopes + status precedence — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-033 · **Implements**: FR-039, FR-051
-      `403` for authenticated-but-insufficient `public_metadata` scope on operational endpoints; enforce precedence `401`→`403`→`400`→`404`/`202`/`200` (governs FR-002/003/005/006).
-      **Acceptance**: valid token without scope on `POST /v1/foods/{fdcId}/refetch` → `403`; malformed `fdcId` with bad token → `401` (not `400`).
-
-- [ ] **T-049** [P1] [FR-043] Per-`sub` fairness by **demotion** (no quota, no `429`) — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-033, T-056, T-018 (queue) · **Implements**: FR-043 (SC-012)
-      Fairness is enforced by **queue demotion, not rejection** — there is **no per-`sub` quota and no `429`**. At drain time the queue scorer computes each candidate row's owning `sub`'s **current pending count** (derived live from `fetch_queue` + `fetch_requesters`); when a `sub` has **more than 50 pending items**, that `sub`'s rows are ranked to the **back** of the priority order (below FR-015 demand ordering) so they cannot starve other users. Demotion is **dynamic**: it reads live state, so a `sub`'s rows auto re-promote to normal priority once its pending count drops back below 50 (no frozen flag, no rejection). Work-conserving — demoted rows still drain on spare capacity.
-      **Acceptance**: a `sub` with >50 pending items has its rows ranked to the back while other users' rows drain first; when its pending count falls below 50 its rows return to normal priority; **no request is rejected with `429`** (SC-012 demotion-fairness test).
-
-- [ ] **T-050** [P1] [FR-044] Distinct-requester demand counting — `Test-first: true`
-      **Story**: US-0/US-5 · **Depends on**: T-056, T-018 (queue) · **Implements**: FR-044
-      `request_count` priority counts **distinct `sub`s** via `fetch_requesters(fdc_id, sub, requested_at)`; repeat requests from one `sub` don't inflate priority; contribution capped; ordering aged.
-      **Acceptance**: a single `sub` repeatedly requesting one `fdcId` cannot pin it ahead of genuine distinct-requester demand.
-
-- [ ] **T-051** [P1] [FR-045] Max batch size enforcement — `Test-first: true`
-      **Story**: US-0/US-4 · **Depends on**: T-024 (batch) · **Implements**: FR-045
-      `POST /v1/foods/batch` and recipe-import sets ≤ 100 `fdcId`s → `400` over limit, no enqueue; accepted IDs add to the `sub`'s pending count (and so feed the FR-043 demotion check, not a quota). Per FR-045 an accepted mixed batch returns a **per-item partial** result (cached/stale foods inline, each miss as a `pending` entry whose fetch is enqueued).
-      **Acceptance**: oversized batch returns `400` and enqueues nothing; an accepted mixed batch returns cached items inline and `pending` entries for the misses in one response body.
-
-- [ ] **T-052** [P1] [FR-046] Queue backpressure + circuit breaker — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-018, T-020 · **Implements**: FR-046
-      Enforced max `fetch_queue` depth; when exceeded or the USDA circuit breaker is open → new enqueues fail closed with `503`; jittered recovery (no thundering herd).
-      **Acceptance**: at max depth / breaker-open, enqueue returns `503`; recovery drains without a burst spike.
-
-- [ ] **T-053** [P2] [FR-048] Async-producer least-privilege IAM + provenance — `—`
-      **Story**: US-0 · **Depends on**: T-006 (infra) · **Implements**: FR-048
-      Only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates event provenance; `requestedBy` carries the authenticated `sub` or named service principal (no unauthenticated `'system'` shortcut).
-
-- [ ] **T-054** [P2] [FR-052] Auth-layer DoS protection — `Test-first: true`
-      **Story**: US-0 · **Depends on**: T-033 · **Implements**: FR-052 (SC-009/SC-011)
-      Bound verification concurrency + per-source `401`-rate cap (load-shed) so an invalid-token flood can't saturate the verifier.
+## Phase 8 — Authentication & Authorization Wiring (US-0, FR-035–FR-053)
+
+> **REUSE / WIRE.** The in-process `AuthMiddleware` + shared `ClerkAuthService` pattern is established in the
+> identity service. This phase extracts the shared verify package and wires it onto food-service routes; it is
+> mostly wiring + tests, not a from-scratch build. **Build this slice before exposing Phases 3–4 publicly.**
+
+- [ ] **T-046** [M] [Test-first: false] `@kitchensink/clerk-verify` shared package — extract networkless `verifyToken(jwtKey, authorizedParties)` from the identity service's `ClerkAuthService`; consumed by both identity and food-service (one impl, no drift) — `packages/shared/clerk-verify` (FR-036, FR-053)
+      **(reuse: lifts existing identity-service verification — refactor/extract, not new logic.)**
+      **Acceptance**: identity + food-service both import it; verification makes zero outbound network calls.
+
+- [ ] **T-033** [M] [Test-first: true] `FoodAuthGuard` — in-process NestJS `AuthMiddleware` on every `/v1/foods/*` route; networkless `verifyToken` (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed — `packages/services/food-service/src/auth/` (FR-035, FR-036, FR-037, FR-038, FR-040, FR-042, FR-053)
+      **(reuse: mirrors identity `AuthMiddleware`.)**
+      **Acceptance**: covers US-0 scenarios 1–6 + SC-010 — no/invalid/expired/wrong-`azp` token → `401`, no row,
+      no enqueue, no source call; valid token → `req.user.sub` set; a forged `x-authorizer-context` is ignored;
+      missing `CLERK_JWT_KEY` → fail-closed `401`.
+
+- [ ] **T-047** [S] [Test-first: true] M2M / service-token support — accept Clerk machine tokens (azp-allowlisted) for downstream 001/006/007/009 + internal jobs (recipe import FR-012, change-refresh FR-032); classify each endpoint user/service/both — `—` (FR-047, A-012)
+      **Acceptance**: US-0 scenario 11 — a valid M2M token is accepted (not `401`); a user-only endpoint rejects a
+      service token where disallowed.
+
+- [ ] **T-048** [S] [Test-first: true] Authorization scopes + status precedence — `403` for authenticated-but-insufficient `public_metadata` scope on operational endpoints; enforce `401`→`403`→`400`→`404`/`202`/`200` — `—` (FR-039, FR-051)
+      **Acceptance**: US-0 scenario 10 — valid token w/o scope on `/refetch` → `403`; malformed `id` with a bad
+      token → `401` (not `400`).
+
+- [ ] **T-049** [M] [Test-first: true] Fairness by **demotion** (no quota, no `429`) — drain-time scorer demotes a `sub` with >50 pending to the back; dynamic re-promotion; work-conserving — `—` (FR-043, SC-012)
+      **(implemented in the drain loop T-151; this task is the auth-side guarantee + test.)**
+      **Acceptance**: US-0 scenario 9 + SC-012 — a >50-pending `sub` is demoted while others drain; auto re-promoted
+      below 50; no request rejected with `429`.
+
+- [ ] **T-050** [S] [Test-first: true] Distinct-requester demand counting — `request_count` counts distinct `sub`s via `fetch_requesters`; one `sub`'s repeats can't inflate priority; capped + aged — `—` (FR-044)
+      **Acceptance**: a single `sub` repeatedly adding one name cannot pin it ahead of genuine distinct-requester
+      demand.
+
+- [ ] **T-051** [S] [Test-first: true] Max batch size enforcement — `POST /v1/foods/batch` + recipe-import sets ≤100 names → `400` over, nothing enqueued; accepted misses feed demotion (not a quota) — `—` (FR-045)
+      **(shares the endpoint with T-143; this is the auth-side cap + test.)**
+      **Acceptance**: US-0 scenario 12 — oversized batch → `400`, nothing enqueued.
+
+- [ ] **T-052** [S] [Test-first: true] Queue backpressure + circuit breaker (auth/DoS side) — depth ceiling / open breaker → `503`, jittered recovery — `—` (FR-046)
+      **(shares enforcement with T-144.)**
+      **Acceptance**: at max depth / breaker-open, enqueue returns `503`; recovery drains without a burst.
+
+- [ ] **T-053** [S] [Test-first: false] Async-producer least-privilege IAM + provenance — only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates provenance; `requestedBy` is a real principal (no `'system'` shortcut) — `—` (FR-048)
+      **Acceptance**: an unnamed/unauthorized producer cannot enqueue; the consumer rejects rows with no valid
+      `requestedBy`.
+
+- [ ] **T-054** [S] [Test-first: true] Auth-layer DoS protection — bound verification concurrency + per-source `401`-rate cap (load-shed) under an invalid-token flood — `—` (FR-052, SC-009, SC-011)
       **Acceptance**: SC-011 (≤10ms p95) holds under an invalid-token flood, not just the happy path.
 
-- [ ] **T-056** [P1] [FR-043,044] Migration: `fetch_requesters` (no quota tables) — `—`
-      **Story**: US-0 · **Depends on**: T-010 · **Implements**: FR-043, FR-044
-      Drizzle migration for `fetch_requesters(fdc_id, sub, requested_at)` (+ indexes, including one on `sub` to compute a `sub`'s live pending count for the FR-043 demotion check). **No `user_fetch_quota` / `global_fetch_quota` tables** — fairness is demotion (FR-043), which derives the per-`sub` pending count at drain time from `fetch_queue` + `fetch_requesters`; there is no quota row and no `429`. Includes **user-erasure handling**: on a user-deletion event, `fetch_requesters` rows for that `sub` are deleted (or TTL'd) — closes the constitution data-privacy warning.
+- [ ] **T-056** [S] [Test-first: false] `fetch_requesters` migration + user-erasure handling (no quota tables) — `—` (FR-043, FR-044)
+      **(folded into T-103; retained as the auth-traceable migration anchor — on user-deletion, delete that `sub`'s
+      `fetch_requesters` rows; no `user_fetch_quota`/`global_fetch_quota`.)**
+      **Acceptance**: deleting a user removes their `fetch_requesters` rows; no quota table exists.
+
+- [ ] **T-057** [M] [Test-first: false] `@kitchensink/food-service-client` — rebuild the typed client to the new API surface (`addByName`/`getById`/`getStatus`/`getCandidates`/`resolve`/`search`/`batch`); attach user or M2M token; map `401`/`403`/`400`/`503`/`404`/`202` (no per-user `429`) — `packages/clients/food-service` (FR-047)
+      **(reuse: placeholder package exists; rebuild the surface to the id-keyed API.)**
+      **Acceptance**: a downstream service calls the food API with an M2M token via this client and gets typed
+      results; unauthorized calls surface typed `401`/`403`; no `fdcId` in the client's public shapes.
 
 > **WebSocket auth (FR-041, FR-049)** is tracked with the deferred WebSocket work in **Phase 9**
-> (`$connect` Lambda authorizer on the API Gateway WebSocket API + per-`sub` notification
-> targeting from `fetch_requesters`), since the WS API itself is P3-deferred.
+> (`$connect` Lambda authorizer + per-`sub` notification targeting from `fetch_requesters`).
 
 ---
 
-## Phase 7b — Packages & Workspace Wiring (Foundation)
+## Phase 9 — Search Indexer / Observability / WebSocket (deferred bits)
 
-- [x] **T-060** [P0] [Foundation] Register new packages in root workspaces — `package.json`
-      **Story**: Foundation · **Depends on**: — · **Implements**: NFR-006
-      Add explicit paths `"packages/clients/usda"` and `"packages/clients/food-service"` to the root
-      `package.json` `workspaces` array (`packages/clients` stays a grouping folder, not a glob —
-      matching `apps/commise/{web,mobile}`). `services/*` and `shared/*` globs already cover
-      `food-service` and `clerk-verify`. Each new package extends the shared `@kitchensink/{typescript,eslint,prettier,vitest}` configs and declares its Turbo tasks.
-      **Acceptance**: `npm install` links all four packages; `turbo run typecheck` resolves them.
+- [ ] **T-180** [S] [Test-first: false] Optional ranked-FTS indexer (generated `tsvector` + GIN) on `FoodDataReceived` — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts` (FR-008)
+      **Deferred** — `pg_trgm` (T-104/T-134) already covers fuzzy search; add only if ranked full-text is needed.
+      **Acceptance**: after a resolve, the food appears in ranked FTS results; no Redis to invalidate.
 
-- [ ] **T-057** [P2] [US-0/integration] `@kitchensink/food-service-client` package — `packages/clients/food-service`
-      **Story**: US-0 · **Depends on**: T-010, T-047, T-060 · **Implements**: FR-047 (consumer side)
-      Typed client for **our** `/v1/foods/*` API, consumed by web/mobile and downstream services
-      (001/006/007/009). Surfaces `getFood`/`searchFoods`/batch, attaches the caller's Clerk token
-      (user session **or** M2M service token per FR-047), and maps `401`/`403`/`400`/`503`/`404`/`202` (no per-user `429` — fairness is queue demotion, FR-043; `503` is the FR-046 backpressure/circuit-breaker status).
-      **Acceptance**: a downstream service can call the food API with an M2M token via this client and
-      receive typed results; unauthorized calls surface typed `401`/`403` errors.
+- [ ] **T-181** [S] [Test-first: false] Custom CloudWatch metrics from the worker — `food-fetch-queue-depth`, `food-resolution-latency-seconds`, `source-rolling-window-count` (per source), `source-api-success-rate`, `food-unresolved-backlog`, `food-tombstone-count`, `food-cache-hit-rate`, `auth-401-rate` — `—` (SC-002, SC-006, US-10)
+      **Acceptance**: metrics populate after processing test requests; per-source window count is visible.
 
----
+- [ ] **T-182** [S] [Test-first: false] CloudWatch dashboard `food-data` (queue depth, in-flight leases, per-source trailing-60-min count, UNRESOLVED backlog, tombstone count, resolution latency, worker error rate) — `—` (US-10)
+      **Acceptance**: dashboard visible after `cdk deploy`; widgets populate after 100 test requests.
 
-## Phase 8 — Monitoring & Observability (US-010)
+- [ ] **T-183** [S] [Test-first: false] CloudWatch alarms — tombstone-row count > 0; API error rate > 5%; `fetch_queue` depth > 10,000 (FR-046); pending `first_requested` age > 5 min — `—` (SC-006, US-10)
+      **Acceptance**: each alarm created in synth and fires on its condition (US-10 scenarios 2–3).
 
-- [ ] **T-034** [P2] [US-010] Custom CloudWatch Metrics — `—`
-      **Story**: US-010
-      **Priority**: P2
-      **Depends on**: T-017
-      **Implements**: FR-016, FR-018
+- [ ] **T-184** [S] [Test-first: false] Operational query endpoints (admin-scoped) — `GET /v1/foods/ops/queue` (depths), `GET /v1/foods/ops/tombstones?limit=`, `POST /v1/foods/ops/retry/{id}` (flip `tombstone`→`pending`) — `—` (FR-039, FR-016, FR-018)
+      **Acceptance**: counts accurate; retry re-queues a tombstone; all require the elevated scope (`403` without).
 
-    Emit custom CloudWatch metrics from the Fargate worker:
-    - `usda-fetch-queue-depth` — `SELECT count(*) FROM fetch_queue WHERE status='pending'`
-    - `usda-api-request-count` — success/failure dimensions
-    - `usda-api-latency` — p50/p95/p99
-    - `usda-rolling-window-count` — trailing-60-min USDA call count after each recorded call
-    - `usda-in-flight-leases` — rows with `status='in_flight'`
+- [ ] **T-185** [M] [Test-first: true] [P3 — Deferred] API Gateway WebSocket API + `$connect` Lambda authorizer (reuses `@kitchensink/clerk-verify`; token via query param / `Sec-WebSocket-Protocol`; reject → `403`; mid-connection `exp` → close; FR-050 cache rules apply here) — `—` (FR-034, FR-041, FR-049, FR-050)
+      **Deferred** — implement only if polling UX (US-8) proves insufficient.
+      **Acceptance**: `$connect` without a valid token → `403`; with a valid token → connection + `sub` stored.
 
-    **Acceptance**:
-    - Metrics visible in CloudWatch after processing test messages (US-010 scenario 4)
-    - `usda-fetch-queue-depth` accurately reflects pending count
+- [ ] **T-186** [S] [Test-first: false] [P3 — Deferred] WebSocket push on resolve — on `FoodDataReceived`, resolve recipients from `fetch_requesters` (`sub`→food `id` set), push `{type:"food_ready", id}`, no broadcast; clean up stale (410) connections — `—` (FR-034, FR-041)
+      **Acceptance**: US-9 — a connected requester receives the push within 60s; non-requesting connections get
+      nothing; stale connections are cleaned up.
 
 ---
 
-- [ ] **T-035** [P2] [US-010] CloudWatch Dashboard — `—`
-      **Story**: US-010
-      **Priority**: P2
-      **Depends on**: T-034
-      **Implements**: FR-035 (ops)
+## Phase 10 — E2E Harness + Migration Runner
 
-    CDK: Create CloudWatch dashboard `usda-food-data`:
-    - Pending queue depth
-    - In-flight lease count
-    - Trailing-60-min USDA call count (rolling window)
-    - Worker error rate
-    - USDA API latency distribution
-    - Tombstone count
+- [ ] **T-190** [M] [Test-first: false] E2E harness — booted food-service + LocalStack (Community) + Docker Postgres; scenarios add-by-name `202`→worker fan-out/merge→`200`, dedup, candidates/PATCH-resolve, batch partial, EventBridge completion — `packages/services/food-service/vitest.e2e.config.ts` (FR-005, FR-011, FR-013, FR-014, FR-024, FR-MRG-1, FR-RES-2 — E2E)
+      **(reuse/extend: foundation in place — `infra/localstack/docker-compose.yml` (`localstack:4.4.0` + `postgres:16`), `e2e-food` CI job, `test:e2e` script, `health.e2e.test.ts` boots the real Nest app + migrates Docker Postgres. Extend with the re-baselined id-keyed flows once Phases 3–6 land. Community tier — no auth token.)**
+      **Acceptance**: `npm run test:e2e --workspace=packages/services/food-service` boots against Docker Postgres
+      and the add-by-name → fan-out → resolve / dedup / candidates / batch / EventBridge scenarios pass; the
+      `e2e-food` CI job is required on the food-service path. **Checkbox stays unticked until the new flows land.**
 
-    **Acceptance**:
-    - Dashboard visible in CloudWatch console after `cdk deploy`
-    - All 6 widgets populated after processing 100 test requests (US-010 scenario 1)
-
----
-
-- [ ] **T-036** [P2] [US-010] CloudWatch Alarms — `—`
-      **Story**: US-010
-      **Priority**: P2
-      **Depends on**: T-035
-      **Implements**: FR-016, FR-018
-
-    CDK: Create alarms:
-    - Tombstone count increase > 0 in 5 min → SNS alert (US-010 scenario 2)
-    - API error rate > 5% → SNS alert
-    - Queue depth > 10,000 → SNS alert
-    - Pending row age > 5 minutes → SNS alert (US-010 scenario 3)
-
-    **Acceptance**:
-    - All 4 alarms created in CDK synth
-    - Tombstone alarm fires when new tombstones appear (US-010 scenario 2)
-
----
-
-- [ ] **T-037** [P2] [US-010] Operational Query Endpoint — `—`
-      **Story**: US-010
-      **Priority**: P2
-      **Depends on**: T-036
-      **Implements**: FR-016, FR-018
-
-    Create `GET /v1/foods/ops/queue` (authenticated, admin-scoped):
-    - Returns current queue depth, in-flight count, tombstone count
-    - `GET /v1/foods/ops/tombstones?limit=` — paginated tombstone rows with `attempts`, `last_error`
-    - `POST /v1/foods/ops/retry/{fdcId}` — flip `status='pending'` for a tombstone
-
-    **Acceptance**:
-    - Ops endpoint returns accurate counts
-    - Retry endpoint successfully re-queues a tombstone for reprocessing
-
----
-
-## Phase 9 — WebSocket Notifications [P3 — Deferred]
-
-- [ ] **T-038** [P3] [US-009] CDK: API Gateway WebSocket API — `—`
-      **Story**: US-009
-      **Priority**: P3
-      **Depends on**: T-033
-      **Implements**: FR-034
-
-    > **Deferred**: Implement only if polling UX (US-008) is validated as insufficient.
-
-    Create API Gateway WebSocket API (the one surface where a `$connect` **Lambda authorizer** is the right tool — reuses the shared Clerk-verify package; FR-050 cache rules apply here):
-    - `$connect` Lambda authorizer verifies the Clerk token (token via query param or `Sec-WebSocket-Protocol`, since browsers can't set `Authorization` on WS); reject → `403` (FR-041, FR-049)
-    - mid-connection `exp` → close; reconnect re-auth after the 10-min idle close
-    - Store connection IDs + authenticated `sub` in DynamoDB (`usda_ws_connections`); associate `fdcId` subscriptions with `sub` (drives no-broadcast targeting from `fetch_requesters`)
-
-    **Implements**: FR-034, FR-041, FR-049
-
-    **Acceptance**:
-    - `$connect` without a valid token → `403` (no connection); with a valid token → connection + `sub` stored
-    - `FoodDataReceived` push reaches only connections whose `sub` requested that `fdcId` (no broadcast)
-
----
-
-- [ ] **T-039** [P3] [US-009] WebSocket: Push Notification on Fetch Complete — `—`
-      **Story**: US-009
-      **Priority**: P3
-      **Depends on**: T-038
-      **Implements**: FR-034
-
-    Extend worker or EventBridge rule to push WebSocket notification:
-    - On `FoodFetchCompleted` event: look up subscribed connection IDs for `fdcId`
-    - Push `{ type: "food_ready", fdcId }` via `ApiGatewayManagementApi`
-    - Handle stale connections (410 Gone → delete from DynamoDB)
-
-    **Acceptance**:
-    - Connected client receives push within 60s of food being fetched (US-009 scenario 1)
-    - Stale connection cleaned up without error (US-009 scenario 3)
-
----
-
-## Phase 10 — Integration Tests
-
-- [ ] **T-040** [P1] [US-001] Integration Test: Cache Hit Path (US-001) — `—`
-      **Story**: US-001
-      **Priority**: P1
-      **Depends on**: T-011
-      **Implements**: FR-001, FR-002, FR-005, FR-006
-
-    Seed 5 known USDA foods in PostgreSQL with `fetch_status='fetched'`. Request each by `fdcId` and verify:
-    - 200 OK with complete nutritional data
-    - Sub-50ms latency
-    - No USDA API call made
-
-    **Acceptance**:
-    - All US-001 acceptance scenarios pass end-to-end
-
----
-
-- [ ] **T-041** [P1] [US-002] Integration Test: Cache Miss → Fetch (US-002) — `—`
-      **Story**: US-002
-      **Priority**: P1
-      **Depends on**: T-012, T-019
-      **Implements**: FR-003, FR-004, FR-011, FR-013, FR-024, FR-025
-
-    Request a valid `fdcId` that does not exist locally:
-    1. Verify `202 Accepted` returned immediately
-    2. Verify `fetch_queue` row created with `status='pending'`
-    3. Wait for worker to process
-    4. Re-request same `fdcId` → verify `200 OK` with full data
-    5. Verify no duplicate `fetch_queue` rows created on concurrent requests
-
-    **Acceptance**:
-    - All US-002 acceptance scenarios pass end-to-end
-    - Deduplication works under 10 concurrent requests
-
----
-
-- [ ] **T-042** [P1] [US-004] Integration Test: Batch + Deduplication (US-004) — `—`
-      **Story**: US-004
-      **Priority**: P1
-      **Depends on**: T-027, T-020
-      **Implements**: FR-012, FR-023, FR-024
-
-    Create a recipe with 15 ingredients where 10 are locally cached and 5 are unknown:
-    - Verify response includes 10 resolved + 5 pending
-    - Verify exactly 1 batch USDA API call made (not 5 individual calls)
-    - Verify 1 USDA call recorded against the rolling window for the batch
-
-    **Acceptance**:
-    - All US-004 acceptance scenarios pass end-to-end
-
----
-
-- [ ] **T-043** [P1] [US-005] Integration Test: Priority + Tombstone (US-005) — `—`
-      **Story**: US-005
-      **Priority**: P1
-      **Depends on**: T-018, T-022
-      **Implements**: FR-014, FR-015, FR-016, FR-017, FR-018
-
-    Test demand-weighted priority and failure recovery:
-    1. Enqueue `fdc_id=A` 50 times, `fdc_id=B` once → verify `A` processed first
-    2. Inject USDA 503 for `fdc_id=C` → verify 5 retry cycles with backoff → tombstone
-    3. Inject USDA 404 for `fdc_id=D` → verify immediate tombstone
-    4. Verify tombstone rows queryable via ops endpoint
-
-    **Acceptance**:
-    - All US-005 acceptance scenarios pass end-to-end
-
----
-
-- [ ] **T-044** [P2] [US-006] Integration Test: Search + Fuzzy (US-006) — `—`
-      **Story**: US-006
-      **Priority**: P2
-      **Depends on**: T-014
-      **Implements**: FR-008, FR-009, FR-010
-
-    Seed 100 foods into PostgreSQL with `search_vector` populated:
-    - Search "chicken breast" → verify relevant results ranked
-    - Search "avacado" → verify fuzzy match returns "Avocado, raw"
-    - Search non-existent term → verify empty result, no USDA call
-    - Verify all results within 200ms
-
-    **Acceptance**:
-    - All US-006 acceptance scenarios pass end-to-end
-
----
-
-- [ ] **T-045** [P2] [US-001] In-Process LRU Cache (Optional) — `—`
-      **Story**: US-001
-      **Priority**: P2
-      **Depends on**: T-010
-      **Implements**: FR-030 (in-process variant, no Redis)
-
-    Add an optional in-process LRU cache in the NestJS API process:
-    - Key format: `food:{fdcId}`
-    - Max 1,000 entries, 5-minute TTL
-    - Used for repeated lookups within a single request handler lifetime
-    - No shared cache infrastructure (no Redis)
-
-    **Acceptance**:
-    - Repeated lookup of same `fdcId` within 5 minutes served from memory
-    - Cache miss falls through to PostgreSQL
-    - No Redis infrastructure provisioned
-
----
-
-- [ ] **T-064** [P1] [US-001/002/004] E2E Harness: booted food-service + real Postgres — `packages/services/food-service/vitest.e2e.config.ts`
-      **Story**: US-001/US-002/US-004 · **Depends on**: T-010, T-012, T-017, T-019 · **Implements**: FR-001..FR-006, FR-011, FR-013, FR-014, FR-024 (E2E coverage)
-
-    Stand up a **true end-to-end** harness for the headless food API (the Phase 10 T-040–T-045 tests
-    are component/integration-level with stubs; this exercises the real wiring). Harness =
-    **LocalStack (Community tier) + Docker Postgres**, mirroring the user's Armoury pattern
-    (`infra/localstack/docker-compose.yml` at the repo root), runnable identically locally and in CI.
-    Mirror the existing `identity` / `identity-webhooks` e2e pattern (`test:e2e` script +
-    `vitest.e2e.config.ts`):
-    - **Docker Postgres** (the `postgres:16` service in `infra/localstack/docker-compose.yml`, a plain
-      container — the "Docker for RDS" decision, **not** LocalStack RDS), migrated to the
-      `kitchensink_food` schema from the Phase-1 ordered SQL. This is also the agreed local/test DB
-      strategy standing in for the deferred deploy-time migration runner (see `.forge-status.yml`
-      follow-up FU-MIGRATE).
-    - **LocalStack** (`localstack/localstack:4.4.0`, services
-      `secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm`; `events` = EventBridge) for the AWS
-      services food-service will exercise once they land. food-service has **no `@aws-sdk/*` runtime
-      deps today** (it only needs Postgres), so the LocalStack container is wired and ready but is not
-      exercised by the current E2E. **Community tier — no auth token** (every service here is
-      Community; the Pro-only RDS/ECS are avoided by design). No `LOCALSTACK_AUTH_TOKEN` needed locally
-      or in CI.
-    - **Booted Nest app** via `NestFactory.create(AppModule)` + `app.listen(0)` (HTTP via `fetch`;
-      supertest is not a repo dep). The full flow adds the real `FoodAuthGuard` with a test Clerk JWT
-      key, real controllers/services/DAOs, real `fetch_queue` + `pg_notify`, with the USDA HTTP client
-      mocked at the network boundary only.
-    - **Scenarios (Phases 2/3):** cache-hit `200` (no USDA call); cache-miss → `202` + `fetch_queue`
-      row + worker drains → re-request `200`; concurrent same-`fdcId` dedup (one row); batch per-item
-      partial; EventBridge fetch-completion fan-out asserted via LocalStack.
-    - Wire `npm run test:e2e --workspace=packages/services/food-service` and add it to CI (`_ci.yml`)
-      as a separate `e2e-food` job (not the default `test`), with both the Postgres and LocalStack
-      service containers.
-
-    **Foundation (in place now):** the compose file (`infra/localstack/docker-compose.yml`) + root
-    `localstack:up`/`localstack:down` scripts; the `e2e-food` CI job (Postgres + LocalStack services);
-    `vitest.e2e.config.ts` + `test:e2e` script; and `tests/e2e/health.e2e.test.ts`, which migrates the
-    Docker Postgres, boots the real Nest app, and asserts `GET /health` → 200 + end-to-end DB
-    reachability. The full API + EventBridge E2E flows fill in with Phases 2/3. **Checkbox stays
-    unticked — only the foundation exists.**
-
-    **Acceptance**:
-    - `npm run test:e2e --workspace=packages/services/food-service` boots the app against the Docker
-      Postgres and the cache-hit / cache-miss→fetch / dedup / batch / EventBridge scenarios pass green
-    - The e2e job runs in CI and is required on the food-service path
+- [ ] **T-191** [M] [Test-first: false] FU-MIGRATE — in-VPC migration-runner Lambda (mirrors identity-webhooks `migrate.ts`: VPC-attached, reaches private RDS, applies the Phase-1 ordered SQL against `kitchensink_food`, tracked in `schema_migrations`, invoked at deploy; wired to `FoodDbSecretArn`) — `packages/services/food-service/src/lambdas/migrate/` (ARCH-001)
+      **(deferred to deploy/release-readiness per the 2026-06-20 decision; phases build against Docker Postgres
+      until then.)**
+      **Acceptance**: the runner applies the 003 migrations against `kitchensink_food` over the NAT-less private
+      path; re-running is idempotent (tracked migrations skipped).
 
 ---
 
 ## Phase 11 — Performance & Availability
 
-- [ ] **T-062** [P2] [perf] Performance / load tests for SC-001/003/004/007 — `—`
-      **Story**: US-001/002/006 · **Depends on**: T-040 · **Implements**: SC-001, SC-003, SC-004, SC-007
-      Load-test harness validating the measurable success criteria the functional integration tests
-      don't cover: cache-hit p95 ≤ 50ms (SC-001), backfill `202`→available p95 ≤ 60s at queue depth
-      < 100 (SC-003), cache-hit rate ≥ 80% after 5,000 foods (SC-004), search p95 ≤ 200ms at 50,000
-      foods (SC-007). (SC-011 auth-under-flood is already covered by STP-013-B.)
-      **Acceptance**: each SC threshold measured and reported under representative load; regressions fail CI.
+- [ ] **T-195** [M] [Test-first: false] Performance / load tests for SC-001/003/004/007 — cache-hit p95 ≤ 50ms (SC-001), backfill `202`→`RESOLVED` p95 ≤ 60s at queue depth < 100 (SC-003), cache-hit rate ≥ 80% after 5,000 foods (SC-004), search p95 ≤ 200ms at 50,000 foods (SC-007) — `—` (SC-001, SC-003, SC-004, SC-007)
+      **Acceptance**: each SC threshold measured/reported under representative load; regressions fail CI.
 
-- [ ] **T-061** [P3 — Deferred] [infra] Multi-AZ upgrade of shared DB (SC-009) — `packages/infra/global/lib/platform/data-stack.ts`
-      **Story**: US-0/availability · **Depends on**: — · **Implements**: SC-009 (A-013)
-      Promote the shared `kitchensink-data-{stage}` instance to `multiAz: true` so SC-009's 99.9%
-      target becomes defensible. **Deferred to the GA/scale phase** — lean launch accepts the
-      single-AZ risk (A-013). This is a global-DataStack change affecting all consumers (identity +
-      food), so it is coordinated platform work, not food-only.
+- [ ] **T-196** [S] [Test-first: false] [P3 — Deferred] Multi-AZ upgrade of the shared `kitchensink-data-{stage}` instance (SC-009) — `packages/infra/global/lib/platform/data-stack.ts` (SC-009, A-013)
+      **Deferred to GA/scale** — lean launch accepts the single-AZ risk; platform-wide change (identity + food).
       **Acceptance**: `cdk diff` flips `multiAz` to true with a failover test plan; no data loss.
 
 ---
 
-## FR Coverage Audit
+## FR Coverage Audit (re-baselined — all 67 FRs: 53 numbered + FR-IDN-1..3 + FR-RES-1..3 + FR-MRG-1..4 + FR-ADP-1..3)
 
-| FR     | Covered By          | Status                                  |
-| ------ | ------------------- | --------------------------------------- |
-| FR-001 | T-010, T-011        | ✅                                      |
-| FR-002 | T-011, T-015        | ✅                                      |
-| FR-003 | T-012               | ✅                                      |
-| FR-004 | T-012               | ✅                                      |
-| FR-005 | T-011               | ✅                                      |
-| FR-006 | T-011               | ✅                                      |
-| FR-007 | T-013               | ✅                                      |
-| FR-008 | T-014, T-023        | ✅                                      |
-| FR-009 | T-014               | ✅                                      |
-| FR-010 | T-014               | ✅                                      |
-| FR-011 | T-012               | ✅                                      |
-| FR-012 | T-027, T-028        | ✅                                      |
-| FR-013 | T-012, T-028        | ✅                                      |
-| FR-014 | T-016               | ✅                                      |
-| FR-015 | T-018, T-029        | ✅                                      |
-| FR-016 | T-022, T-037        | ✅                                      |
-| FR-017 | T-016, T-017, T-018 | ✅                                      |
-| FR-018 | T-017, T-021, T-024 | ✅                                      |
-| FR-019 | T-002, T-024        | ✅                                      |
-| FR-020 | T-024, T-025        | ✅                                      |
-| FR-021 | T-024               | ✅                                      |
-| FR-022 | T-017               | ✅                                      |
-| FR-023 | T-003, T-019, T-020 | ✅                                      |
-| FR-024 | T-019, T-020        | ✅                                      |
-| FR-025 | T-011, T-019, T-022 | ✅ (incl. 30d tombstone TTL re-attempt) |
-| FR-026 | T-022               | ✅                                      |
-| FR-027 | T-022               | ✅                                      |
-| FR-028 | T-004, T-005        | ✅                                      |
-| FR-029 | T-005, T-008        | ✅                                      |
-| FR-030 | T-045               | ✅ (in-process, no Redis)               |
-| FR-031 | T-063, T-030, T-032 | ✅ (SWR on-read + scheduled sweep)      |
-| FR-032 | T-031               | ✅                                      |
-| FR-033 | T-013               | ✅                                      |
-| FR-034 | T-038, T-039        | ✅ (deferred)                           |
-| FR-035 | T-033               | ✅                                      |
+| FR       | Covered By                                   | Status                                            |
+| -------- | -------------------------------------------- | ------------------------------------------------- |
+| FR-IDN-1 | T-100, T-105, T-140                          | ✅                                                |
+| FR-IDN-2 | T-121                                        | ✅                                                |
+| FR-IDN-3 | T-100, T-101                                 | ✅                                                |
+| FR-001   | T-130, T-131                                 | ✅                                                |
+| FR-002   | T-105, T-131                                 | ✅                                                |
+| FR-003   | T-131                                        | ✅                                                |
+| FR-004   | T-131                                        | ✅                                                |
+| FR-005   | T-105, T-140                                 | ✅                                                |
+| FR-006   | T-131, T-140                                 | ✅                                                |
+| FR-007   | T-132                                        | ✅                                                |
+| FR-RES-1 | T-133                                        | ✅                                                |
+| FR-RES-2 | T-142, T-163                                 | ✅                                                |
+| FR-RES-3 | T-142, T-162                                 | ✅                                                |
+| FR-008   | T-104, T-106, T-134, T-180                   | ✅                                                |
+| FR-009   | T-134                                        | ✅                                                |
+| FR-010   | T-104, T-134                                 | ✅                                                |
+| FR-011   | T-140, T-141                                 | ✅                                                |
+| FR-012   | T-143, T-047                                 | ✅                                                |
+| FR-013   | T-105, T-140                                 | ✅                                                |
+| FR-014   | T-101, T-109, T-141                          | ✅                                                |
+| FR-015   | T-104, T-109, T-151                          | ✅                                                |
+| FR-016   | T-153, T-184                                 | ✅                                                |
+| FR-017   | T-141, T-150                                 | ✅                                                |
+| FR-018   | T-109, T-122, T-150, T-153                   | ✅                                                |
+| FR-019   | T-002, T-110, T-122, T-152                   | ✅                                                |
+| FR-020   | T-110, T-122                                 | ✅                                                |
+| FR-021   | T-122                                        | ✅                                                |
+| FR-022   | T-150                                        | ✅                                                |
+| FR-023   | T-003, T-121, T-155                          | ✅                                                |
+| FR-024   | T-121, T-154                                 | ✅                                                |
+| FR-025   | T-002, T-153, T-172                          | ✅ (incl. 30d tombstone TTL re-attempt)           |
+| FR-026   | T-122, T-153                                 | ✅                                                |
+| FR-027   | T-153                                        | ✅                                                |
+| FR-028   | T-100, T-101, T-102, T-105–T-108, T-161      | ✅                                                |
+| FR-029   | T-104, T-108, T-161                          | ✅                                                |
+| FR-030   | T-186 (deferred Redis variant) / in-proc LRU | ⚠️ deferred (no Redis at launch; in-process only) |
+| FR-031   | T-163, T-171                                 | ✅ (change-driven, not age-based)                 |
+| FR-032   | T-170, T-171                                 | ✅                                                |
+| FR-033   | T-131, T-132                                 | ✅                                                |
+| FR-034   | T-165, T-185, T-186                          | ✅ (deferred)                                     |
+| FR-MRG-1 | T-152, T-154, T-162                          | ✅                                                |
+| FR-MRG-2 | T-120, T-160                                 | ✅                                                |
+| FR-MRG-3 | T-107, T-160                                 | ✅                                                |
+| FR-MRG-4 | T-120, T-152                                 | ✅                                                |
+| FR-ADP-1 | T-120, T-121, T-152                          | ✅                                                |
+| FR-ADP-2 | T-121, T-164, T-171                          | ✅                                                |
+| FR-ADP-3 | T-003, T-121, T-164                          | ✅                                                |
+| FR-035   | T-033                                        | ✅                                                |
+| FR-036   | T-033, T-046                                 | ✅                                                |
+| FR-037   | T-033                                        | ✅                                                |
+| FR-038   | T-033                                        | ✅                                                |
+| FR-039   | T-048, T-145, T-184                          | ✅                                                |
+| FR-040   | T-033                                        | ✅                                                |
+| FR-041   | T-185, T-186                                 | ✅ (deferred)                                     |
+| FR-042   | T-002, T-033                                 | ✅                                                |
+| FR-043   | T-049, T-151                                 | ✅                                                |
+| FR-044   | T-050, T-109, T-151                          | ✅                                                |
+| FR-045   | T-051, T-143                                 | ✅                                                |
+| FR-046   | T-052, T-144, T-183                          | ✅                                                |
+| FR-047   | T-047, T-057                                 | ✅                                                |
+| FR-048   | T-053, T-141                                 | ✅                                                |
+| FR-049   | T-185                                        | ✅ (deferred)                                     |
+| FR-050   | T-033, T-185                                 | ✅                                                |
+| FR-051   | T-048, T-131, T-142                          | ✅                                                |
+| FR-052   | T-054                                        | ✅                                                |
+| FR-053   | T-033, T-046                                 | ✅                                                |
 
-**Gap**: None. All **53 FRs** trace to at least one task. FR-030 maps to T-045 (in-process LRU) because the new architecture explicitly removes Redis; the functional intent (cache acceleration) is preserved without ElastiCache infrastructure.
+**Gap**: None. All functional requirements trace to ≥1 task. **FR-030** is intentionally not built as
+ElastiCache Redis at launch (A-002) — the new architecture removes Redis; the cache-acceleration intent is met
+by an optional in-process LRU (plan §6) and the deferred Redis variant rides with T-186/the limiter's deferred
+sorted-set form.
 
-**Auth coverage (FR-035–FR-053, added 2026-06-19 re-plan):**
+**Success-criteria coverage:** SC-001/003/004/007 → T-195; SC-002 → T-110/T-122/T-181; SC-005 → T-152/T-155;
+SC-006 → T-153/T-181/T-183; SC-008 → T-100/T-107; SC-009 → T-054/T-196; SC-010 → T-033; SC-011 → T-054;
+SC-012 → T-049/T-151; SC-013 → T-100/T-108/T-161.
 
-| FR                                     | Task(s)                                                                                       |
-| -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| FR-035, FR-036, FR-037, FR-038, FR-040 | T-033 (FoodAuthGuard middleware) + T-046 (shared verify pkg)                                  |
-| FR-039, FR-051                         | T-048 (scopes + `403` + status precedence)                                                    |
-| FR-041, FR-049                         | Phase 9 (T-038/T-039 — `$connect` authorizer + per-`sub` targeting, deferred)                 |
-| FR-042                                 | T-033 / config                                                                                |
-| FR-043                                 | T-049 (per-`sub` demotion, no quota/`429`) · FR-044 → T-050 · FR-045 → T-051 · FR-046 → T-052 |
-| FR-047                                 | T-047 (M2M) · FR-048 → T-053 · FR-052 → T-054 · FR-053 → T-046                                |
-| migrations                             | T-056 (`fetch_requesters`, user-erasure — no quota tables)                                    |
+**Test-first tasks (red-gate, 42):** T-003, T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054, T-100,
+T-101, T-102, T-103, T-104, T-105, T-106, T-107, T-108, T-109, T-110, T-120, T-121, T-122, T-130, T-131,
+T-133, T-134, T-140, T-141, T-142, T-143, T-144, T-151, T-152, T-153, T-160, T-161, T-162, T-163, T-171,
+T-172, T-185.
 
-Test-first tasks: T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054 (auth `401`/`403`, demotion fairness (no `429`), azp rejection, no-broadcast WS, one-user-can't-starve-others).
+---
+
+## Follow-ups (carried from `.forge-status.yml`)
+
+- **FU-MIGRATE** — in-VPC migration-runner Lambda → **T-191** (deferred to deploy/release-readiness; build on Docker Postgres until then).
+- **FU-INGREDIENTS** — `ingredients ↔ food(id)` is a **soft `food_id text` column owned by feature 001** (no cross-DB FK; app-layer validation). Not a 003 task.
+- **FU-EVENTNAME** — harmonize the completion event name (`FoodDataReceived` vs `FoodFetchCompleted`) across spec/plan/CDK/v-model before the worker emits it (T-165).
+- **FU-ESBUILD** — esbuild bundling for the food Lambdas (change-refresh T-170, search-indexer T-180, migrate T-191), like identity-webhooks.
+- **FU-LOCALSTACK-E2E** — E2E foundation in place (LocalStack Community + Docker Postgres); the re-baselined id-keyed AWS-service flows land with T-190 as Phases 3–6 complete.
+
+---
+
+## Gate items needing your judgment (plan §9)
+
+1. **Auto-resolve confidence threshold (§9-1)** — recommendation: auto-`RESOLVED` iff exactly one surviving
+   candidate after pre-merge dedup (single hit, or hits collapsing on normalized-name exact match + nutrient
+   agreement within **±10%** on energy/protein). The ±10% tolerance is a product call (T-162,
+   `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE`).
+2. **`UNRESOLVED` TTL (§9-2)** — recommendation: soft 30-day TTL via `food.updated_at`, swept to `NOT_FOUND` by
+   the change-refresh cron (T-172). Confirm the 30-day default.
+3. **Source priority ranking (§9-5)** — USDA hard-coded highest now (`['usda']` static config); promote to a
+   DB-backed ranking only when a second source is wired (T-120). No schema change at launch.
+4. Async candidate search (§9-3) and change-detection via `item_version` (§9-4) are resolved in-plan (async +
+   `food_sources.item_version`) — no open decision, recorded for traceability.

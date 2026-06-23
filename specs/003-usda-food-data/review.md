@@ -111,6 +111,32 @@ This feature was **retroactively bootstrapped** — the SpecKit + V-Model artifa
 
 ---
 
+### Revision 2 — Source-agnostic re-baseline (2026-06-22)
+
+**Author**: Product Forge revalidation (`/speckit-product-forge-revalidate`)
+**Trigger**: The 003 design was re-baselined to a **source-agnostic** model (brainstorm 2026-06-21 + `/ce-doc-review` walk-through); `spec.md`, `plan.md`, `tasks.md`, and all 12 v-model artifacts were regenerated. Revalidation found the `product-spec/` PRD still described the **old USDA-coupled / `fdcId` / cache-hit** design (drift). User chose **Revise — re-baseline the PRD**.
+
+**Changes applied:**
+
+| File                                                          | Change Type      | Description                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `product-spec/product-spec.md`                                | Modify (rewrite) | Vision/principles/epics/stories/API/metrics → source-agnostic; US-001 cache-hit → read-by-`id`; US-002 → add-by-name; **added US-005a** candidate disambiguation + resolve; US-005 demand-weighting preserved (re-keyed to food `id`); API surface + metrics reframed |
+| `product-spec/user-journey.md`                                | Modify (rewrite) | Journeys → add-by-name → PENDING → fan-out/merge → UNRESOLVED→candidate-pick→RESOLVED; per-source budget; change-driven refresh                                                                                                                                       |
+| `product-spec/metrics.md`                                     | Modify (rewrite) | Cache-hit-rate/p99-by-`fdcId` KPIs → resolution accuracy, add-by-name→RESOLVED time, per-source budget adherence, golden-record completeness/provenance                                                                                                               |
+| `product-spec/wireframes/*`                                   | Modify           | food-search/ingredient-picker/food-detail/nutrition-panel/food-substitution reframed to golden-record + lifecycle + per-field provenance                                                                                                                              |
+| `product-spec/wireframes/candidate-resolution.md`             | **Add**          | NEW screen: the UNRESOLVED candidate-pick / resolve flow                                                                                                                                                                                                              |
+| `product-spec/wireframes/README.md`, `product-spec/README.md` | Modify           | Index + FR-range + screen list updated; titles → "Source-Agnostic Food Data Integration"                                                                                                                                                                              |
+
+**Decisions recorded:** `fdcId`/USDA confined to the adapter boundary everywhere; the candidate-resolution screen models single-select with a "none match" escape (multi-candidate merge flagged for UX review); new-KPI numeric thresholds (UNRESOLVED ≤10%, NOT_FOUND ≤5%) are reasonable defaults derived from SC-008, not separately pinned.
+
+**Open questions:** Q-007 (branded/generic disambiguation) folded into the candidate-resolution flow; the spec-resolved design Qs (auto-RESOLVE rule, UNRESOLVED 30-day TTL) noted as resolved in the re-baselined spec/plan.
+
+**Preserved verbatim-in-intent:** US-0 auth (FR-035..053); US-005 distinct-requester demand + fairness-by-demotion + Postgres-queue; the persona set; the out-of-scope items.
+
+**Approval status**: ⏳ Awaiting reviewer confirmation of Revision 2.
+
+---
+
 ## Pending Reviewer Questions
 
 When the user reviews, please confirm or correct the following inferred decisions:

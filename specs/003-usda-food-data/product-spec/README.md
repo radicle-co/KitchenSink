@@ -1,7 +1,7 @@
-# Product Spec: USDA Food Data Integration
+# Product Spec: Source-Agnostic Food Data Integration
 
 **Branch**: `003-usda-food-data`
-**Date**: 2026-05-09
+**Date**: 2026-05-09 (re-baselined 2026-06-22 to the source-agnostic model)
 **Status**: Draft
 **Source**: [spec.md](../spec.md)
 
@@ -15,7 +15,7 @@ This directory contains the Product Forge v1.3.0 product specification artifacts
 | ------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Product Spec  | [product-spec.md](./product-spec.md)  | Vision, personas, epics, MoSCoW story map with FR traceability, and out-of-scope list. The single source of truth for v1 product scope interpretation.                                                        |
 | User Journeys | [user-journey.md](./user-journey.md)  | End-to-end flows for three personas covering P1/P2/P3 stories, plus cross-persona edge cases for pending status, queue delay, and not-found handling. Includes Mermaid sequence diagrams and coverage matrix. |
-| Wireframes    | [wireframes/](./wireframes/README.md) | ASCII conceptual wireframes for five domain screens: food search, food detail, ingredient picker, nutrition panel, and food substitution. Each wireframe annotates FR coverage.                               |
+| Wireframes    | [wireframes/](./wireframes/README.md) | ASCII conceptual wireframes for six domain screens: food search, food detail, ingredient picker, candidate resolution, nutrition panel, and food substitution. Each wireframe annotates FR coverage.          |
 | Metrics       | [metrics.md](./metrics.md)            | Per-story measurable outcomes for Must Have stories. Distinct from `research/metrics-roi.md`, which covers portfolio-level ROI and system-level SLO framing.                                                  |
 
 ---
@@ -26,7 +26,7 @@ This directory contains the Product Forge v1.3.0 product specification artifacts
 - [user-journey.md](./user-journey.md) — end-to-end persona flows
 - [wireframes/](./wireframes/README.md) — conceptual UI structure
 - [metrics.md](./metrics.md) — per-story product outcomes
-- [../spec.md](../spec.md) — canonical FR ID reference (FR-001..FR-035)
+- [../spec.md](../spec.md) — canonical FR ID reference (FR-001..FR-053 + FR-IDN/RES/MRG/ADP groups)
 - [../plan.md](../plan.md) — architecture and implementation sequencing
 - [../v-model/requirements.md](../v-model/requirements.md) — REQ-NNN atomic decomposition
 

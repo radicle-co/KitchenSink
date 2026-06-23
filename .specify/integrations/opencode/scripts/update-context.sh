@@ -25,4 +25,6 @@ if [ -z "${REPO_ROOT:-}" ]; then
   fi
 fi
 
-exec "$REPO_ROOT/.specify/scripts/bash/update-agent-context.sh" opencode
+# AGENTS.md is a pointer to CLAUDE.md (single source of truth), so refresh CLAUDE.md
+# instead of regenerating AGENTS.md and reintroducing duplicated content.
+exec "$REPO_ROOT/.specify/scripts/bash/update-agent-context.sh" claude

@@ -20,4 +20,6 @@ if (-not $repoRoot -or -not (Test-Path (Join-Path $repoRoot '.specify'))) {
     }
 }
 
-& "$repoRoot/.specify/scripts/powershell/update-agent-context.ps1" -AgentType opencode
+# AGENTS.md is a pointer to CLAUDE.md (single source of truth), so refresh CLAUDE.md
+# instead of regenerating AGENTS.md and reintroducing duplicated content.
+& "$repoRoot/.specify/scripts/powershell/update-agent-context.ps1" -AgentType claude

@@ -287,9 +287,33 @@ Maps to spec US-2 acceptance scenarios.
 
 ---
 
-#### Tier 2 — REQ-050 / REQ-024 / REQ-IF-005: Background fan-out resolves a confident add to `RESOLVED` (US-2 AS-2, AS-3)
+#### Tier 2 — REQ-005 / REQ-025 / REQ-028a: Legal lifecycle transitions — terminal-row reactivation, no `23505` (US-2)
 
-**AT-050-A** — The worker fans out by name, assembles a golden record, and the food becomes readable as `200`
+**AT-028a-A** — Re-adding a terminal-state food past its TTL reactivates it to `PENDING` rather than colliding on the normalized-name unique key
+
+**Technique**: State Transition / Fault Injection
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-028a-A1** (AT-LC-B — `NOT_FOUND` → `PENDING` after TTL)
+
+- **Given** a food in `status = 'NOT_FOUND'` whose tombstone age exceeds the 30-day TTL
+- **When** an authenticated client re-adds that normalized name
+- **Then** the existing row is **reactivated in place** to `status = 'PENDING'` and re-enqueued — **no** new row
+  and **no** `23505` unique-name violation; the lifecycle follows `NOT_FOUND → PENDING` (FR-028a)
+
+**ATS-028a-A2** (AT-LC-A / AT-LC-E — `FAILED` → `PENDING` retry on re-add)
+
+- **Given** a food in `status = 'FAILED'` (its source fan-out exhausted the retry budget)
+- **When** an authenticated client re-adds that normalized name
+- **Then** the existing row is **reactivated in place** to `status = 'PENDING'` and re-enqueued — `FAILED → PENDING`,
+  no duplicate row, no `23505` (FR-028a)
+
+---
+
+#### Tier 2 — REQ-050 / REQ-050a / REQ-024 / REQ-IF-005: Background fan-out auto-resolves a single-survivor add to `RESOLVED` (US-2 AS-2, AS-3)
+
+**AT-050-A** (AT-MRG5-A) — The worker fans out by name, and when exactly one candidate survives normalized-name exact match it assembles a golden record and the food becomes readable as `200`
 
 **Technique**: Interface Contract Testing
 
@@ -297,12 +321,12 @@ Maps to spec US-2 acceptance scenarios.
 
 **ATS-050-A1**
 
-- **Given** a `202 Accepted` + `id` was returned for an add-by-name, and the fan-out finds the item in
-  exactly one source (or in multiple sources that confidently collapse to one)
+- **Given** a `202 Accepted` + `id` was returned for an add-by-name, and after pre-merge dedup **exactly one**
+  candidate survives normalized-name exact match (one source hit, or duplicates of the same logical item)
 - **When** the Fargate consumer worker drains the `fetch_queue` row keyed on that `id`
 - **Then** it fans out across all wired source adapters by name, fetches from each source that has the item,
   assembles the golden record, stores it in PostgreSQL, sets `status = 'RESOLVED'`, records the
-  `food_sources` crosswalk row, removes the row from the pending set, and emits a `FoodDataReceived` event
+  `food_sources` crosswalk row, removes the row from the pending set, and emits a `FoodFetchCompleted` event
   carrying the `id`
 
 **ATS-050-A2**
@@ -313,9 +337,9 @@ Maps to spec US-2 acceptance scenarios.
 
 ---
 
-#### Tier 2 — REQ-025 / REQ-016: Fan-out finds no source → `NOT_FOUND` tombstone (US-2 AS-5, US-5 AS-6)
+#### Tier 2 — REQ-025 / REQ-050a / REQ-016: Fan-out with 0 surviving candidates → `NOT_FOUND` tombstone (US-2 AS-5, US-5 AS-6)
 
-**AT-025-A** — Confirmed-absent food is tombstoned `NOT_FOUND`, then re-attemptable after the TTL
+**AT-025-A** (AT-MRG5-C) — Confirmed-absent food (0 survivors) is tombstoned `NOT_FOUND`, then re-attemptable after the TTL
 
 **Technique**: Fault Injection
 
@@ -338,9 +362,9 @@ Maps to spec US-2 acceptance scenarios.
 
 ---
 
-#### Tier 2 — REQ-050 / REQ-048: Fan-out yields multiple candidates → `UNRESOLVED` (US-2 AS-6)
+#### Tier 2 — REQ-050 / REQ-050a / REQ-048: Fan-out with >1 surviving candidate → `UNRESOLVED` (US-2 AS-6)
 
-**AT-050-B** — Ambiguous fan-out sets `UNRESOLVED` and surfaces a candidate list
+**AT-050-B** (AT-MRG5-B) — Ambiguous fan-out sets `UNRESOLVED` and persists the surviving candidate set
 
 **Technique**: Equivalence Partitioning
 
@@ -348,10 +372,12 @@ Maps to spec US-2 acceptance scenarios.
 
 **ATS-050-B1**
 
-- **Given** an add-by-name whose fan-out returns multiple candidates that cannot be confidently collapsed
+- **Given** an add-by-name whose fan-out returns **more than one** candidate surviving normalized-name exact
+  match (no nutrient tolerance; bias toward `UNRESOLVED`)
 - **When** the worker finishes (having merged as far as it is confident, REQ-048)
-- **Then** it sets the food `status = 'UNRESOLVED'` and surfaces the residual candidate list for the user to
-  pick (handed off to US-2a); the food is **not** auto-blended across the ambiguous candidates
+- **Then** it sets the food `status = 'UNRESOLVED'` and persists the surviving candidates into the
+  `food_candidates` table (`UNIQUE(food_id, source, external_key)`) for the user to pick (handed off to US-2a);
+  the food is **not** auto-blended across the ambiguous candidates
 
 ---
 
@@ -373,10 +399,12 @@ rejecting any pick that doesn't belong to my food. Maps to spec US-2a acceptance
 
 **ATS-048-A1**
 
-- **Given** a food with `status = 'UNRESOLVED'`
+- **Given** a food with `status = 'UNRESOLVED'` whose surviving candidates are persisted in the
+  `food_candidates` table (`UNIQUE(food_id, source, external_key)`)
 - **When** an authenticated client sends `GET /v1/foods/{id}/candidates`
-- **Then** the response is `200 OK` with the candidate list; each candidate carries its `source` and that
-  source's item key (`externalKey`) — and **no** raw source payload and no `fdcId` field is exposed (REQ-046)
+- **Then** the response is `200 OK` with the candidate list read from `food_candidates`; each candidate carries
+  its `source` and that source's item key (`externalKey`) — and **no** raw source payload and no `fdcId` field
+  is exposed (REQ-046)
 
 ---
 
@@ -390,11 +418,32 @@ rejecting any pick that doesn't belong to my food. Maps to spec US-2a acceptance
 
 **ATS-049-A1**
 
-- **Given** an `UNRESOLVED` food and a candidate drawn from **its own** candidate set
+- **Given** an `UNRESOLVED` food and a candidate drawn from **its own** candidate set (whose `food_candidates`
+  row carries only `source`/`external_key`/`name`/`summary` — no nutrient/portion payload)
 - **When** an authenticated client sends `PATCH /v1/foods/{id}` with `{"candidateIds": ["<candidate>"]}`
-- **Then** the system validates the candidate belongs to this food, merges it into the golden record per the
-  REQ-051 merge rules, moves the food to `status = 'RESOLVED'`, and stores the user's pick as ordinary
-  provenance; a subsequent `GET /v1/foods/{id}` returns `200 OK`
+- **Then** the system validates the candidate belongs to this food's `food_candidates` set, **re-fetches the
+  picked candidate's full payload from its source by `external_key`** (a budgeted per-source call recorded
+  against the rolling-window ledger), merges the re-fetched `CanonicalCandidate` into the golden record per the
+  REQ-051 merge rules, moves the food to `status = 'RESOLVED'`, stores the user's pick as ordinary provenance,
+  and **clears** the `food_candidates` rows; a subsequent `GET /v1/foods/{id}` returns `200 OK` with the merged
+  nutrients/portions present
+
+**ATS-049-A3** (re-fetch is required and budgeted — golden record carries source-fetched nutrients)
+
+- **Given** an `UNRESOLVED` food whose `food_candidates` rows hold no nutrient/portion data
+- **When** an authenticated client resolves it with a valid in-set candidate pick
+- **Then** the source adapter's `fetchByKey` is invoked for the picked candidate and the call is counted against
+  the per-source rolling-window budget (the resolve is never `429`'d / shed, but it does consume budget); if the
+  re-fetch fails the resolve aborts with `SourceApiError` and the food remains `UNRESOLVED` (status unchanged,
+  the user may retry the pick)
+
+**ATS-049-A2** (AT-LC-C — idempotent no-op on an already-RESOLVED food)
+
+- **Given** the food is already `status = 'RESOLVED'` (its `food_candidates` set already cleared)
+- **When** an authenticated client re-sends `PATCH /v1/foods/{id}` with a candidate selection
+- **Then** the response is `200 OK` returning the current `RESOLVED` state as an **idempotent no-op** — no
+  re-merge, no provenance rewrite, and the prior (possibly manual) pick is preserved (resolve is
+  UNRESOLVED-only + idempotent, FR-028a)
 
 ---
 
@@ -413,6 +462,31 @@ rejecting any pick that doesn't belong to my food. Maps to spec US-2a acceptance
 - **When** an authenticated client sends `PATCH /v1/foods/{A}` selecting that candidate
 - **Then** the request is rejected with `400`/`409`; food `A`'s `status` is unchanged (still `UNRESOLVED`);
   no cross-food contamination occurs and no golden record is mutated
+
+---
+
+#### Tier 2 — REQ-025a: `UNRESOLVED` candidate-set 30-day TTL — food kept, re-fan-out after expiry (US-2a)
+
+**AT-025a-A** — An `UNRESOLVED` food is kept until a human picks; its candidate set expires after 30 days and the next add-by-name re-fans-out
+
+**Technique**: Fault Injection / Equivalence Partitioning
+
+##### Tier 3 — BDD Scenarios
+
+**ATS-025a-A1** (candidate set past TTL → re-fan-out, food kept)
+
+- **Given** an `UNRESOLVED` food whose `food_candidates` set is older than the 30-day TTL (`created_at` past
+  expiry)
+- **When** an authenticated client re-adds that food by name
+- **Then** the food **stays `UNRESOLVED`** (it is **not** swept to `NOT_FOUND`) and exactly one re-fan-out is
+  enqueued against the normal per-source rolling-window budget, refreshing the candidate set (mirrors the
+  NOT_FOUND 30-day TTL pattern)
+
+**ATS-025a-A2** (human pick before expiry wins)
+
+- **Given** the same `UNRESOLVED` food **within** the candidate-set TTL
+- **When** the client `PATCH`-resolves an in-set candidate before expiry
+- **Then** the food moves to `RESOLVED` and **no** re-fan-out occurs — a human pick before expiry wins (REQ-025a)
 
 ---
 
@@ -820,8 +894,10 @@ banned. Maps to spec US-3 and REQ-019/REQ-020/REQ-021/REQ-026.
 ### Tier 1 — Feature/Epic: Change-Driven Data Refresh (US-7)
 
 **User Goal**: As a Commise operator, I want refresh to update a field **only** when its originating source
-item changed upstream — never blindly re-blending and never overwriting a human's manual pick. Maps to spec
-US-7 and REQ-031/REQ-032/REQ-053.
+item changed upstream — never blindly re-blending and never overwriting a human's manual pick. Refresh runs as
+a **low-priority Fargate scheduled task** (idle-drain, yields to live demand; ADR-0004 keeps it off the NAT
+path — not a VPC Lambda), re-enqueuing affected foods via the ordinary `enqueue(food_id, 'svc_change_refresh')`
+path on a budget-bounded cadence. Maps to spec US-7 and REQ-031/REQ-032/REQ-053.
 
 ---
 
@@ -857,13 +933,14 @@ US-7 and REQ-031/REQ-032/REQ-053.
 
 ##### Tier 3 — BDD Scenarios
 
-**ATS-031-B1**
+**ATS-031-B1** (AT-LC-D — refresh does not clobber a manual pick)
 
 - **Given** a field the user manually resolved via US-2a (stored as ordinary provenance), whose originating
   external item is unchanged upstream
 - **When** the refresh runs
 - **Then** the user's value is preserved — it is just a stored value, and only its originating external item
-  changing can move it
+  changing can move it (the manual-pick preservation invariant of FR-028a; verified at the unit/integration
+  tiers by UTP-006-E and ITP-014-D)
 
 **ATS-031-B2**
 
@@ -994,15 +1071,15 @@ mechanics — networkless verify, load-shed — are covered by the System Test P
 
 - **Given** two authenticated WebSocket connections, where only `sub` `A` requested food `id` (recorded in
   the `fetch_requesters` subscription set) and `sub` `B` did not
-- **When** a `FoodDataReceived` notification for that `id` is pushed
+- **When** a `FoodFetchCompleted` notification for that `id` is pushed
 - **Then** the notification is delivered only to `A`'s connection; `B`'s connection receives nothing (no
   broadcast to connections that did not request that food `id`)
 
 ---
 
-#### Tier 2 — REQ-039: Per-`sub` fairness by demotion — accepted (`202`), demoted to back, no `429` (US-0 AS-9)
+#### Tier 2 — REQ-039 / REQ-040b: Per-`sub` fairness by demotion + near-ceiling flood-shed — no `429` (US-0 AS-9)
 
-**ATP-008-F** — One user cannot starve the shared per-source budget for others (demotion, not rejection)
+**ATP-008-F** — One user cannot starve the shared per-source budget for others (multi-requester demotion + near-ceiling `503` flood-shed, not `429`)
 
 **Technique**: Boundary Value Analysis
 
@@ -1010,13 +1087,27 @@ mechanics — networkless verify, load-shed — are covered by the System Test P
 
 **ATS-041-F1**
 
-- **Given** an authenticated user with more than 50 items already pending in the `fetch_queue`
+- **Given** an authenticated user all of whose pending foods have more than 50 items already pending in the `fetch_queue`
 - **When** they trigger another add-by-name for an unknown food
 - **Then** the request is still **accepted** (`202 Accepted`, **no `429`** and no rejection); the fetch is
   enqueued but the requester's queued items are ranked to the **back** of the priority order; concurrently a
   different authenticated user's add continues to be served from spare capacity (demotion protects users from
   each other); when the heavy user's pending count later drops below 50, their items are dynamically
   re-promoted to normal priority (priority is computed at drain time from live state)
+
+**ATS-041-F2** (AT-043a-A — multi-requester food with one under-threshold requester is not demoted)
+
+- **Given** a food requested by two distinct `sub`s — a heavy `sub` (pending > 50) and a light `sub` (pending < 50)
+- **When** the drain-time scorer evaluates that food
+- **Then** the food is **not** demoted — a food is demoted only when **every** one of its requesters exceeds the
+  50-pending threshold; one under-threshold requester keeps it at normal priority (FR-043a)
+
+**ATS-041-F3** (AT-044b-A — near-ceiling flood-shed with `503`, never `429`)
+
+- **Given** the global rolling-window budget is near its ceiling and one `sub` is flooding **NEW** add-by-name enqueues
+- **When** that `sub` submits further NEW enqueues near the ceiling
+- **Then** its NEW enqueues are shed first with `503` (Retry-After) to preserve headroom for other users, while
+  reads and `PATCH`-resolves from any user are **never** shed and **never** `429` (FR-043b)
 
 ---
 
@@ -1152,7 +1243,7 @@ and US-4 AS-3.
 - **Then** it maps `fdcId → external_key`, USDA nutrients → `food_nutrients` at per-100g basis, USDA portions
   → `food_portions`; validates/sanitizes the mapped values (REQ-055); on a confident merge the food is
   upserted `status = 'RESOLVED'`, the `food_sources` crosswalk row is recorded (`UNIQUE(source, external_key)`),
-  the `fetch_queue` row is resolved, and a `FoodDataReceived` event is emitted — with **no verbatim source
+  the `fetch_queue` row is resolved, and a `FoodFetchCompleted` event is emitted — with **no verbatim source
   payload retained**
 
 ---
@@ -1292,130 +1383,136 @@ rate-limit, data fidelity, and reliability targets so the feature is safe to shi
 
 ## Acceptance Criteria per REQ
 
-| REQ                  | Pre-condition                                                                       | Success Condition                                                                                                                                                                          | Acceptance Test Technique     |
-| -------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
-| REQ-001              | Food exists locally; read by `id`                                                   | `200 OK`/`202`/`404` per `status`; zero outbound calls to any external source during the request                                                                                           | Interface Contract Testing    |
-| REQ-002              | Food exists locally with `status = 'RESOLVED'`                                      | `200 OK`; body contains `id`, `name`/`description`, normalized calories/protein/carbs/fat, micronutrients, per-field provenance; no `fdcId`                                                | Equivalence Partitioning      |
-| REQ-003              | Food exists locally with `status = 'PENDING'` or `'UNRESOLVED'`                     | `202 Accepted` with `{"status": <PENDING\|UNRESOLVED>, "id": <id>, "estimatedWaitSeconds": <n>}`                                                                                           | Equivalence Partitioning      |
-| REQ-004              | Food is `NOT_FOUND`/`FAILED`, or no row exists                                      | `404 Not Found`; lifecycle `status` still retrievable for an existing row; no fetch enqueued                                                                                               | Equivalence Partitioning      |
-| REQ-005              | `POST /v1/foods` with a new name / a name in flight                                 | `202 Accepted` + new `id` (≤100ms); concurrent same-normalized-name adds collapse to one row + `id`; empty/whitespace name → `400`                                                         | Equivalence / Concurrency     |
-| REQ-006              | API receives a malformed `id` or empty `POST` name                                  | `400 Bad Request`; no row created, nothing enqueued                                                                                                                                        | Boundary Value Analysis       |
-| REQ-007 / REQ-033    | Food in any lifecycle `status`                                                      | `GET /v1/foods/{id}/status` returns the correct `status`; full golden record when `RESOLVED`                                                                                               | Equivalence Partitioning      |
-| REQ-008              | Local store contains matching foods / a barcode/`external_key`                      | `200 OK` with relevance-ranked canonical `id`s; fuzzy match via `pg_trgm`; barcode/`external_key` resolves via crosswalk                                                                   | Equivalence / Interface       |
-| REQ-009              | Search query issued against local store                                             | Zero external source calls during search                                                                                                                                                   | Interface Contract Testing    |
-| REQ-010              | Local store of 50,000 foods with GIN index                                          | p95 search latency under 200ms across 100 requests                                                                                                                                         | Performance Measurement       |
-| REQ-011              | Single add-by-name cache miss                                                       | One `fetch_queue` row keyed on the `id` enqueued via `INSERT … ON CONFLICT` + `pg_notify`; not via EventBridge                                                                             | Interface Contract Testing    |
-| REQ-012              | Multi-food add (recipe import) with unknown names                                   | One canonical row + `id` per unknown name; per-`id` `fetch_queue` rows (deduped); per-item partial response (REQ-040a)                                                                     | Equivalence Partitioning      |
-| REQ-013              | Concurrent adds for the same normalized name / duplicate enqueues                   | One canonical row + `id` (name dedup); one `fetch_queue` row (`ON CONFLICT`)                                                                                                               | Concurrency / Fault Injection |
-| REQ-014 / REQ-044a   | Cache-miss admissions resolved                                                      | Single demand-weighted `fetch_queue`; `request_count` = capped distinct-requester count (`PRIORITY_CAP=1`); backpressure `503` at admission                                                | Interface / Boundary          |
-| REQ-015              | Queue contains rows with differing distinct-requester demand                        | Drains higher `request_count` first, FIFO tie-break, demotion overlay applied at drain time                                                                                                | Equivalence Partitioning      |
-| REQ-016 / REQ-027    | Fan-out source `5xx`/timeout on every attempt                                       | ≤5 attempts with backoff, then food `FAILED` + row `status='tombstone'` with `last_error`; re-fetchable                                                                                    | Fault Injection               |
-| REQ-019              | Per-source rolling window; sustained drain                                          | ≤ source cap (USDA: 1,000) in any trailing 60 min; worker pauses that source at 90% (USDA: 900); zero `429`                                                                                | Performance Measurement       |
-| REQ-020              | Concurrent check-and-record on the per-source window                                | Atomic count+record; no race exceeds the source cap; per-source keying                                                                                                                     | Fault Injection / Concurrency |
-| REQ-021              | Source window at cap                                                                | No source call; `fetch_queue` row lease released → `pending`; waits for ageing-out                                                                                                         | Fault Injection               |
-| REQ-023              | USDA single vs batch fetch (USDA-adapter boundary)                                  | `GET /v1/food/{fdcId}` single; `POST /v1/foods` ≤20 `fdcIds` batch; 1 rolling-window call per API call; `fdcId → external_key`                                                             | Interface Contract Testing    |
-| REQ-024              | USDA returns `200 OK` (USDA-adapter boundary)                                       | Mapped + validated into canonical model; `food_sources` crosswalk recorded; `RESOLVED`; `FoodDataReceived` emitted; no payload retained                                                    | Interface Contract Testing    |
-| REQ-025              | Fan-out finds no source has the item                                                | Food `NOT_FOUND` + row `status='tombstone'`; within TTL → `404` no re-enqueue; after 30-day TTL re-attempt counts against the budget                                                       | Fault Injection               |
-| REQ-026              | Source returns `429`                                                                | Consumer backs off that source; row left `pending`; no further source calls                                                                                                                | Fault Injection               |
-| REQ-031 / REQ-053    | `RESOLVED` food; scheduled refresh; one backing item changed / unchanged            | Only fields whose source item changed are re-pulled (validated, provenance updated); unchanged + user-resolved fields preserved; never blindly re-blends                                   | Equivalence Partitioning      |
-| REQ-032              | Scheduled rule fires                                                                | Change-driven refresh enqueues affected fields as low-priority deduped work; change detected via `food_sources.item_version`                                                               | Equivalence Partitioning      |
-| REQ-035 / REQ-IF-007 | Request without a valid token to any `/v1/foods/*` endpoint                         | `401 Unauthorized` in-process via `AuthMiddleware`; no row, enqueue, or source call                                                                                                        | Interface Contract Testing    |
-| REQ-040a             | Batch with mixed resolved/unresolved; over-limit batch                              | Per-item partial result (resolved inline + `PENDING` per miss); >100 → `400`, nothing enqueued                                                                                             | Boundary Value Analysis       |
-| REQ-040b             | Queue at `MAX_QUEUE_DEPTH` / circuit breaker open                                   | Enqueue fails closed with `503` at admission; jittered recovery                                                                                                                            | Boundary / Fault Injection    |
-| REQ-046              | `RESOLVED` food backed by USDA; read/candidates/search                              | No `fdcId` or source-native id in any public response field; source key only as `externalKey` attribute                                                                                    | Interface / Static Analysis   |
-| REQ-047              | `POST /v1/foods` add-by-name                                                        | Canonical row + `id` created (normalized-name dedup); `202` + `id`; `id` is the queue key, poll handle, identity                                                                           | Equivalence Partitioning      |
-| REQ-048 / REQ-IF-010 | `UNRESOLVED` food                                                                   | `GET /v1/foods/{id}/candidates` returns each candidate's source + item key; pre-merged as far as confident                                                                                 | Interface Contract Testing    |
-| REQ-049 / REQ-IF-011 | `UNRESOLVED` food; in-set vs out-of-set candidate                                   | In-set pick merges → `RESOLVED`; out-of-set candidate → `400`/`409`, `status` unchanged                                                                                                    | Interface / Negative          |
-| REQ-050              | Add-by-name fan-out across wired adapters                                           | Confident → `RESOLVED`; ambiguous → `UNRESOLVED`; no source → `NOT_FOUND`; errored → `FAILED`                                                                                              | Interface / Equivalence       |
-| REQ-051              | Multi-source merge                                                                  | Presence beats absence; identity/short → higher-priority source (not longest); free-text → longer; nutrients per-100g before blend; conflict → higher-priority source; no incoherent blend | Equivalence Partitioning      |
-| REQ-052              | `RESOLVED` food incl. a user pick                                                   | Per-value `source_id` + scalar `food_field_provenance`; "which fields from source X" single-query answerable; user pick stored as ordinary provenance                                      | Interface Contract Testing    |
-| REQ-054 / REQ-IF-012 | USDA-backed food across the API surface                                             | Source-agnostic canonical shapes only past the adapter boundary; no source-specific structure leaks                                                                                        | Interface / Inspection        |
-| REQ-055              | Source returns a value failing validation                                           | Failing value rejected, not stored; HTTPS with cert validation; food may still resolve from valid values/sources                                                                           | Fault Injection               |
-| REQ-037a–d (US-0)    | No/expired/malformed/wrong-`azp`/wrong-instance token + forged header               | `401`; valid token → `200`/`202`/`404` keyed on `id`; AS-5 networkless verified via egress-deny harness; no row/enqueue/source call on reject                                              | Interface / Equivalence       |
-| REQ-038b–c (US-0)    | Authenticated, insufficient operational scope                                       | `403` (distinct from `401`), per the `401 → 403 → 400 → business logic` precedence                                                                                                         | Equivalence Partitioning      |
-| REQ-039 (US-0)       | Per-`sub` >50 pending                                                               | Accepted (`202`, no `429`); items demoted to back; one user cannot starve others; dynamic re-promotion below 50                                                                            | Boundary Value Analysis       |
-| REQ-040a (US-0)      | Oversized batch                                                                     | `400`; nothing enqueued / no row created                                                                                                                                                   | Boundary Value Analysis       |
-| REQ-041 (US-0)       | Backend M2M token                                                                   | Accepted; server-to-server not forced to `401`                                                                                                                                             | Interface Contract Testing    |
-| REQ-043 (US-0)       | WebSocket `$connect`; `FoodDataReceived` push                                       | `$connect` rejected (`403`) without token; push delivered only to the requesting `sub` (no broadcast)                                                                                      | Interface Contract Testing    |
-| REQ-IF-001           | Client sends `GET /v1/foods/{id}`                                                   | Correct response per `status`; URL versioning (`/v1/`) honored; keyed on internal `id`                                                                                                     | Interface Contract Testing    |
-| REQ-IF-002           | Client sends `GET /v1/foods/{id}/status`                                            | Response matches documented lifecycle schema                                                                                                                                               | Interface Contract Testing    |
-| REQ-IF-003           | Client sends `GET /v1/foods/search?query=<string>`                                  | Relevance-ranked array of `id`s; barcode/`external_key` lookup                                                                                                                             | Interface Contract Testing    |
-| REQ-IF-004           | USDA adapter single/batch fetch (USDA-adapter boundary)                             | Correct USDA endpoint per fetch type; `fdcId` + batch size confined to the adapter                                                                                                         | Interface Contract Testing    |
-| REQ-IF-007           | Request to any `/v1/foods/*` endpoint                                               | Reuses shared in-process Clerk `AuthMiddleware`; no Lambda authorizer for the HTTP API                                                                                                     | Interface Contract Testing    |
-| REQ-IF-008           | Token in at any entry point                                                         | Verified `AuthenticatedCaller` (`sub`/`azp`/scopes) out, derived solely from the token; failures → `401`                                                                                   | Interface Contract Testing    |
-| REQ-IF-009           | `POST /v1/foods` / `POST /v1/foods/batch`                                           | `202` + `id` for a new name; ≤100-name batch per-item partial; empty name → `400`                                                                                                          | Interface Contract Testing    |
-| REQ-IF-010           | `UNRESOLVED` food                                                                   | Candidate list with each candidate's `source` + `externalKey`                                                                                                                              | Interface Contract Testing    |
-| REQ-IF-011           | `PATCH /v1/foods/{id}` candidate selection                                          | In-set pick → `200` + `RESOLVED`; out-of-set → `400`/`409`, `status` unchanged                                                                                                             | Interface Contract Testing    |
-| REQ-IF-012           | Source adapter across the boundary                                                  | Implements `searchByName`/`fetchByKey`/`mapToCanonical`; only source-agnostic shapes leak; no `fdcId` through                                                                              | Interface / Inspection        |
-| REQ-NF-007           | Feature branch code complete                                                        | `turbo run typecheck lint format:check` exits 0 with zero errors                                                                                                                           | Static Analysis               |
-| REQ-NF-011           | Local store contains `RESOLVED` foods                                               | p95 read latency under 50ms                                                                                                                                                                | Performance Measurement       |
-| REQ-NF-012           | Consumer processing sustained add stream                                            | No rolling-60-min window over a source's cap (USDA: 1,000); zero `429` in CloudWatch                                                                                                       | Performance Measurement       |
-| REQ-NF-013           | `fetch_queue` pending-row depth under 100                                           | `PENDING` → `RESOLVED` within 60 seconds at p95                                                                                                                                            | Performance Measurement       |
-| REQ-NF-016           | Consumer fails every fan-out for 10 add rows                                        | All 10 foods `FAILED` with `status='tombstone'`; none silently dropped                                                                                                                     | Fault Injection               |
-| REQ-NF-018           | USDA returns a known record with documented nutrient values (USDA-adapter boundary) | Stored/served values faithful to source after per-100g normalization (recorded via `basis`); no lossy rounding beyond basis                                                                | Equivalence Partitioning      |
+| REQ                  | Pre-condition                                                                         | Success Condition                                                                                                                                                                          | Acceptance Test Technique     |
+| -------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| REQ-001              | Food exists locally; read by `id`                                                     | `200 OK`/`202`/`404` per `status`; zero outbound calls to any external source during the request                                                                                           | Interface Contract Testing    |
+| REQ-002              | Food exists locally with `status = 'RESOLVED'`                                        | `200 OK`; body contains `id`, `name`/`description`, normalized calories/protein/carbs/fat, micronutrients, per-field provenance; no `fdcId`                                                | Equivalence Partitioning      |
+| REQ-003              | Food exists locally with `status = 'PENDING'` or `'UNRESOLVED'`                       | `202 Accepted` with `{"status": <PENDING\|UNRESOLVED>, "id": <id>, "estimatedWaitSeconds": <n>}`                                                                                           | Equivalence Partitioning      |
+| REQ-004              | Food is `NOT_FOUND`/`FAILED`, or no row exists                                        | `404 Not Found`; lifecycle `status` still retrievable for an existing row; no fetch enqueued                                                                                               | Equivalence Partitioning      |
+| REQ-005              | `POST /v1/foods` with a new name / a name in flight                                   | `202 Accepted` + new `id` (≤100ms); concurrent same-normalized-name adds collapse to one row + `id`; empty/whitespace name → `400`                                                         | Equivalence / Concurrency     |
+| REQ-006              | API receives a malformed `id` or empty `POST` name                                    | `400 Bad Request`; no row created, nothing enqueued                                                                                                                                        | Boundary Value Analysis       |
+| REQ-007 / REQ-033    | Food in any lifecycle `status`                                                        | `GET /v1/foods/{id}/status` returns the correct `status`; full golden record when `RESOLVED`                                                                                               | Equivalence Partitioning      |
+| REQ-008              | Local store contains matching foods / a barcode/`external_key`                        | `200 OK` with relevance-ranked canonical `id`s; fuzzy match via `pg_trgm`; barcode/`external_key` resolves via crosswalk                                                                   | Equivalence / Interface       |
+| REQ-009              | Search query issued against local store                                               | Zero external source calls during search                                                                                                                                                   | Interface Contract Testing    |
+| REQ-010              | Local store of 50,000 foods with GIN index                                            | p95 search latency under 200ms across 100 requests                                                                                                                                         | Performance Measurement       |
+| REQ-011              | Single add-by-name miss                                                               | One `fetch_queue` row keyed on the `id` enqueued via `INSERT … ON CONFLICT` + `pg_notify`; not via EventBridge                                                                             | Interface Contract Testing    |
+| REQ-012              | Multi-food add (recipe import) with unknown names                                     | One canonical row + `id` per unknown name; per-`id` `fetch_queue` rows (deduped); per-item partial response (REQ-040a)                                                                     | Equivalence Partitioning      |
+| REQ-013              | Concurrent adds for the same normalized name / duplicate enqueues                     | One canonical row + `id` (name dedup); one `fetch_queue` row (`ON CONFLICT`)                                                                                                               | Concurrency / Fault Injection |
+| REQ-014 / REQ-044a   | Add-by-name miss admissions resolved                                                  | Single demand-weighted `fetch_queue`; `request_count` = capped distinct-requester count (`PRIORITY_CAP=1`); backpressure `503` at admission                                                | Interface / Boundary          |
+| REQ-015              | Queue contains rows with differing distinct-requester demand                          | Drains higher `request_count` first, FIFO tie-break, demotion overlay applied at drain time                                                                                                | Equivalence Partitioning      |
+| REQ-016 / REQ-027    | Fan-out source `5xx`/timeout on every attempt                                         | ≤5 attempts with backoff, then food `FAILED` + row `status='tombstone'` with `last_error`; re-fetchable                                                                                    | Fault Injection               |
+| REQ-019              | Per-source rolling window; sustained drain                                            | ≤ source cap (USDA: 1,000) in any trailing 60 min; worker pauses that source at 90% (USDA: 900); zero `429`                                                                                | Performance Measurement       |
+| REQ-020              | Concurrent check-and-record on the per-source window                                  | Atomic count+record; no race exceeds the source cap; per-source keying                                                                                                                     | Fault Injection / Concurrency |
+| REQ-021              | Source window at cap                                                                  | No source call; `fetch_queue` row lease released → `pending`; waits for ageing-out                                                                                                         | Fault Injection               |
+| REQ-023              | USDA single vs batch fetch (USDA-adapter boundary)                                    | `GET /v1/food/{fdcId}` single; `POST /v1/foods` ≤20 `fdcIds` batch; 1 rolling-window call per API call; `fdcId → external_key`                                                             | Interface Contract Testing    |
+| REQ-024              | USDA returns `200 OK` (USDA-adapter boundary)                                         | Mapped + validated into canonical model; `food_sources` crosswalk recorded; `RESOLVED`; `FoodFetchCompleted` emitted; no payload retained                                                  | Interface Contract Testing    |
+| REQ-025              | Fan-out finds no source has the item                                                  | Food `NOT_FOUND` + row `status='tombstone'`; within TTL → `404` no re-enqueue; after 30-day TTL re-attempt counts against the budget                                                       | Fault Injection               |
+| REQ-026              | Source returns `429`                                                                  | Consumer backs off that source; row left `pending`; no further source calls                                                                                                                | Fault Injection               |
+| REQ-031 / REQ-053    | `RESOLVED` food; scheduled refresh; one backing item changed / unchanged              | Only fields whose source item changed are re-pulled (validated, provenance updated); unchanged + user-resolved fields preserved; never blindly re-blends                                   | Equivalence Partitioning      |
+| REQ-032              | Scheduled rule fires                                                                  | Change-driven refresh enqueues affected fields as low-priority deduped work; change detected via `food_sources.item_version`                                                               | Equivalence Partitioning      |
+| REQ-035 / REQ-IF-007 | Request without a valid token to any `/v1/foods/*` endpoint                           | `401 Unauthorized` in-process via `FoodAuthGuard`; no row, enqueue, or source call                                                                                                         | Interface Contract Testing    |
+| REQ-040a             | Batch with mixed resolved/unresolved; over-limit batch                                | Per-item partial result (resolved inline + `PENDING` per miss); >100 → `400`, nothing enqueued                                                                                             | Boundary Value Analysis       |
+| REQ-040b             | Queue at `MAX_QUEUE_DEPTH` / circuit breaker open                                     | Enqueue fails closed with `503` at admission; jittered recovery                                                                                                                            | Boundary / Fault Injection    |
+| REQ-046              | `RESOLVED` food backed by USDA; read/candidates/search                                | No `fdcId` or source-native id in any public response field; source key only as `externalKey` attribute                                                                                    | Interface / Static Analysis   |
+| REQ-047              | `POST /v1/foods` add-by-name                                                          | Canonical row + `id` created (normalized-name dedup); `202` + `id`; `id` is the queue key, poll handle, identity                                                                           | Equivalence Partitioning      |
+| REQ-048 / REQ-IF-010 | `UNRESOLVED` food                                                                     | `GET /v1/foods/{id}/candidates` returns each candidate's source + item key; pre-merged as far as confident                                                                                 | Interface Contract Testing    |
+| REQ-049 / REQ-IF-011 | `UNRESOLVED` food; in-set vs out-of-set candidate                                     | In-set pick merges → `RESOLVED`; out-of-set candidate → `400`/`409`, `status` unchanged                                                                                                    | Interface / Negative          |
+| REQ-050              | Add-by-name fan-out across wired adapters                                             | Confident → `RESOLVED`; ambiguous → `UNRESOLVED`; no source → `NOT_FOUND`; errored → `FAILED`                                                                                              | Interface / Equivalence       |
+| REQ-050a             | Pre-merge dedup; survivor count after normalized-name exact match                     | Exactly 1 survivor → `RESOLVED`; >1 → `UNRESOLVED` (set persisted to `food_candidates`); 0 → `NOT_FOUND`; no nutrient tolerance, bias to `UNRESOLVED`                                      | Equivalence Partitioning      |
+| REQ-025a             | `UNRESOLVED` food; candidate set within / past the 30-day TTL                         | Food kept until a human picks (never swept to `NOT_FOUND`); set expires at 30 days → next add re-fans-out; pick before expiry wins                                                         | Fault Injection               |
+| REQ-028a             | Re-add of a terminal-state (`NOT_FOUND`/`FAILED`) row past TTL; `PATCH` on `RESOLVED` | Terminal row reactivated to `PENDING` (no `23505`); `PATCH`-resolve is UNRESOLVED-only + idempotent; refresh never clobbers a manual pick                                                  | State Transition              |
+| REQ-051              | Multi-source merge                                                                    | Presence beats absence; identity/short → higher-priority source (not longest); free-text → longer; nutrients per-100g before blend; conflict → higher-priority source; no incoherent blend | Equivalence Partitioning      |
+| REQ-052              | `RESOLVED` food incl. a user pick                                                     | Per-value `source_id` + scalar `food_field_provenance`; "which fields from source X" single-query answerable; user pick stored as ordinary provenance                                      | Interface Contract Testing    |
+| REQ-054 / REQ-IF-012 | USDA-backed food across the API surface                                               | Source-agnostic canonical shapes only past the adapter boundary; no source-specific structure leaks                                                                                        | Interface / Inspection        |
+| REQ-055              | Source returns a value failing validation                                             | Failing value rejected, not stored; HTTPS with cert validation; food may still resolve from valid values/sources                                                                           | Fault Injection               |
+| REQ-037a–d (US-0)    | No/expired/malformed/wrong-`azp`/wrong-instance token + forged header                 | `401`; valid token → `200`/`202`/`404` keyed on `id`; AS-5 networkless verified via egress-deny harness; no row/enqueue/source call on reject                                              | Interface / Equivalence       |
+| REQ-038b–c (US-0)    | Authenticated, insufficient operational scope                                         | `403` (distinct from `401`), per the `401 → 403 → 400 → business logic` precedence                                                                                                         | Equivalence Partitioning      |
+| REQ-039 (US-0)       | Per-`sub` >50 pending                                                                 | Accepted (`202`, no `429`); items demoted to back; one user cannot starve others; dynamic re-promotion below 50                                                                            | Boundary Value Analysis       |
+| REQ-040a (US-0)      | Oversized batch                                                                       | `400`; nothing enqueued / no row created                                                                                                                                                   | Boundary Value Analysis       |
+| REQ-041 (US-0)       | Backend M2M token                                                                     | Accepted; server-to-server not forced to `401`                                                                                                                                             | Interface Contract Testing    |
+| REQ-043 (US-0)       | WebSocket `$connect`; `FoodFetchCompleted` push                                       | `$connect` rejected (`403`) without token; push delivered only to the requesting `sub` (no broadcast)                                                                                      | Interface Contract Testing    |
+| REQ-IF-001           | Client sends `GET /v1/foods/{id}`                                                     | Correct response per `status`; URL versioning (`/v1/`) honored; keyed on internal `id`                                                                                                     | Interface Contract Testing    |
+| REQ-IF-002           | Client sends `GET /v1/foods/{id}/status`                                              | Response matches documented lifecycle schema                                                                                                                                               | Interface Contract Testing    |
+| REQ-IF-003           | Client sends `GET /v1/foods/search?query=<string>`                                    | Relevance-ranked array of `id`s; barcode/`external_key` lookup                                                                                                                             | Interface Contract Testing    |
+| REQ-IF-004           | USDA adapter single/batch fetch (USDA-adapter boundary)                               | Correct USDA endpoint per fetch type; `fdcId` + batch size confined to the adapter                                                                                                         | Interface Contract Testing    |
+| REQ-IF-007           | Request to any `/v1/foods/*` endpoint                                                 | Reuses the shared in-process Clerk verify via `FoodAuthGuard`; no Lambda authorizer for the HTTP API                                                                                       | Interface Contract Testing    |
+| REQ-IF-008           | Token in at any entry point                                                           | Verified `AuthenticatedCaller` (`sub`/`azp`/scopes) out, derived solely from the token; failures → `401`                                                                                   | Interface Contract Testing    |
+| REQ-IF-009           | `POST /v1/foods` / `POST /v1/foods/batch`                                             | `202` + `id` for a new name; ≤100-name batch per-item partial; empty name → `400`                                                                                                          | Interface Contract Testing    |
+| REQ-IF-010           | `UNRESOLVED` food                                                                     | Candidate list with each candidate's `source` + `externalKey`                                                                                                                              | Interface Contract Testing    |
+| REQ-IF-011           | `PATCH /v1/foods/{id}` candidate selection                                            | In-set pick → `200` + `RESOLVED`; out-of-set → `400`/`409`, `status` unchanged                                                                                                             | Interface Contract Testing    |
+| REQ-IF-012           | Source adapter across the boundary                                                    | Implements `searchByName`/`fetchByKey`/`mapToCanonical`; only source-agnostic shapes leak; no `fdcId` through                                                                              | Interface / Inspection        |
+| REQ-NF-007           | Feature branch code complete                                                          | `turbo run typecheck lint format:check` exits 0 with zero errors                                                                                                                           | Static Analysis               |
+| REQ-NF-011           | Local store contains `RESOLVED` foods                                                 | p95 read latency under 50ms                                                                                                                                                                | Performance Measurement       |
+| REQ-NF-012           | Consumer processing sustained add stream                                              | No rolling-60-min window over a source's cap (USDA: 1,000); zero `429` in CloudWatch                                                                                                       | Performance Measurement       |
+| REQ-NF-013           | `fetch_queue` pending-row depth under 100                                             | `PENDING` → `RESOLVED` within 60 seconds at p95                                                                                                                                            | Performance Measurement       |
+| REQ-NF-016           | Consumer fails every fan-out for 10 add rows                                          | All 10 foods `FAILED` with `status='tombstone'`; none silently dropped                                                                                                                     | Fault Injection               |
+| REQ-NF-018           | USDA returns a known record with documented nutrient values (USDA-adapter boundary)   | Stored/served values faithful to source after per-100g normalization (recorded via `basis`); no lossy rounding beyond basis                                                                | Equivalence Partitioning      |
 
 ---
 
 ## Feature Test Summary Matrix
 
-| Requirement                  | BDD Scenario Count                      | Test Method                   | Pass Criteria                                                                                                                                                    |
-| ---------------------------- | --------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| REQ-001                      | 2                                       | Interface Contract Testing    | Zero external source calls in the read path across all scenarios                                                                                                 |
-| REQ-002                      | 1                                       | Equivalence Partitioning      | Golden-record fields present + per-field provenance; no `fdcId` in `200 OK` body                                                                                 |
-| REQ-003                      | 2                                       | Equivalence Partitioning      | `202` with correct `PENDING`/`UNRESOLVED` body                                                                                                                   |
-| REQ-004                      | 3                                       | Equivalence Partitioning      | `404` for `NOT_FOUND`/`FAILED`/absent; `status` still retrievable; no enqueue                                                                                    |
-| REQ-006                      | 2 (+ ATS-005-A2)                        | Boundary Value Analysis       | `400` for malformed `id` / empty `POST` name; nothing reaches the queue                                                                                          |
-| REQ-007 / REQ-033            | 2                                       | Equivalence Partitioning      | Status endpoint returns correct schema for each lifecycle partition                                                                                              |
-| REQ-005 / REQ-047            | 2 (A) + 1 (B)                           | Equivalence / Concurrency     | `202` + `id` ≤100ms; concurrent same-name adds collapse to one row + `id`                                                                                        |
-| REQ-050                      | 2 (A) + 1 (B)                           | Interface / Equivalence       | Confident → `RESOLVED`; ambiguous → `UNRESOLVED`; correct side effects                                                                                           |
-| REQ-025                      | 2                                       | Fault Injection               | No source → `NOT_FOUND` tombstone; re-attempt after 30-day TTL counts against the budget                                                                         |
-| REQ-048 / REQ-IF-010         | 1                                       | Interface Contract Testing    | Candidate list with each candidate's source + item key; no `fdcId`                                                                                               |
-| REQ-049 / REQ-IF-011         | 1 (A) + 1 (B)                           | Interface / Negative          | In-set pick → `RESOLVED`; out-of-set → `400`/`409`, `status` unchanged                                                                                           |
-| REQ-051                      | 3 (A) + 3 (B)                           | Equivalence Partitioning      | Merge precedence; per-100g before blend; conflict → higher-priority source; no incoherent blend                                                                  |
-| REQ-052                      | 1                                       | Interface Contract Testing    | Per-field provenance single-query answerable; user pick = ordinary provenance                                                                                    |
-| REQ-012 / REQ-040a           | 2                                       | Equivalence Partitioning      | Per-item partial result; per-`id` deduped rows                                                                                                                   |
-| REQ-014 / REQ-015 / REQ-044a | 3                                       | Equivalence Partitioning      | Demand-weighted by distinct-requester count; FIFO tie-break; `sub` counts once                                                                                   |
-| REQ-027 / REQ-016            | 1                                       | Fault Injection               | `5xx` retries with backoff → `FAILED` tombstone; re-fetchable                                                                                                    |
-| REQ-016 / REQ-NF-016         | 1                                       | Fault Injection               | Tombstone rows audit every failed food; nothing silently dropped                                                                                                 |
-| REQ-040b                     | 1                                       | Boundary / Fault Injection    | `503` at queue ceiling / open breaker; admission-time; jittered recovery                                                                                         |
-| REQ-008 / REQ-IF-003         | 3 (A) + 1 (B)                           | Equivalence / Interface       | Ranked `id`s; fuzzy match; empty set no-match; barcode/`external_key` → `id`                                                                                     |
-| REQ-009                      | 1                                       | Interface Contract Testing    | Zero external source calls during search                                                                                                                         |
-| REQ-010                      | 1                                       | Performance Measurement       | p95 search latency under 200ms at 50,000 records                                                                                                                 |
-| REQ-019 / REQ-NF-012         | 1                                       | Performance Measurement       | ≤ source cap in any trailing 60 min; worker pauses at 90%; zero `429`                                                                                            |
-| REQ-021                      | 1                                       | Fault Injection               | No source call at cap; row re-deferred to `pending`                                                                                                              |
-| REQ-026                      | 1                                       | Fault Injection               | Source `429` → back off that source; row left `pending`                                                                                                          |
-| REQ-020                      | 1                                       | Fault Injection / Concurrency | Atomic per-source check-and-record; no race over the cap                                                                                                         |
-| REQ-031 / REQ-053            | 2 (A) + 2 (B)                           | Equivalence Partitioning      | Changed item re-pulled; unchanged + user-resolved preserved; re-pull validated                                                                                   |
-| REQ-046                      | 1                                       | Interface / Static Analysis   | No `fdcId`/source-native id in any public response field                                                                                                         |
-| REQ-023 / REQ-IF-004         | 2                                       | Interface Contract Testing    | Correct USDA single/batch endpoint; 1 rolling-window call per API call (USDA-adapter boundary)                                                                   |
-| REQ-024                      | 1                                       | Interface Contract Testing    | USDA `200` mapped/validated; crosswalk recorded; no payload retained (USDA-adapter boundary)                                                                     |
-| REQ-055 / REQ-IF-012         | 1                                       | Fault Injection               | Invalid source value rejected, not stored; HTTPS cert validation                                                                                                 |
-| REQ-035 / REQ-037a–d (US-0)  | 5 (ATP-008-A..D; B has B1+B2)           | Interface / Equivalence       | `401` on no/expired/malformed/wrong-`azp`/wrong-instance + forged header; valid → `200`/`202`/`404`; AS-5 networkless via egress-deny; no side effects on reject |
-| REQ-038b–c (US-0)            | 1 (ATP-008-G)                           | Equivalence Partitioning      | Insufficient scope → `403`, distinct from `401`                                                                                                                  |
-| REQ-039 (US-0)               | 1 (ATP-008-F)                           | Boundary Value Analysis       | >50 pending → `202`, demoted to back (no `429`); one user can't starve others; dynamic re-promotion below 50                                                     |
-| REQ-040a (US-0)              | 1 (ATP-008-I)                           | Boundary Value Analysis       | Oversized batch → `400`; nothing enqueued / no row created                                                                                                       |
-| REQ-041 (US-0)               | 1 (ATP-008-H)                           | Interface Contract Testing    | Backend M2M token accepted; not forced to `401`                                                                                                                  |
-| REQ-043 (US-0)               | 2 (ATP-008-E)                           | Interface Contract Testing    | `$connect` rejected (`403`) without token; `FoodDataReceived` delivered only to the requesting `sub`                                                             |
-| REQ-IF-001                   | Covered by REQ-002..REQ-004             | Interface Contract Testing    | Correct response per `status`; `/v1/` honored; keyed on `id`                                                                                                     |
-| REQ-IF-002                   | Covered by REQ-007                      | Interface Contract Testing    | Status response matches documented lifecycle schema                                                                                                              |
-| REQ-IF-005                   | Covered by REQ-050 / REQ-024            | Inspection                    | Lifecycle events carry the food `id`; demand path is `fetch_queue` + `NOTIFY`, not EventBridge                                                                   |
-| REQ-IF-007 / REQ-IF-008      | Covered by ATP-008-A..D                 | Interface Contract Testing    | Shared in-process Clerk middleware; verified `AuthenticatedCaller` out                                                                                           |
-| REQ-IF-009                   | Covered by REQ-005 / REQ-012 / REQ-040a | Interface Contract Testing    | Add-by-name + batch contract                                                                                                                                     |
-| REQ-NF-007                   | 1                                       | Static Analysis               | `turbo run typecheck lint format:check` exits 0                                                                                                                  |
-| REQ-NF-011                   | 1                                       | Performance Measurement       | p95 `RESOLVED`-read latency under 50ms                                                                                                                           |
-| REQ-NF-012                   | 1                                       | Performance Measurement       | No rolling-60-min window over a source's cap; zero `429` in CloudWatch                                                                                           |
-| REQ-NF-013                   | 1                                       | Performance Measurement       | `PENDING` → `RESOLVED` within 60 seconds at p95                                                                                                                  |
-| REQ-NF-016                   | 1                                       | Fault Injection               | All failed foods captured as tombstone rows; none silently dropped                                                                                               |
-| REQ-NF-018                   | 1                                       | Equivalence Partitioning      | Stored nutrient values faithful to source after per-100g normalization                                                                                           |
+| Requirement                  | BDD Scenario Count                      | Test Method                   | Pass Criteria                                                                                                                                                                                             |
+| ---------------------------- | --------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REQ-001                      | 2                                       | Interface Contract Testing    | Zero external source calls in the read path across all scenarios                                                                                                                                          |
+| REQ-002                      | 1                                       | Equivalence Partitioning      | Golden-record fields present + per-field provenance; no `fdcId` in `200 OK` body                                                                                                                          |
+| REQ-003                      | 2                                       | Equivalence Partitioning      | `202` with correct `PENDING`/`UNRESOLVED` body                                                                                                                                                            |
+| REQ-004                      | 3                                       | Equivalence Partitioning      | `404` for `NOT_FOUND`/`FAILED`/absent; `status` still retrievable; no enqueue                                                                                                                             |
+| REQ-006                      | 2 (+ ATS-005-A2)                        | Boundary Value Analysis       | `400` for malformed `id` / empty `POST` name; nothing reaches the queue                                                                                                                                   |
+| REQ-007 / REQ-033            | 2                                       | Equivalence Partitioning      | Status endpoint returns correct schema for each lifecycle partition                                                                                                                                       |
+| REQ-005 / REQ-047            | 2 (A) + 1 (B)                           | Equivalence / Concurrency     | `202` + `id` ≤100ms; concurrent same-name adds collapse to one row + `id`                                                                                                                                 |
+| REQ-050                      | 2 (A) + 1 (B)                           | Interface / Equivalence       | Confident → `RESOLVED`; ambiguous → `UNRESOLVED`; correct side effects                                                                                                                                    |
+| REQ-050a                     | covered by AT-050-A/B + AT-025-A        | Equivalence Partitioning      | Survivor count after normalized-name exact match: 1 → `RESOLVED`; >1 → `UNRESOLVED` (persisted); 0 → `NOT_FOUND`; no nutrient tolerance                                                                   |
+| REQ-025a                     | 2 (AT-025a-A)                           | Fault Injection               | `UNRESOLVED` food kept (not swept); candidate set 30-day TTL → re-fan-out; pick before expiry wins                                                                                                        |
+| REQ-028a                     | 2 (AT-028a-A) + ATS-049-A2              | State Transition              | Terminal-row reactivation to `PENDING` (no `23505`); `PATCH`-resolve UNRESOLVED-only + idempotent                                                                                                         |
+| REQ-025                      | 2                                       | Fault Injection               | No source → `NOT_FOUND` tombstone; re-attempt after 30-day TTL counts against the budget                                                                                                                  |
+| REQ-048 / REQ-IF-010         | 1                                       | Interface Contract Testing    | Candidate list with each candidate's source + item key; no `fdcId`                                                                                                                                        |
+| REQ-049 / REQ-IF-011         | 1 (A) + 1 (B)                           | Interface / Negative          | In-set pick → `RESOLVED`; out-of-set → `400`/`409`, `status` unchanged                                                                                                                                    |
+| REQ-051                      | 3 (A) + 3 (B)                           | Equivalence Partitioning      | Merge precedence; per-100g before blend; conflict → higher-priority source; no incoherent blend                                                                                                           |
+| REQ-052                      | 1                                       | Interface Contract Testing    | Per-field provenance single-query answerable; user pick = ordinary provenance                                                                                                                             |
+| REQ-012 / REQ-040a           | 2                                       | Equivalence Partitioning      | Per-item partial result; per-`id` deduped rows                                                                                                                                                            |
+| REQ-014 / REQ-015 / REQ-044a | 3                                       | Equivalence Partitioning      | Demand-weighted by distinct-requester count; FIFO tie-break; `sub` counts once                                                                                                                            |
+| REQ-027 / REQ-016            | 1                                       | Fault Injection               | `5xx` retries with backoff → `FAILED` tombstone; re-fetchable                                                                                                                                             |
+| REQ-016 / REQ-NF-016         | 1                                       | Fault Injection               | Tombstone rows audit every failed food; nothing silently dropped                                                                                                                                          |
+| REQ-040b                     | 1                                       | Boundary / Fault Injection    | `503` at queue ceiling / open breaker; admission-time; jittered recovery                                                                                                                                  |
+| REQ-008 / REQ-IF-003         | 3 (A) + 1 (B)                           | Equivalence / Interface       | Ranked `id`s; fuzzy match; empty set no-match; barcode/`external_key` → `id`                                                                                                                              |
+| REQ-009                      | 1                                       | Interface Contract Testing    | Zero external source calls during search                                                                                                                                                                  |
+| REQ-010                      | 1                                       | Performance Measurement       | p95 search latency under 200ms at 50,000 records                                                                                                                                                          |
+| REQ-019 / REQ-NF-012         | 1                                       | Performance Measurement       | ≤ source cap in any trailing 60 min; worker pauses at 90%; zero `429`                                                                                                                                     |
+| REQ-021                      | 1                                       | Fault Injection               | No source call at cap; row re-deferred to `pending`                                                                                                                                                       |
+| REQ-026                      | 1                                       | Fault Injection               | Source `429` → back off that source; row left `pending`                                                                                                                                                   |
+| REQ-020                      | 1                                       | Fault Injection / Concurrency | Atomic per-source check-and-record; no race over the cap                                                                                                                                                  |
+| REQ-031 / REQ-053            | 2 (A) + 2 (B)                           | Equivalence Partitioning      | Changed item re-pulled; unchanged + user-resolved preserved; re-pull validated                                                                                                                            |
+| REQ-046                      | 1                                       | Interface / Static Analysis   | No `fdcId`/source-native id in any public response field                                                                                                                                                  |
+| REQ-023 / REQ-IF-004         | 2                                       | Interface Contract Testing    | Correct USDA single/batch endpoint; 1 rolling-window call per API call (USDA-adapter boundary)                                                                                                            |
+| REQ-024                      | 1                                       | Interface Contract Testing    | USDA `200` mapped/validated; crosswalk recorded; no payload retained (USDA-adapter boundary)                                                                                                              |
+| REQ-055 / REQ-IF-012         | 1                                       | Fault Injection               | Invalid source value rejected, not stored; HTTPS cert validation                                                                                                                                          |
+| REQ-035 / REQ-037a–d (US-0)  | 5 (ATP-008-A..D; B has B1+B2)           | Interface / Equivalence       | `401` on no/expired/malformed/wrong-`azp`/wrong-instance + forged header; valid → `200`/`202`/`404`; AS-5 networkless via egress-deny; no side effects on reject                                          |
+| REQ-038b–c (US-0)            | 1 (ATP-008-G)                           | Equivalence Partitioning      | Insufficient scope → `403`, distinct from `401`                                                                                                                                                           |
+| REQ-039 / REQ-040b (US-0)    | 3 (ATP-008-F: F1/F2/F3)                 | Boundary Value Analysis       | >50 pending (all requesters) → `202`, demoted to back (no `429`); one under-threshold requester not demoted (FR-043a); near-ceiling NEW enqueues shed with `503` (FR-043b); dynamic re-promotion below 50 |
+| REQ-040a (US-0)              | 1 (ATP-008-I)                           | Boundary Value Analysis       | Oversized batch → `400`; nothing enqueued / no row created                                                                                                                                                |
+| REQ-041 (US-0)               | 1 (ATP-008-H)                           | Interface Contract Testing    | Backend M2M token accepted; not forced to `401`                                                                                                                                                           |
+| REQ-043 (US-0)               | 2 (ATP-008-E)                           | Interface Contract Testing    | `$connect` rejected (`403`) without token; `FoodFetchCompleted` delivered only to the requesting `sub`                                                                                                    |
+| REQ-IF-001                   | Covered by REQ-002..REQ-004             | Interface Contract Testing    | Correct response per `status`; `/v1/` honored; keyed on `id`                                                                                                                                              |
+| REQ-IF-002                   | Covered by REQ-007                      | Interface Contract Testing    | Status response matches documented lifecycle schema                                                                                                                                                       |
+| REQ-IF-005                   | Covered by REQ-050 / REQ-024            | Inspection                    | Lifecycle events carry the food `id`; demand path is `fetch_queue` + `NOTIFY`, not EventBridge                                                                                                            |
+| REQ-IF-007 / REQ-IF-008      | Covered by ATP-008-A..D                 | Interface Contract Testing    | Shared in-process Clerk middleware; verified `AuthenticatedCaller` out                                                                                                                                    |
+| REQ-IF-009                   | Covered by REQ-005 / REQ-012 / REQ-040a | Interface Contract Testing    | Add-by-name + batch contract                                                                                                                                                                              |
+| REQ-NF-007                   | 1                                       | Static Analysis               | `turbo run typecheck lint format:check` exits 0                                                                                                                                                           |
+| REQ-NF-011                   | 1                                       | Performance Measurement       | p95 `RESOLVED`-read latency under 50ms                                                                                                                                                                    |
+| REQ-NF-012                   | 1                                       | Performance Measurement       | No rolling-60-min window over a source's cap; zero `429` in CloudWatch                                                                                                                                    |
+| REQ-NF-013                   | 1                                       | Performance Measurement       | `PENDING` → `RESOLVED` within 60 seconds at p95                                                                                                                                                           |
+| REQ-NF-016                   | 1                                       | Fault Injection               | All failed foods captured as tombstone rows; none silently dropped                                                                                                                                        |
+| REQ-NF-018                   | 1                                       | Equivalence Partitioning      | Stored nutrient values faithful to source after per-100g normalization                                                                                                                                    |
 
-**Total BDD Scenarios**: 74 _(63 base + 11 US-0 auth scenarios under ATP-008: ATS-036-A1, ATS-037-B1, ATS-037-B2, ATS-038-C1, ATS-039-D1, ATS-040-E1, ATS-040-E2, ATS-041-F1, ATS-042-G1, ATS-043-H1, ATS-044-I1)_
+**Total BDD Scenarios**: 81 _(68 base + 13 US-0 auth scenarios under ATP-008: ATS-036-A1, ATS-037-B1, ATS-037-B2, ATS-038-C1, ATS-039-D1, ATS-040-E1, ATS-040-E2, ATS-041-F1, ATS-041-F2, ATS-041-F3, ATS-042-G1, ATS-043-H1, ATS-044-I1)_
 
-> Base scenario count (63) = ATS-001-A1/A2, ATS-002-A1, ATS-003-A1/A2, ATS-004-A1/A2/A3, ATS-006-A1/A2,
-> ATS-007-A1/A2, ATS-005-A1/A2/B1, ATS-050-A1/A2/B1, ATS-025-A1/A2, ATS-048-A1, ATS-049-A1/B1,
-> ATS-051-A1/A2/A3/B1/B2/B3, ATS-052-A1, ATS-012-A1/A2, ATS-015-A1/A2/A3, ATS-027-A1, ATS-016-A1,
-> ATS-040-B1, ATS-008-A1/A2/A3/B1, ATS-009-A1, ATS-010-A1, ATS-019-A1, ATS-021-A1, ATS-026-A1, ATS-020-A1,
-> ATS-031-A1/A2/B1/B2, ATS-046-A1, ATS-023-A1/A2, ATS-024-A1, ATS-055-A1, ATS-NF011-A1, ATS-NF012-A1,
-> ATS-NF013-A1, ATS-NF016-A1, ATS-NF018-A1, ATS-NF007-A1.
+> Base scenario count (68) = ATS-001-A1/A2, ATS-002-A1, ATS-003-A1/A2, ATS-004-A1/A2/A3, ATS-006-A1/A2,
+> ATS-007-A1/A2, ATS-005-A1/A2/B1, ATS-028a-A1/A2, ATS-050-A1/A2/B1, ATS-025-A1/A2, ATS-048-A1,
+> ATS-049-A1/A2/B1, ATS-025a-A1/A2, ATS-051-A1/A2/A3/B1/B2/B3, ATS-052-A1, ATS-012-A1/A2, ATS-015-A1/A2/A3,
+> ATS-027-A1, ATS-016-A1, ATS-040-B1, ATS-008-A1/A2/A3/B1, ATS-009-A1, ATS-010-A1, ATS-019-A1, ATS-021-A1,
+> ATS-026-A1, ATS-020-A1, ATS-031-A1/A2/B1/B2, ATS-046-A1, ATS-023-A1/A2, ATS-024-A1, ATS-055-A1,
+> ATS-NF011-A1, ATS-NF012-A1, ATS-NF013-A1, ATS-NF016-A1, ATS-NF018-A1, ATS-NF007-A1.
 
 ---
 
@@ -1425,7 +1522,7 @@ The feature is considered shippable when **all** of the following conditions are
 
 ### Functional Gate
 
-- [ ] All 63 base BDD acceptance scenarios (plus the 11 US-0 auth scenarios under ATP-008) pass in a staging
+- [ ] All 68 base BDD acceptance scenarios (plus the 13 US-0 auth scenarios under ATP-008) pass in a staging
       environment connected to a real USDA FoodData Central API key
 - [ ] Zero unexpected `400`/`401`/`404`/`500` responses observed for valid authenticated reads of locally-`RESOLVED` foods
 - [ ] Add-by-name lifecycle confirmed: `POST /v1/foods` → `202` + `id`; background fan-out → `RESOLVED` (or `UNRESOLVED` with a candidate list) within the SLA window
@@ -1456,12 +1553,12 @@ The feature is considered shippable when **all** of the following conditions are
 ### Security Gate
 
 - [ ] All `/v1/foods/*` endpoints return `401 Unauthorized` for unauthenticated requests (REQ-035)
-- [ ] US-0 auth contract green (ATP-008): every entry point + WebSocket `$connect` rejects no/expired/malformed/wrong-`azp`/wrong-instance tokens (`401`/`403`) with no row, enqueue, or source call; valid token → `200`/`202`/`404` keyed on `id`; per-`sub` >50 pending → accepted (`202`) with items demoted to the back (no `429`); insufficient scope → `403`; M2M token accepted; oversized batch → `400`; `FoodDataReceived` not broadcast (REQ-037a–d..REQ-043)
+- [ ] US-0 auth contract green (ATP-008): every entry point + WebSocket `$connect` rejects no/expired/malformed/wrong-`azp`/wrong-instance tokens (`401`/`403`) with no row, enqueue, or source call; valid token → `200`/`202`/`404` keyed on `id`; per-`sub` >50 pending → accepted (`202`) with items demoted to the back (no `429`); insufficient scope → `403`; M2M token accepted; oversized batch → `400`; `FoodFetchCompleted` not broadcast (REQ-037a–d..REQ-043)
 - [ ] Each external source's API key (e.g. the USDA key) is not present in any client-facing response body or application log (REQ-IF-006)
 
 ### Out of Scope for This Gate
 
 - REQ-034 (WebSocket push notifications) is P3 and optional; it is excluded from the shippable exit gate (its auth contract is still verified at `$connect` via ATP-008-E)
-- REQ-NF-014 (80% cache hit rate) and REQ-NF-015 (5,000 foods/hr throughput) are P2 analysis targets measured post-launch once the local store reaches 5,000+ `RESOLVED` foods; they do not block the initial ship
+- REQ-NF-014 (local-store serve rate — the share of reads served from the local golden-record store with no source call) and REQ-NF-015 (local-store read/serve throughput) are P2 analysis targets measured post-launch once the local store reaches 5,000+ `RESOLVED` foods; the **first-time NEW-food resolution rate** (SC-014, ~500–900/hr, bounded by the per-source budget per SC-002) is tracked separately; none of these block the initial ship
 - REQ-NF-017 (99.9% monthly availability) is measured over a rolling calendar month and is a target contingent on the deferred multi-AZ DB upgrade (A-013); it cannot be verified pre-launch and is tracked via CloudWatch SLA dashboard post-deploy
 - REQ-030 (deferred Redis cache) is not part of the lean-launch build

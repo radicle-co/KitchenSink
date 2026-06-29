@@ -4,6 +4,7 @@
 **Status**: Complete | **Source**: [spec.md](../spec.md), [research.md](../research.md), [plan.md](../plan.md)
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+_Updated 2026-06-28: reconciled to the source-agnostic stabilization baseline (golden-record `id`; `PENDING/UNRESOLVED/RESOLVED/NOT_FOUND/FAILED` lifecycle; `food_candidates` candidate-pick flow; add-by-name-miss framing)._
 
 ---
 
@@ -22,9 +23,9 @@ Food lookup starts with local-store query (never USDA request-path call), with i
 
 ---
 
-### 1.2 Food Disambiguation (Brand vs Generic)
+### 1.2 Food Disambiguation / Candidate Resolution (Brand vs Generic)
 
-When multiple candidates are returned, each row includes:
+When an add-by-name request resolves to **more than one** surviving candidate, the food is set to `UNRESOLVED` and the surviving set is persisted to `food_candidates` for a human pick (US-2a). The candidate-resolution screen surfaces, for each candidate row:
 
 - Data type badge: Foundation / SR Legacy / Branded.
 - Brand owner/name (when present).
@@ -33,11 +34,11 @@ When multiple candidates are returned, each row includes:
 Primary interaction:
 
 1. User types ingredient name.
-2. System returns ranked candidates.
-3. User selects the most appropriate record.
-4. Selection persists `fdcId` link on ingredient when available.
+2. System auto-resolves: exactly **1** normalized-name match → `RESOLVED`; **>1** → `UNRESOLVED` (surface candidate set via `GET /candidates`); **0** → `NOT_FOUND`.
+3. For `UNRESOLVED`, the user picks the most appropriate candidate (single-select, with a "none match" escape).
+4. The pick (`PATCH`-resolve, candidate-in-set validated and idempotent) persists the resolved food `id` link on the ingredient and clears the candidate set.
 
-**FR references**: FR-002, FR-008, FR-028.
+**FR references**: FR-002, FR-008, FR-028, FR-MRG-5 (auto-resolve boundary), FR-RES-1 (`GET /candidates`), FR-RES-2 (`PATCH`-resolve), FR-RES-3.
 
 ---
 
@@ -45,9 +46,9 @@ Primary interaction:
 
 ### 2.1 Pending-State Contract (202 Accepted)
 
-On cache miss:
+On an add-by-name miss (no `RESOLVED` local record yet):
 
-- Immediate response with `status: pending` + `estimatedWaitSeconds`.
+- Immediate response with `status: PENDING` + `estimatedWaitSeconds`.
 - UI renders pending chip (not color-only).
 - User can continue recipe authoring without blocking.
 
@@ -59,12 +60,13 @@ On cache miss:
 
 Polling endpoint drives status transitions:
 
-- `pending` → spinner + ETA
-- `fetched` → auto-refresh nutrition panel
-- `not_found` → inline guidance for manual/fallback ingredient handling
-- `failed` → retry affordance + non-blocking warning
+- `PENDING` → spinner + ETA
+- `RESOLVED` → auto-refresh nutrition panel
+- `UNRESOLVED` → open the candidate-resolution flow (§1.2) for a human pick
+- `NOT_FOUND` → inline guidance for manual/fallback ingredient handling
+- `FAILED` → retry affordance + non-blocking warning
 
-**FR references**: FR-007, FR-033.
+**FR references**: FR-007, FR-033, FR-RES-1.
 
 ---
 
@@ -135,6 +137,6 @@ Operational, not end-user UI: terminal failures recorded as tombstone rows (no D
 
 ## 5. Accessibility and Clarity Constraints
 
-- Pending/fetched/failed/not_found must be conveyed via text/icon + color (NFR-005).
+- `PENDING`/`UNRESOLVED`/`RESOLVED`/`NOT_FOUND`/`FAILED` must be conveyed via text/icon + color (NFR-005).
 - Interactive picker/search/status controls need accessible names (NFR-004).
 - Any food-state badges must remain keyboard/screen-reader discoverable.

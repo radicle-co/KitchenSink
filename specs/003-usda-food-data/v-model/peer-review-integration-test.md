@@ -16,6 +16,8 @@
 | Observation        | 1     |
 | **Total Findings** | **5** |
 
+> ⚠️ **Verdict superseded** — the counts and verdict in this Summary predate doc-stabilization; read them through the **Stabilization reconciliation (decision register, 2026-06-28)** appendix at the foot of this file, which is the controlling record.
+
 Overall assessment: **PASS WITH MAJORS.** The prior (2026-06-19) review is superseded. Every changed mechanism now has a module-boundary seam case:
 
 - **Rolling-window seam (MOD-005):** ITP-004-A verifies ARCH-004 always calls `checkAndRecord()` before ARCH-008 and that the result gates the USDA call (admit below 900; pause at 900 records nothing). ITP-005-A is a **real-Postgres concurrent** count-and-record harness asserting the cap holds under contention — `999 + 2 concurrent → exactly one admit`, and `1,500 concurrent on empty → exactly 1,000 admit / 500 block` (the 1,001st blocked; cap never breached). ITP-005-B fails closed on store unavailability. **No token-bucket seam survives.**
@@ -125,3 +127,37 @@ _End of Peer Review — integration-test, 003-usda-food-data_
 ## Remediation Status (2026-06-20, round 4)
 
 All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.
+
+---
+
+## Stabilization reconciliation (decision register, 2026-06-28)
+
+> This section supersedes the "Remediation Status (round 4)" note above wherever they differ. The
+> stabilization **decision register** (`../decision-register.md`), with `../.stabilization/inputs/`, is the
+> single canonical resolution. The findings above are retained verbatim as the review record; read every
+> term in them through the canonical mapping below. The only in-place body edit applied by stabilization is
+> the mandated completion-event rename to **`FoodFetchCompleted`** (the retired `FoodData*` completion-event names; D-EVENT).
+
+**Canonical names (§1; D-EVENT / D-CLEANUP / D-AUTH).**
+
+- Completion event = **`FoodFetchCompleted`** (EventBridge `DetailType`; publisher `publishFoodFetchCompleted`). `FoodRequested`/`FoodBatchRequested` are in-process enqueue markers, **not** EventBridge types; `IngestionScheduled`/`FetchFailed` keep their names.
+- `food.status` lifecycle enum = **`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`** (replaces the old `fetch_status` = `pending/fetched/failed/not_found/stale`). `fetch_queue.status` stays **`pending | in_flight | tombstone`**.
+- USDA native id = **`external_key`**; the public/PK id is the internal **ULID `id`**. `fdcId`/`fdc_id` is **adapter-only** and must not appear on schema/DTO/API/DAO. Source = the **`food_source`** enum (no free-text). Errors: **`SourceApiError`** (not `UsdaApiError`), plus `RateLimitWindowFullError`/`FoodNotFoundError`/`CandidateMismatchError`.
+- Read framing = **local-store read (RESOLVED) / local-store serve rate / add-by-name miss**; "cache hit/miss/hit-rate" is reserved for the deferred Redis variant (ARCH-007) only.
+- Auth = **`FoodAuthGuard`** (food service; networkless Clerk verify, fail-closed, scopes from `public_metadata`); the forgeable **`x-debug-sub`** / trusted-identity-header path is removed (identity = the verified Clerk `sub` only). The auth slice is unchanged in scope.
+
+**Canonical schema (§2; D-CANDIDATES / D-LEASE / D-PROVENANCE-FK).** plan.md §2 = **13 tables** (the 12 there **plus `food_candidates`** — `id, food_id, source, external_key, name, summary, created_at`; `UNIQUE(food_id, source, external_key)`, backing `UNRESOLVED`/US-2a). `fetch_queue` gains **`leased_at timestamptz`** with a reaper reverting `in_flight` rows older than 30s (single-drainer = FR-022 advisory lock). `food_sources` gains `UNIQUE(food_id, id)`; nutrients/portions/field-provenance/category-assignment use composite **`(food_id, source_id)` FKs**, `ON DELETE NO ACTION`. `source_call_log` rows beyond the trailing 60-min window are pruned on a periodic sweep.
+
+**Canonical behaviour (D-AUTORESOLVE / D-UNRESOLVED-TTL / D-LIFECYCLE / D-DEMAND / D-FAIRNESS / D-REFRESH / D-SC005).**
+
+- Auto-resolve: after pre-merge dedup, **1 survivor of normalized-name exact match → `RESOLVED`; >1 → `UNRESOLVED`** (persist survivors to `food_candidates`); **0 → `NOT_FOUND`**. No nutrient tolerance.
+- `UNRESOLVED` is kept until a human picks; its candidate set expires 30 days after `created_at` and re-fans-out on the next request (never swept to `NOT_FOUND`). The **30-day TTL is `NOT_FOUND`-only**; `FAILED→PENDING` is bounded-backoff retry (no 30-day gate).
+- Legal transitions: `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}`; `UNRESOLVED→RESOLVED`; `FAILED→PENDING`; `NOT_FOUND→PENDING` (post-TTL). `PATCH`-resolve is UNRESOLVED-only, idempotent, candidate-in-set validated (`CandidateMismatchError`). `createByName` reactivates a terminal-state row (no `23505`). Refresh never overwrites a manual pick.
+- Demand = distinct-requester: upsert `(food_id, sub)` into `fetch_requesters` `ON CONFLICT DO NOTHING`, then set `request_count` to the **capped distinct-`sub` count (`PRIORITY_CAP = 1`)** — never raw `+1`. One demand-weighted `fetch_queue` ordered `request_count DESC, first_requested ASC`; demotion is **drain-time live compute** (no `drain_priority_tier` column, no `enqueueLowPriority`). No per-user quota, no `429`; near-ceiling NEW-enqueue flood-shed = `503`. Change-refresh runs as a **Fargate scheduled task** that yields to live demand, re-enqueuing via the ordinary path.
+- SC-005 splits into **read/serve throughput** (local reads, high target) vs **first-time NEW-food resolution rate** (~500–900/hr, bounded by SC-002 ≤1,000 calls/rolling-60-min — new **SC-014**).
+
+**Finding dispositions for this artifact.**
+
+- **PRF-ITP-007** (`trailingCount` vs `windowCount`) — unchanged by the register; the limiter seam field stays the design's `windowCount` (D-\* do not touch limiter symbol names).
+- **PRF-ITP-008 / PRF-ITP-009 / PRF-ITP-010 / PRF-ITP-011** — carried (REQ-040a/b retag; MOD-014 mapping; exactly-50 boundary; pre-seeded demotion technique).
+- **Integration tests to add** (per §3.4/§3.6/§3.9/§3.11/§3.5/§3.10): candidate persistence on `UNRESOLVED` asserting `UNIQUE(food_id, source, external_key)`, and a cross-`food_id` `source_id` **rejected by the composite FK** (D-PROVENANCE-FK); a **`leased_at` reaper** orphan `in_flight` → `pending` reclaim (D-LEASE); the **UNRESOLVED candidate-set TTL re-fan-out** (D-UNRESOLVED-TTL); the **auto-resolve 1/>1/0** seam (D-AUTORESOLVE); and `createByName` terminal-row reactivation (D-LIFECYCLE). `enqueueLowPriority` seams are removed (single demand-weighted queue); demand seams seed `fetch_requesters` distinct-`sub` rows (D-DEMAND).

@@ -7,7 +7,7 @@
 **Distinction from research/metrics-roi.md**: That file covers portfolio-level ROI and system SLO framing. This file is story-level — per-user-story measurable outcomes for product teams.
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
-_Updated 2026-06-22: re-baselined to the source-agnostic model. The `fdcId` cache-hit-rate / p99-by-`fdcId` KPIs are replaced by source-agnostic outcomes keyed on the internal `id`: add-by-name → RESOLVED time, ingredient resolution accuracy (% resolved without manual disambiguation), UNRESOLVED rate, golden-record field completeness, per-source rate-budget adherence (USDA ≤1,000/hr), `fetch_queue` depth, and NOT_FOUND/FAILED rates. `fdcId`/USDA terms are confined to adapter-boundary mentions._
+_Updated 2026-06-22: re-baselined to the source-agnostic model. The `fdcId` cache-hit-rate / p99-by-`fdcId` KPIs are replaced by source-agnostic outcomes keyed on the internal `id`: add-by-name → RESOLVED time, in-flow resolution success (% resolved without leaving the add flow — auto-`RESOLVED` plus one-tap candidate pick), abandoned-`UNRESOLVED` rate, golden-record field completeness, per-source rate-budget adherence (USDA ≤1,000/hr), `fetch_queue` depth, and NOT_FOUND/FAILED rates. `fdcId`/USDA terms are confined to adapter-boundary mentions._
 
 ---
 
@@ -25,15 +25,15 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 **FRs**: FR-035, FR-036, FR-040, FR-043, FR-044, FR-051, FR-052
 
-| Metric ID  | Metric                                      | Target                | Source              | Signal                                                                  |
-| ---------- | ------------------------------------------- | --------------------- | ------------------- | ----------------------------------------------------------------------- |
-| MET-US0-01 | Unauthenticated-rejection completeness      | 100%                  | API logs + tests    | every `/v1/foods/*` route + WS `$connect` returns `401` (SC-010)        |
-| MET-US0-02 | Token-verification latency (incl. flood)    | p95 <= 10ms           | API telemetry       | verify-time histogram under invalid-token flood (SC-011)                |
-| MET-US0-03 | Demotion fairness (no starvation, no `429`) | 0 starvation; 0 `429` | Queue + API metrics | a `sub` with >50 pending demoted to back; others keep draining (SC-012) |
+| Metric ID  | Metric                                      | Target                | Source              | Signal                                                                                                                                                                                                  |
+| ---------- | ------------------------------------------- | --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MET-US0-01 | Unauthenticated-rejection completeness      | 100%                  | API logs + tests    | every `/v1/foods/*` route + WS `$connect` returns `401` (SC-010)                                                                                                                                        |
+| MET-US0-02 | Token-verification latency (incl. flood)    | p95 <= 10ms           | API telemetry       | verify-time histogram under invalid-token flood (SC-011)                                                                                                                                                |
+| MET-US0-03 | Demotion fairness (no starvation, no `429`) | 0 starvation; 0 `429` | Queue + API metrics | a food whose every requester has >50 pending demoted to back (re-promoted when any drops below 50); near-ceiling NEW enqueues shed with `503`; reads/resolves never shed; others keep draining (SC-012) |
 
 ---
 
-### US-001: Single Food Read (Resolved Hit)
+### US-1: Single Food Read (Resolved Hit)
 
 **Story**: As a recipe author, I can read a locally-`RESOLVED` food's golden record instantly by `id`, with no external source call.
 
@@ -47,7 +47,7 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 ---
 
-### US-002: Add Food By Name (Async Resolution)
+### US-2: Add Food By Name (Async Resolution)
 
 **Story**: As a recipe author, I add a food **by name**, get an immediate `202` + `id`, and the food resolves in the background (or becomes `UNRESOLVED` for me to disambiguate).
 
@@ -61,21 +61,21 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 ---
 
-### US-002a: Disambiguate Candidates and Resolve
+### US-2a: Disambiguate Candidates and Resolve
 
 **Story**: As a user, when an add is ambiguous I pick the matching candidate and the food becomes `RESOLVED` from my pick.
 
 **FRs**: FR-RES-1, FR-RES-2, FR-RES-3
 
-| Metric ID     | Metric                                   | Target | Source             | Signal                                                                          |
-| ------------- | ---------------------------------------- | ------ | ------------------ | ------------------------------------------------------------------------------- |
-| MET-US002a-01 | Ingredient resolution accuracy           | >= 90% | Resolution metrics | foods reaching `RESOLVED` without manual disambiguation / total (30-day cohort) |
-| MET-US002a-02 | UNRESOLVED rate                          | <= 10% | Lifecycle metrics  | foods entering `UNRESOLVED` / total add-by-name resolutions                     |
-| MET-US002a-03 | Candidate-selection validity enforcement | 100%   | API logs + tests   | `PATCH` with a candidate not in the food's set rejected (`400`/`409`)           |
+| Metric ID     | Metric                                   | Target | Source             | Signal                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------- | ---------------------------------------- | ------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| MET-US002a-01 | In-flow resolution success               | >= 90% | Resolution metrics | foods reaching `RESOLVED` without leaving the add flow — auto-`RESOLVED` (single survivor) **plus** one-tap candidate pick (`UNRESOLVED`→`RESOLVED` via `PATCH`) — / total (30-day cohort). **Not** a no-human-pick rate: under the survivor-count rule (D-AUTORESOLVE) a name like "broccoli" returns many distinctly-named USDA variants → `UNRESOLVED`, so most realistic add-by-name results resolve via the one-tap pick, which counts as success here. |
+| MET-US002a-02 | Abandoned-`UNRESOLVED` rate              | <= 10% | Lifecycle metrics  | foods left terminally `UNRESOLVED` (no candidate pick before the user leaves / candidate-set TTL) / total add-by-name (30-day cohort) — i.e. the in-flow failure complement of MET-US002a-01, **not** the rate of entering `UNRESOLVED`                                                                                                                                                                                                                      |
+| MET-US002a-03 | Candidate-selection validity enforcement | 100%   | API logs + tests   | `PATCH` with a candidate not in the food's set rejected (`400`/`409`)                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ---
 
-### US-003: Per-Source Rate-Limit-Safe Consumer
+### US-3: Per-Source Rate-Limit-Safe Consumer
 
 **Story**: As operations, the consumer stays within each source's budget (USDA: 1,000 req/hr) under load.
 
@@ -89,21 +89,21 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 ---
 
-### US-004: Bulk Ingredient Resolution (Recipe Import)
+### US-4: Bulk Ingredient Resolution (Recipe Import)
 
 **Story**: As a recipe author, unknown ingredient names from an import each create one `id` and resolve via fan-out; the response returns resolved foods inline and pending `id`s per item.
 
 **FRs**: FR-012, FR-045, FR-MRG-1
 
-| Metric ID    | Metric                                | Target              | Source                 | Signal                                                                  |
-| ------------ | ------------------------------------- | ------------------- | ---------------------- | ----------------------------------------------------------------------- |
-| MET-US004-01 | Per-item partial-response correctness | 100%                | API logs + tests       | resolved foods inline + each miss returned as `PENDING` + `id` (FR-045) |
-| MET-US004-02 | Effective fan-out/merge throughput    | >= 5,000 foods/hour | Queue + worker metrics | foods resolved per hour (USDA adapter batch ≤20 keys/call) (SC-005)     |
-| MET-US004-03 | Batch-size limit enforcement          | 100%                | API logs + tests       | requests > 100 names/`id`s rejected `400`, nothing enqueued (FR-045)    |
+| Metric ID    | Metric                                | Target              | Source                 | Signal                                                                                                                                             |
+| ------------ | ------------------------------------- | ------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MET-US004-01 | Per-item partial-response correctness | 100%                | API logs + tests       | resolved foods inline + each miss returned as `PENDING` + `id` (FR-045)                                                                            |
+| MET-US004-02 | First-time NEW-food resolution rate   | ~500–900 foods/hour | Queue + worker metrics | NEW foods resolved per hour, bounded by the per-source budget (~1 non-batchable name-search call per NEW food under USDA's ≤1,000/hr cap) (SC-014) |
+| MET-US004-03 | Batch-size limit enforcement          | 100%                | API logs + tests       | requests > 100 names/`id`s rejected `400`, nothing enqueued (FR-045)                                                                               |
 
 ---
 
-### US-005: Demand-Weighted Queue + Failure Recovery
+### US-5: Demand-Weighted Queue + Failure Recovery
 
 **Story**: As operations, the most-demanded misses rise to the front, no request is silently dropped, and failures are recoverable and auditable.
 
@@ -133,16 +133,16 @@ These span stories and anchor the source-agnostic data-quality and availability 
 
 ## Summary Coverage Table
 
-| Story   | Metrics Count | Primary SLO Anchor       |
-| ------- | ------------: | ------------------------ |
-| US-0    |             3 | SC-010 / SC-011 / SC-012 |
-| US-001  |             3 | SC-001                   |
-| US-002  |             3 | SC-003                   |
-| US-002a |             3 | SC-008 (accuracy)        |
-| US-003  |             3 | SC-002                   |
-| US-004  |             3 | SC-005                   |
-| US-005  |             4 | SC-006                   |
-| Cross   |             4 | SC-008 / SC-009 / SC-013 |
+| Story | Metrics Count | Primary SLO Anchor       |
+| ----- | ------------: | ------------------------ |
+| US-0  |             3 | SC-010 / SC-011 / SC-012 |
+| US-1  |             3 | SC-001                   |
+| US-2  |             3 | SC-003                   |
+| US-2a |             3 | SC-008 (accuracy)        |
+| US-3  |             3 | SC-002                   |
+| US-4  |             3 | SC-014                   |
+| US-5  |             4 | SC-006                   |
+| Cross |             4 | SC-008 / SC-009 / SC-013 |
 
 ---
 

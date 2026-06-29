@@ -37,7 +37,7 @@ internal `id` created up front by an **add-by-name** request; the demand path is
 table with `LISTEN/NOTIFY`, drained by a single Fargate **fan-out/merge worker** that fans out across the
 **source-adapter registry**, applies a **per-source** rolling-window limiter, and assembles a **golden
 record** with per-field provenance. EventBridge is used only for scheduled producers (change-driven refresh)
-and the `FoodDataReceived` completion notification. **USDA terms (`fdcId`) live only at the adapter
+and the `FoodFetchCompleted` completion notification. **USDA terms (`fdcId`) live only at the adapter
 boundary** (SYS-009 / SYS-014), mapped to `external_key` inbound.
 
 ## ID Schema
@@ -104,7 +104,7 @@ are `202`; `NOT_FOUND`/`FAILED`/no-row are `404` with the status still retrievab
     - **Then** response status is `202 Accepted`; body is `{ "id": <ulid>, "status": "PENDING", "estimatedWaitSeconds": <positive integer> }`; **no new fetch is enqueued** by a read (the fetch was enqueued at add time)
 
 - **System Scenario: STS-001-B3** (`UNRESOLVED → 202`)
-    - **Given** the canonical store holds a food with `status = 'UNRESOLVED'` (the fan-out yielded multiple non-collapsible candidates)
+    - **Given** the canonical store holds a food with `status = 'UNRESOLVED'` (the fan-out yielded >1 surviving candidate after normalized-name exact match)
     - **When** FoodApiController receives `GET /v1/foods/{id}`
     - **Then** response status is `202 Accepted`; body is `{ "id": <ulid>, "status": "UNRESOLVED" }` directing the client to `GET /v1/foods/{id}/candidates` (SYS-016); no fetch is enqueued
 
@@ -206,16 +206,21 @@ row is created and fetch enqueued — rather than all-or-nothing withholding (RE
     - **When** FoodApiController processes the batch
     - **Then** the 3 in-flight names collapse to their existing `id`s (normalized-name dedup, SYS-018) and only the 2 new names create new rows; no duplicate `fetch_queue` rows are created
 
+- **System Scenario: STS-001-F3** (intra-batch duplicate name in one request body)
+    - **Given** a single batch body that contains the **same** name twice under different surface forms (e.g. `"Granny Smith Apple"` and `"granny smith apple"`, both normalizing to one key), neither previously known
+    - **When** FoodApiController processes the batch
+    - **Then** the two entries collapse to **one** canonical `food` row + `id` (normalized-name dedup, SYS-018), exactly **one** `fetch_queue` row is enqueued for it, and the response lists that `id` once — intra-batch duplicates dedup identically to cross-request duplicates, with no duplicate row and no `23505`
+
 ---
 
-### Component Verification: SYS-002 (EventBridgeBus — scheduled producers + FoodDataReceived only)
+### Component Verification: SYS-002 (EventBridgeBus — scheduled producers + FoodFetchCompleted only)
 
 **Parent Requirements**: REQ-032, REQ-IF-005
 
 > **Demand path is NOT EventBridge.** Add-by-name **demand** enqueues by inserting a `fetch_queue` row and
 > signalling `pg_notify('fetch_queued', id)` (Postgres `LISTEN/NOTIFY`), drained by the Fargate worker —
 > EventBridge is **not** on the request/demand path. EventBridge carries **only** scheduled producers
-> (change-driven refresh, `IngestionScheduled`) and the asynchronous `FoodDataReceived` completion event.
+> (change-driven refresh, `IngestionScheduled`) and the asynchronous `FoodFetchCompleted` completion event.
 > The scenarios below assert `fetch_queue` insert + `pg_notify` for the demand path and EventBridge for the
 > scheduled/completion paths only.
 
@@ -223,21 +228,21 @@ row is created and fetch enqueued — rather than all-or-nothing withholding (RE
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-002: SYS-001 → SYS-003; SYS-001 → SYS-004)
-**Description**: Verifies that an add-by-name cache miss inserts one row into the single demand-weighted
+**Description**: Verifies that an add-by-name miss inserts one row into the single demand-weighted
 `fetch_queue` (SYS-003) and records the distinct requester in `fetch_requesters` (SYS-004) **directly from
 SYS-001**, with **no** EventBridge event on the demand path (REQ-IF-005).
 
 - **System Scenario: STS-002-A1**
-    - **Given** SYS-001 resolves an add-by-name cache miss for a new normalized name requested by `sub = "user_abc"`, creating `food.id = X`
+    - **Given** SYS-001 resolves an add-by-name miss for a new normalized name requested by `sub = "user_abc"`, creating `food.id = X`
     - **When** SYS-001 executes `INSERT INTO fetch_queue (food_id) VALUES (X) ON CONFLICT (food_id) DO UPDATE …`, upserts `(X, "user_abc")` into `fetch_requesters` `ON CONFLICT DO NOTHING`, and issues `pg_notify('fetch_queued', X)`
-    - **Then** exactly one row exists in SYS-003 for `X` and exactly one row in SYS-004 for `(X, "user_abc")`; **no** EventBridge event is published on this demand path (the only producers are the scheduled `IngestionScheduled` and the completion `FoodDataReceived`)
+    - **Then** exactly one row exists in SYS-003 for `X` and exactly one row in SYS-004 for `(X, "user_abc")`; **no** EventBridge event is published on this demand path (the only producers are the scheduled `IngestionScheduled` and the completion `FoodFetchCompleted`)
 
 #### Test Case: STP-002-B (Scheduled Producer + Completion Event Routing via EventBridge)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-002 → SYS-019 scheduled; SYS-005 → SYS-002 → SYS-010 completion)
 **Description**: Verifies that EventBridge routes the scheduled `IngestionScheduled` producer to the
-change-driven refresh (SYS-019) and the `FoodDataReceived` completion event emitted by the worker (SYS-005)
+change-driven refresh (SYS-019) and the `FoodFetchCompleted` completion event emitted by the worker (SYS-005)
 to its consumers (REQ-032/REQ-IF-005).
 
 - **System Scenario: STS-002-B1** (scheduled producer)
@@ -246,7 +251,7 @@ to its consumers (REQ-032/REQ-IF-005).
     - **Then** the event is routed to SYS-019 (ChangeDrivenRefresh); no demand-path `fetch_queue` insert is performed by the bus itself (SYS-019 decides what to re-enqueue)
 
 - **System Scenario: STS-002-B2** (completion event)
-    - **Given** the worker (SYS-005) finishes resolving a food and publishes `FoodDataReceived { id, status }`
+    - **Given** the worker (SYS-005) finishes resolving a food and publishes `FoodFetchCompleted { id, status }`
     - **When** EventBridge routes the event
     - **Then** the event is delivered to its consumers (the deferred WebSocket notifier SYS-010); failure to deliver is fire-and-forget and does not affect the core pipeline (polling remains the primary notification)
 
@@ -387,24 +392,25 @@ before low/zero-demand (background/refresh) rows, without any static priority ti
 `fetch_queue` row keyed on `id` → **fan out across every wired source adapter by name** (SYS-014) under the
 per-source limiter (SYS-006) and adapter validation (SYS-020) → assemble the **golden record** (SYS-015) →
 persist via the DAO layer (SYS-018) with provenance (SYS-017) → set `status = 'RESOLVED'` → resolve the
-`fetch_queue` row → emit `FoodDataReceived` (REQ-050/REQ-024).
+`fetch_queue` row → emit `FoodFetchCompleted` (REQ-050/REQ-024).
 
 - **System Scenario: STS-005-B1**
     - **Given** a `fetch_queue` row keyed on `food_id = X` (a PENDING food named "broccoli") is pending; the per-source rolling-window count for each wired source is below the pause threshold; the wired adapters return matching items that collapse to one confident record
     - **When** the worker leases and processes the row
-    - **Then** the worker: (1) reads `food.name`; (2) iterates the SourceAdapterRegistry (SYS-014) calling `searchByName` then `fetchByKey` on each adapter (each call check-and-recorded against SYS-006); (3) runs adapter validation/HTTPS (SYS-020) on each mapped candidate; (4) hands normalized candidates to the merge engine (SYS-015) which yields **one confident golden record** (`outcome: 'RESOLVED'`); (5) persists via the DAO layer (SYS-018) — `food` (`status='RESOLVED'`), `food_sources` (`UNIQUE(source, external_key)`, `item_version`), `food_nutrients`/`food_portions` (`source_id`), `food_field_provenance` — recording provenance (SYS-017); (6) resolves the `fetch_queue` row (removed from the pending set; _deferred Redis variant: `DEL food:{id}`_); (7) publishes `FoodDataReceived { id, status:'RESOLVED' }` to SYS-002. A subsequent `GET /v1/foods/{id}` returns `200` with the golden record
+    - **Then** the worker: (1) reads `food.name`; (2) iterates the SourceAdapterRegistry (SYS-014) calling `searchByName` then `fetchByKey` on each adapter (each call check-and-recorded against SYS-006); (3) runs adapter validation/HTTPS (SYS-020) on each mapped candidate; (4) hands normalized candidates to the merge engine (SYS-015) which yields **one confident golden record** (`outcome: 'RESOLVED'`); (5) persists via the DAO layer (SYS-018) — `food` (`status='RESOLVED'`), `food_sources` (`UNIQUE(source, external_key)`, `item_version`), `food_nutrients`/`food_portions` (`source_id`), `food_field_provenance` — recording provenance (SYS-017); (6) resolves the `fetch_queue` row (removed from the pending set; _deferred Redis variant: `DEL food:{id}`_); (7) publishes `FoodFetchCompleted { id, status:'RESOLVED' }` to SYS-002. A subsequent `GET /v1/foods/{id}` returns `200` with the golden record
 
 #### Test Case: STP-005-C (Fan-Out → UNRESOLVED when Candidates Do Not Collapse)
 
 **Technique**: Equivalence Partitioning
 **Target View**: Data Design View (`status = 'UNRESOLVED'`; SYS-005 → SYS-015 outcome)
-**Description**: Verifies that when the fan-out yields multiple non-collapsible candidates, the worker sets
-`status = 'UNRESOLVED'` and surfaces them for a human pick rather than blindly merging (REQ-050, US-2 #6).
+**Description**: Verifies that when **more than one** candidate survives normalized-name exact match (after
+pre-merge dedup), the worker sets `status = 'UNRESOLVED'` and surfaces them for a human pick rather than
+blindly merging — no nutrient tolerance, bias toward `UNRESOLVED` (REQ-050/REQ-050a, US-2 #6).
 
 - **System Scenario: STS-005-C1**
-    - **Given** a pending `food_id = X`; the wired adapters return ≥2 candidates the merge engine (SYS-015) cannot confidently collapse
+    - **Given** a pending `food_id = X`; the wired adapters return ≥2 candidates that both survive normalized-name exact match (the merge engine SYS-015 yields `outcome='UNRESOLVED'`)
     - **When** the worker processes the row
-    - **Then** the merge `outcome` is `'UNRESOLVED'`; the food is set to `status = 'UNRESOLVED'`; the candidate set is persisted for retrieval via `GET /v1/foods/{id}/candidates` (SYS-016); the `fetch_queue` row is resolved (the food awaits a human pick, not a retry); a subsequent `GET /v1/foods/{id}` returns `202` with `status:'UNRESOLVED'`
+    - **Then** the merge `outcome` is `'UNRESOLVED'`; the food is set to `status = 'UNRESOLVED'`; the surviving candidate set is persisted into the `food_candidates` table (`UNIQUE(food_id, source, external_key)`) for retrieval via `GET /v1/foods/{id}/candidates` (SYS-016); the `fetch_queue` row is resolved (the food awaits a human pick, not a retry); a subsequent `GET /v1/foods/{id}` returns `202` with `status:'UNRESOLVED'`
 
 #### Test Case: STP-005-D (Fan-Out finds No Source — NOT_FOUND Tombstone, no retry, TTL re-attempt)
 
@@ -417,7 +423,7 @@ re-attempt (REQ-025, US-2 #5).
 - **System Scenario: STS-005-D1**
     - **Given** a pending `food_id = X`; every wired adapter's `searchByName` returns no item
     - **When** the worker processes the row
-    - **Then** the food is set to `status = 'NOT_FOUND'`; the `fetch_queue` row is set to `status = 'tombstone'` (`tombstoned_at` recorded); no retry/backoff occurs; no `FoodDataReceived` resolution-success event is emitted
+    - **Then** the food is set to `status = 'NOT_FOUND'`; the `fetch_queue` row is set to `status = 'tombstone'` (`tombstoned_at` recorded); no retry/backoff occurs; no `FoodFetchCompleted` resolution-success event is emitted
 
 - **System Scenario: STS-005-D2** (TTL re-attempt)
     - **Given** a `NOT_FOUND` tombstone whose age exceeds the 30-day TTL
@@ -553,11 +559,14 @@ the burst entirely. Distinct from STP-006-A/B (math/aging on intact state).
 
 **Parent Requirements**: REQ-001, REQ-002, REQ-003, REQ-004, REQ-008, REQ-010, REQ-028, REQ-029, REQ-NF-018
 
-> **Source-agnostic schema.** SYS-007 holds the normalized, provenance-bearing canonical schema: `food`
-> (internal `id` PK, `normalized_name` dedup key, lifecycle `status`), `food_sources`
-> (`UNIQUE(source, external_key)`, `item_version`, no payload), `nutrient` (units), `food_nutrients`
-> (`amount`, `basis`, `source_id`), `food_portions` (`source_id`), `food_field_provenance`. No `fdcId`, no
-> denormalized nutrient columns, no `fetch_status`, no EAV.
+> **Source-agnostic schema.** SYS-007 holds the normalized, provenance-bearing **13-table** canonical schema:
+> `food` (internal `id` PK, `normalized_name` dedup key, lifecycle `status`), `food_sources`
+> (`UNIQUE(source, external_key)` plus `UNIQUE(food_id, id)`, `item_version`, no payload), `nutrient` (units),
+> `food_nutrients` / `food_portions` / `food_field_provenance` (composite `(food_id, source_id)` FK,
+> `ON DELETE NO ACTION`), `food_candidates` (`UNIQUE(food_id, source, external_key)`, backs `UNRESOLVED`), and
+> `fetch_queue` (with the `leased_at` lease column) / `fetch_requesters` / `source_call_log` /
+> `source_sync_metadata` / `food_category` / `food_category_assignment`. No `fdcId`, no denormalized nutrient
+> columns, no `fetch_status`, no EAV.
 
 #### Test Case: STP-007-A (Golden-Record Upsert Contract — Insert and Update)
 
@@ -747,19 +756,19 @@ fan-out/merge pipeline (polling remains primary, REQ-033/REQ-034).
 
 - **System Scenario: STS-010-A1**
     - **Given** WebSocketNotificationLambda (SYS-010) is unavailable or throws
-    - **When** the worker publishes `FoodDataReceived { id, status }` to SYS-002
+    - **When** the worker publishes `FoodFetchCompleted { id, status }` to SYS-002
     - **Then** routing to SYS-010 fails silently; FoodApiController continues serving and the worker continues processing; no error propagates to the core pipeline
 
-#### Test Case: STP-010-B (Per-Recipient Push on FoodDataReceived — Targeted via fetch_requesters)
+#### Test Case: STP-010-B (Per-Recipient Push on FoodFetchCompleted — Targeted via fetch_requesters)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (SYS-002 → SYS-010; SYS-010 → SYS-004 subscription set)
-**Description**: Verifies that WebSocketNotificationLambda is triggered by `FoodDataReceived` and pushes the
+**Description**: Verifies that WebSocketNotificationLambda is triggered by `FoodFetchCompleted` and pushes the
 food `id` only to connections whose authenticated `sub` requested that food `id`, never broadcast
 (REQ-034/REQ-043, US-0 #8).
 
 - **System Scenario: STS-010-B1**
-    - **Given** clients are connected; the worker publishes `FoodDataReceived { "id": "<ulid>", "status": "RESOLVED" }`; the `fetch_requesters` subscription set records which `sub`s requested that `id`
+    - **Given** clients are connected; the worker publishes `FoodFetchCompleted { "id": "<ulid>", "status": "RESOLVED" }`; the `fetch_requesters` subscription set records which `sub`s requested that `id`
     - **When** EventBridge routes the event to SYS-010
     - **Then** SYS-010 pushes `{ "type": "food_ready", "id": "<ulid>" }` via the API Gateway Management API only to the connections whose authenticated `sub` is in the `fetch_requesters` set for that `id`; non-subscribed connections receive nothing
 
@@ -850,8 +859,9 @@ window over a source's cap, zero `429`) and zero-data-loss tombstoning verifiabl
 
 **Parent Requirements**: REQ-035, REQ-IF-007, REQ-IF-008, REQ-037a–d, REQ-038a–c, REQ-039, REQ-040a–b, REQ-041, REQ-042, REQ-043, REQ-044a–d
 
-The auth layer is the in-process NestJS `AuthMiddleware`/`FoodAuthGuard` (using `@kitchensink/clerk-verify`)
-on the ECS/Fargate food read service; it is not a Lambda authorizer (except the deferred WebSocket
+The auth layer is the in-process NestJS `FoodAuthGuard` (the food-service guard, ARCH-012; implemented via the
+`ClerkAuthMiddleware` networkless-verify module MOD-012 using `@kitchensink/clerk-verify` — distinct from the
+identity service's own `AuthMiddleware`) on the ECS/Fargate food read service; it is not a Lambda authorizer (except the deferred WebSocket
 `$connect` authorizer). It fronts **every** food data entry point (every HTTP `/v1/foods/*` route and the
 WebSocket `$connect`). These scenarios verify its architectural behavior as a black box: rejection before any
 downstream component is reached (no `fetch_queue` insert, no source call), the load-shed property under an
@@ -914,12 +924,15 @@ well-formed-but-unverifiable tokens (each forcing a full CPU-bound signature che
 
 **Technique**: Boundary Value Analysis
 **Target View**: Dependency View (SYS-013/SYS-005 → SYS-003/SYS-004: drain-time priority from live pending count)
-**Description**: Verifies that fairness is enforced by **queue demotion, not rejection**: a `sub` with more
-than 50 items currently pending in the `fetch_queue` has its items ranked to the **back**, while other `sub`s
-continue to be served. No authenticated cache-miss add is rejected — there is **no per-user quota and no
-`429`**. Demotion is **dynamic**: priority is computed at drain time from the requester's live pending count,
-so items auto-return to normal priority once the `sub` falls below 50 (SC-012, FR-043, US-0 #9). The boundary
-under test is the **50-pending** threshold.
+**Description**: Verifies that fairness is enforced by **queue demotion, not rejection**: a **food** is ranked
+to the **back only when every** current requester of that food has more than 50 items pending in the
+`fetch_queue` (FR-043a) — a food with even one under-threshold requester keeps normal priority — while other
+`sub`s continue to be served. No authenticated add-by-name miss is rejected — there is **no per-user quota and
+no `429`**. Demotion is **dynamic**: priority is computed at drain time from live pending counts, so items
+auto-return to normal priority once a requester falls below 50 (SC-012, FR-043/FR-043a, US-0 #9). Near the
+**global** rolling-window ceiling, a flooding `sub`'s **NEW** enqueues are shed first with `503` (Retry-After)
+to preserve headroom (FR-043b) — reads and `PATCH`-resolves are never shed and never `429`. The boundary under
+test is the **50-pending** threshold.
 
 - **System Scenario: STS-013-C1**
     - **Given** the `fetch_queue` and `fetch_requesters` demand state are **reset to empty** at the start, then authenticated `sub` `A` is **seeded to a known pending count of 51** by enqueuing 51 distinct add-by-name lookups for `A` and **holding the consumer drain paused** so the count stays at 51
@@ -930,6 +943,11 @@ under test is the **50-pending** threshold.
     - **Given** the demand state is **reset to empty**, the SYS-006 USDA window is **seeded below the pause threshold** (deterministic drain capacity against the 1,000/hr budget), and authenticated `sub` `A` scripts add-by-name lookups continuously (driving its pending count above 50) while `sub` `B` issues occasional adds
     - **When** the consumer drains and `A`'s pending count later falls below 50
     - **Then** while `A` is above 50, `A`'s demoted items yield to `B`'s normally-prioritized items (one account cannot starve the shared budget); none of `A`'s requests receive `429`; once `A`'s live pending count drops below 50, the drain-time scorer re-promotes `A`'s remaining items (no frozen demotion flag)
+
+- **System Scenario: STS-013-C3** (multi-requester food not demoted + near-ceiling flood-shed)
+    - **Given** a food `Y` has two requesters — heavy `sub` `A` (pending > 50) and light `sub` `B` (pending < 50) — and, separately, the global rolling-window budget is near its ceiling while `A` keeps issuing **NEW** add-by-name enqueues
+    - **When** the drain-time scorer evaluates `Y` and the admission gate evaluates `A`'s NEW enqueues near the ceiling
+    - **Then** `Y` is **not** demoted (not every requester exceeds 50 — FR-043a); and near the ceiling `A`'s NEW enqueues are shed first with `503` (Retry-After) to preserve headroom for other users, while reads and `PATCH`-resolves from any user are never shed and never `429` (FR-043b)
 
 #### Test Case: STP-013-D (Scope `403` vs `401` Authorization Class; M2M Service-Token Acceptance)
 
@@ -1105,18 +1123,19 @@ higher-priority source, `food_nutrients.source_id` recording the winner (REQ-051
 
 **Technique**: State Transition
 **Target View**: Interface View (SYS-015 → SYS-005 outcome → lifecycle status)
-**Description**: Verifies that the merge yields `RESOLVED` when candidates collapse to one confident record
-and `UNRESOLVED` when residual ambiguity remains (REQ-050, US-2 #2/#6).
+**Description**: Verifies that the merge yields `RESOLVED` when **exactly one** candidate survives
+normalized-name exact match and `UNRESOLVED` when **more than one** survives — no nutrient tolerance, bias
+toward `UNRESOLVED` (REQ-050/REQ-050a, US-2 #2/#6).
 
 - **System Scenario: STS-015-C1** (RESOLVED)
-    - **Given** candidates that confidently collapse to a single record
+    - **Given** candidates that collapse to a single survivor after normalized-name exact match
     - **When** the merge runs
     - **Then** `outcome = 'RESOLVED'`; one golden record is produced; the food is set to `RESOLVED`
 
 - **System Scenario: STS-015-C2** (UNRESOLVED)
-    - **Given** ≥2 non-collapsible candidates (the matcher need not be perfect — the human is the arbiter)
+    - **Given** ≥2 candidates surviving normalized-name exact match (the matcher need not be perfect — the human is the arbiter)
     - **When** the merge runs
-    - **Then** `outcome = 'UNRESOLVED'`; the candidate set is retained for SYS-016; the food is set to `UNRESOLVED`
+    - **Then** `outcome = 'UNRESOLVED'`; the surviving candidate set is retained in `food_candidates` for SYS-016; the food is set to `UNRESOLVED`
 
 ---
 
@@ -1133,22 +1152,27 @@ and `UNRESOLVED` when residual ambiguity remains (REQ-050, US-2 #2/#6).
 US-2a #1).
 
 - **System Scenario: STS-016-A1**
-    - **Given** a food with `status = 'UNRESOLVED'` whose fan-out produced multiple candidates
+    - **Given** a food with `status = 'UNRESOLVED'` whose fan-out persisted multiple rows in the `food_candidates` table (`UNIQUE(food_id, source, external_key)`)
     - **When** the client calls `GET /v1/foods/{id}/candidates`
-    - **Then** response is `200` with `{ id, candidates: [ { candidateId, source, externalKey, name, summary }, … ] }`; each candidate carries its `source` and item key; no source call is made (candidates were assembled at fan-out time)
+    - **Then** response is `200` with `{ id, candidates: [ { candidateId, source, externalKey, name, summary }, … ] }` read from `food_candidates`; each candidate carries its `source` and item key; no source call is made (candidates were assembled at fan-out time)
 
 #### Test Case: STP-016-B (PATCH resolve — Valid Pick Drives Merge → RESOLVED)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View (IC-004/IC-IF-011: SYS-016 → SYS-015 → SYS-018)
-**Description**: Verifies that `PATCH /v1/foods/{id}` with a candidate from the food's own set drives the
-merge into the golden record, moves the food to `RESOLVED`, and stores the user's pick as ordinary
-provenance (REQ-049/REQ-IF-011, US-2a #2/#4).
+**Description**: Verifies that `PATCH /v1/foods/{id}` with a candidate from the food's own set re-fetches the
+picked candidate's payload from its source (a budgeted call), drives the merge into the golden record, moves
+the food to `RESOLVED`, and stores the user's pick as ordinary provenance (REQ-049/REQ-050a/REQ-IF-011, US-2a #2/#4).
 
 - **System Scenario: STS-016-B1**
-    - **Given** an `UNRESOLVED` food and a `candidateId` from **its own** candidate set
+    - **Given** an `UNRESOLVED` food and a `candidateId` from **its own** candidate set (whose `food_candidates` row carries only `source`/`external_key`, no nutrient payload)
     - **When** the client calls `PATCH /v1/foods/{id}` with `{ "candidateIds": ["c1"] }`
-    - **Then** SYS-016 validates `c1` belongs to this food's candidate set, drives the merge (SYS-015), persists the golden record via the DAO layer, stores the user's pick as ordinary provenance (SYS-017), sets `status = 'RESOLVED'`, and returns `200` with `{ id, status: 'RESOLVED' }`; a subsequent `GET /v1/foods/{id}` returns the golden record
+    - **Then** SYS-016 validates `c1` belongs to this food's `food_candidates` set, **re-fetches the picked candidate's full payload from its source by `external_key`** (a budgeted per-source call against the rolling window; resolve is never shed/`429` but consumes budget), drives the merge (SYS-015) over the re-fetched payload, persists the golden record via the DAO layer, stores the user's pick as ordinary provenance (SYS-017), **clears the food's `food_candidates` rows**, sets `status = 'RESOLVED'`, and returns `200` with `{ id, status: 'RESOLVED' }`; a subsequent `GET /v1/foods/{id}` returns the golden record with the merged nutrients/portions
+
+- **System Scenario: STS-016-B2** (idempotent no-op on an already-RESOLVED food)
+    - **Given** the food is already `status = 'RESOLVED'` (its `food_candidates` set already cleared)
+    - **When** the client re-sends `PATCH /v1/foods/{id}` with `{ "candidateIds": ["c1"] }`
+    - **Then** SYS-016 returns the current `{ id, status: 'RESOLVED' }` as an **idempotent no-op** — no re-merge, no provenance rewrite, and the prior (possibly manual) pick is preserved (resolve is UNRESOLVED-only + idempotent, FR-028a)
 
 #### Test Case: STP-016-C (PATCH resolve — Out-of-Set Candidate Rejected, Status Unchanged)
 
@@ -1162,6 +1186,25 @@ US-2a #3).
     - **Given** an `UNRESOLVED` food and a `candidateId` belonging to a **different** food (out of this food's set)
     - **When** the client calls `PATCH /v1/foods/{id}` with that out-of-set candidate
     - **Then** the request is rejected (`400`/`409`) with an error body; the food's `status` remains `UNRESOLVED` (no merge, no provenance written)
+
+#### Test Case: STP-016-D (UNRESOLVED Candidate-Set TTL — Food Kept, Re-Fan-Out After Expiry)
+
+**Technique**: Equivalence Partitioning
+**Target View**: Data Design View (`food_candidates` TTL; SYS-016 → SYS-002/SYS-003 re-enqueue)
+**Description**: Verifies the `UNRESOLVED` candidate-set TTL (REQ-025a): an `UNRESOLVED` food is **kept until a
+human picks** — it is never swept to `NOT_FOUND`. Its `food_candidates` set expires 30 days after `created_at`;
+a later add-by-name then re-fans-out against the normal budget while the food stays `UNRESOLVED`. A human pick
+before expiry still wins (mirrors the NOT_FOUND 30-day TTL).
+
+- **System Scenario: STS-016-D1** (candidate set past TTL → re-fan-out, food kept)
+    - **Given** an `UNRESOLVED` `food_id = X` whose `food_candidates` rows are older than the 30-day TTL
+    - **When** a later add-by-name for X's normalized name arrives
+    - **Then** X stays `status = 'UNRESOLVED'` (it is **not** swept to `NOT_FOUND`) and exactly one re-fan-out is enqueued (SYS-002 → SYS-003) against the per-source rolling-window budget, refreshing the candidate set
+
+- **System Scenario: STS-016-D2** (human pick before expiry wins)
+    - **Given** the same `UNRESOLVED` food **within** the candidate-set TTL
+    - **When** the client `PATCH`-resolves an in-set candidate before expiry
+    - **Then** the food moves to `RESOLVED` and no re-fan-out occurs (REQ-025a)
 
 ---
 
@@ -1263,9 +1306,12 @@ layer's source-agnostic contracts, with no source-specific SQL crossing the boun
 **Parent Requirements**: REQ-031, REQ-032, REQ-053
 
 > **Change-driven, not stale-by-age.** Once a food is populated our stored values stand; a scheduled
-> `IngestionScheduled` rule triggers checks that re-pull a field **only** when its originating external item
-> changed upstream (detected via `food_sources.item_version`, not stored payload). User-resolved fields are
-> preserved automatically. No max-staleness cutoff withholds an already-held record.
+> `IngestionScheduled` rule triggers a **low-priority Fargate scheduled task** (idle-drain, yields to live
+> demand; ADR-0004 keeps it off the NAT path — not a VPC Lambda) whose checks re-pull a field **only** when its
+> originating external item changed upstream (detected via `food_sources.item_version`, not stored payload).
+> Affected foods are re-enqueued via the ordinary `enqueue(food_id, 'svc_change_refresh')` path (a low-demand
+> row). Cadence is budget-bounded, not a fixed promise. User-resolved fields are preserved automatically. No
+> max-staleness cutoff withholds an already-held record.
 
 #### Test Case: STP-019-A (Re-Pull Only Changed-Upstream Fields)
 
@@ -1277,7 +1323,7 @@ source item changed upstream, leaving all other fields intact (REQ-031/REQ-053, 
 - **System Scenario: STS-019-A1**
     - **Given** a `RESOLVED` food whose `protein` came from source item X and `fat` from source item Y; the scheduled refresh runs; re-fetching via the adapter shows X unchanged (`item_version` equal) but Y changed (`item_version` differs)
     - **When** SYS-019 processes the food
-    - **Then** the affected food is re-enqueued as **low-priority** `fetch_queue` work (`ON CONFLICT`, SYS-003); only the `fat` field is re-pulled and updated (its `source_id` provenance refreshed to the re-fetched Y); `protein` and all other fields are left intact; no blind re-blend occurs
+    - **Then** the affected food is re-enqueued via the ordinary `enqueue(food_id, 'svc_change_refresh')` path as a low-demand `fetch_queue` row (`ON CONFLICT`, SYS-003) that sorts after live end-user demand; only the `fat` field is re-pulled and updated (its `source_id` provenance refreshed to the re-fetched Y); `protein` and all other fields are left intact; no blind re-blend occurs
 
 #### Test Case: STP-019-B (Unchanged Upstream — No Overwrite)
 
@@ -1380,48 +1426,48 @@ failing certificate validation does not deliver a stored value (REQ-055).
 | SYS-010 | WebSocketNotificationLambda (deferred)      | STP-010-A, B                | STS-010-A1, B1                                                                 |
 | SYS-011 | SecretManagement (per-source keys)          | STP-011-A, B                | STS-011-A1, B1                                                                 |
 | SYS-012 | MonitoringAndLogging                        | STP-012-A, B, C             | STS-012-A1, A2, B1, C1, C2                                                     |
-| SYS-013 | AuthnAuthzLayer                             | STP-013-A, B, C, D, E, F    | STS-013-A1, A2, A3, A4, A5, B1, C1, C2, D1, D2, E1, E2, E3, F1, F2, F3         |
+| SYS-013 | AuthnAuthzLayer                             | STP-013-A, B, C, D, E, F    | STS-013-A1, A2, A3, A4, A5, B1, C1, C2, C3, D1, D2, E1, E2, E3, F1, F2, F3     |
 | SYS-014 | SourceAdapterRegistry (NEW)                 | STP-014-A, B, C, D          | STS-014-A1, B1, C1, D1                                                         |
 | SYS-015 | GoldenRecordMergeEngine (NEW)               | STP-015-A, B, C             | STS-015-A1, B1, B2, C1, C2                                                     |
-| SYS-016 | CandidateResolutionService (NEW)            | STP-016-A, B, C             | STS-016-A1, B1, C1                                                             |
+| SYS-016 | CandidateResolutionService (NEW)            | STP-016-A, B, C, D          | STS-016-A1, B1, B2, C1, D1, D2                                                 |
 | SYS-017 | ProvenanceStore (NEW)                       | STP-017-A, B, C             | STS-017-A1, B1, C1                                                             |
 | SYS-018 | FoodDaoRepositoryLayer (NEW)                | STP-018-A, B, C             | STS-018-A1, B1, C1                                                             |
 | SYS-019 | ChangeDrivenRefresh (NEW)                   | STP-019-A, B, C, D          | STS-019-A1, B1, C1, D1                                                         |
 | SYS-020 | AdapterInputValidation (NEW)                | STP-020-A, B, C             | STS-020-A1, B1, C1                                                             |
 
-**Total Test Cases**: 71 STP
-**Total Scenarios**: 111 STS
+**Total Test Cases**: 72 STP
+**Total Scenarios**: 116 STS
 **Components Covered**: 20 / 20 (100%)
 
 ### Requirements Coverage (REQ → covering STP)
 
-| Requirement family                                           | Covering STP ids                                        |
-| ------------------------------------------------------------ | ------------------------------------------------------- |
-| Local-only serve / read lifecycle (REQ-001..004)             | STP-001-A/B, STP-007-A/B/D, STP-008-A                   |
-| Add-by-name / dedup / validation (REQ-005, 006, 047)         | STP-001-C/E, STP-018-A/C, STP-020-A                     |
-| Status polling (REQ-007, 033)                                | STP-001-B                                               |
-| Search incl. barcode/external_key (REQ-008, 009, 010)        | STP-001-D                                               |
-| Demand path / queue / requesters (REQ-011..015, 039)         | STP-002-A, STP-003-A/B, STP-004-A, STP-005-A, STP-013-C |
-| Retry / tombstone / lease / TTL (REQ-016..018, 025, 027)     | STP-003-C, STP-005-D/F                                  |
-| Per-source rate limiter (REQ-019..021, 023, 026)             | STP-005-E, STP-006-A/B/C/D, STP-009-A                   |
-| Source ingestion / crosswalk (REQ-024)                       | STP-005-B, STP-007-A, STP-014-B                         |
-| Canonical schema + indexes / fidelity (REQ-028, 029, NF-018) | STP-007-A/C, STP-017-A/B, STP-018-B                     |
-| Redis (deferred) (REQ-030)                                   | STP-008-A/B/C/D                                         |
-| Change-driven refresh (REQ-031, 032, 053)                    | STP-019-A/B/C/D                                         |
-| WebSocket (REQ-034, 043)                                     | STP-010-A/B, STP-013-A                                  |
-| Auth slice (REQ-035, 037a..044d, IF-007, IF-008)             | STP-013-A/B/C/D/E/F, STP-005-G (FR-048)                 |
-| Internal-id identity (REQ-045, CN-007)                       | STP-014-B, STP-018-A/B                                  |
-| fdcId confined to adapter (REQ-046, IF-004)                  | STP-009-A, STP-014-B                                    |
-| Candidates / resolve (REQ-048, 049, IF-010, IF-011)          | STP-016-A/B/C, STP-005-C                                |
-| Fan-out + golden record (REQ-050)                            | STP-005-B/C/D, STP-014-A/C/D, STP-015-C                 |
-| Merge rules (REQ-051)                                        | STP-015-A/B/C                                           |
-| Per-field provenance (REQ-052)                               | STP-017-A/B/C, STP-015-A/B                              |
-| Source-adapter interface (REQ-054, IF-012)                   | STP-014-A/C, STP-018-B                                  |
-| Input validation + HTTPS (REQ-055)                           | STP-020-A/B/C                                           |
-| M2M / async-producer provenance (REQ-041, 042)               | STP-013-D, STP-005-G                                    |
-| Batch bounds / partial response (REQ-040a, 040b)             | STP-001-F, STP-013-F                                    |
-| Interface contracts (REQ-IF-001..006, 009)                   | STP-001-A/B/D/E, STP-009-A/B, STP-011-A                 |
-| Monitoring (REQ-NF-012, NF-016)                              | STP-012-A/B/C                                           |
+| Requirement family                                                         | Covering STP ids                                        |
+| -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Local-only serve / read lifecycle (REQ-001..004)                           | STP-001-A/B, STP-007-A/B/D, STP-008-A                   |
+| Add-by-name / dedup / validation (REQ-005, 006, 047)                       | STP-001-C/E, STP-018-A/C, STP-020-A                     |
+| Status polling (REQ-007, 033)                                              | STP-001-B                                               |
+| Search incl. barcode/external_key (REQ-008, 009, 010)                      | STP-001-D                                               |
+| Demand path / queue / requesters (REQ-011..015, 039)                       | STP-002-A, STP-003-A/B, STP-004-A, STP-005-A, STP-013-C |
+| Retry / tombstone / lease / TTL (REQ-016..018, 025, 027)                   | STP-003-C, STP-005-D/F                                  |
+| Per-source rate limiter (REQ-019..021, 023, 026)                           | STP-005-E, STP-006-A/B/C/D, STP-009-A                   |
+| Source ingestion / crosswalk (REQ-024)                                     | STP-005-B, STP-007-A, STP-014-B                         |
+| Canonical schema + indexes / fidelity (REQ-028, 029, NF-018)               | STP-007-A/C, STP-017-A/B, STP-018-B                     |
+| Redis (deferred) (REQ-030)                                                 | STP-008-A/B/C/D                                         |
+| Change-driven refresh (REQ-031, 032, 053)                                  | STP-019-A/B/C/D                                         |
+| WebSocket (REQ-034, 043)                                                   | STP-010-A/B, STP-013-A                                  |
+| Auth slice (REQ-035, 037a..044d, IF-007, IF-008)                           | STP-013-A/B/C/D/E/F, STP-005-G (FR-048)                 |
+| Internal-id identity (REQ-045, CN-007)                                     | STP-014-B, STP-018-A/B                                  |
+| fdcId confined to adapter (REQ-046, IF-004)                                | STP-009-A, STP-014-B                                    |
+| Candidates / resolve / UNRESOLVED TTL (REQ-048, 049, 025a, IF-010, IF-011) | STP-016-A/B/C/D, STP-005-C                              |
+| Fan-out + golden record (REQ-050)                                          | STP-005-B/C/D, STP-014-A/C/D, STP-015-C                 |
+| Merge rules (REQ-051)                                                      | STP-015-A/B/C                                           |
+| Per-field provenance (REQ-052)                                             | STP-017-A/B/C, STP-015-A/B                              |
+| Source-adapter interface (REQ-054, IF-012)                                 | STP-014-A/C, STP-018-B                                  |
+| Input validation + HTTPS (REQ-055)                                         | STP-020-A/B/C                                           |
+| M2M / async-producer provenance (REQ-041, 042)                             | STP-013-D, STP-005-G                                    |
+| Batch bounds / partial response (REQ-040a, 040b)                           | STP-001-F, STP-013-F                                    |
+| Interface contracts (REQ-IF-001..006, 009)                                 | STP-001-A/B/D/E, STP-009-A/B, STP-011-A                 |
+| Monitoring (REQ-NF-012, NF-016)                                            | STP-012-A/B/C                                           |
 
 **STP id inventory (final):** STP-001..STP-013 preserved (re-keyed `fdcId → id`, USDA → per-source);
 STP-014..STP-020 new. `fdcId` is referenced only in the SYS-009/SYS-014 adapter-boundary tests

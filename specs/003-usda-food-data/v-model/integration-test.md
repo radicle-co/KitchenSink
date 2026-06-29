@@ -40,7 +40,7 @@ key demand→resolution chain is:
 `ARCH-012 → ARCH-001 → ARCH-014 (createByName dedup) → ARCH-003 (fetch_queue + pg_notify) → ARCH-004
 (fan-out/merge worker) → [ ARCH-013 registry → ARCH-005 per-source limiter → ARCH-008 adapter → ARCH-019
 validate ] → ARCH-015 merge → ARCH-014/ARCH-006 persist → ARCH-017 provenance → status set → ARCH-002
-FoodDataReceived`. `UNRESOLVED` foods are disambiguated by `ARCH-001 /candidates + PATCH → ARCH-016`.
+FoodFetchCompleted`. `UNRESOLVED` foods are disambiguated by `ARCH-001 /candidates + PATCH → ARCH-016`.
 Change-driven refresh runs `EventBridge → ARCH-018 → (item_version compare) → ARCH-003 re-enqueue`.
 
 ## ID Schema
@@ -183,7 +183,7 @@ counting against the normal rolling-window budget so it cannot bypass the rate l
 **Description**: Verifies that ARCH-002 validates the demand payload (food `id` + `requestedBy` provenance)
 and performs the **direct Postgres enqueue** via ARCH-003 — `INSERT … ON CONFLICT (food_id)` + the
 distinct-requester upsert + `NOTIFY 'fetch_queued'` — returning `{ enqueued: true }`. The demand path does
-**not** use EventBridge; EventBridge is retained only for scheduled producers and the `FoodDataReceived`
+**not** use EventBridge; EventBridge is retained only for scheduled producers and the `FoodFetchCompleted`
 completion event (ITP-002-C). Payloads carry the food `id`, never `fdcId`.
 **Trace**: ARCH-002 → ARCH-003 (MOD-002/MOD-003); REQ-011, REQ-014, REQ-017.
 
@@ -221,14 +221,14 @@ missing (the latter preserves US-0 on the async edge — no enqueue without an a
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
 **Description**: Verifies that the **only** events ARCH-002 puts on EventBridge are the scheduled producer
-(`IngestionScheduled`, drives ARCH-018) and the fire-and-forget `FoodDataReceived` completion event — and
-that `FoodDataReceived` carries the food `id`, never `fdcId`, and never throws on a failed put.
+(`IngestionScheduled`, drives ARCH-018) and the fire-and-forget `FoodFetchCompleted` completion event — and
+that `FoodFetchCompleted` carries the food `id`, never `fdcId`, and never throws on a failed put.
 **Trace**: ARCH-002 → EventBridge → ARCH-018/ARCH-009 (MOD-002); REQ-032, REQ-034.
 
 - **Integration Scenario: ITS-002-C1**
-    - **Given** ARCH-004 finishes resolving a food and calls `publishFoodDataReceived({ id, status:'RESOLVED' })`
+    - **Given** ARCH-004 finishes resolving a food and calls `publishFoodFetchCompleted({ id, status:'RESOLVED' })`
     - **When** ARCH-002 puts the entry on the EventBridge default bus
-    - **Then** the entry's `DetailType='FoodDataReceived'` and its detail is `{ id, status }` (id-keyed, no `fdcId`); a non-zero `FailedEntryCount` is logged, not thrown (fire-and-forget)
+    - **Then** the entry's `DetailType='FoodFetchCompleted'` and its detail is `{ id, status }` (id-keyed, no `fdcId`); a non-zero `FailedEntryCount` is logged, not thrown (fire-and-forget)
 
 ---
 
@@ -288,6 +288,43 @@ never duplicate rows — so a single food is fetched once however many requester
     - **When** all three execute the requester upsert + `INSERT … ON CONFLICT (food_id)` simultaneously
     - **Then** exactly **one** `fetch_queue` row exists for that `food_id`, `fetch_requesters` holds exactly two rows (`user_a` counted once via `PK(food_id, sub)`), and `request_count` reflects the capped distinct-`sub` count (PRIORITY_CAP=1) — no duplicate queue row, no double counting
 
+#### Test Case: ITP-003-D (FetchQueueRouter reaper reclaims an orphaned `in_flight` lease via `leased_at`) `TC-ITP-003-D`
+
+**Technique**: Interface Fault Injection
+**Target View**: Process View
+**Description**: Verifies the lease-reclaim seam (D-LEASE): `fetch_queue` carries a `leased_at timestamptz`
+lease column, and the reaper (`reapExpiredLeases`, run at consumer start + every minute) reverts
+`status='in_flight'` rows whose `leased_at` is older than the 30s window back to `status='pending'`, so a
+crashed worker cannot orphan a row forever (the priority index is `WHERE status='pending'`). A fresh lease is
+left untouched.
+**Trace**: ARCH-003 ↔ Postgres `fetch_queue`; ARCH-004 (MOD-003/MOD-004); REQ-018.
+
+- **Integration Scenario: ITS-003-D1**
+    - **Given** a `fetch_queue` row was leased (`status='in_flight'`, `leased_at = now() - 45s`) by a worker that then crashed, against a real Postgres instance
+    - **When** the reaper runs `UPDATE fetch_queue SET status='pending' WHERE status='in_flight' AND leased_at < now() - interval '30 seconds'`
+    - **Then** the orphaned row returns to `status='pending'` and is re-leasable by ARCH-004; a second row leased `now()` (within the window) is left `in_flight` — only expired leases are reclaimed (REQ-018)
+
+#### Test Case: ITP-003-E (single-drainer advisory lock — two real consumer instances, exactly one drains) `TC-ITP-003-E`
+
+**Technique**: Concurrency & Race Condition Testing
+**Target View**: Process View
+**Description**: Verifies the load-bearing single-drainer invariant (REQ-022, §2 Addition B) end-to-end against
+**two real consumer instances** sharing one Postgres — `acquireWorkerLock()` (`pg_try_advisory_lock`) returns
+`true` for exactly one instance; the loser drains nothing until the holder releases. UTP-003-D only unit-mocks
+the lock outcome; this stands up the real Postgres advisory-lock contention so the "effectively serial
+count+insert" premise behind "zero 429 in any window" is integration-proven.
+**Trace**: ARCH-003 ↔ Postgres advisory lock; ARCH-004 (MOD-003/MOD-004); REQ-022.
+
+- **Integration Scenario: ITS-003-E1**
+    - **Given** two independent consumer instances (two separate connections) both call `acquireWorkerLock()` against the **same** real Postgres instance, with pending `fetch_queue` rows available and a spy on each instance's `leaseNext`
+    - **When** both attempt to acquire the drain lock concurrently
+    - **Then** exactly **one** `acquireWorkerLock()` returns `true` and that instance leases/drains rows; the other returns `false` and leases **zero** rows — a single drainer is enforced, so the per-source count-and-record stays effectively serial (REQ-022)
+
+- **Integration Scenario: ITS-003-E2**
+    - **Given** the holder from ITS-003-E1 then releases the advisory lock (process exit / `pg_advisory_unlock`)
+    - **When** the previously-idle instance retries `acquireWorkerLock()`
+    - **Then** it now returns `true` and begins draining — drain leadership fails over to a second instance without two instances ever draining at once
+
 ---
 
 ### Module Verification: ARCH-004 (FoodConsumerService)
@@ -322,14 +359,14 @@ source's adapter, and that the per-source result gates the call.
 `food.name` → iterate the adapter registry (ARCH-013) per-source-rate-limited (ARCH-005) → validate at the
 adapter boundary (ARCH-019) → pre-merge → golden-record merge (ARCH-015) → persist the golden record +
 crosswalk + provenance via the DAO layer (ARCH-014 → ARCH-006 / ARCH-017) → set `status='RESOLVED'` →
-resolve the `fetch_queue` row → publish `FoodDataReceived`.
+resolve the `fetch_queue` row → publish `FoodFetchCompleted`.
 **Trace**: ARCH-004 → ARCH-013 → ARCH-005 → ARCH-008 → ARCH-019 → ARCH-015 → ARCH-014 → ARCH-006/ARCH-017 →
 ARCH-002 (MOD-004/MOD-015/MOD-005/MOD-008/MOD-021/MOD-017/MOD-016/MOD-019); REQ-MRG-1, REQ-050, REQ-052.
 
 - **Integration Scenario: ITS-004-B1**
     - **Given** ARCH-004 leases the highest-demand `fetch_queue` row `{ food_id, requested_by }`, ARCH-005 allows the USDA call, and the USDA adapter returns one validated `CanonicalCandidate` for the food's name
     - **When** ARCH-004 fans out across `SourceAdapterRegistry.adapters()` (USDA only today), collects the candidate (validated by ARCH-019 inside the adapter), pre-merges, calls `GoldenRecordMergeEngine.merge(candidates)` (ARCH-015), then `upsertGoldenRecord(food_id, golden, 'RESOLVED')` on ARCH-014
-    - **Then** the chain completes: ARCH-006 persists `food` (status `RESOLVED`), `food_sources` (`UNIQUE(source, external_key)`, `item_version`), `food_nutrients`/`food_portions` (`source_id`); ARCH-017 records per-field provenance; ARCH-004 calls `FetchQueueRouter.resolve(food_id)` (row cleared) and `publishFoodDataReceived({ id, status:'RESOLVED' })`
+    - **Then** the chain completes: ARCH-006 persists `food` (status `RESOLVED`), `food_sources` (`UNIQUE(source, external_key)`, `item_version`), `food_nutrients`/`food_portions` (`source_id`); ARCH-017 records per-field provenance; ARCH-004 calls `FetchQueueRouter.resolve(food_id)` (row cleared) and `publishFoodFetchCompleted({ id, status:'RESOLVED' })`
 
 #### Test Case: ITP-004-C (FoodConsumerService retry with exponential backoff on a single-source error) `TC-ITP-004-C`
 
@@ -357,18 +394,22 @@ backoff, then tombstone) when a source adapter returns a transient error — wit
 **Description**: Verifies the worker's two terminal dispositions at the ARCH-004↔ARCH-014↔ARCH-003 seam: when
 **no** wired source has the item, the food becomes `NOT_FOUND` (terminal tombstone, 30-day TTL, no retry);
 when **every** source errored after the retry budget is exhausted, the food becomes `FAILED`. Both set the
-food `status` via ARCH-014, tombstone the `fetch_queue` row via ARCH-003, and publish `FoodDataReceived`.
+food `status` via ARCH-014, tombstone the `fetch_queue` row via ARCH-003, and publish `FoodFetchCompleted`.
+This case also pins the canonical `FetchFailed` event (decision-register §1) to the **`FAILED`** disposition
+only: a `FAILED` outcome additionally publishes `FetchFailed` (the failure-alarm signal), while a `NOT_FOUND`
+absence does **not** — separating normal "unknown food" tombstones from failure alarming (DSN-9 alarm-noise
+separation, couples with TST-6).
 **Trace**: ARCH-004 → ARCH-014 → ARCH-003 → ARCH-002 (MOD-004); REQ-025, REQ-027.
 
 - **Integration Scenario: ITS-004-D1**
-    - **Given** the fan-out across all wired adapters returns **zero** candidates and **zero** source errors (no source has the item)
+    - **Given** the fan-out across all wired adapters returns **zero** candidates and **zero** source errors (no source has the item), with a spy on ARCH-002 `publishFetchFailed`
     - **When** ARCH-004 finishes processing the row
-    - **Then** ARCH-004 calls `updateStatus(food_id, 'NOT_FOUND', tombstonedAt)` on ARCH-014, `tombstone(food_id, 'no_source_has_item')` on ARCH-003 (30-day TTL), and `publishFoodDataReceived({ id, status:'NOT_FOUND' })` — no retry within the TTL (REQ-025)
+    - **Then** ARCH-004 calls `updateStatus(food_id, 'NOT_FOUND', tombstonedAt)` on ARCH-014, `tombstone(food_id, 'no_source_has_item')` on ARCH-003 (30-day TTL), and `publishFoodFetchCompleted({ id, status:'NOT_FOUND' })`; `publishFetchFailed` receives **zero** calls — a `NOT_FOUND` absence is a queryable tombstone, not a failure alarm — and no retry occurs within the TTL (REQ-025, DSN-9)
 
 - **Integration Scenario: ITS-004-D2**
-    - **Given** every wired source errored on each attempt and `row.attempts >= 5` (retry budget exhausted)
+    - **Given** every wired source errored on each attempt and `row.attempts >= 5` (retry budget exhausted), with a spy on ARCH-002 `publishFetchFailed`
     - **When** ARCH-004 finishes processing the row
-    - **Then** ARCH-004 calls `updateStatus(food_id, 'FAILED', tombstonedAt)`, `tombstone(food_id, 'all_sources_errored')`, and `publishFoodDataReceived({ id, status:'FAILED' })` — distinct from `NOT_FOUND` (a source failure, not an absence) (REQ-027)
+    - **Then** ARCH-004 calls `updateStatus(food_id, 'FAILED', tombstonedAt)`, `tombstone(food_id, 'all_sources_errored')`, `publishFoodFetchCompleted({ id, status:'FAILED' })`, **and** `publishFetchFailed({ id, reason:'all_sources_errored' })` (fire-and-forget) — distinct from `NOT_FOUND` (a source failure, not an absence), and the `FetchFailed` event fires only on this real-failure leg (REQ-027, decision-register §1)
 
 #### Test Case: ITP-004-E (FoodConsumerService async-producer provenance gate before any source consumption) `TC-ITP-004-E`
 
@@ -470,7 +511,7 @@ nutrient columns, no `fetch_status`.
 **Trace**: ARCH-014 → ARCH-006 (MOD-016/MOD-006); REQ-028, REQ-CN-007.
 
 - **Integration Scenario: ITS-006-A1**
-    - **Given** ARCH-014 calls `upsertGoldenRecord(food_id, golden, 'RESOLVED')` against a real Postgres instance with the 12-table canonical schema
+    - **Given** ARCH-014 calls `upsertGoldenRecord(food_id, golden, 'RESOLVED')` against a real Postgres instance with the 13-table canonical schema
     - **When** ARCH-006 executes the transactional upsert across `food`, `food_sources`, `food_nutrients`, `food_portions`, `food_field_provenance`
     - **Then** a subsequent `findGoldenRecord(food_id)` returns the assembled `GoldenRecord` with `status='RESOLVED'`, nutrients on a `per_100g` basis carrying `source_id`, and per-field provenance — and the `food_sources` row is keyed on `(source, external_key)`, never `fdcId`
 
@@ -599,17 +640,17 @@ distinct auth error).
 **Parent System Components**: SYS-010 `[CROSS-CUTTING]`
 **Modules Under Test**: MOD-009 (WebSocketNotifier)
 
-#### Test Case: ITP-009-A (WebSocketNotifier→API Gateway WebSocket contract for FoodDataReceived events) `TC-ITP-009-A`
+#### Test Case: ITP-009-A (WebSocketNotifier→API Gateway WebSocket contract for FoodFetchCompleted events) `TC-ITP-009-A`
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that ARCH-009 receives `FoodDataReceived` events (carrying the food `id`) from
+**Description**: Verifies that ARCH-009 receives `FoodFetchCompleted` events (carrying the food `id`) from
 EventBridge and pushes notifications to connected clients via the API Gateway WebSocket API, targeted
 per-recipient via the `fetch_requesters` subscription set. Launch-deferred (US-9).
 **Trace**: EventBridge → ARCH-009 → API GW WebSocket (MOD-009); REQ-034.
 
 - **Integration Scenario: ITS-009-A1**
-    - **Given** EventBridge delivers `FoodDataReceived { id, status:'RESOLVED' }` to ARCH-009 and the subscription set lists two connected recipients for that `id`
+    - **Given** EventBridge delivers `FoodFetchCompleted { id, status:'RESOLVED' }` to ARCH-009 and the subscription set lists two connected recipients for that `id`
     - **When** ARCH-009 invokes `notifyClients(id, data)` against the API Gateway WebSocket API (AWS SDK mocked)
     - **Then** ARCH-009 returns the count of clients notified (fire-and-forget; the payload is id-keyed, no `fdcId`)
 
@@ -622,7 +663,7 @@ without failing the EventBridge invocation.
 **Trace**: ARCH-009 → API GW WebSocket (MOD-009); REQ-034.
 
 - **Integration Scenario: ITS-009-B1**
-    - **Given** all connected clients have disconnected before ARCH-009 receives the `FoodDataReceived` event (the SDK returns `GoneException`)
+    - **Given** all connected clients have disconnected before ARCH-009 receives the `FoodFetchCompleted` event (the SDK returns `GoneException`)
     - **When** ARCH-009 attempts `notifyClients(id, data)`
     - **Then** ARCH-009 returns `0` clients notified without throwing to EventBridge
 
@@ -897,6 +938,28 @@ integration deployment.
     - **When** ARCH-004 is verified against the pact with one marked row and one forged/unmarked row
     - **Then** ARCH-004 accepts the marked row (proceeds to ARCH-005 → ARCH-008) and tombstones the unmarked row without invoking ARCH-005/ARCH-008 — the async-edge provenance contract is verified consumer-first
 
+#### Test Case: ITP-012-I (DemotionAndFairness near-ceiling flood-shed — two subs, asymmetric `503`; reads/resolves exempt) `TC-ITP-012-I`
+
+**Technique**: Interface Fault Injection
+**Target View**: Interface View + Process View
+**Description**: Verifies the near-**global**-ceiling flood-shedding seam (REQ-040b, FR-043b) end-to-end at the
+admit gate — distinct from the `MAX_QUEUE_DEPTH`/open-circuit `503` backstop (ITP-012-D) and from per-`sub`
+demotion (ITP-012-C, which never rejects). With the global rolling-window budget near its ceiling, a NEW
+enqueue from the highest-pending (flooding) `sub` is shed `503` (Retry-After) while a NEW enqueue from a
+different lower-pending `sub` is admitted `202`, and a read and a `PATCH`-resolve from the flooding `sub` are
+**never** shed and **never** `429` — closing the AT-044b-A coverage gap.
+**Trace**: ARCH-012 (MOD-013) → ARCH-005/ARCH-003 (MOD-013/MOD-005); REQ-040b.
+
+- **Integration Scenario: ITS-012-I1**
+    - **Given** the per-source rolling window is seeded near its ceiling (low headroom), `sub='user_flood'` has the highest pending count and `sub='user_light'` a low pending count, with a spy on ARCH-003 `enqueue`
+    - **When** `user_flood` then `user_light` each send a NEW add-by-name enqueue
+    - **Then** `user_flood`'s request is shed with `503` (+`Retry-After`) and ARCH-003 `enqueue` receives **zero** calls for it, while `user_light`'s request returns `202` and **is** enqueued — the shed is sub-selective (targets the flooder), preserves headroom, and is `503`, never `429` (FR-043b)
+
+- **Integration Scenario: ITS-012-I2**
+    - **Given** the same near-ceiling state and the flooding `sub='user_flood'`
+    - **When** `user_flood` issues (a) `GET /v1/foods/{id}` and (b) `PATCH /v1/foods/{id}` (resolve)
+    - **Then** both are admitted (no `503`, no `429`) — reads and human `PATCH`-resolves are exempt from flood-shedding even for the flooding caller; only NEW enqueues consume fresh budget (FR-043b)
+
 ---
 
 ### Module Verification: ARCH-013 (SourceAdapterRegistry) `[NEW]`
@@ -961,6 +1024,16 @@ serializes them and the `UNIQUE(normalized_name)` index backstops, so they colla
     - **When** all three contend on `pg_advisory_xact_lock(hash(normalized_name))` then check `UNIQUE(normalized_name)`
     - **Then** exactly **one** `food` row exists with one `id`; exactly one caller receives `{ created:true }` and the other two receive `{ id:<same>, created:false }` — concurrent adds collapse to one row + `id`, never duplicates
 
+- **Integration Scenario: ITS-014-A2**
+    - **Given** an existing `food` row for `normalizeName("dragonfruit jerky")` in a **terminal** state past its TTL (`status='NOT_FOUND'` with `tombstoned_at` older than the 30-day TTL; a second run uses `status='FAILED'`)
+    - **When** a fresh `createByName("dragonfruit jerky", …)` runs under the advisory lock
+    - **Then** the terminal row is **reactivated in place** to `status='PENDING'` (`{ id:<same>, created:false, reactivated:true }`) with **no** new row and **no** `23505` unique-name violation — the caller then re-enqueues a fresh fan-out (NOT_FOUND→PENDING / FAILED→PENDING, FR-028a)
+
+- **Integration Scenario: ITS-014-A3** (concurrent reactivation of one past-TTL terminal row)
+    - **Given** an existing `food` row for `normalizeName("dragonfruit jerky")` in a terminal state past its TTL (`status='NOT_FOUND'`, `tombstoned_at` older than 30 days), and **two** requests concurrently `createByName("dragonfruit jerky", …)` against a real Postgres instance
+    - **When** both contend on `pg_advisory_xact_lock(hash(normalized_name))` and attempt reactivation
+    - **Then** the row is reactivated to `status='PENDING'` exactly **once** — exactly one caller observes the `NOT_FOUND→PENDING` transition (and triggers one re-enqueue), the other returns the same `id` against the already-`PENDING` row; **no** duplicate row and **no** `23505` arises from the race (FR-028a, advisory-lock serialized)
+
 #### Test Case: ITP-014-B (FoodDaoRepository golden-record persistence seam — the sole persistence path) `TC-ITP-014-B`
 
 **Technique**: Interface Contract Testing + Data Flow Testing
@@ -975,12 +1048,62 @@ back so the worker can re-queue.
 - **Integration Scenario: ITS-014-B1**
     - **Given** ARCH-004 passes a merged `GoldenRecord` (scalars + nutrients + portions + fieldProvenance + contributingSources) with `outcome='RESOLVED'` to `upsertGoldenRecord(food_id, golden, 'RESOLVED')`
     - **When** ARCH-014 runs the single transaction across its per-aggregate DAOs
-    - **Then** `food` scalars, `food_sources` crosswalk (`UNIQUE(source, external_key)`), `food_nutrients`/`food_portions` (`source_id`), and `food_field_provenance` are all written and `status` is set to `RESOLVED` atomically — and a subsequent `findById` returns the assembled record
+    - **Then** `food` scalars, `food_sources` crosswalk (`UNIQUE(source, external_key)` plus `UNIQUE(food_id, id)`), `food_nutrients`/`food_portions` (composite `(food_id, source_id)` FK), and `food_field_provenance` are all written and `status` is set to `RESOLVED` atomically — and a subsequent `findById` returns the assembled record
 
 - **Integration Scenario: ITS-014-B2**
     - **Given** a `food_nutrients` write fails mid-transaction (e.g. constraint violation injected)
     - **When** ARCH-014 executes `upsertGoldenRecord`
     - **Then** the entire transaction rolls back (no partial golden record persisted) and the error propagates to ARCH-004, which re-queues the row with backoff — the seam is all-or-nothing
+
+#### Test Case: ITP-014-C (FoodDaoRepository same-food provenance integrity — composite `(food_id, source_id)` FK rejects a cross-food reference) `TC-ITP-014-C`
+
+**Technique**: Interface Fault Injection
+**Target View**: Interface View + Process View
+**Description**: Verifies the structural same-food invariant (D-PROVENANCE-FK): `food_sources` carries
+`UNIQUE(food_id, id)` and `food_nutrients`/`food_portions`/`food_field_provenance` reference it via a composite
+`(food_id, source_id)` FK (`ON DELETE NO ACTION`), so a value row can **only** reference a `food_sources` row of
+the **same** `food_id` — a provenance write pointing at another food's `source_id` is rejected by the database,
+and a DIRECT `food_sources`-row delete that still backs golden/manual values is `NO ACTION`-blocked (no
+cascade-delete of golden values), while a food-level `ON DELETE CASCADE` still succeeds because `NO ACTION`
+defers its check to end-of-statement.
+**Trace**: ARCH-014 → ARCH-006/ARCH-017 (MOD-016/MOD-006/MOD-019); REQ-028, REQ-029, REQ-052.
+
+- **Integration Scenario: ITS-014-C1**
+    - **Given** food `A` and food `B` each have their own `food_sources` row against a real Postgres instance with the 13-table canonical schema
+    - **When** a write attempts to insert a `food_nutrients` row for food `A` whose `(food_id, source_id)` references food `B`'s `food_sources` row
+    - **Then** PostgreSQL rejects the insert with a foreign-key violation — provenance cannot cross foods (the composite FK makes "same-food" a structural invariant, not an existence-only check)
+
+- **Integration Scenario: ITS-014-C2**
+    - **Given** a `food_sources` row that still backs at least one `food_nutrients` value
+    - **When** a DIRECT `DELETE` of just that `food_sources` row is attempted
+    - **Then** PostgreSQL raises an `ON DELETE NO ACTION` foreign-key violation — a direct source-row removal never cascade-deletes golden/manual values
+
+- **Integration Scenario: ITS-014-C3**
+    - **Given** a `food` row whose `food_sources` rows back `food_nutrients`/`food_portions`/`food_field_provenance` values
+    - **When** the parent `food` row is deleted (food-level `ON DELETE CASCADE`)
+    - **Then** the delete succeeds — `NO ACTION` defers to end-of-statement, so the cascade removes the `food_sources` rows and the referencing value rows in one statement without a spurious abort (which `RESTRICT` would cause)
+
+#### Test Case: ITP-014-D (FoodDaoRepository — a refresh re-merge does not overwrite a manual-pick provenance field) `TC-ITP-014-D`
+
+**Technique**: Interface Fault Injection
+**Target View**: Interface View + Data Flow View
+**Description**: Verifies AT-LC-D / FR-028a at the persistence seam: a field whose value was set by a human
+`PATCH`-resolve (stored as ordinary provenance with its own `source_id`) MUST survive a subsequent
+change-driven refresh re-merge — the refresh may only move a field whose **originating** source item changed
+upstream, and the manual-pick field's originating item is unchanged. UTP-006-B/E cover the enum/transition
+guard; this covers the value-grain manual-pick clobber that D-LIFECYCLE protects against once a re-merge runs
+over re-fetched candidates.
+**Trace**: ARCH-018/ARCH-004 → ARCH-015 → ARCH-014/ARCH-017 (MOD-016/MOD-017/MOD-019); REQ-031, REQ-052, FR-028a.
+
+- **Integration Scenario: ITS-014-D1**
+    - **Given** a `RESOLVED` food in real Postgres whose `protein` field was set by a user `PATCH`-resolve (its `food_field_provenance`/`food_nutrients.source_id` points at the user-picked source item, unchanged upstream) and whose `fat` field came from a source item that **did** change upstream
+    - **When** the change-driven refresh re-merge persists via `upsertGoldenRecord` over the re-fetched candidates
+    - **Then** `fat` is updated (with refreshed `source_id` provenance) while the manually-picked `protein` value **and** its provenance are left intact — the re-merge does not clobber a manual pick whose originating item is unchanged (AT-LC-D, FR-028a)
+
+- **Integration Scenario: ITS-014-D2**
+    - **Given** the same food where **no** backing source item changed upstream
+    - **When** the refresh path runs
+    - **Then** `upsertGoldenRecord` writes no field change — the manual pick and every other value are preserved byte-for-byte (no churn, no provenance rewrite)
 
 ---
 
@@ -1005,19 +1128,21 @@ ARCH-017.
     - **When** ARCH-004 calls `merge(candidates)` (which consults ARCH-013 `priorityOf`)
     - **Then** the golden record takes `name` from the higher-priority source, `description` from the longer value, and the per-`protein` winner is the higher-priority source's value **normalized to per-100g first**; `outcome='RESOLVED'`; each value's `source` is recorded for provenance (ARCH-017)
 
-#### Test Case: ITP-015-B (GoldenRecordMergeEngine non-collapsible candidates → UNRESOLVED outcome) `TC-ITP-015-B`
+#### Test Case: ITP-015-B (GoldenRecordMergeEngine >1 surviving candidate → UNRESOLVED outcome) `TC-ITP-015-B`
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that when candidates cannot be confidently collapsed to one logical item, ARCH-015
-returns `outcome='UNRESOLVED'` with the candidate set retained — so ARCH-004 persists `status='UNRESOLVED'`
-and ARCH-016 can surface the candidates for a human pick.
-**Trace**: ARCH-004 → ARCH-015 → ARCH-016 (MOD-017/MOD-018); REQ-048, REQ-RES-3.
+**Description**: Verifies that when **more than one** candidate survives normalized-name exact match (after
+pre-merge dedup), ARCH-015 returns `outcome='UNRESOLVED'` with the surviving set retained — so ARCH-004
+persists `status='UNRESOLVED'` and the surviving candidates into the `food_candidates` table
+(`UNIQUE(food_id, source, external_key)`), from which ARCH-016 surfaces them for a human pick. No nutrient
+tolerance; bias is toward `UNRESOLVED`.
+**Trace**: ARCH-004 → ARCH-015 → ARCH-016 (MOD-017/MOD-018); REQ-048, REQ-050a.
 
 - **Integration Scenario: ITS-015-B1**
-    - **Given** two `CanonicalCandidate`s that pre-merge could not confidently collapse (distinct branded items)
+    - **Given** two `CanonicalCandidate`s that both survive normalized-name exact match (>1 survivor — distinct branded items the matcher cannot disambiguate)
     - **When** ARCH-004 calls `merge(candidates)`
-    - **Then** ARCH-015 returns `{ outcome:'UNRESOLVED', candidateSet }`, ARCH-004 persists `status='UNRESOLVED'` via ARCH-014, and the candidate set is available to ARCH-016 `/candidates`
+    - **Then** ARCH-015 returns `{ outcome:'UNRESOLVED', candidateSet }`, ARCH-004 persists `status='UNRESOLVED'` via ARCH-014 and the surviving candidates into `food_candidates` (`UNIQUE(food_id, source, external_key)`), and the set is available to ARCH-016 `/candidates`
 
 ---
 
@@ -1036,23 +1161,35 @@ and ARCH-016 can surface the candidates for a human pick.
 **Trace**: ARCH-001 → ARCH-016 → ARCH-014 (MOD-001/MOD-018/MOD-016); REQ-048, REQ-IF-010.
 
 - **Integration Scenario: ITS-016-A1**
-    - **Given** a food with `status='UNRESOLVED'` whose fan-out retained two candidates
+    - **Given** a food with `status='UNRESOLVED'` whose fan-out persisted two rows in the `food_candidates` table (`UNIQUE(food_id, source, external_key)`)
     - **When** ARCH-001 delegates `GET /v1/foods/{id}/candidates` to ARCH-016 `getCandidates(id)`
-    - **Then** ARCH-016 returns two `Candidate`s, each carrying `{ candidateId, source, externalKey, name, summary }` — id-keyed at the food level, source-native key exposed only as the opaque candidate `externalKey`
+    - **Then** ARCH-016 reads the `food_candidates` rows and returns two `Candidate`s, each carrying `{ candidateId, source, externalKey, name, summary }` — id-keyed at the food level, source-native key exposed only as the opaque candidate `externalKey`
 
 #### Test Case: ITP-016-B (CandidateResolutionService PATCH-resolve seam: in-set pick → merge → RESOLVED) `TC-ITP-016-B`
 
 **Technique**: Interface Contract Testing + Data Flow Testing
 **Target View**: Interface View + Data Flow View
 **Description**: Verifies the resolve seam: ARCH-016 validates each pick belongs to **this** food's candidate
-set, drives the merge (ARCH-015), persists the golden record + the user pick as **ordinary** provenance
-(ARCH-014 → ARCH-017), and moves the food to `RESOLVED`.
-**Trace**: ARCH-001 → ARCH-016 → ARCH-015 → ARCH-014/ARCH-017 (MOD-018/MOD-017/MOD-016/MOD-019); REQ-049, REQ-052.
+set, **re-fetches each picked candidate's full payload from its source adapter (ARCH-013) by `external_key`**
+(a budgeted per-source call, since `food_candidates` holds only metadata), drives the merge (ARCH-015) over the
+re-fetched payload, persists the golden record + the user pick as **ordinary** provenance (ARCH-014 →
+ARCH-017), and moves the food to `RESOLVED`.
+**Trace**: ARCH-001 → ARCH-016 → ARCH-013 → ARCH-015 → ARCH-014/ARCH-017 (MOD-018/MOD-015/MOD-017/MOD-016/MOD-019); REQ-049, REQ-052, REQ-050a.
 
 - **Integration Scenario: ITS-016-B1**
-    - **Given** an `UNRESOLVED` food and a `candidateId` that belongs to its own candidate set
+    - **Given** an `UNRESOLVED` food and a `candidateId` that belongs to its own candidate set (its `food_candidates` row carries only `source`/`external_key`, no nutrients)
     - **When** ARCH-001 delegates `PATCH /v1/foods/{id} { candidateIds:[cid] }` to ARCH-016 `resolve(id, [cid])`
-    - **Then** ARCH-016 calls `merge(selected)` (ARCH-015), `upsertGoldenRecord(id, golden, 'RESOLVED')` (ARCH-014, storing the pick as ordinary provenance via ARCH-017), and returns `{ id, status:'RESOLVED' }` — a subsequent read returns `200`
+    - **Then** ARCH-016 **re-fetches** the picked candidate via `SourceAdapterRegistry.adapterFor(source).fetchByKey(external_key)` (recorded against the per-source rolling window), calls `merge(selected)` (ARCH-015) over the re-fetched `CanonicalCandidate`, `upsertGoldenRecord(id, golden, 'RESOLVED')` (ARCH-014, storing the pick as ordinary provenance via ARCH-017), **clears the food's `food_candidates` rows**, and returns `{ id, status:'RESOLVED' }` — a subsequent read returns `200` with the merged nutrients/portions
+
+- **Integration Scenario: ITS-016-B2**
+    - **Given** a food already in `status='RESOLVED'` (its `food_candidates` set already cleared), with a spy on ARCH-015 `merge` and ARCH-014 `upsertGoldenRecord`
+    - **When** ARCH-001 delegates a `PATCH /v1/foods/{id} { candidateIds:[cid] }` to ARCH-016 `resolve`
+    - **Then** ARCH-016 returns the current `{ id, status:'RESOLVED' }` as an **idempotent no-op** — `merge` and `upsertGoldenRecord` receive **zero** calls and the prior (possibly manual) pick is preserved (resolve is UNRESOLVED-only + idempotent, FR-028a)
+
+- **Integration Scenario: ITS-016-B3** (resolve is not gated by the drain pause)
+    - **Given** an `UNRESOLVED` food with an in-set `candidateId`, and the per-source rolling window seeded so `shouldPauseDraining(source)` is `true` / the window is at the pause threshold (background draining is paused), with spies on the adapter `fetchByKey` and the limiter `checkAndRecordCall`
+    - **When** ARCH-001 delegates `PATCH /v1/foods/{id} { candidateIds:[cid] }` to ARCH-016 `resolve`
+    - **Then** ARCH-016 still **re-fetches** via `fetchByKey` and **records** the call against the limiter (the resolve draws from reserved headroom and is never deferred/`429`'d/shed), merges, persists `RESOLVED`, and clears the candidate set — a user-driven resolve proceeds even while the worker's background drain is paused (FR-RES-2, mirrors UTS-018-C2)
 
 #### Test Case: ITP-016-C (CandidateResolutionService out-of-set pick → 400/409, status unchanged) `TC-ITP-016-C`
 
@@ -1067,6 +1204,47 @@ cross-food contamination.
     - **Given** an `UNRESOLVED` food and a `candidateId` that belongs to a **different** food's candidate set, with a spy on ARCH-014 `upsertGoldenRecord`
     - **When** ARCH-001 delegates `PATCH /v1/foods/{id} { candidateIds:[otherCid] }` to ARCH-016 `resolve`
     - **Then** ARCH-016 raises `CandidateMismatchError` (`400`/`409`), the food's `status` stays `UNRESOLVED`, and ARCH-014 `upsertGoldenRecord` receives **zero** calls
+
+#### Test Case: ITP-016-D (CandidateResolutionService UNRESOLVED candidate-set TTL → re-fan-out, food kept) `TC-ITP-016-D`
+
+**Technique**: Interface Contract Testing + Interface Fault Injection
+**Target View**: Interface View + Process View
+**Description**: Verifies the `UNRESOLVED` candidate-set TTL seam (D-UNRESOLVED-TTL): an `UNRESOLVED` food is
+**kept until a human picks** — it is never swept to `NOT_FOUND`. Its `food_candidates` set expires 30 days
+after `created_at`; a later add-by-name for that name then **re-fans-out** against the normal budget while the
+food stays `UNRESOLVED`; a human pick made before expiry still wins (mirrors the NOT_FOUND 30-day TTL).
+**Trace**: ARCH-001 → ARCH-016/ARCH-014 → ARCH-002/ARCH-003 (MOD-018/MOD-016/MOD-003); REQ-025a, REQ-048.
+
+- **Integration Scenario: ITS-016-D1**
+    - **Given** an `UNRESOLVED` food whose `food_candidates` set is **older than** the 30-day TTL (`created_at` past expiry), with a spy on ARCH-002 `publishFoodRequested`
+    - **When** ARCH-001 handles a fresh add-by-name for that normalized name (collapsing to the existing `UNRESOLVED` `id`)
+    - **Then** the food stays `UNRESOLVED` (it is **not** swept to `NOT_FOUND`) and exactly one re-fan-out is enqueued via ARCH-002 → ARCH-003 against the normal rolling-window budget, refreshing the candidate set
+
+- **Integration Scenario: ITS-016-D2**
+    - **Given** the same `UNRESOLVED` food **within** the 30-day candidate-set TTL, and a human `PATCH`-resolve picking an in-set candidate
+    - **When** ARCH-016 `resolve` runs before expiry
+    - **Then** the food moves to `RESOLVED` and **no** re-fan-out occurs — a human pick before expiry wins (REQ-025a)
+
+#### Test Case: ITP-016-E (CandidateResolutionService PATCH-resolve re-fetch FAILURE — candidate set survives, food stays UNRESOLVED) `TC-ITP-016-E`
+
+**Technique**: Interface Fault Injection
+**Target View**: Interface View + Process View
+**Description**: Verifies the untested failure leg of the budgeted resolve re-fetch (D-CANDIDATES): because
+`food_candidates` holds only metadata, an in-set pick triggers a source `fetchByKey` that can fail (5xx /
+timeout → `SourceApiError`). On that failure the resolve MUST abort cleanly so an `UNRESOLVED` food is never
+corrupted — the food stays `UNRESOLVED`, the `food_candidates` set is **not** cleared (the user can retry the
+same pick), and no golden record is persisted. Closes the ATS-049-A3 contract at the integration tier.
+**Trace**: ARCH-001 → ARCH-016 → ARCH-013 → ARCH-015/ARCH-014 (MOD-018/MOD-015/MOD-017/MOD-016); REQ-049, REQ-050a.
+
+- **Integration Scenario: ITS-016-E1**
+    - **Given** an `UNRESOLVED` food with an in-set `candidateId` over real Postgres, and the source adapter stubbed so `fetchByKey(external_key)` returns a **5xx** (`SourceApiError`), with spies on ARCH-015 `merge` and ARCH-014 `upsertGoldenRecord`
+    - **When** ARCH-001 delegates `PATCH /v1/foods/{id} { candidateIds:[cid] }` to ARCH-016 `resolve`
+    - **Then** ARCH-016 propagates `SourceApiError` (retryable); `merge` and `upsertGoldenRecord` receive **zero** calls; the `food_candidates` rows **remain** in the table and the food `status` is still `UNRESOLVED` — a subsequent `GET /v1/foods/{id}/candidates` returns the same set so the user can retry the identical pick (ATS-049-A3)
+
+- **Integration Scenario: ITS-016-E2**
+    - **Given** the same setup but `fetchByKey` **times out** past the source deadline
+    - **When** `resolve` runs
+    - **Then** the same outcome holds — error propagated, candidate set retained, status unchanged, nothing persisted — a transient timeout never silently consumes the candidate set
 
 ---
 
@@ -1115,16 +1293,18 @@ without reading any stored payload (none is retained).
 
 **Technique**: Interface Contract Testing + Data Flow Testing
 **Target View**: Interface View + Data Flow View
-**Description**: Verifies the change-driven refresh seam: on `IngestionScheduled`, ARCH-018 iterates
-`RESOLVED` foods' backing source items, re-fetches each via the adapter (ARCH-013), compares
-`food_sources.item_version`, and re-enqueues the affected food as **low-priority** `fetch_queue` work
-(deduped via `ON CONFLICT`) **only** when the upstream item changed — never blindly re-blending.
+**Description**: Verifies the change-driven refresh seam: ARCH-018 runs as a **low-priority Fargate scheduled
+task** (idle-drain, yields to live demand; ADR-0004 keeps it off the NAT path — not a VPC Lambda) triggered by
+`IngestionScheduled`. It iterates `RESOLVED` foods' backing source items, re-fetches each via the adapter
+(ARCH-013), compares `food_sources.item_version`, and re-enqueues the affected food via the **ordinary
+`enqueue(food_id, 'svc_change_refresh')` path** (a low-demand row, deduped via `ON CONFLICT`) **only** when the
+upstream item changed — never blindly re-blending, and never via a separate low-priority tier/method.
 **Trace**: EventBridge → ARCH-018 → ARCH-013 → ARCH-003 (MOD-020/MOD-015/MOD-003); REQ-031, REQ-032, REQ-053.
 
 - **Integration Scenario: ITS-018-A1**
-    - **Given** a `RESOLVED` food backed by a USDA item whose adapter `fetchByKey` now returns a **different** `itemVersion` than the stored `food_sources.item_version`, with a spy on ARCH-003 `enqueueLowPriority`
+    - **Given** a `RESOLVED` food backed by a USDA item whose adapter `fetchByKey` now returns a **different** `itemVersion` than the stored `food_sources.item_version`, with a spy on ARCH-003 `enqueue`
     - **When** ARCH-018 `onScheduled` compares versions via `itemChanged(source, externalKey, knownVersion)`
-    - **Then** ARCH-018 re-enqueues the food as low-priority `fetch_queue` work (`requestedBy='svc_change_refresh'`, `ON CONFLICT (food_id)`) — the changed item drives a re-merge later, sorting after end-user demand
+    - **Then** ARCH-018 re-enqueues the food via `enqueue(food_id, 'svc_change_refresh')` (`ON CONFLICT (food_id)`) as a low-demand row — the changed item drives a re-merge later, sorting after end-user demand
 
 #### Test Case: ITP-018-B (ChangeRefreshConsumer leaves unchanged + user-resolved fields intact) `TC-ITP-018-B`
 
@@ -1136,9 +1316,9 @@ re-pulled value that later fails ARCH-019 validation is rejected-not-stored (the
 **Trace**: ARCH-018 → ARCH-013/ARCH-019 → ARCH-003 (MOD-020/MOD-021); REQ-031, REQ-053, REQ-055.
 
 - **Integration Scenario: ITS-018-B1**
-    - **Given** a `RESOLVED` food whose backing item's `itemVersion` equals the stored `food_sources.item_version`, with a spy on ARCH-003 `enqueueLowPriority`
+    - **Given** a `RESOLVED` food whose backing item's `itemVersion` equals the stored `food_sources.item_version`, with a spy on ARCH-003 `enqueue`
     - **When** ARCH-018 `onScheduled` compares versions
-    - **Then** ARCH-018 leaves the field intact and ARCH-003 `enqueueLowPriority` receives **zero** calls — unchanged upstream → no re-enqueue, user-resolved fields preserved (REQ-031)
+    - **Then** ARCH-018 leaves the field intact and ARCH-003 `enqueue` receives **zero** calls — unchanged upstream → no re-enqueue, user-resolved fields preserved (REQ-031)
 
 ---
 
@@ -1185,64 +1365,71 @@ outbound fetch, so a downgraded/MITM source endpoint cannot feed the canonical s
 
 ## Test Harness & Mocking Strategy
 
-| Test Case | External Dependency                                               | Mock/Stub Strategy                                                                                           | Rationale                                                                            |
-| --------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| ITP-001-A | ARCH-014 (DAO) / ARCH-006                                         | DAO stub returns a `RESOLVED` `GoldenRecord`; spy on adapter registry to assert zero source calls            | Isolates ARCH-001↔ARCH-014 read seam; proves no source in the read path              |
-| ITP-001-B | ARCH-014 / ARCH-002                                               | Spies on `createByName` / `publishFoodRequested` — assert zero calls on invalid input                        | Verifies input-validation gate before any downstream boundary                        |
-| ITP-001-C | ARCH-014 / ARCH-002                                               | `createByName` returns `{ id, created:true }`; spy on `publishFoodRequested`                                 | Verifies add-by-name → create → enqueue handshake; `id`-keyed `202`                  |
-| ITP-001-D | ARCH-014                                                          | DAO stub returns rows with each lifecycle status; spy on `publishFoodRequested`                              | Verifies status→HTTP mapping (202/404) and that reads never enqueue                  |
-| ITP-001-E | ARCH-014 / ARCH-002                                               | DAO stub returns a `NOT_FOUND` tombstone within / past the 30-day TTL; spy on `publishFoodRequested`         | Verifies tombstone TTL: within → no enqueue; after → re-attempt                      |
-| ITP-002-A | Postgres `fetch_queue`                                            | Test Postgres (Docker) or pg-mem; assert ARCH-003 `enqueue` (INSERT ON CONFLICT + `NOTIFY`) → `{ enqueued }` | Verifies direct Postgres enqueue handshake (no EventBridge on demand path)           |
-| ITP-002-B | Postgres `fetch_queue`                                            | Assert no INSERT / no `NOTIFY` on malformed id or missing `requestedBy`                                      | Verifies validation + async-provenance gate before enqueue                           |
-| ITP-002-C | EventBridge                                                       | AWS SDK mock — assert `DetailType` + id-keyed detail; non-zero `FailedEntryCount` logged not thrown          | Verifies EventBridge carries only scheduled + completion events                      |
-| ITP-003-A | Postgres `fetch_queue`/`fetch_requesters`                         | Test Postgres; assert INSERT + demand-weighted ORDER BY + `NOTIFY`                                           | Verifies `food_id`-keyed enqueue + demand ordering against the real schema           |
-| ITP-003-B | Postgres `fetch_queue` (retry-exhausted row)                      | Drive a row past its FR-016 budget; assert `status='tombstone'` + `last_error`                               | Simulates persistent failure for tombstone transition                                |
-| ITP-003-C | Postgres `fetch_queue`/`fetch_requesters` (concurrent)            | Real Postgres with concurrent clients enqueuing the same `food_id`                                           | Concurrency test of `ON CONFLICT (food_id)` collapse + capped distinct-`sub` count   |
-| ITP-004-A | ARCH-005 (`source_call_log`)                                      | Limiter stub returning controlled `{ allowed, windowCount }` + `shouldPauseDraining`                         | Isolates the per-source gate from the real store                                     |
-| ITP-004-B | ARCH-013/ARCH-008 (adapter); ARCH-015; ARCH-014                   | nock USDA fixture → one `CanonicalCandidate`; real merge + DAO over test Postgres                            | Verifies the fan-out→merge→persist→provenance data flow end-to-end                   |
-| ITP-004-C | ARCH-008 (adapter)                                                | nock returns 5xx then 429                                                                                    | Verifies backoff (REQ-016) and per-source window-full handling (REQ-026)             |
-| ITP-004-D | ARCH-013/ARCH-008; ARCH-014; ARCH-003                             | Adapter returns zero candidates / all-error; assert NOT_FOUND vs FAILED disposition                          | Verifies the two terminal tombstone dispositions                                     |
-| ITP-004-E | Postgres `fetch_queue` row provenance                             | Lease rows with / without authorized `requested_by`; spy on limiter + adapter                                | Verifies async-producer provenance gate before any source call                       |
-| ITP-005-A | `source_call_log` (concurrent)                                    | Real Postgres with concurrent clients (deferred Redis: real sorted-set Lua)                                  | Concurrency requires real atomic per-source count-and-record                         |
-| ITP-005-B | `source_call_log` store (unavailable)                             | Store stub throwing connection error                                                                         | Simulates store failure for fail-closed propagation                                  |
-| ITP-005-C | `source_call_log` (aging window)                                  | Real Postgres seeded to pause threshold; advance/age timestamps for resume                                   | Verifies per-source pause/resume independence                                        |
-| ITP-006-A | PostgreSQL (12-table schema)                                      | Test Postgres (Docker)                                                                                       | Verifies real golden-record upsert + reassembly; schema-level contract               |
-| ITP-006-B | PostgreSQL (pg_trgm)                                              | Test Postgres with pg_trgm extension                                                                         | Search + barcode/external_key lookup require the real extension/index                |
-| ITP-006-C | PostgreSQL (unavailable)                                          | pg mock throwing connection error                                                                            | Simulates DB failure for error propagation / rollback                                |
-| ITP-007-A | ARCH-007 (deferred Redis variant)                                 | In-memory Redis stub (miss) + DAO stub (hit)                                                                 | Isolates the optional cache-through flow (variant only)                              |
-| ITP-007-B | ARCH-007 (Redis unavailable)                                      | Redis stub throwing connection error                                                                         | Verifies fall-through to Postgres rather than 503                                    |
-| ITP-008-A | USDA FoodData Central API                                         | nock with a valid USDA response fixture                                                                      | Verifies adapter contract + `fdcId → external_key` mapping; the only `fdcId` slice   |
-| ITP-008-B | USDA FoodData Central API                                         | nock returning 429 / 401                                                                                     | Verifies USDA error classification for worker disposition                            |
-| ITP-009-A | API Gateway WebSocket API                                         | AWS SDK mock for PostToConnection                                                                            | Deferred (US-9); verifies id-keyed notification dispatch                             |
-| ITP-009-B | API Gateway WebSocket API                                         | AWS SDK mock returning GoneException                                                                         | Verifies fire-and-forget on disconnected clients                                     |
-| ITP-010-A | AWS Secrets Manager                                               | AWS SDK mock returning a valid per-source secret                                                             | Verifies per-source key retrieval; key absent from logs                              |
-| ITP-010-B | AWS Secrets Manager                                               | AWS SDK mock throwing ResourceNotFoundException                                                              | Verifies fault propagation prevents unauthenticated source calls                     |
-| ITP-011-A | CloudWatch Logs                                                   | AWS SDK mock — assert PutLogEvents payload (id-keyed)                                                        | Verifies structured-log field completeness                                           |
-| ITP-011-B | CloudWatch Metrics                                                | AWS SDK mock — assert PutMetricData with per-source dimension                                                | Verifies per-source rolling-window metric emission (SC-002)                          |
-| ITP-011-C | AWS X-Ray                                                         | X-Ray SDK mock — assert segment creation                                                                     | Verifies trace boundary handshake                                                    |
-| ITP-012-A | @clerk/backend `verifyToken`; ARCH-014/002/003                    | Stub `verifyToken` to throw; spies on `createByName`/`publishFoodRequested`/`enqueue` — assert zero          | Networkless verify; fail-closed before any downstream boundary                       |
-| ITP-012-B | @clerk/backend `verifyToken`                                      | Stub `verifyToken` to resolve a valid M2M claim set                                                          | Verifies M2M service token admitted, not 401                                         |
-| ITP-012-C | `fetch_queue` + `fetch_requesters` pending state; ARCH-003        | Seed one `sub` to >50 / exactly 50 / <50 pending; spy on `enqueue` + drain-time ordering                     | Verifies demotion-not-rejection + the `>50` boundary + dynamic re-promotion          |
-| ITP-012-D | ARCH-003 queue-depth probe / circuit breaker                      | Stub depth above ceiling / breaker open; spy on `enqueue`                                                    | Verifies `503` fail-closed backstop (distinct from demotion)                         |
-| ITP-012-E | ARCH-004 consumer; `fetch_queue` row provenance                   | Inject rows with / without authorized provenance marker                                                      | Verifies async-path provenance (US-0 on internal edge)                               |
-| ITP-012-F | @clerk/backend `verifyToken`; ARCH-001 validation                 | Stub throw / unscoped / scoped; malformed body; spies on `publishFoodRequested`/`enqueue`                    | Verifies scope `403` + `401→403→400` precedence through the stack                    |
-| ITP-012-G | ARCH-003 enqueue; DAO for mixed batch                             | Spy on `enqueue`; submit 101 (over cap) and 100 mixed resolved/miss names                                    | Verifies REQ-045 batch `400` before enqueue + per-item partial (distinct from `503`) |
-| ITP-012-H | @clerk/backend `verifyToken`; consumer pacts; ARCH-004 provenance | Replay consumer M2M + async pacts against ARCH-012/ARCH-004                                                  | Consumer-driven verification of the M2M + async seams before deploy                  |
-| ITP-013-A | ARCH-013 registry; ARCH-004/ARCH-015                              | Real registry with USDA adapter (+ a stub second adapter); spy on `adapters()`/`priorityOf`                  | Verifies fan-out boundary, priority order, additive register, duplicate fail-closed  |
-| ITP-013-B | ARCH-008 adapter `CanonicalCandidate`                             | Adapter resolves a USDA item; assert the crossed candidate has `external_key`, no `fdcId`                    | Verifies `fdcId` confinement at the registry boundary (SC-013)                       |
-| ITP-014-A | Postgres `food` (concurrent createByName)                         | Real Postgres with concurrent clients on the same normalized name (advisory lock + UNIQUE)                   | Concurrency test of name-grain dedup collapse                                        |
-| ITP-014-B | Postgres (12-table schema); per-aggregate DAOs                    | Test Postgres; inject a mid-transaction failure for the rollback case                                        | Verifies the sole persistence seam + atomic all-or-nothing upsert                    |
-| ITP-015-A | ARCH-013 `priorityOf`                                             | Real merge engine with two crafted candidates; stub `priorityOf`                                             | Verifies field-level merge rules → RESOLVED (deterministic)                          |
-| ITP-015-B | —                                                                 | Two non-collapsible candidates fed to `merge`                                                                | Verifies UNRESOLVED outcome + candidate-set retention                                |
-| ITP-016-A | ARCH-014; candidate store                                         | Seed an UNRESOLVED food with a retained candidate set                                                        | Verifies `getCandidates` list / `[]` / 404 seam                                      |
-| ITP-016-B | ARCH-015; ARCH-014/ARCH-017                                       | Real resolve over test Postgres with an in-set pick                                                          | Verifies resolve → merge → persist → RESOLVED + user-pick provenance                 |
-| ITP-016-C | ARCH-014                                                          | PATCH a candidate from a different food's set; spy on `upsertGoldenRecord`                                   | Verifies out-of-set guard → 400/409, status unchanged                                |
-| ITP-017-A | Postgres `food_field_provenance` / `food_nutrients.source_id`     | Test Postgres; assert provenance rows + `source_id` columns                                                  | Verifies value-grain provenance persisted (no EAV / payload)                         |
-| ITP-017-B | Postgres (provenance joins)                                       | Test Postgres; assert single `UNION` query result                                                            | Verifies "which fields came from source X" without payload                           |
-| ITP-018-A | ARCH-013 adapter (changed itemVersion); ARCH-003                  | Adapter returns a changed `itemVersion`; spy on `enqueueLowPriority`                                         | Verifies change-driven re-enqueue only on upstream change                            |
-| ITP-018-B | ARCH-013 adapter (unchanged itemVersion); ARCH-003                | Adapter returns the stored `itemVersion`; spy on `enqueueLowPriority`                                        | Verifies unchanged → no re-enqueue, user-resolved fields preserved                   |
-| ITP-019-A | ARCH-008 `mapToCanonical` output                                  | Feed a malformed / control-char `MappedCandidate` to `validateAndSanitize`                                   | Verifies reject-not-store vs sanitize at the adapter boundary                        |
-| ITP-019-B | adapter outbound URL                                              | Configure a non-HTTPS source URL in a fault harness                                                          | Verifies HTTPS/cert transport-security assertion                                     |
+| Test Case | External Dependency                                                     | Mock/Stub Strategy                                                                                                                                       | Rationale                                                                                                                           |
+| --------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| ITP-001-A | ARCH-014 (DAO) / ARCH-006                                               | DAO stub returns a `RESOLVED` `GoldenRecord`; spy on adapter registry to assert zero source calls                                                        | Isolates ARCH-001↔ARCH-014 read seam; proves no source in the read path                                                             |
+| ITP-001-B | ARCH-014 / ARCH-002                                                     | Spies on `createByName` / `publishFoodRequested` — assert zero calls on invalid input                                                                    | Verifies input-validation gate before any downstream boundary                                                                       |
+| ITP-001-C | ARCH-014 / ARCH-002                                                     | `createByName` returns `{ id, created:true }`; spy on `publishFoodRequested`                                                                             | Verifies add-by-name → create → enqueue handshake; `id`-keyed `202`                                                                 |
+| ITP-001-D | ARCH-014                                                                | DAO stub returns rows with each lifecycle status; spy on `publishFoodRequested`                                                                          | Verifies status→HTTP mapping (202/404) and that reads never enqueue                                                                 |
+| ITP-001-E | ARCH-014 / ARCH-002                                                     | DAO stub returns a `NOT_FOUND` tombstone within / past the 30-day TTL; spy on `publishFoodRequested`                                                     | Verifies tombstone TTL: within → no enqueue; after → re-attempt                                                                     |
+| ITP-002-A | Postgres `fetch_queue`                                                  | Test Postgres (Docker) or pg-mem; assert ARCH-003 `enqueue` (INSERT ON CONFLICT + `NOTIFY`) → `{ enqueued }`                                             | Verifies direct Postgres enqueue handshake (no EventBridge on demand path)                                                          |
+| ITP-002-B | Postgres `fetch_queue`                                                  | Assert no INSERT / no `NOTIFY` on malformed id or missing `requestedBy`                                                                                  | Verifies validation + async-provenance gate before enqueue                                                                          |
+| ITP-002-C | EventBridge                                                             | AWS SDK mock — assert `DetailType` + id-keyed detail; non-zero `FailedEntryCount` logged not thrown                                                      | Verifies EventBridge carries only scheduled + completion events                                                                     |
+| ITP-003-A | Postgres `fetch_queue`/`fetch_requesters`                               | Test Postgres; assert INSERT + demand-weighted ORDER BY + `NOTIFY`                                                                                       | Verifies `food_id`-keyed enqueue + demand ordering against the real schema                                                          |
+| ITP-003-B | Postgres `fetch_queue` (retry-exhausted row)                            | Drive a row past its FR-016 budget; assert `status='tombstone'` + `last_error`                                                                           | Simulates persistent failure for tombstone transition                                                                               |
+| ITP-003-C | Postgres `fetch_queue`/`fetch_requesters` (concurrent)                  | Real Postgres with concurrent clients enqueuing the same `food_id`                                                                                       | Concurrency test of `ON CONFLICT (food_id)` collapse + capped distinct-`sub` count                                                  |
+| ITP-003-D | Postgres `fetch_queue` (orphaned `in_flight` lease)                     | Real Postgres seeded with an expired `leased_at` `in_flight` row + a fresh one; run the reaper UPDATE                                                    | Verifies `leased_at`-based reaper reclaim of crashed-worker rows (REQ-018)                                                          |
+| ITP-003-E | Postgres advisory lock (two real consumer instances)                    | Two connections both call `acquireWorkerLock()` against one Postgres; spy each `leaseNext`; then release + retry                                         | Verifies single-drainer (`pg_try_advisory_lock`) — exactly one drains; failover on release (REQ-022)                                |
+| ITP-004-A | ARCH-005 (`source_call_log`)                                            | Limiter stub returning controlled `{ allowed, windowCount }` + `shouldPauseDraining`                                                                     | Isolates the per-source gate from the real store                                                                                    |
+| ITP-004-B | ARCH-013/ARCH-008 (adapter); ARCH-015; ARCH-014                         | nock USDA fixture → one `CanonicalCandidate`; real merge + DAO over test Postgres                                                                        | Verifies the fan-out→merge→persist→provenance data flow end-to-end                                                                  |
+| ITP-004-C | ARCH-008 (adapter)                                                      | nock returns 5xx then 429                                                                                                                                | Verifies backoff (REQ-016) and per-source window-full handling (REQ-026)                                                            |
+| ITP-004-D | ARCH-013/ARCH-008; ARCH-014; ARCH-003                                   | Adapter returns zero candidates / all-error; assert NOT_FOUND vs FAILED disposition                                                                      | Verifies the two terminal tombstone dispositions                                                                                    |
+| ITP-004-E | Postgres `fetch_queue` row provenance                                   | Lease rows with / without authorized `requested_by`; spy on limiter + adapter                                                                            | Verifies async-producer provenance gate before any source call                                                                      |
+| ITP-005-A | `source_call_log` (concurrent)                                          | Real Postgres with concurrent clients (deferred Redis: real sorted-set Lua)                                                                              | Concurrency requires real atomic per-source count-and-record                                                                        |
+| ITP-005-B | `source_call_log` store (unavailable)                                   | Store stub throwing connection error                                                                                                                     | Simulates store failure for fail-closed propagation                                                                                 |
+| ITP-005-C | `source_call_log` (aging window)                                        | Real Postgres seeded to pause threshold; advance/age timestamps for resume                                                                               | Verifies per-source pause/resume independence                                                                                       |
+| ITP-006-A | PostgreSQL (13-table schema)                                            | Test Postgres (Docker)                                                                                                                                   | Verifies real golden-record upsert + reassembly; schema-level contract                                                              |
+| ITP-006-B | PostgreSQL (pg_trgm)                                                    | Test Postgres with pg_trgm extension                                                                                                                     | Search + barcode/external_key lookup require the real extension/index                                                               |
+| ITP-006-C | PostgreSQL (unavailable)                                                | pg mock throwing connection error                                                                                                                        | Simulates DB failure for error propagation / rollback                                                                               |
+| ITP-007-A | ARCH-007 (deferred Redis variant)                                       | In-memory Redis stub (miss) + DAO stub (hit)                                                                                                             | Isolates the optional cache-through flow (variant only)                                                                             |
+| ITP-007-B | ARCH-007 (Redis unavailable)                                            | Redis stub throwing connection error                                                                                                                     | Verifies fall-through to Postgres rather than 503                                                                                   |
+| ITP-008-A | USDA FoodData Central API                                               | nock with a valid USDA response fixture                                                                                                                  | Verifies adapter contract + `fdcId → external_key` mapping; the only `fdcId` slice                                                  |
+| ITP-008-B | USDA FoodData Central API                                               | nock returning 429 / 401                                                                                                                                 | Verifies USDA error classification for worker disposition                                                                           |
+| ITP-009-A | API Gateway WebSocket API                                               | AWS SDK mock for PostToConnection                                                                                                                        | Deferred (US-9); verifies id-keyed notification dispatch                                                                            |
+| ITP-009-B | API Gateway WebSocket API                                               | AWS SDK mock returning GoneException                                                                                                                     | Verifies fire-and-forget on disconnected clients                                                                                    |
+| ITP-010-A | AWS Secrets Manager                                                     | AWS SDK mock returning a valid per-source secret                                                                                                         | Verifies per-source key retrieval; key absent from logs                                                                             |
+| ITP-010-B | AWS Secrets Manager                                                     | AWS SDK mock throwing ResourceNotFoundException                                                                                                          | Verifies fault propagation prevents unauthenticated source calls                                                                    |
+| ITP-011-A | CloudWatch Logs                                                         | AWS SDK mock — assert PutLogEvents payload (id-keyed)                                                                                                    | Verifies structured-log field completeness                                                                                          |
+| ITP-011-B | CloudWatch Metrics                                                      | AWS SDK mock — assert PutMetricData with per-source dimension                                                                                            | Verifies per-source rolling-window metric emission (SC-002)                                                                         |
+| ITP-011-C | AWS X-Ray                                                               | X-Ray SDK mock — assert segment creation                                                                                                                 | Verifies trace boundary handshake                                                                                                   |
+| ITP-012-A | @clerk/backend `verifyToken`; ARCH-014/002/003                          | Stub `verifyToken` to throw; spies on `createByName`/`publishFoodRequested`/`enqueue` — assert zero                                                      | Networkless verify; fail-closed before any downstream boundary                                                                      |
+| ITP-012-B | @clerk/backend `verifyToken`                                            | Stub `verifyToken` to resolve a valid M2M claim set                                                                                                      | Verifies M2M service token admitted, not 401                                                                                        |
+| ITP-012-C | `fetch_queue` + `fetch_requesters` pending state; ARCH-003              | Seed one `sub` to >50 / exactly 50 / <50 pending; spy on `enqueue` + drain-time ordering                                                                 | Verifies demotion-not-rejection + the `>50` boundary + dynamic re-promotion                                                         |
+| ITP-012-D | ARCH-003 queue-depth probe / circuit breaker                            | Stub depth above ceiling / breaker open; spy on `enqueue`                                                                                                | Verifies `503` fail-closed backstop (distinct from demotion)                                                                        |
+| ITP-012-E | ARCH-004 consumer; `fetch_queue` row provenance                         | Inject rows with / without authorized provenance marker                                                                                                  | Verifies async-path provenance (US-0 on internal edge)                                                                              |
+| ITP-012-F | @clerk/backend `verifyToken`; ARCH-001 validation                       | Stub throw / unscoped / scoped; malformed body; spies on `publishFoodRequested`/`enqueue`                                                                | Verifies scope `403` + `401→403→400` precedence through the stack                                                                   |
+| ITP-012-G | ARCH-003 enqueue; DAO for mixed batch                                   | Spy on `enqueue`; submit 101 (over cap) and 100 mixed resolved/miss names                                                                                | Verifies REQ-045 batch `400` before enqueue + per-item partial (distinct from `503`)                                                |
+| ITP-012-H | @clerk/backend `verifyToken`; consumer pacts; ARCH-004 provenance       | Replay consumer M2M + async pacts against ARCH-012/ARCH-004                                                                                              | Consumer-driven verification of the M2M + async seams before deploy                                                                 |
+| ITP-012-I | ARCH-005 window headroom; `fetch_requesters` per-`sub` pending          | Seed window near ceiling + a flooding vs. light `sub`; spy on `enqueue`; issue enqueue/read/resolve                                                      | Verifies near-ceiling sub-selective `503` flood-shed; reads/resolves exempt (REQ-040b)                                              |
+| ITP-013-A | ARCH-013 registry; ARCH-004/ARCH-015                                    | Real registry with USDA adapter (+ a stub second adapter); spy on `adapters()`/`priorityOf`                                                              | Verifies fan-out boundary, priority order, additive register, duplicate fail-closed                                                 |
+| ITP-013-B | ARCH-008 adapter `CanonicalCandidate`                                   | Adapter resolves a USDA item; assert the crossed candidate has `external_key`, no `fdcId`                                                                | Verifies `fdcId` confinement at the registry boundary (SC-013)                                                                      |
+| ITP-014-A | Postgres `food` (concurrent createByName)                               | Real Postgres with concurrent clients on the same normalized name (advisory lock + UNIQUE)                                                               | Concurrency test of name-grain dedup collapse                                                                                       |
+| ITP-014-B | Postgres (13-table schema); per-aggregate DAOs                          | Test Postgres; inject a mid-transaction failure for the rollback case                                                                                    | Verifies the sole persistence seam + atomic all-or-nothing upsert                                                                   |
+| ITP-014-C | Postgres (composite `(food_id, source_id)` FK; `ON DELETE NO ACTION`)   | Test Postgres; attempt a cross-`food_id` provenance insert + a `NO ACTION`-blocked direct `food_sources` delete + a successful food-level cascade delete | Verifies same-food provenance integrity is a structural DB invariant (D-PROVENANCE-FK) and that a food-level cascade still succeeds |
+| ITP-014-D | Postgres (manual-pick provenance); refresh re-merge                     | Seed a RESOLVED food with a user-picked field + a changed-upstream field; run `upsertGoldenRecord` over re-fetched candidates                            | Verifies a refresh re-merge does not clobber a manual-pick field (AT-LC-D, FR-028a)                                                 |
+| ITP-015-A | ARCH-013 `priorityOf`                                                   | Real merge engine with two crafted candidates; stub `priorityOf`                                                                                         | Verifies field-level merge rules → RESOLVED (deterministic)                                                                         |
+| ITP-015-B | —                                                                       | Two candidates that both survive normalized-name exact match fed to `merge`                                                                              | Verifies UNRESOLVED outcome + candidate-set retention                                                                               |
+| ITP-016-A | ARCH-014; candidate store                                               | Seed an UNRESOLVED food with a retained candidate set                                                                                                    | Verifies `getCandidates` list / `[]` / 404 seam                                                                                     |
+| ITP-016-B | ARCH-015; ARCH-014/ARCH-017                                             | Real resolve over test Postgres with an in-set pick                                                                                                      | Verifies resolve → merge → persist → RESOLVED + user-pick provenance                                                                |
+| ITP-016-C | ARCH-014                                                                | PATCH a candidate from a different food's set; spy on `upsertGoldenRecord`                                                                               | Verifies out-of-set guard → 400/409, status unchanged                                                                               |
+| ITP-016-D | Postgres `food_candidates` (TTL); ARCH-002/ARCH-003                     | Seed an UNRESOLVED food with a candidate set past / within the 30-day TTL; spy on `publishFoodRequested`                                                 | Verifies UNRESOLVED kept (not swept); expired set → re-fan-out; pick-before-expiry wins                                             |
+| ITP-016-E | ARCH-013 adapter (`fetchByKey` 5xx/timeout); Postgres `food_candidates` | Stub the source adapter to throw on re-fetch; spy on `merge`/`upsertGoldenRecord`                                                                        | Verifies resolve re-fetch failure leaves the food UNRESOLVED with its candidate set retained (ATS-049-A3)                           |
+| ITP-017-A | Postgres `food_field_provenance` / `food_nutrients.source_id`           | Test Postgres; assert provenance rows + `source_id` columns                                                                                              | Verifies value-grain provenance persisted (no EAV / payload)                                                                        |
+| ITP-017-B | Postgres (provenance joins)                                             | Test Postgres; assert single `UNION` query result                                                                                                        | Verifies "which fields came from source X" without payload                                                                          |
+| ITP-018-A | ARCH-013 adapter (changed itemVersion); ARCH-003                        | Adapter returns a changed `itemVersion`; spy on `enqueue`                                                                                                | Verifies change-driven re-enqueue only on upstream change                                                                           |
+| ITP-018-B | ARCH-013 adapter (unchanged itemVersion); ARCH-003                      | Adapter returns the stored `itemVersion`; spy on `enqueue`                                                                                               | Verifies unchanged → no re-enqueue, user-resolved fields preserved                                                                  |
+| ITP-019-A | ARCH-008 `mapToCanonical` output                                        | Feed a malformed / control-char `MappedCandidate` to `validateAndSanitize`                                                                               | Verifies reject-not-store vs sanitize at the adapter boundary                                                                       |
+| ITP-019-B | adapter outbound URL                                                    | Configure a non-HTTPS source URL in a fault harness                                                                                                      | Verifies HTTPS/cert transport-security assertion                                                                                    |
 
 ---
 
@@ -1251,70 +1438,72 @@ outbound fetch, so a downgraded/MITM source endpoint cannot feed the canonical s
 | Metric                            | Count          |
 | --------------------------------- | -------------- |
 | Total Architecture Modules (ARCH) | 19             |
-| Total Test Cases (ITP)            | 56             |
-| Total Scenarios (ITS)             | 84             |
+| Total Test Cases (ITP)            | 63             |
+| Total Scenarios (ITS)             | 102            |
 | Modules with ≥1 ITP               | 19 / 19 (100%) |
-| Test Cases with ≥1 ITS            | 56 / 56 (100%) |
+| Test Cases with ≥1 ITS            | 63 / 63 (100%) |
 | **Overall Coverage (ARCH→ITP)**   | **100%**       |
 
 ### ARCH → ITP coverage map
 
-| ARCH module                         | Covering ITP test case(s)             |
-| ----------------------------------- | ------------------------------------- |
-| ARCH-001 FoodApiController          | ITP-001-A, -B, -C, -D, -E             |
-| ARCH-002 EnqueueEmitter             | ITP-002-A, -B, -C                     |
-| ARCH-003 FetchQueueRouter           | ITP-003-A, -B, -C                     |
-| ARCH-004 FoodConsumerService        | ITP-004-A, -B, -C, -D, -E             |
-| ARCH-005 RollingWindowLimiter       | ITP-005-A, -B, -C                     |
-| ARCH-006 FoodPostgresRepository     | ITP-006-A, -B, -C                     |
-| ARCH-007 FoodCacheService           | ITP-007-A, -B                         |
-| ARCH-008 UsdaApiClient              | ITP-008-A, -B                         |
-| ARCH-009 WebSocketNotifier          | ITP-009-A, -B                         |
-| ARCH-010 SecretManager              | ITP-010-A, -B                         |
-| ARCH-011 MonitoringLogger           | ITP-011-A, -B, -C                     |
-| ARCH-012 FoodAuthGuard              | ITP-012-A, -B, -C, -D, -E, -F, -G, -H |
-| ARCH-013 SourceAdapterRegistry      | ITP-013-A, -B                         |
-| ARCH-014 FoodDaoRepository          | ITP-014-A, -B                         |
-| ARCH-015 GoldenRecordMergeEngine    | ITP-015-A, -B                         |
-| ARCH-016 CandidateResolutionService | ITP-016-A, -B, -C                     |
-| ARCH-017 ProvenanceStore            | ITP-017-A, -B                         |
-| ARCH-018 ChangeRefreshConsumer      | ITP-018-A, -B                         |
-| ARCH-019 AdapterInputValidator      | ITP-019-A, -B                         |
+| ARCH module                         | Covering ITP test case(s)                 |
+| ----------------------------------- | ----------------------------------------- |
+| ARCH-001 FoodApiController          | ITP-001-A, -B, -C, -D, -E                 |
+| ARCH-002 EnqueueEmitter             | ITP-002-A, -B, -C                         |
+| ARCH-003 FetchQueueRouter           | ITP-003-A, -B, -C, -D, -E                 |
+| ARCH-004 FoodConsumerService        | ITP-004-A, -B, -C, -D, -E                 |
+| ARCH-005 RollingWindowLimiter       | ITP-005-A, -B, -C                         |
+| ARCH-006 FoodPostgresRepository     | ITP-006-A, -B, -C                         |
+| ARCH-007 FoodCacheService           | ITP-007-A, -B                             |
+| ARCH-008 UsdaApiClient              | ITP-008-A, -B                             |
+| ARCH-009 WebSocketNotifier          | ITP-009-A, -B                             |
+| ARCH-010 SecretManager              | ITP-010-A, -B                             |
+| ARCH-011 MonitoringLogger           | ITP-011-A, -B, -C                         |
+| ARCH-012 FoodAuthGuard              | ITP-012-A, -B, -C, -D, -E, -F, -G, -H, -I |
+| ARCH-013 SourceAdapterRegistry      | ITP-013-A, -B                             |
+| ARCH-014 FoodDaoRepository          | ITP-014-A, -B, -C, -D                     |
+| ARCH-015 GoldenRecordMergeEngine    | ITP-015-A, -B                             |
+| ARCH-016 CandidateResolutionService | ITP-016-A, -B, -C, -D, -E                 |
+| ARCH-017 ProvenanceStore            | ITP-017-A, -B                             |
+| ARCH-018 ChangeRefreshConsumer      | ITP-018-A, -B                             |
+| ARCH-019 AdapterInputValidator      | ITP-019-A, -B                             |
 
 ### Technique Distribution
 
 | Technique                            | Test Cases | Percentage |
 | ------------------------------------ | ---------- | ---------- |
-| Interface Contract Testing           | 30         | 54%        |
-| Interface Fault Injection            | 17         | 30%        |
-| Data Flow Testing                    | 5          | 9%         |
-| Concurrency & Race Condition Testing | 3          | 5%         |
+| Interface Contract Testing           | 31         | 49%        |
+| Interface Fault Injection            | 22         | 35%        |
+| Data Flow Testing                    | 5          | 8%         |
+| Concurrency & Race Condition Testing | 4          | 6%         |
 | Consumer-Driven Contract Testing     | 1          | 2%         |
-| **Total**                            | **56**     | **100%**   |
+| **Total**                            | **63**     | **100%**   |
 
 > Note: each test case is counted once under its **primary** (first-named) technique. Cases combining
 > techniques — ITP-001-C/-E, ITP-004-D, ITP-012-C/-F, ITP-014-B, ITP-015→016-B (Contract + Data Flow /
 >
-> - Fault Injection) — are tallied under the first technique in their header. The three Concurrency cases
->   are ITP-003-C, ITP-005-A, ITP-014-A; ITP-012-H is the sole CDCT case (the seam-pact technique named in
->   the Overview).
+> - Fault Injection) — are tallied under the first technique in their header. The four Concurrency cases
+>   are ITP-003-C, ITP-003-E, ITP-005-A, ITP-014-A; ITP-012-H is the sole CDCT case (the seam-pact technique
+>   named in the Overview). The stabilization red-gates ITP-012-I / ITP-014-D / ITP-016-E are Interface Fault
+>   Injection.
 
 ### `TC-*` task handles (feed `tasks.md`)
 
 Every test case exposes a stable `TC-ITP-{NNN}-{X}` handle (printed on the case header) that a task in
 `tasks.md` references to pull in all of that case's ITS scenarios. The full set:
 
-`TC-ITP-001-A..E`, `TC-ITP-002-A..C`, `TC-ITP-003-A..C`, `TC-ITP-004-A..E`, `TC-ITP-005-A..C`,
+`TC-ITP-001-A..E`, `TC-ITP-002-A..C`, `TC-ITP-003-A..E`, `TC-ITP-004-A..E`, `TC-ITP-005-A..C`,
 `TC-ITP-006-A..C`, `TC-ITP-007-A..B`, `TC-ITP-008-A..B`, `TC-ITP-009-A..B`, `TC-ITP-010-A..B`,
-`TC-ITP-011-A..C`, `TC-ITP-012-A..H`, `TC-ITP-013-A..B`, `TC-ITP-014-A..B`, `TC-ITP-015-A..B`,
-`TC-ITP-016-A..C`, `TC-ITP-017-A..B`, `TC-ITP-018-A..B`, `TC-ITP-019-A..B` — **56** handles (one per ITP).
+`TC-ITP-011-A..C`, `TC-ITP-012-A..I`, `TC-ITP-013-A..B`, `TC-ITP-014-A..D`, `TC-ITP-015-A..B`,
+`TC-ITP-016-A..E`, `TC-ITP-017-A..B`, `TC-ITP-018-A..B`, `TC-ITP-019-A..B` — **63** handles (one per ITP).
 
 The new-flow handles are the ones `tasks.md` red-gate tasks should cite for the redesign: add-by-name
 dedup collapse (`TC-ITP-003-C`, `TC-ITP-014-A`), worker fan-out + golden-record merge + provenance
 (`TC-ITP-004-B`, `TC-ITP-015-A`, `TC-ITP-017-A`), UNRESOLVED → candidates → PATCH-resolve
-(`TC-ITP-015-B`, `TC-ITP-016-A/B/C`), change-driven refresh (`TC-ITP-018-A/B`), per-source limiter
-pause/resume (`TC-ITP-005-A/C`), adapter-registry + input-validation boundary
-(`TC-ITP-013-A/B`, `TC-ITP-019-A/B`), and the preserved auth slice (`TC-ITP-012-A..H`).
+(`TC-ITP-015-B`, `TC-ITP-016-A/B/C`), UNRESOLVED candidate-set TTL → re-fan-out (`TC-ITP-016-D`),
+change-driven refresh (`TC-ITP-018-A/B`), the lease reaper (`TC-ITP-003-D`), same-food provenance integrity
+(`TC-ITP-014-C`), per-source limiter pause/resume (`TC-ITP-005-A/C`), adapter-registry + input-validation
+boundary (`TC-ITP-013-A/B`, `TC-ITP-019-A/B`), and the preserved auth slice (`TC-ITP-012-A..H`).
 
 ## Uncovered Modules
 

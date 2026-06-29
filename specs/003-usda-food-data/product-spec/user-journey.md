@@ -25,7 +25,7 @@ A food's lifecycle status is `PENDING → (UNRESOLVED) → RESOLVED`, with termi
 ```mermaid
 sequenceDiagram
     participant U as Avery (Web/Mobile)
-    participant Auth as Clerk Verify (AuthMiddleware)
+    participant Auth as Clerk Verify (FoodAuthGuard)
     participant API as Foods API
     participant DB as PostgreSQL (food + fetch_queue)
     participant W as Fargate consumer worker
@@ -139,7 +139,8 @@ sequenceDiagram
     end
 
     Note over W,DB: fairness by demotion (no per-user quota, no 429)
-    W->>DB: a sub with >50 pending items ranked to back; auto re-promoted below 50 [FR-043, FR-044]
+    W->>DB: a food is demoted to back only when ALL its requesters exceed 50 pending; re-promoted when any drops below 50 [FR-043, FR-043a, FR-044]
+    W->>DB: near a source ceiling, a flooding sub's NEW enqueues shed with 503 (reads/resolves never shed) [FR-043b]
 
     alt repeated source 5xx / timeout
       W->>DB: retry w/ exp. backoff up to 5x, then status=FAILED + row status='tombstone' [FR-016, FR-027]
@@ -148,8 +149,8 @@ sequenceDiagram
       W->>DB: status=NOT_FOUND + row status='tombstone' (TTL 30d, no retry) [FR-025]
     end
 
-    Note over W,DB: change-driven refresh (background, P2)
-    W->>ADP: scheduled re-check of RESOLVED foods' backing items [FR-032]
+    Note over W,DB: change-driven refresh (Fargate scheduled task, low-priority/idle — yields to live demand)
+    W->>ADP: re-fetch RESOLVED foods' backing items + hash-compare (item_version); budget-bounded, re-enqueued via the ordinary path [FR-032]
     ADP-->>W: only fields whose source item changed upstream
     W->>DB: update only changed fields; manual picks & unchanged values preserved [FR-031]
 ```
@@ -186,17 +187,17 @@ sequenceDiagram
 
 ## Journey Coverage Matrix
 
-| Story                                             | Journey A | Journey B | Journey C   | Cross Flows |
-| ------------------------------------------------- | --------- | --------- | ----------- | ----------- |
-| US-0 Auth gate                                    | ✅        | ✅        | ✅          | —           |
-| US-001 Single food read (RESOLVED hit)            | ✅        | ✅        | —           | —           |
-| US-002 Add food by name (async resolution)        | ✅        | —         | ✅          | X1          |
-| US-002a Disambiguate candidates and resolve       | ✅        | —         | —           | X1a         |
-| US-003 Per-source rate limiting                   | —         | —         | ✅          | X3          |
-| US-004 Bulk ingredient resolution (recipe)        | ✅        | —         | ✅          | —           |
-| US-005 Demand-weighted queue + tombstone recovery | ✅        | —         | ✅          | X2/X3       |
-| US-006 Local search by name                       | ✅        | ✅        | —           | —           |
-| US-007 Change-driven refresh                      | —         | ✅        | ✅          | —           |
-| US-008 Resolution status polling                  | ✅        | ✅        | —           | X1/X1a/X2   |
-| US-009 WebSocket (optional)                       | —         | —         | ⚪ Deferred | —           |
-| US-010 Observability                              | —         | —         | ✅          | X3          |
+| Story                                           | Journey A | Journey B | Journey C   | Cross Flows |
+| ----------------------------------------------- | --------- | --------- | ----------- | ----------- |
+| US-0 Auth gate                                  | ✅        | ✅        | ✅          | —           |
+| US-1 Single food read (RESOLVED hit)            | ✅        | ✅        | —           | —           |
+| US-2 Add food by name (async resolution)        | ✅        | —         | ✅          | X1          |
+| US-2a Disambiguate candidates and resolve       | ✅        | —         | —           | X1a         |
+| US-3 Per-source rate limiting                   | —         | —         | ✅          | X3          |
+| US-4 Bulk ingredient resolution (recipe)        | ✅        | —         | ✅          | —           |
+| US-5 Demand-weighted queue + tombstone recovery | ✅        | —         | ✅          | X2/X3       |
+| US-6 Local search by name                       | ✅        | ✅        | —           | —           |
+| US-7 Change-driven refresh                      | —         | ✅        | ✅          | —           |
+| US-8 Resolution status polling                  | ✅        | ✅        | —           | X1/X1a/X2   |
+| US-9 WebSocket (optional)                       | —         | —         | ⚪ Deferred | —           |
+| US-10 Observability                             | —         | —         | ✅          | X3          |

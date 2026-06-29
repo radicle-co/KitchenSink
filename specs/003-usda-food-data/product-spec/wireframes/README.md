@@ -10,14 +10,14 @@
 
 ## Index
 
-| File                                                 | Description                                                                                                 | Key FRs / Stories                        |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [food-search.md](./food-search.md)                   | Search-by-name over the local store; add-by-name on a miss with the PENDING state and NOT_FOUND copy        | FR-008, FR-009, FR-010, US-2             |
-| [candidate-resolution.md](./candidate-resolution.md) | **NEW** — the UNRESOLVED state: pick from candidate matches across sources, then resolve to a golden record | US-2a, FR-018                            |
-| [food-detail.md](./food-detail.md)                   | Golden-record detail view with **per-field source provenance** and branded/generic badge                    | FR-002, FR-007, FR-028, US-2a            |
-| [ingredient-picker.md](./ingredient-picker.md)       | Recipe ingredient rows with matched / pending / needs-review / not-found / failed state handling            | FR-003, FR-004, FR-011, FR-013, FR-033   |
-| [nutrition-panel.md](./nutrition-panel.md)           | Nutritional breakdown from golden records (per-field provenance), totals over resolved ingredients only     | FR-002, FR-028, SC-008                   |
-| [food-substitution.md](./food-substitution.md)       | Side-by-side substitute chooser comparing golden records (source-agnostic)                                  | FR-008, FR-010, FR-033 (warning-tracked) |
+| File                                                 | Description                                                                                                 | Key FRs / Stories                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [food-search.md](./food-search.md)                   | Search-by-name over the local store; add-by-name on a miss with the PENDING state and NOT_FOUND copy        | FR-008, FR-009, FR-010, US-2                            |
+| [candidate-resolution.md](./candidate-resolution.md) | **NEW** — the UNRESOLVED state: pick from candidate matches across sources, then resolve to a golden record | US-2a, FR-RES-1, FR-RES-2, FR-RES-3, FR-MRG-2, FR-MRG-3 |
+| [food-detail.md](./food-detail.md)                   | Golden-record detail view with **per-field source provenance** and branded/generic badge                    | FR-002, FR-007, FR-028, US-2a                           |
+| [ingredient-picker.md](./ingredient-picker.md)       | Recipe ingredient rows with matched / pending / needs-review / not-found / failed state handling            | FR-003, FR-004, FR-011, FR-013, FR-033                  |
+| [nutrition-panel.md](./nutrition-panel.md)           | Nutritional breakdown from golden records (per-field provenance), totals over resolved ingredients only     | FR-002, FR-028, SC-008                                  |
+| [food-substitution.md](./food-substitution.md)       | Side-by-side substitute chooser comparing golden records (source-agnostic)                                  | FR-008, FR-010, FR-033 (warning-tracked)                |
 
 ---
 
@@ -41,7 +41,10 @@ A food added by name moves through this lifecycle; the wireframes surface each s
 - **FR-009**: no external source call on search
 - **FR-010**: search relevance + performance (typo-tolerant via `pg_trgm`)
 - **FR-011**: enqueue background sync on a miss
-- **FR-018**: candidate set + candidate resolution (`/candidates`, `PATCH`-resolve)
+- **FR-RES-1**: list the candidate set (`GET /v1/foods/{id}/candidates`)
+- **FR-RES-2**: resolve from a validated candidate pick (`PATCH /v1/foods/{id}`, candidate-in-set)
+- **FR-RES-3**: persist the surviving candidate set when a food lands `UNRESOLVED`
+- **FR-MRG-2 / FR-MRG-3**: merge the chosen candidate into the golden record with per-field provenance
 - **FR-028**: golden record + **per-field source provenance** (`food_nutrients.source_id`, `food_field_provenance`)
 - **FR-033**: polling as the primary notification mechanism
 - **SC-008**: nutrient fidelity against source values

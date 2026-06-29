@@ -9,7 +9,7 @@
 
 ## Index
 
-This directory contains the Product Forge v1.3.0 product specification artifacts for the USDA Food Data Integration feature.
+This directory contains the Product Forge v1.7.0 product specification artifacts for the USDA Food Data Integration feature.
 
 | Artifact      | File                                  | Description                                                                                                                                                                                                   |
 | ------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -37,7 +37,7 @@ This directory contains the Product Forge v1.3.0 product specification artifacts
 ```
 product-spec.md
     |
-    +-- MoSCoW stories (US-001..US-010)
+    +-- MoSCoW stories (US-0..US-10, incl. US-2a)
     |       Each story references FR-XXX from spec.md
     |
     +-- Personas (Recipe Author / Nutrition-Conscious Planner / Operations Engineer)
@@ -48,16 +48,17 @@ user-journey.md
     +-- Three persona journeys (Mermaid sequence diagrams)
     |       Each step annotates the FR it exercises
     |
-    +-- Cross-persona flows (pending->fetched, not_found, rate-limit delay)
+    +-- Cross-persona flows (pending->resolved, unresolved->resolved, not_found, rate-limit delay)
     |
     v
 wireframes/
     |
-    +-- food-search.md         (FR-008, FR-009, FR-010)
-    +-- food-detail.md         (FR-002, FR-007, FR-028)
-    +-- ingredient-picker.md   (FR-003, FR-004, FR-011, FR-013, FR-033)
-    +-- nutrition-panel.md     (FR-002, FR-028, SC-008)
-    +-- food-substitution.md   (FR-008, FR-010, FR-033; warning-tracked)
+    +-- food-search.md           (FR-008, FR-009, FR-010)
+    +-- candidate-resolution.md  (FR-RES-1, FR-RES-2, FR-RES-3, FR-MRG-2, FR-MRG-3; US-2a)
+    +-- food-detail.md           (FR-002, FR-007, FR-028)
+    +-- ingredient-picker.md     (FR-003, FR-004, FR-011, FR-013, FR-033)
+    +-- nutrition-panel.md       (FR-002, FR-028, SC-008)
+    +-- food-substitution.md     (FR-008, FR-010, FR-033; warning-tracked)
     |
     v
 metrics.md

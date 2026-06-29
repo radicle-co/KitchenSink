@@ -1,5 +1,15 @@
 # Red Team Findings — 003-usda-food-data
 
+> **⚠️ SUPERSEDED IN PART (doc-stabilization 2026-06-28).** This is a historical point-in-time
+> record. Two themes are superseded by the stabilized design (see `decision-register.md`):
+>
+> 1. **Fairness (F-001/F-011/F-012 — per-user quota / `429`)** is superseded by **D-FAIRNESS**:
+>    queue **demotion** + near-ceiling `503` shedding of a flooding `sub`'s new enqueues, with a
+>    per-`sub` pending counter — **no per-user quota and no `429`**.
+> 2. **Identity (`fdcId` / `fdc_id` framing)** is superseded by the internal ULID **`id`**; a source's
+>    native key survives only as `food_sources.external_key` inside the adapter boundary.
+>    All other findings remain valid as recorded. Read with the decision register as the source of truth.
+
 |                        |                                                                                                                  |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **Session ID**         | `RT-003-usda-food-data-2026-06-19`                                                                               |

@@ -308,6 +308,11 @@ response body, no all-or-nothing withholding. A single `admitEnqueue` gate cover
     - **Act**: Call `handleBatch(req)`
     - **Assert**: Returns `{ statusCode: 200, body: { resolved: [...2 items...], pending: [] } }`; `publishFoodRequested` called **zero** times (no misses → no enqueue)
 
+- **Unit Scenario: UTS-001-F4** (intra-batch duplicate-name dedup)
+    - **Arrange**: `req.body.names = ["Granny Smith Apple", "granny smith apple"]` — the **same** normalized name twice in one batch body; both normalize to `"granny smith apple"`; `createByName("granny smith apple", …)` returns the same `{ id: "01J...ULID" }` for both; `findById` → `{ status: "PENDING" }`
+    - **Act**: Call `handleBatch(req)`
+    - **Assert**: The two entries collapse to **one** id — `createByName` resolves to a single `id`, the `pending` array contains that id **once**, and `publishFoodRequested` is called **once** for it (no duplicate row, no double enqueue within a single batch); intra-batch duplicates dedup just like cross-request adds (REQ-045/REQ-013)
+
 ---
 
 #### Test Case: UTP-001-G (handleResolve — out-of-set candidate delegated reject)
@@ -448,12 +453,12 @@ boundaries and fans out to `publishFoodRequested` per id on valid input.
 
 ---
 
-#### Test Case: UTP-002-C (publishFoodDataReceived — fire-and-forget EventBridge completion)
+#### Test Case: UTP-002-C (publishFoodFetchCompleted — fire-and-forget EventBridge completion)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View (fire-and-forget branch)
-**Description**: Verifies `publishFoodDataReceived()` carries the food `id` + lifecycle `status` on the
-`FoodDataReceived` EventBridge event and **logs but does NOT throw** on a partial PutEvents failure (REQ-034).
+**Description**: Verifies `publishFoodFetchCompleted()` carries the food `id` + lifecycle `status` on the
+`FoodFetchCompleted` EventBridge event and **logs but does NOT throw** on a partial PutEvents failure (REQ-034).
 
 **Dependency & Mock Registry:**
 
@@ -464,12 +469,12 @@ boundaries and fans out to `publishFoodRequested` per id on valid input.
 
 - **Unit Scenario: UTS-002-C1**
     - **Arrange**: `payload = { id: "01J...ULID", status: "RESOLVED" }`; `putEvents` returns `{ FailedEntryCount: 1, Entries: [{ ErrorCode: "ThrottlingException" }] }`
-    - **Act**: Call `publishFoodDataReceived(payload)`
+    - **Act**: Call `publishFoodFetchCompleted(payload)`
     - **Assert**: Does NOT throw; `MonitoringLogger.logRequest` called with `"eb-publish-fail"` and `{ id: "01J...ULID" }`; the event Detail carries `{ id, status }`, never `fdcId`
 
 - **Unit Scenario: UTS-002-C2**
     - **Arrange**: valid payload; `putEvents` returns `{ FailedEntryCount: 0 }`
-    - **Act**: Call `publishFoodDataReceived(payload)`
+    - **Act**: Call `publishFoodFetchCompleted(payload)`
     - **Assert**: Does NOT throw; `logRequest` NOT called with `"eb-publish-fail"`
 
 ---
@@ -491,6 +496,36 @@ drives change-driven refresh (MOD-020) and returns the event id (REQ-032).
     - **Arrange**: `putEvents` returns `{ Entries: [{ EventId: "e1" }] }`
     - **Act**: Call `publishIngestionScheduled()`
     - **Assert**: Returns `{ eventId: "e1" }`; `putEvents` called with `DetailType: "IngestionScheduled"` and a `scheduledAt` ISO-8601 detail (drives MOD-020, REQ-032)
+
+---
+
+#### Test Case: UTP-002-E (publishFetchFailed — fire-and-forget terminal-failure event)
+
+**Technique**: Statement & Branch Coverage + Equivalence Partitioning
+**Target View**: Algorithmic/Logic View (fire-and-forget branch)
+**Description**: Verifies the canonical `FetchFailed` event (decision-register §1) is real and emitted on a
+**`FAILED`** terminal disposition: `publishFetchFailed()` carries the food `id` (+ a `reason` string) on the
+`FetchFailed` EventBridge event and **logs but does NOT throw** on a partial PutEvents failure (same
+fire-and-forget contract as `publishFoodFetchCompleted`, REQ-034). `FetchFailed` is the failure-alarm signal;
+a `NOT_FOUND` absence is **not** a failure and does **not** publish it (the alarm-noise separation, DSN-9) —
+the disposition seam that decides which terminal status fires it is asserted at ITP-004-D.
+
+**Dependency & Mock Registry:**
+
+| Dependency          | Source             | Mock/Stub Strategy                                                                 | Rationale                |
+| ------------------- | ------------------ | ---------------------------------------------------------------------------------- | ------------------------ |
+| `EventBridgeClient` | AWS SDK (external) | Mock: `putEvents()` returns `{ FailedEntryCount: 1 }` or `{ FailedEntryCount: 0 }` | Simulate partial failure |
+| `MonitoringLogger`  | MOD-011            | Mock: `logRequest()` records args                                                  | Verify log call          |
+
+- **Unit Scenario: UTS-002-E1**
+    - **Arrange**: `payload = { id: "01J...ULID", reason: "all_sources_errored" }`; `putEvents` returns `{ FailedEntryCount: 0 }`
+    - **Act**: Call `publishFetchFailed(payload)`
+    - **Assert**: Does NOT throw; the event Detail carries `DetailType: "FetchFailed"` and `{ id, reason }`, never `fdcId`; `logRequest` NOT called with `"eb-publish-fail"`
+
+- **Unit Scenario: UTS-002-E2**
+    - **Arrange**: same payload; `putEvents` returns `{ FailedEntryCount: 1, Entries: [{ ErrorCode: "ThrottlingException" }] }`
+    - **Act**: Call `publishFetchFailed(payload)`
+    - **Assert**: Does NOT throw; `MonitoringLogger.logRequest` called with `"eb-publish-fail"` and `{ id: "01J...ULID" }` — terminal-failure notification is fire-and-forget, never blocking the worker (REQ-034)
 
 ---
 
@@ -528,14 +563,17 @@ repeats idempotent) then upserts the `fetch_queue` row keyed on `food_id` with `
 
 ---
 
-#### Test Case: UTP-003-B (leaseNext — demand-weighted + demotion-tier ordering, lease reclaim)
+#### Test Case: UTP-003-B (leaseNext — demand-weighted ordering + drain-time demotion, lease reclaim)
 
 **Technique**: Statement & Branch Coverage + State Transition Testing
 **Target View**: Algorithmic/Logic View + State Machine View
 **Description**: Verifies `leaseNext(leaseSeconds)` issues the claim `UPDATE ... FOR UPDATE SKIP LOCKED` whose
-ordering is `drain_priority_tier ASC, request_count DESC, first_requested ASC` (demand weight + FIFO with the
-demotion tier prepended, REQ-015/043) and whose `WHERE` reclaims expired `in_flight` leases
-(`lease_expires_at < now()`, REQ-018).
+ordering is `request_count DESC, first_requested ASC` (demand weight + FIFO) with the multi-requester
+demotion rank **computed live at drain time** prepended — there is **no stored `drain_priority_tier`
+column** (REQ-015/043). The claim runs only while the single-drainer advisory lock (REQ-022) is held, so the
+read-committed count+insert is effectively serial. Its `WHERE` reclaims expired `in_flight` leases by
+comparing the `leased_at timestamptz` lease column against the 30s window
+(`leased_at < now() - interval '30 seconds'`, REQ-018) — there is **no `lease_expires_at` column**.
 
 **Dependency & Mock Registry:**
 
@@ -546,7 +584,7 @@ demotion tier prepended, REQ-015/043) and whose `WHERE` reclaims expired `in_fli
 - **Unit Scenario: UTS-003-B1**
     - **Arrange**: `Postgres.query` returns one leased row
     - **Act**: Call `leaseNext(30)`
-    - **Assert**: The SQL sets `status='in_flight'`, `lease_expires_at = now() + 30s`, `attempts = attempts + 1`; the inner `ORDER BY` is `drain_priority_tier(q.food_id) ASC, q.request_count DESC, q.first_requested ASC`; the `WHERE` includes `(q.status='in_flight' AND q.lease_expires_at < now())` (lease reclaim, REQ-018)
+    - **Assert**: The SQL sets `status='in_flight'`, `leased_at = now()`, `attempts = attempts + 1`; the inner `ORDER BY` is `(<live drain-time demotion rank: 1 when every requester of the food exceeds the 50-pending threshold, else 0>) ASC, q.request_count DESC, q.first_requested ASC` (no stored `drain_priority_tier` column); the `WHERE` includes `(q.status='in_flight' AND q.leased_at < now() - interval '30 seconds')` (lease reclaim, REQ-018)
 
 - **Unit Scenario: UTS-003-B2**
     - **Arrange**: `Postgres.query` returns `{ rows: [] }` (no eligible row)
@@ -612,6 +650,33 @@ drains the queue (REQ-022): `true` → this instance drains; `false` → this in
 
 ---
 
+#### Test Case: UTP-003-E (reapExpiredLeases — orphaned `in_flight` lease reclaim)
+
+**Technique**: Statement & Branch Coverage + State Transition Testing
+**Target View**: Algorithmic/Logic View + State Machine View (InFlight → Pending on lease expiry)
+**Description**: Verifies the reaper `reapExpiredLeases()` (run at consumer start and every minute) reverts
+`status='in_flight'` rows whose `leased_at` is older than the 30s lease window back to `status='pending'`, so a
+crashed worker cannot orphan a row forever (the priority index is `WHERE status='pending'`); a fresh lease is
+left untouched (REQ-018, §2 Addition B).
+
+**Dependency & Mock Registry:**
+
+| Dependency | Source | Mock/Stub Strategy                  | Rationale                      |
+| ---------- | ------ | ----------------------------------- | ------------------------------ |
+| `Postgres` | pg     | Mock: `query()` captures SQL+params | Inspect the reclaim UPDATE SQL |
+
+- **Unit Scenario: UTS-003-E1**
+    - **Arrange**: `Postgres.query` reports one affected row
+    - **Act**: Call `reapExpiredLeases()`
+    - **Assert**: Executes `UPDATE fetch_queue SET status='pending' WHERE status='in_flight' AND leased_at < now() - interval '30 seconds'`; the orphaned row returns to the pending set (REQ-018)
+
+- **Unit Scenario: UTS-003-E2**
+    - **Arrange**: the only `in_flight` row has `leased_at = now()` (fresh lease); `Postgres.query` reports zero affected rows
+    - **Act**: Call `reapExpiredLeases()`
+    - **Assert**: Zero rows reverted — a live lease within the 30s window is not reclaimed (no premature reclaim)
+
+---
+
 ### Module: MOD-004 (FoodConsumerService — Fan-Out / Merge Worker)
 
 **Parent Architecture Modules**: ARCH-004
@@ -665,7 +730,7 @@ budget → exponential backoff (REQ-016). Status is written via the DAO seam, ne
 | `usdaAdapter`           | MOD-008 | Mock: `searchByName` throws `SourceApiError(status)` or returns `[]`              | Simulate each source outcome       |
 | `FoodDaoRepository`     | MOD-016 | Spy: `updateStatus(id, status, tombstonedAt)` records args                        | Verify lifecycle write via the DAO |
 | `FetchQueueRouter`      | MOD-003 | Spy: `tombstone` / `requeueWithBackoff` / `markWindowFull` paths                  | Verify queue disposition           |
-| `EnqueueEmitter`        | MOD-002 | Spy: `publishFoodDataReceived()` records args                                     | Verify completion fan-out          |
+| `EnqueueEmitter`        | MOD-002 | Spy: `publishFoodFetchCompleted()` records args                                   | Verify completion fan-out          |
 
 - **Unit Scenario: UTS-004-B1**
     - **Arrange**: `usdaAdapter.searchByName` throws `SourceApiError(status=429)`; `row.attempts = 0`
@@ -675,12 +740,12 @@ budget → exponential backoff (REQ-016). Status is written via the DAO seam, ne
 - **Unit Scenario: UTS-004-B2**
     - **Arrange**: `usdaAdapter.searchByName` returns `[]` (no hits) and no source errored
     - **Act**: Call `processRow(row)`
-    - **Assert**: `FoodDaoRepository.updateStatus(foodId, "NOT_FOUND", <tombstonedAt>)` called (30-day TTL); `FetchQueueRouter.tombstone(foodId, "no_source_has_item")` called; `publishFoodDataReceived({ id: foodId, status: "NOT_FOUND" })` emitted — no retry (REQ-025)
+    - **Assert**: `FoodDaoRepository.updateStatus(foodId, "NOT_FOUND", <tombstonedAt>)` called (30-day TTL); `FetchQueueRouter.tombstone(foodId, "no_source_has_item")` called; `publishFoodFetchCompleted({ id: foodId, status: "NOT_FOUND" })` emitted — no retry (REQ-025)
 
 - **Unit Scenario: UTS-004-B3**
     - **Arrange**: `usdaAdapter.searchByName` throws `SourceApiError(status=503)`; `row.attempts = 5` (budget exhausted)
     - **Act**: Call `processRow(row)`
-    - **Assert**: `FoodDaoRepository.updateStatus(foodId, "FAILED", <tombstonedAt>)` called; `FetchQueueRouter.tombstone(foodId, "all_sources_errored")` called; `publishFoodDataReceived({ id: foodId, status: "FAILED" })` emitted (REQ-027)
+    - **Assert**: `FoodDaoRepository.updateStatus(foodId, "FAILED", <tombstonedAt>)` called; `FetchQueueRouter.tombstone(foodId, "all_sources_errored")` called; `publishFoodFetchCompleted({ id: foodId, status: "FAILED" })` emitted (REQ-027)
 
 - **Unit Scenario: UTS-004-B4**
     - **Arrange**: `usdaAdapter.searchByName` throws `SourceApiError(status=503)`; `row.attempts = 2` (under budget)
@@ -695,7 +760,7 @@ budget → exponential backoff (REQ-016). Status is written via the DAO seam, ne
 **Target View**: Algorithmic/Logic View + State Machine View (Merging → Persisting → Resolving)
 **Description**: Verifies the success path: collected candidates are pre-merge-deduped, merged by MOD-017,
 persisted atomically with provenance via `upsertGoldenRecord` (MOD-016), the `fetch_queue` row acked
-(`resolve`), and `FoodDataReceived` emitted with the merge outcome (`RESOLVED` or `UNRESOLVED`)
+(`resolve`), and `FoodFetchCompleted` emitted with the merge outcome (`RESOLVED` or `UNRESOLVED`)
 (REQ-050/REQ-MRG-1). A reject-not-store candidate (MOD-021 `ValidationError`) is dropped without failing the
 food.
 
@@ -707,17 +772,17 @@ food.
 | `GoldenRecordMergeEngine` | MOD-017 | Mock: `merge(candidates)` returns `{ goldenRecord, outcome }`                                                       | Isolate merge from the worker      |
 | `FoodDaoRepository`       | MOD-016 | Spy: `upsertGoldenRecord(foodId, golden, outcome)` records args                                                     | Verify atomic persist + provenance |
 | `FetchQueueRouter`        | MOD-003 | Spy: `resolve(foodId)` records args                                                                                 | Verify the row is acked            |
-| `EnqueueEmitter`          | MOD-002 | Spy: `publishFoodDataReceived()` records args                                                                       | Verify completion fan-out          |
+| `EnqueueEmitter`          | MOD-002 | Spy: `publishFoodFetchCompleted()` records args                                                                     | Verify completion fan-out          |
 
 - **Unit Scenario: UTS-004-C1**
     - **Arrange**: one valid `CanonicalCandidate`; `merge` returns `{ goldenRecord, outcome: "RESOLVED" }`
     - **Act**: Call `processRow(row)`
-    - **Assert**: `FoodDaoRepository.upsertGoldenRecord(foodId, goldenRecord, "RESOLVED")` called; `FetchQueueRouter.resolve(foodId)` called (row cleared); `publishFoodDataReceived({ id: foodId, status: "RESOLVED" })` emitted; `MonitoringLogger.incrementMetric("consumer.resolved", 1)`
+    - **Assert**: `FoodDaoRepository.upsertGoldenRecord(foodId, goldenRecord, "RESOLVED")` called; `FetchQueueRouter.resolve(foodId)` called (row cleared); `publishFoodFetchCompleted({ id: foodId, status: "RESOLVED" })` emitted; `MonitoringLogger.incrementMetric("consumer.resolved", 1)`
 
 - **Unit Scenario: UTS-004-C2**
     - **Arrange**: two non-collapsible candidates; `merge` returns `{ goldenRecord: partial, outcome: "UNRESOLVED", candidateSet }`
     - **Act**: Call `processRow(row)`
-    - **Assert**: `upsertGoldenRecord(foodId, partial, "UNRESOLVED")` called; the food becomes `UNRESOLVED` (surfaced via MOD-018 `/candidates`); the row is acked, not tombstoned (REQ-048)
+    - **Assert**: `upsertGoldenRecord(foodId, partial, "UNRESOLVED")` called; the surviving candidate set is persisted to the `food_candidates` table (`UNIQUE(food_id, source, external_key)`) for later disambiguation; the food becomes `UNRESOLVED` (surfaced via MOD-018 `/candidates`); the row is acked, not tombstoned (REQ-048/REQ-050a)
 
 - **Unit Scenario: UTS-004-C3**
     - **Arrange**: two hits; `fetchByKey` for the first throws `ValidationError` (MOD-021 reject-not-store), the second returns a valid candidate; `merge` returns `{ outcome: "RESOLVED" }`
@@ -833,6 +898,35 @@ trailing 60 minutes (REQ-019/021).
 
 ---
 
+#### Test Case: UTP-005-D (pruneAgedCalls — trailing-window retention boundary, in-window count preserved)
+
+**Technique**: Boundary Value Analysis + Statement & Branch Coverage
+**Target View**: Algorithmic/Logic View (retention sweep over the trailing window)
+**Description**: Verifies the `source_call_log` retention sweep (`pruneAgedCalls(source)`, decision-register
+§3.16 / REQ-020) deletes **only** rows older than the trailing 60-minute window and **never** a row still
+inside it — the prune must not under-count the very ledger the limiter reads, or `checkAndRecordCall` would
+admit a call that breaches the hard cap (SC-002). Boundaries are exercised at `now()-59m` (in-window, kept),
+`now()-60m` (the window edge, kept), and `now()-61m` (expired, deleted) so an off-by-one in the cut-off is
+caught (an inspection cannot catch it).
+
+**Dependency & Mock Registry:**
+
+| Dependency      | Source                     | Mock/Stub Strategy                                                                                                                                                 | Rationale                                      |
+| --------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| `SourceCallLog` | Postgres `source_call_log` | Mock: `query(DELETE ... WHERE called_at < now() - interval '60 minutes')` captures SQL+params; backed by an in-memory ledger of three rows at `-59m`/`-60m`/`-61m` | Inspect the cut-off boundary deterministically |
+
+- **Unit Scenario: UTS-005-D1**
+    - **Arrange**: ledger for `'usda'` holds three rows aged `now()-59m`, `now()-60m`, `now()-61m`
+    - **Act**: Call `pruneAgedCalls('usda')`
+    - **Assert**: The DELETE targets `WHERE source=$1 AND called_at < now() - interval '60 minutes'`; exactly **one** row (the `-61m` row) is deleted; the `-59m` and `-60m` rows remain — the strict `<` cut-off keeps the window-edge row, so the trailing-60-min `count(*)` the limiter reads is unchanged (REQ-020)
+
+- **Unit Scenario: UTS-005-D2**
+    - **Arrange**: every row is within the window (newest `now()-10m`, oldest `now()-58m`)
+    - **Act**: Call `pruneAgedCalls('usda')`
+    - **Assert**: Zero rows deleted; the in-window count is preserved exactly — a sweep never removes a call that still counts against the cap (SC-002 cannot be under-counted by the prune)
+
+---
+
 ### Module: MOD-006 (FoodPostgresRepository — Canonical Normalized Store)
 
 **Parent Architecture Modules**: ARCH-006
@@ -943,6 +1037,48 @@ the crosswalk row id (the `source_id` later referenced by per-value provenance).
     - **Arrange**: `foodId`, `source='usda'`, `externalKey='534358'`, `itemVersion='2024-10-31'`
     - **Act**: Call `upsertCrosswalk(foodId, "usda", "534358", "2024-10-31")`
     - **Assert**: SQL is `INSERT INTO food_sources (...) VALUES (...) ON CONFLICT (source, external_key) DO UPDATE SET item_version=$5, fetched_at=now() RETURNING id`; returns `{ sourceId: "src-1" }`; no nutrient/payload column written
+
+---
+
+#### Test Case: UTP-006-E (updateStatus — illegal lifecycle _transition_ guard, enum-valid but not permitted)
+
+**Technique**: State Transition Testing + Equivalence Partitioning + Error Guessing
+**Target View**: State Machine View (`food.status` legal transition set, FR-028a)
+**Description**: Verifies the gap D-LIFECYCLE was created for: UTP-006-B only rejects values **outside** the
+enum, but an enum-**valid** value can still be an **illegal transition**. `updateStatus(id, status)` MUST
+reject a move not in the FR-028a legal set — `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}`,
+`UNRESOLVED→RESOLVED`, `FAILED→PENDING`, `NOT_FOUND→PENDING` — leaving the stored `status` **unchanged** and
+issuing **no** write. Disallowed examples: `NOT_FOUND→RESOLVED` (direct, skipping re-fan-out),
+`RESOLVED→PENDING` off the refresh path, `UNRESOLVED→FAILED`. The current value is read so the guard can
+compare from→to. **If transition legality is enforced at the call sites rather than the DAO**, the same
+assertions hold against that guard component (the call-site negative test) — but a red test MUST exist, or the
+guard will not be built.
+
+**Dependency & Mock Registry:**
+
+| Dependency | Source     | Mock/Stub Strategy                                                                                                       | Rationale                                     |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `query`    | Drizzle/pg | Mock: `findStatus(id)` returns the current `food.status`; `UPDATE` records args (asserted NOT called on an illegal move) | Drive from→to pairs; prove no write on reject |
+
+- **Unit Scenario: UTS-006-E1**
+    - **Arrange**: current `status='NOT_FOUND'`; requested `status='RESOLVED'` (a direct jump that skips the `NOT_FOUND→PENDING` TTL re-fan-out)
+    - **Act**: Call `updateStatus("01J...ULID", "RESOLVED")`
+    - **Assert**: Throws `IllegalTransitionError` (or the call-site equivalent); `UPDATE` NOT called; the stored `status` stays `NOT_FOUND` — an enum-valid value is still rejected when the transition is not in the FR-028a set
+
+- **Unit Scenario: UTS-006-E2**
+    - **Arrange**: current `status='RESOLVED'`; requested `status='PENDING'` (off the change-refresh path)
+    - **Act**: Call `updateStatus("01J...ULID", "PENDING")`
+    - **Assert**: Throws `IllegalTransitionError`; no write — a RESOLVED golden record is never silently reverted to PENDING outside refresh (FR-028a)
+
+- **Unit Scenario: UTS-006-E3**
+    - **Arrange**: current `status='UNRESOLVED'`; requested `status='FAILED'`
+    - **Act**: Call `updateStatus("01J...ULID", "FAILED")`
+    - **Assert**: Throws `IllegalTransitionError`; no write — `UNRESOLVED` only advances via `UNRESOLVED→RESOLVED` (a human pick), never to a terminal failure
+
+- **Unit Scenario: UTS-006-E4**
+    - **Arrange**: current `status='FAILED'`; requested `status='PENDING'` (a legal retry reactivation)
+    - **Act**: Call `updateStatus("01J...ULID", "PENDING")`
+    - **Assert**: The `UPDATE` **is** issued and succeeds — confirming the guard rejects only _illegal_ moves and admits the legal `FAILED→PENDING` retry (boundary against an always-reject)
 
 ---
 
@@ -1427,7 +1563,7 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 **Technique**: Error Guessing + Strict Isolation
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies that a forged identity header (`x-authorizer-context` / `x-user-id`) is never read; the `AuthenticatedCaller.sub` comes solely from the verified token, even when the header claims a different `sub` (REQ-038, mirrors PR #39 decision).
+**Description**: Verifies that a forged identity header (`x-authorizer-context` / `x-user-id` / `x-debug-sub`) is never read; the `AuthenticatedCaller.sub` comes solely from the verified Clerk token, even when the header claims a different `sub` (REQ-038, mirrors PR #39 decision — the service is fronted by a public ALB, so any client-suppliable identity header is forgeable and is stripped).
 
 **Dependency & Mock Registry:**
 
@@ -1436,9 +1572,9 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 | `verifyToken` | @clerk/backend | Mock: resolves `{ sub: 'user_real', azp: 'https://app.commise.app' }` | Isolate verified-claim source |
 
 - **Unit Scenario: UTS-012-C1**
-    - **Arrange**: `Authorization = 'Bearer good.jwt'`; also set `req.headers['x-authorizer-context'] = JSON.stringify({ sub: 'user_admin_forged' })` and `req.headers['x-user-id'] = 'user_admin_forged'`; mock `verifyToken` to resolve `{ sub: 'user_real', azp: 'https://app.commise.app', public_metadata: {} }`
+    - **Arrange**: `Authorization = 'Bearer good.jwt'`; also set `req.headers['x-authorizer-context'] = JSON.stringify({ sub: 'user_admin_forged' })`, `req.headers['x-user-id'] = 'user_admin_forged'`, and `req.headers['x-debug-sub'] = 'user_admin_forged'`; mock `verifyToken` to resolve `{ sub: 'user_real', azp: 'https://app.commise.app', public_metadata: {} }`
     - **Act**: Invoke `middleware.use(req, res, next)`
-    - **Assert**: `req.user.sub === 'user_real'` (the verified token wins); the `x-authorizer-context` / `x-user-id` headers are deleted and never parsed into `req.user` (REQ-038)
+    - **Assert**: `req.user.sub === 'user_real'` (the verified token wins); the `x-authorizer-context` / `x-user-id` / `x-debug-sub` headers are deleted and never parsed into `req.user` (REQ-038)
 
 ---
 
@@ -1471,33 +1607,38 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 ---
 
-#### Test Case: UTP-012-E (drainPriorityTier — per-`sub` pending-count demotion, dynamic re-promotion, never rejected)
+#### Test Case: UTP-012-E (drainPriorityTier — multi-requester pending-count demotion, dynamic re-promotion, never rejected)
 
 **Technique**: Boundary Value Analysis + State Transition Testing + Strict Isolation
 **Target View**: Internal Data Structures + State Machine View
-**Description**: Verifies fairness-by-demotion in MOD-013 (REQ-043): the drain-time priority scorer computes a `sub`'s rank from its **current pending count** read live from `fetch_queue` + `fetch_requesters`. A request from a `sub` with **more than 50 items currently pending** is **still admitted** (no `429`, never rejected for a personal limit) but its queued items are ranked to the **back**; once the `sub`'s pending count falls back below 50 the scorer **dynamically re-promotes** to normal priority (it reads live state, not a frozen flag). Demotion is work-conserving. The pending-count source is mocked so only the demotion decision logic is tested. The work unit is a food `id`, never `fdcId`.
+**Description**: Verifies fairness-by-demotion in MOD-013 (REQ-043, FR-043a): the drain-time priority scorer ranks a **food** to the back **only when every** current requester of that food has **more than 50 items pending** (read live from `fetch_queue` + `fetch_requesters`); a food with even one under-threshold requester keeps normal priority. No request is ever rejected for a personal limit (no `429`); once any requester's pending count falls back below 50 the scorer **dynamically re-promotes** (it reads live state, not a frozen flag). Demotion is work-conserving and computed live at drain time — there is no stored `drain_priority_tier` column. The pending-count source is mocked so only the demotion decision logic is tested. The work unit is a food `id`, never `fdcId`.
 
 **Dependency & Mock Registry:**
 
-| Dependency           | Source                                        | Mock/Stub Strategy                                      | Rationale                                                |
-| -------------------- | --------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
-| `pendingCountForSub` | ARCH-003 (`fetch_queue` + `fetch_requesters`) | Mock: returns a controlled live pending count per `sub` | Isolate the demotion decision from the real queue tables |
-| `FetchQueue`         | ARCH-003 (Postgres `fetch_queue`)             | Spy: `requestedBy(foodId)` — supply the owning sub      | Resolve the food's requester for the tier computation    |
+| Dependency           | Source                                        | Mock/Stub Strategy                                                           | Rationale                                                           |
+| -------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `pendingCountForSub` | ARCH-003 (`fetch_queue` + `fetch_requesters`) | Mock: returns a controlled live pending count per `sub`                      | Isolate the demotion decision from the real queue tables            |
+| `requestersOf`       | ARCH-003 (Postgres `fetch_requesters`)        | Mock: `requestersOf(foodId)` returns the food's distinct requester `sub` set | Resolve every requester for the all-requesters-over-threshold check |
 
 - **Unit Scenario: UTS-012-E1**
-    - **Arrange**: Demotion threshold `T = 50`; mock `pendingCountForSub('user_abc')` → `50` (at the boundary, not yet over); `FetchQueue.requestedBy('01J...ULID')` → `'user_abc'`
+    - **Arrange**: Demotion threshold `T = 50`; food `01J...ULID` has a single requester; `requestersOf('01J...ULID')` → `['user_abc']`; `pendingCountForSub('user_abc')` → `50` (at the boundary, not yet over)
     - **Act**: Invoke `drainPriorityTier('01J...ULID')`
-    - **Assert**: Returns `0` (front tier, non-demoted) — at exactly 50 pending the `sub` is **not** demoted (boundary: == 50 is not "more than 50", REQ-043)
+    - **Assert**: Returns `0` (front tier, non-demoted) — at exactly 50 pending the requester is **not** over the threshold (boundary: == 50 is not "more than 50", REQ-043)
 
 - **Unit Scenario: UTS-012-E2**
-    - **Arrange**: `pendingCountForSub('user_abc')` → `51` (more than 50)
+    - **Arrange**: food `01J...ULID` has a single requester; `requestersOf('01J...ULID')` → `['user_abc']`; `pendingCountForSub('user_abc')` → `51` (more than 50)
     - **Act**: Invoke `drainPriorityTier('01J...ULID')`
-    - **Assert**: Returns `1` (back tier) — the request was still admitted (no `429`); only its drain rank is demoted (boundary: 51 → demoted, REQ-043)
+    - **Assert**: Returns `1` (back tier) — every requester of the food is over 50, so the food is demoted; the request was still admitted (no `429`) (boundary: 51 → demoted, REQ-043/FR-043a)
 
 - **Unit Scenario: UTS-012-E3**
-    - **Arrange**: `sub='user_abc'` was demoted at `pending = 80`; its pending count later drops to `49` as items drain
+    - **Arrange**: food `01J...ULID`'s sole requester `user_abc` was demoted at `pending = 80`; its pending count later drops to `49` as items drain
     - **Act**: Invoke `drainPriorityTier('01J...ULID')` again at the new live count
-    - **Assert**: Returns `0` (normal) — the scorer **dynamically re-promotes** from live state once pending falls below 50, with no frozen demotion flag (work-conserving, REQ-043)
+    - **Assert**: Returns `0` (normal) — the scorer **dynamically re-promotes** from live state once a requester falls below 50, with no frozen demotion flag (work-conserving, REQ-043)
+
+- **Unit Scenario: UTS-012-E4**
+    - **Arrange**: food `01J...ULID` has two distinct requesters; `requestersOf('01J...ULID')` → `['user_heavy', 'user_light']`; `pendingCountForSub('user_heavy')` → `120` (over), `pendingCountForSub('user_light')` → `10` (under)
+    - **Act**: Invoke `drainPriorityTier('01J...ULID')`
+    - **Assert**: Returns `0` (not demoted) — a food is demoted **only when all** its requesters exceed the 50-pending threshold; one under-threshold requester keeps it at normal priority (FR-043a)
 
 ---
 
@@ -1660,6 +1801,44 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
     - **Arrange**: A connection admitted at `now() = 1000` with `exp = 1300`; the clock is at `now() = 1299` (max-1)
     - **Act**: Invoke `enforceTokenExpiry(connectionId, 1300)` at `now() = 1299`
     - **Assert**: Remains Connected (no close); `deleteConnection` NOT called — the close branch is gated on actual expiry (boundary `exp - 1` still authorizes)
+
+---
+
+#### Test Case: UTP-012-K (admitEnqueue — near-ceiling flood-shed: shed the flooding `sub`'s NEW enqueues only, never reads/resolves)
+
+**Technique**: Boundary Value Analysis + Equivalence Partitioning + Statement & Branch Coverage
+**Target View**: Algorithmic/Logic View + Internal Data Structures (FR-043b near-ceiling shed selection)
+**Description**: Verifies the near-**global**-ceiling flood-shedding branch of MOD-013 (REQ-040b, FR-043b) that
+UTP-012-H does **not** cover (UTP-012-H is the `MAX_QUEUE_DEPTH`/open-circuit `503` backstop; this is the
+rolling-window-**ceiling** sub-selective shed). When the global rolling-window budget is near its ceiling,
+`admitEnqueue` sheds **NEW** enqueues from the `sub` with the **highest** pending count first (`503`
+Retry-After) to preserve headroom, while a different lower-pending `sub` is still admitted, and reads /
+`PATCH`-resolves are **never** shed and **never** `429`. This is shedding, not demotion (UTP-012-E) and not the
+depth backstop (UTP-012-H), and it is asymmetric by requester. The window-headroom probe and per-`sub`
+pending counts are mocked so only the shed-selection logic is exercised.
+
+**Dependency & Mock Registry:**
+
+| Dependency           | Source   | Mock/Stub Strategy                                                            | Rationale                                 |
+| -------------------- | -------- | ----------------------------------------------------------------------------- | ----------------------------------------- |
+| `windowHeadroom`     | MOD-005  | Mock: returns `near-ceiling` / `ample` headroom for the global rolling window | Drive the near-ceiling branch             |
+| `pendingCountForSub` | ARCH-003 | Mock: returns a controlled live pending count per `sub` (flooding vs. light)  | Identify the flooding `sub` to shed first |
+| `FetchQueue`         | ARCH-003 | Spy: `enqueue()` — assert zero on a shed, one on an admit                     | Verify only NEW enqueues are shed         |
+
+- **Unit Scenario: UTS-012-K1** (flooding sub's NEW enqueue is shed)
+    - **Arrange**: `windowHeadroom` reports near-ceiling; `sub='user_flood'` has the highest pending count; the request is a NEW add-by-name enqueue
+    - **Act**: Invoke `admitEnqueue(user_flood, [id], { op: 'enqueue' })`
+    - **Assert**: Throws `BackpressureError(503, 'near rate-limit ceiling')` with a `Retry-After`; `FetchQueue.enqueue` called **zero** times; the response is `503`, **never** `429` (FR-043b)
+
+- **Unit Scenario: UTS-012-K2** (a different lower-pending sub is still admitted)
+    - **Arrange**: same near-ceiling headroom; `sub='user_light'` has a low pending count
+    - **Act**: Invoke `admitEnqueue(user_light, [id2], { op: 'enqueue' })`
+    - **Assert**: Admitted — `FetchQueue.enqueue` called once; the shed is **sub-selective** (it targets the flooder, not every caller), so one heavy user cannot deny service to others near the ceiling
+
+- **Unit Scenario: UTS-012-K3** (reads and resolves are never shed near the ceiling)
+    - **Arrange**: near-ceiling headroom; the flooding `sub='user_flood'` issues (a) a read and (b) a `PATCH`-resolve
+    - **Act**: Invoke `admitEnqueue(user_flood, [id], { op: 'read' })` then `admitEnqueue(user_flood, [id], { op: 'resolve' })`
+    - **Assert**: Both are admitted (no `503`, no `429`) — only **NEW** enqueues consume fresh budget, so reads and human `PATCH`-resolves are exempt from flood-shedding even for the flooding caller (FR-043b)
 
 ---
 
@@ -1886,7 +2065,7 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 **Technique**: Statement & Branch Coverage + State Transition Testing
 **Target View**: Algorithmic/Logic View (advisory-lock transaction)
-**Description**: Verifies `createByName(normalizedName, displayName)` takes the per-name advisory lock, and — on a first add — inserts a new `food` row with a fresh ULID `id` and `status='PENDING'` returning `{ created: true }`; on a concurrent/repeat add of the **same normalized name** it finds the existing row under the lock and **collapses to the existing `id`** returning `{ created: false }` (REQ-005/013).
+**Description**: Verifies `createByName(normalizedName, displayName)` takes the per-name advisory lock, and — on a first add — inserts a new `food` row with a fresh ULID `id` and `status='PENDING'` returning `{ created: true }`; on a concurrent/repeat add of the **same normalized name** it finds the existing row under the lock and **collapses to the existing `id`** returning `{ created: false }` (REQ-005/013). A repeat add of a **terminal-state** row (`NOT_FOUND`/`FAILED`) past its TTL **reactivates** it to `PENDING` (for re-enqueue) instead of raising a `23505` unique-name violation (FR-028a).
 
 **Dependency & Mock Registry:**
 
@@ -1909,6 +2088,11 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
     - **Arrange**: the advisory lock is skipped (race) and the `INSERT` hits the `UNIQUE(normalized_name)` index conflict
     - **Act**: Call `createByName(...)`
     - **Assert**: The conflict is handled by re-selecting the existing row; returns `{ created: false }` — the unique index is the durable backstop behind the advisory lock
+
+- **Unit Scenario: UTS-016-A4**
+    - **Arrange**: under the lock the `SELECT ... WHERE normalized_name` returns an existing **terminal-state** row past its TTL — first `{ id: "01J...TERM", status: "NOT_FOUND" }` with `tombstoned_at` older than the 30-day TTL, then a second case with `status: "FAILED"`
+    - **Act**: Call `createByName("dragonfruit jerky", "Dragonfruit Jerky")`
+    - **Assert**: The terminal row is **reactivated in place** — `UPDATE food SET status='PENDING' WHERE id='01J...TERM'` issued (no new row, no `23505` unique-name violation); returns `{ id: "01J...TERM", created: false, reactivated: true }` so the caller re-enqueues a fresh fan-out (NOT_FOUND→PENDING / FAILED→PENDING, REQ-005/025/FR-028a)
 
 ---
 
@@ -1978,37 +2162,37 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 **Target Source File(s)**: `packages/services/food-service/src/merge/golden-record-merge.engine.ts`
 **REQ trace**: REQ-051, REQ-MRG-2, REQ-MRG-3, REQ-050
 
-> **(New.)** Deterministic pure-function merge. Rules: presence beats absence; identity/short fields → higher-priority source (NOT longest); free-text → longer-wins; nutrients normalized to **per-100g** before any blend, conflicts → higher-priority source. Emits the golden record + `RESOLVED`/`UNRESOLVED`/`NOT_FOUND` outcome.
+> **(New.)** Deterministic pure-function merge. Rules: presence beats absence; identity/short fields → higher-priority source (NOT longest); free-text → longer-wins; nutrients normalized to **per-100g** before any blend, conflicts → higher-priority source. The auto-resolve outcome is decided by a **survivor count after normalized-name exact match** (post pre-merge dedup): exactly **1 survivor → `RESOLVED`**; **>1 → `UNRESOLVED`** (the surviving set is persisted to `food_candidates`); **0 → `NOT_FOUND`**. There is **no nutrient-tolerance** criterion; bias is toward `UNRESOLVED` over a wrong auto-pick (D-AUTORESOLVE). Emits the golden record + `RESOLVED`/`UNRESOLVED`/`NOT_FOUND` outcome.
 
 ---
 
-#### Test Case: UTP-017-A (merge — empty / non-collapsible / collapsible outcome branches)
+#### Test Case: UTP-017-A (merge — survivor-count outcome branches: 0 / 1 / >1)
 
 **Technique**: Equivalence Partitioning + Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View (outcome selection)
-**Description**: Verifies the three outcome branches of `merge(candidates)`: empty set → `NOT_FOUND`; a non-confidently-collapsible multi-candidate set → `UNRESOLVED` (with the candidate set carried); a confidently collapsible set → `RESOLVED` with an assembled golden record (REQ-050/REQ-RES-3).
+**Description**: Verifies the three outcome branches of `merge(candidates)` keyed on the **survivor count after normalized-name exact match** (post pre-merge dedup): **0 survivors → `NOT_FOUND`**; **exactly 1 survivor → `RESOLVED`** with an assembled golden record; **>1 survivors → `UNRESOLVED`** (the surviving set carried for persistence to `food_candidates`). There is **no nutrient-tolerance** criterion; bias is toward `UNRESOLVED` over a wrong auto-pick (REQ-050/REQ-050a/REQ-MRG-5).
 
 **Dependency & Mock Registry:**
 
-| Dependency               | Source   | Mock/Stub Strategy                                          | Rationale                          |
-| ------------------------ | -------- | ----------------------------------------------------------- | ---------------------------------- |
-| `SourceAdapterRegistry`  | MOD-015  | Mock: `priorityOf(source)` returns a deterministic priority | Drive priority-based field winners |
-| `confidentlyCollapsible` | Internal | Spy/real pure function                                      | Drive the collapsible branch       |
+| Dependency              | Source   | Mock/Stub Strategy                                                                                       | Rationale                          |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `SourceAdapterRegistry` | MOD-015  | Mock: `priorityOf(source)` returns a deterministic priority                                              | Drive priority-based field winners |
+| `survivorsByExactName`  | Internal | Spy/real pure function returning the candidates whose normalized name exactly matches the requested name | Drive the survivor-count branch    |
 
 - **Unit Scenario: UTS-017-A1**
-    - **Arrange**: `candidates = []`
+    - **Arrange**: `candidates = []` (0 survivors)
     - **Act**: Call `merge([])`
     - **Assert**: Returns `{ goldenRecord: null, outcome: 'NOT_FOUND' }` (worker tombstones, REQ-025)
 
 - **Unit Scenario: UTS-017-A2**
-    - **Arrange**: two candidates that are NOT confidently collapsible (distinct logical items)
+    - **Arrange**: two candidates that **both** survive normalized-name exact match (>1 survivor — distinct logical items the matcher cannot disambiguate)
     - **Act**: Call `merge(candidates)`
-    - **Assert**: Returns `{ outcome: 'UNRESOLVED', candidateSet: candidates }` — surfaced via MOD-018 `/candidates` (REQ-048)
+    - **Assert**: Returns `{ outcome: 'UNRESOLVED', candidateSet: <survivors> }` — >1 survivor biases to `UNRESOLVED`, surfaced via MOD-018 `/candidates` and persisted to `food_candidates` (REQ-048/REQ-050a)
 
 - **Unit Scenario: UTS-017-A3**
-    - **Arrange**: two candidates that ARE confidently collapsible (same logical item)
+    - **Arrange**: candidates that collapse to **exactly one** survivor after normalized-name exact match (one source hit, or duplicates of the same logical item)
     - **Act**: Call `merge(candidates)`
-    - **Assert**: Returns `{ outcome: 'RESOLVED', goldenRecord: <assembled> }`
+    - **Assert**: Returns `{ outcome: 'RESOLVED', goldenRecord: <assembled> }` — exactly 1 survivor auto-resolves (REQ-050a)
 
 ---
 
@@ -2100,7 +2284,7 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 **Target Source File(s)**: `packages/services/food-service/src/candidates/candidate-resolution.service.ts`
 **REQ trace**: REQ-048, REQ-049, REQ-IF-010, REQ-IF-011, REQ-052
 
-> **(New.)** Cross-source disambiguation. `getCandidates(id)` lists candidates for an `UNRESOLVED` food; `resolve(id, candidateIds)` **validates each pick belongs to the food's own candidate set** (out-of-set → `409`, status unchanged), drives the merge, stores the pick as ordinary provenance, and moves the food to `RESOLVED`.
+> **(New.)** Cross-source disambiguation. `getCandidates(id)` lists candidates for an `UNRESOLVED` food; `resolve(id, candidateIds)` **validates each pick belongs to the food's own candidate set** (out-of-set → `409`, status unchanged), **re-fetches each picked candidate's full payload from its source by `external_key`** (a budgeted per-source call — `food_candidates` stores only `source`/`external_key`/`name`/`summary`, no nutrient/portion payload), drives the merge over the re-fetched `CanonicalCandidate`(s), stores the pick as ordinary provenance, and moves the food to `RESOLVED`. The candidate set is persisted in the **`food_candidates`** table (`UNIQUE(food_id, source, external_key)`); `CandidateStore` reads/validates against it and **clears** it on resolve. `resolve` is **UNRESOLVED-only and idempotent** — a `PATCH` on an already-`RESOLVED` food is a no-op returning the current `RESOLVED` state (FR-028a).
 
 ---
 
@@ -2112,10 +2296,10 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 **Dependency & Mock Registry:**
 
-| Dependency          | Source  | Mock/Stub Strategy                                                         | Rationale                |
-| ------------------- | ------- | -------------------------------------------------------------------------- | ------------------------ |
-| `FoodDaoRepository` | MOD-016 | Mock: `findById(id)` returns `null`, a `RESOLVED`, or an `UNRESOLVED` food | Drive status branches    |
-| `CandidateStore`    | MOD-018 | Mock: `forFood(id)` returns retained candidate rows                        | Supply the candidate set |
+| Dependency          | Source  | Mock/Stub Strategy                                                                                    | Rationale                |
+| ------------------- | ------- | ----------------------------------------------------------------------------------------------------- | ------------------------ |
+| `FoodDaoRepository` | MOD-016 | Mock: `findById(id)` returns `null`, a `RESOLVED`, or an `UNRESOLVED` food                            | Drive status branches    |
+| `CandidateStore`    | MOD-018 | Mock: `forFood(id)` returns retained `food_candidates` rows (`UNIQUE(food_id, source, external_key)`) | Supply the candidate set |
 
 - **Unit Scenario: UTS-018-A1**
     - **Arrange**: `findById(id)` returns `null`
@@ -2169,20 +2353,80 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 **Technique**: Statement & Branch Coverage + State Transition Testing
 **Target View**: Algorithmic/Logic View + State Machine View (Merging → Resolved)
-**Description**: Verifies that when every pick is in-set, `resolve` fetches the chosen candidates, drives the merge (MOD-017), persists via `upsertGoldenRecord` with `'RESOLVED'` (the user's manual pick stored as **ordinary** provenance, no special-casing), clears the consumed candidate set, and returns `{ status: 'RESOLVED' }` (REQ-049/052).
+**Description**: Verifies that when every pick is in-set, `resolve` reads the picked `food_candidates` **metadata** rows (`source`/`external_key` only — no nutrient payload), **re-fetches** each picked candidate's full `CanonicalCandidate` from its source adapter by `external_key` (a budgeted call recorded against the rolling-window limiter), drives the merge (MOD-017) over the re-fetched payloads, persists via `upsertGoldenRecord` with `'RESOLVED'` (the user's manual pick stored as **ordinary** provenance, no special-casing), clears the consumed candidate set, and returns `{ status: 'RESOLVED' }` (REQ-049/052/REQ-050a).
 
 **Dependency & Mock Registry:**
 
-| Dependency                | Source  | Mock/Stub Strategy                                                      | Rationale                          |
-| ------------------------- | ------- | ----------------------------------------------------------------------- | ---------------------------------- |
-| `FoodDaoRepository`       | MOD-016 | Spy: `upsertGoldenRecord(id, golden, 'RESOLVED')` records args          | Verify resolve persists RESOLVED   |
-| `CandidateStore`          | MOD-018 | Mock: `idsForFood`/`fetch`/`clear`                                      | Supply + consume the candidate set |
-| `GoldenRecordMergeEngine` | MOD-017 | Mock: `merge(selected)` returns `{ goldenRecord, outcome: 'RESOLVED' }` | Isolate the merge                  |
+| Dependency                | Source  | Mock/Stub Strategy                                                                                                           | Rationale                               |
+| ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `FoodDaoRepository`       | MOD-016 | Spy: `upsertGoldenRecord(id, golden, 'RESOLVED')` records args                                                               | Verify resolve persists RESOLVED        |
+| `CandidateStore`          | MOD-018 | Mock: `idsForFood`/`fetch`/`clear` — `fetch` returns **metadata** rows `{ candidateId, source, externalKey }` (no nutrients) | Supply + consume the candidate set      |
+| `SourceAdapterRegistry`   | MOD-015 | Mock: `adapterFor('usda').fetchByKey('534358')` returns the full `CanonicalCandidate` (nutrients/portions)                   | Re-fetch the picked candidate's payload |
+| `RollingWindowLimiter`    | MOD-005 | Spy: `checkAndRecordCall('usda')` records the budgeted resolve call                                                          | Verify resolve consumes window budget   |
+| `GoldenRecordMergeEngine` | MOD-017 | Mock: `merge(selected)` returns `{ goldenRecord, outcome: 'RESOLVED' }`                                                      | Isolate the merge                       |
 
 - **Unit Scenario: UTS-018-C1**
-    - **Arrange**: `findById(id)` returns `{ status: 'UNRESOLVED' }`; `idsForFood(id)` returns `Set(['c1'])`; `candidateIds = ['c1']`; `fetch(id, ['c1'])` returns the chosen `CanonicalCandidate`; `merge` returns `{ goldenRecord, outcome: 'RESOLVED' }`
+    - **Arrange**: `findById(id)` returns `{ status: 'UNRESOLVED' }`; `idsForFood(id)` returns `Set(['c1'])`; `candidateIds = ['c1']`; `fetch(id, ['c1'])` returns the metadata row `{ candidateId: 'c1', source: 'usda', externalKey: '534358' }`; `adapterFor('usda').fetchByKey('534358')` returns the chosen `CanonicalCandidate`; `merge` returns `{ goldenRecord, outcome: 'RESOLVED' }`
     - **Act**: Call `resolve(id, ['c1'])`
-    - **Assert**: `GoldenRecordMergeEngine.merge` called with the chosen candidate; `FoodDaoRepository.upsertGoldenRecord(id, goldenRecord, 'RESOLVED')` called (the user pick flows through MOD-019 as ordinary provenance, no special flag); `CandidateStore.clear(id)` called; returns `{ id, status: 'RESOLVED' }`
+    - **Assert**: `SourceAdapterRegistry.adapterFor('usda').fetchByKey('534358')` called and `RollingWindowLimiter.checkAndRecordCall('usda')` called (the resolve makes a budgeted source re-fetch); `GoldenRecordMergeEngine.merge` called with the **re-fetched** `CanonicalCandidate`; `FoodDaoRepository.upsertGoldenRecord(id, goldenRecord, 'RESOLVED')` called (the user pick flows through MOD-019 as ordinary provenance, no special flag); `CandidateStore.clear(id)` called (the `food_candidates` rows are removed); returns `{ id, status: 'RESOLVED' }`
+
+- **Unit Scenario: UTS-018-C2** (resolve is not gated by the drain pause)
+    - **Arrange**: As C1, but the limiter mock reports the source's window paused/at cap — `shouldPauseDraining('usda')` returns `true` and `checkAndRecordCall('usda')` still records the call (the resolve draws from headroom, never deferred); `fetch(id, ['c1'])` → metadata row; `adapterFor('usda').fetchByKey('534358')` returns the candidate; `merge` → `{ outcome: 'RESOLVED' }`
+    - **Act**: Call `resolve(id, ['c1'])`
+    - **Assert**: `resolve` does **not** copy the worker's defer/`requeueWithBackoff` path — `adapterFor('usda').fetchByKey('534358')` **is** called and `RollingWindowLimiter.checkAndRecordCall('usda')` **is** called (the call is counted, never `429`'d or shed), the merge runs, `upsertGoldenRecord(id, goldenRecord, 'RESOLVED')` and `CandidateStore.clear(id)` are called, and it returns `{ id, status: 'RESOLVED' }` — a user-driven PATCH-resolve proceeds even when background draining is paused (FR-RES-2; the DSN-6 "resolve consumes counted headroom" semantics)
+
+---
+
+#### Test Case: UTP-018-D (resolve — UNRESOLVED-only, idempotent no-op on an already-RESOLVED food)
+
+**Technique**: State Transition Testing + Equivalence Partitioning
+**Target View**: Algorithmic/Logic View + State Machine View (Resolved → Resolved no-op)
+**Description**: Verifies that `resolve(id, candidateIds)` is **UNRESOLVED-only and idempotent**: a `PATCH` on a food already in `RESOLVED` is a no-op that returns the current `RESOLVED` state without re-merging, re-writing provenance, or clobbering the prior (possibly manual) pick (REQ-049/FR-028a).
+
+**Dependency & Mock Registry:**
+
+| Dependency                | Source  | Mock/Stub Strategy                                                                           | Rationale                             |
+| ------------------------- | ------- | -------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `FoodDaoRepository`       | MOD-016 | Mock: `findById(id)` returns a `RESOLVED` food; Spy: `upsertGoldenRecord` asserts NOT called | Verify no re-merge on a resolved food |
+| `GoldenRecordMergeEngine` | MOD-017 | Spy: `merge()` — assert NOT called                                                           | Verify the idempotent no-op           |
+
+- **Unit Scenario: UTS-018-D1**
+    - **Arrange**: `findById(id)` returns `{ status: 'RESOLVED' }`; `candidateIds = ['c1']`
+    - **Act**: Call `resolve(id, ['c1'])`
+    - **Assert**: Returns `{ id, status: 'RESOLVED' }` unchanged; `GoldenRecordMergeEngine.merge` and `FoodDaoRepository.upsertGoldenRecord` NOT called — resolve on an already-`RESOLVED` food is an idempotent no-op (the manual pick is preserved, FR-028a)
+
+---
+
+#### Test Case: UTP-018-E (resolve — source re-fetch FAILURE leaves the food UNRESOLVED, candidate set retained)
+
+**Technique**: Error Guessing + State Transition Testing + Strict Isolation
+**Target View**: Algorithmic/Logic View + Error Handling Return Codes + State Machine View (Resolving → UNRESOLVED on re-fetch error)
+**Description**: Verifies the untested failure leg of the D-CANDIDATES re-fetch: because `food_candidates` holds
+**no** nutrient payload, an in-set pick triggers a budgeted `fetchByKey` that **can fail** (5xx/timeout →
+`SourceApiError`). On that failure the resolve MUST abort cleanly — the food stays `UNRESOLVED`, the
+`food_candidates` set is **not** cleared, **no** golden record is persisted, and the error propagates so the
+user can retry the same pick (ATS-049-A3). Without this red test an implementer may clear candidates or
+partially persist on error, corrupting an `UNRESOLVED` food.
+
+**Dependency & Mock Registry:**
+
+| Dependency                | Source  | Mock/Stub Strategy                                                                                | Rationale                                          |
+| ------------------------- | ------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `FoodDaoRepository`       | MOD-016 | Mock: `findById(id)` returns an `UNRESOLVED` food; Spy: `upsertGoldenRecord` asserts NOT called   | Verify status unchanged + no persist               |
+| `CandidateStore`          | MOD-018 | Mock: `idsForFood`/`fetch` return the in-set metadata row; Spy: `clear` asserts NOT called        | Verify the candidate set survives for retry        |
+| `SourceAdapterRegistry`   | MOD-015 | Mock: `adapterFor('usda').fetchByKey('534358')` **throws** `SourceApiError(502)` / `TimeoutError` | Drive the re-fetch failure                         |
+| `RollingWindowLimiter`    | MOD-005 | Spy: `checkAndRecordCall('usda')` (the attempted call is still counted)                           | Confirm the limiter is honored on the failing call |
+| `GoldenRecordMergeEngine` | MOD-017 | Spy: `merge()` — assert NOT called                                                                | Verify no merge on a failed re-fetch               |
+
+- **Unit Scenario: UTS-018-E1**
+    - **Arrange**: `findById(id)` returns `{ status: 'UNRESOLVED' }`; `idsForFood(id)` → `Set(['c1'])`; `candidateIds = ['c1']`; `fetch(id, ['c1'])` → `{ candidateId: 'c1', source: 'usda', externalKey: '534358' }`; `adapterFor('usda').fetchByKey('534358')` **throws** `SourceApiError(502, 'Bad Gateway')`
+    - **Act**: Call `resolve(id, ['c1'])` (expecting it to reject)
+    - **Assert**: Propagates `SourceApiError` (retryable); `GoldenRecordMergeEngine.merge` NOT called; `FoodDaoRepository.upsertGoldenRecord` NOT called; `CandidateStore.clear` NOT called — the food remains `UNRESOLVED` with its `food_candidates` set intact, so the user can retry the identical pick (ATS-049-A3)
+
+- **Unit Scenario: UTS-018-E2**
+    - **Arrange**: as E1 but `fetchByKey` rejects with `TimeoutError` after the source deadline
+    - **Act**: Call `resolve(id, ['c1'])`
+    - **Assert**: Same outcome — error propagated, no clear, no persist, status unchanged — a transient timeout never silently consumes the candidate set
 
 ---
 
@@ -2251,7 +2495,7 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 **Target Source File(s)**: `packages/services/food-service/src/refresh/change-refresh.consumer.ts`
 **REQ trace**: REQ-031, REQ-032, REQ-053
 
-> **(New.)** EventBridge-scheduled change-driven refresh. For `RESOLVED` foods, re-fetches each backing source item via its adapter and compares `food_sources.item_version`; re-pulls a field **only** when its originating external item changed upstream, never blindly re-blending. Re-enqueues affected foods as **low-priority** `fetch_queue` work (deduped via `ON CONFLICT`).
+> **(New.)** Change-driven refresh that runs as a **low-priority Fargate scheduled task** (idle-drain, yields to live demand; ADR-0004 keeps it off the NAT path — **not** a VPC Lambda). An `IngestionScheduled` rule triggers the run. For `RESOLVED` foods, re-fetches each backing source item via its adapter and compares `food_sources.item_version`; re-pulls a field **only** when its originating external item changed upstream, never blindly re-blending. Re-enqueues affected foods via the **ordinary `enqueue(food_id, 'svc_change_refresh')` path** as a low-demand `fetch_queue` row (deduped via `ON CONFLICT`) — there is **no** separate low-priority tier or `enqueueLowPriority` method.
 
 ---
 
@@ -2280,11 +2524,11 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 ---
 
-#### Test Case: UTP-020-B (onScheduled — re-enqueue only changed items as low-priority, preserve unchanged)
+#### Test Case: UTP-020-B (onScheduled — re-enqueue only changed items via the ordinary low-demand enqueue, preserve unchanged)
 
 **Technique**: Statement & Branch Coverage + State Transition Testing
 **Target View**: Algorithmic/Logic View + State Machine View (ComparingVersion → ReEnqueuing / LeavingIntact)
-**Description**: Verifies `onScheduled()` iterates `RESOLVED` foods' backing items and, for each, re-enqueues a **low-priority** `fetch_queue` row (deduped via `ON CONFLICT`) **only** when `itemChanged` is true — leaving unchanged items (including user-resolved fields) intact with no overwrite (REQ-031/032/053).
+**Description**: Verifies `onScheduled()` iterates `RESOLVED` foods' backing items and, for each, re-enqueues via the ordinary `enqueue(food_id, 'svc_change_refresh')` path (a low-demand `fetch_queue` row, deduped via `ON CONFLICT`) **only** when `itemChanged` is true — leaving unchanged items (including user-resolved fields) intact with no overwrite (REQ-031/032/053).
 
 **Dependency & Mock Registry:**
 
@@ -2292,12 +2536,12 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 | ------------------ | -------- | ------------------------------------------------------------------------------ | ---------------------------------------- |
 | `FoodSourcesDao`   | MOD-006  | Mock: `resolvedBackingItems()` returns 2 crosswalk rows (one changed, one not) | Drive both refresh decisions             |
 | `itemChanged`      | Internal | Spy: returns `true` for the first, `false` for the second                      | Control the per-item decision            |
-| `FetchQueueRouter` | MOD-003  | Spy: `enqueueLowPriority(foodId, requestedBy)` records args                    | Verify only the changed item re-enqueues |
+| `FetchQueueRouter` | MOD-003  | Spy: `enqueue(foodId, requestedBy)` records args                               | Verify only the changed item re-enqueues |
 
 - **Unit Scenario: UTS-020-B1**
     - **Arrange**: `resolvedBackingItems()` returns `[{ foodId: 'f1', source: 'usda', external_key: 'k1', item_version: 'v1' }, { foodId: 'f2', source: 'usda', external_key: 'k2', item_version: 'v2' }]`; `itemChanged` → `true` for f1, `false` for f2
     - **Act**: Call `onScheduled(event)`
-    - **Assert**: `FetchQueueRouter.enqueueLowPriority('f1', 'svc_change_refresh')` called exactly once (changed item, ON CONFLICT dedup); NOT called for `f2` — unchanged item left intact, no overwrite of user-resolved fields (REQ-031/032)
+    - **Assert**: `FetchQueueRouter.enqueue('f1', 'svc_change_refresh')` called exactly once (changed item, ON CONFLICT dedup; it lands as a low-demand row that sorts after live end-user demand); NOT called for `f2` — unchanged item left intact, no overwrite of user-resolved fields (REQ-031/032)
 
 - **Unit Scenario: UTS-020-B2**
     - **Arrange**: `resolvedBackingItems()` returns one item; `usdaAdapter.fetchByKey` throws during the compare (transient source error)
@@ -2408,11 +2652,12 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 | Total MOD modules                                                      | 21 (MOD-001..MOD-021)                                                                                                                                         |
 | MOD modules requiring unit coverage                                    | 21 (MOD-009 is launch-deferred but scaffolded — covered)                                                                                                      |
 | MODs with at least one UTP                                             | 21 / 21 (100%)                                                                                                                                                |
-| Total Unit Test Cases (UTP)                                            | 72                                                                                                                                                            |
-| Total Unit Test Scenarios (UTS)                                        | 201                                                                                                                                                           |
+| Total Unit Test Cases (UTP)                                            | 79                                                                                                                                                            |
+| Total Unit Test Scenarios (UTS)                                        | 221                                                                                                                                                           |
 | UTPs preserved (auth slice MOD-012/013/014, re-keyed `fdcId → id`)     | 15 (UTP-012-A..J + UTP-014-A..E)                                                                                                                              |
-| UTPs rewritten/re-keyed (MOD-001..011 to the new design)               | 36 (UTP-001-A..H, UTP-002-A..D, UTP-003-A..D, UTP-004-A..C, UTP-005-A..C, UTP-006-A..D, UTP-007-A..B, UTP-008-A..C, UTP-009-A..B, UTP-010-A..C, UTP-011-A..B) |
-| UTPs added (new modules MOD-015..021)                                  | 21 (UTP-015-A..B, UTP-016-A..C, UTP-017-A..D, UTP-018-A..C, UTP-019-A..B, UTP-020-A..B, UTP-021-A..C)                                                         |
+| UTPs rewritten/re-keyed (MOD-001..011 to the new design)               | 37 (UTP-001-A..H, UTP-002-A..D, UTP-003-A..E, UTP-004-A..C, UTP-005-A..C, UTP-006-A..D, UTP-007-A..B, UTP-008-A..C, UTP-009-A..B, UTP-010-A..C, UTP-011-A..B) |
+| UTPs added (new modules MOD-015..021)                                  | 22 (UTP-015-A..B, UTP-016-A..C, UTP-017-A..D, UTP-018-A..D, UTP-019-A..B, UTP-020-A..B, UTP-021-A..C)                                                         |
+| UTPs added (stabilization red-gates — TST-1/2/3/5/6)                   | 5 (UTP-002-E, UTP-005-D, UTP-006-E, UTP-012-K, UTP-018-E)                                                                                                     |
 | Modules where `fdcId` appears as a live data key (must be exactly one) | 1 (MOD-008 only — REQ-046/SC-013)                                                                                                                             |
 | Techniques applied                                                     | Statement & Branch Coverage, Boundary Value Analysis, Equivalence Partitioning, Strict Isolation, State Transition Testing, Error Guessing                    |
 
@@ -2420,12 +2665,12 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 
 | Technique                   | UTP Count |
 | --------------------------- | --------- |
-| Statement & Branch Coverage | 59        |
-| Boundary Value Analysis     | 18        |
-| Equivalence Partitioning    | 20        |
-| Strict Isolation            | 20        |
-| State Transition Testing    | 13        |
-| Error Guessing              | 17        |
+| Statement & Branch Coverage | 63        |
+| Boundary Value Analysis     | 20        |
+| Equivalence Partitioning    | 24        |
+| Strict Isolation            | 21        |
+| State Transition Testing    | 17        |
+| Error Guessing              | 19        |
 
 > Note: Many UTPs apply multiple techniques simultaneously; counts reflect primary + secondary technique pairings (a UTP is counted once per technique it names).
 
@@ -2435,45 +2680,47 @@ calling Secrets Manager, and fetches + caches on a MISS or after TTL expiry — 
 and each maps to one or more `UTP-*` test-case markers in this plan (via the shared MOD + REQ/FR trace). This
 table is the authoritative map an implementer follows to write the failing unit test first.
 
-| tasks.md Test-first task                                   | MOD               | UTP markers (write these failing first)                          |
-| ---------------------------------------------------------- | ----------------- | ---------------------------------------------------------------- |
-| T-003 (`@kitchensink/usda-client`) / T-121 (USDA adapter)  | MOD-008           | UTP-008-A, UTP-008-B, UTP-008-C                                  |
-| T-100 / T-102 (canonical schema + migration)               | MOD-006           | UTP-006-A, UTP-006-B, UTP-006-D                                  |
-| T-101 / T-103 (operational tables)                         | MOD-003           | UTP-003-A, UTP-003-B, UTP-003-C                                  |
-| T-104 (indexes — search/lifecycle/queue)                   | MOD-006           | UTP-006-C                                                        |
-| T-105 (`FoodDao`)                                          | MOD-016           | UTP-016-A, UTP-016-C                                             |
-| T-106 (`FoodSourcesDao` crosswalk)                         | MOD-006           | UTP-006-C, UTP-006-D                                             |
-| T-107 (`NutrientDao`/`FoodNutrientsDao` per-100g)          | MOD-017           | UTP-017-D                                                        |
-| T-108 (`FoodFieldProvenanceDao` "which fields from X")     | MOD-019           | UTP-019-A, UTP-019-B                                             |
-| T-109 (`FetchQueueDao`/`FetchRequestersDao` drain/demand)  | MOD-003 / MOD-013 | UTP-003-B, UTP-003-D, UTP-012-G                                  |
-| T-110 (`SourceCallLogDao` rolling window)                  | MOD-005           | UTP-005-A, UTP-005-B                                             |
-| T-120 (`FoodSourceAdapter` interface + registry)           | MOD-015           | UTP-015-A, UTP-015-B                                             |
-| T-122 (per-source rolling-window limiter)                  | MOD-005           | UTP-005-A, UTP-005-C                                             |
-| T-130 / T-131 (`FoodsController` + `GET /v1/foods/{id}`)   | MOD-001           | UTP-001-A, UTP-001-B                                             |
-| T-132 (`GET /v1/foods/{id}/status`)                        | MOD-001           | UTP-001-D                                                        |
-| T-133 (`GET /v1/foods/{id}/candidates`)                    | MOD-001 / MOD-018 | UTP-001-H, UTP-018-A                                             |
-| T-134 (`GET /v1/foods/search`)                             | MOD-001 / MOD-006 | UTP-001-E, UTP-006-C                                             |
-| T-140 (`POST /v1/foods` add-by-name + advisory-lock dedup) | MOD-001 / MOD-016 | UTP-001-C, UTP-016-A                                             |
-| T-141 (`EnqueueEmitter`)                                   | MOD-002           | UTP-002-A, UTP-002-B, UTP-002-C                                  |
-| T-142 (`PATCH /v1/foods/{id}` resolve)                     | MOD-001 / MOD-018 | UTP-001-G, UTP-018-B, UTP-018-C                                  |
-| T-143 (`POST /v1/foods/batch` per-item partial)            | MOD-001           | UTP-001-F                                                        |
-| T-144 (queue backpressure + circuit breaker)               | MOD-013           | UTP-012-H                                                        |
-| T-151 (drain loop + demotion)                              | MOD-013 / MOD-003 | UTP-012-E, UTP-003-B                                             |
-| T-152 (fan-out across adapter registry)                    | MOD-004 / MOD-015 | UTP-004-A, UTP-004-B, UTP-015-A                                  |
-| T-153 (lease watchdog + tombstone/backoff)                 | MOD-003 / MOD-004 | UTP-003-C, UTP-004-B                                             |
-| T-160 (merge engine field-level)                           | MOD-017           | UTP-017-A, UTP-017-B, UTP-017-C, UTP-017-D                       |
-| T-161 (provenance writer)                                  | MOD-019           | UTP-019-A, UTP-019-B                                             |
-| T-162 (pre-merge dedup + auto-resolve)                     | MOD-017 / MOD-004 | UTP-017-A, UTP-004-C                                             |
-| T-163 (manual-resolution merge path)                       | MOD-018           | UTP-018-C                                                        |
-| T-164 (input validation + HTTPS at boundary)               | MOD-021           | UTP-021-A, UTP-021-B, UTP-021-C                                  |
-| T-171 (change detection on refresh)                        | MOD-020           | UTP-020-A, UTP-020-B                                             |
-| T-172 (`UNRESOLVED` 30-day TTL sweep)                      | MOD-020 / MOD-006 | UTP-020-B, UTP-006-B                                             |
-| T-033 (`FoodAuthGuard` networkless verify)                 | MOD-012           | UTP-012-A, UTP-012-B, UTP-012-C, UTP-012-D, UTP-012-I, UTP-012-J |
-| (async-producer provenance leg)                            | MOD-014           | UTP-014-A, UTP-014-B, UTP-014-C, UTP-014-D, UTP-014-E            |
+| tasks.md Test-first task                                      | MOD               | UTP markers (write these failing first)                          |
+| ------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------- |
+| T-003 (`@kitchensink/usda-client`) / T-121 (USDA adapter)     | MOD-008           | UTP-008-A, UTP-008-B, UTP-008-C                                  |
+| T-100 / T-102 (canonical schema + migration)                  | MOD-006           | UTP-006-A, UTP-006-B, UTP-006-D, UTP-006-E                       |
+| T-101 / T-103 (operational tables)                            | MOD-003           | UTP-003-A, UTP-003-B, UTP-003-C                                  |
+| T-104 (indexes — search/lifecycle/queue)                      | MOD-006           | UTP-006-C                                                        |
+| T-105 (`FoodDao`)                                             | MOD-016           | UTP-016-A, UTP-016-C                                             |
+| T-106 (`FoodSourcesDao` crosswalk)                            | MOD-006           | UTP-006-C, UTP-006-D                                             |
+| T-107 (`NutrientDao`/`FoodNutrientsDao` per-100g)             | MOD-017           | UTP-017-D                                                        |
+| T-108 (`FoodFieldProvenanceDao` "which fields from X")        | MOD-019           | UTP-019-A, UTP-019-B                                             |
+| T-109 (`FetchQueueDao`/`FetchRequestersDao` drain/demand)     | MOD-003 / MOD-013 | UTP-003-B, UTP-003-D, UTP-012-G                                  |
+| T-110 (`SourceCallLogDao` rolling window + retention prune)   | MOD-005           | UTP-005-A, UTP-005-B, UTP-005-D                                  |
+| T-120 (`FoodSourceAdapter` interface + registry)              | MOD-015           | UTP-015-A, UTP-015-B                                             |
+| T-122 (per-source rolling-window limiter)                     | MOD-005           | UTP-005-A, UTP-005-C                                             |
+| T-130 / T-131 (`FoodsController` + `GET /v1/foods/{id}`)      | MOD-001           | UTP-001-A, UTP-001-B                                             |
+| T-132 (`GET /v1/foods/{id}/status`)                           | MOD-001           | UTP-001-D                                                        |
+| T-133 (`GET /v1/foods/{id}/candidates`)                       | MOD-001 / MOD-018 | UTP-001-H, UTP-018-A                                             |
+| T-134 (`GET /v1/foods/search`)                                | MOD-001 / MOD-006 | UTP-001-E, UTP-006-C                                             |
+| T-140 (`POST /v1/foods` add-by-name + advisory-lock dedup)    | MOD-001 / MOD-016 | UTP-001-C, UTP-016-A                                             |
+| T-141 (`EnqueueEmitter`)                                      | MOD-002           | UTP-002-A, UTP-002-B, UTP-002-C                                  |
+| T-165 (`FetchFailed` terminal-failure event emission)         | MOD-002           | UTP-002-E                                                        |
+| T-142 (`PATCH /v1/foods/{id}` resolve)                        | MOD-001 / MOD-018 | UTP-001-G, UTP-018-B, UTP-018-C, UTP-018-D, UTP-018-E            |
+| T-143 (`POST /v1/foods/batch` per-item partial)               | MOD-001           | UTP-001-F                                                        |
+| T-144 (queue backpressure + circuit breaker + flood-shed)     | MOD-013           | UTP-012-H, UTP-012-K                                             |
+| T-151 (drain loop + demotion)                                 | MOD-013 / MOD-003 | UTP-012-E, UTP-003-B                                             |
+| T-152 (fan-out across adapter registry)                       | MOD-004 / MOD-015 | UTP-004-A, UTP-004-B, UTP-015-A                                  |
+| T-153 (lease watchdog/reaper + tombstone/backoff)             | MOD-003 / MOD-004 | UTP-003-C, UTP-003-E, UTP-004-B                                  |
+| T-160 (merge engine field-level)                              | MOD-017           | UTP-017-A, UTP-017-B, UTP-017-C, UTP-017-D                       |
+| T-161 (provenance writer)                                     | MOD-019           | UTP-019-A, UTP-019-B                                             |
+| T-162 (pre-merge dedup + auto-resolve)                        | MOD-017 / MOD-004 | UTP-017-A, UTP-004-C                                             |
+| T-163 (manual-resolution merge path)                          | MOD-018           | UTP-018-C, UTP-018-E                                             |
+| T-164 (input validation + HTTPS at boundary)                  | MOD-021           | UTP-021-A, UTP-021-B, UTP-021-C                                  |
+| T-171 (change detection on refresh)                           | MOD-020           | UTP-020-A, UTP-020-B                                             |
+| T-172 (`UNRESOLVED` candidate-set 30-day expiry + re-fan-out) | MOD-020 / MOD-016 | UTP-020-B, UTP-016-A                                             |
+| T-033 (`FoodAuthGuard` networkless verify)                    | MOD-012           | UTP-012-A, UTP-012-B, UTP-012-C, UTP-012-D, UTP-012-I, UTP-012-J |
+| (async-producer provenance leg)                               | MOD-014           | UTP-014-A, UTP-014-B, UTP-014-C, UTP-014-D, UTP-014-E            |
 
 > Tasks marked `[Test-first: false]` (e.g. T-145 admin refetch, T-150/T-154/T-155 worker scaffold/success-path,
-> T-165 event emission, T-170 refresh scheduler) are exercised by the listed UTPs of their parent MOD but do not
-> gate on a red unit test of their own; their behavior is covered at the integration/system layer.
+> T-170 refresh scheduler) are exercised by the listed UTPs of their parent MOD but do not
+> gate on a red unit test of their own; their behavior is covered at the integration/system layer. (T-165 is now
+> a red-gate for the `FetchFailed` emission via UTP-002-E — decision-register §1 keeps `FetchFailed` canonical.)
 
 ---
 

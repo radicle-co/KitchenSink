@@ -1,8 +1,58 @@
 # Product Forge Verify-Full Report: Feature 003-usda-food-data
 
+> **SUPERSEDED — regenerated 2026-06-28.** The 2026-05-12 run below described the pre-re-baseline (USDA-coupled / `fdcId` / cache-hit) artifacts. Run 2 (immediately below) regenerates the verify-full pass against the **source-agnostic stabilization baseline** ([`decision-register.md`](./decision-register.md) + [`.stabilization/inputs/autoresolutions.md`](./.stabilization/inputs/autoresolutions.md)). The original run is preserved for history.
+
+---
+
+## Run 2 — Regenerated against the stabilization baseline (2026-06-28)
+
+**Mode**: Design baseline only (no implementation this phase — `.forge-status.yml` `implement` = `not-started`)
+**Verifier**: Doc-stabilization reconciler (context-docs group)
+
+### Summary
+
+| Layer                     | Status          | Findings                                                                                                           |
+| ------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| code ↔ tasks              | ⚠️ EXPECTED-GAP | Implementation artifacts are not present; design baseline only                                                     |
+| tasks ↔ plan              | ✅ PASS         | `tasks.md` reflects the stabilized model (`food_candidates` schema/migration/DAO, reaper, demotion, SC-005/SC-014) |
+| plan ↔ spec.md            | ✅ PASS         | `plan.md §2` (canonical 13-table model + `food_candidates` + `leased_at` + provenance FKs) matches spec FR-028     |
+| spec.md ↔ product-spec/   | ✅ PASS         | Source-agnostic PRD (Rev 2) + the `D-*` reconciliation; US-2a candidate flow + auth US-0 represented               |
+| product-spec/ ↔ research/ | ✅ PASS         | `research/` reconciled to golden-record / distinct-requester / `FoodFetchCompleted` / SC-005-SC-014 split          |
+| v-model ↔ spec.md         | ✅ PASS         | Requirements/design/tests trace the added FRs (FR-MRG-5, FR-025a, FR-028a, FR-043a/b, `leased_at`, candidate FRs)  |
+
+**Finding counts (Run 2)**: **0 CRITICAL**, **2 WARNING**, **1 EXPECTED-GAP**.
+
+**Overall**: ✅ PASS — the full artifact chain is internally consistent and contradiction-free for the current pre-implementation (design-baseline) state.
+
+### Terminology / framing checks (now clean)
+
+- **Completion event**: `FoodFetchCompleted` everywhere; `FoodDataReceived`/`FoodDataEvent` purged.
+- **`fdcId`**: adapter-boundary only; identity is the ULID `id`, the source-native id is `external_key`.
+- **Cache framing**: replaced by local-store-read / local-store-serve / add-by-name-miss; cache vocabulary reserved for the deferred Redis variant (ARCH-007).
+- **Throughput**: SC-005 (read/serve) vs SC-014 (~500–900/hr first-time resolution) split applied; "≥5,000 foods/hr" retired.
+- **Status enum / queue / lease**: `PENDING|UNRESOLVED|RESOLVED|NOT_FOUND|FAILED`; `pending|in_flight|tombstone` + `leased_at`.
+- **Auth slice**: preserved — `FoodAuthGuard` (networkless Clerk verify, fail-closed); `x-debug-sub` removed.
+
+### WARNING Findings (Run 2)
+
+- **W-001 — Ingredient substitution has no backing FR.** The `food-substitution` wireframe remains UX-only. This is the single **Open-for-user** item (decision-register §6); the stabilization default leaves it warning-tracked (no FR invented).
+- **W-002 — Unit conversion controls appear in UX without a first-class FR.** Kept as assistive UX guidance unless promoted (`product-spec/wireframes/nutrition-panel.md`).
+
+> The original WebSocket warning (old W-003) remains an intentional deferral (FR-034 / A-007), not a defect.
+
+### EXPECTED-GAP (Run 2)
+
+- **G-001 — Implementation-phase evidence absent while design is stabilized.** Expected (`implement: not-started`). No corrective action required at the design-baseline stage.
+
+---
+
+## Run 1 — Retroactive bootstrap (preserved for history)
+
 **Run date**: 2026-05-12
 **Mode**: Retroactive bootstrap
 **Verifier**: Sisyphus (deterministic checks + manual cross-reference)
+
+> History only — superseded by Run 2 above. Describes the pre-re-baseline artifacts.
 
 ---
 

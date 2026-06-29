@@ -4,6 +4,7 @@
 **Status**: Complete | **Source**: [research.md](../research.md), domain constraints from [spec.md](../spec.md)
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+_Updated 2026-06-28: reconciled to the source-agnostic stabilization baseline (local golden-record store framing, not "cache")._
 
 ---
 
@@ -126,7 +127,7 @@ USDA integration competes less on frontend polish and more on data coverage, lic
 
 ## Differentiation Thesis
 
-Feature 003 differentiates by combining authoritative USDA sourcing with an event-driven local-cache architecture that protects user latency and cost profile. The strategic advantage is not “another nutrition API client” — it is predictable recipe-time UX under hard external rate limits, with explicit disambiguation and ingredient-level linking semantics that compound in downstream features (meal planning, grocery lists, nutrition planning).
+Feature 003 differentiates by combining authoritative USDA sourcing with an event-driven local **golden-record store** (the source of record, not a USDA cache) that protects user latency and cost profile. The strategic advantage is not “another nutrition API client” — it is predictable recipe-time UX under hard external rate limits, with explicit disambiguation and ingredient-level linking semantics that compound in downstream features (meal planning, grocery lists, nutrition planning).
 
 ---
 

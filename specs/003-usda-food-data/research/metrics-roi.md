@@ -4,6 +4,7 @@
 **Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md)
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+_Updated 2026-06-28: reconciled to the source-agnostic stabilization baseline (SC-005 split into read/serve throughput + new SC-014 first-time resolution rate; local-store-serve framing; golden-record `id`)._
 
 ---
 
@@ -48,17 +49,18 @@ This document captures success metrics and ROI hypotheses for feature 003. It co
 
 ## 2. Performance SLOs (Success Criteria)
 
-| Metric                         | SLO                                                                           | Source |
-| ------------------------------ | ----------------------------------------------------------------------------- | ------ |
-| Local cache-hit lookup latency | p95 <= 50ms                                                                   | SC-001 |
-| USDA limit compliance          | 0 normal-operation 429s                                                       | SC-002 |
-| Pending-to-available latency   | p95 <= 60s (queue depth <100)                                                 | SC-003 |
-| Local cache hit rate           | >80% once store >5,000 foods                                                  | SC-004 |
-| Batch throughput efficiency    | >=5,000 foods/hour effective                                                  | SC-005 |
-| Queue failure capture          | 100% terminal failures tombstoned (status='tombstone') after the retry budget | SC-006 |
-| Search latency                 | p95 <= 200ms at 50k foods                                                     | SC-007 |
-| Nutrient fidelity              | Source-value parity at ingest                                                 | SC-008 |
-| API availability               | 99.9% monthly                                                                 | SC-009 |
+| Metric                                              | SLO                                                                           | Source |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- | ------ |
+| Local-store read (RESOLVED) latency                 | p95 <= 50ms                                                                   | SC-001 |
+| Source limit compliance                             | 0 normal-operation 429s (≤1,000 calls/rolling-60-min, pause at 900)           | SC-002 |
+| PENDING→RESOLVED latency                            | p95 <= 60s (queue depth <100)                                                 | SC-003 |
+| Local-store serve rate                              | >80% once store >5,000 foods                                                  | SC-004 |
+| Read/serve throughput (local reads, no source call) | high target, not source-bounded                                               | SC-005 |
+| First-time NEW-food resolution rate                 | ~500–900 foods/hour (bounded by the source budget, SC-002)                    | SC-014 |
+| Queue failure capture                               | 100% terminal failures tombstoned (status='tombstone') after the retry budget | SC-006 |
+| Search latency                                      | p95 <= 200ms at 50k foods                                                     | SC-007 |
+| Nutrient fidelity                                   | Source-value parity at ingest                                                 | SC-008 |
+| API availability                                    | 99.9% monthly                                                                 | SC-009 |
 
 ---
 
@@ -66,8 +68,9 @@ This document captures success metrics and ROI hypotheses for feature 003. It co
 
 ### Token Economics
 
-- Hard cap: 1,000 USDA calls/hour/API key.
-- Batch strategy target: average 5 IDs/call yields ~5,000 foods/hour effective throughput.
+- Hard cap: 1,000 source calls/rolling-60-min/API key (pause at 900).
+- **Read/serve throughput (SC-005)** is **not** source-bounded: serving `RESOLVED` golden records from the local store costs no source call, so the serve target stays high.
+- **First-time NEW-food resolution (SC-014)** is source-bounded. Add-by-name is ~1 non-batchable name-search call per new food, so under the 1,000/hr cap the realistic ceiling is **~500–900 foods/hour**. Batch-by-external-key (`POST /v1/foods`, up to 20 IDs) amortizes calls for change-driven refresh and known-key resolution, but does **not** raise the name-search resolution ceiling. (The earlier flat "≥5,000 foods/hour" claim was physically impossible under the cap and has been retired.)
 
 ### Cost/ROI Hypothesis
 
@@ -79,12 +82,12 @@ This document captures success metrics and ROI hypotheses for feature 003. It co
 
 ## 4. Product Outcome Metrics
 
-| Outcome                     | Metric                                                                        | Initial Target |
-| --------------------------- | ----------------------------------------------------------------------------- | -------------- |
-| Ingredient match usefulness | % ingredient selections resolved to valid `fdcId` where user expected a match | >=85%          |
-| Disambiguation quality      | % of brand/generic picks changed by user after initial selection              | <=10%          |
-| Pending-flow usability      | % pending lookups that eventually resolve to fetched without user abandonment | >=90%          |
-| Search usefulness           | % search sessions with a selected food record                                 | >=75%          |
+| Outcome                     | Metric                                                                                            | Initial Target |
+| --------------------------- | ------------------------------------------------------------------------------------------------- | -------------- |
+| Ingredient match usefulness | % ingredient selections resolved to a valid food `id` (golden record) where user expected a match | >=85%          |
+| Disambiguation quality      | % of brand/generic picks changed by user after initial selection                                  | <=10%          |
+| Pending-flow usability      | % add-by-name requests that eventually reach `RESOLVED` without user abandonment                  | >=90%          |
+| Search usefulness           | % search sessions with a selected food record                                                     | >=75%          |
 
 ---
 

@@ -8,7 +8,7 @@
 > gate is therefore **NOT release-ready**; the verdict offered is **design-baseline-ready** (the design
 > and the V&V plans are complete and consistent; implementation and test execution are the next phase).
 > All 12 V-Model artifacts — including `traceability-matrix.md` and `trace.md` — are regenerated to the
-> 2026-06-22 source-agnostic baseline. The one residual is **Open-2**: 8 minor acceptance-test coverage
+> 2026-06-22 source-agnostic baseline. The one residual is **Open-2**: 7 minor acceptance-test coverage
 > gaps the regenerated matrix surfaced (each gapped REQ still has STP/UTP/ITP coverage; none blocks the
 > design baseline).
 
@@ -33,66 +33,69 @@ pluggable source-adapter interface, and adapter-boundary input validation. The a
 queue/worker/rate-limiter family are preserved verbatim-in-intent, re-keyed from `fdcId` to the food `id`
 and generalized from USDA-only to per-source.
 
-**Artifact set audited (re-baselined 2026-06-22):** 100 requirements, 20 system-design components, 19
+**Artifact set audited (re-baselined 2026-06-22, stabilized 2026-06-27):** 101 requirements (incl. REQ-NF-019,
+plus the three stabilization sub-IDs REQ-050a / REQ-025a / REQ-028a folded under REQ-050 / REQ-025 / REQ-028), 20 system-design components, 19
 architecture modules, 21 module designs, 72 unit-test cases (201 UTS), 56 integration-test cases
-(84 ITS), 71 system-test cases (111 STS), 51 acceptance tests (74 ATS), 47 hazards.
+(84 ITS), 71 system-test cases (111 STS), 58 acceptance tests (80 ATS), 49 hazards.
 
 **Findings (headline):**
 
 - **Design & V&V plans: COMPLETE and CONSISTENT.** All five V-Model layers are present and re-baselined
   to the same source-agnostic model; counts are coherent (every SYS traces up to REQ and down to STP;
-  every ARCH to ITP; every MOD to UTP; every REQ has a stated verification method; all 47 hazards carry
+  every ARCH to ITP; every MOD to UTP; every REQ has a stated verification method; all 49 hazards carry
   a mitigation plus a planned verification).
-- **Tests: UNEXECUTED.** 0 of (72 UTP + 56 ITP + 71 STP + 74 ATS) scenarios have ingested results. No
+- **Tests: UNEXECUTED.** 0 of (72 UTP + 56 ITP + 71 STP + 80 ATS) scenarios have ingested results. No
   pass/fail evidence exists because no code exists.
 - **All 12 V-Model artifacts re-baselined 2026-06-22.** `traceability-matrix.md` and `trace.md` were
-  regenerated to the 100-REQ source-agnostic baseline (REQ-045..055, SYS-014..020, ARCH-013..019,
-  MOD-015..021, HAZ-042..047 all mapped; auth slice fully connected; `fdcId` confined to adapter rows).
-  The matrix flags **8 acceptance-test (AT) coverage gaps** — each gapped REQ still has STP (and usually
-  UTP/ITP) coverage, so no requirement is wholly untested; the two worth closing before the V&V gate are
-  **REQ-038a** (authed-users-may-read AT) and **REQ-044b** (flood-latency AT). Tracked as Open-2.
+  regenerated to the 101-REQ source-agnostic baseline (REQ-045..055 + the stabilization sub-IDs
+  REQ-050a / REQ-025a, SYS-014..020, ARCH-013..019, MOD-015..021, HAZ-042..049 all mapped; auth slice
+  fully connected; `fdcId` confined to adapter rows). The matrix now flags **7 acceptance-test (AT)
+  coverage gaps** (down from 8 — REQ-017's worker lease is now covered by AT-018-A) — each gapped REQ
+  still has STP (and usually UTP/ITP) coverage, so no requirement is wholly untested; the two worth
+  closing before the V&V gate are **REQ-038a** (authed-users-may-read AT) and **REQ-044b** (flood-latency
+  AT). Tracked as Open-2.
 
 **Release-readiness status:** ❌ **NOT RELEASE-READY** (implementation and test execution pending).
 **Design-baseline status:** ✅ **DESIGN-BASELINE-READY** — the full V-Model chain is regenerated and
-internally consistent; the only residual is the 8 minor AT-coverage gaps (Open-2), none blocking the
+internally consistent; the only residual is the 7 minor AT-coverage gaps (Open-2), none blocking the
 design baseline.
 
 ## 2. Artifact Inventory
 
 | Artifact                     | File                     | Re-baselined 2026-06-22 | Model           | Status                               |
 | ---------------------------- | ------------------------ | ----------------------- | --------------- | ------------------------------------ |
-| Requirements (100 REQ)       | `requirements.md`        | Yes                     | Source-agnostic | Present — consistent                 |
+| Requirements (101 REQ)       | `requirements.md`        | Yes                     | Source-agnostic | Present — consistent                 |
 | System Design (20 SYS)       | `system-design.md`       | Yes                     | Source-agnostic | Present — consistent                 |
 | Architecture (19 ARCH)       | `architecture-design.md` | Yes                     | Source-agnostic | Present — consistent                 |
 | Module Design (21 MOD)       | `module-design.md`       | Yes                     | Source-agnostic | Present — consistent                 |
 | Unit Test (72 UTP/201 UTS)   | `unit-test.md`           | Yes                     | Source-agnostic | Present — unexecuted                 |
 | Integration (56 ITP/84 ITS)  | `integration-test.md`    | Yes                     | Source-agnostic | Present — unexecuted                 |
 | System Test (71 STP/111 STS) | `system-test.md`         | Yes                     | Source-agnostic | Present — unexecuted                 |
-| Acceptance (51 AT/74 ATS)    | `acceptance-plan.md`     | Yes                     | Source-agnostic | Present — unexecuted                 |
-| Hazard Analysis (47 HAZ)     | `hazard-analysis.md`     | Yes                     | Source-agnostic | Present — all mitigated              |
-| Traceability Matrix          | `traceability-matrix.md` | Yes                     | Source-agnostic | Present — 8 AT gaps (Open-2)         |
+| Acceptance (58 AT/80 ATS)    | `acceptance-plan.md`     | Yes                     | Source-agnostic | Present — unexecuted                 |
+| Hazard Analysis (49 HAZ)     | `hazard-analysis.md`     | Yes                     | Source-agnostic | Present — all mitigated              |
+| Traceability Matrix          | `traceability-matrix.md` | Yes                     | Source-agnostic | Present — 7 AT gaps (Open-2)         |
 | Trace (forward/backward)     | `trace.md`               | Yes                     | Source-agnostic | Present — no orphans                 |
 | Waivers                      | `waivers.md`             | —                       | —               | Missing (none required at this gate) |
 
 **Inventory verdict:** All 12 V-Model artifacts form a complete, internally consistent re-baselined
-chain. The traceability matrix surfaces 8 minor acceptance-test gaps (Open-2); none leaves a requirement
+chain. The traceability matrix surfaces 7 minor acceptance-test gaps (Open-2); none leaves a requirement
 wholly untested.
 
 ## 3. Requirements Coverage
 
-Source of record for this section is the re-baselined `requirements.md` (100 REQ) cross-read against the
+Source of record for this section is the re-baselined `requirements.md` (101 REQ) cross-read against the
 re-baselined system/integration/unit/acceptance plans and the regenerated `traceability-matrix.md`.
 
-**Requirement census (100 total):**
+**Requirement census (101 total):**
 
-| Category               | Count | IDs                                                    |
-| ---------------------- | ----- | ------------------------------------------------------ |
-| Functional (FR)        | 55    | REQ-001..055 (incl. a–d sub-IDs)                       |
-| Non-Functional (NF)    | 18    | REQ-NF-001..018                                        |
-| Interface (IF)         | 12    | REQ-IF-001..012                                        |
-| Constraint (CN)        | 7     | REQ-CN-001..007                                        |
-| By verification method | —     | Test 69 · Inspection 27 · Analysis 3 · Demonstration 1 |
-| By priority            | —     | P1 88 · P2 11 · P3 1                                   |
+| Category               | Count | IDs                                                                                                                                          |
+| ---------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Functional (FR)        | 63    | REQ-001..055 — 55 base IDs / 63 incl. a–d sub-IDs; the 3 stabilization sub-IDs REQ-025a/REQ-028a/REQ-050a fold under REQ-025/REQ-028/REQ-050 |
+| Non-Functional (NF)    | 19    | REQ-NF-001..019 (REQ-NF-019 = SC-014 first-time NEW-food resolution rate)                                                                    |
+| Interface (IF)         | 12    | REQ-IF-001..012                                                                                                                              |
+| Constraint (CN)        | 7     | REQ-CN-001..007                                                                                                                              |
+| By verification method | —     | Test 69 · Inspection 27 · Analysis 4 · Demonstration 1                                                                                       |
+| By priority            | —     | P1 88 · P2 12 · P3 1                                                                                                                         |
 
 **Forward coverage (REQ → V&V):** Every REQ resolves to at least one verification path in the
 re-baselined plans:
@@ -100,14 +103,16 @@ re-baselined plans:
 - **Test-method REQs (69)** map to AT/STP/ITP/UTP cases. The system-test plan reports **20/20 SYS
   components covered** (71 STP / 111 STS); the integration plan covers all 19 ARCH modules (56 ITP /
   84 ITS); the unit plan covers all 21 MOD designs (72 UTP / 201 UTS); the acceptance plan covers all
-  P1/P2 user-facing behaviors (51 AT / 74 ATS).
+  P1/P2 user-facing behaviors (58 AT / 80 ATS).
 - **Inspection-method REQs (27)** — e.g. schema/index shape (REQ-028/029), workspace governance
   (REQ-NF-001/002/003/006/008/009/010, REQ-CN-006), deployment/constraint pins (REQ-CN-001..005,
   REQ-CN-007), event taxonomy (REQ-IF-005), secret storage (REQ-IF-006), adapter interface (REQ-054,
   REQ-IF-012) — are verified by code review / static analysis / CDK review, not executable tests, and
   are fully covered by their stated method.
-- **Analysis-method REQs (3)** — cache-hit-rate (REQ-NF-014), batch throughput (REQ-NF-015),
-  availability SLA (REQ-NF-017) — are post-production CloudWatch measurements; covered by method.
+- **Analysis-method REQs (3)** — local-store serve rate (REQ-NF-014), first-time NEW-food resolution
+  rate (REQ-NF-015, ~500–900/hr bounded by the per-source budget; the local read/serve throughput is the
+  separate high-target half), availability SLA (REQ-NF-017) — are post-production CloudWatch measurements;
+  covered by method.
 - **Demonstration (1)** — WebSocket push (REQ-034, P3) — deferred; excluded from the shippable exit gate.
 
 **New-capability coverage (the re-baselined surface):**
@@ -137,26 +142,27 @@ authorization gap (REQ-042) and M2M classification (REQ-041) are explicitly cove
 and consistent across the re-baselined chain.
 
 **Coverage verdict:** With the re-baselined plans and the regenerated matrix as the source of record,
-**all 100 REQ have a complete verification path** and the new capabilities + the preserved auth slice are
-fully traced. The only residual is **Open-2**: 8 REQ lack a dedicated acceptance test (each still has
+**all 101 REQ have a complete verification path** and the new capabilities + the preserved auth slice are
+fully traced. The only residual is **Open-2**: 7 REQ lack a dedicated acceptance test (each still has
 STP/UTP/ITP coverage); add ATs for REQ-038a and REQ-044b before the V&V execution gate.
 
 ## 4. Hazard Coverage
 
 Source of record: re-baselined `hazard-analysis.md` (general-purpose FMEA, non-regulated; `domain: ''`).
 
-**Census:** 47 hazards, HAZ-001..047, contiguous, no renumbering. Grouping: HAZ-001..035 system/module
+**Census:** 49 hazards, HAZ-001..049, contiguous, no renumbering. Grouping: HAZ-001..035 system/module
 hazards (preserved/recast to the source-agnostic model), HAZ-036..040 auth slice (auth-bypass,
 denial-of-wallet, demotion-scorer-state-loss fail-open, token-class confusion, WS `$connect` cache
-fall-open), HAZ-041 per-source rolling-window state loss, HAZ-042..047 new redesign hazards
+fall-open), HAZ-041 per-source rolling-window state loss, HAZ-042..049 new redesign hazards
 (nutritionally-incoherent merge across mismatched bases, wrong-merge unifying distinct foods, source-data
 poisoning / longer-value-wins abuse, untrusted external data stored unvalidated, concurrent add-by-name
-duplicate race, user-resolution clobbered by refresh).
+duplicate race, user-resolution clobbered by refresh, `food_candidates` candidate-set integrity loss, and
+stale `UNRESOLVED` candidate-set expiry).
 
-**Mitigation + verification completeness:** Every one of the 47 hazards carries (a) a stated mitigation
+**Mitigation + verification completeness:** Every one of the 49 hazards carries (a) a stated mitigation
 citing at least one REQ plus its SYS/MOD companion control, and (b) a planned verification path. **0
 hazards are residual-unacceptable; 0 are unmitigated.** Residual-risk distribution after mitigation:
-all 47 reduced to Tolerable or Acceptable, with explicit residual-risk acceptance recorded on every
+all 49 reduced to Tolerable or Acceptable, with explicit residual-risk acceptance recorded on every
 Undesirable-rated entry.
 
 **Notable design-decision hazards (mitigations are design choices, audited as sound for this risk class):**
@@ -176,7 +182,7 @@ Undesirable-rated entry.
 
 **Hazard verdict:** Hazard analysis is **complete and verification-planned** for the re-baselined design.
 The canonical **Matrix H** (HAZ → mitigation → verification test) in the regenerated
-`traceability-matrix.md` maps all 47/47 hazards, including the 6 new redesign hazards (HAZ-042..047).
+`traceability-matrix.md` maps all 49/49 hazards, including the 8 new redesign hazards (HAZ-042..049).
 
 ## 5. Test Coverage & Execution Status
 
@@ -185,14 +191,14 @@ The canonical **Matrix H** (HAZ → mitigation → verification test) in the reg
 | Unit        | `unit-test.md`        | 72 UTP  | 201 UTS   | 21/21 MOD                       | ⬜ Unexecuted    |
 | Integration | `integration-test.md` | 56 ITP  | 84 ITS    | 19/19 ARCH boundaries           | ⬜ Unexecuted    |
 | System      | `system-test.md`      | 71 STP  | 111 STS   | 20/20 SYS components            | ⬜ Unexecuted    |
-| Acceptance  | `acceptance-plan.md`  | 51 AT   | 74 ATS    | all P1/P2 + US-0 auth (ATP-008) | ⬜ Unexecuted    |
-| **Total**   | —                     | **250** | **470**   | —                               | **0 executed**   |
+| Acceptance  | `acceptance-plan.md`  | 58 AT   | 80 ATS    | all P1/P2 + US-0 auth (ATP-008) | ⬜ Unexecuted    |
+| **Total**   | —                     | **257** | **476**   | —                               | **0 executed**   |
 
-**Results status:** 0 passed, 0 failed, 0 skipped, **470 unexecuted**. The plans are written as the
+**Results status:** 0 passed, 0 failed, 0 skipped, **476 unexecuted**. The plans are written as the
 TDD red-gate map (Arrange/Act/Assert and Given/When/Then specifications with no results column). There is
 **no implementation**, so no execution evidence can exist yet. **No test is claimed to pass.**
 
-**Testing-pyramid shape (planned):** unit 72 / integration 56 / system 71 / acceptance 51 — consistent
+**Testing-pyramid shape (planned):** unit 72 / integration 56 / system 71 / acceptance 58 — consistent
 with REQ-NF-008's pyramid intent (unit-heavy) at the plan level; the runtime ratio is verifiable only
 after execution.
 
@@ -201,11 +207,11 @@ after execution.
 | Gate                                             | Result                                              |
 | ------------------------------------------------ | --------------------------------------------------- |
 | Design layers present & re-baselined (5/5)       | ✅ Pass (REQ, SYS, ARCH, MOD, + test/hazard layers) |
-| Requirement verification paths (100/100)         | ✅ Pass (in re-baselined plans)                     |
-| Hazards mitigated + verification-planned (47/47) | ✅ Pass (0 residual-unacceptable)                   |
+| Requirement verification paths (101/101)         | ✅ Pass (in re-baselined plans)                     |
+| Hazards mitigated + verification-planned (49/49) | ✅ Pass (0 residual-unacceptable)                   |
 | Auth slice planned & traced (FR-035..053)        | ✅ Pass                                             |
-| Canonical traceability matrices regenerated      | ✅ Pass — 8 AT gaps noted (Open-2)                  |
-| Tests executed (470 scenarios)                   | ⬜ **Pending — 0/470 (no implementation)**          |
+| Canonical traceability matrices regenerated      | ✅ Pass — 7 AT gaps noted (Open-2)                  |
+| Tests executed (476 scenarios)                   | ⬜ **Pending — 0/476 (no implementation)**          |
 | **Release readiness**                            | ❌ **NOT RELEASE-READY**                            |
 | **Design-baseline readiness**                    | ✅ **READY**                                        |
 
@@ -213,22 +219,28 @@ after execution.
 
 **Resolved this re-baseline (previously deferred design questions — now closed):**
 
-- **Auto-RESOLVE threshold** — when a fan-out yields a single confident candidate the food is set
-  `RESOLVED` automatically; multiple candidates → `UNRESOLVED` for a human pick (REQ-048/050). Resolved.
-- **UNRESOLVED TTL** — lifecycle and tombstone TTL (default 30 days, REQ-018/025) and the
-  candidate/resolve path (REQ-048/049) are specified; the `UNRESOLVED`-nobody-picks expiry is settled at
-  the planning layer. Resolved.
+- **Auto-RESOLVE threshold** — settled as the **survivor-count boundary** (REQ-050a / D-AUTORESOLVE): after
+  pre-merge dedup, exactly 1 candidate surviving normalized-name exact match → `RESOLVED`; >1 → `UNRESOLVED`
+  (surviving set persisted to `food_candidates`); 0 → `NOT_FOUND`. No nutrient tolerance; biased toward
+  `UNRESOLVED` over a wrong auto-pick (the human is the final arbiter via `/candidates` + `PATCH`,
+  REQ-048/049). Resolved.
+- **UNRESOLVED TTL** — settled (REQ-025a / D-UNRESOLVED-TTL): an `UNRESOLVED` food is **kept until a human
+  picks**; its `food_candidates` set expires 30 days after `created_at` and the next add-by-name request
+  re-fans-out (mirrors the NOT_FOUND 30-day TTL, REQ-018/025); the food is **never** swept to `NOT_FOUND`,
+  and a human pick before expiry wins. Resolved.
 - **Sync-vs-async candidate search** and **change-detection mechanism on refresh** — resolved to async
-  fan-out and per-item version/etag/hash (`food_sources.item_version`, REQ-032/053). Resolved.
+  fan-out and per-item hash compare (`food_sources.item_version`, REQ-032/053), run as a low-demand Fargate
+  scheduled task that yields to live demand. Resolved.
 - **Source-agnostic identity** — locked to internal `id`; no source-native key as PK/FK (REQ-045/CN-007).
 
 **Open / deferred (do not block the design baseline; do block release):**
 
-- **Open-2 (non-blocking for the design baseline).** The regenerated `traceability-matrix.md` surfaced 8
-  acceptance-test (AT) coverage gaps — each gapped REQ still has STP (and usually UTP/ITP) coverage, so no
-  requirement is wholly untested. Add dedicated ATs for **REQ-038a** (authed-users-may-read) and
-  **REQ-044b** (flood-latency) before the V&V execution gate; the other 6 are Inspection/Analysis-method
-  REQs or deferred-variant (Redis/WebSocket) and need no AT.
+- **Open-2 (non-blocking for the design baseline).** The regenerated `traceability-matrix.md` surfaced 7
+  acceptance-test (AT) coverage gaps (down from 8 — REQ-017's worker lease is now closed by AT-018-A) —
+  each gapped REQ still has STP (and usually UTP/ITP) coverage, so no requirement is wholly untested. Add
+  dedicated ATs for **REQ-038a** (authed-users-may-read) and **REQ-044b** (flood-latency) before the V&V
+  execution gate; the other 5 are Inspection/Analysis-method REQs or deferred-variant (Redis/WebSocket)
+  and need no AT.
 - **FU-MIGRATE** — the in-VPC migration-runner Lambda (RDS is `PRIVATE_ISOLATED`); the source-agnostic
   schema is a clean replacement of the Phase 1–2 `foods`/`fdcId` schema with **no data to migrate**
   (A-014). Implementation follow-up.
@@ -237,24 +249,24 @@ after execution.
 - **WebSocket push (REQ-034, P3)** — deferred until polling UX is validated; excluded from the shippable
   exit gate.
 - **Implementation (Phase 1+) is the next step.** Build the workspaces
-  (`@kitchensink/{food-service,usda-client,food-service-client,clerk-verify}`), then execute the 470
+  (`@kitchensink/{food-service,usda-client,food-service-client,clerk-verify}`), then execute the 476
   planned scenarios and ingest real results before any post-implementation release audit.
 
 ## 8. Release Gate Verdict
 
 **Design / V&V planning: COMPLETE and CONSISTENT (re-baselined 2026-06-22).** All five V-Model layers,
 plus the hazard analysis, are present, internally coherent, and aligned to the same source-agnostic
-model. All 100 requirements have a verification path; all 47 hazards are mitigated and verification-
+model. All 101 requirements have a verification path; all 49 hazards are mitigated and verification-
 planned; the auth slice (FR-035..053) is preserved and fully planned.
 
-**Implementation + test execution: PENDING.** No code exists; 0 of 470 planned scenarios are executed;
+**Implementation + test execution: PENDING.** No code exists; 0 of 476 planned scenarios are executed;
 no test is claimed to pass.
 
 **Verdict:**
 
 - ❌ **NOT RELEASE-READY** — release requires implementation and ingested pass evidence.
 - ✅ **DESIGN-BASELINE-READY** — the full 12-artifact V-Model design-of-record is regenerated, internally
-  consistent, and may be frozen as the baseline the implementation builds against. The 8 AT gaps (Open-2)
+  consistent, and may be frozen as the baseline the implementation builds against. The 7 AT gaps (Open-2)
   are minor and do not block the baseline.
 
 ## 9. Required Next Action
@@ -263,7 +275,7 @@ no test is claimed to pass.
    REQ-044b to `acceptance-plan.md` so every functional REQ has AT coverage.
 2. **Begin implementation (Phase 1+):** scaffold/reuse the food-data workspaces and build the new
    canonical schema + DAOs against the frozen design baseline.
-3. **Implement and execute** the 250 planned test cases (470 scenarios) and ingest actual
+3. **Implement and execute** the 257 planned test cases (476 scenarios) and ingest actual
    pass/fail/skip/waiver evidence.
 4. **Re-run this audit as a post-implementation release audit** once execution evidence exists — only
    then can a release-readiness (not design-baseline) verdict be issued.

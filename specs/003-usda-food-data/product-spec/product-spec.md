@@ -136,55 +136,55 @@ Instrument queue health, per-source rolling-window utilization, resolution laten
 ### Must Have
 
 0. **US-0 — Authenticated & authorized access**
-   As any caller of the food data service, I must present a valid Clerk token (user session or service M2M) to reach any endpoint; unauthenticated/expired/wrong-party requests are rejected (`401`) before any work, insufficient scope is `403`, and dynamic queue demotion (no quota, no `429`) keeps one account from exhausting a shared per-source budget — an account with >50 pending items is ranked to the back of `fetch_queue` and auto re-promoted once it drops below 50. No anonymous access; no unauthenticated path drives external source spend.
+   As any caller of the food data service, I must present a valid Clerk token (user session or service M2M) to reach any endpoint; unauthenticated/expired/wrong-party requests are rejected (`401`) before any work, insufficient scope is `403`, and dynamic queue demotion (no quota, no `429`) keeps one account from exhausting a shared per-source budget — a food is demoted to the back of `fetch_queue` only once **all** of its current requesters exceed 50 pending items, and is re-promoted as soon as any requester drops below 50, while near a per-source rolling-window ceiling a flooding account's **new** enqueues are shed with `503` (never `429`) to preserve headroom. No anonymous access; no unauthenticated path drives external source spend.
    **FRs**: FR-035–FR-053 (SC-010, SC-011, SC-012)
 
-1. **US-001 — Golden-record read by `id` (resolved hit)**
+1. **US-1 — Golden-record read by `id` (resolved hit)**
    As a recipe author, I can request an already-`RESOLVED` food by its `id` and receive its complete golden-record nutrition quickly (`200`), get `202` while it is `PENDING`/`UNRESOLVED`, and `404` (with the lifecycle `status` still retrievable) when it is `NOT_FOUND`/`FAILED` — so recipe workflows stay responsive and a held `id` always means something.
    **FRs**: FR-001, FR-002, FR-003, FR-004, FR-007
 
-2. **US-002 — Add food by name (cache miss / async resolution)**
-   As a recipe author, when a food isn't in our store I add it **by name** (`POST /v1/foods`) and immediately get `202 Accepted` + the new `id`; in the background the worker fans out across all source adapters by name and assembles a golden record, moving the food to `RESOLVED` (confident merge) or `UNRESOLVED` (candidates need a pick) — so I can keep editing without blocking, and concurrent adds of the same name collapse to one `id`.
+2. **US-2 — Add food by name (async resolution)**
+   As a recipe author, when a food isn't in our store I add it **by name** (`POST /v1/foods`) and immediately get `202 Accepted` + the new `id`; in the background the worker fans out across all source adapters by name and assembles a golden record, moving the food to `RESOLVED` (exactly one candidate survives normalized-name matching) or `UNRESOLVED` (more than one survivor — candidates need a human pick) — so I can keep editing without blocking, and concurrent adds of the same name collapse to one `id`.
    **FRs**: FR-005, FR-006, FR-011, FR-013, FR-MRG-1
 
-3. **US-003 — Per-source rate-limit-safe consumption**
+3. **US-2a — Disambiguate candidates and resolve**
+   As a recipe author, when add-by-name leaves more than one cross-source candidate surviving normalized-name matching, the food becomes `UNRESOLVED`; I fetch the candidate list (`GET /v1/foods/{id}/candidates`), pick the candidate(s) that match what I meant, and submit the pick (`PATCH /v1/foods/{id}`). The system validates each chosen candidate belongs to that food's own candidate set, merges it into the golden record, moves the food to `RESOLVED`, and stores my pick as ordinary provenance — so ambiguous adds never dead-end and cross-source matching never has to be perfect.
+   **FRs**: FR-RES-1, FR-RES-2, FR-RES-3, FR-MRG-2, FR-MRG-3
+
+4. **US-3 — Per-source rate-limit-safe consumption**
    As an operations engineer, the consumer enforces a **per-source** rolling 60-minute-window rate limit (USDA: 1,000 req/hr; pause at 90%/900 per source) and queue-drain behavior, so no source's limit is ever exceeded as more sources are added.
    **FRs**: FR-019, FR-020, FR-021, FR-022, FR-026, FR-027
 
-4. **US-004 — Batch add-by-name for recipe workflows**
+5. **US-4 — Batch add-by-name for recipe workflows**
    As a recipe author, unknown ingredient **names** in a recipe import are resolved in batch (one canonical row + `id` per unknown name, deduped), and the response is a per-item partial result — resolved foods inline with `id`s, each miss returned as a `PENDING` entry — so large recipes resolve nutrition without source-call waste. The USDA adapter may internally coalesce its own source fetches (≤20 keys/USDA call), but that is an adapter detail, not the client-facing limit.
    **FRs**: FR-012, FR-023, FR-045
 
-5. **US-005 — Demand-weighted backfill priority and durable recovery**
+6. **US-5 — Demand-weighted backfill priority and durable recovery**
    As an operations engineer, user-facing misses naturally rise in priority as demand grows and failed messages are recoverable, so the pipeline remains reliable and fair under traffic spikes.
-   **Mechanism**: A durable Postgres `fetch_queue` table is the priority queue, the dedup, and the audit trail in one row per **food `id`** (created up front by add-by-name). Enqueue is a single `INSERT … ON CONFLICT` plus `pg_notify`, where demand is tracked as a **distinct-requester** count: each requesting `sub` is recorded at most once in a companion `fetch_requesters` table (PRIORITY_CAP=1), so a row's demand reflects how many distinct accounts want it rather than a raw `request_count + 1` increment that a single poller could inflate. The consumer (a single Fargate worker, guarded by a Postgres advisory lock and rate-limited **per source** via a **rolling 60-minute window** over `source_call_log`, pausing at 90% of each source's cap — USDA: 900) selects by distinct-requester demand descending with `first_requested ASC` as the FIFO tie-breaker, via `FOR UPDATE SKIP LOCKED`, so the most-demanded item wins. Wakeup is event-driven via Postgres `LISTEN/NOTIFY` (no cron, no SQS, no Redis). A single user request gets baseline priority; a viral recipe wanted by many distinct accounts rises to the front automatically; background change-driven refresh enqueues at low priority and drains during idle periods. Fairness is enforced by **dynamic queue demotion** — a `sub` with >50 pending items is ranked to the back and auto re-promoted once it drops below 50 (work-conserving; no per-user quota, no `429`). No explicit escalation policy is needed — priority is emergent from demand. Transient source `5xx` errors retry with exponential backoff up to 5 attempts before the food lands in `FAILED` and the row is set `status='tombstone'` (the operational DLQ-equivalent, queryable in SQL and re-runnable by flipping the status back to `pending`); tombstones become eligible for re-attempt after a 30-day TTL. A fan-out where no source has the item lands the food in `NOT_FOUND` (tombstone immediately). In-app notifications inform the requester when a pending food becomes available.
+   **Mechanism**: A durable Postgres `fetch_queue` table is the priority queue, the dedup, and the audit trail in one row per **food `id`** (created up front by add-by-name). Enqueue is a single `INSERT … ON CONFLICT` plus `pg_notify`, where demand is tracked as a **distinct-requester** count: each requesting `sub` is recorded at most once in a companion `fetch_requesters` table (PRIORITY_CAP=1), so a row's demand reflects how many distinct accounts want it rather than a raw `request_count + 1` increment that a single poller could inflate. The consumer (a single Fargate worker, guarded by a Postgres advisory lock and rate-limited **per source** via a **rolling 60-minute window** over `source_call_log`, pausing at 90% of each source's cap — USDA: 900) selects by distinct-requester demand descending with `first_requested ASC` as the FIFO tie-breaker, via `FOR UPDATE SKIP LOCKED`, so the most-demanded item wins. Wakeup is event-driven via Postgres `LISTEN/NOTIFY` (no cron, no SQS, no Redis). A single user request gets baseline priority; a viral recipe wanted by many distinct accounts rises to the front automatically; background change-driven refresh enqueues through the ordinary enqueue path at low demand and drains during idle periods. Fairness is enforced by **dynamic queue demotion** computed at drain time (not a stored tier): a food is demoted to the back only when **all** of its current requesters individually exceed 50 pending items, and is re-promoted as soon as any requester drops below 50 (work-conserving; no per-user quota, no `429`); near a source's global rolling-window ceiling, **new** enqueues from the highest-pending `sub` are shed first with `503` (Retry-After) to preserve headroom, while reads and candidate resolves are never shed. No explicit escalation policy is needed — priority is emergent from demand. Transient source `5xx` errors retry with exponential backoff up to 5 attempts before the food lands in `FAILED` and the row is set `status='tombstone'` (the operational DLQ-equivalent, queryable in SQL and re-runnable by flipping the status back to `pending`); a `FAILED` food is retried via `FAILED → PENDING` with bounded backoff (no 30-day gate). A fan-out where no source has the item lands the food in `NOT_FOUND` (tombstone immediately); a `NOT_FOUND` tombstone carries a 30-day TTL, after which a fresh add re-attempts the fan-out. In-app notifications inform the requester when a pending food becomes available.
    **FRs**: FR-014, FR-015, FR-016, FR-017, FR-018
-
-6. **US-005a — Disambiguate candidates and resolve**
-   As a recipe author, when add-by-name yields multiple cross-source candidates the system can't confidently collapse, the food becomes `UNRESOLVED`; I fetch the candidate list (`GET /v1/foods/{id}/candidates`), pick the candidate(s) that match what I meant, and submit the pick (`PATCH /v1/foods/{id}`). The system validates each chosen candidate belongs to that food's own candidate set, merges it into the golden record, moves the food to `RESOLVED`, and stores my pick as ordinary provenance — so ambiguous adds never dead-end and cross-source matching never has to be perfect.
-   **FRs**: FR-RES-1, FR-RES-2, FR-RES-3, FR-MRG-2, FR-MRG-3
 
 ### Should Have
 
-7. **US-006 — Local food search with typo tolerance**
+7. **US-6 — Local food search with typo tolerance**
    As a recipe author, I can search foods by name quickly from the local store only — name/substring/partial/fuzzy (`pg_trgm`) matching returning canonical `id`s, plus barcode / source `external_key` lookup via the crosswalk — so ingredient selection stays fast and predictable and never triggers an external source call.
    **FRs**: FR-008, FR-009, FR-010
 
-8. **US-007 — Change-driven background refresh**
+8. **US-7 — Change-driven background refresh**
    As a nutrition-conscious planner, `RESOLVED` foods are refreshed in the background **only when** a backing source item changed upstream — unchanged fields, including any I manually resolved, are left intact — so nutrient quality stays current over time without overwriting human decisions or churning unchanged values.
    **FRs**: FR-031, FR-032
 
-9. **US-008 — Resolution status polling**
+9. **US-8 — Resolution status polling**
    As a client application, I can poll `GET /v1/foods/{id}` (or `/status`) and transition UI accurately across the lifecycle — `202` while `PENDING`/`UNRESOLVED`, `200` once `RESOLVED`, `404` (status still retrievable) when `NOT_FOUND`/`FAILED`.
    **FRs**: FR-007, FR-033
 
 ### Could Have
 
-10. **US-009 — WebSocket push notifications**
+10. **US-9 — WebSocket push notifications**
     As a client application, I receive a push update (carrying the food `id`) when a pending food becomes ready, delivered only to connections whose authenticated `sub` requested that `id`, so I can reduce polling.
     **FRs**: FR-034, FR-041
 
-11. **US-010 — Operational observability dashboard**
+11. **US-10 — Operational observability dashboard**
     As an operations engineer, I can inspect `fetch_queue` pending-row depth, per-source rolling-window utilization, resolution latency, the `UNRESOLVED` backlog, and tombstone rows in one place, so I can intervene early.
     **FRs**: FR-016, FR-018, FR-035 (authenticated endpoint scope context)
 
@@ -221,7 +221,7 @@ Instrument queue health, per-source rolling-window utilization, resolution laten
 
 ## Success Metrics
 
-- **Resolution accuracy**: ≥ 90% of recipe-import ingredient names resolve to a confident golden record (`RESOLVED`) without requiring a manual candidate pick, measured over a 30-day cohort; the remainder land `UNRESOLVED` and are resolvable by the user via candidates/`PATCH`.
+- **In-flow resolution success**: ≥ 90% of recipe-import ingredient names reach a golden record (`RESOLVED`) **without leaving the add flow** — counting both auto-`RESOLVED` (a single survivor under the survivor-count rule, D-AUTORESOLVE) **and** one-tap candidate picks (`UNRESOLVED`→`RESOLVED` via `PATCH`) — measured over a 30-day cohort. This is deliberately **not** a no-human-pick rate: a name like "broccoli" returns many distinctly-named USDA variants ("Broccoli, raw" / "…cooked, boiled" / "…frozen"), which are different normalized names → `UNRESOLVED`, so most realistic add-by-name results resolve via the one-tap pick. The complement (foods abandoned terminally `UNRESOLVED`) is ≤ 10%.
 - **Add-by-name → resolve latency**: from `202 Accepted` + `id` to `RESOLVED` available, ≤ 60 s at p95 when `fetch_queue` pending-row depth is under 100 rows (excluding `UNRESOLVED` foods awaiting a human pick); initial `202` returned in ≤ 100 ms (`POST /v1/foods`).
 - **Golden-record read latency**: ≤ 50 ms at p95 for `GET /v1/foods/{id}` when `status = 'RESOLVED'` (served from the local store, no source call).
 - **Per-source budget adherence**: ≤ 1,000 USDA calls in ANY rolling 60-minute window (and ≤ each additional source's limit, per source), verifiable via CloudWatch; no rolling-hour window over a source's cap and zero `429` responses under normal operation.
@@ -239,7 +239,7 @@ Instrument queue health, per-source rolling-window utilization, resolution laten
     - **Delivery side**: clients subscribe to receive messages whose recipient descriptor matches their identity / group membership. The exact delivery mechanism (push via WebSocket, webhook callback, client-pull retrieval, or a hybrid) is an implementation-time decision.
     - **Client side**: the receiving client parses the payload and dispatches behavior based on the `messageType` keyword (e.g., `food.resolution.completed` → toast + refresh ingredient detail).
     - **Launch transport scope**: in-app only. Email/push deferred.
-    - Feature 003's role: **publish** `FoodDataReceived` (food resolved) and related fetch-failure events (carrying the food `id`) to the notification service. 003 does not own transport, templating, retry, or preference storage.
+    - Feature 003's role: **publish** `FoodFetchCompleted` (food resolved) and related fetch-failure events (carrying the food `id`) to the notification service. 003 does not own transport, templating, retry, or preference storage.
     - User notification preferences and template management are deferred to a later revision of the notification feature.
 
 - **Q-002 — Search architecture decision** ✅ **RESOLVED (Rev 1)**: Default to PostgreSQL search (`pg_trgm` fuzzy / full-text + GIN index) for launch, returning canonical `id`s. The search layer must be designed behind a pluggable interface so an external engine (e.g., OpenSearch/Typesense) can be swapped in later without changing call sites. Concrete abstraction shape is an implementation-time decision.
@@ -254,9 +254,9 @@ Instrument queue health, per-source rolling-window utilization, resolution laten
 
 - **Q-007 — Cross-source candidate disambiguation UX** ✅ **RESOLVED (Rev 1)**: When add-by-name yields multiple candidates the system can't confidently collapse, the food becomes `UNRESOLVED` and the candidate set is surfaced for a **human pick** (`GET /v1/foods/{id}/candidates` → `PATCH /v1/foods/{id}`). Each candidate carries its `source` and that source's item key, and a **badge** distinguishes `branded` vs `generic` foods (the `kind` field) and surfaces source provenance. Default sort/ranking weights are implementation-time decisions; the affordance is a candidate list with badges, and the user is the final arbiter (so the matcher need not be perfect).
 
-- **Q-008 — Backfill prioritization policy** ✅ **RESOLVED (Rev 1)**: Backfill prioritization is demand-weighted by **distinct requester**: repeated requests for the same pending food increase its effective priority (capped at one per `sub`, PRIORITY_CAP=1) with aging so no `id` is pinned indefinitely (see US-005). Static high/normal flags are replaced by demand signal. Exact weighting function and any time-decay are implementation-time decisions.
+- **Q-008 — Backfill prioritization policy** ✅ **RESOLVED (Rev 1)**: Backfill prioritization is demand-weighted by **distinct requester**: repeated requests for the same pending food increase its effective priority (capped at one per `sub`, PRIORITY_CAP=1) with aging so no `id` is pinned indefinitely (see US-5). Static high/normal flags are replaced by demand signal. Exact weighting function and any time-decay are implementation-time decisions.
 
 ### Design questions the re-baselined spec resolved
 
-- **Auto-`RESOLVE` rule**: A confident single cross-source merge auto-resolves to `RESOLVED`; only residual ambiguity the worker cannot confidently collapse is left `UNRESOLVED` for a human pick (FR-MRG-1, FR-RES-3). The matching algorithm need not be perfect because the user is the final arbiter.
-- **`UNRESOLVED` TTL / expiry**: How an `UNRESOLVED` food that nobody ever picks is aged out (a TTL/expiry vs. staying until a human acts) is **deferred to planning** (the spec's Outstanding Questions); `NOT_FOUND` tombstones already carry a configurable 30-day TTL (FR-025).
+- **Auto-`RESOLVE` rule**: After pre-merge dedup the worker counts candidates surviving a **normalized-name exact match**: exactly **one** → `RESOLVED` (auto-merge); **more than one** → `UNRESOLVED` (the surviving candidate set is persisted for a human pick); **zero** → `NOT_FOUND` (FR-MRG-1, FR-MRG-5, FR-RES-3). There is **no** nutrient-tolerance threshold — the matcher need not be perfect because the user is the final arbiter, so the system biases toward `UNRESOLVED` over a wrong auto-pick.
+- **`UNRESOLVED` TTL / expiry**: An `UNRESOLVED` food is **kept until a human picks** — it is never swept to `NOT_FOUND`. Its persisted candidate set expires **30 days** after it was assembled; the next add-by-name request re-fans-out against the normal per-source budget (mirroring the `NOT_FOUND` 30-day TTL), and a human pick made before expiry still wins (FR-025a). `NOT_FOUND` tombstones carry the same configurable 30-day TTL (FR-025).

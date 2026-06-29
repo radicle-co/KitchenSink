@@ -2,7 +2,7 @@
 
 **Branch**: `003-usda-food-data` | **Date**: 2026-06-22
 **Status**: New screen — introduced by the source-agnostic re-baseline (2026-06-22).
-**FRs**: US-2a (disambiguate candidates and resolve), FR-018 (candidate set), `GET /v1/foods/{id}/candidates`, `PATCH /v1/foods/{id}`
+**FRs**: US-2a (disambiguate candidates and resolve), FR-RES-1 (`GET /v1/foods/{id}/candidates`), FR-RES-2 (`PATCH`-resolve, candidate-in-set validated), FR-RES-3 (candidate set persisted on `UNRESOLVED`), FR-MRG-2 / FR-MRG-3 (merge the pick into the golden record)
 
 ---
 

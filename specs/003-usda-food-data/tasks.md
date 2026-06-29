@@ -2,9 +2,9 @@
 
 **Feature**: `003-usda-food-data`
 **Architecture**: Event-Driven Queue-Based (Postgres `fetch_queue` + LISTEN/NOTIFY + Fargate fan-out/merge worker + per-source rolling 60-min window limiter)
-**Updated**: 2026-06-22 — **re-baselined to the source-agnostic food data model**
-**Source Artifacts**: plan.md (re-baselined), spec.md (re-baselined), product-spec.md
-**Design Reference**: plan.md §2 (12 canonical tables), §2A (auth), §3 (API contracts), §4 (queue/limiter), §5 (fan-out + merge), §9 (deferred decisions)
+**Updated**: 2026-06-28 — **stabilized to the decision register** (canonical names, `food_candidates`, `leased_at`, distinct-requester demand, settled auto-resolve/UNRESOLVED-TTL/refresh); supersedes the 2026-06-22 source-agnostic re-baseline. **Review-2 remediation applied** (DSN-13 change-refresh scheduled-task CDK T-001c; DSN-14 `CandidateMismatchError` → `409`; DSN-11 demotion-query perf note/test; DSN-3 distinct-`sub` enqueue formula; DB-5/DB-6/DB-7/DB-8 nutrient-dedup/amount-CHECK/gram_weight-CHECK/`fetch_state`-CHECK/reaper-index schema tasks; TST-2/4/5/6/7/8 red-gate scenarios).
+**Source Artifacts**: plan.md (re-baselined), spec.md (re-baselined), product-spec.md, decision-register.md
+**Design Reference**: plan.md §2 (13 canonical tables), §2A (auth), §3 (API contracts), §4 (queue/limiter), §5 (fan-out + merge), §9 (deferred decisions)
 
 ---
 
@@ -28,7 +28,7 @@
 > | LocalStack + Docker-Postgres E2E harness                                  | **REUSE / extend**                                                           |
 > | `@kitchensink/usda-client` (typed USDA HTTP client + zod wire validation) | **REUSE** as the first adapter; **NEW** task wraps it in `FoodSourceAdapter` |
 > | Auth: in-process `AuthMiddleware` + shared `ClerkAuthService`             | **REUSE / wire** (mostly wiring, not from-scratch)                           |
-> | OLD DB schema (`foods` + `fdcId` PK + denormalized nutrient cols)         | **REBUILD** → the 12 normalized tables                                       |
+> | OLD DB schema (`foods` + `fdcId` PK + denormalized nutrient cols)         | **REBUILD** → the 13 normalized tables                                       |
 > | OLD REST API (`/v1/foods/{fdcId}` read/batch, denormalized DTOs)          | **REBUILD** → add-by-name + id-read + candidates + PATCH-resolve + search    |
 > | OLD DAO/repository layer                                                  | **REBUILD** → per-aggregate DAOs over the new schema                         |
 > | OLD worker (single-source fetch)                                          | **REBUILD** → fan-out + merge                                                |
@@ -71,9 +71,9 @@ DataStack). `pg_trgm` is already bootstrapped on the instance (FR-008 fuzzy sear
 **in-VPC migration-runner Lambda (FU-MIGRATE)**; phases build/test against **Docker Postgres** until that
 runner is wired.
 
-**Canonical table set (12):** `food`, `food_sources`, `nutrient`, `food_nutrients`, `food_portions`,
+**Canonical table set (13):** `food`, `food_sources`, `nutrient`, `food_nutrients`, `food_portions`,
 `food_field_provenance`, `food_category`, `food_category_assignment`, `fetch_queue`, `fetch_requesters`,
-`source_call_log`, `source_sync_metadata`. **Removed** from the old design: `foods` (denormalized),
+`source_call_log`, `source_sync_metadata`, `food_candidates`. **Removed** from the old design: `foods` (denormalized),
 `usda_sync_metadata`, `usda_call_log`, `rate_limiter_state`, `user_fetch_quota`, `global_fetch_quota`, and
 all denormalized-nutrient / `raw_json` / `fetch_status` columns.
 
@@ -102,8 +102,9 @@ all denormalized-nutrient / `raw_json` / `fetch_status` columns.
 
 ```
 PACKAGES + WORKSPACE (T-060 ✓) ─► FOOD-SERVICE CDK (T-001 ✓) ─► GLOBAL DB kitchensink_food (T-001b ✓)
+  └─► CHANGE-REFRESH SCHEDULED-TASK CDK (T-001c — EventBridge → ECS RunTask) ─► T-170
   └─► ENV CONFIG source-agnostic (T-002) · usda-client (T-003 ✓)
-        └─► PHASE 1: 12-TABLE SCHEMA + MIGRATIONS + DAOs (T-100..T-110)
+        └─► PHASE 1: 13-TABLE SCHEMA + MIGRATIONS + DAOs (T-100..T-111)
               ├─► PHASE 2: FoodSourceAdapter iface + USDA adapter wrap (T-120..T-122)
               ├─► PHASE 8: AUTH WIRING (T-046 ✓dep, T-033, T-047..T-056)  [US-0]
               │     └─► gates ▼
@@ -131,21 +132,24 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 - [x] **T-001b** [S] [Test-first: false] Global DataStack: `kitchensink_food` logical DB + least-privilege role/secret on the shared instance (exports `FoodDbSecretArn`/`FoodDatabaseName`; reuse bootstrapped `pg_trgm`) — `packages/infra/global/lib/platform/data-stack.ts` (ARCH-001)
       **(reuse: built in old Phase 0 — no new RDS/cluster. Unchanged by the re-baseline.)**
 
+- [ ] **T-001c** [S] [Test-first: false] Change-refresh **Fargate scheduled-task CDK wiring** — EventBridge schedule (`IngestionScheduled`) → ECS `RunTask` target running the change-refresh task definition (D-REFRESH); least-privilege task-execution + task IAM roles (read `kitchensink_food`, `events:PutEvents` for `IngestionScheduled`); Fargate in the public subnet (`assignPublicIp`, IGW egress off the NAT path, ADR-0004) — `packages/services/food-service/infra/lib/food-service-stack.ts` (FR-032)
+      **(new — DSN-13: T-001 was synth-verified against the prior VPC-Lambda producer; the change-refresh path is now an ECS scheduled task (D-REFRESH), so the EventBridge-schedule → ECS-`RunTask` target, its task definition, and the `RunTask`/task-execution IAM roles are wired here. The app-level T-170 consumes this.)**
+      **Acceptance**: `cdk synth` emits an EventBridge rule whose target is the change-refresh ECS task (`RunTask`); the task role can read `kitchensink_food` and `events:PutEvents`; the task runs in the public subnet with `assignPublicIp` (no NAT path).
+
 - [x] **T-003** [M] [Test-first: true] `@kitchensink/usda-client` — typed USDA HTTP client + zod validation of the USDA wire shape (`getFood`/`getFoodsBatch`/`searchFoods`, error types incl. `UsdaSchemaError`, ≤20-id batch) — `packages/clients/usda/src/usda-api.client.ts` (FR-023, FR-ADP-3)
       **(reuse: built TDD, 12/12 tests green, validates the raw USDA wire shape at the boundary. The client itself is DONE — it is wrapped in the `FoodSourceAdapter` interface by the NEW T-120/T-121.)**
 
-- [ ] **T-002** [S] [Test-first: false] Source-agnostic env config (Zod) — rename USDA-coupled vars to the source-neutral set — `packages/services/food-service/src/config/` (FR-019, FR-025, FR-032, FR-042)
+- [ ] **T-002** [S] [Test-first: false] Source-agnostic env config (Zod) — rename USDA-coupled vars to the source-neutral set — `packages/services/food-service/src/config/` (FR-019, FR-025, FR-025a, FR-032, FR-042)
       Adjust the existing Zod env schema (built in old Phase 0) to the re-baselined config: - `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES` (non-secret; FR-042). - `FOOD_DEMOTE_THRESHOLD` (default 50; FR-043), `FOOD_MAX_QUEUE_DEPTH` (default 10000; FR-046),
-      `FOOD_MAX_BATCH_NAMES` (default 100; FR-045), `FOOD_LEASE_TIMEOUT_SECONDS` (default 30; FR-018),
-      `FOOD_NOT_FOUND_TTL_DAYS` (default 30; FR-025), `FOOD_UNRESOLVED_TTL_DAYS` (default 30; §9-2),
-      `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE` (default 0.10; §9-1 auto-resolve rule). - **Per-source** config block keyed by `source` (USDA today): `USDA_API_KEY` (secret), `USDA_API_BASE_URL`,
+      `FOOD_MAX_BATCH_NAMES` (default 100; FR-045), `FOOD_LEASE_TIMEOUT_SECONDS` (default 30; FR-018, `leased_at` reaper window),
+      `FOOD_NOT_FOUND_TTL_DAYS` (default 30; FR-025), `FOOD_UNRESOLVED_TTL_DAYS` (default 30; `food_candidates`-set expiry, FR-025a). - The auto-resolve boundary is a **survivor-count rule** (normalized-name exact match) with **no nutrient tolerance**; the old `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE` knob is **removed** (D-AUTORESOLVE). - **Per-source** config block keyed by `source` (USDA today): `USDA_API_KEY` (secret), `USDA_API_BASE_URL`,
       `USDA_RATE_LIMIT_PER_HOUR` (default 1000; rolling-60-min cap, pause at 90%). - The old single-source `USDA_STALE_THRESHOLD_DAYS` is **removed** (refresh is change-driven, not age-based).
       **Acceptance**: missing `USDA_API_KEY` or `CLERK_JWT_KEY` throws a descriptive Zod error at startup; all
       vars reachable via `ConfigService` in both the NestJS API and the Fargate worker.
 
 ---
 
-## Phase 1 — Canonical Schema (12 tables) + Migrations + DAOs
+## Phase 1 — Canonical Schema (13 tables) + Migrations + DAOs
 
 > **REBUILD.** Replaces the old `foods`/`usda_*` schema entirely. Build/test on Docker Postgres until
 > FU-MIGRATE (T-191) wires the in-VPC runner. The old T-004..T-009 (`foods` denormalized table, `fdcId` PK,
@@ -155,24 +159,38 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
       ULID `text('id')` PKs via a `newFoodId()` helper (reusing `ulidx`, mirroring identity's `newUserId`);
       `pgEnum` enums; `timestamp(col, { withTimezone: true })`; `numeric` for nutrient amounts/gram weights
       (SC-008 fidelity). `food_sources.external_key` (mapped from `fdcId`), `item_version` for refresh
-      (FR-032). No `raw_json`, no `fetch_status`, no denormalized nutrient columns.
+      (FR-032), and `food_sources.fetch_state text` with `CHECK (fetch_state IN ('fetched','error'))` (DB-7) — the
+      operational text+CHECK columns (`fetch_state`, and `fetch_queue.status` in T-101) are deliberately text+CHECK,
+      **not** `pgEnum`; document that choice so the "controlled sets are `pgEnum`" rule stays internally consistent. **Provenance same-food integrity (D-PROVENANCE-FK):** `food_sources` carries `UNIQUE(food_id, id)`;
+      `food_nutrients` / `food_portions` / `food_field_provenance` / `food_category_assignment` reference
+      `food_sources` via a **composite `(food_id, source_id)` FK** (`ON DELETE NO ACTION`), while their `food_id`
+      FK to `food` stays `ON DELETE CASCADE`. No `raw_json`, no `fetch_status`, no denormalized nutrient columns.
       **Acceptance**: `drizzle-kit generate` emits valid SQL; column types/enums match plan.md §2 exactly;
-      a schema test asserts no source-native identifier column (no `fdc_id`) exists on any canonical table (SC-013).
+      a schema test asserts no source-native identifier column (no `fdc_id`) exists on any canonical table (SC-013);
+      a value row whose `source_id` belongs to a different `food_id` is rejected by the composite FK.
 
-- [ ] **T-101** [S] [Test-first: true] Drizzle schema — operational tables (`fetch_queue` keyed on food `id` PK, `fetch_requesters`, `source_call_log` per-source, `source_sync_metadata` per-source) — `packages/services/food-service/src/db/schema/operational.ts` (FR-014, FR-019, FR-043, FR-044, FR-IDN-3)
+- [ ] **T-101** [S] [Test-first: true] Drizzle schema — operational tables (`fetch_queue` keyed on food `id` PK, `fetch_requesters`, `source_call_log` per-source, `source_sync_metadata` per-source) — `packages/services/food-service/src/db/schema/operational.ts` (FR-014, FR-018, FR-019, FR-043, FR-044, FR-IDN-3)
       `fetch_queue.food_id text PRIMARY KEY REFERENCES food(id)`; `status CHECK IN ('pending','in_flight','tombstone')`;
+      **`leased_at timestamptz`** worker-lease column (D-LEASE — the reaper reverts `in_flight` rows whose
+      `leased_at < now() - FOOD_LEASE_TIMEOUT_SECONDS` back to `pending`; reject `lease_expires_at` / reusing
+      `last_requested` as a lease);
       `fetch_requesters(food_id, sub, requested_at)` PK `(food_id, sub)`; `source_call_log(id bigserial, source, called_at)`;
       `source_sync_metadata(source PRIMARY KEY, last_full_sync_at, last_incremental_at, source_version)`.
-      **Acceptance**: tables generate cleanly; the `fetch_queue` status CHECK rejects invalid values;
+      **Acceptance**: tables generate cleanly; the `fetch_queue` status CHECK rejects invalid values; the
+      `leased_at` column exists and is nullable (set on lease, cleared on release);
       `source_call_log` starts empty and the trailing-60-min count query returns 0 on a fresh DB.
 
 - [ ] **T-102** [M] [Test-first: true] Migration: canonical core tables + constraints — `—` (FR-028, FR-IDN-1)
-      Ordered SQL creating the 8 canonical tables with their FKs (`ON DELETE CASCADE` to `food`), the
-      `food_normalized_name_unique` UNIQUE index (FR-005/FR-013 dedup), and `food_sources_source_key_unique
-UNIQUE(source, external_key)` (R4).
+      Ordered SQL creating the 8 canonical tables with their `food_id` FKs (`ON DELETE CASCADE` to `food`), the
+      `food_normalized_name_unique` UNIQUE index (FR-005/FR-013 dedup), `food_sources_source_key_unique
+UNIQUE(source, external_key)` (R4), and the `food_sources.fetch_state` `CHECK (fetch_state IN ('fetched','error'))` (DB-7). **Provenance same-food integrity (D-PROVENANCE-FK):** add
+      `UNIQUE(food_id, id)` on `food_sources` and make the `source_id` references on `food_nutrients` /
+      `food_portions` / `food_field_provenance` / `food_category_assignment` **composite `(food_id, source_id)`
+      FKs with `ON DELETE NO ACTION`** (a `food_sources` row removal must not cascade-delete golden/manual values).
       **Acceptance**: migration runs cleanly on `kitchensink_food` (Docker Postgres); inserting two foods with the
       same `normalized_name` violates the unique constraint; inserting two `food_sources` with the same
-      `(source, external_key)` is rejected.
+      `(source, external_key)` is rejected; a `food_nutrients`/`food_portions`/`food_field_provenance` row pointing
+      at a `source_id` from a **different** `food_id` is rejected by the composite FK.
 
 - [ ] **T-103** [S] [Test-first: true] Migration: operational tables — `—` (FR-014, FR-019, FR-043)
       Ordered SQL for `fetch_queue`, `fetch_requesters`, `source_call_log`, `source_sync_metadata`. Includes
@@ -186,41 +204,66 @@ UNIQUE(source, external_key)` (R4).
       `food_name_trgm_idx` / `food_description_trgm_idx` (`gin_trgm_ops`); `food_sources_food_id_idx`;
       `food_nutrients_food_id_idx`; `food_nutrients_source_id_idx`; the **demand-weighted partial**
       `idx_fetch_queue_priority ON fetch_queue (request_count DESC, first_requested ASC) WHERE status='pending'`;
+      the **reaper partial** `idx_fetch_queue_inflight_leased ON fetch_queue (leased_at) WHERE status='in_flight'`
+      (so the lease reaper and `leaseNext`'s `in_flight` re-claim branch do not seq-scan, DB-8);
       `idx_fetch_requesters_sub`; `idx_source_call_log_source_called_at` (windowed count + prune). `CREATE
 EXTENSION IF NOT EXISTS pg_trgm`.
       **Acceptance**: `EXPLAIN ANALYZE` shows GIN index scan on trigram name search, index-only scan on the
-      pending-priority partial index, and an index scan for the trailing-60-min `source_call_log` count.
+      pending-priority partial index, an index scan on `idx_fetch_queue_inflight_leased` for the reaper's
+      `in_flight`/`leased_at` predicate (DB-8), and an index scan for the trailing-60-min `source_call_log` count.
 
-- [ ] **T-105** [M] [Test-first: true] DAO: `FoodDao` (golden-record aggregate read/upsert; normalized-name dedup; status transitions; tombstone TTL fields) — `packages/services/food-service/src/foods/dao/food.dao.ts` (FR-002, FR-005, FR-013, FR-028, FR-IDN-1)
+- [ ] **T-105** [M] [Test-first: true] DAO: `FoodDao` (golden-record aggregate read/upsert; normalized-name dedup; legal status transitions; tombstone TTL fields) — `packages/services/food-service/src/foods/dao/food.dao.ts` (FR-002, FR-005, FR-013, FR-025, FR-028, FR-028a, FR-IDN-1)
       Per-aggregate DAO behind the existing `FoodsRepository` seam. `getById`, `createByName` (compute
-      `normalized_name`, insert with `status='PENDING'`), `setStatus`, `upsertGoldenScalars`, `readGoldenRecord`
-      (joins nutrients/portions/provenance). No source term leaks (FR-ADP-1).
+      `normalized_name`, insert with `status='PENDING'`), `setStatus` (enforces the legal transition set
+      `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}` / `UNRESOLVED→RESOLVED` / `FAILED→PENDING` /
+      `NOT_FOUND→PENDING`, FR-028a), `upsertGoldenScalars`, `readGoldenRecord` (joins nutrients/portions/provenance).
+      `createByName` on an existing **terminal-state** (`NOT_FOUND`/`FAILED`, past TTL) normalized-name row
+      **reactivates** it (→`PENDING`, re-enqueue) instead of raising a `23505` (FR-028a). No source term leaks (FR-ADP-1).
       **Acceptance**: `createByName` is idempotent on normalized name (returns the existing `id` on a second add);
-      `readGoldenRecord` returns `id`/name/description/nutrients/portions/provenance with no `fdcId` anywhere.
+      a `createByName` for a terminal-state past-TTL row reactivates it to `PENDING` (no `23505`); `setStatus`
+      rejects an illegal transition; `readGoldenRecord` returns `id`/name/description/nutrients/portions/provenance
+      with no `fdcId` anywhere.
 
-- [ ] **T-106** [S] [Test-first: true] DAO: `FoodSourcesDao` (crosswalk upsert; `external_key` + `item_version`; barcode/external-key lookup → `id`) — `packages/services/food-service/src/foods/dao/food-sources.dao.ts` (FR-008, FR-028, FR-029, FR-032)
+- [ ] **T-106** [S] [Test-first: true] DAO: `FoodSourcesDao` (crosswalk upsert; `external_key` + `item_version`; barcode/external-key lookup → `id`; carries `UNIQUE(food_id, id)` so value rows can take a composite same-food FK) — `packages/services/food-service/src/foods/dao/food-sources.dao.ts` (FR-008, FR-028, FR-029, FR-032)
       **Acceptance**: `findFoodIdByExternalKey(source, key)` resolves via `UNIQUE(source, external_key)`;
-      `upsertSource` records/updates `item_version`.
+      `upsertSource` records/updates `item_version`; the inserted row satisfies `UNIQUE(food_id, id)` (D-PROVENANCE-FK).
 
-- [ ] **T-107** [S] [Test-first: true] DAO: `NutrientDao` + `FoodNutrientsDao` (dictionary upsert by `external_code`; per-value `source_id`; `UNIQUE(food_id, nutrient_id)` golden winner; per-100g basis) — `packages/services/food-service/src/foods/dao/nutrient.dao.ts`, `food-nutrients.dao.ts` (FR-028, FR-MRG-3, SC-008)
+- [ ] **T-107** [S] [Test-first: true] DAO: `NutrientDao` + `FoodNutrientsDao` (dictionary upsert keyed on a stable dedup key — `external_code` is **nullable** (a source nutrient with no INFOODS tagname → multiple NULLs), so the dictionary key is `UNIQUE(COALESCE(external_code, lower(name) || '|' || unit))` so duplicate `'Protein'` rows cannot split `nutrient_id` (DB-5); the adapter resolves a source nutrient → `nutrient_id` via that key; per-value `source_id` via the composite `(food_id, source_id)` same-food FK; `UNIQUE(food_id, nutrient_id)` golden winner; `food_nutrients.amount numeric` with `CHECK (amount >= 0)` (DB-6); per-100g basis) — `packages/services/food-service/src/foods/dao/nutrient.dao.ts`, `food-nutrients.dao.ts` (FR-028, FR-MRG-3, SC-008)
       **Acceptance**: nutrient amounts stored as `numeric` (no float drift); a second value for the same
-      `(food_id, nutrient_id)` overwrites the golden winner and updates `source_id`.
+      `(food_id, nutrient_id)` overwrites the golden winner and updates `source_id`; a `source_id` from another
+      food is rejected (composite FK); two source nutrients resolving to the same dictionary entry — one with a NULL
+      `external_code` — collapse to one `nutrient_id` (DB-5); a negative `amount` is rejected by `CHECK (amount >= 0)` (DB-6).
 
-- [ ] **T-108** [S] [Test-first: true] DAO: `FoodPortionsDao`, `FoodFieldProvenanceDao`, `FoodCategoryDao` (per-value `source_id`; single-query "which fields came from source X") — `packages/services/food-service/src/foods/dao/` (FR-028, FR-029, R7)
+- [ ] **T-108** [S] [Test-first: true] DAO: `FoodPortionsDao`, `FoodFieldProvenanceDao`, `FoodCategoryDao` (per-value `source_id` via the composite `(food_id, source_id)` same-food FK; `food_portions.gram_weight numeric` with `CHECK (gram_weight > 0)` (DB-6); single-query "which fields came from source X") — `packages/services/food-service/src/foods/dao/` (FR-028, FR-029, R7)
       **Acceptance**: a UNION query across `food_field_provenance` + `food_nutrients` + `food_portions` filtered by
-      `source_id IN (food_sources of food X, source S)` returns the provenance set in one query (FR-029/SC-013).
+      `source_id IN (food_sources of food X, source S)` returns the provenance set in one query (FR-029/SC-013);
+      a non-positive `gram_weight` is rejected by `CHECK (gram_weight > 0)` (DB-6).
 
-- [ ] **T-109** [M] [Test-first: true] DAO: `FetchQueueDao` + `FetchRequestersDao` (idempotent `INSERT … ON CONFLICT`; distinct-requester demand; `SELECT … FOR UPDATE SKIP LOCKED` drain; lease watchdog; per-`sub` live pending count) — `packages/services/food-service/src/foods/dao/fetch-queue.dao.ts`, `fetch-requesters.dao.ts` (FR-014, FR-015, FR-018, FR-043, FR-044)
-      **Acceptance**: concurrent enqueues for one `id` produce exactly one row with the demand counter computed
-      from distinct `sub`s; the drain query orders by `request_count DESC, first_requested ASC`; the watchdog
-      reverts `in_flight` rows older than the lease timeout to `pending`.
+- [ ] **T-109** [M] [Test-first: true] DAO: `FetchQueueDao` + `FetchRequestersDao` (idempotent `INSERT … ON CONFLICT`; distinct-requester demand — `request_count` set to the distinct-`sub` count, each `sub` contributing at most once, `PRIORITY_CAP=1` per `sub`, never a raw `+1`; `SELECT … FOR UPDATE SKIP LOCKED` drain; `leased_at` reaper; per-`sub` live pending count) — `packages/services/food-service/src/foods/dao/fetch-queue.dao.ts`, `fetch-requesters.dao.ts` (FR-014, FR-015, FR-018, FR-043, FR-044)
+      **Acceptance**: concurrent enqueues for one `id` produce exactly one row whose `request_count` equals the
+      number of **distinct `sub`s** (one `sub`'s repeats do not inflate it); the drain query orders by
+      `request_count DESC, first_requested ASC`; the reaper reverts `in_flight` rows whose `leased_at` is older
+      than the lease timeout to `pending`.
 
 - [ ] **T-110** [S] [Test-first: true] DAO: `SourceCallLogDao` (atomic check-and-record for the per-source rolling 60-min window; prune) — `packages/services/food-service/src/foods/dao/source-call-log.dao.ts` (FR-019, FR-020)
       Single-statement atomic `INSERT … SELECT now() WHERE (SELECT count(*) FROM source_call_log WHERE source=$1
 AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the call only under cap) +
       a prune of rows older than 60 min.
       **Acceptance**: concurrent check-and-record never lets the trailing count exceed the cap (no race);
-      the trailing-60-min count slides as old rows age out.
+      the trailing-60-min count slides as old rows age out; a prune-boundary test — rows at `now()-59m` / `-60m` /
+      `-61m` → only the `>60m` row is deleted and the in-window count is unchanged (the prune must not under-count the
+      limiter, TST-5).
+
+- [ ] **T-111** [M] [Test-first: true] `food_candidates` schema + migration + `CandidateStore` DAO (backs `UNRESOLVED` / US-2a) — `packages/services/food-service/src/db/schema/food-candidates.ts`, migration, `packages/services/food-service/src/foods/dao/food-candidates.dao.ts` (FR-028, FR-RES-1, FR-RES-2, FR-MRG-5, FR-025a)
+      The 13th canonical table (D-CANDIDATES): `food_candidates(id text PK, food_id text NOT NULL REFERENCES
+  food(id) ON DELETE CASCADE, source food_source NOT NULL, external_key text NOT NULL, name text NOT NULL,
+  summary text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(food_id, source, external_key))`. DAO:
+      `persistCandidates(food_id, candidates[])` (worker writes the surviving set on an `UNRESOLVED` outcome),
+      `listByFood(food_id)` (backs `GET /candidates`), `isMember(food_id, candidate_id)` (PATCH-resolve
+      validation), `clear(food_id)` (on resolve or candidate-set expiry).
+      **Acceptance**: migration runs cleanly on `kitchensink_food` (Docker Postgres); a duplicate
+      `(food_id, source, external_key)` is rejected; `clear` removes a food's candidate set; deleting the parent
+      `food` cascades the candidates.
 
 ---
 
@@ -275,9 +318,9 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [ ] **T-132** [S] [Test-first: false] `GET /v1/foods/{id}/status` — lifecycle poll (+ golden record when `RESOLVED`) — `—` (FR-007, FR-033)
       **Acceptance**: returns the correct shape per status (US-8 scenarios 1–4).
 
-- [ ] **T-133** [M] [Test-first: true] `GET /v1/foods/{id}/candidates` — list cross-source candidates for an `UNRESOLVED` food (each carries `source` + that source's item key) — `—` (FR-RES-1)
-      **Acceptance**: an `UNRESOLVED` food returns its candidate list; a `RESOLVED`/`PENDING` food returns an
-      empty/appropriate response (US-2a scenario 1).
+- [ ] **T-133** [M] [Test-first: true] `GET /v1/foods/{id}/candidates` — list the persisted cross-source candidates (from `food_candidates`, T-111) for an `UNRESOLVED` food (each carries `source` + that source's `external_key`) — `—` (FR-RES-1)
+      **Acceptance**: an `UNRESOLVED` food returns its `food_candidates` rows; a `RESOLVED`/`PENDING` food returns an
+      empty/appropriate response (US-2a scenario 1); no `fdcId` appears in the response shape.
 
 - [ ] **T-134** [M] [Test-first: true] `GET /v1/foods/search?query=` — local `pg_trgm` fuzzy/substring/partial search → `id`s ranked by relevance; barcode/`external_key` lookup via `food_sources` crosswalk; never calls a source — `—` (FR-008, FR-009, FR-010)
       **Acceptance**: covers US-6 — "chicken breast" ranked hits; "avacado" fuzzy-matches "Avocado, raw"; no local
@@ -292,26 +335,32 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** Same rule as Phase 3 — these create/resolve routes
 > must not be publicly exposed until T-033 (Phase 8 `FoodAuthGuard`) is mounted.
 
-- [ ] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-IDN-1)
+- [ ] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row; a terminal-state past-TTL row for the same normalized name is **reactivated** → `PENDING` + re-enqueue via T-105, never a `23505`, FR-028a), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-025, FR-028a, FR-IDN-1)
       **Acceptance**: covers US-2 scenarios 1 & 4 — first add → `202` + `id` < 100ms with one `fetch_queue` row;
       a concurrent second add for the same normalized name collapses to the same `id` (no duplicate canonical or
-      queue row); empty name → `400`, nothing enqueued.
+      queue row); an add for a terminal-state past-TTL row reactivates it to `PENDING` (no `23505`); two **concurrent**
+      re-adds of the same terminal past-TTL normalized name collapse to a single reactivation (one →`PENDING`, one
+      enqueue, no `23505`, TST-8); empty name → `400`, nothing enqueued.
 
 - [ ] **T-141** [S] [Test-first: true] Enqueue emitter (`EnqueueEmitter.publishFoodRequested` / `publishFoodBatchRequested`) — in-process `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify('fetch_queued', food_id)`; `requestedBy` = verified `sub`/service principal (no `'system'` shortcut) — `packages/services/food-service/src/foods/enqueue.emitter.ts` (FR-011, FR-014, FR-017, FR-048)
       **Acceptance**: each enqueue fires exactly one `pg_notify` with the `food_id`; duplicate enqueue increments
       distinct-requester demand, not a raw counter.
 
-- [ ] **T-142** [M] [Test-first: true] `PATCH /v1/foods/{id}` — resolve from the user's candidate pick: validate each chosen candidate belongs to this food's candidate set (else `400`/`409`, status unchanged), drive the merge (Phase 6) → `RESOLVED`; manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3)
-      **Acceptance**: covers US-2a scenarios 2 & 3 — a valid pick merges → `RESOLVED`; a candidate not in the food's
-      set → `400`/`409` with `status` unchanged.
+- [ ] **T-142** [M] [Test-first: true] `PATCH /v1/foods/{id}` — resolve from the user's candidate pick: **UNRESOLVED-only + idempotent** (a PATCH on an already-`RESOLVED` food is a no-op `200`); validate each chosen candidate is a member of this food's `food_candidates` set (else `CandidateMismatchError` → **`409 Conflict`** — `400` is reserved for a malformed body, DSN-14 — status unchanged); drive the merge (Phase 6) → `RESOLVED` and **clear the `food_candidates` set** (T-111); manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3, FR-028a)
+      **Acceptance**: covers US-2a scenarios 2 & 3 — a valid pick merges → `RESOLVED` and clears the candidate set;
+      a candidate not in the food's set → `CandidateMismatchError` **`409`** with `status` unchanged; a PATCH on an
+      already-`RESOLVED` food is an idempotent no-op; a valid pick whose `fetchByKey` re-fetch throws
+      `SourceApiError` leaves the food `UNRESOLVED` with its `food_candidates` set **not** cleared and no golden-record
+      write (TST-2); with the source window at/over cap (`shouldPauseDraining` true), a PATCH-resolve still proceeds
+      per the settled DSN-6 cap semantics (TST-4).
 
-- [ ] **T-143** [M] [Test-first: true] `POST /v1/foods/batch` — ≤100 names (`400` over), per-item partial response (cached `RESOLVED` inline + `PENDING` per miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
-      **Acceptance**: covers US-4 scenarios 1, 2, 4 — 15 names (10 cached, 5 miss) → 10 inline + 5 `PENDING` `id`s
-      in one body; 3-of-5 in flight collapse to existing `id`s; >100 names → `400`, nothing enqueued.
+- [ ] **T-143** [M] [Test-first: true] `POST /v1/foods/batch` — ≤100 names (`400` over), per-item partial response (locally-`RESOLVED` inline + `PENDING` per add-by-name miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
+      **Acceptance**: covers US-4 scenarios 1, 2, 4 — 15 names (10 locally `RESOLVED`, 5 add-by-name miss) → 10 inline + 5 `PENDING` `id`s in one body; 3-of-5 in flight collapse to existing `id`s; a single batch body containing the
+      same name twice collapses to one row (intra-batch dedup, TST-8); >100 names → `400`, nothing enqueued.
 
-- [ ] **T-144** [S] [Test-first: true] Queue backpressure + circuit breaker on enqueue (`fetch_queue` depth ceiling 10,000 or open source breaker → `503`, jittered recovery) — `—` (FR-046)
-      **Acceptance**: at max depth / breaker-open, `POST /v1/foods` and `/batch` return `503`; recovery drains
-      without a burst spike.
+- [ ] **T-144** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed on enqueue (`fetch_queue` depth ceiling 10,000 or open source breaker → `503`, jittered recovery; near the global rolling-window ceiling, **NEW** enqueues from the highest-pending `sub` are shed first with `503` + `Retry-After` to preserve headroom — reads and `PATCH`-resolves are never shed and never `429`) — `—` (FR-046, FR-043b)
+      **Acceptance**: at max depth / breaker-open, `POST /v1/foods` and `/batch` return `503`; near the ceiling a
+      flooding `sub`'s NEW enqueue gets `503` while other users are unaffected; recovery drains without a burst spike.
 
 - [ ] **T-145** [S] [Test-first: false] Operational `POST /v1/foods/{id}/refetch` (admin-scoped manual re-enqueue) — `—` (FR-039, FR-051)
       **Acceptance**: a valid token without the elevated `public_metadata` scope → `403`; with scope → re-enqueues.
@@ -327,26 +376,27 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [ ] **T-150** [M] [Test-first: false] Fargate worker scaffold flesh-out — single instance via Postgres advisory lock (FR-022), `LISTEN fetch_queued`, structured logging (powertools), Sentry, SIGTERM lease release — `packages/services/food-service/src/worker/` (FR-017, FR-018, FR-022)
       **(reuse: skeleton exists; flesh out the lifecycle.)**
       **Acceptance**: worker holds the `LISTEN` connection; only one instance drains (advisory lock); SIGTERM
-      reverts this worker's `in_flight` rows to `pending`; wake-to-process ≤ 100ms.
+      reverts this worker's `in_flight` rows to `pending`; wake-to-process ≤ 100ms; an integration scenario stands up
+      two `acquireWorkerLock()` against one Postgres → exactly one acquires and the loser drains nothing until release (TST-7).
 
-- [ ] **T-151** [M] [Test-first: true] Drain loop with demand-weighting + **demotion at drain time** — `SELECT … FOR UPDATE SKIP LOCKED` ordered by `request_count DESC, first_requested ASC`, with `sub`s over the 50-pending threshold ranked to the back (live per-`sub` count from `fetch_queue`+`fetch_requesters`; dynamic re-promotion) — `—` (FR-015, FR-043, FR-044)
-      **Acceptance**: covers US-5 scenarios 1–2 + SC-012 — `A` (50) before `B` (1); FIFO tie-break; a `sub` with >50 pending is ranked to the back while others drain, auto re-promoted when it drops below 50; **no `429`**.
+- [ ] **T-151** [M] [Test-first: true] Drain loop with demand-weighting + **demotion at drain time** — `SELECT … FOR UPDATE SKIP LOCKED` ordered by `request_count DESC, first_requested ASC`, with a food ranked to the back **only when all of its current requesters** individually exceed the 50-pending threshold (live per-`sub` count from `fetch_queue`+`fetch_requesters`; dynamic re-promotion when any requester drops below the threshold). No stored tier/`drain_priority_tier`, no `enqueueLowPriority` — demotion is drain-time live compute — `—` (FR-015, FR-043, FR-043a, FR-044)
+      **Acceptance**: covers US-5 scenarios 1–2 + SC-012 — `A` (50) before `B` (1); FIFO tie-break; a food whose requesters all have >50 pending is ranked to the back while others drain, auto re-promoted when any requester drops below 50; a food with even one under-threshold requester is **not** demoted; **no `429`**. The per-`sub` demotion `COUNT(*)` is a correlated subquery inside the drain `ORDER BY`; acceptable at launch scale (< 10,000 rows), revisit/materialize a per-`sub` pending count at scale — cost is covered by the drain/demotion perf test in T-195 (DSN-11).
 
 - [ ] **T-152** [L] [Test-first: true] Fan-out across the adapter registry — for each wired adapter `searchByName(name)` (per-source rolling-window-limited via T-122), `fetchByKey` + `mapToCanonical` the hits — `—` (FR-MRG-1, FR-MRG-4, FR-ADP-1, FR-019)
       **Acceptance**: a queued food fans out over the registry; USDA is called within its window; a source that
       returns no hits contributes nothing; the limiter pauses USDA draining at 90%.
 
-- [ ] **T-153** [M] [Test-first: true] Lease watchdog + tombstone/backoff/retry — `in_flight` >30s → `pending`; source `5xx`/timeout → `pending`, `attempts++`, `last_requested = now()+2^attempts s`; after 5 attempts → food `FAILED`, row `tombstone`, `last_error`; no source has it → `NOT_FOUND` tombstone immediately (no retry) — `—` (FR-016, FR-018, FR-025, FR-026, FR-027)
-      **Acceptance**: covers US-5 scenarios 5–7 — `5xx` cycles `pending→in_flight→pending` with backoff, lands
-      `FAILED`/`tombstone` after 5 attempts; no-source → `NOT_FOUND`/`tombstone` immediately; tombstone rows
-      queryable via SQL with `attempts`/`last_error`.
+- [ ] **T-153** [M] [Test-first: true] Lease reaper + tombstone/backoff/retry — `in_flight` rows with `leased_at < now() - FOOD_LEASE_TIMEOUT_SECONDS` → `pending` (reaper at consumer start + every minute; uses the partial index `idx_fetch_queue_inflight_leased`, DB-8); source `5xx`/timeout → `pending`, `attempts++`, `last_requested = now()+2^attempts s` (`FAILED→PENDING` retry, no 30-day gate); after 5 attempts → food `FAILED`, row `tombstone`, `last_error`; no source has it → `NOT_FOUND` tombstone immediately (no retry; `NOT_FOUND→PENDING` only after the 30-day TTL) — `—` (FR-016, FR-018, FR-025, FR-026, FR-027, FR-028a)
+      **Acceptance**: covers US-5 scenarios 5–7 — an orphaned `in_flight` row with `leased_at` >30s is reclaimed to
+      `pending`; `5xx` cycles `pending→in_flight→pending` with backoff, lands `FAILED`/`tombstone` after 5 attempts;
+      no-source → `NOT_FOUND`/`tombstone` immediately; tombstone rows queryable via SQL with `attempts`/`last_error`.
 
-- [ ] **T-154** [S] [Test-first: false] Success path — on a confident merge, upsert golden record (Phase 6), write `food_sources` crosswalk, **delete the `fetch_queue` row** (no `done` status), emit `FoodDataReceived` — `—` (FR-024, FR-MRG-1)
-      **Acceptance**: a resolved food has its `fetch_queue` row removed; `FoodDataReceived` carries the food `id`.
+- [ ] **T-154** [S] [Test-first: false] Success path — on a confident merge, upsert golden record (Phase 6), write `food_sources` crosswalk, **delete the `fetch_queue` row** (no `done` status), emit `FoodFetchCompleted` (via `publishFoodFetchCompleted`) — `—` (FR-024, FR-MRG-1)
+      **Acceptance**: a resolved food has its `fetch_queue` row removed; `FoodFetchCompleted` carries the food `id`.
 
-- [ ] **T-155** [S] [Test-first: false] Worker uses the USDA adapter's ≤20-key batch where it has resolved multiple items (counts as 1 windowed call) — `—` (FR-023, SC-005)
+- [ ] **T-155** [S] [Test-first: false] Worker uses the USDA adapter's ≤20-key batch where it has resolved multiple items (counts as 1 windowed call) — `—` (FR-023, SC-014)
       **Acceptance**: a fan-out resolving several USDA items in one drain issues 1 batch call recorded once
-      against the window (US-4 scenario 3).
+      against the window (US-4 scenario 3); first-time NEW-food resolution stays within the source budget (SC-014, ~500–900/hr).
 
 ---
 
@@ -363,10 +413,10 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: every stored scalar/nutrient/portion of a `RESOLVED` food carries a resolvable `source_id`;
       the provenance UNION query answers source-X in one statement; no `raw_json` is written (SC-013).
 
-- [ ] **T-162** [M] [Test-first: true] Pre-merge dedup + **auto-resolve rule** — collapse candidates confidently (normalized-name exact match + nutrient agreement within ±10% on energy/protein); exactly one surviving candidate → `RESOLVED`; ≥2 non-collapsible → `UNRESOLVED` — `—` (FR-RES-3, FR-MRG-1, §9-1)
-      **Acceptance**: one surviving candidate (single hit, or hits collapsing within tolerance) → `RESOLVED`; two
-      non-collapsible survivors → `UNRESOLVED`; the tolerance is config-driven (`FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE`).
-      **(Default confirmed at the plan gate 2026-06-22: ±10% via `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE=0.10`, config-overridable without a schema change.)**
+- [ ] **T-162** [M] [Test-first: true] Pre-merge dedup + **auto-resolve boundary** — after dedup, count candidates surviving **normalized-name exact match**: exactly one → `RESOLVED`; **>1 → `UNRESOLVED`** (persist the surviving candidates to `food_candidates` via T-111); **0 → `NOT_FOUND`**. **No nutrient tolerance** — bias toward `UNRESOLVED` over a wrong auto-pick (human is the final arbiter) — `—` (FR-RES-3, FR-MRG-1, FR-MRG-5, §9-1)
+      **Acceptance**: a single surviving candidate → `RESOLVED`; two non-collapsible survivors → `UNRESOLVED` with the
+      surviving set persisted to `food_candidates` (satisfying `UNIQUE(food_id, source, external_key)`); zero
+      survivors → `NOT_FOUND`. No `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE` knob (dropped at stabilization, D-AUTORESOLVE).
 
 - [ ] **T-163** [S] [Test-first: true] Manual-resolution merge path (PATCH pick → merge → `RESOLVED`, pick stored as ordinary provenance so refresh protects it) — `—` (FR-RES-2, FR-031)
       **Acceptance**: a PATCH-driven merge sets `RESOLVED` and records the chosen candidate's `source_id`;
@@ -376,9 +426,12 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: a candidate value failing validation is dropped (food still resolves from valid values/other
       sources); outbound fetches use HTTPS with certificate validation.
 
-- [ ] **T-165** [S] [Test-first: false] `FoodDataReceived` / `FetchFailed` event emission (canonical name harmonized — see FU-EVENTNAME) — `—` (FR-034)
-      **Acceptance**: completion emits `FoodDataReceived{ id, status }`; a tombstone emits `FetchFailed` to
-      CloudWatch/SNS; the detailType matches the CDK rule.
+- [ ] **T-165** [S] [Test-first: false] `FoodFetchCompleted` / `FetchFailed` event emission (canonical names; FU-EVENTNAME closed) — `—` (FR-034)
+      **Acceptance**: completion emits `FoodFetchCompleted{ id, status }` via `publishFoodFetchCompleted`; a tombstone
+      emits `FetchFailed` to CloudWatch/SNS; the `detailType` matches the deployed CDK `FoodFetchCompletedRule`
+      (`detailType: ['FoodFetchCompleted']`); a red-gate test asserts `FetchFailed{ id }` is put on the bus
+      (fire-and-forget) on a `FAILED` tombstone — `FetchFailed` is **retained** as a canonical event (it is not
+      vestigial; FU-EVENTNAME stays closed), TST-6.
 
 ---
 
@@ -387,19 +440,20 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > **REBUILD.** Replaces the old age-based stale-while-revalidate (T-063/T-030) entirely. The read never
 > blocks on refresh; a field moves only when its originating external item changed upstream.
 
-- [ ] **T-170** [M] [Test-first: false] Change-refresh scheduler (EventBridge `IngestionScheduled` cron) — select `RESOLVED` foods, enqueue low-priority refresh work (deduped via `ON CONFLICT`) — `packages/services/food-service/src/lambdas/change-refresh/handler.ts` (FR-032)
-      **(needs FU-ESBUILD bundling like identity-webhooks.)**
-      **Acceptance**: the cron enqueues `RESOLVED` foods as low-priority `fetch_queue` work; `NOT_FOUND`/`FAILED`
-      tombstones are not refreshed.
+- [ ] **T-170** [M] [Test-first: false] Change-refresh **Fargate scheduled task** (triggered by the EventBridge `IngestionScheduled` schedule — **not** a VPC Lambda; ADR-0004 egress/compute-placement rationale: Fargate in public subnets egresses via the IGW, off the NAT path; the EventBridge-schedule → ECS `RunTask` target + IAM roles + task definition are provisioned by T-001c, DSN-13) — selects `RESOLVED` foods and re-enqueues them through the **ordinary** `enqueue(food_id, 'svc_change_refresh')` path (a low-demand row, deduped via `ON CONFLICT`); idle-drain background work that yields to live demand, budget-bounded (no fixed cadence promise) — `packages/services/food-service/src/worker/change-refresh/` (FR-032)
+      **Acceptance**: the scheduled task enqueues `RESOLVED` foods via the ordinary low-demand enqueue path;
+      `NOT_FOUND`/`FAILED` tombstones are not refreshed; refresh work yields to live demand and never overwrites a
+      user's manual pick.
 
 - [ ] **T-171** [M] [Test-first: true] Change detection on refresh — adapter re-fetches each backing source item, compares `food_sources.item_version`; re-pull a field ONLY when its originating item changed; unchanged + user-resolved fields left intact; re-pulled values pass FR-ADP-2 and update `source_id` — `—` (FR-031, FR-032)
       **Acceptance**: covers US-7 scenarios 1–4 — only fields from a changed item are re-pulled; an all-unchanged
       food is untouched; a user-resolved field whose item is unchanged is preserved; a re-pulled value passes
       validation and updates provenance.
 
-- [ ] **T-172** [S] [Test-first: true] `UNRESOLVED` 30-day TTL sweep — change-refresh cron sweeps `UNRESOLVED` foods older than `FOOD_UNRESOLVED_TTL_DAYS` (default 30, via `food.updated_at`) to `NOT_FOUND` (re-addable); reuses the tombstone TTL machinery — `—` (§9-2, FR-025)
-      **Acceptance**: an `UNRESOLVED` food untouched for >30 days is swept to `NOT_FOUND`; a recently-updated one is
-      not. **(Default confirmed at the plan gate 2026-06-22: 30 days via `FOOD_UNRESOLVED_TTL_DAYS=30`, config-overridable.)**
+- [ ] **T-172** [S] [Test-first: true] `UNRESOLVED` candidate-set expiry — the change-refresh task expires a food's `food_candidates` set 30 days after `created_at` (`FOOD_UNRESOLVED_TTL_DAYS`, default 30); the **food is kept `UNRESOLVED`** (never swept to `NOT_FOUND`) and the next add-by-name request re-fans-out against the normal budget; a human pick made before expiry still wins — `—` (FR-025a, §9-2)
+      **Acceptance**: a `food_candidates` set older than 30 days is cleared (via T-111 `clear`) and the next request
+      re-fans-out while the food stays `UNRESOLVED` (not `NOT_FOUND`); a human pick before expiry → `RESOLVED` with no
+      re-fan-out; a recently-created candidate set is untouched. **(30-day default; config-overridable via `FOOD_UNRESOLVED_TTL_DAYS`.)**
 
 ---
 
@@ -416,8 +470,9 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [ ] **T-033** [M] [Test-first: true] `FoodAuthGuard` — in-process NestJS `AuthMiddleware` on every `/v1/foods/*` route; networkless `verifyToken` (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed — `packages/services/food-service/src/auth/` (FR-035, FR-036, FR-037, FR-038, FR-040, FR-042, FR-053)
       **(reuse: mirrors identity `AuthMiddleware`.)**
       **Acceptance**: covers US-0 scenarios 1–6 + SC-010 — no/invalid/expired/wrong-`azp` token → `401`, no row,
-      no enqueue, no source call; valid token → `req.user.sub` set; a forged `x-authorizer-context` is ignored;
-      missing `CLERK_JWT_KEY` → fail-closed `401`.
+      no enqueue, no source call; valid token → `req.user.sub` set (from the verified Clerk `sub` only); a forged
+      `x-authorizer-context` **or `x-debug-sub`** is ignored (no trusted-header identity path); missing
+      `CLERK_JWT_KEY` → fail-closed `401`.
 
 - [ ] **T-047** [S] [Test-first: true] M2M / service-token support — accept Clerk machine tokens (azp-allowlisted) for downstream 001/006/007/009 + internal jobs (recipe import FR-012, change-refresh FR-032); classify each endpoint user/service/both — `—` (FR-047, A-012)
       **Acceptance**: US-0 scenario 11 — a valid M2M token is accepted (not `401`); a user-only endpoint rejects a
@@ -427,12 +482,13 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: US-0 scenario 10 — valid token w/o scope on `/refetch` → `403`; malformed `id` with a bad
       token → `401` (not `400`).
 
-- [ ] **T-049** [M] [Test-first: true] Fairness by **demotion** (no quota, no `429`) — drain-time scorer demotes a `sub` with >50 pending to the back; dynamic re-promotion; work-conserving — `—` (FR-043, SC-012)
+- [ ] **T-049** [M] [Test-first: true] Fairness by **demotion** (no per-user quota, no `429`) — drain-time scorer demotes a food only when **all** its requesters exceed the 50-pending threshold; dynamic re-promotion; work-conserving — `—` (FR-043, FR-043a, SC-012)
       **(implemented in the drain loop T-151; this task is the auth-side guarantee + test.)**
-      **Acceptance**: US-0 scenario 9 + SC-012 — a >50-pending `sub` is demoted while others drain; auto re-promoted
-      below 50; no request rejected with `429`.
+      **Acceptance**: US-0 scenario 9 + SC-012 — a food whose requesters all have >50 pending is demoted while others
+      drain; auto re-promoted when any requester drops below 50; a food with an under-threshold requester is not
+      demoted; no request rejected with `429`.
 
-- [ ] **T-050** [S] [Test-first: true] Distinct-requester demand counting — `request_count` counts distinct `sub`s via `fetch_requesters`; one `sub`'s repeats can't inflate priority; capped + aged — `—` (FR-044)
+- [ ] **T-050** [S] [Test-first: true] Distinct-requester demand counting — `request_count` = the **count of distinct `sub`s** via `fetch_requesters` (uncapped total; each `sub` contributes at most one via the `(food_id, sub)` PK — `PRIORITY_CAP=1` is structural per `sub`, never `LEAST(count, 1)`, DSN-3); one `sub`'s repeats can't inflate priority; aged — `—` (FR-044)
       **Acceptance**: a single `sub` repeatedly adding one name cannot pin it ahead of genuine distinct-requester
       demand.
 
@@ -440,9 +496,10 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **(shares the endpoint with T-143; this is the auth-side cap + test.)**
       **Acceptance**: US-0 scenario 12 — oversized batch → `400`, nothing enqueued.
 
-- [ ] **T-052** [S] [Test-first: true] Queue backpressure + circuit breaker (auth/DoS side) — depth ceiling / open breaker → `503`, jittered recovery — `—` (FR-046)
+- [ ] **T-052** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed (auth/DoS side) — depth ceiling / open breaker → `503`, jittered recovery; near the global rolling-window ceiling, a flooding `sub`'s NEW enqueues are shed first with `503` while reads/`PATCH`-resolves are never shed (no `429`) — `—` (FR-046, FR-043b)
       **(shares enforcement with T-144.)**
-      **Acceptance**: at max depth / breaker-open, enqueue returns `503`; recovery drains without a burst.
+      **Acceptance**: at max depth / breaker-open, enqueue returns `503`; near the ceiling a flooding `sub` gets `503`
+      on NEW enqueue while other users are unaffected; recovery drains without a burst.
 
 - [ ] **T-053** [S] [Test-first: false] Async-producer least-privilege IAM + provenance — only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates provenance; `requestedBy` is a real principal (no `'system'` shortcut) — `—` (FR-048)
       **Acceptance**: an unnamed/unauthorized producer cannot enqueue; the consumer rejects rows with no valid
@@ -456,7 +513,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       `fetch_requesters` rows; no `user_fetch_quota`/`global_fetch_quota`.)**
       **Acceptance**: deleting a user removes their `fetch_requesters` rows; no quota table exists.
 
-- [ ] **T-057** [M] [Test-first: false] `@kitchensink/food-service-client` — rebuild the typed client to the new API surface (`addByName`/`getById`/`getStatus`/`getCandidates`/`resolve`/`search`/`batch`); attach user or M2M token; map `401`/`403`/`400`/`503`/`404`/`202` (no per-user `429`) — `packages/clients/food-service` (FR-047)
+- [ ] **T-057** [M] [Test-first: false] `@kitchensink/food-service-client` — rebuild the typed client to the new API surface (`addByName`/`getById`/`getStatus`/`getCandidates`/`resolve`/`search`/`batch`); attach user or M2M token; map `401`/`403`/`400`/`409`/`503`/`404`/`202` (no per-user `429`; a `CandidateMismatchError` surfaces as **`409 Conflict`**, DSN-14) — `packages/clients/food-service` (FR-047)
       **(reuse: placeholder package exists; rebuild the surface to the id-keyed API.)**
       **Acceptance**: a downstream service calls the food API with an M2M token via this client and gets typed
       results; unauthorized calls surface typed `401`/`403`; no `fdcId` in the client's public shapes.
@@ -468,12 +525,13 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ## Phase 9 — Search Indexer / Observability / WebSocket (deferred bits)
 
-- [ ] **T-180** [S] [Test-first: false] Optional ranked-FTS indexer (generated `tsvector` + GIN) on `FoodDataReceived` — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts` (FR-008)
+- [ ] **T-180** [S] [Test-first: false] Optional ranked-FTS indexer (generated `tsvector` + GIN) on `FoodFetchCompleted` — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts` (FR-008)
       **Deferred** — `pg_trgm` (T-104/T-134) already covers fuzzy search; add only if ranked full-text is needed.
       **Acceptance**: after a resolve, the food appears in ranked FTS results; no Redis to invalidate.
 
-- [ ] **T-181** [S] [Test-first: false] Custom CloudWatch metrics from the worker — `food-fetch-queue-depth`, `food-resolution-latency-seconds`, `source-rolling-window-count` (per source), `source-api-success-rate`, `food-unresolved-backlog`, `food-tombstone-count`, `food-cache-hit-rate`, `auth-401-rate` — `—` (SC-002, SC-006, US-10)
-      **Acceptance**: metrics populate after processing test requests; per-source window count is visible.
+- [ ] **T-181** [S] [Test-first: false] Custom CloudWatch metrics from the worker — `food-fetch-queue-depth`, `food-resolution-latency-seconds`, `source-rolling-window-count` (per source), `source-api-success-rate`, `food-unresolved-backlog`, `food-tombstone-count`, `food-local-store-serve-rate`, `auth-401-rate` — `—` (SC-002, SC-006, US-10)
+      **Acceptance**: metrics populate after processing test requests; per-source window count is visible; the
+      local-store serve rate reflects `RESOLVED` reads served with no source call (not a USDA "cache hit").
 
 - [ ] **T-182** [S] [Test-first: false] CloudWatch dashboard `food-data` (queue depth, in-flight leases, per-source trailing-60-min count, UNRESOLVED backlog, tombstone count, resolution latency, worker error rate) — `—` (US-10)
       **Acceptance**: dashboard visible after `cdk deploy`; widgets populate after 100 test requests.
@@ -488,7 +546,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Deferred** — implement only if polling UX (US-8) proves insufficient.
       **Acceptance**: `$connect` without a valid token → `403`; with a valid token → connection + `sub` stored.
 
-- [ ] **T-186** [S] [Test-first: false] [P3 — Deferred] WebSocket push on resolve — on `FoodDataReceived`, resolve recipients from `fetch_requesters` (`sub`→food `id` set), push `{type:"food_ready", id}`, no broadcast; clean up stale (410) connections — `—` (FR-034, FR-041)
+- [ ] **T-186** [S] [Test-first: false] [P3 — Deferred] WebSocket push on resolve — on `FoodFetchCompleted`, resolve recipients from `fetch_requesters` (`sub`→food `id` set), push `{type:"food_ready", id}`, no broadcast; clean up stale (410) connections — `—` (FR-034, FR-041)
       **Acceptance**: US-9 — a connected requester receives the push within 60s; non-requesting connections get
       nothing; stale connections are cleaned up.
 
@@ -512,8 +570,8 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ## Phase 11 — Performance & Availability
 
-- [ ] **T-195** [M] [Test-first: false] Performance / load tests for SC-001/003/004/007 — cache-hit p95 ≤ 50ms (SC-001), backfill `202`→`RESOLVED` p95 ≤ 60s at queue depth < 100 (SC-003), cache-hit rate ≥ 80% after 5,000 foods (SC-004), search p95 ≤ 200ms at 50,000 foods (SC-007) — `—` (SC-001, SC-003, SC-004, SC-007)
-      **Acceptance**: each SC threshold measured/reported under representative load; regressions fail CI.
+- [ ] **T-195** [M] [Test-first: false] Performance / load tests for SC-001/003/004/005/007 — local-store read (`RESOLVED`) p95 ≤ 50ms (SC-001), backfill `202`→`RESOLVED` p95 ≤ 60s at queue depth < 100 (SC-003), local-store serve rate ≥ 80% after 5,000 foods (SC-004), local-store serve/read throughput (SC-005), search p95 ≤ 200ms at 50,000 foods (SC-007) — `—` (SC-001, SC-003, SC-004, SC-005, SC-007)
+      **Acceptance**: each SC threshold measured/reported under representative load (local-store reads, no source call); regressions fail CI; a drain/demotion query perf test at the FR-046 10,000-row ceiling shows the per-`sub` correlated `COUNT(*)` demotion in the drain `ORDER BY` stays within the SC-003 backfill budget (else it is flagged for the materialized per-`sub` pending count, DSN-11).
 
 - [ ] **T-196** [S] [Test-first: false] [P3 — Deferred] Multi-AZ upgrade of the shared `kitchensink-data-{stage}` instance (SC-009) — `packages/infra/global/lib/platform/data-stack.ts` (SC-009, A-013)
       **Deferred to GA/scale** — lean launch accepts the single-AZ risk; platform-wide change (identity + food).
@@ -521,88 +579,94 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ---
 
-## FR Coverage Audit (re-baselined — all 67 FRs: 53 numbered + FR-IDN-1..3 + FR-RES-1..3 + FR-MRG-1..4 + FR-ADP-1..3)
+## FR Coverage Audit (stabilized — all 71 FRs: 53 numbered + FR-025a/FR-028a/FR-043a/FR-043b + FR-IDN-1..3 + FR-RES-1..3 + FR-MRG-1..5 + FR-ADP-1..3)
 
-| FR       | Covered By                                   | Status                                            |
-| -------- | -------------------------------------------- | ------------------------------------------------- |
-| FR-IDN-1 | T-100, T-105, T-140                          | ✅                                                |
-| FR-IDN-2 | T-121                                        | ✅                                                |
-| FR-IDN-3 | T-100, T-101                                 | ✅                                                |
-| FR-001   | T-130, T-131                                 | ✅                                                |
-| FR-002   | T-105, T-131                                 | ✅                                                |
-| FR-003   | T-131                                        | ✅                                                |
-| FR-004   | T-131                                        | ✅                                                |
-| FR-005   | T-105, T-140                                 | ✅                                                |
-| FR-006   | T-131, T-140                                 | ✅                                                |
-| FR-007   | T-132                                        | ✅                                                |
-| FR-RES-1 | T-133                                        | ✅                                                |
-| FR-RES-2 | T-142, T-163                                 | ✅                                                |
-| FR-RES-3 | T-142, T-162                                 | ✅                                                |
-| FR-008   | T-104, T-106, T-134, T-180                   | ✅                                                |
-| FR-009   | T-134                                        | ✅                                                |
-| FR-010   | T-104, T-134                                 | ✅                                                |
-| FR-011   | T-140, T-141                                 | ✅                                                |
-| FR-012   | T-143, T-047                                 | ✅                                                |
-| FR-013   | T-105, T-140                                 | ✅                                                |
-| FR-014   | T-101, T-109, T-141                          | ✅                                                |
-| FR-015   | T-104, T-109, T-151                          | ✅                                                |
-| FR-016   | T-153, T-184                                 | ✅                                                |
-| FR-017   | T-141, T-150                                 | ✅                                                |
-| FR-018   | T-109, T-122, T-150, T-153                   | ✅                                                |
-| FR-019   | T-002, T-110, T-122, T-152                   | ✅                                                |
-| FR-020   | T-110, T-122                                 | ✅                                                |
-| FR-021   | T-122                                        | ✅                                                |
-| FR-022   | T-150                                        | ✅                                                |
-| FR-023   | T-003, T-121, T-155                          | ✅                                                |
-| FR-024   | T-121, T-154                                 | ✅                                                |
-| FR-025   | T-002, T-153, T-172                          | ✅ (incl. 30d tombstone TTL re-attempt)           |
-| FR-026   | T-122, T-153                                 | ✅                                                |
-| FR-027   | T-153                                        | ✅                                                |
-| FR-028   | T-100, T-101, T-102, T-105–T-108, T-161      | ✅                                                |
-| FR-029   | T-104, T-108, T-161                          | ✅                                                |
-| FR-030   | T-186 (deferred Redis variant) / in-proc LRU | ⚠️ deferred (no Redis at launch; in-process only) |
-| FR-031   | T-163, T-171                                 | ✅ (change-driven, not age-based)                 |
-| FR-032   | T-170, T-171                                 | ✅                                                |
-| FR-033   | T-131, T-132                                 | ✅                                                |
-| FR-034   | T-165, T-185, T-186                          | ✅ (deferred)                                     |
-| FR-MRG-1 | T-152, T-154, T-162                          | ✅                                                |
-| FR-MRG-2 | T-120, T-160                                 | ✅                                                |
-| FR-MRG-3 | T-107, T-160                                 | ✅                                                |
-| FR-MRG-4 | T-120, T-152                                 | ✅                                                |
-| FR-ADP-1 | T-120, T-121, T-152                          | ✅                                                |
-| FR-ADP-2 | T-121, T-164, T-171                          | ✅                                                |
-| FR-ADP-3 | T-003, T-121, T-164                          | ✅                                                |
-| FR-035   | T-033                                        | ✅                                                |
-| FR-036   | T-033, T-046                                 | ✅                                                |
-| FR-037   | T-033                                        | ✅                                                |
-| FR-038   | T-033                                        | ✅                                                |
-| FR-039   | T-048, T-145, T-184                          | ✅                                                |
-| FR-040   | T-033                                        | ✅                                                |
-| FR-041   | T-185, T-186                                 | ✅ (deferred)                                     |
-| FR-042   | T-002, T-033                                 | ✅                                                |
-| FR-043   | T-049, T-151                                 | ✅                                                |
-| FR-044   | T-050, T-109, T-151                          | ✅                                                |
-| FR-045   | T-051, T-143                                 | ✅                                                |
-| FR-046   | T-052, T-144, T-183                          | ✅                                                |
-| FR-047   | T-047, T-057                                 | ✅                                                |
-| FR-048   | T-053, T-141                                 | ✅                                                |
-| FR-049   | T-185                                        | ✅ (deferred)                                     |
-| FR-050   | T-033, T-185                                 | ✅                                                |
-| FR-051   | T-048, T-131, T-142                          | ✅                                                |
-| FR-052   | T-054                                        | ✅                                                |
-| FR-053   | T-033, T-046                                 | ✅                                                |
+| FR       | Covered By                                     | Status                                            |
+| -------- | ---------------------------------------------- | ------------------------------------------------- |
+| FR-IDN-1 | T-100, T-105, T-140                            | ✅                                                |
+| FR-IDN-2 | T-121                                          | ✅                                                |
+| FR-IDN-3 | T-100, T-101                                   | ✅                                                |
+| FR-001   | T-130, T-131                                   | ✅                                                |
+| FR-002   | T-105, T-131                                   | ✅                                                |
+| FR-003   | T-131                                          | ✅                                                |
+| FR-004   | T-131                                          | ✅                                                |
+| FR-005   | T-105, T-140                                   | ✅                                                |
+| FR-006   | T-131, T-140                                   | ✅                                                |
+| FR-007   | T-132                                          | ✅                                                |
+| FR-RES-1 | T-111, T-133                                   | ✅                                                |
+| FR-RES-2 | T-111, T-142, T-163                            | ✅                                                |
+| FR-RES-3 | T-142, T-162                                   | ✅                                                |
+| FR-008   | T-104, T-106, T-134, T-180                     | ✅                                                |
+| FR-009   | T-134                                          | ✅                                                |
+| FR-010   | T-104, T-134                                   | ✅                                                |
+| FR-011   | T-140, T-141                                   | ✅                                                |
+| FR-012   | T-143, T-047                                   | ✅                                                |
+| FR-013   | T-105, T-140                                   | ✅                                                |
+| FR-014   | T-101, T-109, T-141                            | ✅                                                |
+| FR-015   | T-104, T-109, T-151                            | ✅                                                |
+| FR-016   | T-153, T-184                                   | ✅                                                |
+| FR-017   | T-141, T-150                                   | ✅                                                |
+| FR-018   | T-109, T-122, T-150, T-153                     | ✅                                                |
+| FR-019   | T-002, T-110, T-122, T-152                     | ✅                                                |
+| FR-020   | T-110, T-122                                   | ✅                                                |
+| FR-021   | T-122                                          | ✅                                                |
+| FR-022   | T-150                                          | ✅                                                |
+| FR-023   | T-003, T-121, T-155                            | ✅                                                |
+| FR-024   | T-121, T-154                                   | ✅                                                |
+| FR-025   | T-002, T-105, T-140, T-153                     | ✅ (30d NOT_FOUND TTL → reactivation)             |
+| FR-025a  | T-002, T-111, T-172                            | ✅ (UNRESOLVED candidate-set 30d expiry)          |
+| FR-026   | T-122, T-153                                   | ✅                                                |
+| FR-027   | T-153                                          | ✅                                                |
+| FR-028   | T-100, T-101, T-102, T-105–T-108, T-111, T-161 | ✅                                                |
+| FR-028a  | T-105, T-131, T-140, T-142, T-153              | ✅ (legal lifecycle transition set)               |
+| FR-029   | T-104, T-108, T-161                            | ✅                                                |
+| FR-030   | T-186 (deferred Redis variant) / in-proc LRU   | ⚠️ deferred (no Redis at launch; in-process only) |
+| FR-031   | T-163, T-171                                   | ✅ (change-driven, not age-based)                 |
+| FR-032   | T-001c, T-170, T-171                           | ✅                                                |
+| FR-033   | T-131, T-132                                   | ✅                                                |
+| FR-034   | T-165, T-185, T-186                            | ✅ (deferred)                                     |
+| FR-MRG-1 | T-152, T-154, T-162                            | ✅                                                |
+| FR-MRG-2 | T-120, T-160                                   | ✅                                                |
+| FR-MRG-3 | T-107, T-160                                   | ✅                                                |
+| FR-MRG-4 | T-120, T-152                                   | ✅                                                |
+| FR-MRG-5 | T-111, T-162                                   | ✅ (auto-resolve survivor-count boundary)         |
+| FR-ADP-1 | T-120, T-121, T-152                            | ✅                                                |
+| FR-ADP-2 | T-121, T-164, T-171                            | ✅                                                |
+| FR-ADP-3 | T-003, T-121, T-164                            | ✅                                                |
+| FR-035   | T-033                                          | ✅                                                |
+| FR-036   | T-033, T-046                                   | ✅                                                |
+| FR-037   | T-033                                          | ✅                                                |
+| FR-038   | T-033                                          | ✅                                                |
+| FR-039   | T-048, T-145, T-184                            | ✅                                                |
+| FR-040   | T-033                                          | ✅                                                |
+| FR-041   | T-185, T-186                                   | ✅ (deferred)                                     |
+| FR-042   | T-002, T-033                                   | ✅                                                |
+| FR-043   | T-049, T-151                                   | ✅                                                |
+| FR-043a  | T-049, T-151                                   | ✅ (multi-requester demotion)                     |
+| FR-043b  | T-052, T-144                                   | ✅ (near-ceiling flood-shed, 503)                 |
+| FR-044   | T-050, T-109, T-151                            | ✅                                                |
+| FR-045   | T-051, T-143                                   | ✅                                                |
+| FR-046   | T-052, T-144, T-183                            | ✅                                                |
+| FR-047   | T-047, T-057                                   | ✅                                                |
+| FR-048   | T-053, T-141                                   | ✅                                                |
+| FR-049   | T-185                                          | ✅ (deferred)                                     |
+| FR-050   | T-033, T-185                                   | ✅                                                |
+| FR-051   | T-048, T-131, T-142                            | ✅                                                |
+| FR-052   | T-054                                          | ✅                                                |
+| FR-053   | T-033, T-046                                   | ✅                                                |
 
 **Gap**: None. All functional requirements trace to ≥1 task. **FR-030** is intentionally not built as
 ElastiCache Redis at launch (A-002) — the new architecture removes Redis; the cache-acceleration intent is met
 by an optional in-process LRU (plan §6) and the deferred Redis variant rides with T-186/the limiter's deferred
 sorted-set form.
 
-**Success-criteria coverage:** SC-001/003/004/007 → T-195; SC-002 → T-110/T-122/T-181; SC-005 → T-152/T-155;
-SC-006 → T-153/T-181/T-183; SC-008 → T-100/T-107; SC-009 → T-054/T-196; SC-010 → T-033; SC-011 → T-054;
-SC-012 → T-049/T-151; SC-013 → T-100/T-108/T-161.
+**Success-criteria coverage:** SC-001/003/004/007 → T-195; SC-002 → T-110/T-122/T-181; SC-005 (local-store
+serve/read throughput, no source call) → T-131/T-195; SC-006 → T-153/T-181/T-183; SC-008 → T-100/T-107;
+SC-009 → T-054/T-196; SC-010 → T-033; SC-011 → T-054; SC-012 → T-049/T-151; SC-013 → T-100/T-108/T-161;
+SC-014 (first-time NEW-food resolution rate ~500–900/hr, bounded by the source budget SC-002) → T-152/T-155.
 
-**Test-first tasks (red-gate, 42):** T-003, T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054, T-100,
-T-101, T-102, T-103, T-104, T-105, T-106, T-107, T-108, T-109, T-110, T-120, T-121, T-122, T-130, T-131,
+**Test-first tasks (red-gate, 43):** T-003, T-033, T-047, T-048, T-049, T-050, T-051, T-052, T-054, T-100,
+T-101, T-102, T-103, T-104, T-105, T-106, T-107, T-108, T-109, T-110, T-111, T-120, T-121, T-122, T-130, T-131,
 T-133, T-134, T-140, T-141, T-142, T-143, T-144, T-151, T-152, T-153, T-160, T-161, T-162, T-163, T-171,
 T-172, T-185.
 
@@ -612,21 +676,26 @@ T-172, T-185.
 
 - **FU-MIGRATE** — in-VPC migration-runner Lambda → **T-191** (deferred to deploy/release-readiness; build on Docker Postgres until then).
 - **FU-INGREDIENTS** — `ingredients ↔ food(id)` is a **soft `food_id text` column owned by feature 001** (no cross-DB FK; app-layer validation). Not a 003 task.
-- **FU-EVENTNAME** — harmonize the completion event name (`FoodDataReceived` vs `FoodFetchCompleted`) across spec/plan/CDK/v-model before the worker emits it (T-165).
-- **FU-ESBUILD** — esbuild bundling for the food Lambdas (change-refresh T-170, search-indexer T-180, migrate T-191), like identity-webhooks.
+- **FU-EVENTNAME** — **CLOSED (stabilization 2026-06-28):** the completion event is canonically **`FoodFetchCompleted`** (published via `publishFoodFetchCompleted`), matching plan §4 and the deployed CDK `FoodFetchCompletedRule` (`detailType: ['FoodFetchCompleted']`); all spec/plan/v-model/task references now use it (T-154/T-165). `FoodDataReceived`/`publishFoodDataReceived` are retired.
+- **FU-ESBUILD** — esbuild bundling for the food Lambdas (search-indexer T-180, migrate T-191), like identity-webhooks. (Change-refresh moved to a Fargate scheduled task T-170 — D-REFRESH — so it no longer needs Lambda bundling.)
 - **FU-LOCALSTACK-E2E** — E2E foundation in place (LocalStack Community + Docker Postgres); the re-baselined id-keyed AWS-service flows land with T-190 as Phases 3–6 complete.
 
 ---
 
-## Gate items needing your judgment (plan §9)
+## Plan §9 decisions (settled at stabilization 2026-06-28)
 
-1. **Auto-resolve confidence threshold (§9-1)** — recommendation: auto-`RESOLVED` iff exactly one surviving
-   candidate after pre-merge dedup (single hit, or hits collapsing on normalized-name exact match + nutrient
-   agreement within **±10%** on energy/protein). The ±10% tolerance is a product call (T-162,
-   `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE`).
-2. **`UNRESOLVED` TTL (§9-2)** — recommendation: soft 30-day TTL via `food.updated_at`, swept to `NOT_FOUND` by
-   the change-refresh cron (T-172). Confirm the 30-day default.
-3. **Source priority ranking (§9-5)** — USDA hard-coded highest now (`['usda']` static config); promote to a
-   DB-backed ranking only when a second source is wired (T-120). No schema change at launch.
+These were the open §9 gate items; all are now **settled** by the decision register (only the product-spec
+food-substitution FR remains open, and it is owned outside this task list).
+
+1. **Auto-resolve boundary (§9-1) — SETTLED (D-AUTORESOLVE).** Auto-`RESOLVED` iff **exactly one** candidate
+   survives **normalized-name exact match** after pre-merge dedup; **>1 → `UNRESOLVED`** (surviving set persisted to
+   `food_candidates`); **0 → `NOT_FOUND`**. **No nutrient tolerance** — the `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE`
+   knob is dropped; bias toward `UNRESOLVED` over a wrong auto-pick (FR-MRG-5, T-162).
+2. **`UNRESOLVED` candidate-set TTL (§9-2) — SETTLED (D-UNRESOLVED-TTL).** An `UNRESOLVED` food is **kept until a
+   human picks**; its `food_candidates` set **expires 30 days after `created_at`** and the next add-by-name request
+   re-fans-out — it is **not** swept to `NOT_FOUND`. 30-day default, config-overridable via
+   `FOOD_UNRESOLVED_TTL_DAYS` (FR-025a, T-172).
+3. **Source priority ranking (§9-5) — SETTLED.** USDA hard-coded highest now (`['usda']` static config); promote to
+   a DB-backed ranking only when a second source is wired (T-120). No schema change at launch.
 4. Async candidate search (§9-3) and change-detection via `item_version` (§9-4) are resolved in-plan (async +
    `food_sources.item_version`) — no open decision, recorded for traceability.

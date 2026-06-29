@@ -44,7 +44,10 @@ phases:
 
     revalidation:
         state: pending
-        note: Awaiting human review via /speckit.product-forge.revalidate.
+        note: >
+            Product-spec stabilized via the 2026-06-28 doc-stabilization (review.md Revision 3 records the
+            applied D-* decisions; reflects the stabilized source-agnostic design). Human approve/lock
+            still pending via /speckit-product-forge-revalidate.
         artifact: review.md
 
     bridge:
@@ -85,17 +88,22 @@ phases:
         artifact: null
 
     implement:
-        state: in-progress
-        executor: superpowers-bridge
+        state: not-started
+        executor: superpowers-bridge # historical (Phase-0 scaffold; superseded by the 2026-06-22 re-baseline)
         note: >
-            Phase-by-phase execution via the Superpowers bridge (handoff status=executing).
+            DESIGN-BASELINE ONLY — no implementation this phase. The 2026-06-28 doc-stabilization
+            reconciled spec/plan/tasks + the 12 v-model artifacts + product-spec to one coherent
+            source-agnostic design (see decision-register.md and review.md Revision 3). Implementation
+            resumes at the NEW Phase 1 (canonical schema + DAOs, TDD) only after the stabilized design is
+            approved. The merged Phase 0-2 fdcId code is SUPERSEDED (clean rebuild; infra/auth/usda-client
+            reused). Historical Phase-0 record (superseded) follows.
             Phase 0 (Setup & Infrastructure) COMPLETE 2026-06-20: T-001/T-001b/T-002/T-003/T-004/T-060
             done (6/61). Scaffolded @kitchensink/food-service (NestJS + own CDK), @kitchensink/usda-client
             (TDD, 9/9 tests), placeholder @kitchensink/food-service-client, kitchensink_food logical DB
             in global DataStack (no new RDS), Zod env config (4/4 tests), Drizzle schema (5 tables).
             Independently verified: tests + typecheck pass; synth parity with identity (fromLookup needs
             creds offline — accepted). Lambda/worker handlers are skeletons (fleshed out in later phases).
-        progress: { phase_0: complete, tasks_done: 6, tasks_total: 68 }
+        historical_progress: { phase_0: complete-then-superseded, tasks_done: 6, tasks_total: 68 } # superseded; not live progress
         rebaseline_2026_06_22: >
             DESIGN RE-BASELINED to the SOURCE-AGNOSTIC model (brainstorm 2026-06-21 +
             ce-doc-review walk-through). spec.md, plan.md, tasks.md REGENERATED and gate-approved:
@@ -151,11 +159,25 @@ phases:
               application layer (food-service client). Revisit when 001 builds ingredients. See
               plan §7 + §2 "Integration with 001" and tasks.md T-009.
         - id: FU-EVENTNAME
-          item: 'Naming drift: completion event is FoodFetchCompleted (plan §4 + CDK rule) vs FoodDataReceived (spec.md + v-model)'
+          item: 'CLOSED (stabilization 2026-06-28): completion event canonical name harmonized to FoodFetchCompleted across spec/plan/CDK/v-model'
           detail: >
-              Same event, two names. plan §4 now annotates FoodFetchCompleted as an alias of v-model
-              FoodDataReceived; the CDK rule matches detailType "FoodFetchCompleted". Harmonize to one
-              canonical name across spec/plan/CDK/v-model before the worker emits it (Phase 3/T-023).
+              Resolved by D-EVENT (decision-register.md): the completion event is FoodFetchCompleted
+              everywhere; all FoodDataReceived references were replaced across spec.md and the v-model.
+              No alias remains.
+        - id: FU-PHASE0-OUTDATED
+          item: 'All committed food-service Phase-0/2 CODE is OUTDATED vs the authoritative plan §2 schema; rebuilt at Phase-1 (user directive 2026-06-29)'
+          detail: >
+              Per the 2026-06-29 directive, the proposed schema (plan §2 / decision-register §2) is the
+              single source of truth, and ANY committed implementation that conflicts with it is OUTDATED
+              by definition — it is NOT load-bearing for the design baseline. This covers the food-service
+              data-model + domain scaffold: src/db/schema/usda.ts + src/db/migrations/0000_food_schema.sql
+              (old fdcId model), src/foods/* (old FoodRow/fdcId), tests/schema.integration.test.ts, and
+              drizzle.config.ts. The premature 2026-06-28 source-agnostic schema-code edits (food.ts +
+              0000 rewrite) were REVERTED so the package stays a single consistent (uniformly-superseded)
+              baseline rather than a half-migrated state. Phase-1 (canonical schema + DAOs, TDD)
+              regenerates the schema, migration, integration test, and drizzle.config from plan §2;
+              infra/auth/@kitchensink/usda-client are reused. The DESIGN baseline is GO independent of this
+              outdated code.
         - id: FU-ESBUILD
           item: 'esbuild needed for the 3 food Lambdas (stale-refresh, bulk-sync, search-indexer) when their real handlers land'
           detail: >
@@ -204,8 +226,12 @@ phases:
         artifact: verify-report.md
 
     test-plan:
-        state: complete
-        artifact: testing/test-plan.md
+        state: not-started
+        artifact: null
+        note: >
+            Design-baseline only — no Product Forge test-plan.md generated this phase. The V&V
+            test plans live under v-model/ (unit/integration/system test + acceptance-plan);
+            there is no testing/ directory.
 
     test-run:
         state: not-started

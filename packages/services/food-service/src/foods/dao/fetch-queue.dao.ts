@@ -168,6 +168,22 @@ export class FetchQueueDao {
     }
 
     /**
+     * List the distinct requester `sub`s recorded for a food (FR-048 producer-provenance input). The
+     * consumer refuses to drain a row whose recorded requesters do not all name a real principal.
+     *
+     * @param foodId - Internal food id.
+     * @returns The recorded requester subs (empty when none).
+     * @sideEffect Reads `fetch_requesters`.
+     */
+    public async listRequesterSubs(foodId: string): Promise<string[]> {
+        const result = await this.db.execute<{ sub: string }>(
+            sql`SELECT sub FROM fetch_requesters WHERE food_id = ${foodId}`,
+        );
+
+        return result.rows.map((row) => row.sub);
+    }
+
+    /**
      * Count a requester's live pending demand: the `pending` queue rows the `sub` is attached to
      * (FR-043, fairness-by-demotion input).
      *

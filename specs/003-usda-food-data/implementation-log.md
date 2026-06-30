@@ -892,3 +892,87 @@ T-170/T-171/T-172 marked `[x]`. No commit/push.
 EventBridge `IngestionScheduled` schedule → ECS `RunTask` target + task definition + RunTask/exec IAM
 roles (T-001c); field-level `manual`/`locked` provenance marker (DB-9 — prerequisite before a 2nd source
 is wired); auth/HTTP wiring + DoS/IAM/user-erasure hardening; WebSocket notifications (P3).
+
+---
+
+## 2026-06-30 — Phase 8 HARDENING (T-049..T-057): fairness/DoS/erasure/provenance + client
+
+**Tasks**: T-049 (fairness-by-demotion auth guarantee), T-050 (distinct-requester demand), T-051
+(max-batch cap), T-052 (backpressure + flood-shed, auth/DoS side), T-053-code (async-producer
+provenance), T-054 (auth-layer DoS protection), T-056 (user-erasure), T-057
+(`@kitchensink/food-service-client`). TDD, tests-first.
+
+### What shipped (NEW code)
+
+- **T-054 auth-layer DoS protection** — `src/auth/auth-load-shedder.ts` (`AuthLoadShedder`): bounds
+  concurrent token verifications + a per-source (IP) rolling-window `401`-rate cap, so a flood of
+  well-formed-but-invalid tokens is shed with `503` BEFORE the CPU-bound signature check (SC-011 holds
+  under flood). Wired into `FoodAuthGuard.use` (cheap `shouldShed` pre-check → `tryAcquire` slot →
+  verify in `try/finally release`, `recordFailure` on the fail-closed `401`). Source key = leftmost
+  `X-Forwarded-For` (ALB-set) else socket addr — used ONLY as a shedding bucket, never for identity.
+  The shedder ctor param on the guard is `@Optional()` so Nest DI injects `undefined` and the
+  process-wide `defaultShedder` (env-configured) applies — without `@Optional()` Nest tries to resolve
+  `AuthLoadShedder` as a provider and aborts boot (caught by the e2e).
+- **T-053 async-producer provenance** — `src/worker/provenance.ts` (`isValidPrincipal`/
+  `hasValidProvenance`, pure) + `FetchQueueDao.listRequesterSubs` + a check in
+  `FoodConsumerService.processRow`: a leased row whose recorded `fetch_requesters` set is empty or names
+  the forbidden `'system'` shortcut is refused (tombstoned `unauthenticated_producer`, NO source call,
+  new disposition `rejected_provenance`). Validates over `fetch_requesters` (FR-048: there is no
+  `fetch_queue.requested_by` column).
+- **T-056 user-erasure** — `FetchRequestersDao.deleteForSub` + `src/foods/user-erasure.service.ts`
+  (`UserErasureService.eraseUser`, DI-provided/exported): on user deletion, delete that `sub`'s
+  `fetch_requesters` rows (the only per-user data; no quota tables). Idempotent.
+- **T-057 client** — rebuilt `packages/clients/food-service` (`@kitchensink/food-service-client`):
+  `FoodServiceClient` with `addByName`/`batch`/`getById`/`getStatus`/`getCandidates`/`resolve`/`search`,
+  user-or-M2M bearer attach (literal or per-request callback), and status→typed mapping
+  (`401`/`403`/`400`/`404`/`409`/`503`/`202`/`200`; no per-user `429`; `CandidateMismatch`→`409`, DSN-14).
+  Typed errors + `is*` guards; source-agnostic shapes (no `fdcId`). Added as a `food-service` devDep;
+  `npm install --package-lock-only` run.
+
+### Guarantee tests added (behavior already in the committed stack)
+
+- T-049/T-050: `tests/fairness-demotion.integration.test.ts` — a food whose requesters ALL exceed 50
+  pending is demoted while a lighter food drains first (SC-012, no `429`); auto re-promoted when any
+  requester drops below 50; one `sub`'s repeats can't inflate priority (distinct-`sub` `request_count`,
+  structural `PRIORITY_CAP=1`).
+- T-051: covered by `tests/e2e/foods-api.e2e.test.ts` (batch > 100 → `400`, nothing enqueued).
+- T-052: `tests/admission.integration.test.ts` — depth ceiling → `503` + jittered `Retry-After`;
+  near-ceiling flood-shed of a heavy `sub`'s NEW enqueue while a lighter `sub` is admitted; reads/PATCH
+  never pass through admission (structural). Durable cross-process circuit-breaker signal: NOTED as a
+  follow-up (the worker's breaker is in-process; admission enforces the durable depth + flood-shed).
+
+### Red → Green
+
+RED first confirmed at assertion level: `provenance.ts` / `auth-load-shedder.ts` / the client modules
+did not exist (import failures); the guard-DoS specs expected shedding the not-yet-wired guard would not
+do. `npx tsc --noEmit` also caught two real test gaps (a `FoodSourceAdapter` missing `fetchByKey`; an
+unused local) before green.
+
+| Suite                                   | Before | After | Result   |
+| --------------------------------------- | ------ | ----- | -------- |
+| Unit (food-service)                     | 88     | 105   | ✅       |
+| Integration (real PG)                   | 148    | 161   | ✅       |
+| E2E (food-service)                      | 24     | 31    | ✅       |
+| Client unit (`@kitchensink/...-client`) | 0      | 14    | ✅       |
+| clerk-verify unit                       | 9      | 9     | ✅       |
+| identity (regression check)             | 83     | 83    | ✅       |
+| `tsc --noEmit` (food-service + infra)   | —      | —     | ✅ clean |
+| `tsc --noEmit` (client)                 | —      | —     | ✅ clean |
+| `tsc --noEmit` (identity)               | —      | —     | ✅ clean |
+| `npm run lint` (food-service + client)  | —      | —     | ✅ clean |
+
+T-049, T-050, T-051, T-052, T-054, T-056, T-057 marked `[x]`. T-053 code complete (consumer
+provenance); its IAM least-privilege half is infra/CDK and is **deferred** (not `[x]` for the infra
+part). No commit/push.
+
+### Deferred (infra/CDK + P3 — out of scope here)
+
+- T-053 IAM: named least-privilege producer roles (only named roles may `events:PutEvents` / insert into
+  `fetch_queue`) — CDK.
+- T-056 wiring: hook `UserErasureService.eraseUser` to the Clerk `user.deleted` event (a food-service
+  deletion Lambda on the erasure fan-out, or the identity deletion worker calling the food M2M erasure
+  path) — infra.
+- T-054 production tuning: `FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS` / `FOOD_AUTH_SHED_THRESHOLD` /
+  `FOOD_AUTH_SHED_WINDOW_MS` env defaults validated against real ALB traffic; ALB trusted-proxy / XFF.
+- T-052 durable cross-process circuit-breaker signal (open breaker → `503` visible to the API tier).
+- T-001c EventBridge→ECS RunTask + task def + IAM; migration runner (FU-MIGRATE); WebSocket (P3).

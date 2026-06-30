@@ -29,6 +29,7 @@ import { FoodsController } from './foods.controller.js';
 import { FoodsService } from './foods.service.js';
 import { GoldenRecordMergeEngine } from './merge/merge-engine.js';
 import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
+import { UserErasureService } from './user-erasure.service.js';
 
 /** Build the per-source caps from env (`USDA_RATE_LIMIT_PER_HOUR`); pause at 90% (FR-019). */
 function usdaCaps(): { usda: SourceCap } {
@@ -43,6 +44,7 @@ function usdaCaps(): { usda: SourceCap } {
         FoodsService,
         EnqueueEmitter,
         AdmissionService,
+        UserErasureService,
         FoodAuthGuard,
         { provide: FoodDao, inject: [DrizzleProvider], useFactory: (db: FoodDrizzle): FoodDao => new FoodDao(db) },
         {
@@ -89,7 +91,7 @@ function usdaCaps(): { usda: SourceCap } {
                 new RollingWindowLimiter(new SourceCallLogDao(db), { caps: usdaCaps() }),
         },
     ],
-    exports: [FoodsService, EnqueueEmitter],
+    exports: [FoodsService, EnqueueEmitter, UserErasureService],
 })
 export class FoodsModule implements NestModule {
     /** Mount {@link FoodAuthGuard} on every `/v1/foods/*` route (FR-035). */

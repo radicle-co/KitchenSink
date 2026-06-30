@@ -504,21 +504,21 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: US-0 scenario 10 — valid token w/o scope on `/refetch` → `403`; malformed `id` with a bad
       token → `401` (not `400`).
 
-- [ ] **T-049** [M] [Test-first: true] Fairness by **demotion** (no per-user quota, no `429`) — drain-time scorer demotes a food only when **all** its requesters exceed the 50-pending threshold; dynamic re-promotion; work-conserving — `—` (FR-043, FR-043a, SC-012)
+- [x] **T-049** [M] [Test-first: true] Fairness by **demotion** (no per-user quota, no `429`) — drain-time scorer demotes a food only when **all** its requesters exceed the 50-pending threshold; dynamic re-promotion; work-conserving — `—` (FR-043, FR-043a, SC-012)
       **(implemented in the drain loop T-151; this task is the auth-side guarantee + test.)**
       **Acceptance**: US-0 scenario 9 + SC-012 — a food whose requesters all have >50 pending is demoted while others
       drain; auto re-promoted when any requester drops below 50; a food with an under-threshold requester is not
       demoted; no request rejected with `429`.
 
-- [ ] **T-050** [S] [Test-first: true] Distinct-requester demand counting — `request_count` = the **count of distinct `sub`s** via `fetch_requesters` (uncapped total; each `sub` contributes at most one via the `(food_id, sub)` PK — `PRIORITY_CAP=1` is structural per `sub`, never `LEAST(count, 1)`, DSN-3); one `sub`'s repeats can't inflate priority; aged — `—` (FR-044)
+- [x] **T-050** [S] [Test-first: true] Distinct-requester demand counting — `request_count` = the **count of distinct `sub`s** via `fetch_requesters` (uncapped total; each `sub` contributes at most one via the `(food_id, sub)` PK — `PRIORITY_CAP=1` is structural per `sub`, never `LEAST(count, 1)`, DSN-3); one `sub`'s repeats can't inflate priority; aged — `—` (FR-044)
       **Acceptance**: a single `sub` repeatedly adding one name cannot pin it ahead of genuine distinct-requester
       demand.
 
-- [ ] **T-051** [S] [Test-first: true] Max batch size enforcement — `POST /v1/foods/batch` + recipe-import sets ≤100 names → `400` over, nothing enqueued; accepted misses feed demotion (not a quota) — `—` (FR-045)
+- [x] **T-051** [S] [Test-first: true] Max batch size enforcement — `POST /v1/foods/batch` + recipe-import sets ≤100 names → `400` over, nothing enqueued; accepted misses feed demotion (not a quota) — `—` (FR-045)
       **(shares the endpoint with T-143; this is the auth-side cap + test.)**
       **Acceptance**: US-0 scenario 12 — oversized batch → `400`, nothing enqueued.
 
-- [ ] **T-052** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed (auth/DoS side) — depth ceiling / open breaker → `503`, jittered recovery; near the global rolling-window ceiling, a flooding `sub`'s NEW enqueues are shed first with `503` while reads/`PATCH`-resolves are never shed (no `429`) — `—` (FR-046, FR-043b)
+- [x] **T-052** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed (auth/DoS side) — depth ceiling / open breaker → `503`, jittered recovery; near the global rolling-window ceiling, a flooding `sub`'s NEW enqueues are shed first with `503` while reads/`PATCH`-resolves are never shed (no `429`) — `—` (FR-046, FR-043b)
       **(shares enforcement with T-144.)**
       **Acceptance**: at max depth / breaker-open, enqueue returns `503`; near the ceiling a flooding `sub` gets `503`
       on NEW enqueue while other users are unaffected; recovery drains without a burst.
@@ -526,16 +526,20 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [ ] **T-053** [S] [Test-first: false] Async-producer least-privilege IAM + provenance — only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates provenance; `requestedBy` is a real principal (no `'system'` shortcut) — `—` (FR-048)
       **Acceptance**: an unnamed/unauthorized producer cannot enqueue; the consumer rejects rows with no valid
       `requestedBy`.
+      **(CODE DONE — consumer provenance over `fetch_requesters` (`src/worker/provenance.ts` +
+      `FoodConsumerService.processRow` refuses a row with no valid recorded requester / the `'system'`
+      shortcut; unit + integration green). The least-privilege IAM half (only named roles may
+      `events:PutEvents` / insert into `fetch_queue`) is infra/CDK and remains DEFERRED — not `[x]`.)**
 
-- [ ] **T-054** [S] [Test-first: true] Auth-layer DoS protection — bound verification concurrency + per-source `401`-rate cap (load-shed) under an invalid-token flood — `—` (FR-052, SC-009, SC-011)
+- [x] **T-054** [S] [Test-first: true] Auth-layer DoS protection — bound verification concurrency + per-source `401`-rate cap (load-shed) under an invalid-token flood — `—` (FR-052, SC-009, SC-011)
       **Acceptance**: SC-011 (≤10ms p95) holds under an invalid-token flood, not just the happy path.
 
-- [ ] **T-056** [S] [Test-first: false] `fetch_requesters` migration + user-erasure handling (no quota tables) — `—` (FR-043, FR-044)
+- [x] **T-056** [S] [Test-first: false] `fetch_requesters` migration + user-erasure handling (no quota tables) — `—` (FR-043, FR-044)
       **(folded into T-103; retained as the auth-traceable migration anchor — on user-deletion, delete that `sub`'s
       `fetch_requesters` rows; no `user_fetch_quota`/`global_fetch_quota`.)**
       **Acceptance**: deleting a user removes their `fetch_requesters` rows; no quota table exists.
 
-- [ ] **T-057** [M] [Test-first: false] `@kitchensink/food-service-client` — rebuild the typed client to the new API surface (`addByName`/`getById`/`getStatus`/`getCandidates`/`resolve`/`search`/`batch`); attach user or M2M token; map `401`/`403`/`400`/`409`/`503`/`404`/`202` (no per-user `429`; a `CandidateMismatchError` surfaces as **`409 Conflict`**, DSN-14) — `packages/clients/food-service` (FR-047)
+- [x] **T-057** [M] [Test-first: false] `@kitchensink/food-service-client` — rebuild the typed client to the new API surface (`addByName`/`getById`/`getStatus`/`getCandidates`/`resolve`/`search`/`batch`); attach user or M2M token; map `401`/`403`/`400`/`409`/`503`/`404`/`202` (no per-user `429`; a `CandidateMismatchError` surfaces as **`409 Conflict`**, DSN-14) — `packages/clients/food-service` (FR-047)
       **(reuse: placeholder package exists; rebuild the surface to the id-keyed API.)**
       **Acceptance**: a downstream service calls the food API with an M2M token via this client and gets typed
       results; unauthorized calls surface typed `401`/`403`; no `fdcId` in the client's public shapes.

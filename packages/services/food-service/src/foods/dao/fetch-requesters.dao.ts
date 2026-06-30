@@ -64,4 +64,21 @@ export class FetchRequestersDao {
 
         return result.rowCount ?? 0;
     }
+
+    /**
+     * Erase every requester row recorded for a `sub` across all foods (user-erasure, T-056/FR-043/
+     * FR-044). `fetch_requesters` is the ONLY per-user data this service stores (there are deliberately
+     * no `user_fetch_quota`/`global_fetch_quota` tables), so deleting a deleted user's rows here fully
+     * removes their footprint; foods stay shared reference data and the surviving requesters keep their
+     * demand weight. Idempotent (a re-run deletes nothing).
+     *
+     * @param sub - The deleted user's Clerk `sub`.
+     * @returns The number of erased rows.
+     * @sideEffect Deletes from `fetch_requesters`.
+     */
+    public async deleteForSub(sub: string): Promise<number> {
+        const result = await this.db.delete(fetchRequesters).where(eq(fetchRequesters.sub, sub));
+
+        return result.rowCount ?? 0;
+    }
 }

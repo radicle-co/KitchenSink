@@ -21,7 +21,12 @@
  * `external_key`, re-merging only those whose `item_version` changed, never re-fanning-out by name and
  * never clobbering a manual pick (FR-031/FR-032).
  *
- * @implements FR-015 FR-016 FR-018 FR-019 FR-023 FR-024 FR-025 FR-026 FR-027 FR-031 FR-032 FR-MRG-1 FR-MRG-4 FR-ADP-1
+ * Before any source call, each leased row is provenance-checked (FR-048, T-053): the recorded
+ * `fetch_requesters` set must name at least one real principal (a verified user `sub` or an
+ * allowlisted `svc_*` service principal) — a row with no valid recorded requester is refused
+ * (tombstoned, no source call), so no unauthenticated producer can drive external consumption.
+ *
+ * @implements FR-015 FR-016 FR-018 FR-019 FR-023 FR-024 FR-025 FR-026 FR-027 FR-031 FR-032 FR-048 FR-MRG-1 FR-MRG-4 FR-ADP-1
  */
 import type { FetchQueueRow, FoodSourceRow } from '../db/schema/index.js';
 import type { FoodEventPublisher } from '../events/food-event-emitter.js';
@@ -38,6 +43,7 @@ import {
 } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
 import { isRetryBudgetExhausted } from './backoff.js';
+import { hasValidProvenance } from './provenance.js';
 import { ConsoleWorkerLogger, type WorkerLogger } from './worker-logger.js';
 
 /** Max keys pulled in one batch source call (USDA's `POST /v1/foods` cap; counts as 1 windowed call). */
@@ -63,7 +69,8 @@ export type ProcessDisposition =
     | 'failed' // all sources errored after the retry budget → FAILED tombstone
     | 'record_failure' // a real source error this pass → re-queued with backoff (under budget)
     | 'deferred' // back-pressure (90% pause / window full / 429) → re-queued, no attempts change
-    | 'refreshed'; // a RESOLVED row reached the drainer → change-refresh selective in-place re-pull (DSN-4)
+    | 'refreshed' // a RESOLVED row reached the drainer → change-refresh selective in-place re-pull (DSN-4)
+    | 'rejected_provenance'; // a leased row had no valid recorded requester → refused, no source call (FR-048)
 
 /** Constructor dependencies for {@link FoodConsumerService}. */
 export interface FoodConsumerDeps {
@@ -185,6 +192,19 @@ export class FoodConsumerService {
             await this.queue.resolve(foodId);
 
             return 'idle';
+        }
+
+        // Async-producer provenance (FR-048, T-053): refuse to drain a row whose recorded requester set
+        // does not name a real principal — no requester at all, or a forbidden `'system'` shortcut means
+        // an unauthenticated/unauthorized producer enqueued it, so NO external source call may happen on
+        // its behalf. Tombstone the row (it never should have existed) without touching the source.
+        const requesterSubs = await this.queue.listRequesterSubs(foodId);
+
+        if (!hasValidProvenance(requesterSubs)) {
+            await this.queue.tombstone(foodId, 'unauthenticated_producer');
+            this.logger.warn('provenance-refused', { foodId, requesters: requesterSubs.length });
+
+            return 'rejected_provenance';
         }
 
         // Change-refresh branch (DSN-4/FR-031/FR-032): a RESOLVED food only reaches the drainer because the

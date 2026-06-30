@@ -201,6 +201,78 @@ export class FetchQueueDao {
     }
 
     /**
+     * Record a REAL source failure on a leased row (FR-016/FR-027, DSN-5): increment the failure
+     * counter `attempts`, re-queue the row `pending` (clearing the lease), and gate the next claim
+     * behind exponential backoff — `last_requested = now() + interval '2^attempts seconds'` using the
+     * post-increment `attempts`. Called ONLY on a genuine source error (5xx/timeout or an exhausted
+     * 429), NEVER on a lease/claim, a reaper reclaim, or a rate-limit/back-pressure deferral (use
+     * {@link deferLease} for those). The caller tombstones the food `FAILED` once the returned
+     * `attempts` reaches the retry budget.
+     *
+     * @param foodId - Internal food id.
+     * @param lastError - A sanitized, source-agnostic failure detail recorded on the row.
+     * @returns The re-queued row (its `attempts` is the value the caller checks against the budget).
+     * @sideEffect Updates `fetch_queue` (attempts/status/leased_at/last_requested/last_error).
+     */
+    public async recordFailure(foodId: string, lastError?: string): Promise<FetchQueueRow> {
+        await this.db.execute(sql`
+            UPDATE fetch_queue SET
+                attempts = attempts + 1,
+                status = 'pending',
+                leased_at = NULL,
+                last_error = ${lastError ?? null},
+                last_requested = now() + make_interval(secs => power(2, attempts + 1)::int)
+            WHERE food_id = ${foodId}
+        `);
+
+        const row = await this.getByFoodId(foodId);
+
+        if (!row) {
+            throw new Error('recordFailure produced no row');
+        }
+
+        return row;
+    }
+
+    /**
+     * Defer a leased row back to `pending` for `seconds` WITHOUT consuming the failure budget (DSN-5):
+     * a rate-limit / window-full / 90%-pause deferral or a source 429 back-off is back-pressure, not a
+     * failure, so `attempts` is left untouched. The row re-becomes eligible once `last_requested`
+     * (now `now() + seconds`) elapses.
+     *
+     * @param foodId - Internal food id.
+     * @param seconds - How long to hold the row off the eligible set.
+     * @sideEffect Updates `fetch_queue` (status/leased_at/last_requested); `attempts` unchanged.
+     */
+    public async deferLease(foodId: string, seconds: number): Promise<void> {
+        await this.db.execute(sql`
+            UPDATE fetch_queue SET
+                status = 'pending',
+                leased_at = NULL,
+                last_requested = now() + make_interval(secs => ${seconds})
+            WHERE food_id = ${foodId}
+        `);
+    }
+
+    /**
+     * Release EVERY `in_flight` lease back to `pending` immediately (graceful shutdown, FR-017/FR-022):
+     * on `SIGTERM` the single drainer reverts the rows it holds so a replacement instance can re-claim
+     * them at once rather than waiting out the 30s reaper window. Does NOT touch `attempts` — a
+     * shutdown is not a failure (DSN-5). Safe under the single-drainer invariant (the only `in_flight`
+     * rows are this worker's).
+     *
+     * @returns The number of released rows.
+     * @sideEffect Updates `fetch_queue` (status/leased_at).
+     */
+    public async releaseInFlight(): Promise<number> {
+        const result = await this.db.execute(sql`
+            UPDATE fetch_queue SET status = 'pending', leased_at = NULL WHERE status = 'in_flight'
+        `);
+
+        return result.rowCount ?? 0;
+    }
+
+    /**
      * Tombstone an exhausted/`NOT_FOUND` food (`status='tombstone'`, the DLQ analog + audit trail,
      * FR-016/FR-025) and prune its requester rows (DSN-10).
      *

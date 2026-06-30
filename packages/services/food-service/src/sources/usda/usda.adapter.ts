@@ -42,6 +42,9 @@ import {
 /** The canonical source identifier for this adapter. */
 const SOURCE = 'usda' as const;
 
+/** USDA's batch endpoint cap (`POST /v1/foods`, ≤20 keys/call counting as 1 windowed call, FR-023). */
+export const USDA_BATCH_MAX = 20;
+
 /** Maximum accepted nutrient/scalar name length (sanitization bound). */
 const NAME_MAX_LENGTH = 256;
 
@@ -162,6 +165,46 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
         }
 
         return this.mapToCanonical(detail);
+    }
+
+    /**
+     * Batch-fetch up to {@link USDA_BATCH_MAX} USDA items in ONE windowed source call (FR-023/T-155),
+     * mapping + validating each. The fan-out worker uses this to pull a drain's resolved keys as a
+     * single call rather than one `fetchByKey` per key (the ≤20-key cap is the caller's to chunk; the
+     * USDA client itself rejects an over-cap batch). The `fdcId → externalKey` mapping stays internal.
+     *
+     * @param externalKeys - The USDA item keys (inbound `fdcId`s as strings; ≤20).
+     * @returns The validated canonical candidates.
+     * @throws {AdapterValidationError} when a key is not a positive integer, or a mapped value fails
+     *   validation (reject-not-store — aborts the batch; the worker may retry the chunk per key).
+     * @throws {SourceApiError} when the upstream call fails (classified by status).
+     * @sideEffect Performs one HTTPS batch request to USDA via the client.
+     */
+    public async fetchByKeys(externalKeys: readonly string[]): Promise<CanonicalCandidate[]> {
+        const fdcIds = externalKeys.map((externalKey) => {
+            const fdcId = Number(externalKey);
+
+            if (!Number.isInteger(fdcId) || fdcId <= 0) {
+                throw new AdapterValidationError(
+                    SOURCE,
+                    externalKey,
+                    'externalKey',
+                    `USDA external key must be a positive integer, got '${externalKey}'`,
+                );
+            }
+
+            return fdcId;
+        });
+
+        let details: UsdaFoodDetail[];
+
+        try {
+            details = await this.client.getFoodsBatch(fdcIds);
+        } catch (error) {
+            throw this.classifyError(error);
+        }
+
+        return details.map((detail) => this.mapToCanonical(detail));
     }
 
     /**

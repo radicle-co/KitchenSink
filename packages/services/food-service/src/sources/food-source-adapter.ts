@@ -117,6 +117,18 @@ export interface FoodSourceAdapter {
      * @returns The validated canonical candidate.
      */
     fetchByKey(externalKey: string): Promise<CanonicalCandidate>;
+    /**
+     * OPTIONAL batch fetch (FR-023/T-155): fetch several items by their opaque keys in one source
+     * round trip, mapping + validating each (reject-not-store). A source whose API supports a batch
+     * endpoint (USDA's `POST /v1/foods`, ≤20 keys/call) implements this so the fan-out worker can pull
+     * a drain's resolved keys as a single windowed call; sources without one omit it and the worker
+     * falls back to {@link fetchByKey} per key. An adapter-internal optimization invisible to the
+     * canonical API.
+     *
+     * @param externalKeys - The source's opaque keys for the items (caller chunks to the source's cap).
+     * @returns The validated canonical candidates (order not guaranteed).
+     */
+    fetchByKeys?(externalKeys: readonly string[]): Promise<CanonicalCandidate[]>;
 }
 
 /**

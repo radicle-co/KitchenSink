@@ -395,28 +395,28 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > rolling-window limiter, demotion at drain time, lease/retry/backoff. The worker scaffold (LISTEN/NOTIFY,
 > single-instance advisory lock) exists as a skeleton from old Phase 0/3.
 
-- [ ] **T-150** [M] [Test-first: false] Fargate worker scaffold flesh-out — single instance via Postgres advisory lock (FR-022), `LISTEN fetch_queued`, structured logging (powertools), Sentry, SIGTERM lease release — `packages/services/food-service/src/worker/` (FR-017, FR-018, FR-022)
+- [x] **T-150** [M] [Test-first: false] Fargate worker scaffold flesh-out — single instance via Postgres advisory lock (FR-022), `LISTEN fetch_queued`, structured logging (powertools), Sentry, SIGTERM lease release — `packages/services/food-service/src/worker/` (FR-017, FR-018, FR-022)
       **(reuse: skeleton exists; flesh out the lifecycle.)**
       **Acceptance**: worker holds the `LISTEN` connection; only one instance drains (advisory lock); SIGTERM
       reverts this worker's `in_flight` rows to `pending`; wake-to-process ≤ 100ms; an integration scenario stands up
       two `acquireWorkerLock()` against one Postgres → exactly one acquires and the loser drains nothing until release (TST-7).
 
-- [ ] **T-151** [M] [Test-first: true] Drain loop with demand-weighting + **demotion at drain time** — `SELECT … FOR UPDATE SKIP LOCKED` ordered by `request_count DESC, first_requested ASC`, with a food ranked to the back **only when all of its current requesters** individually exceed the 50-pending threshold (live per-`sub` count from `fetch_queue`+`fetch_requesters`; dynamic re-promotion when any requester drops below the threshold). No stored tier/`drain_priority_tier`, no `enqueueLowPriority` — demotion is drain-time live compute — `—` (FR-015, FR-043, FR-043a, FR-044)
+- [x] **T-151** [M] [Test-first: true] Drain loop with demand-weighting + **demotion at drain time** — `SELECT … FOR UPDATE SKIP LOCKED` ordered by `request_count DESC, first_requested ASC`, with a food ranked to the back **only when all of its current requesters** individually exceed the 50-pending threshold (live per-`sub` count from `fetch_queue`+`fetch_requesters`; dynamic re-promotion when any requester drops below the threshold). No stored tier/`drain_priority_tier`, no `enqueueLowPriority` — demotion is drain-time live compute — `—` (FR-015, FR-043, FR-043a, FR-044)
       **Acceptance**: covers US-5 scenarios 1–2 + SC-012 — `A` (50) before `B` (1); FIFO tie-break; a food whose requesters all have >50 pending is ranked to the back while others drain, auto re-promoted when any requester drops below 50; a food with even one under-threshold requester is **not** demoted; **no `429`**. The per-`sub` demotion `COUNT(*)` is a correlated subquery inside the drain `ORDER BY`; acceptable at launch scale (< 10,000 rows), revisit/materialize a per-`sub` pending count at scale — cost is covered by the drain/demotion perf test in T-195 (DSN-11).
 
-- [ ] **T-152** [L] [Test-first: true] Fan-out across the adapter registry — for each wired adapter `searchByName(name)` (per-source rolling-window-limited via T-122), `fetchByKey` + `mapToCanonical` the hits — `—` (FR-MRG-1, FR-MRG-4, FR-ADP-1, FR-019)
+- [x] **T-152** [L] [Test-first: true] Fan-out across the adapter registry — for each wired adapter `searchByName(name)` (per-source rolling-window-limited via T-122), `fetchByKey` + `mapToCanonical` the hits — `—` (FR-MRG-1, FR-MRG-4, FR-ADP-1, FR-019)
       **Acceptance**: a queued food fans out over the registry; USDA is called within its window; a source that
       returns no hits contributes nothing; the limiter pauses USDA draining at 90%.
 
-- [ ] **T-153** [M] [Test-first: true] Lease reaper + tombstone/backoff/retry — `in_flight` rows with `leased_at < now() - FOOD_LEASE_TIMEOUT_SECONDS` → `pending` (reaper at consumer start + every minute; uses the partial index `idx_fetch_queue_inflight_leased`, DB-8); source `5xx`/timeout → `pending`, `attempts++`, `last_requested = now()+2^attempts s` (`FAILED→PENDING` retry, no 30-day gate); after 5 attempts → food `FAILED`, row `tombstone`, `last_error`; no source has it → `NOT_FOUND` tombstone immediately (no retry; `NOT_FOUND→PENDING` only after the 30-day TTL) — `—` (FR-016, FR-018, FR-025, FR-026, FR-027, FR-028a)
+- [x] **T-153** [M] [Test-first: true] Lease reaper + tombstone/backoff/retry — `in_flight` rows with `leased_at < now() - FOOD_LEASE_TIMEOUT_SECONDS` → `pending` (reaper at consumer start + every minute; uses the partial index `idx_fetch_queue_inflight_leased`, DB-8); source `5xx`/timeout → `pending`, `attempts++`, `last_requested = now()+2^attempts s` (`FAILED→PENDING` retry, no 30-day gate); after 5 attempts → food `FAILED`, row `tombstone`, `last_error`; no source has it → `NOT_FOUND` tombstone immediately (no retry; `NOT_FOUND→PENDING` only after the 30-day TTL) — `—` (FR-016, FR-018, FR-025, FR-026, FR-027, FR-028a)
       **Acceptance**: covers US-5 scenarios 5–7 — an orphaned `in_flight` row with `leased_at` >30s is reclaimed to
       `pending`; `5xx` cycles `pending→in_flight→pending` with backoff, lands `FAILED`/`tombstone` after 5 attempts;
       no-source → `NOT_FOUND`/`tombstone` immediately; tombstone rows queryable via SQL with `attempts`/`last_error`.
 
-- [ ] **T-154** [S] [Test-first: false] Success path — on a confident merge, upsert golden record (Phase 6), write `food_sources` crosswalk, **delete the `fetch_queue` row** (no `done` status), emit `FoodFetchCompleted` (via `publishFoodFetchCompleted`) — `—` (FR-024, FR-MRG-1)
+- [x] **T-154** [S] [Test-first: false] Success path — on a confident merge, upsert golden record (Phase 6), write `food_sources` crosswalk, **delete the `fetch_queue` row** (no `done` status), emit `FoodFetchCompleted` (via `publishFoodFetchCompleted`) — `—` (FR-024, FR-MRG-1)
       **Acceptance**: a resolved food has its `fetch_queue` row removed; `FoodFetchCompleted` carries the food `id`.
 
-- [ ] **T-155** [S] [Test-first: false] Worker uses the USDA adapter's ≤20-key batch where it has resolved multiple items (counts as 1 windowed call) — `—` (FR-023, SC-014)
+- [x] **T-155** [S] [Test-first: false] Worker uses the USDA adapter's ≤20-key batch where it has resolved multiple items (counts as 1 windowed call) — `—` (FR-023, SC-014)
       **Acceptance**: a fan-out resolving several USDA items in one drain issues 1 batch call recorded once
       against the window (US-4 scenario 3); first-time NEW-food resolution stays within the source budget (SC-014, ~500–900/hr).
 
@@ -448,7 +448,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: a candidate value failing validation is dropped (food still resolves from valid values/other
       sources); outbound fetches use HTTPS with certificate validation.
 
-- [ ] **T-165** [S] [Test-first: false] `FoodFetchCompleted` / `FetchFailed` event emission (canonical names; FU-EVENTNAME closed) — `—` (FR-034)
+- [x] **T-165** [S] [Test-first: false] `FoodFetchCompleted` / `FetchFailed` event emission (canonical names; FU-EVENTNAME closed) — `—` (FR-034)
       **Acceptance**: completion emits `FoodFetchCompleted{ id, status }` via `publishFoodFetchCompleted`; a tombstone
       emits `FetchFailed` to CloudWatch/SNS; the `detailType` matches the deployed CDK `FoodFetchCompletedRule`
       (`detailType: ['FoodFetchCompleted']`); a red-gate test asserts `FetchFailed{ id }` is put on the bus

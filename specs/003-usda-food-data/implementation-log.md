@@ -467,3 +467,140 @@ string`; `GoldenRecordMergeEngine` binds them to the real registry for productio
   Phase-6 paths persist a first-time / picked resolution onto a food with no prior portions; idempotent
   portion replacement belongs with the refresh branch.
 - `mergeChanged` selective re-merge (change-refresh, FR-032) — Phase later.
+
+---
+
+## 2026-06-29 — Phase 5 slice: QUEUE FAN-OUT WORKER + LIMITER INTEGRATION + EVENT EMISSION (T-150, T-151, T-152, T-153, T-154, T-155, T-165)
+
+**Scope.** The Fargate fan-out/merge consumer in `src/worker/` plus the completion/failure event
+emitter in `src/events/`, building ON the committed DAOs (`FetchQueueDao`/`FetchRequestersDao`),
+`SourceAdapterRegistry` + `UsdaSourceAdapter`, `RollingWindowLimiter`, and `MergeAndPersistService`.
+NOTHING else: no HTTP controller/route, no `FoodAuthGuard`, no add-by-name/PATCH-resolve endpoint, no
+rewire of the old `foods/*` layer, `usda.ts` untouched/undeleted (those are the next slice).
+
+**Tasks covered:** T-150 (worker scaffold — single instance via Postgres advisory lock,
+`LISTEN fetch_queued` wake ≤100ms, structured logging, SIGTERM in-flight lease release), T-151 (drain
+loop over `FetchQueueDao.leaseNext`, demand-weighted + drain-time demotion already in the DAO), T-152
+(fan-out across `SourceAdapterRegistry.adapters()` gated by `RollingWindowLimiter` — 90% pause +
+window-full → defer), T-153 (lease reaper + 5xx/timeout backoff `attempts++` → FAILED tombstone after
+5, NOT_FOUND tombstone on 0 hits), T-154 (RESOLVED → `MergeAndPersistService.resolveAndPersist` +
+`FetchQueueDao.resolve` deletes the row + emit `FoodFetchCompleted`), T-155 (USDA ≤20-key batch
+`fetchByKeys` — one windowed call for many keys), T-165 (`FoodEventEmitter` over an injectable
+`EventBus` seam; canonical detailType `FoodFetchCompleted`; `FetchFailed` on a FAILED tombstone only,
+DSN-9; fire-and-forget).
+
+**Files added.**
+`src/events/food-event-emitter.ts` (+ `index.ts` barrel) — `EventBus` seam, `FoodEventPublisher`,
+pure `buildFoodFetchCompleted`/`buildFetchFailed`, `FoodEventEmitter`, no-AWS `ConsoleEventBus`.
+`src/worker/backoff.ts` (`backoffSeconds = 2^attempts`, `MAX_FAILURE_ATTEMPTS = 5`),
+`src/worker/worker-logger.ts` (JSON `ConsoleWorkerLogger` + `SilentWorkerLogger`),
+`src/worker/worker-lock.ts` (`acquireWorkerLock`/`releaseWorkerLock`, advisory class 1 — distinct
+from FoodDao dedup class 2 / limiter class 3), `src/worker/food-consumer.service.ts`
+(`FoodConsumerService` — the per-row fan-out/merge core), `src/worker/worker-runtime.ts`
+(`WorkerRuntime` — lock + LISTEN/NOTIFY + reaper interval + SIGTERM), `src/worker/main.ts`
+(bootstrap), `src/worker/index.ts` (barrel).
+
+**Files fleshed-out (committed pieces extended, additively).**
+`src/foods/dao/fetch-queue.dao.ts` — added `recordFailure` (attempts++ + `last_requested = now() +
+2^attempts s`), `deferLease` (no attempts++, DSN-5), `releaseInFlight` (SIGTERM graceful release).
+`src/sources/food-source-adapter.ts` — added the OPTIONAL `fetchByKeys?` to the adapter interface.
+`src/sources/usda/usda.adapter.ts` — implemented `fetchByKeys` over the client's `getFoodsBatch`
+(≤20, `USDA_BATCH_MAX`); `mapToCanonical`/`fdcId→externalKey` unchanged.
+
+### Red gate (assertion-level, confirmed failing for the right reason)
+
+Wrote all four test suites FIRST, then type-correct skeletons (pure builders + `backoffSeconds` +
+`FoodConsumerService`/`WorkerRuntime` methods throwing `NOT_IMPLEMENTED`) so failures are real behavior
+assertions, not module-missing collection errors:
+
+```
+# Unit (backoff + event payloads)
+ Test Files  2 failed (2)
+      Tests  8 failed | 1 passed (9)
+  e.g. Error: NOT_IMPLEMENTED: backoffSeconds  (× 2^attempts curve, × retry-budget ceiling)
+       Error: NOT_IMPLEMENTED: buildFoodFetchCompleted  (× payload shape, × emitter detailType)
+# Integration (food-consumer + worker-runtime, real Postgres)
+ Test Files  2 failed (2)
+      Tests  12 failed | 1 passed (13)
+  e.g. Error: NOT_IMPLEMENTED: processNext / processRow / start / stop / wake
+```
+
+The 1 integration test that passed under the skeleton is the single-drainer lock (TST-7), which drives
+the already-real `acquireWorkerLock` directly (two sessions → exactly one acquires). The 1 unit pass is
+the `MAX_FAILURE_ATTEMPTS === 5` constant assertion.
+
+### Green result
+
+Skeleton bodies replaced with the real implementations:
+
+```
+# Unit (whole package)        Test Files  9 passed (9)    Tests 87 passed (87)   (+9 new: 3 backoff, 6 event-emitter)
+# Integration (whole package) Test Files 12 passed (12)   Tests 94 passed (94)   (+13 new: 10 consumer, 3 runtime)
+```
+
+Integration assertions proven: enqueue → NOTIFY/drain → fan-out (mocked registry/adapters) → merge →
+RESOLVED → `fetch_queue` row deleted + requesters pruned + crosswalk/nutrient written → one
+`FoodFetchCompleted` captured on the fake bus, with **exactly one** `source_call_log` row despite a
+2-key batch (T-155/SC-014); per-key fallback when the adapter has no `fetchByKeys`; UNRESOLVED persists
+a 2-row candidate set; 0-hit → NOT_FOUND tombstone (FoodFetchCompleted only, no FetchFailed); 5xx →
+`record_failure` ×4 then `failed` tombstone + both FoodFetchCompleted(FAILED) and FetchFailed; 90%
+limiter pause → `deferred`, no source call, row stays pending, no event; reaper reclaims a stale
+in-flight lease; `drain` empties the queue; single-drainer lock (TST-7); `WorkerRuntime` wakes within
+~100ms of a `pg_notify('fetch_queued')` and resolves the food; a second runtime cannot acquire the
+lock; `stop()` releases in-flight leases → pending.
+
+`npx tsc --noEmit` (whole package + `tsc -p infra`) clean; `npm run lint` (src) exit 0;
+`npm run format:check` (prettier) clean.
+
+### Deviations from plan §5 / module-design (with rationale)
+
+1. **Refresh branch (DSN-4, `refreshResolvedFood`) is NOT implemented here** — it is change-driven
+   refresh (Phase 8, FR-031/FR-032), out of the T-150..T-155 scope. The worker still guards the case:
+   a RESOLVED row reaching the drainer is logged + acked off the queue (`refresh_skipped`) WITHOUT a
+   name re-fan-out, so a stray RESOLVED row can never burn the per-source budget. The real selective
+   in-place re-pull lands with the Phase-8 scheduler.
+2. **`recordFailure`/`deferLease`/`releaseInFlight` added to `FetchQueueDao`, not the worker.** The
+   module-design names these on `FetchQueueRouter`; the committed `FetchQueueDao` IS that router seam,
+   so all queue mutations (backoff, deferral, graceful release) stay in the DAO rather than leaking SQL
+   into the worker. Backoff is computed in SQL (`make_interval(secs => power(2, attempts + 1))`) using
+   the post-increment `attempts`, matching `backoffSeconds`.
+3. **Per-source window charged ONCE per drain (before `searchByName`)** — the whole per-source fan-out
+   (search + ≤20-key batch fetch) counts as a single `source_call_log` row, satisfying SC-014/T-155 at
+   the windowed-call grain; the ≤20-key BATCH is the additive network optimization (`fetchByKeys`),
+   with a per-key fallback that recovers valid items if one item in a batch fails adapter validation
+   (reject-not-store).
+4. **`fetchByKeys` is OPTIONAL on the adapter interface** (additive, no breakage). USDA implements it;
+   a source without a batch endpoint omits it and the worker falls back to per-key `fetchByKey`.
+5. **Event emission is behind an injectable `EventBus`** (no real AWS in tests/bootstrap). The
+   bootstrap (`main.ts`) wires the no-AWS `ConsoleEventBus` fallback so the worker never _requires_
+   AWS; the real EventBridge `PutEvents` bus is added with the infra slice. `FoodEventEmitter` publishes
+   are fire-and-forget (a bus failure is logged + swallowed — a completion/alarm signal must never fail
+   the drain).
+6. **Worker is a plain class + `WorkerRuntime`, not a NestJS provider.** The Fargate consumer is a
+   long-running drain loop, not an HTTP request handler; keeping it framework-free makes the per-row
+   logic trivially integration-testable with real Postgres + mocked adapters/bus.
+
+### Known limitation carried through (NOT fixed here)
+
+The `per_serving`-nutrient-dropped behavior from the merge engine (a branded `labelNutrients` value
+with no serving-gram basis is dropped, per `toPer100gAmount` returning `null`) carries through fan-out
+unchanged — the worker passes adapter candidates straight to `MergeAndPersistService` and does not
+attempt a serving-basis conversion. Out of this slice by direction.
+
+### What the API slice (Phase 3/4/8) still needs to wire
+
+- **Phase 3 controller/service:** `POST /v1/foods` (createByName + `EnqueueEmitter.publishFoodRequested`
+  → `fetch_queue` INSERT + `pg_notify`), `GET /v1/foods/{id}` (+`/status`, `/candidates`), `/search`,
+  `/batch`; rewire the old `foods/*` layer (`FoodsRepository`/`FoodsService`/`FetchQueueService`) onto
+  the new DAOs, then **delete `usda.ts`** and **re-add the `foods-api` integration test** (currently
+  excluded in `vitest.integration.config.ts`).
+- **`EnqueueEmitter` (MOD-002) producer half:** `publishFoodRequested`/`publishFoodBatchRequested`/
+  `publishFoodReactivated` (+ `pg_notify`) — the demand-path enqueue + `IngestionScheduled`. The
+  completion half (`publishFoodFetchCompleted`/`publishFetchFailed`) is delivered here as
+  `FoodEventEmitter` and can be folded in or shared.
+- **`FoodAuthGuard`** (NestJS middleware, in-process Clerk verify + azp + scopes/403) on every route.
+- **Phase 4 PATCH-resolve:** `PATCH /v1/foods/{id}` validating picks against `food_candidates`,
+  re-fetching by `external_key` through the SAME limiter, then `MergeAndPersistService.resolveFromPicks`.
+- **Phase 8:** the change-refresh Fargate scheduled task + the worker's `refreshResolvedFood` selective
+  in-place re-pull branch; the real EventBridge `EventBus` implementation behind the `FoodEventEmitter`
+  seam; CloudWatch alarms.

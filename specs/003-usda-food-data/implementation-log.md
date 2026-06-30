@@ -775,3 +775,38 @@ Left **unchecked** — the add→resolve / candidates / NOT_FOUND / batch / sear
 e2e scenarios it requires cannot go green until the `clerk-verify` auth bug is fixed. The harness design
 
 - stub-adapter + JWT-mint approach are recorded for immediate completion post-fix.
+
+---
+
+## Test slice (cont.) — full-stack e2e wired after auth fix (2026-06-30, BE-1)
+
+The `clerk-verify` auth bug reported in the prior entry was fixed in `fc8974d` (clerk-verify + identity
+`ClerkAuthService` accept `@clerk/backend` 1.34's bare-payload `verifyToken` return; regression-guard
+tests use the real shape). With the real auth path working, the full-stack e2e is now wired and green.
+
+### New e2e files
+
+- `tests/e2e/foods-api.e2e.test.ts` — 15 specs: auth matrix (real RS256), add→resolve, UNRESOLVED→pick,
+  NOT_FOUND, batch partial, search (fuzzy/external_key/barcode crosswalk + zero-source-call), FAILED,
+  backpressure 503.
+- `tests/support/jwt.ts` — throwaway RSA-2048 SPKI keypair + RS256 token minting (real, networkless).
+- `tests/support/stub-source-adapter.ts` — programmable stub `FoodSourceAdapter` (module-mocked in place
+  of `UsdaSourceAdapter`); per-name RESOLVED/UNRESOLVED/NOT_FOUND/error programming + call counters.
+
+Harness: real Nest app (real `FoodAuthGuard`/`clerk-verify`, real minted JWT); worker built from the
+app's own DI instances and driven by `consumer.drain()`; only the source adapter seam is stubbed; no
+real USDA/AWS; `FoodFetchCompleted`/`FetchFailed` captured via an in-memory `EventBus`.
+
+### Red / Green (final)
+
+| Suite                                         | Count | Result   |
+| --------------------------------------------- | ----- | -------- |
+| Unit (food-service)                           | 85    | ✅       |
+| Integration (food-service, real PG)           | 140   | ✅       |
+| E2E (food-service: 15 new + 2 health)         | 17    | ✅       |
+| clerk-verify unit                             | 9     | ✅       |
+| identity (regression check)                   | 83    | ✅       |
+| `npx tsc --noEmit` (food-service app + infra) | —     | ✅ clean |
+
+T-190 marked `[x]`. Coverage matrix (`testing/api-coverage.md`) now shows every endpoint × {integration,
+e2e} covered. No production code changed by this slice; no commit/push.

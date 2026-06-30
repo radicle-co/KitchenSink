@@ -215,3 +215,15 @@ When the user reviews, please confirm or correct the following inferred decision
 §4A consistency check: PASS — all product-spec/README cross-links resolve, all 6 wireframes present, every Must-Have user story (US-0/1/2/2a/3/4/5) maps to ≥1 journey, and the determinism lens found Must-Have acceptance criteria carry concrete thresholds (status codes, 50-pending/90%-900 fairness, queue-depth 500/2000/10000, p95 latencies, the 1-survivor auto-RESOLVE rule). The lone soft spot (food-substitution lacking an FR) is the tracked Q3 deferral above.
 
 **Status: LOCKED — Ready for SpecKit Bridge (Phase 4)**
+
+---
+
+## Post-approval refinement (2026-06-29) — per-serving nutrient retention (D-PERSERVING)
+
+_This is a documented refinement, not a re-opening of the approval. The locked scope and acceptance criteria are unchanged; one merge clause is tightened to close a data-loss gap found during implementation._
+
+**Gap.** USDA Branded foods report their Nutrition-Facts panel as a per-serving `labelNutrients` map (with `servingSize`/`servingSizeUnit`), whereas Foundation/SR Legacy and the Branded `foodNutrients` array are per-100g. The merge engine was **dropping** every `per_serving` value (no serving-gram basis to normalize), so branded foods that ship only `labelNutrients` persisted **zero** nutrition.
+
+**Refinement (user-approved 2026-06-29, D-PERSERVING).** (1) Prefer USDA per-100g `foodNutrients` (no conversion). (2) Convert `labelNutrients` → per-100g at the **USDA adapter boundary only** when `servingSizeUnit` is grams (`value × 100 / servingSizeGrams`, `basis=per_100g`). (3) When the serving is not grams (ml/count), **keep** the value as `basis=per_serving` (never drop, never assume `ml = g`). (4) The merge engine no longer drops `per_serving`: it passes through and persists with `basis=per_serving`; where both bases exist for a nutrient, `per_100g` wins the golden value. Single source at launch → no cross-basis blend conflict.
+
+**Docs touched (clause-level only):** `spec.md` FR-MRG-3; `decision-register.md` §3.17 (D-PERSERVING); `v-model/module-design.md` MOD-008/MOD-017. **Code:** `src/sources/usda/usda.adapter.ts`, `src/foods/merge/merge-engine.ts`, with unit + integration coverage. Approval status unchanged: **LOCKED**.

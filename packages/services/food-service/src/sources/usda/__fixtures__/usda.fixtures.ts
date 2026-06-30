@@ -22,6 +22,15 @@ export interface UsdaPortionBody {
     measureUnit?: { name?: string };
 }
 
+/**
+ * A raw USDA `labelNutrients` panel as it appears on the wire (Branded Foods only): a map of label
+ * keys (`protein`, `fat`, `calories`, …) to a per-serving `{ value }`. Preserved in the client's `raw`
+ * passthrough — the typed `UsdaFoodDetail` does not surface it.
+ */
+export interface UsdaLabelNutrientsBody {
+    [labelKey: string]: { value?: number } | undefined;
+}
+
 /** A raw USDA food-detail body (`GET /v1/food/{fdcId}`). */
 export interface UsdaFoodDetailBody {
     fdcId: number;
@@ -33,6 +42,9 @@ export interface UsdaFoodDetailBody {
     gtinUpc?: string;
     foodNutrients: UsdaNutrientBody[];
     foodPortions?: UsdaPortionBody[];
+    servingSize?: number;
+    servingSizeUnit?: string;
+    labelNutrients?: UsdaLabelNutrientsBody;
 }
 
 /** A raw USDA search hit. */
@@ -69,6 +81,36 @@ export function makeUsdaFoodDetailBody(overrides: Partial<UsdaFoodDetailBody> = 
             { nutrientId: 9999, nutrientName: 'Vitamin omitted', unitName: 'MG' },
         ],
         foodPortions: [{ gramWeight: 91, amount: 1, modifier: '1 cup chopped' }],
+        ...overrides,
+    };
+}
+
+/**
+ * Build a raw USDA Branded food-detail body whose Nutrition-Facts panel ships as a per-serving
+ * `labelNutrients` map with a `servingSize`/`servingSizeUnit`. Defaults to a 30 g serving with NO
+ * per-100g `foodNutrients` (the gap case the merge engine used to drop). Override `servingSizeUnit`
+ * to `'ml'` (or a count) to exercise the keep-as-`per_serving` path, or supply `foodNutrients` to
+ * exercise the "prefer foodNutrients, do not double-count the label" path.
+ *
+ * @param overrides - Partial fields to override.
+ * @returns The raw body.
+ */
+export function makeUsdaBrandedLabelBody(overrides: Partial<UsdaFoodDetailBody> = {}): UsdaFoodDetailBody {
+    return {
+        fdcId: 555001,
+        description: 'Acme Protein Crackers',
+        dataType: 'Branded',
+        brandOwner: 'Acme Foods',
+        gtinUpc: '0123456789012',
+        publicationDate: '2023-08-01',
+        servingSize: 30,
+        servingSizeUnit: 'g',
+        foodNutrients: [],
+        labelNutrients: {
+            protein: { value: 6 },
+            fat: { value: 9 },
+            calories: { value: 45 },
+        },
         ...overrides,
     };
 }

@@ -3,9 +3,11 @@
  *
  * Rules (FR-MRG-2/FR-MRG-3): **presence beats absence**; identity/short fields (`name`, `kind`,
  * `brand_owner`, `brand_name`, `barcode`) → the **higher-priority source** wins (NOT the longest value);
- * free-text (`description`) → the **longer** value wins (ties → higher priority); nutrients are
- * normalized to **per-100g BEFORE any blend**, then on a conflict the higher-priority source wins and its
- * winning crosswalk is recorded; portions are unioned across contributors. The **auto-resolve boundary**
+ * free-text (`description`) → the **longer** value wins (ties → higher priority); a nutrient value is kept
+ * on the basis the adapter emitted — `per_100g` where derivable, otherwise `per_serving` (the engine never
+ * drops a `per_serving` value; D-PERSERVING). On a same-nutrient conflict a `per_100g` value beats a
+ * `per_serving` one (the normalized basis wins the golden value); within one basis the higher-priority
+ * source wins and its winning crosswalk is recorded; portions are unioned across contributors. The **auto-resolve boundary**
  * (FR-MRG-5, D-AUTORESOLVE) is the survivor count after normalized-name exact match: exactly 1 →
  * `RESOLVED`; >1 → `UNRESOLVED` (the surviving set is surfaced for human disambiguation); 0 → `NOT_FOUND`.
  * There is no nutrient-tolerance knob — the engine biases to `UNRESOLVED` over a wrong auto-pick.
@@ -17,7 +19,12 @@
  *
  * @implements FR-MRG-1 FR-MRG-2 FR-MRG-3 FR-MRG-5 FR-RES-3
  */
-import type { CanonicalCandidate, CanonicalNutrient, FoodSourceId } from '../../sources/food-source-adapter.js';
+import type {
+    CanonicalCandidate,
+    CanonicalNutrient,
+    CanonicalNutrientBasis,
+    FoodSourceId,
+} from '../../sources/food-source-adapter.js';
 import { SourceAdapterRegistry } from '../../sources/food-source-adapter.js';
 
 /**
@@ -49,10 +56,10 @@ export interface MergedNutrient<S extends string = FoodSourceId> {
     readonly name: string;
     /** Canonical unit (dictionary dedup half). */
     readonly unit: string;
-    /** Arbitrary-precision amount as a string (per-100g; no float drift, SC-008). */
+    /** Arbitrary-precision amount as a string (no float drift, SC-008). */
     readonly amount: string;
-    /** Always `per_100g` — normalized before the blend. */
-    readonly basis: 'per_100g';
+    /** The basis the kept amount is on: `per_100g` where derivable, else `per_serving` (D-PERSERVING). */
+    readonly basis: CanonicalNutrientBasis;
     /** The winning source. */
     readonly source: S;
     /** The winning contributor's opaque key. */
@@ -130,15 +137,26 @@ function isPresent(value: string | null): value is string {
 }
 
 /**
- * Normalize a source nutrient value to a per-100g amount BEFORE any blend (FR-MRG-3). The canonical
- * {@link CanonicalNutrient} carries no serving-gram basis, so a `per_serving` value cannot be converted
- * and is dropped (presence treated as absence for it, SC-008) rather than blended on the wrong basis.
+ * Whether an incoming nutrient value should replace the current winner for its dedup key (FR-MRG-3,
+ * D-PERSERVING). Contributors are visited in priority order (highest first), so the first value seen for
+ * a key is the highest-priority one. The only case where a later (lower-priority) value supersedes it is
+ * a basis upgrade: a `per_100g` value beats an already-recorded `per_serving` value, because `per_100g`
+ * is the normalized basis and wins the golden value on a same-nutrient conflict. A `per_serving` value is
+ * never dropped — when it is the only basis available for a key it is kept as-is. Pure.
  *
- * @param nutrient - The source nutrient value.
- * @returns The per-100g amount string, or `null` when it cannot be normalized.
+ * @param incoming - The nutrient value under consideration.
+ * @param current - The winner already recorded for the same dedup key, if any.
+ * @returns `true` when `incoming` should become (or remain) the winner.
  */
-function toPer100gAmount(nutrient: CanonicalNutrient): string | null {
-    return nutrient.basis === 'per_100g' ? nutrient.amount : null;
+function shouldReplaceNutrient<S extends string>(
+    incoming: CanonicalNutrient,
+    current: MergedNutrient<S> | undefined,
+): boolean {
+    if (current === undefined) {
+        return true;
+    }
+
+    return current.basis === 'per_serving' && incoming.basis === 'per_100g';
 }
 
 /** The nutrient dedup key (DB-5): external code when present, else `name|unit`. */
@@ -189,21 +207,22 @@ export function blendCandidates<S extends string = FoodSourceId>(
         return winner;
     };
 
-    // Nutrients: normalize to per-100g first, then the highest-priority present value wins per dedup key.
+    // Nutrients: keep each value on the basis the adapter emitted (per_100g where derivable, else
+    // per_serving — never dropped). The highest-priority value wins per dedup key, except a per_100g
+    // value upgrades over an already-recorded per_serving one (per_100g wins a basis conflict).
     const nutrientWinners = new Map<string, MergedNutrient<S>>();
 
     for (const candidate of ranked) {
         for (const nutrient of candidate.nutrients) {
             const key = nutrientKey(nutrient);
-            const amount = toPer100gAmount(nutrient);
 
-            if (amount !== null && !nutrientWinners.has(key)) {
+            if (shouldReplaceNutrient(nutrient, nutrientWinners.get(key))) {
                 nutrientWinners.set(key, {
                     code: nutrient.code,
                     name: nutrient.name,
                     unit: nutrient.unit,
-                    amount,
-                    basis: 'per_100g',
+                    amount: nutrient.amount,
+                    basis: nutrient.basis,
                     source: candidate.source,
                     externalKey: candidate.externalKey,
                 });

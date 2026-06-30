@@ -15,6 +15,7 @@ import {
     makeAbortingFetch,
     makeJsonFetch,
     makeStatusFetch,
+    makeUsdaBrandedLabelBody,
     makeUsdaFoodDetailBody,
     makeUsdaSearchResultBody,
 } from '../__fixtures__/usda.fixtures.js';
@@ -133,6 +134,92 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         let thrown: unknown;
         try {
             await adapter.fetchByKey('not-a-number');
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(isAdapterValidationError(thrown)).toBe(true);
+    });
+});
+
+describe('UsdaSourceAdapter.fetchByKey — branded labelNutrients (per-serving panel, D-PERSERVING)', () => {
+    it('converts a gram-serving labelNutrients panel to per-100g (amount = label * 100 / servingSizeGrams)', async () => {
+        // 30 g serving: protein 6 → 20, fat 9 → 30, calories 45 → 150 per 100 g.
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaBrandedLabelBody({ servingSize: 30, servingSizeUnit: 'g' })));
+
+        const candidate = await adapter.fetchByKey('555001');
+        const protein = candidate.nutrients.find((nutrient) => nutrient.name === 'Protein');
+        const energy = candidate.nutrients.find((nutrient) => nutrient.name === 'Energy');
+
+        expect(protein?.amount).toBe('20');
+        expect(protein?.basis).toBe('per_100g');
+        expect(energy?.amount).toBe('150');
+        expect(energy?.basis).toBe('per_100g');
+    });
+
+    it('keeps a NON-gram (ml) serving panel as basis=per_serving with the label value preserved (no ml=g assumption)', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(
+                makeUsdaBrandedLabelBody({
+                    servingSize: 240,
+                    servingSizeUnit: 'ml',
+                    labelNutrients: { protein: { value: 8 } },
+                }),
+            ),
+        );
+
+        const candidate = await adapter.fetchByKey('555001');
+        const protein = candidate.nutrients.find((nutrient) => nutrient.name === 'Protein');
+
+        expect(protein).toBeDefined();
+        expect(protein?.basis).toBe('per_serving');
+        expect(protein?.amount).toBe('8');
+    });
+
+    it('prefers USDA per-100g foodNutrients over the label panel (label not double-counted)', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(
+                makeUsdaBrandedLabelBody({
+                    servingSize: 30,
+                    servingSizeUnit: 'g',
+                    // USDA already shipped per-100g foodNutrients for Energy + Protein.
+                    foodNutrients: [
+                        { nutrientId: 1008, nutrientName: 'Energy', unitName: 'KCAL', value: 380 },
+                        { nutrientId: 1003, nutrientName: 'Protein', unitName: 'G', value: 12 },
+                    ],
+                    // The label panel repeats Energy + Protein — these MUST NOT override or duplicate.
+                    labelNutrients: { calories: { value: 45 }, protein: { value: 6 } },
+                }),
+            ),
+        );
+
+        const candidate = await adapter.fetchByKey('555001');
+        const energyRows = candidate.nutrients.filter((nutrient) => nutrient.name === 'Energy');
+        const proteinRows = candidate.nutrients.filter((nutrient) => nutrient.name === 'Protein');
+
+        expect(energyRows).toHaveLength(1);
+        expect(energyRows[0]?.amount).toBe('380');
+        expect(energyRows[0]?.basis).toBe('per_100g');
+        expect(proteinRows).toHaveLength(1);
+        expect(proteinRows[0]?.amount).toBe('12');
+        expect(proteinRows[0]?.basis).toBe('per_100g');
+    });
+
+    it('reject-not-store: a malformed (negative) label value rejects the whole candidate', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(
+                makeUsdaBrandedLabelBody({
+                    servingSize: 30,
+                    servingSizeUnit: 'g',
+                    foodNutrients: [],
+                    labelNutrients: { protein: { value: -5 } },
+                }),
+            ),
+        );
+
+        let thrown: unknown;
+        try {
+            await adapter.fetchByKey('555001');
         } catch (error) {
             thrown = error;
         }

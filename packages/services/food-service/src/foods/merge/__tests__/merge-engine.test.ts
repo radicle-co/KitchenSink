@@ -145,15 +145,15 @@ describe('mergeCandidates — field-level merge rules (FR-MRG-2/FR-MRG-3)', () =
         expect(energy?.source).toBe('usda');
     });
 
-    it('normalizes to per-100g BEFORE the blend: an un-normalizable per_serving value is excluded, the per_100g value wins', () => {
+    it('per_100g wins over per_serving on a same-nutrient conflict, even from a lower-priority source (D-PERSERVING)', () => {
         const result = mergeCandidates<TestSource>(
             [
-                // Higher priority, but per_serving (no serving-gram basis in the canonical type → cannot convert).
+                // Higher priority, but per_serving — per_100g is the normalized basis and wins the golden value.
                 makeMergeCandidate<TestSource>('usda', {
                     externalKey: 'A',
                     nutrients: [{ code: 'PROCNT', name: 'Protein', unit: 'g', amount: '5', basis: 'per_serving' }],
                 }),
-                // Lower priority but a valid per_100g value — must win because the per_serving value is dropped.
+                // Lower priority but a per_100g value — must win because per_100g beats per_serving on conflict.
                 makeMergeCandidate<TestSource>('other', {
                     externalKey: 'B',
                     nutrients: [{ code: 'PROCNT', name: 'Protein', unit: 'g', amount: '2.8', basis: 'per_100g' }],
@@ -166,6 +166,24 @@ describe('mergeCandidates — field-level merge rules (FR-MRG-2/FR-MRG-3)', () =
         expect(protein?.amount).toBe('2.8');
         expect(protein?.basis).toBe('per_100g');
         expect(protein?.source).toBe('other');
+    });
+
+    it('RETAINS a per_serving-only nutrient (no per_100g counterpart) with basis=per_serving (D-PERSERVING)', () => {
+        const result = mergeCandidates<TestSource>(
+            [
+                makeMergeCandidate<TestSource>('usda', {
+                    externalKey: 'A',
+                    nutrients: [{ code: 'PROCNT', name: 'Protein', unit: 'g', amount: '8', basis: 'per_serving' }],
+                }),
+            ],
+            priorityOf,
+        );
+
+        const protein = result.goldenRecord?.nutrients.find((nutrient) => nutrient.code === 'PROCNT');
+        expect(protein).toBeDefined();
+        expect(protein?.amount).toBe('8');
+        expect(protein?.basis).toBe('per_serving');
+        expect(protein?.source).toBe('usda');
     });
 
     it('unions portions across contributors, each tagged with its own source', () => {

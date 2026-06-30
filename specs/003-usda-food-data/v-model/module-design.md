@@ -1103,10 +1103,13 @@ FUNCTION mapToCanonical(usdaItem): MappedCandidate
     name: usdaItem.description,
     kind: usdaItem.dataType == 'Branded' ? 'branded' : 'generic',  // USDA data-type → canonical kind (REQ-IDN-3)
     brandOwner: usdaItem.brandOwner OR null,
-    nutrients: usdaItem.foodNutrients.map(n => ({
-      code: n.nutrient.number, name: n.nutrient.name, unit: n.nutrient.unitName,
-      amount: n.amount, basis: 'per_100g'            // USDA abridged is per-100g; normalized before blend
-    })),
+    nutrients: mapNutrients(usdaItem),               // foodNutrients (per-100g, preferred) + labelNutrients (D-PERSERVING)
+    // ── mapNutrients (D-PERSERVING) ──────────────────────────────────────────────────────────────────
+    //   foodNutrients → { code, name, unit, amount, basis: 'per_100g' }   // USDA abridged is per-100g; no conversion
+    //   labelNutrients (Branded per-serving panel, read from raw + servingSize/servingSizeUnit):
+    //     IF servingSizeUnit is grams: amount = value * 100 / servingSizeGrams, basis 'per_100g'   // convert at adapter
+    //     ELSE (ml / count):           amount = value,                       basis 'per_serving'    // KEEP, never drop, no ml=g
+    //     a label key already filled by a per-100g foodNutrients value is skipped (never double-count)
     portions: (usdaItem.foodPortions OR []).map(p => ({ label: p.modifier, gramWeight: p.gramWeight })),
     itemVersion: usdaItem.publicationDate OR hash(usdaItem)   // food_sources.item_version for change-refresh (REQ-032)
   }
@@ -1921,14 +1924,16 @@ FUNCTION merge(candidates: CanonicalCandidate[]): MergeResult
       golden.scalars[field]          = winner.value
       golden.fieldProvenance[field]  = winner.source
 
-  // --- Nutrients: normalize to per-100g FIRST, then higher-priority source wins per nutrient (REQ-051) ---
+  // --- Nutrients: keep each value on the basis the ADAPTER emitted (per-100g where derivable, else per_serving —
+  //     never dropped, D-PERSERVING). Higher-priority source wins per nutrient; a per_100g value wins over a
+  //     per_serving one on conflict (REQ-051) ---
   FOR EACH nutrientCode IN union(candidates.nutrients.code):
     values = candidates
-      .map(c => normalizeToPer100g(c.nutrientFor(nutrientCode)))   // basis normalization before any blend
+      .map(c => c.nutrientFor(nutrientCode))                       // basis already set at the adapter boundary
       .filter(v => v IS NOT NULL)                                  // presence beats absence
     IF length(values) > 0:
-      winner = maxBy(values, v => priorityOf(v.source))            // MOD-015 priority; conflict → higher source
-      golden.nutrients[nutrientCode] = { amount: winner.amount, basis: 'per_100g', source: winner.source }
+      winner = pickNutrientWinner(values, priorityOf)              // per_100g beats per_serving; else MOD-015 priority
+      golden.nutrients[nutrientCode] = { amount: winner.amount, basis: winner.basis, source: winner.source }
 
   // --- Portions: union across sources, each carrying its own source_id provenance ---
   golden.portions = candidates.flatMap(c => c.portions.map(p => ({ ...p, source: c.source })))
@@ -1944,10 +1949,14 @@ FUNCTION longestWithValue(candidates, field):
   withValue = candidates.filter(c => c[field] IS NOT NULL AND c[field] != "")
   RETURN withValue IS EMPTY ? null : maxBy(withValue, c => length(c[field]))   // ties → higher priority
 
-FUNCTION normalizeToPer100g(nutrient):
-  IF nutrient IS NULL: RETURN null
-  IF nutrient.basis == 'per_100g': RETURN nutrient
-  RETURN { ...nutrient, amount: nutrient.amount * (100 / nutrient.servingGrams), basis: 'per_100g' }  // SC-008 fidelity
+// Basis conversion happens at the SOURCE-ADAPTER boundary (MOD-008), NOT here (D-PERSERVING): a per-serving
+// labelNutrients value is converted to per-100g ONLY when servingSizeUnit is grams (value * 100 / servingSizeGrams),
+// otherwise emitted as basis=per_serving. The merge keeps whatever basis the adapter emitted and never drops a
+// per_serving value; on a same-nutrient conflict a per_100g value wins over a per_serving one (SC-008 fidelity).
+FUNCTION pickNutrientWinner(values, priorityOf):
+  per100g = values.filter(v => v.basis == 'per_100g')
+  pool    = per100g IS NOT EMPTY ? per100g : values            // per_100g beats per_serving on conflict
+  RETURN maxBy(pool, v => priorityOf(v.source))                // MOD-015 priority within the winning basis
 
 // Change-refresh selective re-merge (DSN-4/REQ-053), invoked by MOD-016 `mergeChangedSources`. Re-applies the
 // field-level merge using ONLY the re-pulled changed source items over the existing record, returning just the
@@ -1975,13 +1984,13 @@ FUNCTION mergeChanged(existing: GoldenRecord, changed: CanonicalCandidate[]): Ch
 
 ### 4. Error Handling Return Codes
 
-| Error Condition                                             | Error Type / Outcome           | Action                                                                     |
-| ----------------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------- |
-| Empty candidate set                                         | outcome `NOT_FOUND`            | Worker tombstones the food (REQ-025)                                       |
-| Non-collapsible multi-candidate set                         | outcome `UNRESOLVED`           | Candidate set surfaced via MOD-018; food `UNRESOLVED` (REQ-048)            |
-| Nutrient with missing serving basis (per_serving, no grams) | drop that value                | Cannot normalize to per-100g → presence treated as absence for it (SC-008) |
-| Conflicting nutrient values, equal priority                 | deterministic tiebreak         | First in `PRIORITY_ORDER` wins; recorded via `source_id` (REQ-051)         |
-| Unknown source in a candidate                               | `UnknownSourceError` (MOD-015) | Surfaces a registry misconfiguration; worker fails the row closed          |
+| Error Condition                                    | Error Type / Outcome           | Action                                                                                                               |
+| -------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Empty candidate set                                | outcome `NOT_FOUND`            | Worker tombstones the food (REQ-025)                                                                                 |
+| Non-collapsible multi-candidate set                | outcome `UNRESOLVED`           | Candidate set surfaced via MOD-018; food `UNRESOLVED` (REQ-048)                                                      |
+| Nutrient on a non-gram serving basis (per_serving) | keep on `basis=per_serving`    | No gram serving size to convert → retained (NOT dropped), persisted with `basis=per_serving` (D-PERSERVING/FR-MRG-3) |
+| Conflicting nutrient values, equal priority        | deterministic tiebreak         | First in `PRIORITY_ORDER` wins; recorded via `source_id` (REQ-051)                                                   |
+| Unknown source in a candidate                      | `UnknownSourceError` (MOD-015) | Surfaces a registry misconfiguration; worker fails the row closed                                                    |
 
 ---
 

@@ -198,6 +198,37 @@ describe.skipIf(!DATABASE_URL)('MergeAndPersistService (integration)', () => {
         }
     });
 
+    it('persists a branded per_serving nutrient with basis=per_serving (D-PERSERVING, FR-MRG-3)', async () => {
+        const { id: foodId } = await foods.createByName({ normalizedName: 'acme protein crackers' });
+
+        const result = await service.resolveAndPersist({
+            foodId,
+            candidates: [
+                richCandidate({
+                    externalKey: '555001',
+                    name: 'Acme Protein Crackers',
+                    kind: 'branded',
+                    nutrients: [
+                        // A non-gram (ml/count) serving panel survives the adapter as per_serving.
+                        { code: 'PROCNT', name: 'Protein', unit: 'g', amount: '8', basis: 'per_serving' },
+                        { code: 'ENERC_KCAL', name: 'Energy', unit: 'kcal', amount: '150', basis: 'per_100g' },
+                    ],
+                }),
+            ],
+        });
+
+        expect(result.outcome).toBe('RESOLVED');
+
+        const record = await foods.readGoldenRecord(foodId);
+        expect(record?.nutrients).toHaveLength(2);
+
+        const protein = record?.nutrients.find((nutrient) => nutrient.name === 'Protein');
+        const energy = record?.nutrients.find((nutrient) => nutrient.name === 'Energy');
+        expect(protein?.basis).toBe('per_serving');
+        expect(protein?.amount).toBe('8');
+        expect(energy?.basis).toBe('per_100g');
+    });
+
     it('reject-not-store: a malformed nutrient value is dropped, the food still resolves from the rest (T-164)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
 

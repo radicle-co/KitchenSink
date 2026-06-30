@@ -14,7 +14,17 @@
  * `(name, unit)` to a deterministic canonical form, then `mapNutrients` dedups on that key so case
  * variants collapse to one canonical nutrient before any value leaves the adapter.
  *
- * @implements FR-IDN-2 FR-023 FR-024 FR-ADP-2 FR-ADP-3
+ * **Per-serving label panel (D-PERSERVING).** USDA Branded foods report their Nutrition-Facts panel as
+ * a per-serving `labelNutrients` map (with `servingSize`/`servingSizeUnit`), while Foundation/SR Legacy
+ * and the Branded `foodNutrients` array are per-100g. This adapter is the only place the bases are
+ * reconciled: per-100g `foodNutrients` are preferred (no conversion); a `labelNutrients` value is
+ * converted to per-100g ONLY when `servingSizeUnit` is grams (`amount_per_100g = value * 100 / grams`,
+ * `basis=per_100g`); when the serving is NOT grams (ml, or a count) the value is kept on `basis=per_serving`
+ * rather than dropped (no `ml = g` assumption). A label key a `foodNutrients` value already filled is
+ * skipped so the panel is never double-counted. `labelNutrients`/`servingSize`/`servingSizeUnit` are read
+ * from the preserved `raw` payload (the typed `UsdaFoodDetail` does not surface them — same as portions).
+ *
+ * @implements FR-IDN-2 FR-023 FR-024 FR-ADP-2 FR-ADP-3 FR-MRG-3
  */
 import { createHash } from 'node:crypto';
 
@@ -75,6 +85,41 @@ const RawUsdaPortionSchema = z
 const RawUsdaPortionArraySchema = z.array(RawUsdaPortionSchema);
 
 /**
+ * The Nutrition-Facts panel of a Branded food as it appears in the raw USDA payload: a map of label
+ * keys (`protein`, `fat`, `calories`, …) to a PER-SERVING `{ value }`. The typed `UsdaFoodDetail` does
+ * not surface it, so (like portions) the adapter reads + validates it from the preserved `raw` payload.
+ */
+const RawUsdaLabelNutrientsSchema = z.record(z.string(), z.object({ value: z.number().optional() }).passthrough());
+
+/**
+ * Maps each known USDA `labelNutrients` key to the canonical `(name, unit)` it folds into. The names +
+ * units mirror the FDC `foodNutrients` display names so a label value dedups against an equivalent
+ * per-100g value (the "prefer foodNutrients, do not double-count the label" rule). USDA label units are
+ * fixed per key (grams for macros, mg for the listed minerals, kcal for calories), so the panel carries
+ * no per-entry unit. Keys absent from this map are skipped — without a known unit they cannot be stored.
+ */
+const LABEL_NUTRIENT_MAP: Readonly<Record<string, { readonly name: string; readonly unit: string }>> = {
+    fat: { name: 'Total lipid (fat)', unit: 'g' },
+    saturatedFat: { name: 'Fatty acids, total saturated', unit: 'g' },
+    transFat: { name: 'Fatty acids, total trans', unit: 'g' },
+    cholesterol: { name: 'Cholesterol', unit: 'mg' },
+    sodium: { name: 'Sodium, Na', unit: 'mg' },
+    carbohydrates: { name: 'Carbohydrate, by difference', unit: 'g' },
+    fiber: { name: 'Fiber, total dietary', unit: 'g' },
+    sugars: { name: 'Sugars, total including NLEA', unit: 'g' },
+    addedSugar: { name: 'Sugars, added', unit: 'g' },
+    protein: { name: 'Protein', unit: 'g' },
+    calcium: { name: 'Calcium, Ca', unit: 'mg' },
+    iron: { name: 'Iron, Fe', unit: 'mg' },
+    potassium: { name: 'Potassium, K', unit: 'mg' },
+    calories: { name: 'Energy', unit: 'kcal' },
+    vitaminD: { name: 'Vitamin D (D2 + D3)', unit: 'µg' },
+};
+
+/** Decimal places kept when converting a per-serving label value to per-100g (strips float drift). */
+const CONVERSION_PRECISION = 6;
+
+/**
  * Fold a nutrient name to a deterministic canonical form (DB-5): trim, collapse internal whitespace,
  * then sentence-case (first char upper, rest lower) so `Protein`/`protein`/`PROTEIN` all become
  * `Protein`. Pure.
@@ -100,6 +145,22 @@ export function canonicalizeNutrientName(name: string): string {
  */
 export function canonicalizeUnit(unit: string): string {
     return unit.trim().toLowerCase();
+}
+
+/**
+ * Convert a per-serving label amount to a per-100g amount: `value * 100 / servingSizeGrams`, formatted
+ * as a fixed-precision decimal string (no scientific notation, no binary float drift — `2.82 * 100 / 30`
+ * yields `'9.4'`, not `'9.399999999999999'`). The result is a clean decimal matching the storable
+ * `amount` domain (SC-008). Pure.
+ *
+ * @param value - The per-serving label amount.
+ * @param servingSizeGrams - The serving size in grams (strictly positive).
+ * @returns The per-100g amount as a decimal string.
+ */
+export function convertPerServingToPer100g(value: number, servingSizeGrams: number): string {
+    const per100g = (value * 100) / servingSizeGrams;
+
+    return String(Number(per100g.toFixed(CONVERSION_PRECISION)));
 }
 
 export class UsdaSourceAdapter implements FoodSourceAdapter {
@@ -228,7 +289,7 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
             brandName: detail.brandName ?? null,
             description: detail.description,
             barcode: detail.gtinUpc ?? null,
-            nutrients: this.mapNutrients(detail.foodNutrients, externalKey),
+            nutrients: this.mapNutrients(detail.foodNutrients, detail.raw, externalKey),
             portions: this.mapPortions(detail.raw, externalKey),
             itemVersion: detail.publicationDate ?? hashItem(detail.raw),
         };
@@ -240,11 +301,20 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
      * over-range) or an over-length name/unit rejects the whole candidate (reject-not-store). Case
      * variants of `(name, unit)` collapse to one canonical row (DB-5).
      *
-     * @param nutrients - The typed USDA nutrients.
+     * Two inputs feed one deduped set: the per-100g `foodNutrients` (preferred) and, for Branded foods,
+     * the per-serving `labelNutrients` panel read from the raw payload (D-PERSERVING); a label entry
+     * whose canonical key a `foodNutrients` value already filled is skipped so it is never double-counted.
+     *
+     * @param nutrients - The typed USDA per-100g nutrients.
+     * @param raw - The verbatim USDA payload (carries `labelNutrients`/`servingSize`/`servingSizeUnit`).
      * @param externalKey - The item key (for error context).
      * @returns The deduped canonical nutrients.
      */
-    private mapNutrients(nutrients: readonly UsdaNutrient[], externalKey: string): CanonicalNutrient[] {
+    private mapNutrients(
+        nutrients: readonly UsdaNutrient[],
+        raw: Record<string, unknown>,
+        externalKey: string,
+    ): CanonicalNutrient[] {
         const byKey = new Map<string, CanonicalNutrient>();
 
         for (const entry of nutrients) {
@@ -252,44 +322,132 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
                 continue; // USDA omitted the measurement — absent, not malformed.
             }
 
-            if (!Number.isFinite(entry.value) || entry.value < 0 || entry.value > MAX_AMOUNT) {
-                throw new AdapterValidationError(
-                    SOURCE,
-                    externalKey,
-                    'nutrient.amount',
-                    `Nutrient '${entry.nutrientName}' has an out-of-range amount`,
-                );
-            }
+            this.assertAmountInRange(entry.value, entry.nutrientName, externalKey);
 
-            const name = canonicalizeNutrientName(entry.nutrientName);
-            const unit = canonicalizeUnit(entry.unitName);
-
-            if (name.length === 0 || name.length > NAME_MAX_LENGTH) {
-                throw new AdapterValidationError(
-                    SOURCE,
-                    externalKey,
-                    'nutrient.name',
-                    'Nutrient name invalid/over-length',
-                );
-            }
-
-            if (unit.length === 0 || unit.length > UNIT_MAX_LENGTH) {
-                throw new AdapterValidationError(
-                    SOURCE,
-                    externalKey,
-                    'nutrient.unit',
-                    'Nutrient unit invalid/over-length',
-                );
-            }
-
-            const key = `${name} ${unit}`;
+            const name = this.assertNutrientName(canonicalizeNutrientName(entry.nutrientName), externalKey);
+            const unit = this.assertNutrientUnit(canonicalizeUnit(entry.unitName), externalKey);
+            const key = `${name} ${unit}`;
 
             if (!byKey.has(key)) {
                 byKey.set(key, { code: null, name, unit, amount: String(entry.value), basis: 'per_100g' });
             }
         }
 
+        // Per-serving label panel (Branded): converted to per-100g for a gram serving, else kept as-is.
+        this.addLabelNutrients(byKey, raw, externalKey);
+
         return [...byKey.values()];
+    }
+
+    /**
+     * Fold a Branded food's per-serving `labelNutrients` panel into the deduped nutrient map
+     * (D-PERSERVING). For a gram serving the value is converted to per-100g (`value * 100 / grams`,
+     * `basis=per_100g`); for a non-gram serving (ml, or a count like `2 cookies`) the value is KEPT
+     * as-is with `basis=per_serving` — never dropped, never assumed to be grams. A label key already
+     * filled by a `foodNutrients` value is skipped (prefer the per-100g value, do not double-count).
+     * A present-but-invalid label value rejects the whole candidate (reject-not-store).
+     *
+     * @param byKey - The deduped nutrient map to fold into.
+     * @param raw - The verbatim USDA payload.
+     * @param externalKey - The item key (for error context).
+     * @sideEffect Mutates the supplied `byKey` map.
+     */
+    private addLabelNutrients(
+        byKey: Map<string, CanonicalNutrient>,
+        raw: Record<string, unknown>,
+        externalKey: string,
+    ): void {
+        const parsed = RawUsdaLabelNutrientsSchema.safeParse(raw['labelNutrients']);
+
+        if (!parsed.success) {
+            return; // No (or malformed) label panel — nothing to fold in.
+        }
+
+        const servingSize = typeof raw['servingSize'] === 'number' ? raw['servingSize'] : undefined;
+        const servingUnit = typeof raw['servingSizeUnit'] === 'string' ? canonicalizeUnit(raw['servingSizeUnit']) : '';
+        const isGramServing =
+            (servingUnit === 'g' || servingUnit === 'grm') &&
+            servingSize !== undefined &&
+            Number.isFinite(servingSize) &&
+            servingSize > 0;
+
+        for (const [labelKey, entry] of Object.entries(parsed.data)) {
+            const mapping = LABEL_NUTRIENT_MAP[labelKey];
+
+            if (mapping === undefined || entry.value === undefined) {
+                continue; // Unmapped label key (unknown unit) or absent value — skip.
+            }
+
+            this.assertAmountInRange(entry.value, labelKey, externalKey);
+
+            const name = this.assertNutrientName(canonicalizeNutrientName(mapping.name), externalKey);
+            const unit = this.assertNutrientUnit(canonicalizeUnit(mapping.unit), externalKey);
+            const key = `${name} ${unit}`;
+
+            if (byKey.has(key)) {
+                continue; // A foodNutrients per-100g value already filled this — never double-count.
+            }
+
+            if (isGramServing) {
+                const amount = convertPerServingToPer100g(entry.value, servingSize);
+
+                this.assertAmountInRange(Number(amount), labelKey, externalKey);
+                byKey.set(key, { code: null, name, unit, amount, basis: 'per_100g' });
+            } else {
+                byKey.set(key, { code: null, name, unit, amount: String(entry.value), basis: 'per_serving' });
+            }
+        }
+    }
+
+    /**
+     * Assert a nutrient amount is finite, non-negative, and within the sanity bound (reject-not-store).
+     *
+     * @param value - The raw amount.
+     * @param label - The nutrient name/key (for error context).
+     * @param externalKey - The item key (for error context).
+     * @throws {AdapterValidationError} when the amount is out of range.
+     */
+    private assertAmountInRange(value: number, label: string, externalKey: string): void {
+        if (!Number.isFinite(value) || value < 0 || value > MAX_AMOUNT) {
+            throw new AdapterValidationError(
+                SOURCE,
+                externalKey,
+                'nutrient.amount',
+                `Nutrient '${label}' has an out-of-range amount`,
+            );
+        }
+    }
+
+    /**
+     * Assert a canonical nutrient name is present and within the length bound; returns it for chaining.
+     *
+     * @param name - The canonicalized nutrient name.
+     * @param externalKey - The item key (for error context).
+     * @returns The validated name.
+     * @throws {AdapterValidationError} when the name is empty or over-length.
+     */
+    private assertNutrientName(name: string, externalKey: string): string {
+        if (name.length === 0 || name.length > NAME_MAX_LENGTH) {
+            throw new AdapterValidationError(SOURCE, externalKey, 'nutrient.name', 'Nutrient name invalid/over-length');
+        }
+
+        return name;
+    }
+
+    /**
+     * Assert a canonical unit is present and within the length bound; returns it for chaining.
+     *
+     * @param unit - The canonicalized unit.
+     * @param externalKey - The item key (for error context).
+     * @returns The validated unit.
+     * @throws {AdapterValidationError} when the unit is empty or over-length.
+     */
+    private assertNutrientUnit(unit: string, externalKey: string): string {
+        if (unit.length === 0 || unit.length > UNIT_MAX_LENGTH) {
+            throw new AdapterValidationError(SOURCE, externalKey, 'nutrient.unit', 'Nutrient unit invalid/over-length');
+        }
+
+        return unit;
     }
 
     /**

@@ -604,3 +604,51 @@ attempt a serving-basis conversion. Out of this slice by direction.
 - **Phase 8:** the change-refresh Fargate scheduled task + the worker's `refreshResolvedFood` selective
   in-place re-pull branch; the real EventBridge `EventBus` implementation behind the `FoodEventEmitter`
   seam; CloudWatch alarms.
+
+---
+
+## 2026-06-29 — Refinement slice: branded per-serving nutrient gap (D-PERSERVING, TDD)
+
+**Scope.** Close the data-loss gap where USDA Branded foods that ship only a per-serving `labelNutrients`
+panel persisted zero nutrition (the merge engine dropped every `per_serving` value). Code touched: the
+USDA adapter (`src/sources/usda/usda.adapter.ts`) and the merge engine (`src/foods/merge/merge-engine.ts`)
+only — NO worker, NO old `foods/*` layer, NO `usda.ts`. Plus a clause-level design-of-record update
+(spec FR-MRG-3, decision-register §3.17 D-PERSERVING, module-design MOD-008/MOD-017, review.md refinement
+note). Policy implemented exactly per the user-approved decision: prefer per-100g `foodNutrients`; convert
+`labelNutrients` to per-100g at the ADAPTER boundary only when `servingSizeUnit` is grams
+(`value * 100 / servingSizeGrams`); else keep `basis=per_serving` (no ml-equals-grams assumption); the
+merge engine retains `per_serving` (per_100g wins a same-nutrient conflict; presence-beats-absence holds).
+
+**Red gate (assertion-level, confirmed failing for the right reason).**
+
+- Unit: `4 failed | 88 passed (92)`.
+    - adapter: _converts a gram-serving labelNutrients panel to per-100g_ (FAIL — label ignored);
+      _keeps a NON-gram (ml) serving panel as basis=per_serving_ (FAIL); _reject-not-store: a malformed
+      (negative) label value rejects the candidate_ (FAIL). The _prefer-foodNutrients / no double-count_
+      and _per_100g-wins-over-per_serving conflict_ assertions were already green (old code simply ignored
+      the label / dropped per_serving) and stayed green after the change.
+    - merge: _RETAINS a per_serving-only nutrient with basis=per_serving_ (FAIL — value was dropped).
+- Integration (`DATABASE_URL` -> Postgres 16): `1 failed | 94 passed (95)` —
+  _persists a branded per_serving nutrient with basis=per_serving_ (FAIL).
+
+**Green result.**
+
+- Adapter change: `mapNutrients` now also reads `labelNutrients` + `servingSize`/`servingSizeUnit` from the
+  preserved `raw` payload (mirroring how portions are read), folds the label panel into the same deduped
+  `(name, unit)` map after `foodNutrients` (so a per-100g value is never double-counted by the label), and a
+  new `convertPerServingToPer100g` helper does the grams conversion with fixed-precision formatting (no float
+  drift; `LABEL_NUTRIENT_MAP` maps label keys to canonical FDC names/units). Reject-not-store and name/unit
+  canonicalization preserved (extracted into `assertAmountInRange`/`assertNutrientName`/`assertNutrientUnit`).
+  File header doc updated.
+- Merge change: `MergedNutrient.basis` widened to `CanonicalNutrientBasis`; the per-100g-only
+  `toPer100gAmount` drop was replaced with `shouldReplaceNutrient` — a `per_serving` value is retained, the
+  highest-priority value wins per dedup key, and a `per_100g` value upgrades over an already-recorded
+  `per_serving` one (per_100g wins a basis conflict). Module + interface docs updated.
+- Suites: unit `92 passed (92)`; integration `95 passed (95)` — the prior **87 unit / 94 integration**
+  did not regress (87 + 5 new = 92; 94 + 1 new = 95). `npx tsc --noEmit` clean (whole package);
+  `npm run lint` clean.
+
+**Deviation.** While editing the adapter a stray NUL byte was introduced into the `foodNutrients`
+nutrient-key separator, which silently defeated label/foodNutrients dedup and flagged the file as
+non-UTF-8; replaced with a normal space and re-verified (`file` reports UTF-8; dedup green). No other
+deviation from the approved policy.

@@ -111,11 +111,17 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
         throw new ClerkVerificationError();
     }
 
-    if (result.errors || !result.data) {
+    // `@clerk/backend`'s `verifyToken` THROWS on failure (caught above) and resolves the verified token
+    // on success. Its declared return type is the legacy `{ data, errors }` envelope, but at runtime
+    // (>= 1.34) it resolves the BARE JWT payload — the declared types lag the runtime. Accept either: a
+    // legacy `{ data }` envelope OR the payload itself; still reject a legacy failure envelope (`errors`).
+    const raw = result as unknown as Record<string, unknown>;
+
+    if (raw['errors']) {
         throw new ClerkVerificationError();
     }
 
-    const payload = result.data as unknown as Record<string, unknown>;
+    const payload = asRecord(raw['data'] ?? raw);
     const sub = asNonEmptyString(payload['sub']);
 
     if (!sub) {

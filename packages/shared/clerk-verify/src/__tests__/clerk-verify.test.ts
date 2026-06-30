@@ -5,6 +5,12 @@
  * extraction, fail-closed behaviour, and the public-metadata-only authorization grant — WITHOUT a
  * real key or any network call (the networkless guarantee is structural: `verifyToken` is passed a
  * `jwtKey`, never a `secretKey`).
+ *
+ * IMPORTANT (regression guard): `@clerk/backend` (>= 1.34) `verifyToken` RESOLVES THE BARE JWT PAYLOAD
+ * on success (and throws on failure) — its declared `{ data, errors }` return type lags the runtime.
+ * The success-path mocks below therefore use the bare-payload shape (the real runtime); one case keeps
+ * the legacy `{ data }` envelope to prove the wrapper still accepts it. A wrapper that only reads
+ * `result.data` (the original bug — it 401'd every valid token) fails these tests.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,14 +29,11 @@ beforeEach(() => {
 });
 
 describe('verifyClerkToken', () => {
-    it('returns the verified claims for a valid token (sub + azp + public_metadata grants)', async () => {
+    it('returns the verified claims from the BARE payload @clerk/backend resolves (sub + azp + grants)', async () => {
         mockVerify.mockResolvedValue({
-            data: {
-                sub: 'user_123',
-                azp: 'https://app.example.com',
-                public_metadata: { scopes: ['food:admin'], permissions: ['p1'] },
-            },
-            errors: undefined,
+            sub: 'user_123',
+            azp: 'https://app.example.com',
+            public_metadata: { scopes: ['food:admin'], permissions: ['p1'] },
         } as never);
 
         const claims = await verifyClerkToken('tok', CONFIG);
@@ -41,8 +44,20 @@ describe('verifyClerkToken', () => {
         expect(claims.permissions).toEqual(['p1']);
     });
 
+    it('also accepts the legacy { data } envelope (back-compat across @clerk/backend versions)', async () => {
+        mockVerify.mockResolvedValue({
+            data: { sub: 'user_legacy', azp: 'https://app.example.com', public_metadata: { scopes: ['s1'] } },
+            errors: undefined,
+        } as never);
+
+        const claims = await verifyClerkToken('tok', CONFIG);
+
+        expect(claims.sub).toBe('user_legacy');
+        expect(claims.scopes).toEqual(['s1']);
+    });
+
     it('passes the configured jwtKey + authorizedParties to verifyToken (networkless, azp-enforced)', async () => {
-        mockVerify.mockResolvedValue({ data: { sub: 'user_1' }, errors: undefined } as never);
+        mockVerify.mockResolvedValue({ sub: 'user_1' } as never);
 
         await verifyClerkToken('tok', CONFIG);
 
@@ -53,10 +68,7 @@ describe('verifyClerkToken', () => {
     });
 
     it('reads authorization grants ONLY from public_metadata, never a top-level scopes claim', async () => {
-        mockVerify.mockResolvedValue({
-            data: { sub: 'user_1', scopes: ['forged:admin'], public_metadata: {} },
-            errors: undefined,
-        } as never);
+        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: ['forged:admin'], public_metadata: {} } as never);
 
         const claims = await verifyClerkToken('tok', CONFIG);
 
@@ -77,20 +89,20 @@ describe('verifyClerkToken', () => {
         await expect(verifyClerkToken('tok', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
     });
 
-    it('throws ClerkVerificationError when verifyToken reports errors', async () => {
+    it('throws ClerkVerificationError on a legacy failure envelope that carries errors', async () => {
         mockVerify.mockResolvedValue({ data: undefined, errors: [{ message: 'bad' }] } as never);
 
         await expect(verifyClerkToken('tok', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
     });
 
     it('throws ClerkVerificationError when the verified payload carries no sub', async () => {
-        mockVerify.mockResolvedValue({ data: { public_metadata: {} }, errors: undefined } as never);
+        mockVerify.mockResolvedValue({ public_metadata: {} } as never);
 
         await expect(verifyClerkToken('tok', CONFIG)).rejects.toSatisfy(isClerkVerificationError);
     });
 
     it('omits the azp check when no authorized parties are configured (passes undefined, never [])', async () => {
-        mockVerify.mockResolvedValue({ data: { sub: 'user_1' }, errors: undefined } as never);
+        mockVerify.mockResolvedValue({ sub: 'user_1' } as never);
 
         await verifyClerkToken('tok', { jwtKey: 'PEM', authorizedParties: [] });
 

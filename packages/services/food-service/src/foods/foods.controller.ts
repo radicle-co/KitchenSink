@@ -1,124 +1,184 @@
 /**
- * `FoodsController` — HTTP surface for the `/v1/foods/*` read API (ARCH-001, MOD-001).
+ * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/v1/foods/*` HTTP surface. Validates
+ * input at the boundary, delegates to {@link FoodsService}, and maps the service's typed domain errors
+ * to HTTP responses under the FR-051 precedence `401 → 403 → 400 → 404/202/200`:
  *
- * Validates `fdcId` at the boundary (positive integer → else 400, FR-006), delegates branching
- * to {@link FoodsService}, and maps the service's typed errors to HTTP responses:
- * {@link FoodPendingError} → 202, {@link FoodNotFoundError} → 404. Internal/DB errors are never
- * leaked — they propagate to Nest's default 500 handler with a generic body.
+ * - `FoodPendingError` → `202` (PENDING/UNRESOLVED)
+ * - `FoodNotFoundError` → `404` (NOT_FOUND/FAILED/no row; status still in the body)
+ * - `CandidateMismatchError` / `NotResolvableError` → `409`
+ * - `FetchUnavailableError` → `503` + `Retry-After` (backpressure / flood-shed / resolve cap; never `429`)
  *
- * Status precedence (FR-051) is `401 → 403 → 400 → 404/202/200`; the `401/403` auth layer is the
- * Phase-7 `FoodAuthGuard` (not built here). In this phase endpoints are open and `requestedBy`
- * comes from `req.user?.sub` (populated by the future guard) with a clearly-marked TEMP debug
- * header fallback for tests.
+ * The `401` (authn) layer is the {@link FoodAuthGuard} middleware mounted ahead of this controller; it
+ * sets `req.user` from the verified Clerk `sub` only. Operational `/refetch` additionally requires the
+ * `food:admin` scope (`403` otherwise) — checked BEFORE id validation so `403` precedes `400`. Internal/DB
+ * errors are never leaked; they propagate to Nest's generic `500`.
  *
- * @implements FR-001 FR-002 FR-003 FR-005 FR-006 FR-007 FR-008 FR-009 FR-010 FR-031 FR-033
+ * @implements FR-002 FR-003 FR-004 FR-005 FR-006 FR-007 FR-008 FR-012 FR-039 FR-045 FR-046 FR-051 FR-RES-1 FR-RES-2
  */
 import {
     BadRequestException,
+    Body,
+    ConflictException,
     Controller,
+    ForbiddenException,
     Get,
     HttpStatus,
     NotFoundException,
     Param,
+    Patch,
+    Post,
     Query,
     Req,
     Res,
+    ServiceUnavailableException,
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 
-import { isFoodNotFoundError, isFoodPendingError } from './foods.errors.js';
-import { FoodsService } from './foods.service.js';
-import type { FoodAutocompleteResponse, FoodResponse, FoodSearchResponse, FoodStatusResponse } from './foods.types.js';
-
-/**
- * TEMP (Phase 7): until `FoodAuthGuard` populates `req.user`, allow tests to inject the
- * authenticated `sub` via the `x-debug-sub` header. Used ONLY when `req.user` is absent. The
- * production auth path (guard → `req.user.sub`) supersedes this; never a real auth path.
- */
-const DEBUG_SUB_HEADER = 'x-debug-sub';
-
-/** Default principal when neither the (future) guard nor the debug header supplies one. */
-const ANONYMOUS_SUB = 'anonymous';
-
-/** A request augmented by the future `FoodAuthGuard` with the verified principal. */
-interface AuthedRequest extends Request {
-    user?: { sub: string };
-}
+import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../auth/authenticated-principal.js';
+import { isFoodId } from '../db/ulid.js';
+import {
+    isCandidateMismatchError,
+    isFetchUnavailableError,
+    isFoodNotFoundError,
+    isFoodPendingError,
+    isNotResolvableError,
+} from './foods.errors.js';
+import { FoodsService, MAX_BATCH_NAMES } from './foods.service.js';
+import type {
+    AddResponse,
+    BatchResponse,
+    CandidatesResponse,
+    FoodResponse,
+    PendingResponse,
+    ResolveResponse,
+    SearchResponse,
+    StatusResponse,
+} from './foods.types.js';
 
 @Controller('v1/foods')
 export class FoodsController {
     public constructor(private readonly foodsService: FoodsService) {}
 
-    /**
-     * `GET /v1/foods/search?query=` — local full-text + fuzzy search (FR-008–FR-010).
-     *
-     * Declared before the `:fdcId` routes so `search`/`autocomplete` are not captured as ids.
-     */
+    /** `GET /v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
     @Get('search')
-    public async search(@Query('query') query?: string): Promise<FoodSearchResponse> {
+    public async search(@Query('query') query?: string): Promise<SearchResponse> {
         return this.foodsService.search(query ?? '');
     }
 
-    /** `GET /v1/foods/autocomplete?query=` — local autocomplete suggestions (FR-008). */
-    @Get('autocomplete')
-    public async autocomplete(@Query('query') query?: string): Promise<FoodAutocompleteResponse> {
-        return this.foodsService.autocomplete(query ?? '');
-    }
-
-    /** `GET /v1/foods/{fdcId}/status` — poll fetch status without triggering a fetch (FR-007/FR-033). */
-    @Get(':fdcId/status')
-    public async getStatus(@Param('fdcId') fdcIdParam: string): Promise<FoodStatusResponse> {
-        const fdcId = this.parseFdcId(fdcIdParam);
-
-        try {
-            return await this.foodsService.getStatus(fdcId);
-        } catch (error) {
-            if (isFoodNotFoundError(error)) {
-                throw new NotFoundException({ error: 'Food not found', fdcId });
-            }
-
-            throw error;
-        }
-    }
-
-    /** `GET /v1/foods/{fdcId}/nutrients` — full nutrient breakdown for a fetched food (FR-002). */
-    @Get(':fdcId/nutrients')
-    public async getNutrients(@Param('fdcId') fdcIdParam: string): Promise<FoodResponse> {
-        const fdcId = this.parseFdcId(fdcIdParam);
-
-        try {
-            return await this.foodsService.getNutrients(fdcId);
-        } catch (error) {
-            if (isFoodNotFoundError(error)) {
-                throw new NotFoundException({
-                    error: 'Nutrition data not available',
-                    fdcId,
-                    message: 'Food is not yet fetched; poll /status or retry shortly',
-                });
-            }
-
-            throw error;
-        }
-    }
-
-    /**
-     * `GET /v1/foods/{fdcId}` — the synchronous lookup path (FR-001–FR-005, FR-025, FR-031).
-     *
-     * Returns 200 (fresh or stale-while-revalidate), 202 (pending/miss/tombstone-lapsed enqueue),
-     * or 404 (tombstoned within TTL). Uses `@Res({ passthrough: true })` to set 200/202 per branch
-     * while leaving Nest's serialization intact.
-     */
-    @Get(':fdcId')
-    public async getFood(
-        @Param('fdcId') fdcIdParam: string,
-        @Req() req: AuthedRequest,
+    /** `POST /v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */
+    @Post()
+    public async addByName(
+        @Body() body: unknown,
+        @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
-    ): Promise<FoodResponse | FoodStatusResponse> {
-        const fdcId = this.parseFdcId(fdcIdParam);
-        const requestedBy = this.resolveRequestedBy(req);
+    ): Promise<AddResponse> {
+        const name = this.requireName(body);
 
         try {
-            const food = await this.foodsService.getFood(fdcId, requestedBy);
+            const result = await this.foodsService.addByName(name, this.sub(req));
+            res.status(HttpStatus.ACCEPTED);
+
+            return result;
+        } catch (error) {
+            throw this.mapWriteError(error, res);
+        }
+    }
+
+    /** `POST /v1/foods/batch` — batch add-by-name; ≤100 names (`400` over) (FR-045). */
+    @Post('batch')
+    public async batch(
+        @Body() body: unknown,
+        @Req() req: AuthenticatedRequest,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<BatchResponse> {
+        const names = this.requireNames(body);
+
+        try {
+            return await this.foodsService.batchAdd(names, this.sub(req));
+        } catch (error) {
+            throw this.mapWriteError(error, res);
+        }
+    }
+
+    /** `GET /v1/foods/{id}/status` — lifecycle poll (FR-007). */
+    @Get(':id/status')
+    public async getStatus(@Param('id') id: string): Promise<StatusResponse> {
+        this.requireId(id);
+
+        try {
+            return await this.foodsService.getStatus(id);
+        } catch (error) {
+            throw this.mapReadError(error, id);
+        }
+    }
+
+    /** `GET /v1/foods/{id}/candidates` — disambiguation candidate set (FR-RES-1). */
+    @Get(':id/candidates')
+    public async getCandidates(@Param('id') id: string): Promise<CandidatesResponse> {
+        this.requireId(id);
+
+        try {
+            return await this.foodsService.getCandidates(id);
+        } catch (error) {
+            throw this.mapReadError(error, id);
+        }
+    }
+
+    /** `POST /v1/foods/{id}/refetch` — admin-scoped manual re-enqueue; `403` without scope (FR-039). */
+    @Post(':id/refetch')
+    public async refetch(
+        @Param('id') id: string,
+        @Req() req: AuthenticatedRequest,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<AddResponse> {
+        // 403 (authz scope) precedes 400 (id validation) per FR-051.
+        if (!hasScope(req.user, FOOD_ADMIN_SCOPE)) {
+            throw new ForbiddenException({ error: 'Forbidden', message: 'Operation requires elevated scope' });
+        }
+
+        this.requireId(id);
+
+        try {
+            const result = await this.foodsService.refetch(id, this.sub(req));
+            res.status(HttpStatus.ACCEPTED);
+
+            return result;
+        } catch (error) {
+            throw this.mapReadError(this.mapWriteError(error, res), id);
+        }
+    }
+
+    /** `PATCH /v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2). */
+    @Patch(':id')
+    public async patchResolve(
+        @Param('id') id: string,
+        @Body() body: unknown,
+        @Req() req: AuthenticatedRequest,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<ResolveResponse> {
+        this.requireId(id);
+        const candidateIds = this.requireCandidateIds(body);
+
+        try {
+            const result = await this.foodsService.patchResolve(id, candidateIds, this.sub(req));
+            res.status(HttpStatus.OK);
+
+            return result;
+        } catch (error) {
+            throw this.mapResolveError(this.mapWriteError(error, res), id);
+        }
+    }
+
+    /** `GET /v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004). */
+    @Get(':id')
+    public async getFood(
+        @Param('id') id: string,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<FoodResponse | PendingResponse> {
+        this.requireId(id);
+
+        try {
+            const food = await this.foodsService.getFood(id);
             res.status(HttpStatus.OK);
 
             return food;
@@ -126,62 +186,117 @@ export class FoodsController {
             if (isFoodPendingError(error)) {
                 res.status(HttpStatus.ACCEPTED);
 
-                return { fdcId: error.fdcId, status: 'pending', estimatedWaitSeconds: error.estimatedWaitSeconds };
+                return { id: error.id, status: error.status, estimatedWaitSeconds: error.estimatedWaitSeconds };
             }
 
-            if (isFoodNotFoundError(error)) {
-                throw new NotFoundException({
-                    error: 'Food not found',
-                    fdcId,
-                    message:
-                        'This food was not found in USDA; tombstoned until TTL expiry (default 30 days), after which a re-attempt is allowed',
-                });
-            }
-
-            throw error;
+            throw this.mapReadError(error, id);
         }
     }
 
-    /**
-     * Parse + validate the `fdcId` path param as a positive integer (FR-006).
-     *
-     * @throws {BadRequestException} (→ 400) for any non-positive-integer input. No invalid input
-     * reaches the queue.
-     */
-    private parseFdcId(raw: string): number {
-        if (!/^\d+$/.test(raw)) {
-            throw new BadRequestException({
-                error: 'Invalid fdcId format',
-                message: 'fdcId must be a positive integer',
+    /** Resolve the verified requester (the guard guarantees `req.user`; default never reached in prod). */
+    private sub(req: AuthenticatedRequest): string {
+        return req.user?.sub ?? 'unknown';
+    }
+
+    /** Validate the `id` path param is a structurally valid ULID (FR-006) → else `400`. */
+    private requireId(id: string): void {
+        if (!isFoodId(id)) {
+            throw new BadRequestException({ error: 'Invalid id' });
+        }
+    }
+
+    /** Validate + extract a non-empty `name` from the add body → else `400`. */
+    private requireName(body: unknown): string {
+        const name = this.field(body, 'name');
+
+        if (typeof name !== 'string' || name.trim().length === 0) {
+            throw new BadRequestException({ error: 'Empty name' });
+        }
+
+        return name;
+    }
+
+    /** Validate + extract the `names` array (≤100, all strings) → else `400`. */
+    private requireNames(body: unknown): string[] {
+        const names = this.field(body, 'names');
+
+        if (!Array.isArray(names) || names.some((entry) => typeof entry !== 'string')) {
+            throw new BadRequestException({ error: 'Invalid names' });
+        }
+
+        const cleaned = (names as string[]).map((name) => name.trim()).filter((name) => name.length > 0);
+
+        if (cleaned.length > MAX_BATCH_NAMES) {
+            throw new BadRequestException({ error: 'Batch too large', maxNames: MAX_BATCH_NAMES });
+        }
+
+        return cleaned;
+    }
+
+    /** Validate + extract the non-empty `candidateIds` array (malformed body → `400`, DSN-14). */
+    private requireCandidateIds(body: unknown): string[] {
+        const ids = this.field(body, 'candidateIds');
+
+        if (!Array.isArray(ids) || ids.length === 0 || ids.some((entry) => typeof entry !== 'string')) {
+            throw new BadRequestException({ error: 'Invalid candidateIds' });
+        }
+
+        return ids as string[];
+    }
+
+    /** Read a property off an unknown body, or `undefined`. */
+    private field(body: unknown, key: string): unknown {
+        return body !== null && typeof body === 'object' ? (body as Record<string, unknown>)[key] : undefined;
+    }
+
+    /** Map a read-path error: `FoodNotFoundError` → `404` with the status in the body; else rethrow. */
+    private mapReadError(error: unknown, id: string): unknown {
+        if (isFoodNotFoundError(error)) {
+            return new NotFoundException({
+                error: 'Food not found',
+                id,
+                status: error.status,
+                message:
+                    error.status === 'NOT_FOUND'
+                        ? 'No source has this food; tombstoned until TTL (default 30 days)'
+                        : error.status === 'FAILED'
+                          ? 'All sources errored after retries; try again later'
+                          : 'No such food',
             });
         }
 
-        const fdcId = Number(raw);
+        return error;
+    }
 
-        if (!Number.isInteger(fdcId) || fdcId <= 0) {
-            throw new BadRequestException({
-                error: 'Invalid fdcId format',
-                message: 'fdcId must be a positive integer',
-            });
+    /** Map a resolve-path error: candidate/lifecycle conflicts → `409`; else fall through to read mapping. */
+    private mapResolveError(error: unknown, id: string): unknown {
+        if (isCandidateMismatchError(error)) {
+            return new ConflictException({ error: "Candidate not in food's candidate set" });
         }
 
-        return fdcId;
+        if (isNotResolvableError(error)) {
+            return new ConflictException({ error: 'Food is not awaiting disambiguation', status: error.status });
+        }
+
+        return this.mapReadError(error, id);
     }
 
     /**
-     * Resolve the authenticated principal for enqueue provenance (FR-048).
-     *
-     * Prefers `req.user.sub` (set by the Phase-7 `FoodAuthGuard`). Falls back to the TEMP
-     * `x-debug-sub` header only when the guard has not populated `req.user`, then to
-     * {@link ANONYMOUS_SUB}. The guard, once added, makes the header path unreachable.
+     * Map a {@link FetchUnavailableError} to a `503` + `Retry-After` (backpressure / flood-shed / resolve
+     * cap, never `429`): set the `Retry-After` header on `res` (it survives Nest's exception filter, which
+     * reuses the same response) and return a {@link ServiceUnavailableException}. Any other error is
+     * returned unchanged for the caller's read/resolve mapper (or Nest's generic `500`).
      */
-    private resolveRequestedBy(req: AuthedRequest): string {
-        if (req.user?.sub) {
-            return req.user.sub;
+    private mapWriteError(error: unknown, res: Response): unknown {
+        if (isFetchUnavailableError(error)) {
+            res.setHeader('Retry-After', String(error.retryAfterSeconds));
+
+            return new ServiceUnavailableException({
+                error: 'Fetch temporarily unavailable',
+                retryAfterSeconds: error.retryAfterSeconds,
+            });
         }
 
-        const debugSub = req.header(DEBUG_SUB_HEADER);
-
-        return debugSub && debugSub.length > 0 ? debugSub : ANONYMOUS_SUB;
+        return error;
     }
 }

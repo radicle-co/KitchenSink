@@ -652,3 +652,76 @@ merge engine retains `per_serving` (per_100g wins a same-nutrient conflict; pres
 nutrient-key separator, which silently defeated label/foodNutrients dedup and flagged the file as
 non-UTF-8; replaced with a normal space and re-verified (`file` reports UTF-8; dedup green). No other
 deviation from the approved policy.
+
+---
+
+## 2026-06-29 — Phases 3 + 4 + Phase 8 API-gate slice: `/v1/foods/*` HTTP API + auth + DI rewire (TDD)
+
+**Scope.** The full source-agnostic `/v1/foods/*` HTTP surface, the in-process `FoodAuthGuard`, the shared
+`@kitchensink/clerk-verify` package, the `EnqueueEmitter`, and the `foods/*` rewire off the deleted
+fdcId-keyed layer onto the committed per-aggregate DAOs + adapter registry + merge service. Tasks: T-130,
+T-131, T-132, T-133, T-134 (Phase 3); T-140, T-141, T-142, T-143, T-144, T-145 (Phase 4); T-046, T-033,
+T-047, T-048 (Phase 8 API gate). NO change to the identity service, the worker, the DAOs, the merge
+engine, or the migration SQL.
+
+**New / rewired code.**
+
+- **`@kitchensink/clerk-verify`** (new shared package, T-046): networkless `verifyClerkToken(token, {jwtKey,
+authorizedParties})` extracted from the identity `ClerkAuthService` (one impl, no drift). Identity left on
+  its own impl this slice (no break); the dedup is a follow-up (FU-CLERK-VERIFY-DEDUP). `@clerk/backend` was
+  already in the tree (identity), so no new external dependency.
+- **`FoodAuthGuard`** (`src/auth/`, T-033/T-047/T-048): in-process NestJS middleware on every `/v1/foods/*`
+  route; Bearer-only; networkless verify; identity from the verified `sub` ONLY (forged `x-debug-sub` /
+  `x-authorizer-context` ignored — old debug-sub path deleted); fail-closed 401; M2M accepted via the azp
+  allowlist; `food:admin` scope gate for `/refetch`.
+- **`EnqueueEmitter`** (`src/foods/enqueue.emitter.ts`, T-141): replaces the fdcId `FetchQueueService`;
+  one-transaction `fetch_requesters` + `fetch_queue` upsert (or tombstone reactivation, DSN-1) +
+  `pg_notify('fetch_queued', food_id)`; `requestedBy` = verified sub.
+- **`FoodsService` / `FoodsController` / `FoodsModule`** rewired onto `FoodDao`/`CandidateStore`/
+  `FoodSourcesDao`/`FoodSearchDao` (new) + `SourceAdapterRegistry` + `RollingWindowLimiter` +
+  `MergeAndPersistService` + `EnqueueEmitter` + `AdmissionService` (new, T-144 backpressure/flood-shed).
+- **Deleted** (no dangling refs): `src/db/schema/usda.ts`, `src/foods/foods.repository.ts`,
+  `src/foods/fetch-queue.service.ts`, `src/foods/__fixtures__/foods.fixtures.ts`, and the two old fdcId unit
+  test files. The parked `tests/foods-api.integration.test.ts` was rewritten to the new API and removed from
+  the `vitest.integration.config.ts` exclude. `health.e2e.test.ts` `foods`→`food` table fixed.
+
+**Red gate (assertion-level, confirmed failing for the right reason).**
+
+- `@kitchensink/clerk-verify`: test written first → `1 failed (no tests)` — `Cannot find module '../clerk-verify.js'`
+  (source absent). After impl → `8 passed`.
+- `FoodAuthGuard`: unit suite added; ran against impl → `7 passed` (no/invalid/expired token → 401, next not
+  called; verified `sub` only; forged headers ignored; missing `CLERK_JWT_KEY` → fail-closed 401; M2M accepted).
+- HTTP API integration (supertest unavailable in-tree → booted Nest app + `fetch`, same harness as the e2e
+  health spec): first run `23 failed | 109 passed` — every seeding test failed on `seedFood` (`inconsistent
+types deduced for parameter $4`, the enum/text reuse), then `2 failed` on a shared-nutrient
+  `nutrient_name_unit_unique` collision. Both were test-fixture bugs (not endpoint logic); fixed and green.
+
+**Green result.**
+
+- **food-service unit**: `85 passed (9 files)` — was 92; the 2 deleted fdcId unit files (~31 tests) are
+  superseded by the new `FoodAuthGuard` (7) + rewritten `FoodsController` (18) units; the verification logic
+  moved to clerk-verify's 8 tests. Net across the two packages: 93 unit (85 + 8), no behavioral regression.
+- **food-service integration**: `132 passed (13 files)` — prior 95 + the re-added `foods-api.integration.test.ts`
+  (37: full auth matrix + every endpoint's status codes incl. 401>403>400 precedence, 503+Retry-After
+  backpressure/flood-shed, and the DSN-6 resolve cap/pause-exempt cases).
+- **`@kitchensink/clerk-verify`**: `8 passed`. **e2e (booted app)**: `2 passed`.
+- `npx tsc --noEmit` clean for **food-service** (app + `infra/tsconfig.json`), **clerk-verify**, AND the
+  **identity service** (the shared package did not break it). `npm run lint` clean for both packages.
+- `npm install --package-lock-only` run (lockfile carries `@kitchensink/clerk-verify`); `npm audit` shows only
+  pre-existing ws/viem/wallet advisories — this slice adds no new external dependency.
+
+**Deviations.**
+
+1. **supertest not in the tree** → HTTP integration boots the real Nest app on an ephemeral port and drives
+   it with global `fetch` (the established `tests/e2e/health.e2e.test.ts` pattern), not supertest.
+2. **Missing-`CLERK_JWT_KEY` → 401** is proven at the unit level (clerk-verify: absent key throws without
+   calling Clerk; guard: forwards the absent key and maps the throw to 401), not in the HTTP suite (the guard
+   captures the key at boot, so a mid-suite env delete cannot exercise it on the already-booted app).
+3. **T-046 identity dedup deferred** by instruction — clerk-verify is created and consumed by food-service
+   only; identity stays on its own impl (FU-CLERK-VERIFY-DEDUP).
+4. **Cross-process source circuit breaker (FR-046)**: `AdmissionService` enforces the durable queue-depth
+   ceiling + near-ceiling flood-shed; the per-source 429-failsafe breaker lives in-process in the worker and
+   is not visible to the API instance, so a durable breaker signal is a follow-up (FU-DURABLE-BREAKER).
+5. **`/refetch` vs the worker refresh branch**: refetch re-enqueues (202) but the worker currently
+   `refresh_skip`s a RESOLVED row (change-refresh is Phase 8 worker-side, out of this slice) — noted for the
+   final e2e/worker slice.

@@ -1,41 +1,25 @@
 /**
- * Typed error hierarchy for the `/v1/foods/*` read API.
- *
- * Every error extends `Error`, calls `Object.setPrototypeOf` (so `instanceof` survives
- * transpilation), and ships a matching `is*` type guard per the project constitution
- * (NFR-009). These are mapped to HTTP responses by {@link FoodsController}; internal
- * details are never leaked to the caller.
+ * Domain errors for the `/v1/foods/*` API. Transport-agnostic: {@link FoodsService} throws these and
+ * {@link FoodsController} maps each to an HTTP status (FR-051 precedence). Every error extends `Error`,
+ * calls `Object.setPrototypeOf`, and ships an `is*` guard (CODING_STANDARDS). No DB/source detail is
+ * carried into a message that reaches a caller.
  */
+import type { FoodStatus } from './dao/index.js';
 
-/** Base class for all foods-domain errors. */
-export class FoodsError extends Error {
-    public constructor(message: string) {
-        super(message);
-        this.name = 'FoodsError';
-        Object.setPrototypeOf(this, FoodsError.prototype);
-    }
-}
+/** The food is being fetched / awaiting disambiguation → `202` (`PENDING`/`UNRESOLVED`, FR-003). */
+export class FoodPendingError extends Error {
+    /** The internal food id. */
+    public readonly id: string;
+    /** The non-terminal status (`PENDING` | `UNRESOLVED`). */
+    public readonly status: FoodStatus;
+    /** Estimated seconds until availability (omitted for `UNRESOLVED`). */
+    public readonly estimatedWaitSeconds?: number;
 
-/** Type guard for {@link FoodsError}. */
-export function isFoodsError(error: unknown): error is FoodsError {
-    return error instanceof FoodsError;
-}
-
-/**
- * Thrown when a requested food has no fetched record yet (miss, pending, or tombstone-lapsed
- * re-attempt). Carries the enqueue outcome so the controller can return `202 Accepted`.
- */
-export class FoodPendingError extends FoodsError {
-    /** The FDC id that was enqueued / is pending. */
-    public readonly fdcId: number;
-
-    /** Best-effort estimate of seconds until the food is available. */
-    public readonly estimatedWaitSeconds: number;
-
-    public constructor(fdcId: number, estimatedWaitSeconds: number) {
-        super(`Food ${fdcId} is pending`);
+    public constructor(id: string, status: FoodStatus, estimatedWaitSeconds?: number) {
+        super(`Food '${id}' is ${status}`);
         this.name = 'FoodPendingError';
-        this.fdcId = fdcId;
+        this.id = id;
+        this.status = status;
         this.estimatedWaitSeconds = estimatedWaitSeconds;
         Object.setPrototypeOf(this, FoodPendingError.prototype);
     }
@@ -46,18 +30,18 @@ export function isFoodPendingError(error: unknown): error is FoodPendingError {
     return error instanceof FoodPendingError;
 }
 
-/**
- * Thrown when a food is tombstoned (`fetch_status = 'not_found'`) and still within its
- * tombstone TTL (FR-025). Mapped to `404 Not Found` with no enqueue.
- */
-export class FoodNotFoundError extends FoodsError {
-    /** The FDC id that is tombstoned / absent. */
-    public readonly fdcId: number;
+/** The food is absent, `NOT_FOUND`, or `FAILED` → `404` (status still retrievable, FR-004). */
+export class FoodNotFoundError extends Error {
+    /** The internal food id. */
+    public readonly id: string;
+    /** The terminal status when a row exists (`NOT_FOUND` | `FAILED`), else `undefined` (no row). */
+    public readonly status?: FoodStatus;
 
-    public constructor(fdcId: number) {
-        super(`Food ${fdcId} not found`);
+    public constructor(id: string, status?: FoodStatus) {
+        super(`Food '${id}' not found`);
         this.name = 'FoodNotFoundError';
-        this.fdcId = fdcId;
+        this.id = id;
+        this.status = status;
         Object.setPrototypeOf(this, FoodNotFoundError.prototype);
     }
 }
@@ -65,4 +49,65 @@ export class FoodNotFoundError extends FoodsError {
 /** Type guard for {@link FoodNotFoundError}. */
 export function isFoodNotFoundError(error: unknown): error is FoodNotFoundError {
     return error instanceof FoodNotFoundError;
+}
+
+/** A PATCH-resolve pick is not in the food's candidate set → `409` (status unchanged, FR-RES-2/DSN-14). */
+export class CandidateMismatchError extends Error {
+    /** The internal food id. */
+    public readonly id: string;
+
+    public constructor(id: string) {
+        super(`A picked candidate is not in food '${id}' candidate set`);
+        this.name = 'CandidateMismatchError';
+        this.id = id;
+        Object.setPrototypeOf(this, CandidateMismatchError.prototype);
+    }
+}
+
+/** Type guard for {@link CandidateMismatchError}. */
+export function isCandidateMismatchError(error: unknown): error is CandidateMismatchError {
+    return error instanceof CandidateMismatchError;
+}
+
+/** A PATCH-resolve was attempted on a non-`UNRESOLVED`, non-`RESOLVED` food → `409` (FR-028a). */
+export class NotResolvableError extends Error {
+    /** The internal food id. */
+    public readonly id: string;
+    /** The food's current (non-resolvable) status. */
+    public readonly status: FoodStatus;
+
+    public constructor(id: string, status: FoodStatus) {
+        super(`Food '${id}' is ${status}, not UNRESOLVED`);
+        this.name = 'NotResolvableError';
+        this.id = id;
+        this.status = status;
+        Object.setPrototypeOf(this, NotResolvableError.prototype);
+    }
+}
+
+/** Type guard for {@link NotResolvableError}. */
+export function isNotResolvableError(error: unknown): error is NotResolvableError {
+    return error instanceof NotResolvableError;
+}
+
+/**
+ * Fetch work is temporarily unavailable → `503` + `Retry-After` (FR-046/FR-043b): queue backpressure,
+ * a near-ceiling flood-shed of a heavy `sub`'s NEW enqueue, or a resolve hitting the hard rolling-window
+ * cap / a re-fetch source failure. NEVER raised for a read or as a per-`sub` `429` quota rejection.
+ */
+export class FetchUnavailableError extends Error {
+    /** Seconds the caller should wait before retrying. */
+    public readonly retryAfterSeconds: number;
+
+    public constructor(retryAfterSeconds: number, message = 'Fetch temporarily unavailable') {
+        super(message);
+        this.name = 'FetchUnavailableError';
+        this.retryAfterSeconds = retryAfterSeconds;
+        Object.setPrototypeOf(this, FetchUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link FetchUnavailableError}. */
+export function isFetchUnavailableError(error: unknown): error is FetchUnavailableError {
+    return error instanceof FetchUnavailableError;
 }

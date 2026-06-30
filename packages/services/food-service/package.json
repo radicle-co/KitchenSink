@@ -24,6 +24,7 @@
         "db:generate": "drizzle-kit generate"
     },
     "dependencies": {
+        "@kitchensink/clerk-verify": "*",
         "@kitchensink/usda-client": "*",
         "@nestjs/common": "^11.0.0",
         "@nestjs/config": "^4.0.0",

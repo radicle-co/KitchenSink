@@ -327,24 +327,24 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > exposed publicly until T-033 (Phase 8 `FoodAuthGuard`) is mounted. Phases 3–7 build/test the routes
 > behind the unmerged auth wiring; the service is not deployed to a public ALB target until auth lands.
 
-- [ ] **T-130** [M] [Test-first: true] `FoodsModule` + `FoodsController`/`FoodsService` rewired to the new DAOs + adapter registry — `packages/services/food-service/src/foods/foods.module.ts` (FR-001, FR-IDN-1)
+- [x] **T-130** [M] [Test-first: true] `FoodsModule` + `FoodsController`/`FoodsService` rewired to the new DAOs + adapter registry — `packages/services/food-service/src/foods/foods.module.ts` (FR-001, FR-IDN-1)
       **(reuse: module shell exists from old Phase 2; rewire providers to the per-aggregate DAOs, the adapter
       registry, and the enqueue emitter.)**
       **Acceptance**: module bootstraps; controller/service/DAOs injectable; no `UsdaApiModule` import leaks USDA
       types into the controller layer.
 
-- [ ] **T-131** [M] [Test-first: true] `GET /v1/foods/{id}` — golden-record read + lifecycle status codes (`200` only `RESOLVED`; `202` `PENDING`/`UNRESOLVED`; `404` `NOT_FOUND`/`FAILED`/no row, status retrievable); ULID validation `400` — `—` (FR-002, FR-003, FR-004, FR-006)
+- [x] **T-131** [M] [Test-first: true] `GET /v1/foods/{id}` — golden-record read + lifecycle status codes (`200` only `RESOLVED`; `202` `PENDING`/`UNRESOLVED`; `404` `NOT_FOUND`/`FAILED`/no row, status retrievable); ULID validation `400` — `—` (FR-002, FR-003, FR-004, FR-006)
       **Acceptance**: covers US-1 scenarios 1–4 and US-8 — `RESOLVED` → `200` golden record < 50ms, no source call;
       `PENDING`/`UNRESOLVED` → `202`; `NOT_FOUND`/`FAILED` → `404` with `status` in body; malformed `id` → `400`.
 
-- [ ] **T-132** [S] [Test-first: false] `GET /v1/foods/{id}/status` — lifecycle poll (+ golden record when `RESOLVED`) — `—` (FR-007, FR-033)
+- [x] **T-132** [S] [Test-first: false] `GET /v1/foods/{id}/status` — lifecycle poll (+ golden record when `RESOLVED`) — `—` (FR-007, FR-033)
       **Acceptance**: returns the correct shape per status (US-8 scenarios 1–4).
 
-- [ ] **T-133** [M] [Test-first: true] `GET /v1/foods/{id}/candidates` — list the persisted cross-source candidates (from `food_candidates`, T-111) for an `UNRESOLVED` food (each carries `source` + that source's `external_key`) — `—` (FR-RES-1)
+- [x] **T-133** [M] [Test-first: true] `GET /v1/foods/{id}/candidates` — list the persisted cross-source candidates (from `food_candidates`, T-111) for an `UNRESOLVED` food (each carries `source` + that source's `external_key`) — `—` (FR-RES-1)
       **Acceptance**: an `UNRESOLVED` food returns its `food_candidates` rows; a `RESOLVED`/`PENDING` food returns an
       empty/appropriate response (US-2a scenario 1); no `fdcId` appears in the response shape.
 
-- [ ] **T-134** [M] [Test-first: true] `GET /v1/foods/search?query=` — local `pg_trgm` fuzzy/substring/partial search → `id`s ranked by relevance; barcode/`external_key` lookup via `food_sources` crosswalk; never calls a source — `—` (FR-008, FR-009, FR-010)
+- [x] **T-134** [M] [Test-first: true] `GET /v1/foods/search?query=` — local `pg_trgm` fuzzy/substring/partial search → `id`s ranked by relevance; barcode/`external_key` lookup via `food_sources` crosswalk; never calls a source — `—` (FR-008, FR-009, FR-010)
       **Acceptance**: covers US-6 — "chicken breast" ranked hits; "avacado" fuzzy-matches "Avocado, raw"; no local
       match → empty set (no source call); a known barcode/external_key resolves to the food `id`; ≤200ms at 10k
       foods.
@@ -357,18 +357,18 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** Same rule as Phase 3 — these create/resolve routes
 > must not be publicly exposed until T-033 (Phase 8 `FoodAuthGuard`) is mounted.
 
-- [ ] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row; a terminal-state past-TTL row for the same normalized name is **reactivated** → `PENDING` + re-enqueue via T-105, never a `23505`, FR-028a), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-025, FR-028a, FR-IDN-1)
+- [x] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row; a terminal-state past-TTL row for the same normalized name is **reactivated** → `PENDING` + re-enqueue via T-105, never a `23505`, FR-028a), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-025, FR-028a, FR-IDN-1)
       **Acceptance**: covers US-2 scenarios 1 & 4 — first add → `202` + `id` < 100ms with one `fetch_queue` row;
       a concurrent second add for the same normalized name collapses to the same `id` (no duplicate canonical or
       queue row); an add for a terminal-state past-TTL row reactivates it to `PENDING` (no `23505`); two **concurrent**
       re-adds of the same terminal past-TTL normalized name collapse to a single reactivation (one →`PENDING`, one
       enqueue, no `23505`, TST-8); empty name → `400`, nothing enqueued.
 
-- [ ] **T-141** [S] [Test-first: true] Enqueue emitter (`EnqueueEmitter.publishFoodRequested` / `publishFoodBatchRequested`) — in-process `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify('fetch_queued', food_id)`; `requestedBy` = verified `sub`/service principal (no `'system'` shortcut) — `packages/services/food-service/src/foods/enqueue.emitter.ts` (FR-011, FR-014, FR-017, FR-048)
+- [x] **T-141** [S] [Test-first: true] Enqueue emitter (`EnqueueEmitter.publishFoodRequested` / `publishFoodBatchRequested`) — in-process `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify('fetch_queued', food_id)`; `requestedBy` = verified `sub`/service principal (no `'system'` shortcut) — `packages/services/food-service/src/foods/enqueue.emitter.ts` (FR-011, FR-014, FR-017, FR-048)
       **Acceptance**: each enqueue fires exactly one `pg_notify` with the `food_id`; duplicate enqueue increments
       distinct-requester demand, not a raw counter.
 
-- [ ] **T-142** [M] [Test-first: true] `PATCH /v1/foods/{id}` — resolve from the user's candidate pick: **UNRESOLVED-only + idempotent** (a PATCH on an already-`RESOLVED` food is a no-op `200`); validate each chosen candidate is a member of this food's `food_candidates` set (else `CandidateMismatchError` → **`409 Conflict`** — `400` is reserved for a malformed body, DSN-14 — status unchanged); drive the merge (Phase 6) → `RESOLVED` and **clear the `food_candidates` set** (T-111); manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3, FR-028a)
+- [x] **T-142** [M] [Test-first: true] `PATCH /v1/foods/{id}` — resolve from the user's candidate pick: **UNRESOLVED-only + idempotent** (a PATCH on an already-`RESOLVED` food is a no-op `200`); validate each chosen candidate is a member of this food's `food_candidates` set (else `CandidateMismatchError` → **`409 Conflict`** — `400` is reserved for a malformed body, DSN-14 — status unchanged); drive the merge (Phase 6) → `RESOLVED` and **clear the `food_candidates` set** (T-111); manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3, FR-028a)
       **Acceptance**: covers US-2a scenarios 2 & 3 — a valid pick merges → `RESOLVED` and clears the candidate set;
       a candidate not in the food's set → `CandidateMismatchError` **`409`** with `status` unchanged; a PATCH on an
       already-`RESOLVED` food is an idempotent no-op; a valid pick whose `fetchByKey` re-fetch throws
@@ -376,15 +376,15 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       write (TST-2); with the source window at/over cap (`shouldPauseDraining` true), a PATCH-resolve still proceeds
       per the settled DSN-6 cap semantics (TST-4).
 
-- [ ] **T-143** [M] [Test-first: true] `POST /v1/foods/batch` — ≤100 names (`400` over), per-item partial response (locally-`RESOLVED` inline + `PENDING` per add-by-name miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
+- [x] **T-143** [M] [Test-first: true] `POST /v1/foods/batch` — ≤100 names (`400` over), per-item partial response (locally-`RESOLVED` inline + `PENDING` per add-by-name miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
       **Acceptance**: covers US-4 scenarios 1, 2, 4 — 15 names (10 locally `RESOLVED`, 5 add-by-name miss) → 10 inline + 5 `PENDING` `id`s in one body; 3-of-5 in flight collapse to existing `id`s; a single batch body containing the
       same name twice collapses to one row (intra-batch dedup, TST-8); >100 names → `400`, nothing enqueued.
 
-- [ ] **T-144** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed on enqueue (`fetch_queue` depth ceiling 10,000 or open source breaker → `503`, jittered recovery; near the global rolling-window ceiling, **NEW** enqueues from the highest-pending `sub` are shed first with `503` + `Retry-After` to preserve headroom — reads and `PATCH`-resolves are never shed and never `429`) — `—` (FR-046, FR-043b)
+- [x] **T-144** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed on enqueue (`fetch_queue` depth ceiling 10,000 or open source breaker → `503`, jittered recovery; near the global rolling-window ceiling, **NEW** enqueues from the highest-pending `sub` are shed first with `503` + `Retry-After` to preserve headroom — reads and `PATCH`-resolves are never shed and never `429`) — `—` (FR-046, FR-043b)
       **Acceptance**: at max depth / breaker-open, `POST /v1/foods` and `/batch` return `503`; near the ceiling a
       flooding `sub`'s NEW enqueue gets `503` while other users are unaffected; recovery drains without a burst spike.
 
-- [ ] **T-145** [S] [Test-first: false] Operational `POST /v1/foods/{id}/refetch` (admin-scoped manual re-enqueue) — `—` (FR-039, FR-051)
+- [x] **T-145** [S] [Test-first: false] Operational `POST /v1/foods/{id}/refetch` (admin-scoped manual re-enqueue) — `—` (FR-039, FR-051)
       **Acceptance**: a valid token without the elevated `public_metadata` scope → `403`; with scope → re-enqueues.
 
 ---
@@ -485,22 +485,22 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > identity service. This phase extracts the shared verify package and wires it onto food-service routes; it is
 > mostly wiring + tests, not a from-scratch build. **Build this slice before exposing Phases 3–4 publicly.**
 
-- [ ] **T-046** [M] [Test-first: false] `@kitchensink/clerk-verify` shared package — extract networkless `verifyToken(jwtKey, authorizedParties)` from the identity service's `ClerkAuthService`; consumed by both identity and food-service (one impl, no drift) — `packages/shared/clerk-verify` (FR-036, FR-053)
+- [x] **T-046** [M] [Test-first: false] `@kitchensink/clerk-verify` shared package — extract networkless `verifyToken(jwtKey, authorizedParties)` from the identity service's `ClerkAuthService`; consumed by both identity and food-service (one impl, no drift) — `packages/shared/clerk-verify` (FR-036, FR-053)
       **(reuse: lifts existing identity-service verification — refactor/extract, not new logic.)**
       **Acceptance**: identity + food-service both import it; verification makes zero outbound network calls.
 
-- [ ] **T-033** [M] [Test-first: true] `FoodAuthGuard` — in-process NestJS `AuthMiddleware` on every `/v1/foods/*` route; networkless `verifyToken` (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed — `packages/services/food-service/src/auth/` (FR-035, FR-036, FR-037, FR-038, FR-040, FR-042, FR-053)
+- [x] **T-033** [M] [Test-first: true] `FoodAuthGuard` — in-process NestJS `AuthMiddleware` on every `/v1/foods/*` route; networkless `verifyToken` (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed — `packages/services/food-service/src/auth/` (FR-035, FR-036, FR-037, FR-038, FR-040, FR-042, FR-053)
       **(reuse: mirrors identity `AuthMiddleware`.)**
       **Acceptance**: covers US-0 scenarios 1–6 + SC-010 — no/invalid/expired/wrong-`azp` token → `401`, no row,
       no enqueue, no source call; valid token → `req.user.sub` set (from the verified Clerk `sub` only); a forged
       `x-authorizer-context` **or `x-debug-sub`** is ignored (no trusted-header identity path); missing
       `CLERK_JWT_KEY` → fail-closed `401`.
 
-- [ ] **T-047** [S] [Test-first: true] M2M / service-token support — accept Clerk machine tokens (azp-allowlisted) for downstream 001/006/007/009 + internal jobs (recipe import FR-012, change-refresh FR-032); classify each endpoint user/service/both — `—` (FR-047, A-012)
+- [x] **T-047** [S] [Test-first: true] M2M / service-token support — accept Clerk machine tokens (azp-allowlisted) for downstream 001/006/007/009 + internal jobs (recipe import FR-012, change-refresh FR-032); classify each endpoint user/service/both — `—` (FR-047, A-012)
       **Acceptance**: US-0 scenario 11 — a valid M2M token is accepted (not `401`); a user-only endpoint rejects a
       service token where disallowed.
 
-- [ ] **T-048** [S] [Test-first: true] Authorization scopes + status precedence — `403` for authenticated-but-insufficient `public_metadata` scope on operational endpoints; enforce `401`→`403`→`400`→`404`/`202`/`200` — `—` (FR-039, FR-051)
+- [x] **T-048** [S] [Test-first: true] Authorization scopes + status precedence — `403` for authenticated-but-insufficient `public_metadata` scope on operational endpoints; enforce `401`→`403`→`400`→`404`/`202`/`200` — `—` (FR-039, FR-051)
       **Acceptance**: US-0 scenario 10 — valid token w/o scope on `/refetch` → `403`; malformed `id` with a bad
       token → `401` (not `400`).
 

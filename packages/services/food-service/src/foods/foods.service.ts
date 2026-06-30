@@ -1,262 +1,409 @@
 /**
- * `FoodsService` — read-path business logic for `/v1/foods/*` (ARCH-001, MOD-001).
+ * `FoodsService` (ARCH-001, MOD-001) — transport-agnostic business logic for `/v1/foods/*`, rewired onto
+ * the source-agnostic per-aggregate DAOs, the source-adapter registry, the merge service, the rolling-
+ * window limiter, the {@link EnqueueEmitter}, and the {@link AdmissionService} (T-130). Every food is
+ * keyed by its internal `id`; no source-native key (`fdcId`) ever appears (FR-IDN-1/SC-013).
  *
- * Implements the cache-hit / stale-SWR / tombstone-TTL / miss-enqueue / pending branching from
- * plan §3 + module-design MOD-001. The service is transport-agnostic: it returns a
- * {@link FoodResponse} on a hit/stale, and throws a typed {@link FoodPendingError} (→ 202) or
- * {@link FoodNotFoundError} (→ 404) which {@link FoodsController} maps to HTTP responses.
+ * Lifecycle status codes (mapped by {@link FoodsController}): a read returns the golden record only when
+ * `RESOLVED` (else `FoodPendingError` → 202 for `PENDING`/`UNRESOLVED`, `FoodNotFoundError` → 404 for
+ * `NOT_FOUND`/`FAILED`/no row). Add-by-name dedups + enqueues (202 + `id`); `PATCH`-resolve is
+ * `UNRESOLVED`-only, idempotent, candidate-in-set validated, re-fetches the pick through the limiter, and
+ * merges to `RESOLVED`.
  *
- * @implements FR-001 FR-002 FR-003 FR-004 FR-005 FR-006 FR-007 FR-008 FR-009 FR-010 FR-025 FR-031 FR-033
+ * @implements FR-002 FR-003 FR-004 FR-005 FR-007 FR-008 FR-012 FR-013 FR-028a FR-045 FR-RES-1 FR-RES-2
  */
 import { Injectable } from '@nestjs/common';
 
-import type { FoodRow } from '../db/schema/usda.js';
-import { FetchQueueService } from './fetch-queue.service.js';
-import { FoodNotFoundError, FoodPendingError } from './foods.errors.js';
-import { FoodsRepository } from './foods.repository.js';
+import { AdmissionService } from './admission.service.js';
+import { CandidateStore, FoodDao, FoodSourcesDao, type FoodStatus, type GoldenFoodRecord } from './dao/index.js';
+import { FoodSearchDao } from './dao/food-search.dao.js';
+import { EnqueueEmitter } from './enqueue.emitter.js';
+import {
+    CandidateMismatchError,
+    FetchUnavailableError,
+    FoodNotFoundError,
+    FoodPendingError,
+    NotResolvableError,
+} from './foods.errors.js';
+import { normalizeName } from './merge/merge-engine.js';
+import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
 import type {
-    FetchStatus,
-    FoodNutrients,
+    AddResponse,
+    BatchItemView,
+    BatchResponse,
+    CandidatesResponse,
     FoodResponse,
-    FoodSearchResponse,
-    FoodStatusResponse,
+    ResolveResponse,
+    SearchResponse,
+    StatusResponse,
 } from './foods.types.js';
+import {
+    isSourceApiError,
+    type CanonicalCandidate,
+    type FoodSourceId,
+    SourceAdapterRegistry,
+} from '../sources/food-source-adapter.js';
+import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
 
-/** Staleness threshold in days (FR-031, `USDA_STALE_THRESHOLD_DAYS`, default 30). */
-const DEFAULT_STALE_THRESHOLD_DAYS = 30;
+/** Estimated wait reported on a fresh enqueue (plan §3). */
+const ESTIMATED_WAIT_SECONDS = 30;
 
-/** Tombstone TTL in days (FR-025, `USDA_TOMBSTONE_TTL_DAYS`, default 30). */
-const DEFAULT_TOMBSTONE_TTL_DAYS = 30;
+/** Max names accepted in one batch (FR-045); over → 400 (handled in the controller). */
+export const MAX_BATCH_NAMES = Number(process.env['FOOD_MAX_BATCH_NAMES'] ?? 100);
 
-/** Estimated wait reported on a fresh enqueue / lookup (plan §3). */
-const ESTIMATED_WAIT_SECONDS_LOOKUP = 30;
-
-/** Estimated wait reported by the status endpoint for an already-pending food. */
-const ESTIMATED_WAIT_SECONDS_STATUS = 20;
-
-const MILLIS_PER_DAY = 86_400_000;
+/** Retry-After (seconds) when a `PATCH`-resolve cannot draw from the rolling-window budget (DSN-6). */
+const RESOLVE_RETRY_AFTER_SECONDS = 30;
 
 @Injectable()
 export class FoodsService {
     public constructor(
-        private readonly repository: FoodsRepository,
-        private readonly fetchQueue: FetchQueueService,
+        private readonly foodDao: FoodDao,
+        private readonly candidates: CandidateStore,
+        private readonly sources: FoodSourcesDao,
+        private readonly searchDao: FoodSearchDao,
+        private readonly merge: MergeAndPersistService,
+        private readonly enqueue: EnqueueEmitter,
+        private readonly registry: SourceAdapterRegistry,
+        private readonly limiter: RollingWindowLimiter,
+        private readonly admission: AdmissionService,
     ) {}
 
-    /** Stale threshold in days, from env with a safe default. */
-    private get staleThresholdDays(): number {
-        return Number(process.env['USDA_STALE_THRESHOLD_DAYS'] ?? DEFAULT_STALE_THRESHOLD_DAYS);
-    }
+    /**
+     * `GET /v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004).
+     *
+     * @param id - The internal food id.
+     * @returns The golden record (200) when `RESOLVED`.
+     * @throws {FoodPendingError} (→ 202) for `PENDING`/`UNRESOLVED`.
+     * @throws {FoodNotFoundError} (→ 404) for `NOT_FOUND`/`FAILED`/no row.
+     */
+    public async getFood(id: string): Promise<FoodResponse> {
+        const record = await this.foodDao.readGoldenRecord(id);
 
-    /** Tombstone TTL in days, from env with a safe default. */
-    private get tombstoneTtlDays(): number {
-        return Number(process.env['USDA_TOMBSTONE_TTL_DAYS'] ?? DEFAULT_TOMBSTONE_TTL_DAYS);
+        if (record === null) {
+            throw new FoodNotFoundError(id);
+        }
+
+        if (record.status === 'RESOLVED') {
+            return this.toFoodResponse(record);
+        }
+
+        if (record.status === 'PENDING' || record.status === 'UNRESOLVED') {
+            throw new FoodPendingError(
+                id,
+                record.status,
+                record.status === 'PENDING' ? ESTIMATED_WAIT_SECONDS : undefined,
+            );
+        }
+
+        // NOT_FOUND / FAILED — status still retrievable (FR-004).
+        throw new FoodNotFoundError(id, record.status);
     }
 
     /**
-     * Resolve `GET /v1/foods/{fdcId}` (FR-001–FR-005, FR-025, FR-031).
+     * `GET /v1/foods/{id}/status` — lifecycle poll, never enqueues, never fetches (FR-007).
      *
-     * Decision table:
-     * - `fetched` & fresh → return {@link FoodResponse} (200).
-     * - `fetched` & stale, or `stale` → enqueue background re-fetch, return stale 200 (SWR).
-     * - `not_found` within TTL → throw {@link FoodNotFoundError} (404).
-     * - `not_found` past TTL → enqueue re-attempt, throw {@link FoodPendingError} (202).
-     * - `pending`/`failed`/missing → enqueue, throw {@link FoodPendingError} (202).
-     *
-     * @param fdcId - Validated positive-integer FDC id.
-     * @param requestedBy - Authenticated `sub` or service principal (FR-048).
-     * @returns A {@link FoodResponse} when the food is served (fresh or stale).
-     * @throws {FoodPendingError} when the food is being fetched (→ 202).
-     * @throws {FoodNotFoundError} when the food is tombstoned within its TTL (→ 404).
+     * @param id - The internal food id.
+     * @returns The status (plus the golden record when `RESOLVED`).
+     * @throws {FoodNotFoundError} (→ 404) when no row exists.
      */
-    public async getFood(fdcId: number, requestedBy: string): Promise<FoodResponse> {
-        const row = await this.repository.findByFdcId(fdcId);
+    public async getStatus(id: string): Promise<StatusResponse> {
+        const record = await this.foodDao.readGoldenRecord(id);
 
-        if (row !== null && row.fetchStatus === 'fetched') {
-            if (this.isStale(row.fetchedAt)) {
-                await this.enqueue(fdcId, requestedBy);
+        if (record === null) {
+            throw new FoodNotFoundError(id);
+        }
 
-                return this.toFoodResponse(row, true);
+        if (record.status === 'RESOLVED') {
+            return { id, status: record.status, food: this.toFoodResponse(record) };
+        }
+
+        if (record.status === 'PENDING') {
+            return { id, status: record.status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
+        }
+
+        return { id, status: record.status };
+    }
+
+    /**
+     * `GET /v1/foods/{id}/candidates` — the persisted cross-source candidate set for an `UNRESOLVED`
+     * food (FR-RES-1). A non-`UNRESOLVED` food returns an empty set.
+     *
+     * @param id - The internal food id.
+     * @returns The (non-expired) candidate set.
+     * @throws {FoodNotFoundError} (→ 404) when no row exists.
+     */
+    public async getCandidates(id: string): Promise<CandidatesResponse> {
+        const food = await this.foodDao.getById(id);
+
+        if (!food) {
+            throw new FoodNotFoundError(id);
+        }
+
+        if (food.status !== 'UNRESOLVED') {
+            return { id, candidates: [] };
+        }
+
+        const rows = await this.candidates.getCandidates(id);
+
+        return {
+            id,
+            candidates: rows.map((row) => ({
+                candidateId: row.id,
+                source: row.source,
+                externalKey: row.externalKey,
+                name: row.name,
+                summary: row.summary,
+            })),
+        };
+    }
+
+    /**
+     * `GET /v1/foods/search?query=` — local fuzzy/substring search + barcode/external-key crosswalk
+     * lookup → internal `id`s (FR-008). NEVER calls a source (FR-009).
+     *
+     * @param rawQuery - The raw query (may be empty/whitespace).
+     * @returns Ranked results, or an empty set on no local match.
+     */
+    public async search(rawQuery: string): Promise<SearchResponse> {
+        const query = rawQuery.trim();
+
+        if (query.length === 0) {
+            return { results: [] };
+        }
+
+        const hits = await this.searchDao.search(query);
+        const results = hits.map((hit) => ({ id: hit.id, name: hit.name, score: hit.score }));
+
+        // Crosswalk: a query that is a known barcode or source external_key resolves directly to an id.
+        const crosswalkId =
+            (await this.sources.findFoodIdByBarcode(query)) ??
+            (await this.sources.findFoodIdByExternalKey('usda', query));
+
+        if (crosswalkId !== undefined && !results.some((result) => result.id === crosswalkId)) {
+            const food = await this.foodDao.getById(crosswalkId);
+            results.unshift({ id: crosswalkId, name: food?.name ?? null, score: 1 });
+        }
+
+        return { results };
+    }
+
+    /**
+     * `POST /v1/foods` — add-by-name: dedup on normalized name, enqueue a fresh add/reactivation, and
+     * return `202` + `id` (FR-005/FR-013/FR-028a). An add for an existing non-terminal food returns its
+     * current status WITHOUT enqueuing (no scarce source budget burned).
+     *
+     * @param name - The display name (already validated non-empty by the controller).
+     * @param sub - The verified requester.
+     * @returns The id + resulting status.
+     * @throws {FetchUnavailableError} (→ 503) when a fresh enqueue is shed by backpressure.
+     */
+    public async addByName(name: string, sub: string): Promise<AddResponse> {
+        const result = await this.foodDao.createByName({ normalizedName: normalizeName(name), displayName: name });
+
+        if (result.created || result.reactivated) {
+            await this.admission.admit(sub);
+            await this.enqueue.publishFoodRequested({
+                id: result.id,
+                requestedBy: sub,
+                reactivate: result.reactivated,
+            });
+
+            return { id: result.id, status: 'PENDING', estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
+        }
+
+        const food = await this.foodDao.getById(result.id);
+        const status: FoodStatus = food?.status ?? 'PENDING';
+
+        return { id: result.id, status };
+    }
+
+    /**
+     * `POST /v1/foods/batch` — per-item partial add-by-name (FR-012/FR-045). Intra-batch dedup collapses
+     * a repeated name to one row; a locally-`RESOLVED` hit is returned inline; a miss is created +
+     * enqueued and returned `PENDING`. The caller-side ≤100 cap is enforced in the controller.
+     *
+     * @param names - The names to add (post-cap).
+     * @param sub - The verified requester.
+     * @returns Per-item results (inline hits + pending misses).
+     * @throws {FetchUnavailableError} (→ 503) when the batch is shed by backpressure.
+     */
+    public async batchAdd(names: string[], sub: string): Promise<BatchResponse> {
+        // Intra-batch dedup: collapse repeated names (by normalized key) to one item, first-wins.
+        const unique = new Map<string, string>();
+
+        for (const name of names) {
+            const key = normalizeName(name);
+
+            if (!unique.has(key)) {
+                unique.set(key, name);
+            }
+        }
+
+        const willEnqueue: string[] = [];
+        const items: BatchItemView[] = [];
+
+        for (const [key, displayName] of unique) {
+            const result = await this.foodDao.createByName({ normalizedName: key, displayName });
+
+            if (result.created || result.reactivated) {
+                willEnqueue.push(result.id);
+                items.push({ id: result.id, status: 'PENDING', estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS });
+
+                continue;
             }
 
-            return this.toFoodResponse(row, false);
+            const food = await this.foodDao.getById(result.id);
+
+            if (food?.status === 'RESOLVED') {
+                items.push({ id: result.id, status: 'RESOLVED', name: food.name });
+            } else {
+                items.push({
+                    id: result.id,
+                    status: food?.status ?? 'PENDING',
+                    estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS,
+                });
+            }
         }
 
-        if (row !== null && row.fetchStatus === 'stale') {
-            await this.enqueue(fdcId, requestedBy);
-
-            return this.toFoodResponse(row, true);
+        if (willEnqueue.length > 0) {
+            await this.admission.admit(sub);
+            await this.enqueue.publishFoodBatchRequested({
+                foods: items
+                    .filter((item) => willEnqueue.includes(item.id))
+                    .map((item) => ({ id: item.id, reactivate: true })),
+                requestedBy: sub,
+            });
         }
 
-        if (row !== null && row.fetchStatus === 'not_found') {
-            if (this.isTombstoneExpired(row.fetchedAt ?? row.updatedAt)) {
-                await this.enqueue(fdcId, requestedBy);
+        return { items };
+    }
 
-                throw new FoodPendingError(fdcId, ESTIMATED_WAIT_SECONDS_LOOKUP);
+    /**
+     * `PATCH /v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2): `UNRESOLVED`-only +
+     * idempotent; validate each pick is in this food's candidate set; re-fetch each pick through the
+     * rolling-window limiter; merge → `RESOLVED` and clear the candidate set. A re-fetch failure leaves
+     * the food `UNRESOLVED` with its candidate set intact (TST-2).
+     *
+     * @param id - The internal food id.
+     * @param candidateIds - The picked candidate row ids.
+     * @param sub - The verified requester (unused for budget; resolves draw from reserved headroom, DSN-6).
+     * @returns The id + `RESOLVED` status.
+     * @throws {FoodNotFoundError} (→ 404) when no row exists.
+     * @throws {NotResolvableError} (→ 409) when the food is not `UNRESOLVED` (and not an idempotent `RESOLVED`).
+     * @throws {CandidateMismatchError} (→ 409) when a pick is not in the food's candidate set.
+     * @throws {FetchUnavailableError} (→ 503) when the re-fetch cannot draw from the rolling-window budget.
+     */
+    public async patchResolve(id: string, candidateIds: string[], _sub: string): Promise<ResolveResponse> {
+        const food = await this.foodDao.getById(id);
+
+        if (!food) {
+            throw new FoodNotFoundError(id);
+        }
+
+        if (food.status === 'RESOLVED') {
+            return { id, status: 'RESOLVED' }; // idempotent no-op (FR-RES-2)
+        }
+
+        if (food.status !== 'UNRESOLVED') {
+            throw new NotResolvableError(id, food.status);
+        }
+
+        // Validate every pick is a member of THIS food's candidate set (else 409, status unchanged).
+        const set = await this.candidates.getCandidates(id);
+        const byId = new Map(set.map((row) => [row.id, row]));
+        const picks = candidateIds.map((candidateId) => {
+            const row = byId.get(candidateId);
+
+            if (!row) {
+                throw new CandidateMismatchError(id);
             }
 
-            throw new FoodNotFoundError(fdcId);
-        }
-
-        // Miss, pending, or failed → enqueue (deduped) and report pending.
-        await this.enqueue(fdcId, requestedBy);
-
-        throw new FoodPendingError(fdcId, ESTIMATED_WAIT_SECONDS_LOOKUP);
-    }
-
-    /**
-     * Resolve `GET /v1/foods/{fdcId}/status` (FR-007, FR-033). Never enqueues, never fetches.
-     *
-     * @param fdcId - Validated FDC id.
-     * @returns The lifecycle status; `food` is populated only when `fetched`.
-     * @throws {FoodNotFoundError} when no record exists at all (→ 404).
-     */
-    public async getStatus(fdcId: number): Promise<FoodStatusResponse> {
-        const row = await this.repository.findByFdcId(fdcId);
-
-        if (row === null) {
-            throw new FoodNotFoundError(fdcId);
-        }
-
-        const status = row.fetchStatus as FetchStatus;
-
-        if (status === 'fetched') {
-            return { fdcId, status, food: this.toFoodResponse(row, this.isStale(row.fetchedAt)) };
-        }
-
-        if (status === 'pending') {
-            return { fdcId, status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS_STATUS };
-        }
-
-        return { fdcId, status };
-    }
-
-    /**
-     * Resolve `GET /v1/foods/{fdcId}/nutrients` (FR-002). Returns the full nutrient breakdown
-     * including nulls; the food must already be fetched.
-     *
-     * @param fdcId - Validated FDC id.
-     * @returns The full {@link FoodResponse} (nutrients included).
-     * @throws {FoodNotFoundError} when the food is not yet fetched (→ 404 with a pending hint).
-     */
-    public async getNutrients(fdcId: number): Promise<FoodResponse> {
-        const row = await this.repository.findByFdcId(fdcId);
-
-        if (row === null || (row.fetchStatus !== 'fetched' && row.fetchStatus !== 'stale')) {
-            throw new FoodNotFoundError(fdcId);
-        }
-
-        return this.toFoodResponse(row, row.fetchStatus === 'stale' || this.isStale(row.fetchedAt));
-    }
-
-    /**
-     * Resolve `GET /v1/foods/search?query=` (FR-008–FR-010). Local-only; never calls USDA.
-     *
-     * @param query - The raw query (may be empty/whitespace).
-     * @returns Ranked results, or an empty list for an empty/whitespace/no-match query.
-     */
-    public async search(query: string): Promise<FoodSearchResponse> {
-        const trimmed = query.trim();
-
-        if (trimmed.length === 0) {
-            return { foods: [] };
-        }
-
-        const foods = await this.repository.search(trimmed);
-
-        return { foods };
-    }
-
-    /**
-     * Resolve `GET /v1/foods/autocomplete?query=` (FR-008). Local-only; never calls USDA.
-     *
-     * @param query - The raw query.
-     * @returns Up to 10 ranked suggestions, or an empty list.
-     */
-    public async autocomplete(query: string): Promise<{ suggestions: FoodSearchResponse['foods'] }> {
-        const trimmed = query.trim();
-
-        if (trimmed.length === 0) {
-            return { suggestions: [] };
-        }
-
-        const suggestions = await this.repository.autocomplete(trimmed);
-
-        return { suggestions };
-    }
-
-    /** Enqueue a single food for backfill (deduped). */
-    private async enqueue(fdcId: number, requestedBy: string): Promise<void> {
-        await this.fetchQueue.publishFoodRequested({
-            fdcId,
-            requestedAt: new Date().toISOString(),
-            requestedBy,
+            return row;
         });
-    }
 
-    /** A `fetched` record is stale when `fetched_at` is older than the threshold (FR-031). */
-    private isStale(fetchedAt: Date | null): boolean {
-        if (fetchedAt === null) {
-            return false;
+        // Re-fetch each picked candidate through the SAME rolling-window limiter the worker uses (DSN-6):
+        // resolve never makes an unrecorded source call. At the hard cap → 503 Retry-After (a retryable
+        // signal, never a 429). A re-fetch failure aborts WITHOUT clearing the candidate set (TST-2).
+        const refetched: CanonicalCandidate[] = [];
+
+        for (const pick of picks) {
+            const source = pick.source as FoodSourceId;
+            const window = await this.limiter.tryRecord(source);
+
+            if (!window.allowed) {
+                throw new FetchUnavailableError(RESOLVE_RETRY_AFTER_SECONDS);
+            }
+
+            try {
+                refetched.push(await this.registry.adapterFor(source).fetchByKey(pick.externalKey));
+            } catch (error) {
+                if (isSourceApiError(error)) {
+                    throw new FetchUnavailableError(
+                        RESOLVE_RETRY_AFTER_SECONDS,
+                        'Source re-fetch failed; food unchanged',
+                    );
+                }
+
+                throw error;
+            }
         }
 
-        const ageMs = Date.now() - new Date(fetchedAt).getTime();
+        await this.merge.resolveFromPicks({ foodId: id, picks: refetched });
 
-        return ageMs > this.staleThresholdDays * MILLIS_PER_DAY;
+        return { id, status: 'RESOLVED' };
     }
 
-    /** A tombstone is eligible for re-attempt once older than the tombstone TTL (FR-025). */
-    private isTombstoneExpired(reference: Date | null): boolean {
-        if (reference === null) {
-            return false;
+    /**
+     * `POST /v1/foods/{id}/refetch` — operational manual re-enqueue (admin-scoped; the scope gate is in
+     * the controller, FR-039). Re-enqueues the food (reactivating its queue row).
+     *
+     * @param id - The internal food id.
+     * @param sub - The verified admin principal (FR-048 provenance).
+     * @returns The id + `PENDING`-ish accepted status.
+     * @throws {FoodNotFoundError} (→ 404) when no row exists.
+     */
+    public async refetch(id: string, sub: string): Promise<AddResponse> {
+        const food = await this.foodDao.getById(id);
+
+        if (!food) {
+            throw new FoodNotFoundError(id);
         }
 
-        const ageMs = Date.now() - new Date(reference).getTime();
+        await this.enqueue.publishFoodRequested({ id, requestedBy: sub, reactivate: true });
 
-        return ageMs > this.tombstoneTtlDays * MILLIS_PER_DAY;
+        return { id, status: food.status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
     }
 
-    /** Coerce a `pg` numeric (string|number|null) to a `number | null`. */
-    private toNumber(value: unknown): number | null {
-        if (value === null || value === undefined) {
-            return null;
+    /** Map a {@link GoldenFoodRecord} to the public {@link FoodResponse} (source-tagged, no `fdcId`). */
+    private toFoodResponse(record: GoldenFoodRecord): FoodResponse {
+        const sourceById = new Map(record.sources.map((source) => [source.id, source.source]));
+        const sourceOf = (sourceId: string): string => sourceById.get(sourceId) ?? 'unknown';
+
+        const provenance: Record<string, string> = {};
+
+        for (const entry of record.fieldProvenance) {
+            provenance[entry.field] = sourceOf(entry.sourceId);
         }
 
-        const n = Number(value);
-
-        return Number.isNaN(n) ? null : n;
-    }
-
-    /** Map a DB row to the public {@link FoodResponse}; nulls are kept, not omitted. */
-    private toFoodResponse(row: FoodRow, stale: boolean): FoodResponse {
-        const nutrients: FoodNutrients = {
-            calories: this.toNumber(row.calories),
-            proteinG: this.toNumber(row.proteinG),
-            carbsG: this.toNumber(row.carbsG),
-            fatG: this.toNumber(row.fatG),
-            fiberG: this.toNumber(row.fiberG),
-            sodiumMg: this.toNumber(row.sodiumMg),
-            sugarG: this.toNumber(row.sugarG),
-            saturatedFatG: this.toNumber(row.saturatedFatG),
-            cholesterolMg: this.toNumber(row.cholesterolMg),
-            vitaminAIu: this.toNumber(row.vitaminAIu),
-            vitaminCMg: this.toNumber(row.vitaminCMg),
-            calciumMg: this.toNumber(row.calciumMg),
-            ironMg: this.toNumber(row.ironMg),
+        return {
+            id: record.id,
+            name: record.name,
+            description: record.description,
+            kind: record.kind,
+            status: record.status,
+            nutrients: record.nutrients.map((nutrient) => ({
+                nutrient: nutrient.name,
+                amount: Number(nutrient.amount),
+                unit: nutrient.unit,
+                basis: nutrient.basis,
+                source: sourceOf(nutrient.sourceId),
+            })),
+            portions: record.portions.map((portion) => ({
+                label: portion.label,
+                gramWeight: Number(portion.gramWeight),
+                source: sourceOf(portion.sourceId),
+            })),
+            provenance,
         };
-
-        const response: FoodResponse = {
-            fdcId: row.fdcId,
-            description: row.description,
-            dataType: row.dataType,
-            nutrients,
-            fetchStatus: stale ? 'stale' : (row.fetchStatus as FetchStatus),
-        };
-
-        if (stale) {
-            response.stale = true;
-        }
-
-        return response;
     }
 }

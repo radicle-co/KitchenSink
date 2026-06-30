@@ -169,7 +169,7 @@ This feature was **retroactively bootstrapped** — the SpecKit + V-Model artifa
 
 **Open question (still open):** the **food-substitution FR** (Pending Q3 below) is the single Open-for-user item — no autoresolution default promotes a first-class substitution FR, so it remains **warning-tracked** (no FR invented) pending a maintainer scope call (decision-register §6).
 
-**Approval status**: ⏳ Awaiting reviewer confirmation of Revision 3.
+**Approval status**: ✅ APPROVED 2026-06-29 (see Approval Marker below).
 
 ---
 
@@ -185,13 +185,33 @@ When the user reviews, please confirm or correct the following inferred decision
 
 ---
 
-## Approval Marker
+## ✅ APPROVED — 2026-06-29
 
-> **NOT YET APPROVED.** Awaiting first reviewer pass.
+> APPROVED by Brandon (maintainer) on 2026-06-29.
+> Revision: 3 (stabilized source-agnostic design baseline)
 
-When approved, replace this block with:
+**Approved after 3 revisions** (Rev 1 open-question resolution, Rev 2 source-agnostic re-baseline, Rev 3 doc-stabilization reconciliation). Approval followed a stabilization pass + two adversarial multi-agent review loops; the design baseline is implementation-ready (GO).
 
-```
-> APPROVED by <reviewer> on <date>.
-> Revision: <N>
-```
+**Final document inventory:**
+
+| Document                     | Lines | Last Modified |
+| ---------------------------- | ----- | ------------- |
+| product-spec/product-spec.md | 262   | 2026-06-28    |
+| product-spec/user-journey.md | 203   | 2026-06-28    |
+| product-spec/metrics.md      | 151   | 2026-06-28    |
+| product-spec/README.md       | 67    | 2026-06-28    |
+| product-spec/wireframes/ (6) | —     | 2026-06-28    |
+
+**Pending Reviewer Questions — resolution (by approval):**
+
+| #   | Question                      | Resolution                                                                                                                                     |
+| --- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | P3 items remain Could-Have?   | ✅ Confirmed — WebSocket notifications + advanced observability stay Could-Have for v1.                                                        |
+| 2   | Disambiguation UX sufficient? | ✅ Confirmed — brand/generic + provenance badges sufficient for initial release.                                                               |
+| 3   | Substitution FR?              | ⏸ Deferred — `food-substitution` stays **warning-tracked, no FR invented** (maintainer scope call; decision-register §6). Revisit post-launch. |
+| 4   | Unit-conversion UX?           | ✅ Confirmed — remains informational (panel-level affordance), not a hard FR for v1.                                                           |
+| 5   | Metrics targets realistic?    | ✅ Confirmed — split SC-005 (read/serve) vs SC-014 (~500–900/hr NEW-food resolution) and the p95 targets accepted.                             |
+
+§4A consistency check: PASS — all product-spec/README cross-links resolve, all 6 wireframes present, every Must-Have user story (US-0/1/2/2a/3/4/5) maps to ≥1 journey, and the determinism lens found Must-Have acceptance criteria carry concrete thresholds (status codes, 50-pending/90%-900 fairness, queue-depth 500/2000/10000, p95 latencies, the 1-survivor auto-RESOLVE rule). The lone soft spot (food-substitution lacking an FR) is the tracked Q3 deferral above.
+
+**Status: LOCKED — Ready for SpecKit Bridge (Phase 4)**

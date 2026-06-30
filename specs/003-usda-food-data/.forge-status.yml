@@ -43,12 +43,15 @@ phases:
         completed_at: 2026-05-09
 
     revalidation:
-        state: pending
+        state: approved
+        approved_at: 2026-06-29
         note: >
-            Product-spec stabilized via the 2026-06-28 doc-stabilization (review.md Revision 3 records the
-            applied D-* decisions; reflects the stabilized source-agnostic design). Human approve/lock
-            still pending via /speckit-product-forge-revalidate.
+            APPROVED + LOCKED 2026-06-29 (review.md Revision 3 / Approval Marker). The stabilized
+            source-agnostic product-spec was approved after 3 revisions + two adversarial review loops;
+            §4A consistency + determinism check PASS. Pending Reviewer Questions resolved by approval
+            (food-substitution FR deferred — warning-tracked, no FR). Ready for the SpecKit bridge.
         artifact: review.md
+        last_updated: '2026-06-29'
 
     bridge:
         state: complete
@@ -65,6 +68,14 @@ phases:
         state: complete
         artifact: plan.md
         replanned_at: 2026-06-19
+        accepted_at: 2026-06-29
+        accept_note: >
+            2026-06-29 Phase-5 cross-validation gate: plan.md ACCEPTED as current against the
+            finalized/approved spec (no regeneration). Cross-validation PASS — 7/7 Must-Have stories
+            addressed (US-0..US-5), all canonical D-* decisions present (FoodFetchCompleted, distinct-
+            requester FR-044, food_candidates/13-table model, leased_at+reaper, auto-RESOLVE 1-survivor),
+            §2 data-model hardening intact, zero stale framing. plan.md is identical to the stabilized
+            committed version; a from-scratch regenerate was declined to avoid regressing plan-only §2 detail.
         digest_path: plan/digest.md
         note: >
             Re-plan added §2A Authentication & Authorization (FR-035–FR-053);

@@ -212,7 +212,8 @@ EXTENSION IF NOT EXISTS pg_trgm`.
       pending-priority partial index, an index scan on `idx_fetch_queue_inflight_leased` for the reaper's
       `in_flight`/`leased_at` predicate (DB-8), and an index scan for the trailing-60-min `source_call_log` count.
 
-- [ ] **T-105** [M] [Test-first: true] DAO: `FoodDao` (golden-record aggregate read/upsert; normalized-name dedup; legal status transitions; tombstone TTL fields) — `packages/services/food-service/src/foods/dao/food.dao.ts` (FR-002, FR-005, FR-013, FR-025, FR-028, FR-028a, FR-IDN-1)
+- [x] **T-105** [M] [Test-first: true] DAO: `FoodDao` (golden-record aggregate read/upsert; normalized-name dedup; legal status transitions; tombstone TTL fields) — `packages/services/food-service/src/foods/dao/food.dao.ts` (FR-002, FR-005, FR-013, FR-025, FR-028, FR-028a, FR-IDN-1)
+      _(2026-06-29: green — `food.dao.ts` + `dao.errors.ts`; createByName idempotency + terminal-row reactivation, guarded illegal-transition rejection, and golden-record read (no fdcId) covered by `tests/food.dao.integration.test.ts`. See implementation-log.)_
       Per-aggregate DAO behind the existing `FoodsRepository` seam. `getById`, `createByName` (compute
       `normalized_name`, insert with `status='PENDING'`), `setStatus` (enforces the legal transition set
       `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}` / `UNRESOLVED→RESOLVED` / `FAILED→PENDING` /
@@ -224,28 +225,41 @@ EXTENSION IF NOT EXISTS pg_trgm`.
       rejects an illegal transition; `readGoldenRecord` returns `id`/name/description/nutrients/portions/provenance
       with no `fdcId` anywhere.
 
-- [ ] **T-106** [S] [Test-first: true] DAO: `FoodSourcesDao` (crosswalk upsert; `external_key` + `item_version`; barcode/external-key lookup → `id`; carries `UNIQUE(food_id, id)` so value rows can take a composite same-food FK) — `packages/services/food-service/src/foods/dao/food-sources.dao.ts` (FR-008, FR-028, FR-029, FR-032)
+- [x] **T-106** [S] [Test-first: true] DAO: `FoodSourcesDao` (crosswalk upsert; `external_key` + `item_version`; barcode/external-key lookup → `id`; carries `UNIQUE(food_id, id)` so value rows can take a composite same-food FK) — `packages/services/food-service/src/foods/dao/food-sources.dao.ts` (FR-008, FR-028, FR-029, FR-032)
+      _(2026-06-29: green — `food-sources.dao.ts`; external-key + barcode lookup, item_version upsert, and the composite-FK same-food acceptance covered by `tests/food-sources.dao.integration.test.ts`.)_
       **Acceptance**: `findFoodIdByExternalKey(source, key)` resolves via `UNIQUE(source, external_key)`;
       `upsertSource` records/updates `item_version`; the inserted row satisfies `UNIQUE(food_id, id)` (D-PROVENANCE-FK).
 
-- [ ] **T-107** [S] [Test-first: true] DAO: `NutrientDao` + `FoodNutrientsDao` (dictionary upsert keyed on a stable dedup key — `external_code` is **nullable** (a source nutrient with no INFOODS tagname → multiple NULLs), so the dictionary key is `UNIQUE(COALESCE(external_code, lower(name) || '|' || unit))` so duplicate `'Protein'` rows cannot split `nutrient_id` (DB-5); the adapter resolves a source nutrient → `nutrient_id` via that key; per-value `source_id` via the composite `(food_id, source_id)` same-food FK; `UNIQUE(food_id, nutrient_id)` golden winner; `food_nutrients.amount numeric` with `CHECK (amount >= 0)` (DB-6); per-100g basis) — `packages/services/food-service/src/foods/dao/nutrient.dao.ts`, `food-nutrients.dao.ts` (FR-028, FR-MRG-3, SC-008)
+- [x] **T-107** [S] [Test-first: true] DAO: `NutrientDao` + `FoodNutrientsDao` (dictionary upsert keyed on a stable dedup key — `external_code` is **nullable** (a source nutrient with no INFOODS tagname → multiple NULLs), so the dictionary key is `UNIQUE(COALESCE(external_code, lower(name) || '|' || unit))` so duplicate `'Protein'` rows cannot split `nutrient_id` (DB-5); the adapter resolves a source nutrient → `nutrient_id` via that key; per-value `source_id` via the composite `(food_id, source_id)` same-food FK; `UNIQUE(food_id, nutrient_id)` golden winner; `food_nutrients.amount numeric` with `CHECK (amount >= 0)` (DB-6); per-100g basis) — `packages/services/food-service/src/foods/dao/nutrient.dao.ts`, `food-nutrients.dao.ts` (FR-028, FR-MRG-3, SC-008)
       **Acceptance**: nutrient amounts stored as `numeric` (no float drift); a second value for the same
       `(food_id, nutrient_id)` overwrites the golden winner and updates `source_id`; a `source_id` from another
       food is rejected (composite FK); two source nutrients resolving to the same dictionary entry — one with a NULL
       `external_code` — collapse to one `nutrient_id` (DB-5); a negative `amount` is rejected by `CHECK (amount >= 0)` (DB-6).
+      _(2026-06-29: green — `nutrient.dao.ts` (`resolveOrCreate`) + `food-nutrients.dao.ts` (`upsertValue`);
+      duplicate-`Protein` dedup + NULL-`external_code` collapse, golden-winner overwrite, cross-food source_id
+      rejection, and negative-amount CHECK covered by `tests/nutrient.dao.integration.test.ts`. **Deviation:** dedup
+      honors the committed two-constraint schema (`UNIQUE(external_code)` + case-sensitive `UNIQUE(name, unit)`), not
+      the single `COALESCE(…lower(name)…)` expression key in this prose — see implementation-log for the case-sensitivity caveat.)_
 
-- [ ] **T-108** [S] [Test-first: true] DAO: `FoodPortionsDao`, `FoodFieldProvenanceDao`, `FoodCategoryDao` (per-value `source_id` via the composite `(food_id, source_id)` same-food FK; `food_portions.gram_weight numeric` with `CHECK (gram_weight > 0)` (DB-6); single-query "which fields came from source X") — `packages/services/food-service/src/foods/dao/` (FR-028, FR-029, R7)
+- [x] **T-108** [S] [Test-first: true] DAO: `FoodPortionsDao`, `FoodFieldProvenanceDao`, `FoodCategoryDao` (per-value `source_id` via the composite `(food_id, source_id)` same-food FK; `food_portions.gram_weight numeric` with `CHECK (gram_weight > 0)` (DB-6); single-query "which fields came from source X") — `packages/services/food-service/src/foods/dao/` (FR-028, FR-029, R7)
       **Acceptance**: a UNION query across `food_field_provenance` + `food_nutrients` + `food_portions` filtered by
       `source_id IN (food_sources of food X, source S)` returns the provenance set in one query (FR-029/SC-013);
       a non-positive `gram_weight` is rejected by `CHECK (gram_weight > 0)` (DB-6).
+      _(2026-06-29: green — `food-portions.dao.ts`, `food-field-provenance.dao.ts`, `food-category.dao.ts`; the
+      single-query UNION `fieldsFromSource` and the gram_weight CHECK covered by `tests/food-provenance.dao.integration.test.ts`.)_
 
-- [ ] **T-109** [M] [Test-first: true] DAO: `FetchQueueDao` + `FetchRequestersDao` (idempotent `INSERT … ON CONFLICT`; distinct-requester demand — `request_count` set to the distinct-`sub` count, each `sub` contributing at most once, `PRIORITY_CAP=1` per `sub`, never a raw `+1`; `SELECT … FOR UPDATE SKIP LOCKED` drain; `leased_at` reaper; per-`sub` live pending count) — `packages/services/food-service/src/foods/dao/fetch-queue.dao.ts`, `fetch-requesters.dao.ts` (FR-014, FR-015, FR-018, FR-043, FR-044)
+- [x] **T-109** [M] [Test-first: true] DAO: `FetchQueueDao` + `FetchRequestersDao` (idempotent `INSERT … ON CONFLICT`; distinct-requester demand — `request_count` set to the distinct-`sub` count, each `sub` contributing at most once, `PRIORITY_CAP=1` per `sub`, never a raw `+1`; `SELECT … FOR UPDATE SKIP LOCKED` drain; `leased_at` reaper; per-`sub` live pending count) — `packages/services/food-service/src/foods/dao/fetch-queue.dao.ts`, `fetch-requesters.dao.ts` (FR-014, FR-015, FR-018, FR-043, FR-044)
       **Acceptance**: concurrent enqueues for one `id` produce exactly one row whose `request_count` equals the
       number of **distinct `sub`s** (one `sub`'s repeats do not inflate it); the drain query orders by
       `request_count DESC, first_requested ASC`; the reaper reverts `in_flight` rows whose `leased_at` is older
       than the lease timeout to `pending`.
+      _(2026-06-29: green — `fetch-queue.dao.ts` + `fetch-requesters.dao.ts`; 50-adds-one-sub→`request_count=1`,
+      N-distinct-subs→N, demand-ordered `FOR UPDATE SKIP LOCKED` lease, and reaper/lease-on-claim reclaim (attempts
+      untouched) covered by `tests/fetch-queue.dao.integration.test.ts`. **Deviation:** `enqueue` computes
+      `request_count` from the live distinct-sub count on the insert path too, not the literal `1` in MOD-003's
+      pseudocode — see implementation-log.)_
 
-- [ ] **T-110** [S] [Test-first: true] DAO: `SourceCallLogDao` (atomic check-and-record for the per-source rolling 60-min window; prune) — `packages/services/food-service/src/foods/dao/source-call-log.dao.ts` (FR-019, FR-020)
+- [x] **T-110** [S] [Test-first: true] DAO: `SourceCallLogDao` (atomic check-and-record for the per-source rolling 60-min window; prune) — `packages/services/food-service/src/foods/dao/source-call-log.dao.ts` (FR-019, FR-020)
       Single-statement atomic `INSERT … SELECT now() WHERE (SELECT count(*) FROM source_call_log WHERE source=$1
 AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the call only under cap) +
       a prune of rows older than 60 min.
@@ -253,9 +267,16 @@ AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the c
       the trailing-60-min count slides as old rows age out; a prune-boundary test — rows at `now()-59m` / `-60m` /
       `-61m` → only the `>60m` row is deleted and the in-window count is unchanged (the prune must not under-count the
       limiter, TST-5).
+      _(2026-06-29: green — `source-call-log.dao.ts`; under-cap allow / at-cap deny / 40-way-concurrent never-exceeds-cap,
+      sliding window, and conservative prune (TST-5) covered by `tests/source-call-log.dao.integration.test.ts`.
+      **Deviation:** `checkAndRecord` adds a per-source xact advisory lock so the cap holds under concurrency outside the
+      single-drainer lock — see implementation-log.)_
 
 - [x] **T-111** [M] [Test-first: true] `food_candidates` schema + migration + `CandidateStore` DAO (backs `UNRESOLVED` / US-2a) — `packages/services/food-service/src/db/schema/food-candidates.ts`, migration, `packages/services/food-service/src/foods/dao/food-candidates.dao.ts` (FR-028, FR-RES-1, FR-RES-2, FR-MRG-5, FR-025a)
-      _(2026-06-29: schema + migration delivered and green — `food_candidates` table + `UNIQUE(food_id, source, external_key)` verified. The `CandidateStore` DAO (`food-candidates.dao.ts`) is a T-105+ DAO, deferred to the DAO phase.)_
+      _(2026-06-29: schema + migration delivered and green — `food_candidates` table + `UNIQUE(food_id, source, external_key)` verified.)_
+      _(2026-06-29: `CandidateStore` DAO delivered and green — `food-candidates.dao.ts` (`persistCandidates`, `getCandidates`,
+      `isMember`, `clear`); idempotent persist, 30-day-TTL exclusion (FR-025a), membership validation, clear-on-resolve, and
+      parent-`food` cascade covered by `tests/food-candidates.dao.integration.test.ts`.)_
       The 13th canonical table (D-CANDIDATES): `food_candidates(id text PK, food_id text NOT NULL REFERENCES
 food(id) ON DELETE CASCADE, source food_source NOT NULL, external_key text NOT NULL, name text NOT NULL,
 summary text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(food_id, source, external_key))`. DAO:

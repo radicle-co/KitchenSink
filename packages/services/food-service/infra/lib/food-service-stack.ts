@@ -57,13 +57,6 @@ export interface FoodServiceStackProps extends StackProps {
     readonly workerDesiredCount: number;
     /** Shared VPC id to import. */
     readonly vpcId: string;
-    /**
-     * Source API credential for the fetch/refresh workloads (`USDA_API_KEY`). FLAG: this is a secret
-     * but there is no Secrets Manager seam for source credentials yet, so it is wired as plaintext
-     * container env from the deploy environment. Before a real key is used this MUST move to
-     * `ecs.Secret.fromSecretsManager` (like the DB creds) so it never lands in the template.
-     */
-    readonly usdaApiKey?: string;
     /** Optional UNRESOLVED-candidate TTL (days) for the change-refresh task (`FOOD_UNRESOLVED_TTL_DAYS`). */
     readonly unresolvedTtlDays?: number;
 }
@@ -172,12 +165,20 @@ export class FoodServiceStack extends Stack {
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
         };
 
-        // FLAG (see props.usdaApiKey): source credentials wired as plaintext container env. The Nest app
-        // env validation requires USDA_API_KEY (config/env.schema.ts) and both the worker and the
-        // change-refresh entrypoint THROW without it, so all three containers receive it. Move to a
-        // Secrets Manager `ecs.Secret` before a real key ships.
-        const sourceCredentialsEnvironment: Record<string, string> = {
-            USDA_API_KEY: props.usdaApiKey ?? '',
+        // Source API credential (`USDA_API_KEY`). The Nest app env validation requires it
+        // (config/env.schema.ts) and both the worker and the change-refresh entrypoint THROW without it,
+        // so all three containers receive it — injected from Secrets Manager as an `ecs.Secret` (like the
+        // DB creds) so the value never lands in the CloudFormation template. The secret is created
+        // out-of-band per stage (it is an externally-issued third-party key CDK cannot generate) and
+        // imported here by name; the value is set via `aws secretsmanager put-secret-value`.
+        const usdaApiKeySecret = secretsmanager.Secret.fromSecretNameV2(
+            this,
+            'ImportedUsdaApiKeySecret',
+            `kitchensink/${stage}/food/usda-api-key`,
+        );
+
+        const sourceCredentialsSecrets = {
+            USDA_API_KEY: ecs.Secret.fromSecretsManager(usdaApiKeySecret),
         };
 
         const foodDbSecrets = {
@@ -212,8 +213,8 @@ export class FoodServiceStack extends Stack {
         apiTaskDefinition.addContainer('FoodApiContainer', {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-service', logGroup: apiLogGroup }),
-            environment: { ...foodDbEnvironment, ...sourceCredentialsEnvironment, PORT: '3000' },
-            secrets: foodDbSecrets,
+            environment: { ...foodDbEnvironment, PORT: '3000' },
+            secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
             command: ['node', 'dist/main.js'],
             portMappings: [{ containerPort: 3000 }],
             healthCheck: {
@@ -269,8 +270,8 @@ export class FoodServiceStack extends Stack {
         workerTaskDefinition.addContainer('FoodWorkerContainer', {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-worker', logGroup: workerLogGroup }),
-            environment: { ...foodDbEnvironment, ...sourceCredentialsEnvironment, FOOD_WORKER: '1' },
-            secrets: foodDbSecrets,
+            environment: { ...foodDbEnvironment, FOOD_WORKER: '1' },
+            secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
             command: ['node', 'dist/worker/main.js'],
         });
 
@@ -320,7 +321,6 @@ export class FoodServiceStack extends Stack {
 
         const changeRefreshEnvironment: Record<string, string> = {
             ...foodDbEnvironment,
-            ...sourceCredentialsEnvironment,
         };
 
         if (props.unresolvedTtlDays !== undefined) {
@@ -331,7 +331,7 @@ export class FoodServiceStack extends Stack {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-change-refresh', logGroup: changeRefreshLogGroup }),
             environment: changeRefreshEnvironment,
-            secrets: foodDbSecrets,
+            secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
             command: ['node', 'dist/worker/change-refresh/main.js'],
         });
 

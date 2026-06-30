@@ -135,6 +135,24 @@ describe('Food worker + service wiring', () => {
             expect(config.Subnets).toEqual(['subnet-public-1']);
         }
     });
+
+    it('injects USDA_API_KEY from Secrets Manager (never as plaintext container env)', () => {
+        const taskDefs = serviceTemplate.findResources('AWS::ECS::TaskDefinition');
+        const containers = Object.values(taskDefs).flatMap(
+            (resource: any) => resource.Properties.ContainerDefinitions as any[],
+        );
+
+        // Every long-running container that needs the source credential (api, worker, change-refresh)
+        // declares USDA_API_KEY in `Secret` (→ Secrets Manager ValueFrom), and NONE leaks it as plaintext
+        // `Environment` — so the key never lands in the CloudFormation template (ADR-0004 secret hygiene).
+        const withUsdaSecret = containers.filter((c) => (c.Secrets ?? []).some((s: any) => s.Name === 'USDA_API_KEY'));
+        expect(withUsdaSecret).toHaveLength(3);
+
+        for (const container of containers) {
+            const envNames = (container.Environment ?? []).map((e: any) => e.Name);
+            expect(envNames).not.toContain('USDA_API_KEY');
+        }
+    });
 });
 
 describe('Vestigial lambdas removed (Decisions B/C/D)', () => {

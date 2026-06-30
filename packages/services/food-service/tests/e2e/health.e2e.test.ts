@@ -42,7 +42,9 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/d
  */
 async function applyMigration(pool: pg.Pool): Promise<void> {
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    await pool.query(readFileSync(join(migrationsDir, '0000_food_schema.sql'), 'utf-8'));
+    for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+        await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
+    }
 }
 
 describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)', () => {

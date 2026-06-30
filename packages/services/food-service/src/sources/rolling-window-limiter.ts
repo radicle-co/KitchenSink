@@ -87,6 +87,27 @@ export class RollingWindowLimiter {
     }
 
     /**
+     * The sources this limiter has caps configured for (the wired sources). Used by the admin
+     * operational-metrics endpoint to report per-source window utilization (FR-039/US-10).
+     *
+     * @returns The configured source ids.
+     */
+    public knownSources(): FoodSourceId[] {
+        return Object.keys(this.caps) as FoodSourceId[];
+    }
+
+    /**
+     * A source's configured caps (hard ceiling + 90% pause threshold).
+     *
+     * @param source - The source.
+     * @returns The source's caps.
+     * @throws {Error} when no caps are configured for the source.
+     */
+    public capsFor(source: FoodSourceId): SourceCap {
+        return this.capFor(source);
+    }
+
+    /**
      * Whether draining `source` should pause — true once the trailing count reaches the 90% pause
      * threshold, OR while the 429 failsafe back-off is active.
      *

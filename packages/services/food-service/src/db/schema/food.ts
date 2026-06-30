@@ -15,6 +15,7 @@
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import {
     check,
+    customType,
     foreignKey,
     index,
     numeric,
@@ -26,6 +27,16 @@ import {
     unique,
     uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+/**
+ * Postgres `tsvector` column type (drizzle-orm has no native `tsvector`). Backs the ranked full-text
+ * search column (T-180); read-only in practice — it is a STORED generated column (see {@link food}).
+ */
+const tsvector = customType<{ data: string; driverData: string }>({
+    dataType() {
+        return 'tsvector';
+    },
+});
 
 // ── Controlled enums (DB-7: domain-model controlled sets use pgEnum) ────────────────────────────
 
@@ -73,6 +84,11 @@ export const food = pgTable(
         tombstonedAt: timestamp('tombstoned_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+        // STORED generated tsvector over name + description for ranked full-text search (T-180, 0001
+        // migration). Read-only (generated); the immutable two-arg to_tsvector form is required.
+        searchVector: tsvector('search_vector').generatedAlwaysAs(
+            sql`to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, ''))`,
+        ),
     },
     (table) => [
         uniqueIndex('food_normalized_name_unique').on(table.normalizedName),
@@ -83,6 +99,8 @@ export const food = pgTable(
         // pg_trgm fuzzy/substring/partial search (FR-008/FR-010); the extension is bootstrapped by the migration.
         index('food_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
         index('food_description_trgm_idx').using('gin', sql`${table.description} gin_trgm_ops`),
+        // Ranked full-text search (T-180): GIN over the generated tsvector (FR-008/FR-010).
+        index('food_search_vector_idx').using('gin', table.searchVector),
     ],
 );
 

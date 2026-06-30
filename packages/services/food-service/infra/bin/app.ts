@@ -37,7 +37,7 @@ new FoodServiceStack(app, `FoodService-${stage}`, {
     vpcId,
     imageTag: process.env['FOOD_IMAGE_TAG'] ?? 'latest',
     desiredCount: Number(process.env['FOOD_DESIRED_COUNT'] ?? 2),
-    workerDesiredCount: Number(process.env['USDA_WORKER_DESIRED_COUNT'] ?? 1),
+    workerDesiredCount: Number(process.env['FOOD_WORKER_DESIRED_COUNT'] ?? 1),
 });
 
 app.synth();

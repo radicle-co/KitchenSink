@@ -976,3 +976,99 @@ part). No commit/push.
   `FOOD_AUTH_SHED_WINDOW_MS` env defaults validated against real ALB traffic; ALB trusted-proxy / XFF.
 - T-052 durable cross-process circuit-breaker signal (open breaker → `503` visible to the API tier).
 - T-001c EventBridge→ECS RunTask + task def + IAM; migration runner (FU-MIGRATE); WebSocket (P3).
+
+---
+
+## T-002, T-184, T-180 — env config + admin ops endpoints + ranked FTS (BE-1, 2026-06-30)
+
+Three locally-testable food-service tasks, TDD (tests RED before implementation), worktree-only, no
+commit/push. Built on the committed stack; `docs/CODING_STANDARDS.md` applied.
+
+### T-002 — source-agnostic env config (Zod)
+
+`src/config/env.schema.ts` restructured into four documented groups so the FULL config surface consumed
+across the service (API + Fargate worker + change-refresh + auth) is validated in one schema, **source-
+agnostic**: `SourceAdapterConfigSchema` (the ONLY source-named values — `USDA_API_KEY` required +
+`USDA_API_BASE_URL`, confined to the adapter boundary), `FoodOperationalConfigSchema`
+(`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`=1000, `FOOD_DEMOTE_THRESHOLD`=50, `FOOD_MAX_QUEUE_DEPTH`=10000,
+`FOOD_MAX_BATCH_NAMES`=100, `FOOD_NOT_FOUND_TTL_DAYS`=30, `FOOD_UNRESOLVED_TTL_DAYS`=30,
+`FOOD_STALE_THRESHOLD_DAYS`=30, `FOOD_LEASE_TIMEOUT_SECONDS`=30, `FOOD_WORKER_DESIRED_COUNT`=1),
+`AuthConfigSchema` (`CLERK_JWT_KEY`/`CLERK_AUTHORIZED_PARTIES` optional non-secret — the guard fails
+closed 401 when absent and `/health` must still boot — plus the optional `FOOD_AUTH_*` shedder knobs),
+and `AppConfigSchema`. The USDA-named operational knobs (`USDA_RATE_LIMIT_PER_HOUR`,
+`USDA_TOMBSTONE_TTL_DAYS`, `USDA_STALE_THRESHOLD_DAYS`, `USDA_WORKER_DESIRED_COUNT`,
+`USDA_LEASE_TIMEOUT_SECONDS`) were renamed to the `FOOD_*` set. Consumers updated: `foods.module.ts`
+(`sourceCaps()` reads `FOOD_SOURCE_RATE_LIMIT_PER_HOUR`), `config.module.ts` docstring,
+`infra/bin/app.ts` (one env-key read `USDA_WORKER_DESIRED_COUNT`→`FOOD_WORKER_DESIRED_COUNT`, env-name
+sync only — no CDK topology/deploy change), and the four e2e/integration suites that set the rate-limit
+env. Unit test rewritten (`src/config/__tests__/env.schema.test.ts`): valid parse + all defaults,
+string coercion, rejects bad values (non-positive cap, zero lease, non-numeric depth), fail-closed on
+missing `USDA_API_KEY` and missing DB block, auth knobs optional, and an assertion that NO USDA-named
+operational key remains in the surface.
+
+### T-184 — admin operational-query endpoints (FR-039/US-10)
+
+New domain folder `src/foods/admin/`: `AdminMetricsDao` (two grouped reads — `fetch_queue` depth by
+status, `food` lifecycle backlog by status), `AdminMetricsService` (composes queue depths + backlog +
+per-source trailing-60-min window utilization, the latter via two new public `RollingWindowLimiter`
+accessors `knownSources()`/`capsFor()`), and `FoodsAdminController` (`@Controller('v1/foods/admin')`).
+Two read-only GETs — `GET /v1/foods/admin/metrics` (full dashboard signals: pending/in-flight/tombstone
+depth, UNRESOLVED backlog, NOT_FOUND vs FAILED counts per DSN-9, per-source `windowCount`/`hardCap`/
+`pauseThreshold`/`utilization`/`paused`) and `GET /v1/foods/admin/queue` (focused depths). Wired into
+`FoodsModule` (controller + providers) with `FoodAuthGuard` mounted on it (401 unauth); each route
+requires the `food:admin` scope via the existing `hasScope` helper (403 unscoped) — FR-051 precedence.
+
+### T-180 — optional ranked full-text search
+
+New additive migration `src/db/migrations/0001_food_fts.sql` (mirrors the 0000 hand-authored style):
+`ALTER TABLE food ADD COLUMN search_vector tsvector GENERATED ALWAYS AS
+(to_tsvector('english', coalesce(name,'') || ' ' || coalesce(description,''))) STORED` + GIN index
+`food_search_vector_idx`. No new table (still 13). Mirrored in the Drizzle `food` schema (a `customType`
+tsvector + `.generatedAlwaysAs(...)` + GIN index). `FoodSearchDao.search` extended to rank by
+`GREATEST(ts_rank(search_vector, plainto_tsquery('english', q)), similarity(name, q))` and match on the
+FTS lexeme path OR the pg_trgm `%`/`ILIKE` fuzzy fallback — **pg_trgm retained as the fuzzy/typo/substring
+fallback** per plan §2's "optional ranked FTS" note. The migrate path applies 0000 then 0001 in order;
+`tests/support/db.ts` + `schema.integration.test.ts` already glob-apply both, and the five suites that
+hard-coded applying only `0000_food_schema.sql` were updated to apply both in order.
+
+### Red → Green
+
+RED first confirmed at assertion level before each implementation:
+
+- T-002: rewritten env-schema unit test failed 7/10 (`FOOD_*` keys undefined under the old USDA-named
+  schema) → GREEN after the schema rewrite.
+- T-180: `schema.integration` FTS probes failed (no `search_vector` column / `food_search_vector_idx`
+  index) and `food-search.dao.integration` word-order query missed → GREEN after the 0001 migration +
+  ranked-FTS query. (One test premise corrected mid-RED: a two-term `plainto_tsquery` ANDs lexemes, so a
+  single-lexeme doc is legitimately excluded — the ranked-ordering case was rewritten to an exact-vs-
+  tangential single-term scenario.)
+- T-184: admin unit suites failed to import the not-yet-created modules → GREEN after the DAO/service/
+  controller + module wiring.
+
+A real regression was caught and fixed by re-running the FULL suites (not just the new specs): five
+e2e/integration files applied only `0000_food_schema.sql`, so the new `search_vector`-referencing search
+query errored under those DBs (integration 28 fail / e2e 20 fail). Updating them to apply 0000+0001 in
+order restored green — the standing "re-run all suites, no regression" rule surfaced it.
+
+| Suite                                   | Before | After | Result   |
+| --------------------------------------- | ------ | ----- | -------- |
+| Unit (food-service)                     | 105    | 118   | ✅       |
+| Integration (real PG)                   | 161    | 172   | ✅       |
+| E2E (food-service)                      | 31     | 33    | ✅       |
+| Client unit (`@kitchensink/...-client`) | 14     | 14    | ✅       |
+| clerk-verify unit                       | 9      | 9     | ✅       |
+| identity (regression check)             | 83     | 83    | ✅       |
+| `tsc --noEmit` (food-service + infra)   | —      | —     | ✅ clean |
+| `npm run lint` (food-service)           | —      | —     | ✅ clean |
+
+T-002, T-180, T-184 marked `[x]`. No commit/push.
+
+### Deferred / flagged (out of this slice)
+
+- T-180 originally named a `food-search-indexer` Lambda on `FoodFetchCompleted`; a STORED generated
+  column needs no application-maintained index, so no indexer Lambda was built (the column is always in
+  sync). The FU-ESBUILD bundling note for that Lambda is moot for this approach.
+- T-184's mutating `POST /ops/retry/{id}` (tombstone→pending) is NOT in this read-only operational-query
+  slice; `FetchQueueDao.reactivate` already backs it when wired.
+- `infra/bin/app.ts` reads `FOOD_WORKER_DESIRED_COUNT` now; the CDK that SETS this env on the worker task
+  def is infra (out of scope) and should be synced in the infra slice.

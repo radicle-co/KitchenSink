@@ -22,6 +22,9 @@ import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter, type SourceCap } from '../sources/rolling-window-limiter.js';
 import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
 import { AdmissionService } from './admission.service.js';
+import { AdminMetricsDao } from './admin/admin-metrics.dao.js';
+import { AdminMetricsService } from './admin/admin-metrics.service.js';
+import { FoodsAdminController } from './admin/foods-admin.controller.js';
 import { CandidateStore, FoodDao, FoodSourcesDao, SourceCallLogDao } from './dao/index.js';
 import { FoodSearchDao } from './dao/food-search.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
@@ -31,21 +34,27 @@ import { GoldenRecordMergeEngine } from './merge/merge-engine.js';
 import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
 import { UserErasureService } from './user-erasure.service.js';
 
-/** Build the per-source caps from env (`USDA_RATE_LIMIT_PER_HOUR`); pause at 90% (FR-019). */
-function usdaCaps(): { usda: SourceCap } {
-    const hardCap = Number(process.env['USDA_RATE_LIMIT_PER_HOUR'] ?? 1000);
+/** Build the per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`); pause at 90% (FR-019). */
+function sourceCaps(): { usda: SourceCap } {
+    const hardCap = Number(process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] ?? 1000);
 
     return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * 0.9) } };
 }
 
 @Module({
-    controllers: [FoodsController],
+    controllers: [FoodsController, FoodsAdminController],
     providers: [
         FoodsService,
         EnqueueEmitter,
         AdmissionService,
+        AdminMetricsService,
         UserErasureService,
         FoodAuthGuard,
+        {
+            provide: AdminMetricsDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): AdminMetricsDao => new AdminMetricsDao(db),
+        },
         { provide: FoodDao, inject: [DrizzleProvider], useFactory: (db: FoodDrizzle): FoodDao => new FoodDao(db) },
         {
             provide: CandidateStore,
@@ -88,14 +97,14 @@ function usdaCaps(): { usda: SourceCap } {
             provide: RollingWindowLimiter,
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): RollingWindowLimiter =>
-                new RollingWindowLimiter(new SourceCallLogDao(db), { caps: usdaCaps() }),
+                new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCaps() }),
         },
     ],
     exports: [FoodsService, EnqueueEmitter, UserErasureService],
 })
 export class FoodsModule implements NestModule {
-    /** Mount {@link FoodAuthGuard} on every `/v1/foods/*` route (FR-035). */
+    /** Mount {@link FoodAuthGuard} on every `/v1/foods/*` route, incl. the admin endpoints (FR-035/FR-039). */
     public configure(consumer: MiddlewareConsumer): void {
-        consumer.apply(FoodAuthGuard).forRoutes(FoodsController);
+        consumer.apply(FoodAuthGuard).forRoutes(FoodsController, FoodsAdminController);
     }
 }

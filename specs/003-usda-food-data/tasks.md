@@ -139,7 +139,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 - [x] **T-003** [M] [Test-first: true] `@kitchensink/usda-client` — typed USDA HTTP client + zod validation of the USDA wire shape (`getFood`/`getFoodsBatch`/`searchFoods`, error types incl. `UsdaSchemaError`, ≤20-id batch) — `packages/clients/usda/src/usda-api.client.ts` (FR-023, FR-ADP-3)
       **(reuse: built TDD, 12/12 tests green, validates the raw USDA wire shape at the boundary. The client itself is DONE — it is wrapped in the `FoodSourceAdapter` interface by the NEW T-120/T-121.)**
 
-- [ ] **T-002** [S] [Test-first: false] Source-agnostic env config (Zod) — rename USDA-coupled vars to the source-neutral set — `packages/services/food-service/src/config/` (FR-019, FR-025, FR-025a, FR-032, FR-042)
+- [x] **T-002** [S] [Test-first: false] Source-agnostic env config (Zod) — rename USDA-coupled vars to the source-neutral set — `packages/services/food-service/src/config/` (FR-019, FR-025, FR-025a, FR-032, FR-042)
       Adjust the existing Zod env schema (built in old Phase 0) to the re-baselined config: - `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES` (non-secret; FR-042). - `FOOD_DEMOTE_THRESHOLD` (default 50; FR-043), `FOOD_MAX_QUEUE_DEPTH` (default 10000; FR-046),
       `FOOD_MAX_BATCH_NAMES` (default 100; FR-045), `FOOD_LEASE_TIMEOUT_SECONDS` (default 30; FR-018, `leased_at` reaper window),
       `FOOD_NOT_FOUND_TTL_DAYS` (default 30; FR-025), `FOOD_UNRESOLVED_TTL_DAYS` (default 30; `food_candidates`-set expiry, FR-025a). - The auto-resolve boundary is a **survivor-count rule** (normalized-name exact match) with **no nutrient tolerance**; the old `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE` knob is **removed** (D-AUTORESOLVE). - **Per-source** config block keyed by `source` (USDA today): `USDA_API_KEY` (secret), `USDA_API_BASE_URL`,
@@ -551,7 +551,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ## Phase 9 — Search Indexer / Observability / WebSocket (deferred bits)
 
-- [ ] **T-180** [S] [Test-first: false] Optional ranked-FTS indexer (generated `tsvector` + GIN) on `FoodFetchCompleted` — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts` (FR-008)
+- [x] **T-180** [S] [Test-first: false] Optional ranked-FTS indexer (generated `tsvector` + GIN) on `FoodFetchCompleted` — `packages/services/food-service/src/lambdas/food-search-indexer/handler.ts` (FR-008) — _implemented as an additive `0001_food_fts.sql` migration (STORED generated `search_vector` + GIN) + ranked `ts_rank` search in `FoodSearchDao` (pg_trgm retained as fuzzy fallback); no separate indexer Lambda needed since the column is generated, not application-maintained._
       **Deferred** — `pg_trgm` (T-104/T-134) already covers fuzzy search; add only if ranked full-text is needed.
       **Acceptance**: after a resolve, the food appears in ranked FTS results; no Redis to invalidate.
 
@@ -565,7 +565,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [ ] **T-183** [S] [Test-first: false] CloudWatch alarms — tombstone-row count > 0; API error rate > 5%; `fetch_queue` depth > 10,000 (FR-046); pending `first_requested` age > 5 min — `—` (SC-006, US-10)
       **Acceptance**: each alarm created in synth and fires on its condition (US-10 scenarios 2–3).
 
-- [ ] **T-184** [S] [Test-first: false] Operational query endpoints (admin-scoped) — `GET /v1/foods/ops/queue` (depths), `GET /v1/foods/ops/tombstones?limit=`, `POST /v1/foods/ops/retry/{id}` (flip `tombstone`→`pending`) — `—` (FR-039, FR-016, FR-018)
+- [x] **T-184** [S] [Test-first: false] Operational query endpoints (admin-scoped) — `GET /v1/foods/admin/metrics` (queue depths + UNRESOLVED backlog + NOT*FOUND/FAILED tombstone counts + per-source trailing-60-min window utilization) and `GET /v1/foods/admin/queue` (depths); both gated by `food:admin` (401 unauth / 403 unscoped). The read-only operational-query slice of FR-039/US-10 — `packages/services/food-service/src/foods/admin/`. *(The mutating `POST /ops/retry/{id}` tombstone→pending action is deferred: out of this read-only operational-query slice; `FetchQueueDao.reactivate` already backs it.)\_ (FR-039, FR-016, FR-018)
       **Acceptance**: counts accurate; retry re-queues a tombstone; all require the elevated scope (`403` without).
 
 - [ ] **T-185** [M] [Test-first: true] [P3 — Deferred] API Gateway WebSocket API + `$connect` Lambda authorizer (reuses `@kitchensink/clerk-verify`; token via query param / `Sec-WebSocket-Protocol`; reject → `403`; mid-connection `exp` → close; FR-050 cache rules apply here) — `—` (FR-034, FR-041, FR-049, FR-050)

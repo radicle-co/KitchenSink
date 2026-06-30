@@ -263,6 +263,34 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
         });
     });
 
+    describe('ranked full-text search column + GIN index (T-180 / FR-008 optional ranked FTS)', () => {
+        it('adds a STORED generated tsvector column food.search_vector (0001 migration)', async () => {
+            const { rows } = await pool.query<{ data_type: string; is_generated: string }>(
+                `SELECT data_type, is_generated FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'food' AND column_name = 'search_vector'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.data_type).toBe('tsvector');
+            expect(rows[0]?.is_generated).toBe('ALWAYS');
+        });
+
+        it('creates the GIN index over food.search_vector for ranked FTS', async () => {
+            const { rows } = await pool.query<{ indexname: string }>(
+                `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
+            );
+            expect(new Set(rows.map((row) => row.indexname))).toContain('food_search_vector_idx');
+        });
+
+        it('keeps the pg_trgm fuzzy indexes alongside the FTS index (fuzzy fallback retained)', async () => {
+            const { rows } = await pool.query<{ indexname: string }>(
+                `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
+            );
+            const names = new Set(rows.map((row) => row.indexname));
+            expect(names).toContain('food_name_trgm_idx');
+            expect(names).toContain('food_search_vector_idx');
+        });
+    });
+
     describe('food_candidates UNIQUE(food_id, source, external_key) (D-CANDIDATES)', () => {
         it('rejects a duplicate (food_id, source, external_key) candidate', async () => {
             await pool.query(

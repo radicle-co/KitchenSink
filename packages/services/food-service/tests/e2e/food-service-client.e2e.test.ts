@@ -90,11 +90,13 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        await pool.query(readFileSync(join(migrationsDir, '0000_food_schema.sql'), 'utf-8'));
+        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+            await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
+        }
 
         process.env['DATABASE_URL'] = DATABASE_URL;
         process.env['USDA_API_KEY'] = 'e2e-stub-key';
-        process.env['USDA_RATE_LIMIT_PER_HOUR'] = '100000';
+        process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = '100000';
         process.env['CLERK_JWT_KEY'] = keypair.publicKeyPem;
         process.env['CLERK_AUTHORIZED_PARTIES'] = `${APP_AZP},${M2M_AZP}`;
         process.env['FOOD_MAX_QUEUE_DEPTH'] = '25';

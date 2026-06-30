@@ -9,7 +9,7 @@
  * routing, the guard, the DAOs, the merge/persist, the enqueue, backpressure — is the real wired stack.
  *
  * Boot config: `FOOD_MAX_QUEUE_DEPTH=10`, `FOOD_DEMOTE_THRESHOLD=2` (backpressure/flood-shed),
- * `USDA_RATE_LIMIT_PER_HOUR=5` (resolve rolling-window cap). The guard reads `CLERK_JWT_KEY` at boot.
+ * `FOOD_SOURCE_RATE_LIMIT_PER_HOUR=5` (resolve rolling-window cap). The guard reads `CLERK_JWT_KEY` at boot.
  */
 import 'reflect-metadata';
 
@@ -183,11 +183,13 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        await pool.query(readFileSync(join(migrationsDir, '0000_food_schema.sql'), 'utf-8'));
+        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+            await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
+        }
 
         process.env['DATABASE_URL'] = DATABASE_URL;
         process.env['USDA_API_KEY'] = 'integration-dummy-key';
-        process.env['USDA_RATE_LIMIT_PER_HOUR'] = '5';
+        process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = '5';
         process.env['CLERK_JWT_KEY'] = 'PEM';
         process.env['CLERK_AUTHORIZED_PARTIES'] = 'https://app.example.com';
         process.env['FOOD_MAX_QUEUE_DEPTH'] = '10';
@@ -574,7 +576,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('returns 503 (not 429) when the rolling-window cap is exhausted; food stays UNRESOLVED (DSN-6)', async () => {
             const { id, candidateIds } = await seedUnresolved('broccoli');
-            // Fill the USDA window to its hard cap (USDA_RATE_LIMIT_PER_HOUR=5) so tryRecord denies.
+            // Fill the USDA window to its hard cap (FOOD_SOURCE_RATE_LIMIT_PER_HOUR=5) so tryRecord denies.
             await pool.query(
                 `INSERT INTO source_call_log (source, called_at) SELECT 'usda', now() FROM generate_series(1, 5)`,
             );

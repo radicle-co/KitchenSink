@@ -11,7 +11,7 @@
  * USDA network, no AWS; the completion bus is an in-memory capture. Fully hermetic + deterministic.
  *
  * Boot config: a throwaway RSA keypair's public PEM is `CLERK_JWT_KEY`; `CLERK_AUTHORIZED_PARTIES`
- * allows the app origin + an M2M client id; `USDA_RATE_LIMIT_PER_HOUR` is high (the rolling window never
+ * allows the app origin + an M2M client id; `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` is high (the rolling window never
  * interferes); `FOOD_MAX_QUEUE_DEPTH=25` (one backpressure assertion seeds to the ceiling).
  */
 import 'reflect-metadata';
@@ -162,11 +162,13 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        await pool.query(readFileSync(join(migrationsDir, '0000_food_schema.sql'), 'utf-8'));
+        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+            await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
+        }
 
         process.env['DATABASE_URL'] = DATABASE_URL;
         process.env['USDA_API_KEY'] = 'e2e-stub-key';
-        process.env['USDA_RATE_LIMIT_PER_HOUR'] = '100000';
+        process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = '100000';
         process.env['CLERK_JWT_KEY'] = keypair.publicKeyPem;
         process.env['CLERK_AUTHORIZED_PARTIES'] = `${APP_AZP},${M2M_AZP}`;
         process.env['FOOD_MAX_QUEUE_DEPTH'] = '25';
@@ -458,6 +460,18 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             expect((none.body as { results: unknown[] }).results).toEqual([]);
             expect(stub.calls.searchByName).toBe(before);
         });
+
+        it('matches a word-order-independent query via ranked FTS and never calls a source (T-180)', async () => {
+            stub.programResolve('Chicken breast, raw');
+            const { id } = await addAndDrain(userToken, 'Chicken breast, raw');
+
+            // "breast chicken" is NOT a substring — only the ranked FTS lexeme path matches the reversed phrase.
+            const before = stub.calls.searchByName;
+            const res = await call('GET', '/v1/foods/search?query=breast%20chicken', { token: userToken });
+            expect(res.status).toBe(200);
+            expect((res.body as { results: { id: string }[] }).results.map((row) => row.id)).toContain(id);
+            expect(stub.calls.searchByName).toBe(before);
+        });
     });
 
     // ── FAILED tombstone (FR-016/FR-027/DSN-9) ──────────────────────────────────────────────────────
@@ -475,6 +489,45 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             const failed = eventsFor(id, 'FetchFailed');
             expect(failed).toHaveLength(1);
             expect(failed[0]!.detail['attempts']).toBe(5);
+        });
+    });
+
+    // ── Admin operational-query endpoints (FR-039 / US-10, T-184) ────────────────────────────────────
+    describe('GET /v1/foods/admin/* operational metrics', () => {
+        it('unauth → 401; authenticated non-admin → 403; admin → 200 with the operational signals', async () => {
+            // Unauthenticated → 401 (the guard, before any handler).
+            expect((await call('GET', '/v1/foods/admin/metrics')).status).toBe(401);
+            expect((await call('GET', '/v1/foods/admin/queue')).status).toBe(401);
+
+            // Authenticated but missing the food:admin scope → 403 (FR-039/FR-051).
+            expect((await call('GET', '/v1/foods/admin/metrics', { token: userToken })).status).toBe(403);
+            expect((await call('GET', '/v1/foods/admin/queue', { token: userToken })).status).toBe(403);
+
+            // Seed a known operational state: a RESOLVED food, a NOT_FOUND tombstone, and pending rows.
+            const { id: resolvedId } = await addAndDrain(userToken, programmedResolve('Admin resolved'));
+            expect(await foodStatus(resolvedId)).toBe('RESOLVED');
+            stub.programNotFound('admin phantom');
+            await addAndDrain(userToken, 'admin phantom');
+            await seedActiveQueue(3);
+
+            // Admin → 200 with the dashboard signals.
+            const metrics = await call('GET', '/v1/foods/admin/metrics', { token: adminToken });
+            expect(metrics.status).toBe(200);
+            const body = metrics.body as {
+                queue: { pending: number; inFlight: number; tombstone: number };
+                backlog: { unresolved: number; notFound: number; failed: number };
+                sources: { source: string; windowCount: number; hardCap: number; utilization: number }[];
+            };
+            expect(body.queue.pending).toBeGreaterThanOrEqual(3);
+            expect(body.queue.tombstone).toBeGreaterThanOrEqual(1);
+            expect(body.backlog.notFound).toBeGreaterThanOrEqual(1);
+            expect(body.sources.map((source) => source.source)).toContain('usda');
+            expect(body.sources[0]!.hardCap).toBeGreaterThan(0);
+
+            // The focused queue-depth endpoint also requires the admin scope and returns the depths.
+            const queue = await call('GET', '/v1/foods/admin/queue', { token: adminToken });
+            expect(queue.status).toBe(200);
+            expect((queue.body as { pending: number }).pending).toBeGreaterThanOrEqual(3);
         });
     });
 

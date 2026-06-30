@@ -14,6 +14,7 @@ import pg from 'pg';
 import { ConsoleEventBus, FoodEventEmitter } from '../events/food-event-emitter.js';
 import { FetchQueueDao } from '../foods/dao/fetch-queue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
+import { FoodSourcesDao } from '../foods/dao/food-sources.dao.js';
 import { SourceCallLogDao } from '../foods/dao/source-call-log.dao.js';
 import { GoldenRecordMergeEngine } from '../foods/merge/merge-engine.js';
 import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service.js';
@@ -79,6 +80,7 @@ async function bootstrap(): Promise<void> {
     const queue = new FetchQueueDao(db);
     const consumer = new FoodConsumerService({
         foodDao: new FoodDao(db),
+        sources: new FoodSourcesDao(db),
         queue,
         registry,
         limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),

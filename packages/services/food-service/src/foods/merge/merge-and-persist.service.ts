@@ -54,6 +54,14 @@ export interface ResolveFromPicksInput {
     picks: readonly CanonicalCandidate[];
 }
 
+/** Input for {@link MergeAndPersistService.mergeChangedSources} (the change-refresh in-place re-pull). */
+export interface MergeChangedSourcesInput {
+    /** The internal food id (currently `RESOLVED`). */
+    foodId: string;
+    /** The re-fetched candidates whose backing item changed upstream (only changed items, T-171). */
+    changed: readonly CanonicalCandidate[];
+}
+
 /** Result of a persist operation: the merge outcome and the resulting persisted lifecycle status. */
 export interface PersistResult {
     /** The merge outcome (FR-MRG-5). */
@@ -136,6 +144,117 @@ export class MergeAndPersistService {
             await new CandidateStore(db).clear(input.foodId);
 
             return result;
+        });
+    }
+
+    /**
+     * Selectively re-pull the CHANGED backing source items of a `RESOLVED` food in place (T-171,
+     * FR-031/FR-032, DSN-4). The caller (the worker's refresh branch) passes only items whose upstream
+     * `item_version` changed; this re-blends them, upserts each changed crosswalk (advancing
+     * `item_version`), and rewrites just the golden values those items supply (nutrients by
+     * `(food_id, nutrient_id)`, the changed sources' portions, scalar winners + provenance). The food
+     * STAYS `RESOLVED` — `food.updated_at` is bumped but the lifecycle is never transitioned and
+     * disambiguation is never re-run, so a refresh can never demote a food or clobber a manual pick whose
+     * item did not change (it is simply never in `changed`). All atomic.
+     *
+     * @param input - The food id + the re-fetched changed candidates.
+     * @returns The persisted result (always `RESOLVED`).
+     * @sideEffect Writes `food_sources`, `nutrient`, `food_nutrients`, `food_portions`,
+     *   `food_field_provenance`, and `food.updated_at` in one transaction.
+     */
+    public async mergeChangedSources(input: MergeChangedSourcesInput): Promise<PersistResult> {
+        const golden = this.engine.mergeChanged(sanitizeCandidates(input.changed));
+
+        return this.db.transaction(async (tx) => {
+            const db = asDaoDb(tx);
+            const sources = new FoodSourcesDao(db);
+            const nutrientDao = new NutrientDao(db);
+            const foodNutrients = new FoodNutrientsDao(db);
+            const portions = new FoodPortionsDao(db);
+            const fieldProvenance = new FoodFieldProvenanceDao(db);
+            const foodDao = new FoodDao(db);
+
+            // 1. Upsert each changed crosswalk so its item_version advances; collect the source_id.
+            const sourceIdByHandle = new Map<string, string>();
+
+            for (const contributor of golden.contributingSources) {
+                const row = await sources.upsertSource({
+                    foodId: input.foodId,
+                    source: contributor.source,
+                    externalKey: contributor.externalKey,
+                    itemVersion: contributor.itemVersion,
+                });
+                sourceIdByHandle.set(`${contributor.source}::${contributor.externalKey}`, row.id);
+            }
+
+            const sourceIdFor = (source: string, externalKey: string): string => {
+                const sourceId = sourceIdByHandle.get(`${source}::${externalKey}`);
+
+                if (sourceId === undefined) {
+                    throw new Error('refresh produced a value with no contributing crosswalk');
+                }
+
+                return sourceId;
+            };
+
+            // 2. Golden scalars supplied by the changed items (presence wins; absent fields untouched).
+            await foodDao.upsertGoldenScalars({
+                id: input.foodId,
+                name: golden.name?.value ?? undefined,
+                description: golden.description?.value ?? undefined,
+                kind: golden.kind ? (golden.kind.value === 'branded' ? 'branded' : 'generic') : undefined,
+                brandOwner: golden.brandOwner?.value ?? undefined,
+                brandName: golden.brandName?.value ?? undefined,
+                barcode: golden.barcode?.value ?? undefined,
+            });
+
+            // 3. Scalar-field provenance for the re-pulled winners.
+            for (const { field, key } of SCALAR_FIELDS) {
+                const scalar = golden[key];
+
+                if (scalar !== null && typeof scalar === 'object' && 'source' in scalar) {
+                    await fieldProvenance.record({
+                        foodId: input.foodId,
+                        field,
+                        sourceId: sourceIdFor(scalar.source, scalar.externalKey),
+                    });
+                }
+            }
+
+            // 4. Re-pulled nutrient values (one golden value per nutrient; updates amount/basis/source_id).
+            for (const nutrient of golden.nutrients) {
+                const dictionary = await nutrientDao.resolveOrCreate({
+                    name: nutrient.name,
+                    unit: nutrient.unit,
+                    externalCode: nutrient.code,
+                });
+                await foodNutrients.upsertValue({
+                    foodId: input.foodId,
+                    nutrientId: dictionary.id,
+                    amount: nutrient.amount,
+                    basis: nutrient.basis,
+                    sourceId: sourceIdFor(nutrient.source, nutrient.externalKey),
+                });
+            }
+
+            // 5. Portions: replace each changed source's contributed portions (drop-then-insert, no dup).
+            for (const sourceId of new Set(sourceIdByHandle.values())) {
+                await portions.deleteForSource(input.foodId, sourceId);
+            }
+
+            for (const portion of golden.portions) {
+                await portions.insertPortion({
+                    foodId: input.foodId,
+                    label: portion.label,
+                    gramWeight: portion.gramWeight,
+                    sourceId: sourceIdFor(portion.source, portion.externalKey),
+                });
+            }
+
+            // 6. Stay RESOLVED — bump updated_at only (never transition the lifecycle on a refresh).
+            await foodDao.touch(input.foodId);
+
+            return { outcome: 'RESOLVED', status: 'RESOLVED' };
         });
     }
 
@@ -254,6 +373,7 @@ export class MergeAndPersistService {
         foodId: string,
         candidateSet: readonly MergeCandidate[],
     ): Promise<PersistResult> {
+        const foodDao = new FoodDao(db);
         await new CandidateStore(db).persistCandidates({
             foodId,
             candidates: candidateSet.map((candidate) => ({
@@ -263,7 +383,14 @@ export class MergeAndPersistService {
                 summary: null,
             })),
         });
-        await new FoodDao(db).setStatus({ id: foodId, status: 'UNRESOLVED' });
+
+        // A re-fan-out of an expired-set food (FR-025a) is already UNRESOLVED; UNRESOLVED → UNRESOLVED is
+        // not in the legal-transition set, so transition only when arriving from another status (PENDING).
+        const current = await foodDao.getById(foodId);
+
+        if (current?.status !== 'UNRESOLVED') {
+            await foodDao.setStatus({ id: foodId, status: 'UNRESOLVED' });
+        }
 
         return { outcome: 'UNRESOLVED', status: 'UNRESOLVED' };
     }

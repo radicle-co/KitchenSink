@@ -328,6 +328,19 @@ export class FoodDao {
     }
 
     /**
+     * Bump a food's `updated_at` without changing its status or scalars (change-refresh in-place
+     * re-pull, T-171). The food stays at its current lifecycle status — a refresh of a `RESOLVED` food
+     * never transitions it (so {@link setStatus} is deliberately NOT called: `RESOLVED → RESOLVED` is
+     * not in the legal-transition set).
+     *
+     * @param id - The internal food id.
+     * @sideEffect Updates `food.updated_at`.
+     */
+    public async touch(id: string): Promise<void> {
+        await this.db.update(food).set({ updatedAt: new Date() }).where(eq(food.id, id));
+    }
+
+    /**
      * Assemble the golden record (FR-028): the `food` scalars joined with its crosswalk, normalized
      * nutrient values (with dictionary name/unit), portions, and scalar-field provenance. Dates are
      * ISO-8601 strings; the shape carries no source-native identifier (SC-013).

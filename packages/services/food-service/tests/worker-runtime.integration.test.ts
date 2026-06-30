@@ -10,6 +10,7 @@ import { FoodEventEmitter, type EventBus } from '../src/events/food-event-emitte
 import { FetchQueueDao } from '../src/foods/dao/fetch-queue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetch-requesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
+import { FoodSourcesDao } from '../src/foods/dao/food-sources.dao.js';
 import { SourceCallLogDao } from '../src/foods/dao/source-call-log.dao.js';
 import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtures.js';
 import { GoldenRecordMergeEngine } from '../src/foods/merge/merge-engine.js';
@@ -71,6 +72,7 @@ describe.skipIf(!DATABASE_URL)('WorkerRuntime (integration)', () => {
 
         return new FoodConsumerService({
             foodDao,
+            sources: new FoodSourcesDao(db),
             queue,
             registry,
             limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),

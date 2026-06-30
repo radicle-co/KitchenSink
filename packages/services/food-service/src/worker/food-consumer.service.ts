@@ -15,16 +15,19 @@
  *       FoodFetchCompleted + FetchFailed (DSN-9)
  *
  * `attempts` is incremented ONLY on a real source failure (5xx/timeout) — never on a 90%-pause/window-full
- * defer or a 429 back-off (those `deferLease`, DSN-5). The change-refresh branch for an already-RESOLVED
- * food (DSN-4) is out of THIS slice (Phase 8); such a row is logged + acked without a re-fan-out so a
- * stray RESOLVED row cannot burn the source budget.
+ * defer or a 429 back-off (those `deferLease`, DSN-5). An already-`RESOLVED` row on the queue is a
+ * change-refresh re-enqueue (DSN-4): it takes the selective in-place re-pull branch
+ * ({@link FoodConsumerService.refreshResolvedFood}) — re-fetching each backing `food_sources` item by
+ * `external_key`, re-merging only those whose `item_version` changed, never re-fanning-out by name and
+ * never clobbering a manual pick (FR-031/FR-032).
  *
- * @implements FR-015 FR-016 FR-018 FR-019 FR-023 FR-024 FR-025 FR-026 FR-027 FR-MRG-1 FR-MRG-4 FR-ADP-1
+ * @implements FR-015 FR-016 FR-018 FR-019 FR-023 FR-024 FR-025 FR-026 FR-027 FR-031 FR-032 FR-MRG-1 FR-MRG-4 FR-ADP-1
  */
-import type { FetchQueueRow } from '../db/schema/index.js';
+import type { FetchQueueRow, FoodSourceRow } from '../db/schema/index.js';
 import type { FoodEventPublisher } from '../events/food-event-emitter.js';
 import { FetchQueueDao } from '../foods/dao/fetch-queue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
+import { FoodSourcesDao } from '../foods/dao/food-sources.dao.js';
 import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service.js';
 import {
     isAdapterValidationError,
@@ -60,12 +63,14 @@ export type ProcessDisposition =
     | 'failed' // all sources errored after the retry budget → FAILED tombstone
     | 'record_failure' // a real source error this pass → re-queued with backoff (under budget)
     | 'deferred' // back-pressure (90% pause / window full / 429) → re-queued, no attempts change
-    | 'refresh_skipped'; // a RESOLVED row reached the drainer (change-refresh, out of this slice) → acked
+    | 'refreshed'; // a RESOLVED row reached the drainer → change-refresh selective in-place re-pull (DSN-4)
 
 /** Constructor dependencies for {@link FoodConsumerService}. */
 export interface FoodConsumerDeps {
     /** Golden-record / lifecycle DAO. */
     readonly foodDao: FoodDao;
+    /** Crosswalk DAO — the change-refresh branch iterates a RESOLVED food's backing items (T-171). */
+    readonly sources: FoodSourcesDao;
     /** Demand-weighted queue DAO (lease/defer/recordFailure/resolve/tombstone). */
     readonly queue: FetchQueueDao;
     /** Wired source adapters in priority order. */
@@ -84,6 +89,7 @@ export interface FoodConsumerDeps {
 
 export class FoodConsumerService {
     private readonly foodDao: FoodDao;
+    private readonly sources: FoodSourcesDao;
     private readonly queue: FetchQueueDao;
     private readonly registry: SourceAdapterRegistry;
     private readonly limiter: RollingWindowLimiter;
@@ -95,6 +101,7 @@ export class FoodConsumerService {
     /** @param deps - The injected DAOs, registry, limiter, merge seam, and event publisher. */
     public constructor(deps: FoodConsumerDeps) {
         this.foodDao = deps.foodDao;
+        this.sources = deps.sources;
         this.queue = deps.queue;
         this.registry = deps.registry;
         this.limiter = deps.limiter;
@@ -180,14 +187,12 @@ export class FoodConsumerService {
             return 'idle';
         }
 
-        // Change-refresh branch (DSN-4) is OUT of this slice (Phase 8): a RESOLVED food only reaches the
-        // drainer because the change-refresh scheduler re-enqueued it. Ack it without a name re-fan-out so
-        // a stray RESOLVED row can never burn the scarce per-source budget here.
+        // Change-refresh branch (DSN-4/FR-031/FR-032): a RESOLVED food only reaches the drainer because the
+        // change-refresh scheduler re-enqueued it (a fresh add never re-enqueues a RESOLVED food, DSN-1), so
+        // a RESOLVED row on the queue is unambiguously a refresh. Take the SELECTIVE in-place re-pull —
+        // never a name fan-out, never re-running disambiguation, never clobbering a manual pick.
         if (food.status === 'RESOLVED') {
-            this.logger.info('refresh-skipped', { foodId });
-            await this.queue.resolve(foodId);
-
-            return 'refresh_skipped';
+            return this.refreshResolvedFood(foodId);
         }
 
         // Fan out on the STABLE normalized_name (DB-11) — never the golden `name` a merge may rewrite.
@@ -240,6 +245,84 @@ export class FoodConsumerService {
         this.logger.info('resolved', { foodId, status: persisted.status });
 
         return persisted.status === 'RESOLVED' ? 'resolved' : 'unresolved';
+    }
+
+    /**
+     * Change-refresh selective in-place re-pull for a `RESOLVED` food (T-171, FR-031/FR-032, DSN-4). For
+     * each backing `food_sources` item: per-source rolling-window-gated (a 90% pause / full window DEFERS
+     * the row — back-pressure, not a failure, DSN-5), re-fetch by `external_key`, and compare the new
+     * `item_version`. Only items whose version changed upstream are re-pulled and re-merged in place
+     * (their `source_id` provenance + `item_version` updated); an item whose re-fetch errors is skipped
+     * (its field(s) left intact). The food STAYS `RESOLVED` — disambiguation is never re-run, so a refresh
+     * can never demote it or overwrite a manual pick whose item did not change. Emits `FoodFetchCompleted`
+     * like the first-time path.
+     *
+     * @param foodId - The RESOLVED food id.
+     * @returns `deferred` when the window paused mid-scan, else `refreshed`.
+     * @sideEffect Calls sources (rate-limited), may re-merge/persist, acks the queue row, emits an event.
+     */
+    private async refreshResolvedFood(foodId: string): Promise<ProcessDisposition> {
+        const backing = await this.sources.listByFood(foodId);
+        const changed: CanonicalCandidate[] = [];
+
+        for (const item of backing) {
+            const source = item.source;
+
+            // Soft 90% pause / full window → DEFER the whole refresh row (yield headroom). Not a failure.
+            if (await this.limiter.isPaused(source)) {
+                await this.queue.deferLease(foodId, DEFER_PAUSE_SECONDS);
+                this.logger.warn('refresh-defer-paused', { foodId, source });
+
+                return 'deferred';
+            }
+
+            const window = await this.limiter.tryRecord(source);
+
+            if (!window.allowed) {
+                await this.queue.deferLease(foodId, DEFER_PAUSE_SECONDS);
+                this.logger.warn('refresh-defer-window-full', { foodId, source });
+
+                return 'deferred';
+            }
+
+            const current = await this.refetchItem(item);
+
+            if (current && current.itemVersion !== item.itemVersion) {
+                changed.push(current);
+            }
+        }
+
+        if (changed.length > 0) {
+            await this.merge.mergeChangedSources({ foodId, changed });
+            this.logger.info('refresh-applied', { foodId, changed: changed.length });
+        }
+
+        await this.queue.resolve(foodId);
+        await this.events.publishFoodFetchCompleted({ id: foodId, status: 'RESOLVED' });
+
+        return 'refreshed';
+    }
+
+    /**
+     * Re-fetch one backing item for the refresh compare, swallowing a source/validation error (the item
+     * is skipped this cycle and its field(s) are left intact — no overwrite, MOD-020 error table).
+     *
+     * @param item - The backing crosswalk row.
+     * @returns The re-fetched candidate, or `undefined` when the re-fetch failed validation/transport.
+     * @sideEffect Performs a source fetch via the adapter.
+     */
+    private async refetchItem(item: FoodSourceRow): Promise<CanonicalCandidate | undefined> {
+        try {
+            return await this.registry.adapterFor(item.source).fetchByKey(item.externalKey);
+        } catch (error) {
+            if (isSourceApiError(error) || isAdapterValidationError(error)) {
+                this.logger.warn('refresh-refetch-skipped', { foodId: item.foodId, source: item.source });
+
+                return undefined;
+            }
+
+            throw error;
+        }
     }
 
     /**

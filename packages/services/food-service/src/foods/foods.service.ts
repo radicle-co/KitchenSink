@@ -214,6 +214,17 @@ export class FoodsService {
         const food = await this.foodDao.getById(result.id);
         const status: FoodStatus = food?.status ?? 'PENDING';
 
+        // FR-025a: an UNRESOLVED food whose candidate set has expired (the 30-day TTL) re-fans-out on the
+        // next add-by-name against the normal budget. `getCandidates` is TTL-filtered, so an empty set
+        // means the disambiguation choices have aged out; re-enqueue to re-run the fan-out. The food stays
+        // UNRESOLVED until the worker re-resolves it — it is never swept to NOT_FOUND.
+        if (status === 'UNRESOLVED' && (await this.candidates.getCandidates(result.id)).length === 0) {
+            await this.admission.admit(sub);
+            await this.enqueue.publishFoodRequested({ id: result.id, requestedBy: sub, reactivate: true });
+
+            return { id: result.id, status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
+        }
+
         return { id: result.id, status };
     }
 

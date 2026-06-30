@@ -124,4 +124,22 @@ export class CandidateStore {
 
         return result.rowCount ?? 0;
     }
+
+    /**
+     * Expire every candidate set older than `ttlDays` (the change-refresh sweep, T-172/FR-025a). The
+     * owning `UNRESOLVED` food is deliberately left untouched — it is **never** swept to `NOT_FOUND`;
+     * only its stale disambiguation metadata is dropped so `food_candidates` stays bounded and the next
+     * add-by-name re-fans-out. `ttlDays` is `FOOD_UNRESOLVED_TTL_DAYS` (default 30, config-overridable).
+     *
+     * @param ttlDays - The candidate-set TTL in days.
+     * @returns The number of expired rows cleared.
+     * @sideEffect Deletes from `food_candidates`.
+     */
+    public async clearExpired(ttlDays: number): Promise<number> {
+        const result = await this.db.execute(sql`
+            DELETE FROM food_candidates WHERE created_at < now() - make_interval(days => ${ttlDays})
+        `);
+
+        return result.rowCount ?? 0;
+    }
 }

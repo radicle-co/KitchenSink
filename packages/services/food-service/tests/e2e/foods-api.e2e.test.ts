@@ -36,7 +36,7 @@ vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
 import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../../src/events/food-event-emitter.js';
-import { FetchQueueDao, FoodDao } from '../../src/foods/dao/index.js';
+import { FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
 import { MergeAndPersistService } from '../../src/foods/merge/merge-and-persist.service.js';
 import { SourceAdapterRegistry } from '../../src/sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../../src/sources/rolling-window-limiter.js';
@@ -188,6 +188,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
         };
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
+            sources: app.get(FoodSourcesDao, { strict: false }),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry: app.get(SourceAdapterRegistry, { strict: false }),
             limiter: app.get(RollingWindowLimiter, { strict: false }),

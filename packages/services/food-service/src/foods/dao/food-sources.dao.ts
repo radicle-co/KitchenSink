@@ -7,7 +7,7 @@
  *
  * @implements FR-008 FR-028 FR-029 FR-032
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { food, foodSources, type FoodSourceRow } from '../../db/schema/index.js';
@@ -15,6 +15,18 @@ import { newFoodId } from '../../db/ulid.js';
 
 /** A wired source identifier (the `food_source` enum domain). */
 export type FoodSource = FoodSourceRow['source'];
+
+/** One backing source item of a `RESOLVED` food — the change-refresh scan unit (ARCH-018/MOD-020). */
+export interface BackingItem {
+    /** The internal food id this item backs. */
+    foodId: string;
+    /** The source the item came from. */
+    source: FoodSource;
+    /** That source's opaque key for the item (the re-fetch handle). */
+    externalKey: string;
+    /** The last-known per-item version/etag/hash, or `null` when never recorded. */
+    itemVersion: string | null;
+}
 
 /** Input for {@link FoodSourcesDao.upsertSource}. */
 export interface UpsertSourceInput {
@@ -98,6 +110,49 @@ export class FoodSourcesDao {
         const rows = await this.db.select({ id: food.id }).from(food).where(eq(food.barcode, barcode)).limit(1);
 
         return rows[0]?.id;
+    }
+
+    /**
+     * List a food's backing crosswalk rows (the change-refresh re-pull iterates these, T-171).
+     *
+     * @param foodId - The internal food id.
+     * @returns The crosswalk rows for the food.
+     * @sideEffect Reads `food_sources`.
+     */
+    public async listByFood(foodId: string): Promise<FoodSourceRow[]> {
+        return this.db.select().from(foodSources).where(eq(foodSources.foodId, foodId));
+    }
+
+    /**
+     * List the backing items of `RESOLVED` foods for the change-refresh scan (T-170/MOD-020). The
+     * `status = 'RESOLVED'` join deliberately excludes `NOT_FOUND`/`FAILED` tombstones — they are never
+     * refreshed (FR-032). Ordered by `food_id` for stable paging; bounded by `limit`.
+     *
+     * @param limit - Max rows to return (the scan budget bound).
+     * @returns The backing items of `RESOLVED` foods.
+     * @sideEffect Reads `food_sources` joined to `food`.
+     */
+    public async listResolvedBackingItems(limit = 1000): Promise<BackingItem[]> {
+        const result = await this.db.execute<{
+            food_id: string;
+            source: FoodSource;
+            external_key: string;
+            item_version: string | null;
+        }>(sql`
+            SELECT fs.food_id, fs.source, fs.external_key, fs.item_version
+              FROM food_sources fs
+              JOIN food f ON f.id = fs.food_id
+             WHERE f.status = 'RESOLVED'
+             ORDER BY fs.food_id
+             LIMIT ${limit}
+        `);
+
+        return result.rows.map((row) => ({
+            foodId: row.food_id,
+            source: row.source,
+            externalKey: row.external_key,
+            itemVersion: row.item_version,
+        }));
     }
 
     /**

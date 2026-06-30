@@ -22,7 +22,7 @@ export type {
 
 // Crosswalk.
 export { FoodSourcesDao } from './food-sources.dao.js';
-export type { FoodSource, UpsertSourceInput } from './food-sources.dao.js';
+export type { BackingItem, FoodSource, UpsertSourceInput } from './food-sources.dao.js';
 
 // Nutrient dictionary + values.
 export { NutrientDao } from './nutrient.dao.js';

@@ -810,3 +810,85 @@ real USDA/AWS; `FoodFetchCompleted`/`FetchFailed` captured via an in-memory `Eve
 
 T-190 marked `[x]`. Coverage matrix (`testing/api-coverage.md`) now shows every endpoint × {integration,
 e2e} covered. No production code changed by this slice; no commit/push.
+
+---
+
+## Phase 7 — Change-Driven Refresh + UNRESOLVED TTL (T-170/T-171/T-172) (2026-06-30, BE-1)
+
+TDD slice (tests first → confirmed RED → GREEN) building the change-driven refresh path + the UNRESOLVED
+candidate-set TTL on the committed Phase-1/4/5/6 layers. **Scope:** the task logic + the worker refresh
+branch + the selective merge — NOT the EventBridge→ECS `RunTask` CDK trigger (infra/CDK, T-001c, noted
+out of scope; the app exposes a runnable `runOnce` entry instead).
+
+### Change-detection + selective re-merge (T-171)
+
+A `RESOLVED` row on the queue is unambiguously a change-refresh re-enqueue (a fresh add never re-enqueues
+a RESOLVED food, DSN-1), so `FoodConsumerService.processRow` now takes a real
+`refreshResolvedFood` branch (replacing the prior `refresh_skipped` ack):
+
+- iterates the food's `food_sources` backing items, per-source rolling-window-gated (a 90% pause / full
+  window DEFERS the row — back-pressure, no `attempts++`, DSN-5);
+- re-fetches each by `external_key` (a re-fetch error skips the item, leaving its field(s) intact);
+- collects only items whose `item_version` **changed** upstream and hands them to
+  `MergeAndPersistService.mergeChangedSources` (new), which re-blends via the new pure
+  `GoldenRecordMergeEngine.mergeChanged` (= `blendCandidates` over the changed items, never re-running
+  disambiguation), upserts each changed crosswalk (advancing `item_version`), and rewrites just the
+  values those items supply (nutrients by `(food_id,nutrient_id)`; the changed sources' portions via
+  `FoodPortionsDao.deleteForSource`-then-insert; scalar winners + provenance). The food STAYS `RESOLVED`
+  (`FoodDao.touch` bumps `updated_at`; `setStatus` is deliberately NOT called — `RESOLVED→RESOLVED` is not
+  a legal transition). **Manual-pick preservation:** a pick is ordinary provenance at the item/crosswalk
+  grain (DB-9); a refresh only re-pulls an item whose own `item_version` changed, so an unchanged pick is
+  never in `changed` and is left untouched — and disambiguation is never re-run, so a refresh can never
+  demote `RESOLVED → UNRESOLVED`.
+
+### Change-refresh task (T-170) + UNRESOLVED TTL sweep (T-172)
+
+`src/worker/change-refresh/change-refresh.consumer.ts` (`ChangeRefreshConsumer.runOnce`): (1) sweeps
+expired UNRESOLVED candidate sets via `CandidateStore.clearExpired(FOOD_UNRESOLVED_TTL_DAYS=30,
+config-overridable)` — the food STAYS `UNRESOLVED`, never swept to `NOT_FOUND`; (2) scans
+`FoodSourcesDao.listResolvedBackingItems()` (status='RESOLVED' join excludes NOT_FOUND/FAILED tombstones),
+re-fetches each to compare `item_version` (rolling-window-gated; pauses to yield to live demand), and
+re-enqueues a changed food via the **ordinary** `EnqueueEmitter.publishFoodRequested(requestedBy:
+'svc_change_refresh')` low-demand path (deduped via `ON CONFLICT`). `src/worker/change-refresh/main.ts` is
+the runnable Fargate-scheduled-task entry (one `runOnce`, then exit); the EventBridge schedule → ECS
+`RunTask` wiring is infra (T-001c, out of scope). **Re-fan-out (FR-025a):** `FoodsService.addByName` now
+re-enqueues an `UNRESOLVED` food whose (TTL-filtered) candidate set is empty, so the next add-by-name
+re-fans-out; `persistUnresolved` skips the illegal `UNRESOLVED→UNRESOLVED` transition so a re-fan-out that
+stays ambiguous is idempotent. A human pick made before expiry still wins (→`RESOLVED`, no re-fan-out).
+
+### Files
+
+- Added: `src/worker/change-refresh/{change-refresh.consumer,index,main}.ts`;
+  `tests/{food-refresh,change-refresh.consumer}.integration.test.ts`; `tests/e2e/change-refresh.e2e.test.ts`.
+- Modified: `src/foods/merge/merge-engine.ts` (`mergeChanged` pure fn + engine method);
+  `src/foods/merge/merge-and-persist.service.ts` (`mergeChangedSources` + idempotent `persistUnresolved`);
+  `src/worker/food-consumer.service.ts` (`sources` dep + `refreshResolvedFood`/`refetchItem`,
+  `refresh_skipped`→`refreshed`); `src/foods/dao/{food-sources(listByFood/listResolvedBackingItems/BackingItem),
+food.dao(touch), food-portions.dao(deleteForSource), food-candidates.dao(clearExpired), index}.ts`;
+  `src/foods/foods.service.ts` (expired-UNRESOLVED re-fan-out); `src/config/env.schema.ts`
+  (`FOOD_UNRESOLVED_TTL_DAYS`); `src/worker/main.ts` + 3 test harnesses (new `sources` dep);
+  `tests/support/stub-source-adapter.ts` (`itemVersion` + `mutateItem`).
+
+### Red → Green
+
+RED first confirmed at assertion level: unit `mergeChanged is not a function` (3 failing specs); the
+integration + e2e suites referenced the not-yet-existing `ChangeRefreshConsumer` / `refreshResolvedFood`
+/ `sources` dep. After implementation:
+
+| Suite                                      | Before | After | Result   |
+| ------------------------------------------ | ------ | ----- | -------- |
+| Unit (food-service; +3 `mergeChanged`)     | 85     | 88    | ✅       |
+| Integration (real PG; +4 refresh, +4 task) | 140    | 148   | ✅       |
+| E2E (food-service; +7 change-refresh)      | 17     | 24    | ✅       |
+| clerk-verify unit                          | 9      | 9     | ✅       |
+| identity (regression check)                | 83     | 83    | ✅       |
+| `npx tsc --noEmit` (app + infra)           | —      | —     | ✅ clean |
+| `npm run lint` (food-service)              | —      | —     | ✅ clean |
+
+T-170/T-171/T-172 marked `[x]`. No commit/push.
+
+### Deferred (Phase 8 / infra, noted out of scope)
+
+EventBridge `IngestionScheduled` schedule → ECS `RunTask` target + task definition + RunTask/exec IAM
+roles (T-001c); field-level `manual`/`locked` provenance marker (DB-9 — prerequisite before a 2nd source
+is wired); auth/HTTP wiring + DoS/IAM/user-erasure hardening; WebSocket notifications (P3).

@@ -36,6 +36,8 @@ export interface StubCandidateParts {
     readonly barcode?: string | null;
     /** Free-text description (defaults to `null`). */
     readonly description?: string | null;
+    /** Per-item version/etag/hash for change-driven refresh (FR-032); defaults to `null`. */
+    readonly itemVersion?: string | null;
 }
 
 /** One programmed source candidate (search hit + the canonical record `fetchByKey` returns for it). */
@@ -79,7 +81,7 @@ function toCanonical(parts: StubCandidateParts): CanonicalCandidate {
         barcode: parts.barcode ?? null,
         nutrients: parts.nutrients ?? DEFAULT_NUTRIENTS,
         portions: parts.portions ?? DEFAULT_PORTIONS,
-        itemVersion: null,
+        itemVersion: parts.itemVersion ?? null,
     };
 }
 
@@ -145,6 +147,33 @@ class StubController {
      */
     public programSearchError(name: string, errorStatus = 503): void {
         this.scenarios.set(normalizeName(name), { candidates: [], errorStatus });
+    }
+
+    /**
+     * Simulate an UPSTREAM change to an already-programmed source item: replace the canonical record a
+     * later `fetchByKey(externalKey)` returns (the change-refresh re-fetch path, FR-032). Only the
+     * provided parts change; a new `itemVersion` is how the worker detects the change.
+     *
+     * @param externalKey - The programmed item's opaque key.
+     * @param parts - The fields to change upstream (e.g. a new `itemVersion` + nutrients/description).
+     * @throws {Error} when no item was programmed for the key.
+     */
+    public mutateItem(externalKey: string, parts: Partial<StubCandidateParts>): void {
+        const existing = this.canonicalByKey.get(externalKey);
+
+        if (!existing) {
+            throw new Error(`stub: cannot mutate unknown item '${externalKey}'`);
+        }
+
+        this.canonicalByKey.set(externalKey, {
+            ...existing,
+            ...(parts.name !== undefined ? { name: parts.name } : {}),
+            ...(parts.description !== undefined ? { description: parts.description } : {}),
+            ...(parts.barcode !== undefined ? { barcode: parts.barcode } : {}),
+            ...(parts.nutrients !== undefined ? { nutrients: parts.nutrients } : {}),
+            ...(parts.portions !== undefined ? { portions: parts.portions } : {}),
+            ...(parts.itemVersion !== undefined ? { itemVersion: parts.itemVersion } : {}),
+        });
     }
 
     /** Look up the scenario for a (already-normalized) query. */

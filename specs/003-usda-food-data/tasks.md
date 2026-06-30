@@ -462,17 +462,17 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > **REBUILD.** Replaces the old age-based stale-while-revalidate (T-063/T-030) entirely. The read never
 > blocks on refresh; a field moves only when its originating external item changed upstream.
 
-- [ ] **T-170** [M] [Test-first: false] Change-refresh **Fargate scheduled task** (triggered by the EventBridge `IngestionScheduled` schedule — **not** a VPC Lambda; ADR-0004 egress/compute-placement rationale: Fargate in public subnets egresses via the IGW, off the NAT path; the EventBridge-schedule → ECS `RunTask` target + IAM roles + task definition are provisioned by T-001c, DSN-13) — selects `RESOLVED` foods and re-enqueues them through the **ordinary** `enqueue(food_id, 'svc_change_refresh')` path (a low-demand row, deduped via `ON CONFLICT`); idle-drain background work that yields to live demand, budget-bounded (no fixed cadence promise) — `packages/services/food-service/src/worker/change-refresh/` (FR-032)
+- [x] **T-170** [M] [Test-first: false] Change-refresh **Fargate scheduled task** (triggered by the EventBridge `IngestionScheduled` schedule — **not** a VPC Lambda; ADR-0004 egress/compute-placement rationale: Fargate in public subnets egresses via the IGW, off the NAT path; the EventBridge-schedule → ECS `RunTask` target + IAM roles + task definition are provisioned by T-001c, DSN-13) — selects `RESOLVED` foods and re-enqueues them through the **ordinary** `enqueue(food_id, 'svc_change_refresh')` path (a low-demand row, deduped via `ON CONFLICT`); idle-drain background work that yields to live demand, budget-bounded (no fixed cadence promise) — `packages/services/food-service/src/worker/change-refresh/` (FR-032)
       **Acceptance**: the scheduled task enqueues `RESOLVED` foods via the ordinary low-demand enqueue path;
       `NOT_FOUND`/`FAILED` tombstones are not refreshed; refresh work yields to live demand and never overwrites a
       user's manual pick.
 
-- [ ] **T-171** [M] [Test-first: true] Change detection on refresh — adapter re-fetches each backing source item, compares `food_sources.item_version`; re-pull a field ONLY when its originating item changed; unchanged + user-resolved fields left intact; re-pulled values pass FR-ADP-2 and update `source_id` — `—` (FR-031, FR-032)
+- [x] **T-171** [M] [Test-first: true] Change detection on refresh — adapter re-fetches each backing source item, compares `food_sources.item_version`; re-pull a field ONLY when its originating item changed; unchanged + user-resolved fields left intact; re-pulled values pass FR-ADP-2 and update `source_id` — `—` (FR-031, FR-032)
       **Acceptance**: covers US-7 scenarios 1–4 — only fields from a changed item are re-pulled; an all-unchanged
       food is untouched; a user-resolved field whose item is unchanged is preserved; a re-pulled value passes
       validation and updates provenance.
 
-- [ ] **T-172** [S] [Test-first: true] `UNRESOLVED` candidate-set expiry — the change-refresh task expires a food's `food_candidates` set 30 days after `created_at` (`FOOD_UNRESOLVED_TTL_DAYS`, default 30); the **food is kept `UNRESOLVED`** (never swept to `NOT_FOUND`) and the next add-by-name request re-fans-out against the normal budget; a human pick made before expiry still wins — `—` (FR-025a, §9-2)
+- [x] **T-172** [S] [Test-first: true] `UNRESOLVED` candidate-set expiry — the change-refresh task expires a food's `food_candidates` set 30 days after `created_at` (`FOOD_UNRESOLVED_TTL_DAYS`, default 30); the **food is kept `UNRESOLVED`** (never swept to `NOT_FOUND`) and the next add-by-name request re-fans-out against the normal budget; a human pick made before expiry still wins — `—` (FR-025a, §9-2)
       **Acceptance**: a `food_candidates` set older than 30 days is cleared (via T-111 `clear`) and the next request
       re-fans-out while the food stays `UNRESOLVED` (not `NOT_FOUND`); a human pick before expiry → `RESOLVED` with no
       re-fan-out; a recently-created candidate set is untouched. **(30-day default; config-overridable via `FOOD_UNRESOLVED_TTL_DAYS`.)**

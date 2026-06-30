@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { mergeCandidates, normalizeName } from '../merge-engine.js';
+import { mergeChanged, mergeCandidates, normalizeName } from '../merge-engine.js';
 import { sanitizeCandidates } from '../merge-sanitize.js';
 import { makeMergeCandidate } from '../__fixtures__/merge.fixtures.js';
 
@@ -249,5 +249,57 @@ describe('sanitizeCandidates — reject-not-store at the merge boundary (T-164, 
 
         expect(clean).toHaveLength(1);
         expect(clean[0]?.externalKey).toBe('B');
+    });
+});
+
+// ── mergeChanged (change-refresh selective re-blend, T-171 / FR-031 / FR-032) ───────────────────────
+describe('mergeChanged', () => {
+    it('blends the re-pulled changed items into a draft carrying their new values + itemVersion', () => {
+        const draft = mergeChanged(
+            [
+                makeMergeCandidate('usda', {
+                    externalKey: '171688',
+                    name: 'Broccoli, raw',
+                    description: 'Updated raw broccoli florets',
+                    itemVersion: 'v2',
+                    nutrients: [{ code: null, name: 'Protein', unit: 'g', amount: '3.1', basis: 'per_100g' }],
+                }),
+            ],
+            flatPriority,
+        );
+
+        expect(draft.name?.value).toBe('Broccoli, raw');
+        expect(draft.description?.value).toBe('Updated raw broccoli florets');
+        expect(draft.nutrients).toEqual([
+            expect.objectContaining({ name: 'Protein', amount: '3.1', basis: 'per_100g' }),
+        ]);
+        // The contributing crosswalk carries the NEW item version so persistence can update food_sources.
+        expect(draft.contributingSources).toEqual([
+            expect.objectContaining({ source: 'usda', externalKey: '171688', itemVersion: 'v2' }),
+        ]);
+    });
+
+    it('never collapses to UNRESOLVED — a single changed item always yields a RESOLVED-shaped draft (refresh never demotes)', () => {
+        const draft = mergeChanged([makeMergeCandidate('usda', { externalKey: 'k1', name: 'Spinach' })], flatPriority);
+
+        // It returns a draft (not a survivor-count outcome): refresh re-pull never re-runs disambiguation.
+        expect(draft.name?.value).toBe('Spinach');
+        expect(draft.contributingSources).toHaveLength(1);
+    });
+
+    it('keeps a per_serving value on its own basis when that is all the changed item ships (D-PERSERVING)', () => {
+        const draft = mergeChanged(
+            [
+                makeMergeCandidate('usda', {
+                    externalKey: 'branded-1',
+                    name: 'Granola bar',
+                    itemVersion: 'v9',
+                    nutrients: [{ code: null, name: 'Energy', unit: 'kcal', amount: '120', basis: 'per_serving' }],
+                }),
+            ],
+            flatPriority,
+        );
+
+        expect(draft.nutrients).toEqual([expect.objectContaining({ name: 'Energy', basis: 'per_serving' })]);
     });
 });

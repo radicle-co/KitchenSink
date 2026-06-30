@@ -34,6 +34,9 @@ const UsdaConfigSchema = z.object({
     USDA_TOMBSTONE_TTL_DAYS: z.coerce.number().int().positive().default(30),
     USDA_WORKER_DESIRED_COUNT: z.coerce.number().int().nonnegative().default(1),
     USDA_LEASE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(30),
+    // UNRESOLVED candidate-set TTL (FR-025a): the change-refresh task expires a food's `food_candidates`
+    // set this many days after `created_at`; the food stays UNRESOLVED and the next add re-fans-out.
+    FOOD_UNRESOLVED_TTL_DAYS: z.coerce.number().int().positive().default(30),
 });
 
 /** Process/runtime configuration shared across NestJS and the Fargate worker. */

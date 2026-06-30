@@ -271,6 +271,26 @@ export function blendCandidates<S extends string = FoodSourceId>(
 }
 
 /**
+ * Change-refresh selective re-blend (T-171, FR-031/FR-032, DSN-4). Re-applies the field-level merge over
+ * ONLY the re-pulled CHANGED source items, returning the blended draft of those items. The selective
+ * nature ("a field moves only when its originating item changed") is enforced by the caller passing only
+ * the items whose upstream `item_version` changed; this function therefore **always** yields a
+ * `RESOLVED`-shaped draft — it never re-runs name disambiguation and so can never demote a food to
+ * `UNRESOLVED`. Pure (no I/O); persistence + per-value provenance are the caller's job
+ * ({@link MergeAndPersistService.mergeChangedSources}).
+ *
+ * @param changed - The re-fetched candidates whose backing item changed upstream.
+ * @param priorityOf - Source-priority resolver (higher number = higher priority).
+ * @returns The blended golden record draft for the changed items.
+ */
+export function mergeChanged<S extends string = FoodSourceId>(
+    changed: readonly MergeCandidate<S>[],
+    priorityOf: (source: S) => number,
+): GoldenRecordDraft<S> {
+    return blendCandidates(changed, priorityOf);
+}
+
+/**
  * Merge pre-fetched candidates into a golden record under the survivor-count auto-resolve boundary
  * (FR-MRG-5, D-AUTORESOLVE). After pre-merge dedup by normalized-name exact match: exactly 1 survivor →
  * `RESOLVED` (blend it); >1 → `UNRESOLVED` (surface the surviving set); 0 → `NOT_FOUND`.
@@ -341,5 +361,18 @@ export class GoldenRecordMergeEngine {
      */
     public blendPicks(picks: readonly CanonicalCandidate[]): GoldenRecordDraft<FoodSourceId> {
         return blendCandidates(picks, (source) => this.registry.priorityOf(source));
+    }
+
+    /**
+     * Re-blend the re-pulled changed source items for the change-refresh branch (T-171). Returns the
+     * draft of the changed items only — the caller applies it in place over the existing golden record
+     * (updating just the changed items' values + `item_version`). Never re-runs disambiguation, so a
+     * refresh can never demote a `RESOLVED` food (DSN-4/FR-031).
+     *
+     * @param changed - The re-fetched candidates whose backing item changed upstream.
+     * @returns The blended golden record draft for the changed items.
+     */
+    public mergeChanged(changed: readonly CanonicalCandidate[]): GoldenRecordDraft<FoodSourceId> {
+        return mergeChanged(changed, (source) => this.registry.priorityOf(source));
     }
 }

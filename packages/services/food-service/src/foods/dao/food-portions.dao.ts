@@ -6,7 +6,7 @@
  *
  * @implements FR-028 FR-029 R7
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { foodPortions, type FoodPortionRow } from '../../db/schema/index.js';
@@ -65,5 +65,24 @@ export class FoodPortionsDao {
      */
     public async listByFood(foodId: string): Promise<FoodPortionRow[]> {
         return this.db.select().from(foodPortions).where(eq(foodPortions.foodId, foodId));
+    }
+
+    /**
+     * Delete the portions a given source contributed to a food (change-refresh selective re-pull,
+     * T-171). The refresh branch deletes a CHANGED item's existing portions then re-inserts its
+     * re-pulled ones, so unioned portions are replaced (not duplicated) without touching other sources'
+     * portions.
+     *
+     * @param foodId - Internal food id.
+     * @param sourceId - The crosswalk row id whose contributed portions to drop.
+     * @returns The number of deleted rows.
+     * @sideEffect Deletes from `food_portions`.
+     */
+    public async deleteForSource(foodId: string, sourceId: string): Promise<number> {
+        const result = await this.db
+            .delete(foodPortions)
+            .where(and(eq(foodPortions.foodId, foodId), eq(foodPortions.sourceId, sourceId)));
+
+        return result.rowCount ?? 0;
     }
 }

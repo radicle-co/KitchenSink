@@ -330,3 +330,140 @@ exit 0; `npm run format:check` (prettier) clean.
   plain classes (DAO-style constructor injection), ready to be wired behind the `FoodsRepository`/worker.
 - `getWaitTime`/`awaitHeadroom` (PATCH-resolve wait-for-headroom, DSN-6) were not built in this slice;
   they belong with the resolve path in Phase 3.
+
+---
+
+## 2026-06-29 — Phase 6 slice: MERGE ENGINE + GOLDEN RECORD + PROVENANCE + AUTO-RESOLVE (T-160, T-161, T-162, T-163, T-164)
+
+**Scope.** The pure field-level golden-record merge engine, the survivor-count auto-resolve boundary,
+the transactional provenance writer, the manual-resolution merge path, and merge-boundary
+input sanitization. ALL new code is confined to `packages/services/food-service/src/foods/merge/`
+(`merge-engine.ts`, `merge-sanitize.ts`, `merge-and-persist.service.ts`, `index.ts`, fixtures, unit
+test) + one integration test (`tests/merge-and-persist.integration.test.ts`). NO NestJS module/DI
+wiring, NO controller/route/worker, NO HTTP; the old `foods/*` layer and `usda.ts` were not touched.
+Built ON the committed Phase-1 DAOs and Phase-2 adapter types per plan.md §6/§9, MOD-015/MOD-017/
+MOD-019, decision-register D-AUTORESOLVE / D-PROVENANCE-FK / D-MERGE, tasks T-160..T-164.
+
+**Test-first tasks covered:** T-160 (field-level merge — each rule), T-161 (provenance writer —
+integration), T-162 (pre-merge dedup + auto-resolve boundary 1/>1/0), T-163 (manual-resolution path),
+T-164 (reject-not-store sanitization).
+
+**Harness.** Node v24; unit = `vitest run src/foods/merge`; integration = Docker Postgres 16
+(`DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_e2e`),
+`vitest run --config vitest.integration.config.ts tests/merge-and-persist.integration.test.ts`,
+reusing `tests/support/db.ts` (drop+recreate `public`, apply the ordered migration).
+
+### Red gate (assertion-level, confirmed failing for the right reason)
+
+Wrote the unit + integration tests FIRST against signature-correct STUBS (`mergeCandidates` →
+`NOT_FOUND`; `blendCandidates` → empty draft; `sanitizeCandidates` → identity; `MergeAndPersist`
+persists nothing, returns `PENDING`). Failures were assertion-level, not import/module-missing:
+
+- Unit `src/foods/merge/__tests__/merge-engine.test.ts`: **12 failed / 2 passed (14)** — e.g.
+  `expected 'NOT_FOUND' to be 'RESOLVED'` (boundary), `expected undefined to be 'Acme'` (priority
+  short-field), `expected undefined to be '2.8'` (per-100g-before-blend), `expected [ 'Protein',
+'BadFat', 'NaNCarb' ] to deeply equal [ 'Protein' ]` (sanitize). The 2 passing were the genuine
+  `NOT_FOUND` (0 candidates) case and `normalizeName`.
+- Integration `tests/merge-and-persist.integration.test.ts`: **6 failed / 2 passed (8)** — e.g.
+  `expected 'NOT_FOUND' to be 'RESOLVED'`, `expected [] to include 'field:name'`, `expected 'PENDING'
+to be 'NOT_FOUND'`. The 2 passing were schema-only assertions (no raw-payload column; cross-food FK
+  reject) that do not depend on the persist path.
+
+### Green result
+
+Replaced the stubs with the real merge rules, sanitizer, and transactional persistence:
+
+- Unit `src/foods/merge`: **14 passed (14)**.
+- Integration `tests/merge-and-persist.integration.test.ts`: **8 passed (8)**.
+- Whole package — unit: **Test Files 7 passed, Tests 78 passed**; integration: **Test Files 10
+  passed, Tests 81 passed**.
+- `npx tsc --noEmit` (whole package, incl. retained `foods/*` + `usda.ts`): clean. `npm run lint`
+  (src): exit 0. `npm run format:check`: clean.
+
+### Merge-engine rule implementation (T-160) + per-100g normalization before blend
+
+`mergeCandidates(candidates, priorityOf)` is a deterministic pure function, generic over the source-id
+type `S extends string` (default `FoodSourceId`) so the priority rules are unit-testable with two
+synthetic sources even though the wired `food_source` enum lists only `usda`. After grouping candidates
+by `normalizeName` (trim + collapse-whitespace + lowercase = the dedup grain), the single surviving
+group is blended by `blendCandidates`, which ranks contributors by `priorityOf` (descending, stable —
+ties keep input order):
+
+- **presence beats absence** — a field present on any contributor fills the record.
+- **identity/short fields** (`name`, `kind`, `brand_owner`, `brand_name`, `barcode`) → the
+  highest-priority contributor with a present value (NOT the longest).
+- **free-text** (`description`) → the longest present value; ties keep the higher-priority contributor.
+- **nutrients** → each value is normalized to per-100g FIRST, then the highest-priority present value
+  wins per dedup key (`code ?? name|unit`); `food_nutrients.source_id` records the winner. **Per-100g
+  normalization happens before the blend** in `toPer100gAmount`: a `per_100g` amount passes through; a
+  `per_serving` value is dropped (returns `null`, treated as absence) because the committed
+  `CanonicalNutrient` carries no serving-gram basis to convert with — so it is never blended on the
+  wrong basis (the per-100g value from a lower-priority source wins instead, which the dedicated test
+  asserts).
+- **portions** → unioned across contributors, each tagged with its contributor's `(source, externalKey)`.
+
+### Auto-resolve boundary (T-162)
+
+The outcome is decided purely by the survivor count after normalized-name exact match (FR-MRG-5,
+D-AUTORESOLVE — no nutrient-tolerance knob, biased to `UNRESOLVED`): 0 candidates → `NOT_FOUND`; >1
+distinct normalized-name group → `UNRESOLVED` (the full surviving candidate set is returned for
+disambiguation); exactly 1 group → `RESOLVED` (blend it).
+
+### Transactional provenance persistence shape (T-161/T-162/T-163)
+
+`MergeAndPersistService` is the cohesive seam. `resolveAndPersist` (worker) sanitizes → merges →
+persists in ONE `db.transaction`. RESOLVED: upsert a `food_sources` crosswalk row per contributing
+source (so every value's `source_id` exists), then write golden scalars, `food_field_provenance(field,
+source_id)`, `food_nutrients(source_id, per-100g basis)` (dictionary resolved via `NutrientDao`), and
+`food_portions(source_id)`, then `setStatus('RESOLVED')`. Each value's `source_id` is resolved from the
+freshly-upserted crosswalk by `(source, externalKey)`, so the same-food provenance FK (D-PROVENANCE-FK)
+holds and "which fields came from source X" answers in one UNION query. No raw payload is stored
+(SC-013 — verified by an `information_schema` assertion that `food_sources` has no raw/payload column).
+UNRESOLVED: `CandidateStore.persistCandidates` (metadata only, `UNIQUE(food_id, source, external_key)`)
+
+- `setStatus('UNRESOLVED')`. NOT_FOUND: `setStatus('NOT_FOUND')` (tombstone). `resolveFromPicks`
+  (manual PATCH, T-163) blends the user's re-fetched picks directly to `RESOLVED` (survivor-count gate
+  bypassed — the human disambiguated), stores the pick as ordinary provenance (indistinguishable to a
+  refresh), and clears the candidate set — atomically.
+
+### What the Phase-5 worker and Phase-4 PATCH-resolve will call
+
+- Phase-5 fan-out worker → `MergeAndPersistService.resolveAndPersist({ foodId, candidates })`.
+- Phase-4 `PATCH`-resolve → `MergeAndPersistService.resolveFromPicks({ foodId, picks })` (after
+  re-fetching the picked candidates by `external_key`). Both share `GoldenRecordMergeEngine` (bound to
+  the `SourceAdapterRegistry` for source priority). Neither is wired into a NestJS module here.
+
+### Deviations from plan §6 / module-design (with rationale)
+
+1. **`per_serving` nutrients are dropped (presence-as-absence), not arithmetically converted.**
+   module-design's `normalizeToPer100g` multiplies by `100/servingGrams`, but the committed Phase-2
+   `CanonicalNutrient` type carries NO serving-gram field, and the adapter already emits per-100g. The
+   type-honest behavior is therefore to drop an un-normalizable `per_serving` value — exactly the
+   MOD-017 error-table row "missing serving basis (per_serving, no grams) → drop that value". A real
+   arithmetic conversion is a no-op to add once a serving-gram basis exists on the canonical type.
+2. **Merged values carry `(source, externalKey)`, not just `source`.** A survivor group can contain
+   multiple items from the same source (different `external_key`), so per-value provenance must map to
+   the exact crosswalk row, not just the source. The merge output tags each scalar/nutrient/portion
+   with its winning contributor's `externalKey`; persistence resolves `source_id` by `(source,
+externalKey)`. Faithful to the per-value `source_id` intent (R5).
+3. **The engine is generic over the source-id type + an injected `priorityOf`.** module-design has the
+   engine consult `SourceAdapterRegistry.priorityOf` directly; the wired `food_source` enum has only
+   `usda`, so a registry-bound engine cannot exercise multi-source conflicts in a unit test. The pure
+   `mergeCandidates`/`blendCandidates` take an injected `priorityOf` and are generic over `S extends
+string`; `GoldenRecordMergeEngine` binds them to the real registry for production. No fake source
+   ever reaches the DB.
+4. **One documented `as unknown as FoodDrizzle` narrowing** (`asDaoDb`) adapts an open Drizzle
+   transaction handle to the committed DAO constructor type (the DAOs take `FoodDrizzle`, and a tx
+   handle is not nominally assignable — it lacks `$client`). The DAOs are out-of-scope to modify; this
+   is the single, centralized narrowing point so all DAO writes share one transaction.
+5. **Target file is `src/foods/merge/merge-engine.ts` (per tasks.md T-160), not module-design's
+   `src/merge/golden-record-merge.engine.ts`** — followed the explicitly-cited task path; co-located
+   `merge-sanitize.ts` + `merge-and-persist.service.ts` in the same domain folder.
+
+### Deferred (out of this slice)
+
+- NestJS module/DI wiring of `GoldenRecordMergeEngine`/`MergeAndPersistService` (the API/worker slice).
+- Portion _replacement_ on re-merge (the change-refresh `replaceChanged` grain, MOD-016/MOD-020) — the
+  Phase-6 paths persist a first-time / picked resolution onto a food with no prior portions; idempotent
+  portion replacement belongs with the refresh branch.
+- `mergeChanged` selective re-merge (change-refresh, FR-032) — Phase later.

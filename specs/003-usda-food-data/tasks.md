@@ -426,25 +426,25 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 > **REBUILD.** The cross-source merge that the old single-source worker had no equivalent of.
 
-- [ ] **T-160** [L] [Test-first: true] Merge engine (field-level): presence beats absence; identity/short fields (`name`, `brand_*`) → higher-priority source; free-text (`description`, `ingredients`) → longer-wins; nutrients normalized per-100g then higher-priority source wins on conflict — `packages/services/food-service/src/foods/merge/merge-engine.ts` (FR-MRG-2, FR-MRG-3)
+- [x] **T-160** [L] [Test-first: true] Merge engine (field-level): presence beats absence; identity/short fields (`name`, `brand_*`) → higher-priority source; free-text (`description`, `ingredients`) → longer-wins; nutrients normalized per-100g then higher-priority source wins on conflict — `packages/services/food-service/src/foods/merge/merge-engine.ts` (FR-MRG-2, FR-MRG-3)
       **Acceptance**: unit tests assert each rule independently — absence filled by another source; short field takes
       USDA (higher priority) not the longest; description takes the longer; conflicting nutrient takes the
       higher-priority source; all values normalized to per-100g before blending.
 
-- [ ] **T-161** [M] [Test-first: true] Provenance writer — scalar fields → `food_field_provenance(food_id, field, source_id)`; `food_nutrients.source_id` / `food_portions.source_id`; "which fields came from source X" single-query (no payload retained) — `—` (FR-028, FR-029, SC-013, R5, R7)
+- [x] **T-161** [M] [Test-first: true] Provenance writer — scalar fields → `food_field_provenance(food_id, field, source_id)`; `food_nutrients.source_id` / `food_portions.source_id`; "which fields came from source X" single-query (no payload retained) — `—` (FR-028, FR-029, SC-013, R5, R7)
       **Acceptance**: every stored scalar/nutrient/portion of a `RESOLVED` food carries a resolvable `source_id`;
       the provenance UNION query answers source-X in one statement; no `raw_json` is written (SC-013).
 
-- [ ] **T-162** [M] [Test-first: true] Pre-merge dedup + **auto-resolve boundary** — after dedup, count candidates surviving **normalized-name exact match**: exactly one → `RESOLVED`; **>1 → `UNRESOLVED`** (persist the surviving candidates to `food_candidates` via T-111); **0 → `NOT_FOUND`**. **No nutrient tolerance** — bias toward `UNRESOLVED` over a wrong auto-pick (human is the final arbiter) — `—` (FR-RES-3, FR-MRG-1, FR-MRG-5, §9-1)
+- [x] **T-162** [M] [Test-first: true] Pre-merge dedup + **auto-resolve boundary** — after dedup, count candidates surviving **normalized-name exact match**: exactly one → `RESOLVED`; **>1 → `UNRESOLVED`** (persist the surviving candidates to `food_candidates` via T-111); **0 → `NOT_FOUND`**. **No nutrient tolerance** — bias toward `UNRESOLVED` over a wrong auto-pick (human is the final arbiter) — `—` (FR-RES-3, FR-MRG-1, FR-MRG-5, §9-1)
       **Acceptance**: a single surviving candidate → `RESOLVED`; two non-collapsible survivors → `UNRESOLVED` with the
       surviving set persisted to `food_candidates` (satisfying `UNIQUE(food_id, source, external_key)`); zero
       survivors → `NOT_FOUND`. No `FOOD_AUTORESOLVE_NUTRIENT_TOLERANCE` knob (dropped at stabilization, D-AUTORESOLVE).
 
-- [ ] **T-163** [S] [Test-first: true] Manual-resolution merge path (PATCH pick → merge → `RESOLVED`, pick stored as ordinary provenance so refresh protects it) — `—` (FR-RES-2, FR-031)
+- [x] **T-163** [S] [Test-first: true] Manual-resolution merge path (PATCH pick → merge → `RESOLVED`, pick stored as ordinary provenance so refresh protects it) — `—` (FR-RES-2, FR-031)
       **Acceptance**: a PATCH-driven merge sets `RESOLVED` and records the chosen candidate's `source_id`;
       the value is indistinguishable from a normal stored value to the refresh path.
 
-- [ ] **T-164** [S] [Test-first: false] Input validation/sanitization + HTTPS enforcement at the merge boundary (reject-not-store on validation failure; cert-validated outbound) — `—` (FR-ADP-2, FR-ADP-3)
+- [x] **T-164** [S] [Test-first: false] Input validation/sanitization + HTTPS enforcement at the merge boundary (reject-not-store on validation failure; cert-validated outbound) — `—` (FR-ADP-2, FR-ADP-3)
       **Acceptance**: a candidate value failing validation is dropped (food still resolves from valid values/other
       sources); outbound fetches use HTTPS with certificate validation.
 

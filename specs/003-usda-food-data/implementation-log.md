@@ -204,3 +204,129 @@ All 66 assertions green (48 new DAO assertions + the 18 schema assertions), incl
 - No source adapter (T-120+), no read API/controller/service rewire (T-130+). The excluded
   `tests/foods-api.integration.test.ts` (superseded fdcId read API) remains parked per
   `vitest.integration.config.ts`.
+
+---
+
+## 2026-06-29 — Phase 2 slice: Source adapter + USDA adapter + per-source limiter (T-120, T-121, T-122)
+
+**Scope.** The pluggable source-adapter boundary, the USDA adapter wrapping `@kitchensink/usda-client`,
+and the per-source rolling-window limiter over the committed `SourceCallLogDao` — all in `src/sources/`.
+NO merge engine, NO candidate-resolution service, NO fan-out worker, NO NestJS module wiring, NO read
+API. The old `foods/*` layer + retained `usda.ts` are untouched. Authoritative spec: plan.md §5
+(Workers & Source Adapters), v-model `module-design.md` MOD-005/MOD-008/MOD-015/MOD-021 (ARCH-005/008/
+013/019), decision-register (DB-5 nutrient dedup), tasks.md T-120/T-121/T-122.
+
+**Files delivered.**
+
+- T-120 `src/sources/food-source-adapter.ts` — the `FoodSourceAdapter` interface; source-agnostic
+  candidate types (`SourceCandidate { source, externalKey, name }`, `CanonicalCandidate { source,
+externalKey, name, kind, brandOwner, brandName, description, barcode, nutrients[], portions[],
+itemVersion }` — internal-shaped, NEVER `fdcId`); `CanonicalNutrient`/`CanonicalPortion`;
+  `SourceAdapterRegistry` (`register`/`has`/`adapterFor`/`adapters`/`priorityOf`); the static
+  `SOURCE_PRIORITY = ['usda']`; and the boundary errors `SourceApiError`, `AdapterValidationError`,
+  `DuplicateSourceError`, `UnknownSourceError` (each extends `Error` + `Object.setPrototypeOf` + an
+  `is*` guard). `FoodSourceId` is derived from the `food_source` pgEnum so the adapter layer and DB
+  can never drift.
+- T-121 `src/sources/usda/usda.adapter.ts` — `UsdaSourceAdapter implements FoodSourceAdapter`; the
+  ONLY place `fdcId`/USDA terms appear. `searchByName` → `client.searchFoods`; `fetchByKey` →
+  `client.getFood` then `mapToCanonical` (`fdcId → externalKey`); per-100g nutrient mapping; nutrient
+  case-normalization + dedup (DB-5 fix, below); portion mapping from the client's preserved `raw`
+  payload (validated with a local zod schema — the typed `UsdaFoodDetail` does not surface
+  `foodPortions`); `itemVersion = publicationDate ?? sha256(raw)`; reject-not-store validation; and
+  `classifyError` mapping the USDA error hierarchy → `SourceApiError(statusCode)`. Plus exported pure
+  helpers `canonicalizeNutrientName`/`canonicalizeUnit`. Fixtures: `src/sources/usda/__fixtures__/usda.fixtures.ts`.
+- T-122 `src/sources/rolling-window-limiter.ts` — `RollingWindowLimiter` over `SourceCallLogDao`:
+  `tryRecord` (atomic check-and-record at the hard cap), `count`, `isPaused` (≥ 90% pause threshold OR
+  active 429-failsafe), `markWindowFull` (429 failsafe), `pruneAged`. `DEFAULT_SOURCE_CAPS = { usda:
+{ hardCap: 1000, pauseThreshold: 900 } }`; caps/back-off/clock injectable for tests.
+
+**mapToCanonical — per-100g, name normalization, reject-not-store.** Each USDA nutrient with a present
+`value` is emitted as `{ code: null, name, unit, amount: String(value), basis: 'per_100g' }` (USDA
+abridged values are per-100g; `amount` kept as a string for `numeric` fidelity, SC-008). Names/units are
+folded to a deterministic canonical form BEFORE they become the `(name, unit)` dedup key:
+`canonicalizeNutrientName` = trim → collapse whitespace → sentence-case (`Protein`/`protein`/`PROTEIN`
+→ `Protein`); `canonicalizeUnit` = trim + lowercase (`G`→`g`, `KCAL`→`kcal`). `mapNutrients` then dedups
+on that key keeping the first occurrence, so case variants collapse to ONE canonical nutrient — the fix
+for the committed case-SENSITIVE `nutrient (name, unit)` UNIQUE flagged in the Phase-1 DAO deviation
+(DB-5). Validation is **reject-not-store** at the candidate grain: a present-but-invalid value
+(negative / non-finite / out-of-range amount or gram weight, over-length name/unit/label) throws
+`AdapterValidationError` and nothing is returned; a value USDA simply omits is skipped (absent, not
+malformed). A non-positive-integer `externalKey` is rejected before any fetch.
+
+**Limiter atomicity / 90% / 429.** `tryRecord` delegates to the committed `SourceCallLogDao.checkAndRecord`,
+whose per-source transaction-scoped advisory lock makes the windowed count + conditional insert serial —
+so concurrency can never push the window past the hard cap (verified: 40 concurrent `tryRecord` at
+hardCap=10 → exactly 10 allowed). `isPaused` returns true at/above the 90% soft threshold (pause = 900
+for USDA's 1000) while still below the hard cap. `markWindowFull` is the 429 failsafe: it sets an
+in-process per-source `windowFullUntil = now + backoff`, during which `tryRecord` denies WITHOUT
+recording (count unchanged) and `isPaused` short-circuits true, regardless of the DB count; the failsafe
+expires when the back-off elapses (verified with an injected clock).
+
+### Red gate (assertion-level, confirmed failing for the right reason)
+
+Wrote all three test suites FIRST, then type-correct skeletons (registry methods returning wrong
+constants / throwing `NOT_IMPLEMENTED`) so the failures are real behavior assertions, not
+module-missing collection errors:
+
+```
+# Unit (src/sources)
+ Test Files  2 failed (2)
+      Tests  18 failed | 4 passed (22)
+  e.g. × priorityOf ranks usda at the top (priority 1)         expected 1, received 0
+       × rejects a duplicate registration (DuplicateSourceError) expected true, received false
+       × maps fdcId → externalKey ... (NOT_IMPLEMENTED: fetchByKey)
+       × normalizes nutrient names so case variants collapse to ONE row
+       × classifies a 429 as SourceApiError(statusCode=429)     expected true, received false
+# Integration (rolling-window-limiter)
+ Test Files  1 failed (1)
+      Tests  7 failed (7)   e.g. Error: NOT_IMPLEMENTED: count / tryRecord
+```
+
+The 4 unit tests that passed under the skeleton are pure data-shape assertions (`SOURCE_PRIORITY`
+contents + the two candidate-shape `not.toContain('fdcId')` checks) that do not depend on logic.
+
+### Green result
+
+Skeleton bodies replaced with the real implementations:
+
+```
+# Unit (whole package)        Test Files 6 passed (6)   Tests 64 passed (64)   (+22 new: 8 registry/types, 14 USDA adapter)
+# Integration (whole package) Test Files 9 passed (9)   Tests 73 passed (73)   (+7 new: rolling-window-limiter)
+```
+
+`npx tsc --noEmit` (whole package, incl. retained `foods/*` + `usda.ts`) is clean; `npm run lint` (src)
+exit 0; `npm run format:check` (prettier) clean.
+
+### Deviations from plan §5 / module-design (with rationale)
+
+1. **Target file paths follow tasks.md, not module-design's `Target source file` lines.** module-design
+   places the limiter at `src/worker/rolling-window.limiter.ts` and the registry at
+   `src/sources/source-adapter.registry.ts`; tasks.md T-120/T-121/T-122 specify
+   `src/sources/food-source-adapter.ts`, `src/sources/usda/usda.adapter.ts`,
+   `src/sources/rolling-window-limiter.ts`. Followed tasks.md (the explicitly-cited authority for paths).
+2. **Portions are read + validated from the client's preserved `raw` payload, not from a typed field.**
+   The committed `@kitchensink/usda-client` `UsdaFoodDetail` does not surface `foodPortions` (only
+   `foodNutrients`); the verbatim payload is preserved on `detail.raw`. The adapter validates
+   `raw.foodPortions` with a local zod schema at the boundary (reject-not-store on a non-positive gram
+   weight). This keeps USDA-shape knowledge confined to the adapter and avoids modifying the "done"
+   client. If a typed `foodPortions` is later added to the client, the adapter can switch to it with no
+   canonical-API change.
+3. **`UsdaSchemaError` (2xx body shape drift) is classified as `SourceApiError(502)`** — treated as an
+   upstream/bad-gateway failure (retryable by the worker), distinct from a transport 5xx. module-design
+   lists schema failure under MOD-021 validation; mapping it to a 502 `SourceApiError` keeps the worker's
+   retry/backoff decision purely status-driven without a separate error class crossing the boundary.
+4. **`SourceApiError`/`AdapterValidationError` live in `food-source-adapter.ts` (the boundary contract
+   file), not in a separate `source.errors.ts`.** They are part of the adapter interface's error
+   contract and are consumed source-agnostically by the future worker; co-locating them with the
+   interface avoids an extra file while keeping USDA-specific mapping in `usda.adapter.ts`. No `assertHttps`/
+   `TransportSecurityError` was added — the client hard-codes an `https://` base URL, so transport
+   security is already guaranteed; an explicit guard is deferred to when a configurable base URL exists.
+
+### Deferred → Phase 3
+
+- Fan-out across the registry + golden-record merge engine (T-152/T-160+), candidate-resolution
+  `PATCH`-resolve re-fetch (uses `RollingWindowLimiter` + `fetchByKey`), the read API/controller/service,
+  and NestJS module/DI wiring of the registry + adapter + limiter. The adapter/registry/limiter are
+  plain classes (DAO-style constructor injection), ready to be wired behind the `FoodsRepository`/worker.
+- `getWaitTime`/`awaitHeadroom` (PATCH-resolve wait-for-headroom, DSN-6) were not built in this slice;
+  they belong with the resolve path in Phase 3.

@@ -295,14 +295,14 @@ summary text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(food_id, sou
 > wraps the client so the worker fans out over a registry. USDA is the only wired adapter; the loop is over a
 > registry so adding a source is additive (FR-MRG-4/FR-ADP-1).
 
-- [ ] **T-120** [M] [Test-first: true] `FoodSourceAdapter` interface + adapter registry + canonical candidate types (`SourceCandidate`, `CanonicalCandidate`) + source-priority config (`['usda']`) — `packages/services/food-service/src/sources/food-source-adapter.ts` (FR-ADP-1, FR-MRG-2, FR-MRG-4)
+- [x] **T-120** [M] [Test-first: true] `FoodSourceAdapter` interface + adapter registry + canonical candidate types (`SourceCandidate`, `CanonicalCandidate`) + source-priority config (`['usda']`) — `packages/services/food-service/src/sources/food-source-adapter.ts` (FR-ADP-1, FR-MRG-2, FR-MRG-4)
       `interface FoodSourceAdapter { readonly source; searchByName(name): Promise<SourceCandidate[]>;
 fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordered priority list (USDA
       highest) per §9-5. No source-specific structure may appear in these types.
       **Acceptance**: a type-level test asserts the canonical candidate carries `source` + `externalKey` (never
       `fdcId`); the registry resolves the USDA adapter by `source='usda'`.
 
-- [ ] **T-121** [M] [Test-first: true] USDA adapter — wrap `@kitchensink/usda-client` to implement `FoodSourceAdapter`: `searchByName` (USDA `searchFoods`), `fetchByKey` (`getFood`, `fdcId → external_key`), `mapToCanonical` (USDA nutrients→`food_nutrients` per-100g, portions→`food_portions`, validate/sanitize) — `packages/clients/usda` consumer in `packages/services/food-service/src/sources/usda/usda.adapter.ts` (FR-IDN-2, FR-023, FR-024, FR-ADP-2, FR-ADP-3)
+- [x] **T-121** [M] [Test-first: true] USDA adapter — wrap `@kitchensink/usda-client` to implement `FoodSourceAdapter`: `searchByName` (USDA `searchFoods`), `fetchByKey` (`getFood`, `fdcId → external_key`), `mapToCanonical` (USDA nutrients→`food_nutrients` per-100g, portions→`food_portions`, validate/sanitize) — `packages/clients/usda` consumer in `packages/services/food-service/src/sources/usda/usda.adapter.ts` (FR-IDN-2, FR-023, FR-024, FR-ADP-2, FR-ADP-3)
       The **only** place `fdcId` and USDA terms appear. Validates/sanitizes mapped values (type/range/length/text)
       before they enter the store; a response failing validation is rejected, not stored. MAY use the ≤20-key
       USDA batch (counts as 1 windowed call) once it has resolved which items to fetch (adapter-internal).
@@ -310,7 +310,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       per-100g nutrients, and `item_version`; an out-of-range/over-length value is rejected before mapping; the
       public return type exposes no `fdcId`.
 
-- [ ] **T-122** [S] [Test-first: true] Per-source rolling-window limiter (`RollingWindowLimiter` over `SourceCallLogDao`; pause at 90%; `429`-failsafe treats the window as full) — `packages/services/food-service/src/sources/rolling-window-limiter.ts` (FR-019, FR-020, FR-021, FR-026)
+- [x] **T-122** [S] [Test-first: true] Per-source rolling-window limiter (`RollingWindowLimiter` over `SourceCallLogDao`; pause at 90%; `429`-failsafe treats the window as full) — `packages/services/food-service/src/sources/rolling-window-limiter.ts` (FR-019, FR-020, FR-021, FR-026)
       `tryRecord(source)`, `count(source)`, `isPaused(source)` (true once the trailing count ≥ 90% of that
       source's cap). USDA cap 1000, pause 900. Keyed per source so each wired source gets its own window.
       **Acceptance**: covers US-3 scenarios — record below cap → true; pause at 900; reject at 1000; window slides

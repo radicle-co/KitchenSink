@@ -12,12 +12,14 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
 import { ConsoleEventBus, FoodEventEmitter } from '../events/food-event-emitter.js';
+import { AdminMetricsDao } from '../foods/admin/admin-metrics.dao.js';
 import { FetchQueueDao } from '../foods/dao/fetch-queue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
 import { FoodSourcesDao } from '../foods/dao/food-sources.dao.js';
 import { SourceCallLogDao } from '../foods/dao/source-call-log.dao.js';
 import { GoldenRecordMergeEngine } from '../foods/merge/merge-engine.js';
 import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service.js';
+import { FoodMetrics } from '../observability/emf-metrics.js';
 import * as schema from '../db/schema/index.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
@@ -77,6 +79,7 @@ async function bootstrap(): Promise<void> {
     const registry = new SourceAdapterRegistry();
     registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
 
+    const metrics = new FoodMetrics();
     const queue = new FetchQueueDao(db);
     const consumer = new FoodConsumerService({
         foodDao: new FoodDao(db),
@@ -89,11 +92,31 @@ async function bootstrap(): Promise<void> {
             logger.warn('event-bus-put-failed', { detailType, error: String(error) }),
         ),
         logger,
+        metrics,
     });
+
+    // T-181: a periodic operational-metrics snapshot (queue depth / backlog / tombstone / oldest-pending
+    // age) emitted as EMF — reuses the admin operational-read DAO and the queue freshness signal. The
+    // worker runtime invokes this best-effort on each reaper tick (and once at start).
+    const adminMetrics = new AdminMetricsDao(db);
+
+    const emitMetricsSnapshot = async (): Promise<void> => {
+        const [depths, backlog, pendingAge] = await Promise.all([
+            adminMetrics.queueDepths(),
+            adminMetrics.backlog(),
+            queue.pendingAgeSeconds(),
+        ]);
+
+        metrics.recordQueueDepth(depths.pending);
+        metrics.recordInFlightLeases(depths.inFlight);
+        metrics.recordTombstoneCount(depths.tombstone);
+        metrics.recordUnresolvedBacklog(backlog.unresolved);
+        metrics.recordPendingAgeSeconds(pendingAge);
+    };
 
     const lockSession = await pool.connect();
     const listenSession = await pool.connect();
-    const runtime = new WorkerRuntime({ lockSession, listenSession, consumer, queue, logger });
+    const runtime = new WorkerRuntime({ lockSession, listenSession, consumer, queue, logger, emitMetricsSnapshot });
 
     const shutdown = (): void => {
         void runtime

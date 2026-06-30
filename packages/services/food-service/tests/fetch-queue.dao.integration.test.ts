@@ -190,4 +190,29 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             expect(row.lastError).toBeNull();
         });
     });
+
+    describe('pendingAgeSeconds (T-183 freshness alarm signal)', () => {
+        it('returns 0 when no row is pending', async () => {
+            expect(await queue.pendingAgeSeconds()).toBe(0);
+        });
+
+        it('returns the age in seconds of the OLDEST pending row, ignoring in_flight/tombstone rows', async () => {
+            const stale = await foods.createByName({ normalizedName: 'stale pending' });
+            await requesters.add({ foodId: stale.id, sub: 'a' });
+            await queue.enqueue(stale.id);
+            // Backdate first_requested by 10 minutes so the oldest-pending age is deterministic.
+            await pool.query(
+                `UPDATE fetch_queue SET first_requested = now() - interval '600 seconds' WHERE food_id = $1`,
+                [stale.id],
+            );
+
+            const fresh = await foods.createByName({ normalizedName: 'fresh pending' });
+            await requesters.add({ foodId: fresh.id, sub: 'b' });
+            await queue.enqueue(fresh.id);
+
+            const age = await queue.pendingAgeSeconds();
+
+            expect(age).toBeGreaterThanOrEqual(590);
+        });
+    });
 });

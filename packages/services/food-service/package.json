@@ -11,8 +11,9 @@
         "dev": "nest start --watch",
         "build": "nest build",
         "infra:build": "tsc -p infra/tsconfig.json",
-        "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
-        "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
+        "bundle:lambda": "node esbuild.mjs",
+        "infra:synth": "npm run bundle:lambda && cdk synth --app 'npx tsx infra/bin/app.ts'",
+        "infra:deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx infra/bin/app.ts'",
         "start": "node dist/main.js",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -24,6 +25,7 @@
         "db:generate": "drizzle-kit generate"
     },
     "dependencies": {
+        "@aws-sdk/client-secrets-manager": "^3.935.0",
         "@kitchensink/clerk-verify": "*",
         "@kitchensink/usda-client": "*",
         "@nestjs/common": "^11.0.0",
@@ -52,6 +54,7 @@
         "aws-cdk": "*",
         "dotenv": "*",
         "drizzle-kit": "^0.30.0",
+        "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "*",

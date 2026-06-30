@@ -4,6 +4,8 @@ import {
     Fn,
     Stack,
     type StackProps,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_ec2 as ec2,
     aws_ecr as ecr,
     aws_ecs as ecs,
@@ -17,12 +19,33 @@ import {
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
 } from 'aws-cdk-lib';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
+
+/**
+ * Canonical food worker metric names — MUST stay byte-identical to `src/observability/emf-metrics.ts`
+ * `FOOD_METRIC` (the worker emits these EMF metric names; the dashboard charts and the alarms alarm on
+ * them). A CDK test cross-checks these against the exported source constants so the two cannot drift.
+ */
+const FOOD_METRIC_NAMESPACE = 'Commise/Food';
+const FOOD_METRIC = {
+    fetchQueueDepth: 'food-fetch-queue-depth',
+    resolutionLatencySeconds: 'food-resolution-latency-seconds',
+    sourceRollingWindowCount: 'source-rolling-window-count',
+    unresolvedBacklog: 'food-unresolved-backlog',
+    tombstoneCount: 'food-tombstone-count',
+    pendingAgeSeconds: 'food-fetch-pending-age-seconds',
+    inFlightLeases: 'food-in-flight-leases',
+    workerErrorCount: 'food-worker-error-count',
+} as const;
 
 /** Props for {@link FoodServiceStack}. */
 export interface FoodServiceStackProps extends StackProps {
-    /** Deploy stage (`prod`, `sandbox-*`, …). */
+    /** Deploy stage (`prod`, `sandbox-*`, `pr-{N}`, …). */
     readonly stage: string;
     /** Apex domain for the service's `food[.stage].{domain}` record. */
     readonly domainName: string;
@@ -34,23 +57,35 @@ export interface FoodServiceStackProps extends StackProps {
     readonly workerDesiredCount: number;
     /** Shared VPC id to import. */
     readonly vpcId: string;
+    /**
+     * Source API credential for the fetch/refresh workloads (`USDA_API_KEY`). FLAG: this is a secret
+     * but there is no Secrets Manager seam for source credentials yet, so it is wired as plaintext
+     * container env from the deploy environment. Before a real key is used this MUST move to
+     * `ecs.Secret.fromSecretsManager` (like the DB creds) so it never lands in the template.
+     */
+    readonly usdaApiKey?: string;
+    /** Optional UNRESOLVED-candidate TTL (days) for the change-refresh task (`FOOD_UNRESOLVED_TTL_DAYS`). */
+    readonly unresolvedTtlDays?: number;
 }
 
 /**
  * Food service infrastructure (feature 003).
  *
  * Mirrors `IdentityServiceStack`: an ECS/Fargate NestJS service fronted by the shared per-stage ALB
- * (owned by the global infra) via a host-based listener rule. Additionally
- * defines the **Fargate consumer worker** (single desired count — the Postgres `fetch_queue` is the
- * demand queue, so there is NO SQS), the three lambdas (stale-refresh, bulk-sync, search-indexer),
- * and the EventBridge **scheduled-producer** wiring. It does NOT create an RDS instance — it
- * `Fn.importValue`s the shared `kitchensink-data-{stage}:Database{Endpoint,Port,SecretArn}` exports
- * plus the new `:FoodDbSecretArn` and connects to the `kitchensink_food` database.
+ * (owned by the global infra) via a host-based listener rule. Additionally defines the **Fargate
+ * consumer worker** (single desired count — the Postgres `fetch_queue` is the demand queue, so there
+ * is NO SQS), the **change-refresh Fargate scheduled task** (EventBridge → ECS `RunTask`, T-001c), the
+ * **in-VPC migration-runner Lambda** (T-191), and the food **observability** surface (EMF-backed
+ * dashboard + alarms). It does NOT create an RDS instance — it `Fn.importValue`s the shared
+ * `kitchensink-data-{stage}` exports plus `:FoodDbSecretArn` / `:FoodDatabaseName` and connects to the
+ * `kitchensink_food` database.
  *
- * This is a foundation skeleton: handlers point at placeholder asset code that later phases flesh
- * out (T-017+ worker drain loop, T-023/T-030/T-032 lambdas).
+ * Subnet placement (ADR-0004): the API + worker + change-refresh Fargate workloads run in PUBLIC
+ * subnets with `assignPublicIp` (egress to USDA/AWS via the IGW, inbound locked to the service SG). The
+ * migration-runner Lambda is the ONLY food workload on the NAT (a VPC Lambda cannot egress via a public
+ * IP, and it must reach the private RDS).
  *
- * @implements ARCH-001 FR-019 FR-022 FR-031
+ * @implements ARCH-001 FR-022 FR-031 FR-032 FR-046 FR-048 SC-002 SC-006
  */
 export class FoodServiceStack extends Stack {
     /** Public HTTPS URL of the food API. */
@@ -120,7 +155,10 @@ export class FoodServiceStack extends Stack {
             }),
         );
 
-        // EventBridge bus the producer/consumer use to signal fetch lifecycle (no SQS).
+        // EventBridge bus the worker uses to signal fetch lifecycle (no SQS). The completion event
+        // (`FoodFetchCompleted`) is still emitted as part of the event contract for future consumers;
+        // there is deliberately NO rule consumer on the bus right now (the prior search-indexer rule
+        // was removed — T-180 ships search_vector as a STORED generated column, so no indexer is needed).
         const eventBus = new events.EventBus(this, 'FoodEventBus', {
             eventBusName: `kitchensink-food-${stage}`,
         });
@@ -132,6 +170,14 @@ export class FoodServiceStack extends Stack {
             DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
             DB_NAME: Fn.importValue(`kitchensink-data-${stage}:FoodDatabaseName`),
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
+        };
+
+        // FLAG (see props.usdaApiKey): source credentials wired as plaintext container env. The Nest app
+        // env validation requires USDA_API_KEY (config/env.schema.ts) and both the worker and the
+        // change-refresh entrypoint THROW without it, so all three containers receive it. Move to a
+        // Secrets Manager `ecs.Secret` before a real key ships.
+        const sourceCredentialsEnvironment: Record<string, string> = {
+            USDA_API_KEY: props.usdaApiKey ?? '',
         };
 
         const foodDbSecrets = {
@@ -166,7 +212,7 @@ export class FoodServiceStack extends Stack {
         apiTaskDefinition.addContainer('FoodApiContainer', {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-service', logGroup: apiLogGroup }),
-            environment: { ...foodDbEnvironment, PORT: '3000' },
+            environment: { ...foodDbEnvironment, ...sourceCredentialsEnvironment, PORT: '3000' },
             secrets: foodDbSecrets,
             command: ['node', 'dist/main.js'],
             portMappings: [{ containerPort: 3000 }],
@@ -183,8 +229,12 @@ export class FoodServiceStack extends Stack {
             cluster,
             taskDefinition: apiTaskDefinition,
             desiredCount,
-            assignPublicIp: false,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            // Public subnet + public IP so the task egresses to USDA/AWS via the Internet Gateway (free)
+            // instead of the NAT. Inbound stays locked to the ALB SG (serviceSecurityGroup), so the
+            // public IP is egress-only; the task still reaches the private RDS intra-VPC by SG. This
+            // keeps the NAT serving ONLY the migration-runner Lambda (ADR-0004 minimize-nat).
+            assignPublicIp: true,
+            vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
             securityGroups: [serviceSecurityGroup],
             minHealthyPercent: 50,
             maxHealthyPercent: 200,
@@ -219,7 +269,7 @@ export class FoodServiceStack extends Stack {
         workerTaskDefinition.addContainer('FoodWorkerContainer', {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-worker', logGroup: workerLogGroup }),
-            environment: { ...foodDbEnvironment, FOOD_WORKER: '1' },
+            environment: { ...foodDbEnvironment, ...sourceCredentialsEnvironment, FOOD_WORKER: '1' },
             secrets: foodDbSecrets,
             command: ['node', 'dist/worker/main.js'],
         });
@@ -229,8 +279,10 @@ export class FoodServiceStack extends Stack {
             taskDefinition: workerTaskDefinition,
             // FR-022: exactly one consumer holds the LISTEN connection at MVP.
             desiredCount: workerDesiredCount,
-            assignPublicIp: false,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            // Public subnet + public IP (egress-only, inbound SG-locked) — IGW egress off the NAT path,
+            // intra-VPC reach to the private RDS by SG (ADR-0004), same as the API service above.
+            assignPublicIp: true,
+            vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
             securityGroups: [serviceSecurityGroup],
             // A rolling deploy must not run two consumers; keep at most one task during deploys.
             minHealthyPercent: 0,
@@ -238,65 +290,103 @@ export class FoodServiceStack extends Stack {
         });
         this.foodFetchWorkerServiceName = workerService.serviceName;
 
-        // ── Lambdas (stale-refresh, bulk-sync, search-indexer) ──────────────────────────────────
-        const lambdaEnvironment: Record<string, string> = {
-            STAGE: stage,
-            FOOD_DB_SECRET_ARN: foodDbSecret.secretArn,
-            FOOD_DB_ENDPOINT: database.dbInstanceEndpointAddress,
-            FOOD_DB_NAME: Fn.importValue(`kitchensink-data-${stage}:FoodDatabaseName`),
-            FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
-        };
-
-        const makeLambda = (name: string, handler: string): lambda.Function => {
-            const fn = new lambda.Function(this, name, {
-                runtime: lambda.Runtime.NODEJS_22_X,
-                architecture: lambda.Architecture.ARM_64,
-                handler,
-                // Foundation skeleton: inline placeholder. Later phases replace with bundled asset code.
-                code: lambda.Code.fromInline(
-                    'export const handler = async () => ({ statusCode: 200, body: "not-implemented" });',
-                ),
-                timeout: Duration.minutes(5),
-                memorySize: 512,
-                environment: lambdaEnvironment,
-                vpc,
-                vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-                securityGroups: [serviceSecurityGroup],
-            });
-            foodDbSecret.grantRead(fn);
-            eventBus.grantPutEventsTo(fn);
-
-            return fn;
-        };
-
-        const staleRefreshLambda = makeLambda('FoodStaleRefreshLambda', 'index.handler');
-        const bulkSyncLambda = makeLambda('FoodBulkSyncLambda', 'index.handler');
-        const searchIndexerLambda = makeLambda('FoodSearchIndexerLambda', 'index.handler');
-
-        // ── EventBridge wiring ──────────────────────────────────────────────────────────────────
-        // Scheduled producer: nightly stale refresh (T-030) and weekly bulk sync (T-032).
-        new events.Rule(this, 'FoodStaleRefreshSchedule', {
-            description: 'Daily USDA stale-data refresh (FR-031)',
-            schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
-            targets: [new targets.LambdaFunction(staleRefreshLambda)],
+        // ── Change-refresh Fargate scheduled task (T-001c / D-REFRESH) ──────────────────────────
+        // An EventBridge schedule → ECS `RunTask` of a dedicated task definition running the
+        // change-refresh entrypoint (`runOnce()` then exit). This is NOT a long-running ECS *service*
+        // (RunTask uses only a task def), so the "exactly 2 ECS services" invariant still holds.
+        const changeRefreshTaskRole = new iam.Role(this, 'FoodChangeRefreshTaskRole', {
+            assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+            description: 'Least-privilege runtime role for the change-refresh scheduled task (T-053)',
         });
+        sharedDbSecret.grantRead(changeRefreshTaskRole);
+        foodDbSecret.grantRead(changeRefreshTaskRole);
+        // T-053: this named role is the only refresh-path principal allowed to PutEvents on the bus.
+        eventBus.grantPutEventsTo(changeRefreshTaskRole);
 
-        new events.Rule(this, 'FoodBulkSyncSchedule', {
-            description: 'Weekly USDA Foundation/SR-Legacy bulk sync (FR-031)',
-            schedule: events.Schedule.cron({ minute: '0', hour: '2', weekDay: 'SUN' }),
-            targets: [new targets.LambdaFunction(bulkSyncLambda)],
-        });
-
-        // Event-driven search indexer: react to FoodFetchCompleted emitted by the worker (T-023).
-        new events.Rule(this, 'FoodFetchCompletedRule', {
-            eventBus,
-            description: 'Reindex search_vector when a fetch completes (FR-008)',
-            eventPattern: {
-                source: ['kitchensink.food'],
-                detailType: ['FoodFetchCompleted'],
+        const changeRefreshTaskDefinition = new ecs.FargateTaskDefinition(this, 'FoodChangeRefreshTaskDefinition', {
+            cpu: 256,
+            memoryLimitMiB: 512,
+            runtimePlatform: {
+                operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+                cpuArchitecture: ecs.CpuArchitecture.X86_64,
             },
-            targets: [new targets.LambdaFunction(searchIndexerLambda)],
+            executionRole: taskExecutionRole,
+            taskRole: changeRefreshTaskRole,
         });
+
+        const changeRefreshLogGroup = new logs.LogGroup(this, 'FoodChangeRefreshLogGroup', {
+            retention: logs.RetentionDays.ONE_MONTH,
+        });
+
+        const changeRefreshEnvironment: Record<string, string> = {
+            ...foodDbEnvironment,
+            ...sourceCredentialsEnvironment,
+        };
+
+        if (props.unresolvedTtlDays !== undefined) {
+            changeRefreshEnvironment.FOOD_UNRESOLVED_TTL_DAYS = String(props.unresolvedTtlDays);
+        }
+
+        changeRefreshTaskDefinition.addContainer('FoodChangeRefreshContainer', {
+            image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
+            logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-change-refresh', logGroup: changeRefreshLogGroup }),
+            environment: changeRefreshEnvironment,
+            secrets: foodDbSecrets,
+            command: ['node', 'dist/worker/change-refresh/main.js'],
+        });
+
+        // D-REFRESH is explicitly low-priority idle-drain background work that yields to live demand
+        // (no fixed-cadence promise). Every 6 hours is frequent enough to pick up upstream changes
+        // without competing with the demand-driven fetch path.
+        new events.Rule(this, 'IngestionScheduled', {
+            description:
+                'Change-refresh: re-enqueue RESOLVED foods for a selective in-place re-pull (FR-032, D-REFRESH)',
+            schedule: events.Schedule.rate(Duration.hours(6)),
+            targets: [
+                new targets.EcsTask({
+                    cluster,
+                    taskDefinition: changeRefreshTaskDefinition,
+                    taskCount: 1,
+                    // ADR-0004: Fargate egress to USDA via the IGW (public subnet + public IP); inbound
+                    // SG-locked (egress-only). Reaches the private RDS intra-VPC by SG.
+                    subnetSelection: { subnetType: ec2.SubnetType.PUBLIC },
+                    assignPublicIp: true,
+                    securityGroups: [serviceSecurityGroup],
+                }),
+            ],
+        });
+
+        // ── In-VPC migration-runner Lambda (T-191 / FU-MIGRATE) ─────────────────────────────────
+        // The RDS instance is PRIVATE_ISOLATED, so the deploy pipeline invokes this VPC-attached Lambda
+        // to apply the ordered SQL against kitchensink_food. It is the ONLY food workload on the NAT (a
+        // VPC Lambda's public IP does NOT give egress — ADR-0004 — and it must reach the private RDS).
+        // Asset: esbuild bundles to dist-lambda/ (npm run bundle:lambda, run by infra:synth/deploy).
+        // Synth must not fail when the asset is absent (e.g. a bare `cdk synth`), so fall back to an
+        // inline placeholder when dist-lambda/ has not been built — the real deploy always builds it.
+        const lambdaAssetDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist-lambda');
+        const migrationCode = existsSync(lambdaAssetDir)
+            ? lambda.Code.fromAsset(lambdaAssetDir)
+            : lambda.Code.fromInline('export const handler = async () => ({ ok: false, reason: "asset-not-built" });');
+
+        const migrationFn = new lambda.Function(this, 'FoodMigrationFunction', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            architecture: lambda.Architecture.ARM_64,
+            handler: 'lambdas/migrate/handler.handler',
+            code: migrationCode,
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            environment: {
+                STAGE: stage,
+                FOOD_DB_SECRET_ARN: foodDbSecret.secretArn,
+                FOOD_DB_ENDPOINT: database.dbInstanceEndpointAddress,
+                FOOD_DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
+                FOOD_DB_NAME: Fn.importValue(`kitchensink-data-${stage}:FoodDatabaseName`),
+            },
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [serviceSecurityGroup],
+        });
+        foodDbSecret.grantRead(migrationFn);
 
         // ── Shared ALB host-rule + DNS (mirrors identity) ───────────────────────────────────────
         // This service does NOT create its own ALB. It imports the shared per-stage ALB's HTTPS
@@ -365,6 +455,122 @@ export class FoodServiceStack extends Stack {
 
         this.serviceUrl = `https://${serviceDomain}`;
 
+        // ── Observability: SNS + alarms (T-183) + dashboard (T-182) ─────────────────────────────
+        // Food-specific alarms read the EMF metrics the worker emits (Commise/Food namespace, no extra
+        // IAM — CloudWatch auto-extracts from the worker log group). The API 5xx alarm uses the
+        // TARGET-group 5xx (per ADR-0003 §Decision-5; the shared ALB's own 5xx is now multi-tenant).
+        const alarmTopic = new sns.Topic(this, 'FoodAlarmTopic', {
+            displayName: `Food service alarms (${stage})`,
+        });
+        const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
+
+        const emfMetric = (metricName: string, statistic: string): cloudwatch.Metric =>
+            new cloudwatch.Metric({
+                namespace: FOOD_METRIC_NAMESPACE,
+                metricName,
+                period: Duration.minutes(5),
+                statistic,
+            });
+
+        // Any tombstone (NOT_FOUND/FAILED) row is worth a look — alarm at > 0 (DSN-9 / FR-016).
+        const tombstoneAlarm = new cloudwatch.Alarm(this, 'FoodTombstoneAlarm', {
+            metric: emfMetric(FOOD_METRIC.tombstoneCount, 'max'),
+            threshold: 0,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 1,
+            datapointsToAlarm: 1,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarmDescription: 'Food has tombstone (NOT_FOUND/FAILED) rows',
+        });
+        tombstoneAlarm.addAlarmAction(alarmAction);
+
+        // API error rate > 5% — target-group target 5xx over request count (ADR-0003). Division by a
+        // zero request count yields no datapoint (no traffic → no alarm), treated as not-breaching.
+        const target5xx = targetGroup.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT, {
+            period: Duration.minutes(5),
+            statistic: 'sum',
+        });
+        const requestCount = targetGroup.metrics.requestCount({ period: Duration.minutes(5), statistic: 'sum' });
+        const apiErrorRate = new cloudwatch.MathExpression({
+            expression: '100 * (errors / requests)',
+            usingMetrics: { errors: target5xx, requests: requestCount },
+            period: Duration.minutes(5),
+            label: 'API 5xx error rate (%)',
+        });
+        const apiErrorRateAlarm = new cloudwatch.Alarm(this, 'FoodApiErrorRateAlarm', {
+            metric: apiErrorRate,
+            threshold: 5,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 1,
+            datapointsToAlarm: 1,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarmDescription: 'Food API target 5xx error rate > 5%',
+        });
+        apiErrorRateAlarm.addAlarmAction(alarmAction);
+
+        // fetch_queue backpressure: pending depth > 10,000 (FR-046).
+        const queueDepthAlarm = new cloudwatch.Alarm(this, 'FoodQueueDepthAlarm', {
+            metric: emfMetric(FOOD_METRIC.fetchQueueDepth, 'max'),
+            threshold: 10_000,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 1,
+            datapointsToAlarm: 1,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarmDescription: 'Food fetch_queue pending depth > 10,000 (FR-046 backpressure)',
+        });
+        queueDepthAlarm.addAlarmAction(alarmAction);
+
+        // Freshness: the oldest pending row's first_requested age > 5 min (demand not being drained).
+        const pendingAgeAlarm = new cloudwatch.Alarm(this, 'FoodPendingAgeAlarm', {
+            metric: emfMetric(FOOD_METRIC.pendingAgeSeconds, 'max'),
+            threshold: 300,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 1,
+            datapointsToAlarm: 1,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarmDescription: 'Oldest pending fetch_queue row older than 5 minutes',
+        });
+        pendingAgeAlarm.addAlarmAction(alarmAction);
+
+        // Dashboard (T-182). Per-stage name; ephemeral (pr-{N}) stages carry the pr-{N} prefix so the
+        // PR-close name sweep catches it (ADR-0005); prod keeps the bare `food-data`.
+        const dashboardName = isProd ? 'food-data' : `${stage}-food-data`;
+        const dashboard = new cloudwatch.Dashboard(this, 'FoodDataDashboard', { dashboardName });
+        dashboard.addWidgets(
+            new cloudwatch.GraphWidget({
+                title: 'Fetch queue depth & oldest-pending age',
+                left: [emfMetric(FOOD_METRIC.fetchQueueDepth, 'max')],
+                right: [emfMetric(FOOD_METRIC.pendingAgeSeconds, 'max')],
+            }),
+            new cloudwatch.GraphWidget({
+                title: 'In-flight leases',
+                left: [emfMetric(FOOD_METRIC.inFlightLeases, 'max')],
+            }),
+        );
+        dashboard.addWidgets(
+            new cloudwatch.GraphWidget({
+                title: 'Per-source rolling-60-min calls',
+                left: [emfMetric(FOOD_METRIC.sourceRollingWindowCount, 'sum')],
+            }),
+            new cloudwatch.GraphWidget({
+                title: 'UNRESOLVED backlog & tombstones',
+                left: [emfMetric(FOOD_METRIC.unresolvedBacklog, 'max'), emfMetric(FOOD_METRIC.tombstoneCount, 'max')],
+            }),
+        );
+        dashboard.addWidgets(
+            new cloudwatch.GraphWidget({
+                title: 'Resolution latency (p50/p90, seconds)',
+                left: [
+                    emfMetric(FOOD_METRIC.resolutionLatencySeconds, 'p50'),
+                    emfMetric(FOOD_METRIC.resolutionLatencySeconds, 'p90'),
+                ],
+            }),
+            new cloudwatch.GraphWidget({
+                title: 'Worker error rate',
+                left: [emfMetric(FOOD_METRIC.workerErrorCount, 'sum')],
+            }),
+        );
+
         // ── Outputs ─────────────────────────────────────────────────────────────────────────────
         new CfnOutput(this, 'FoodServiceUrl', {
             value: this.serviceUrl,
@@ -377,6 +583,11 @@ export class FoodServiceStack extends Stack {
         new CfnOutput(this, 'FoodEventBusName', {
             value: eventBus.eventBusName,
             exportName: `${this.stackName}:FoodEventBusName`,
+        });
+        // Exported for the deploy-time `lambda invoke` migration step (mirrors identity-webhooks).
+        new CfnOutput(this, 'FoodMigrationFunctionName', {
+            value: migrationFn.functionName,
+            exportName: `${this.stackName}:FoodMigrationFunctionName`,
         });
     }
 }

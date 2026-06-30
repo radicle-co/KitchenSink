@@ -132,7 +132,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 - [x] **T-001b** [S] [Test-first: false] Global DataStack: `kitchensink_food` logical DB + least-privilege role/secret on the shared instance (exports `FoodDbSecretArn`/`FoodDatabaseName`; reuse bootstrapped `pg_trgm`) — `packages/infra/global/lib/platform/data-stack.ts` (ARCH-001)
       **(reuse: built in old Phase 0 — no new RDS/cluster. Unchanged by the re-baseline.)**
 
-- [ ] **T-001c** [S] [Test-first: false] Change-refresh **Fargate scheduled-task CDK wiring** — EventBridge schedule (`IngestionScheduled`) → ECS `RunTask` target running the change-refresh task definition (D-REFRESH); least-privilege task-execution + task IAM roles (read `kitchensink_food`, `events:PutEvents` for `IngestionScheduled`); Fargate in the public subnet (`assignPublicIp`, IGW egress off the NAT path, ADR-0004) — `packages/services/food-service/infra/lib/food-service-stack.ts` (FR-032)
+- [x] **T-001c** [S] [Test-first: false] Change-refresh **Fargate scheduled-task CDK wiring** — EventBridge schedule (`IngestionScheduled`) → ECS `RunTask` target running the change-refresh task definition (D-REFRESH); least-privilege task-execution + task IAM roles (read `kitchensink_food`, `events:PutEvents` for `IngestionScheduled`); Fargate in the public subnet (`assignPublicIp`, IGW egress off the NAT path, ADR-0004) — `packages/services/food-service/infra/lib/food-service-stack.ts` (FR-032)
       **(new — DSN-13: T-001 was synth-verified against the prior VPC-Lambda producer; the change-refresh path is now an ECS scheduled task (D-REFRESH), so the EventBridge-schedule → ECS-`RunTask` target, its task definition, and the `RunTask`/task-execution IAM roles are wired here. The app-level T-170 consumes this.)**
       **Acceptance**: `cdk synth` emits an EventBridge rule whose target is the change-refresh ECS task (`RunTask`); the task role can read `kitchensink_food` and `events:PutEvents`; the task runs in the public subnet with `assignPublicIp` (no NAT path).
 
@@ -523,7 +523,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: at max depth / breaker-open, enqueue returns `503`; near the ceiling a flooding `sub` gets `503`
       on NEW enqueue while other users are unaffected; recovery drains without a burst.
 
-- [ ] **T-053** [S] [Test-first: false] Async-producer least-privilege IAM + provenance — only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates provenance; `requestedBy` is a real principal (no `'system'` shortcut) — `—` (FR-048)
+- [x] **T-053** [S] [Test-first: false] Async-producer least-privilege IAM + provenance — only named IAM roles may `events:PutEvents` / insert into `fetch_queue`; consumer validates provenance; `requestedBy` is a real principal (no `'system'` shortcut) — `packages/services/food-service/infra/lib/food-service-stack.ts` (named task roles grant `events:PutEvents`) + `src/worker/provenance.ts` (FR-048)
       **Acceptance**: an unnamed/unauthorized producer cannot enqueue; the consumer rejects rows with no valid
       `requestedBy`.
       **(CODE DONE — consumer provenance over `fetch_requesters` (`src/worker/provenance.ts` +
@@ -555,14 +555,14 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Deferred** — `pg_trgm` (T-104/T-134) already covers fuzzy search; add only if ranked full-text is needed.
       **Acceptance**: after a resolve, the food appears in ranked FTS results; no Redis to invalidate.
 
-- [ ] **T-181** [S] [Test-first: false] Custom CloudWatch metrics from the worker — `food-fetch-queue-depth`, `food-resolution-latency-seconds`, `source-rolling-window-count` (per source), `source-api-success-rate`, `food-unresolved-backlog`, `food-tombstone-count`, `food-local-store-serve-rate`, `auth-401-rate` — `—` (SC-002, SC-006, US-10)
+- [x] **T-181** [S] [Test-first: false] Custom CloudWatch metrics from the worker — `food-fetch-queue-depth`, `food-resolution-latency-seconds`, `source-rolling-window-count` (per source), `source-api-success-rate`, `food-unresolved-backlog`, `food-tombstone-count`, `food-local-store-serve-rate`, `auth-401-rate` (emitted via CloudWatch EMF to stdout — no extra IAM; added `food-fetch-pending-age-seconds`/`food-in-flight-leases`/`food-worker-error-count` to back the T-183 alarm + T-182 widgets) — `packages/services/food-service/src/observability/emf-metrics.ts` (+ worker wiring) (SC-002, SC-006, US-10)
       **Acceptance**: metrics populate after processing test requests; per-source window count is visible; the
       local-store serve rate reflects `RESOLVED` reads served with no source call (not a USDA "cache hit").
 
-- [ ] **T-182** [S] [Test-first: false] CloudWatch dashboard `food-data` (queue depth, in-flight leases, per-source trailing-60-min count, UNRESOLVED backlog, tombstone count, resolution latency, worker error rate) — `—` (US-10)
+- [x] **T-182** [S] [Test-first: false] CloudWatch dashboard `food-data` (queue depth, in-flight leases, per-source trailing-60-min count, UNRESOLVED backlog, tombstone count, resolution latency, worker error rate; per-stage name, `pr-{N}` prefix when ephemeral per ADR-0005) — `packages/services/food-service/infra/lib/food-service-stack.ts` (US-10)
       **Acceptance**: dashboard visible after `cdk deploy`; widgets populate after 100 test requests.
 
-- [ ] **T-183** [S] [Test-first: false] CloudWatch alarms — tombstone-row count > 0; API error rate > 5%; `fetch_queue` depth > 10,000 (FR-046); pending `first_requested` age > 5 min — `—` (SC-006, US-10)
+- [x] **T-183** [S] [Test-first: false] CloudWatch alarms — tombstone-row count > 0; API error rate > 5% (target-group 5xx per ADR-0003); `fetch_queue` depth > 10,000 (FR-046); pending `first_requested` age > 5 min; all → SNS topic + `SnsAction` — `packages/services/food-service/infra/lib/food-service-stack.ts` (SC-006, US-10)
       **Acceptance**: each alarm created in synth and fires on its condition (US-10 scenarios 2–3).
 
 - [x] **T-184** [S] [Test-first: false] Operational query endpoints (admin-scoped) — `GET /v1/foods/admin/metrics` (queue depths + UNRESOLVED backlog + NOT*FOUND/FAILED tombstone counts + per-source trailing-60-min window utilization) and `GET /v1/foods/admin/queue` (depths); both gated by `food:admin` (401 unauth / 403 unscoped). The read-only operational-query slice of FR-039/US-10 — `packages/services/food-service/src/foods/admin/`. *(The mutating `POST /ops/retry/{id}` tombstone→pending action is deferred: out of this read-only operational-query slice; `FetchQueueDao.reactivate` already backs it.)\_ (FR-039, FR-016, FR-018)
@@ -586,7 +586,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       and the add-by-name → fan-out → resolve / dedup / candidates / batch / EventBridge scenarios pass; the
       `e2e-food` CI job is required on the food-service path. **Checkbox stays unticked until the new flows land.**
 
-- [ ] **T-191** [M] [Test-first: false] FU-MIGRATE — in-VPC migration-runner Lambda (mirrors identity-webhooks `migrate.ts`: VPC-attached, reaches private RDS, applies the Phase-1 ordered SQL against `kitchensink_food`, tracked in `schema_migrations`, invoked at deploy; wired to `FoodDbSecretArn`) — `packages/services/food-service/src/lambdas/migrate/` (ARCH-001)
+- [x] **T-191** [M] [Test-first: false] FU-MIGRATE — in-VPC migration-runner Lambda (mirrors identity-webhooks `migrate.ts`: VPC-attached, reaches private RDS, applies the Phase-1 ordered SQL against `kitchensink_food`, tracked in `schema_migrations`, invoked at deploy; wired to `FoodDbSecretArn`. SECRET-SHAPE: `food_app` secret holds only `{username,password}`, so host/port/dbname come from env `FOOD_DB_ENDPOINT/PORT/NAME`. esbuild → `dist-lambda/`, `FoodMigrationFunctionName` exported) — `packages/services/food-service/src/lambdas/migrate/` (ARCH-001)
       **(deferred to deploy/release-readiness per the 2026-06-20 decision; phases build against Docker Postgres
       until then.)**
       **Acceptance**: the runner applies the 003 migrations against `kitchensink_food` over the NAT-less private
@@ -700,10 +700,10 @@ T-172, T-185.
 
 ## Follow-ups (carried from `.forge-status.yml`)
 
-- **FU-MIGRATE** — in-VPC migration-runner Lambda → **T-191** (deferred to deploy/release-readiness; build on Docker Postgres until then).
+- **FU-MIGRATE** — in-VPC migration-runner Lambda → **T-191** ✅ done (built + tested on Docker Postgres; `FoodMigrationFunction` wired in the stack).
 - **FU-INGREDIENTS** — `ingredients ↔ food(id)` is a **soft `food_id text` column owned by feature 001** (no cross-DB FK; app-layer validation). Not a 003 task.
 - **FU-EVENTNAME** — **CLOSED (stabilization 2026-06-28):** the completion event is canonically **`FoodFetchCompleted`** (published via `publishFoodFetchCompleted`), matching plan §4 and the deployed CDK `FoodFetchCompletedRule` (`detailType: ['FoodFetchCompleted']`); all spec/plan/v-model/task references now use it (T-154/T-165). `FoodDataReceived`/`publishFoodDataReceived` are retired.
-- **FU-ESBUILD** — esbuild bundling for the food Lambdas (search-indexer T-180, migrate T-191), like identity-webhooks. (Change-refresh moved to a Fargate scheduled task T-170 — D-REFRESH — so it no longer needs Lambda bundling.)
+- **FU-ESBUILD** — esbuild bundling for the food Lambdas → ✅ done for the migrate Lambda (`esbuild.mjs` → `dist-lambda/`, `npm run bundle:lambda`, run by `infra:synth`/`infra:deploy`). Search-indexer T-180 shipped as a STORED generated column (no Lambda), so only the migrate handler is bundled. (Change-refresh moved to a Fargate scheduled task T-170 — D-REFRESH — so it no longer needs Lambda bundling.)
 - **FU-LOCALSTACK-E2E** — E2E foundation in place (LocalStack Community + Docker Postgres); the re-baselined id-keyed AWS-service flows land with T-190 as Phases 3–6 complete.
 
 ---

@@ -42,12 +42,22 @@ import {
     type FoodSourceAdapter,
 } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
+import { FoodMetrics } from '../observability/emf-metrics.js';
 import { isRetryBudgetExhausted } from './backoff.js';
 import { hasValidProvenance } from './provenance.js';
 import { ConsoleWorkerLogger, type WorkerLogger } from './worker-logger.js';
 
 /** Max keys pulled in one batch source call (USDA's `POST /v1/foods` cap; counts as 1 windowed call). */
 const FETCH_BATCH_MAX = 20;
+
+/** Dispositions that resolved a row to a terminal state — the ones that count toward resolution latency. */
+const TERMINAL_DISPOSITIONS: ReadonlySet<ProcessDisposition> = new Set([
+    'resolved',
+    'unresolved',
+    'not_found',
+    'failed',
+    'refreshed',
+]);
 
 /** Seconds a row is deferred on a 90%-pause / window-full back-pressure (DSN-5 — no `attempts++`). */
 const DEFER_PAUSE_SECONDS = 30;
@@ -90,6 +100,8 @@ export interface FoodConsumerDeps {
     readonly events: FoodEventPublisher;
     /** Optional structured logger (defaults to a JSON console logger). */
     readonly logger?: WorkerLogger;
+    /** Optional EMF metric recorder — when present, per-row resolution latency is emitted (T-181). */
+    readonly metrics?: FoodMetrics;
     /** Lease window in seconds (default 30). */
     readonly leaseSeconds?: number;
 }
@@ -103,6 +115,7 @@ export class FoodConsumerService {
     private readonly merge: MergeAndPersistService;
     private readonly events: FoodEventPublisher;
     private readonly logger: WorkerLogger;
+    private readonly metrics: FoodMetrics | undefined;
     private readonly leaseSeconds: number;
 
     /** @param deps - The injected DAOs, registry, limiter, merge seam, and event publisher. */
@@ -115,6 +128,7 @@ export class FoodConsumerService {
         this.merge = deps.merge;
         this.events = deps.events;
         this.logger = deps.logger ?? new ConsoleWorkerLogger();
+        this.metrics = deps.metrics;
         this.leaseSeconds = deps.leaseSeconds ?? 30;
     }
 
@@ -133,8 +147,11 @@ export class FoodConsumerService {
 
         this.logger.info('lease-claimed', { foodId: row.foodId, requestCount: row.requestCount });
 
+        const startedAt = Date.now();
+        let disposition: ProcessDisposition;
+
         try {
-            return await this.processRow(row);
+            disposition = await this.processRow(row);
         } catch (error) {
             // An UNEXPECTED processing failure (e.g. a DB upsert error) — a genuine failure that
             // consumes the FR-016 retry budget with backoff (DSN-5). No upstream detail is leaked.
@@ -145,12 +162,23 @@ export class FoodConsumerService {
                 error: error instanceof Error ? error.message : 'unknown',
             });
 
-            if (isRetryBudgetExhausted(failed.attempts)) {
-                return this.tombstoneFailed(row.foodId, failed.attempts, 'processing_error');
-            }
-
-            return 'record_failure';
+            disposition = isRetryBudgetExhausted(failed.attempts)
+                ? await this.tombstoneFailed(row.foodId, failed.attempts, 'processing_error')
+                : 'record_failure';
         }
+
+        // T-181: a row that reached a terminal lifecycle state contributes to resolution latency
+        // (lease → disposition). Defers/back-pressure are NOT terminal and are excluded.
+        if (TERMINAL_DISPOSITIONS.has(disposition)) {
+            this.metrics?.recordResolutionLatencySeconds((Date.now() - startedAt) / 1000);
+        }
+
+        // A real source/processing failure this pass — the dashboard worker-error signal (T-182).
+        if (disposition === 'failed' || disposition === 'record_failure') {
+            this.metrics?.recordWorkerError();
+        }
+
+        return disposition;
     }
 
     /**

@@ -37,6 +37,11 @@ export interface WorkerRuntimeDeps {
     readonly queue: FetchQueueDao;
     /** Optional structured logger. */
     readonly logger?: WorkerLogger;
+    /**
+     * Optional best-effort operational-metrics snapshot (T-181). Invoked once at start and on each
+     * reaper tick; a failure is logged and swallowed (a metrics hiccup must never stall the drainer).
+     */
+    readonly emitMetricsSnapshot?: () => Promise<void>;
     /** Reaper cadence in ms (default 60s). */
     readonly reapIntervalMs?: number;
 }
@@ -47,6 +52,7 @@ export class WorkerRuntime {
     private readonly consumer: FoodConsumerService;
     private readonly queue: FetchQueueDao;
     private readonly logger: WorkerLogger;
+    private readonly emitMetricsSnapshot: (() => Promise<void>) | undefined;
     private readonly reapIntervalMs: number;
 
     private holdsLock = false;
@@ -66,7 +72,26 @@ export class WorkerRuntime {
         this.consumer = deps.consumer;
         this.queue = deps.queue;
         this.logger = deps.logger ?? new ConsoleWorkerLogger();
+        this.emitMetricsSnapshot = deps.emitMetricsSnapshot;
         this.reapIntervalMs = deps.reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS;
+    }
+
+    /**
+     * Best-effort operational-metrics snapshot (T-181). A snapshot failure is logged and swallowed so a
+     * metrics/DB hiccup never stalls the single drainer.
+     *
+     * @sideEffect Emits EMF metric lines via the injected snapshot callback.
+     */
+    private async snapshotMetrics(): Promise<void> {
+        if (!this.emitMetricsSnapshot) {
+            return;
+        }
+
+        try {
+            await this.emitMetricsSnapshot();
+        } catch (error) {
+            this.logger.warn('metrics-snapshot-failed', { error: String(error) });
+        }
     }
 
     /**
@@ -93,11 +118,13 @@ export class WorkerRuntime {
         // Reaper at start (FR-018) + an initial drain to catch rows enqueued before this worker came up.
         await this.consumer.reapStaleLeases();
         await this.wake();
+        await this.snapshotMetrics();
 
         this.reapTimer = setInterval(() => {
             void this.consumer
                 .reapStaleLeases()
                 .then(() => this.wake())
+                .then(() => this.snapshotMetrics())
                 .catch((error: unknown) => this.logger.error('reaper-failed', { error: String(error) }));
         }, this.reapIntervalMs);
         this.reapTimer.unref();

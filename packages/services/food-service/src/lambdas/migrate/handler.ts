@@ -1,0 +1,241 @@
+/**
+ * In-VPC schema migration runner for `kitchensink_food` (T-191 / FU-MIGRATE). Mirrors the identity
+ * `migrate.ts`: the RDS instance is PRIVATE_ISOLATED, so the deploy pipeline (outside the VPC) invokes
+ * this VPC-attached Lambda to apply the ordered SQL. Each migration runs once, tracked in
+ * `schema_migrations`, so re-invoking is a no-op; a thrown error surfaces as a Lambda FunctionError and
+ * fails the deploy's migration step (so a partial/drifted schema never passes silently).
+ *
+ * SECRET SHAPE — unlike identity's `food_db` master secret, the `food_app` least-privilege secret holds
+ * ONLY `{ username, password }`. This handler therefore reads the credentials from the secret
+ * (`FOOD_DB_SECRET_ARN`) and the connection target from env (`FOOD_DB_ENDPOINT`/`FOOD_DB_PORT`/
+ * `FOOD_DB_NAME`) — see DataStack T-001b.
+ *
+ * @implements ARCH-001
+ */
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { getTableName, is } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
+import pg from 'pg';
+
+import * as schema from '../../db/schema/index.js';
+
+const { Pool } = pg;
+
+/** A discovered migration: its tracking `name` (filename without `.sql`) and the `.sql` filename. */
+export interface DiscoveredMigration {
+    /** The `schema_migrations` tracking key (filename without the `.sql` suffix). */
+    readonly name: string;
+    /** The `.sql` filename within the migrations directory. */
+    readonly file: string;
+}
+
+/** The structured result of a migration run (returned to the deploy-time `lambda invoke`). */
+export interface MigrateResult {
+    /** Migrations applied this run, in order. */
+    readonly applied: string[];
+    /** Migrations skipped because already recorded, in order. */
+    readonly skipped: string[];
+    /** Post-run validation counts. */
+    readonly validated: { readonly migrations: number; readonly tables: number };
+}
+
+/** Options for {@link runMigrations} — the injectable core (a pool + a migrations directory). */
+export interface RunMigrationsOptions {
+    /** A connected `pg` pool to the target database. */
+    readonly pool: pg.Pool;
+    /** The directory holding the ordered `.sql` migrations. */
+    readonly migrationsDir: string;
+}
+
+/**
+ * The bundled migrations directory at runtime. esbuild copies `src/db/migrations/*.sql` into
+ * `dist-lambda/migrations/`; the handler bundles to `dist-lambda/lambdas/migrate/handler.js`, so the
+ * SQL sits two directories up. See `esbuild.mjs`.
+ */
+const bundledMigrationsDir = (): string => join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
+
+/**
+ * Discover the ordered `.sql` migrations in a directory — sorted by filename so the numeric prefix
+ * (`0000`, `0001`, …) drives a deterministic order. NO hardcoded list: drop a `.sql` file in and it is
+ * picked up automatically.
+ *
+ * @param migrationsDir - The directory to scan.
+ * @returns The discovered migrations in apply order.
+ * @sideEffect Reads the migrations directory.
+ */
+export function discoverMigrations(migrationsDir: string): DiscoveredMigration[] {
+    return readdirSync(migrationsDir)
+        .filter((file) => file.endsWith('.sql'))
+        .sort()
+        .map((file) => ({ name: file.replace(/\.sql$/, ''), file }));
+}
+
+/**
+ * The tables every successful migration run must produce — derived from the Drizzle schema (every
+ * exported `pgTable`), never hardcoded, so the post-migration validation tracks the schema as it
+ * evolves.
+ *
+ * @returns The expected table names.
+ */
+function expectedTables(): string[] {
+    return (Object.values(schema) as unknown[])
+        .filter((value): value is PgTable => is(value, PgTable))
+        .map((table) => getTableName(table));
+}
+
+/**
+ * Apply the ordered migrations idempotently against a pool, then validate the result. The testable
+ * core of {@link handler} (the handler only builds the pool from the secret + env).
+ *
+ * @param options - The connected pool + the migrations directory.
+ * @returns The applied/skipped lists + validation counts.
+ * @throws {Error} when a migration's SQL fails, a discovered migration is not recorded, or an expected
+ *   table is missing after the run.
+ * @sideEffect Connects to PostgreSQL and executes DDL.
+ */
+export async function runMigrations(options: RunMigrationsOptions): Promise<MigrateResult> {
+    const { pool, migrationsDir } = options;
+    const migrations = discoverMigrations(migrationsDir);
+    const applied: string[] = [];
+    const skipped: string[] = [];
+    const client = await pool.connect();
+
+    try {
+        await client.query(
+            'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+        );
+
+        for (const migration of migrations) {
+            const existing = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migration.name]);
+
+            if ((existing.rowCount ?? 0) > 0) {
+                skipped.push(migration.name);
+                continue;
+            }
+
+            const sql = readFileSync(join(migrationsDir, migration.file), 'utf8');
+            await client.query('BEGIN');
+
+            try {
+                await client.query(sql);
+                await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
+                await client.query('COMMIT');
+                applied.push(migration.name);
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw new Error(`Migration ${migration.name} failed`, { cause: err });
+            }
+        }
+
+        // Post-migration validation. Throwing surfaces as a Lambda FunctionError → the deploy's migration
+        // step fails, so a partially-applied or drifted schema never passes silently. Both sides are
+        // derived (migration files + drizzle schema), so nothing here is hardcoded.
+        const recorded = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
+        const recordedNames = new Set(recorded.rows.map((row) => row.name));
+        const missingMigrations = migrations
+            .map((migration) => migration.name)
+            .filter((name) => !recordedNames.has(name));
+
+        if (missingMigrations.length > 0) {
+            throw new Error(
+                `Post-migration validation failed — migrations not recorded: ${missingMigrations.join(', ')}`,
+            );
+        }
+
+        const tables = expectedTables();
+        const present = await client.query<{ table_name: string }>(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
+            [tables],
+        );
+        const presentTables = new Set(present.rows.map((row) => row.table_name));
+        const missingTables = tables.filter((table) => !presentTables.has(table));
+
+        if (missingTables.length > 0) {
+            throw new Error(`Post-migration validation failed — tables missing: ${missingTables.join(', ')}`);
+        }
+
+        return { applied, skipped, validated: { migrations: migrations.length, tables: tables.length } };
+    } finally {
+        client.release();
+    }
+}
+
+/** The `food_app` secret payload — username/password only (host/port/dbname come from env). */
+interface FoodDbCredentials {
+    /** The database role. */
+    readonly username: string;
+    /** The role password. */
+    readonly password: string;
+}
+
+/**
+ * Read the `food_app` username/password from Secrets Manager.
+ *
+ * @param secretArn - The `FOOD_DB_SECRET_ARN`.
+ * @returns The credentials.
+ * @throws {Error} when the secret has no payload or is missing a credential field.
+ * @sideEffect Calls Secrets Manager `GetSecretValue`.
+ */
+async function readFoodDbCredentials(secretArn: string): Promise<FoodDbCredentials> {
+    const client = new SecretsManagerClient({});
+    const response = await client.send(new GetSecretValueCommand({ SecretId: secretArn }));
+
+    if (!response.SecretString) {
+        throw new Error(`Secret ${secretArn} has no SecretString payload`);
+    }
+
+    const parsed = JSON.parse(response.SecretString) as Partial<FoodDbCredentials>;
+
+    if (!parsed.username || !parsed.password) {
+        throw new Error(`Secret ${secretArn} missing username/password`);
+    }
+
+    return { username: parsed.username, password: parsed.password };
+}
+
+/**
+ * Read a required environment variable (bracket-notation per project convention).
+ *
+ * @param name - The variable name.
+ * @returns The value.
+ * @throws {Error} when unset/empty.
+ */
+function requireEnv(name: string): string {
+    const value = process.env[name];
+
+    if (!value) {
+        throw new Error(`Missing required environment variable: ${name}`);
+    }
+
+    return value;
+}
+
+/**
+ * Lambda entrypoint: build the pool from the `food_app` secret + DB env, then run + validate the
+ * migrations bundled alongside this handler.
+ *
+ * @returns The applied/skipped lists + validation counts.
+ * @sideEffect Reads Secrets Manager, connects to PostgreSQL, and executes DDL.
+ */
+export const handler = async (): Promise<MigrateResult> => {
+    const credentials = await readFoodDbCredentials(requireEnv('FOOD_DB_SECRET_ARN'));
+    const pool = new Pool({
+        user: credentials.username,
+        password: credentials.password,
+        host: requireEnv('FOOD_DB_ENDPOINT'),
+        port: Number(requireEnv('FOOD_DB_PORT')),
+        database: requireEnv('FOOD_DB_NAME'),
+        ssl: process.env['STAGE'] === 'local' ? false : { rejectUnauthorized: false },
+        max: 1,
+    });
+
+    try {
+        return await runMigrations({ pool, migrationsDir: bundledMigrationsDir() });
+    } finally {
+        await pool.end();
+    }
+};

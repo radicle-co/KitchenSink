@@ -203,6 +203,24 @@ export class FetchQueueDao {
     }
 
     /**
+     * Age in seconds of the OLDEST pending row — `now() - min(first_requested)` over `status='pending'`
+     * (T-183 freshness signal; the worker emits this as `food-fetch-pending-age-seconds` and the CDK
+     * alarms when it exceeds 5 minutes, FR-046). Returns 0 when nothing is pending.
+     *
+     * @returns The oldest-pending age in whole seconds (0 when the pending set is empty).
+     * @sideEffect Reads `fetch_queue`.
+     */
+    public async pendingAgeSeconds(): Promise<number> {
+        const result = await this.db.execute<{ age: number | null }>(sql`
+            SELECT EXTRACT(EPOCH FROM (now() - min(first_requested)))::int AS age
+              FROM fetch_queue
+             WHERE status = 'pending'
+        `);
+
+        return result.rows[0]?.age ?? 0;
+    }
+
+    /**
      * Acknowledge a `RESOLVED`/`UNRESOLVED` food: remove its queue row AND prune its requester rows
      * so `fetch_requesters` does not grow unbounded after the food leaves the queue (DSN-10).
      *

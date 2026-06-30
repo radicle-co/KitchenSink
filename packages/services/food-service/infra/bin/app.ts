@@ -38,6 +38,13 @@ new FoodServiceStack(app, `FoodService-${stage}`, {
     imageTag: process.env['FOOD_IMAGE_TAG'] ?? 'latest',
     desiredCount: Number(process.env['FOOD_DESIRED_COUNT'] ?? 2),
     workerDesiredCount: Number(process.env['FOOD_WORKER_DESIRED_COUNT'] ?? 1),
+    // FLAG: USDA_API_KEY is a secret wired as plaintext container env (no Secrets Manager seam for
+    // source creds yet — see FoodServiceStackProps.usdaApiKey). Empty when unset (synth/CI without the
+    // secret); the real deploy passes it. Move to an ecs.Secret before a real key ships.
+    usdaApiKey: process.env['USDA_API_KEY'],
+    unresolvedTtlDays: process.env['FOOD_UNRESOLVED_TTL_DAYS']
+        ? Number(process.env['FOOD_UNRESOLVED_TTL_DAYS'])
+        : undefined,
 });
 
 app.synth();

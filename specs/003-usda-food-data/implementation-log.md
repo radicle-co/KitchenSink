@@ -1072,3 +1072,76 @@ T-002, T-180, T-184 marked `[x]`. No commit/push.
   slice; `FetchQueueDao.reactivate` already backs it when wired.
 - `infra/bin/app.ts` reads `FOOD_WORKER_DESIRED_COUNT` now; the CDK that SETS this env on the worker task
   def is infra (out of scope) and should be synced in the infra slice.
+
+---
+
+## 2026-06-30 — Infra slice: FOOD-SERVICE CDK + EMF metrics + migration-runner (T-001c, T-053, T-181, T-182, T-183, T-191, FU-MIGRATE, FU-ESBUILD)
+
+**Scope.** The food-service CDK slice on top of the existing T-001/T-001b stack: (A) fixed the
+ADR-0004 subnet violation — API + worker Fargate moved to PUBLIC subnets + `assignPublicIp` (off the
+NAT); (B/C/D) removed the three vestigial placeholder Lambdas (bulk-sync, stale-refresh, search-indexer)
+
+- their EventBridge rules + the unused `makeLambda`/`lambdaEnvironment`, kept the `FoodEventBus` +
+  `FoodFetchCompleted` emission with a no-consumer comment; (E/T-191/FU-MIGRATE/FU-ESBUILD) added the
+  in-VPC migration-runner Lambda (`src/lambdas/migrate/handler.ts`), its esbuild bundler
+  (`esbuild.mjs` → `dist-lambda/`, `bundle:lambda` script, run by `infra:synth`/`infra:deploy`), and the
+  `FoodMigrationFunction` (PRIVATE subnet — the ONLY food NAT user — env-driven host/port/dbname,
+  `food_app` secret for creds, `FoodMigrationFunctionName` output); (F/T-001c) the change-refresh Fargate
+  scheduled task (EventBridge `IngestionScheduled` rate(6h) → ECS `RunTask` `EcsTask` target in a PUBLIC
+  subnet, new task def + least-privilege task role granting `events:PutEvents` — T-053); (G/T-181/182/183)
+  EMF worker metrics (`src/observability/emf-metrics.ts`, namespace `Commise/Food`, no extra IAM), the
+  `food-data` dashboard, and four alarms (tombstone > 0, API target-5xx rate > 5% per ADR-0003, queue
+  depth > 10,000, oldest-pending age > 5 min) → SNS topic + `SnsAction`.
+
+**RED first confirmed at assertion level before each implementation:**
+
+- T-181: `src/observability/__tests__/emf-metrics.test.ts` failed — `Cannot find module '../emf-metrics.js'`
+  → GREEN after the emitter (exact EMF JSON shape, the canonical `FOOD_METRIC` constants, dimension-set
+  encoding, the typed recorder methods).
+- T-191: `tests/migrate.integration.test.ts` failed to import `runMigrations`/`discoverMigrations`
+  (module absent) → GREEN after the handler. Verified against Docker Postgres: ordered discovery
+  (`0000`→`0001`, no hardcoded list), apply + `schema_migrations` tracking, idempotent re-invoke (second
+  run applies nothing / skips both), and the missing-expected-table validation throw.
+- T-183 (pending-age signal): the appended `pendingAgeSeconds` cases in
+  `tests/fetch-queue.dao.integration.test.ts` failed (method absent) → GREEN after the `FetchQueueDao`
+  query (oldest-pending `first_requested` age, 0 when empty).
+- CDK (T-001c/B/C/D/E/F/G): the extended `infra/__tests__/food-service-stack.test.ts` asserted the new
+  topology (public-subnet services, removed lambdas, migrate fn, `IngestionScheduled` RunTask target,
+  change-refresh task def, dashboard, 4 alarms, SNS) against the pre-change stack → RED, GREEN after the
+  stack rewrite. The existing invariants (0 ALBs, 1 listener rule priority 200, 1 TG, 1 A-record,
+  exactly 2 ECS services) still hold.
+
+| Suite                                   | Before | After | Result   |
+| --------------------------------------- | ------ | ----- | -------- |
+| Unit (food-service, incl. CDK + EMF)    | 118    | 136   | ✅       |
+| Integration (real PG)                   | 172    | 178   | ✅       |
+| E2E (food-service)                      | 33     | 33    | ✅       |
+| `tsc --noEmit` (food-service + infra)   | —      | —     | ✅ clean |
+| `npm run lint` (food-service src)       | —      | —     | ✅ clean |
+| `prettier --check` (changed files)      | —      | —     | ✅ clean |
+| `bundle:lambda` (esbuild → dist-lambda) | —      | —     | ✅ ok    |
+
+T-001c, T-053, T-181, T-182, T-183, T-191, FU-MIGRATE, FU-ESBUILD marked `[x]`. No commit/push.
+
+### Wrinkles / flagged
+
+- **Pre-existing T-001 gap fixed: no `USDA_API_KEY` seam.** The original stack wired `USDA_API_KEY` to
+  NO container, yet the worker + change-refresh entrypoints THROW without it and the Nest API env schema
+  requires it — so the existing worker/API would crash-loop. Added a `usdaApiKey` stack prop (from
+  `process.env['USDA_API_KEY']`) spread into all three container env blocks. FLAG: it is wired as
+  PLAINTEXT container env (no Secrets Manager seam for source creds yet); before a real key ships this
+  MUST move to `ecs.Secret.fromSecretsManager` (like the DB creds) so the key never lands in the
+  synthesized template.
+- **EMF metric-name reuse across the src↔infra boundary.** The infra tsconfig `rootDir` forbids
+  importing `src/observability/emf-metrics.ts` from `infra/` (TS6059), so the stack + the CDK test each
+  carry a byte-identical copy of the metric-name literals with a linking comment to the canonical source
+  (the decision allowed "reuse the literals … with a comment linking them"). Three places assert the
+  same literals (emitter unit test, stack, CDK template assertions).
+- **Added metrics beyond the 8 listed in T-181.** `food-fetch-pending-age-seconds` (backs the T-183
+  pending-age alarm), `food-in-flight-leases` + `food-worker-error-count` (back the T-182 "in-flight
+  leases" + "worker error rate" widgets) — none of the 8 covered those, so they were added to keep the
+  alarm/dashboard honest.
+- **`infra:synth` needs AWS creds** for the `Vpc.fromLookup` (no cached context locally), so synth was
+  verified via the CDK `Template.fromStack` test (a full synth that uses the real `Code.fromAsset`
+  `dist-lambda` asset) rather than the `cdk synth` CLI. `bundle:lambda` runs clean and is prepended to
+  `infra:synth`/`infra:deploy`.

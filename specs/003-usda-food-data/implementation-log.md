@@ -725,3 +725,53 @@ types deduced for parameter $4`, the enum/text reuse), then `2 failed` on a shar
 5. **`/refetch` vs the worker refresh branch**: refetch re-enqueues (202) but the worker currently
    `refresh_skip`s a RESOLVED row (change-refresh is Phase 8 worker-side, out of this slice) — noted for the
    final e2e/worker slice.
+
+---
+
+## Test slice — `/v1/foods/*` integration + e2e coverage (2026-06-30, BE-1)
+
+**Scope.** Author the comprehensive integration + e2e coverage for every `/v1/foods/*` endpoint and the
+async worker flows. Test-only slice — no production behaviour changed. Coverage audit:
+`specs/003-usda-food-data/testing/api-coverage.md`.
+
+### Red / Green
+
+| Suite                             | Before     | After   | Delta                                         |
+| --------------------------------- | ---------- | ------- | --------------------------------------------- |
+| Unit (`npm test`, food-service)   | 85         | 85      | —                                             |
+| Integration (`test:integration`)  | 132        | **140** | +8 (extended `foods-api.integration.test.ts`) |
+| E2E (`test:e2e`)                  | 2 (health) | 2       | — (**BLOCKED**, see STOP below)               |
+| clerk-verify unit                 | 8          | 8       | —                                             |
+| `npx tsc --noEmit` (food-service) | clean      | clean   | —                                             |
+
+### Integration gaps filled (deliverable #3) — all green, mocked auth (orthogonal to the STOP)
+
+- GET `/{id}/status` → 200 status-only for NOT_FOUND / FAILED / UNRESOLVED (no `food`).
+- GET `/{id}/candidates` → 404 for unknown id.
+- GET `/search` → product-barcode crosswalk hit; empty/whitespace query → empty (zero source calls).
+- POST `/v1/foods` → re-add of an already-RESOLVED name returns inline RESOLVED with **no fresh
+  enqueue** (FR-028a no-burn path).
+- PATCH `/{id}` → 409 `NotResolvableError` on a PENDING food; 404 on unknown id.
+- POST `/{id}/refetch` → 404 on an admin refetch of an unknown id (scope passes, food missing).
+
+### STOP — production auth bug blocks the full-stack e2e (deliverable #2)
+
+The e2e centrepiece (real minted Clerk JWT + stubbed adapter + worker drain) is **not landed** because
+the real auth path is broken: `@kitchensink/clerk-verify.verifyClerkToken()` rejects every valid token
+against the installed `@clerk/backend@1.34.0`. `verifyToken` returns the **bare JWT payload** on
+success, but `clerk-verify.ts:114` (`result.errors || !result.data`) treats the absent `data` wrapper
+as a failure → `ClerkVerificationError` → `FoodAuthGuard` 401. Every authenticated e2e flow is gated on
+surviving the guard, so the suite would be red. Per the task instruction the e2e was **not** written
+against a mocked `verifyClerkToken` (that would hide the bug and contradict the real-JWT requirement).
+
+- Reproduction, root cause, blast radius (identity `clerk-auth.service.ts:84` shares the pattern),
+  and the recommended fix are documented in `testing/api-coverage.md §4`.
+- JWT minting recipe and the app+worker+stub-adapter harness are designed and proven in isolation
+  (`testing/api-coverage.md §3`) — ready to wire once the auth bug is fixed.
+
+### T-190 (E2E harness) status
+
+Left **unchecked** — the add→resolve / candidates / NOT_FOUND / batch / search / FAILED / backpressure
+e2e scenarios it requires cannot go green until the `clerk-verify` auth bug is fixed. The harness design
+
+- stub-adapter + JWT-mint approach are recorded for immediate completion post-fix.

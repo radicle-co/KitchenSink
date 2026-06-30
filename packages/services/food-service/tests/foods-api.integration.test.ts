@@ -351,6 +351,24 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             const missing = await call('GET', `/v1/foods/${ulid()}/status`, { token: 'user' });
             expect(missing.status).toBe(404);
         });
+
+        it('returns 200 + status only (no food) for NOT_FOUND / FAILED / UNRESOLVED rows', async () => {
+            const notFound = await seedFood('NOT_FOUND', 'ghost status');
+            const failed = await seedFood('FAILED', 'failed status');
+            const { id: unresolved } = await seedUnresolved('broccoli status');
+
+            for (const [id, status] of [
+                [notFound, 'NOT_FOUND'],
+                [failed, 'FAILED'],
+                [unresolved, 'UNRESOLVED'],
+            ] as const) {
+                const res = await call('GET', `/v1/foods/${id}/status`, { token: 'user' });
+                expect(res.status).toBe(200);
+                const body = res.body as { status: string; food?: unknown };
+                expect(body.status).toBe(status);
+                expect(body.food).toBeUndefined();
+            }
+        });
     });
 
     // ── GET /v1/foods/{id}/candidates (T-133) ──────────────────────────────────────────────────────
@@ -370,6 +388,11 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             const res = await call('GET', `/v1/foods/${id}/candidates`, { token: 'user' });
             expect(res.status).toBe(200);
             expect((res.body as { candidates: unknown[] }).candidates).toEqual([]);
+        });
+
+        it('returns 404 for an unknown id', async () => {
+            const res = await call('GET', `/v1/foods/${ulid()}/candidates`, { token: 'user' });
+            expect(res.status).toBe(404);
         });
     });
 
@@ -403,6 +426,21 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             const none = await call('GET', '/v1/foods/search?query=zzzznotathing', { token: 'user' });
             expect((none.body as { results: unknown[] }).results).toEqual([]);
         });
+
+        it('resolves a known product barcode crosswalk to the food id (FR-008)', async () => {
+            const id = await seedResolved('Branded cereal', '900001');
+            await pool.query(`UPDATE food SET barcode = $2 WHERE id = $1`, [id, '0123456789012']);
+
+            const res = await call('GET', '/v1/foods/search?query=0123456789012', { token: 'user' });
+            expect(res.status).toBe(200);
+            expect((res.body as { results: { id: string }[] }).results.map((r) => r.id)).toContain(id);
+        });
+
+        it('returns an empty result set (never a source call) for an empty/whitespace query', async () => {
+            const res = await call('GET', '/v1/foods/search?query=%20%20', { token: 'user' });
+            expect(res.status).toBe(200);
+            expect((res.body as { results: unknown[] }).results).toEqual([]);
+        });
     });
 
     // ── POST /v1/foods (T-140) ─────────────────────────────────────────────────────────────────────
@@ -431,6 +469,20 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             expect(res.status).toBe(400);
             const foods = await pool.query('SELECT count(*)::int AS n FROM food');
             expect(foods.rows[0].n).toBe(0);
+        });
+
+        it('re-adds an already-RESOLVED name inline (RESOLVED, no fresh enqueue / no source budget burned)', async () => {
+            const seeded = await seedResolved('Already resolved', '700001');
+
+            const res = await call('POST', '/v1/foods', { token: 'user', body: { name: 'Already resolved' } });
+            expect(res.status).toBe(202);
+            const body = res.body as { id: string; status: string; estimatedWaitSeconds?: number };
+            expect(body.id).toBe(seeded);
+            expect(body.status).toBe('RESOLVED');
+
+            // No queue row created for an existing terminal-non-tombstoned hit (FR-028a no-burn path).
+            const queue = await pool.query('SELECT count(*)::int AS n FROM fetch_queue WHERE food_id = $1', [seeded]);
+            expect(queue.rows[0].n).toBe(0);
         });
     });
 
@@ -507,6 +559,19 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             expect(res.status).toBe(400);
         });
 
+        it('rejects a resolve on a PENDING (not-awaiting-disambiguation) food with 409 (NotResolvableError)', async () => {
+            const id = await seedFood('PENDING', 'pending resolve');
+            const res = await call('PATCH', `/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
+            expect(res.status).toBe(409);
+            const food = await pool.query('SELECT status FROM food WHERE id = $1', [id]);
+            expect(food.rows[0].status).toBe('PENDING');
+        });
+
+        it('returns 404 when resolving an unknown id', async () => {
+            const res = await call('PATCH', `/v1/foods/${ulid()}`, { token: 'user', body: { candidateIds: [ulid()] } });
+            expect(res.status).toBe(404);
+        });
+
         it('returns 503 (not 429) when the rolling-window cap is exhausted; food stays UNRESOLVED (DSN-6)', async () => {
             const { id, candidateIds } = await seedUnresolved('broccoli');
             // Fill the USDA window to its hard cap (USDA_RATE_LIMIT_PER_HOUR=5) so tryRecord denies.
@@ -555,6 +620,11 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
             const queue = await pool.query('SELECT status FROM fetch_queue WHERE food_id = $1', [id]);
             expect(queue.rows[0].status).toBe('pending');
+        });
+
+        it('returns 404 for an admin refetch of an unknown id (scope passes, food missing)', async () => {
+            const res = await call('POST', `/v1/foods/${ulid()}/refetch`, { token: 'admin' });
+            expect(res.status).toBe(404);
         });
     });
 

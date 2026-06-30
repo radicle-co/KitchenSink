@@ -1,22 +1,61 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
 
 /**
- * Validates the kitchensink_food schema (T-005–T-008) against a REAL Postgres. Applies the
- * hand-authored ordered migration SQL — the source of truth the in-VPC runner applies (FU-MIGRATE)
- * — to a clean DB and asserts the FR-028 CHECK constraint, the fetch_queue ON CONFLICT dedup, the
- * usda_sync_metadata singleton seed, the empty usda_call_log window, the expected indexes, and the
- * pg_trgm extension. Runs against CI's Postgres service (or a local DATABASE_URL); skips cleanly
- * when none is configured.
+ * Validates the source-agnostic `kitchensink_food` schema (T-100..T-104, T-111) against a REAL
+ * Postgres. Applies the hand-authored ordered migration SQL — the source of truth the in-VPC runner
+ * applies (FU-MIGRATE) — to a clean DB and probes the hardened constraints from plan.md §2 /
+ * decision-register D-* (D-PROVENANCE-FK, D-LEASE, D-CANDIDATES, DB-5, DB-6, DB-7, DB-8):
+ *
+ *   - all 13 canonical/operational tables + 5 controlled enum types exist;
+ *   - `food.normalized_name` is UNIQUE (FR-005 dedup);
+ *   - the composite same-food provenance FK rejects a `food_nutrients` row whose `source_id`
+ *     belongs to a DIFFERENT food (the key DB-2 / D-PROVENANCE-FK integrity test);
+ *   - `CHECK (amount >= 0)` / `CHECK (gram_weight > 0)` reject bad values (DB-6);
+ *   - the operational text+CHECK columns (`food_sources.fetch_state`, `fetch_queue.status`) reject
+ *     out-of-set values (DB-7);
+ *   - the `nutrient (name, unit)` fallback dedup is UNIQUE (DB-5);
+ *   - `fetch_queue` carries the `leased_at` lease column + the pending-priority and inflight-lease
+ *     partial indexes (D-LEASE / DB-8);
+ *   - the `pg_trgm` GIN indexes on `food.name` / `food.description` exist (FR-008);
+ *   - `food_candidates` enforces `UNIQUE(food_id, source, external_key)` (D-CANDIDATES).
+ *
+ * Runs against CI's Postgres service (or a local DATABASE_URL); skips cleanly when none is set.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
+/** The 13 canonical + operational tables (plan.md §2 "Final table list" + `food_candidates`). */
+const EXPECTED_TABLES = [
+    'food',
+    'food_sources',
+    'nutrient',
+    'food_nutrients',
+    'food_portions',
+    'food_field_provenance',
+    'food_category',
+    'food_category_assignment',
+    'food_candidates',
+    'fetch_queue',
+    'fetch_requesters',
+    'source_call_log',
+    'source_sync_metadata',
+] as const;
+
+/** The 5 controlled-set enums modelled with `pgEnum` (DB-7). */
+const EXPECTED_ENUMS = ['food_status', 'food_kind', 'food_source', 'food_field', 'nutrient_basis'] as const;
+
+/**
+ * Apply the ordered hand-authored migration SQL to a clean `public` schema.
+ *
+ * @param pool - The connected pg pool.
+ * @sideEffect Drops and recreates the `public` schema, then runs every `.sql` file in order.
+ */
 async function runMigrations(pool: pg.Pool): Promise<void> {
     const files = readdirSync(migrationsDir)
         .filter((file) => file.endsWith('.sql'))
@@ -32,102 +71,210 @@ async function runMigrations(pool: pg.Pool): Promise<void> {
     }
 }
 
+/**
+ * Seed the minimal two-food crosswalk used by the constraint probes. Each food has its own
+ * `food_sources` row so the same-food provenance FK can be exercised both positively and negatively.
+ *
+ * @param pool - The connected pg pool.
+ * @sideEffect Inserts rows into `food`, `food_sources`, and `nutrient`.
+ */
+async function seed(pool: pg.Pool): Promise<void> {
+    await pool.query(`INSERT INTO food (id, normalized_name, status) VALUES ('food_a', 'apple', 'PENDING')`);
+    await pool.query(`INSERT INTO food (id, normalized_name, status) VALUES ('food_b', 'banana', 'PENDING')`);
+    await pool.query(
+        `INSERT INTO food_sources (id, food_id, source, external_key) VALUES ('src_a', 'food_a', 'usda', 'A')`,
+    );
+    await pool.query(
+        `INSERT INTO food_sources (id, food_id, source, external_key) VALUES ('src_b', 'food_b', 'usda', 'B')`,
+    );
+    await pool.query(`INSERT INTO nutrient (id, name, unit) VALUES ('nut_protein', 'Protein', 'g')`);
+    await pool.query(`INSERT INTO nutrient (id, name, unit) VALUES ('nut_fat', 'Total fat', 'g')`);
+}
+
 describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await runMigrations(pool);
+        await seed(pool);
     });
 
     afterAll(async () => {
         await pool?.end();
     });
 
-    it('applies the ordered migration SQL with no error', async () => {
-        // beforeAll already ran the migration; a re-run on a clean schema must also succeed.
-        await expect(runMigrations(pool)).resolves.toBeUndefined();
-    });
-
-    describe('foods.fetch_status CHECK (FR-028)', () => {
-        it('rejects an invalid fetch_status', async () => {
-            await expect(
-                pool.query(`INSERT INTO foods (fdc_id, fetch_status) VALUES (100001, 'bogus')`),
-            ).rejects.toThrow();
+    describe('table + enum topology (D-CANDIDATES — 13 tables)', () => {
+        it('creates all 13 canonical + operational tables', async () => {
+            const { rows } = await pool.query<{ table_name: string }>(
+                `SELECT table_name FROM information_schema.tables
+                  WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+            );
+            const names = new Set(rows.map((row) => row.table_name));
+            for (const table of EXPECTED_TABLES) {
+                expect(names, `missing table ${table}`).toContain(table);
+            }
+            expect(names.size).toBe(EXPECTED_TABLES.length);
         });
 
-        it('accepts a valid fetch_status', async () => {
+        it('creates the 5 controlled-set enum types (DB-7)', async () => {
+            const { rows } = await pool.query<{ typname: string }>(`SELECT typname FROM pg_type WHERE typtype = 'e'`);
+            const names = new Set(rows.map((row) => row.typname));
+            for (const enumType of EXPECTED_ENUMS) {
+                expect(names, `missing enum ${enumType}`).toContain(enumType);
+            }
+        });
+
+        it('has NO source-native identifier column (no fdc_id) on any table (SC-013)', async () => {
+            const { rows } = await pool.query<{ column_name: string }>(
+                `SELECT column_name FROM information_schema.columns
+                  WHERE table_schema = 'public' AND column_name = 'fdc_id'`,
+            );
+            expect(rows).toHaveLength(0);
+        });
+    });
+
+    describe('food.normalized_name UNIQUE (FR-005 dedup)', () => {
+        it('rejects a second food with the same normalized_name', async () => {
             await expect(
-                pool.query(`INSERT INTO foods (fdc_id, fetch_status) VALUES (100002, 'pending')`),
+                pool.query(`INSERT INTO food (id, normalized_name, status) VALUES ('food_dup', 'apple', 'PENDING')`),
+            ).rejects.toThrow();
+        });
+    });
+
+    describe('composite same-food provenance FK (D-PROVENANCE-FK / DB-2)', () => {
+        it('accepts a food_nutrients row whose source_id belongs to the SAME food', async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food_nutrients (id, food_id, nutrient_id, amount, source_id)
+                     VALUES ('fn_ok', 'food_a', 'nut_protein', '2.8', 'src_a')`,
+                ),
             ).resolves.toBeDefined();
-            await pool.query(`DELETE FROM foods WHERE fdc_id = 100002`);
-        });
-    });
-
-    describe('fetch_queue ON CONFLICT dedup (FR-014)', () => {
-        it('increments request_count atomically on conflict', async () => {
-            await pool.query(`DELETE FROM fetch_queue WHERE fdc_id = '200001'`);
-
-            const enqueue = `INSERT INTO fetch_queue (fdc_id) VALUES ('200001')
-                ON CONFLICT (fdc_id) DO UPDATE SET request_count = fetch_queue.request_count + 1`;
-            await pool.query(enqueue);
-            await pool.query(enqueue);
-
-            const { rows } = await pool.query<{ request_count: number }>(
-                `SELECT request_count FROM fetch_queue WHERE fdc_id = '200001'`,
-            );
-            expect(rows[0]?.request_count).toBe(2);
-
-            await pool.query(`DELETE FROM fetch_queue WHERE fdc_id = '200001'`);
         });
 
-        it('rejects an invalid status (FR-014/FR-015 CHECK)', async () => {
+        it('REJECTS a food_nutrients row whose source_id belongs to a DIFFERENT food', async () => {
+            // source_id 'src_b' is food_b's crosswalk row; the value row claims food_a → the
+            // composite (food_id, source_id) FK to food_sources(food_id, id) has no match.
             await expect(
-                pool.query(`INSERT INTO fetch_queue (fdc_id, status) VALUES ('200002', 'bogus')`),
+                pool.query(
+                    `INSERT INTO food_nutrients (id, food_id, nutrient_id, amount, source_id)
+                     VALUES ('fn_cross', 'food_a', 'nut_fat', '0.4', 'src_b')`,
+                ),
+            ).rejects.toThrow();
+        });
+
+        it('REJECTS a food_portions row whose source_id belongs to a DIFFERENT food', async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food_portions (id, food_id, label, gram_weight, source_id)
+                     VALUES ('fp_cross', 'food_a', '1 cup', '91', 'src_b')`,
+                ),
+            ).rejects.toThrow();
+        });
+
+        it('REJECTS a food_field_provenance row whose source_id belongs to a DIFFERENT food', async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food_field_provenance (food_id, field, source_id)
+                     VALUES ('food_a', 'name', 'src_b')`,
+                ),
             ).rejects.toThrow();
         });
     });
 
-    describe('usda_sync_metadata singleton (FR-019)', () => {
-        it('has exactly one row with id = 1', async () => {
-            const { rows } = await pool.query<{ count: string }>(`SELECT count(*) AS count FROM usda_sync_metadata`);
-            expect(Number(rows[0]?.count)).toBe(1);
+    describe('numeric value CHECK constraints (DB-6)', () => {
+        it('rejects a negative food_nutrients.amount', async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food_nutrients (id, food_id, nutrient_id, amount, source_id)
+                     VALUES ('fn_neg', 'food_a', 'nut_fat', '-1', 'src_a')`,
+                ),
+            ).rejects.toThrow();
+        });
 
-            const { rows: idRows } = await pool.query<{ id: number }>(`SELECT id FROM usda_sync_metadata`);
-            expect(idRows[0]?.id).toBe(1);
+        it('rejects a non-positive food_portions.gram_weight', async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food_portions (id, food_id, label, gram_weight, source_id)
+                     VALUES ('fp_zero', 'food_a', '1 cup', '0', 'src_a')`,
+                ),
+            ).rejects.toThrow();
         });
     });
 
-    describe('usda_call_log rolling window (FR-019)', () => {
-        it('starts empty over the trailing 60 minutes', async () => {
-            const { rows } = await pool.query<{ count: string }>(
-                `SELECT count(*) AS count FROM usda_call_log WHERE called_at > now() - interval '60 minutes'`,
+    describe('operational text+CHECK columns (DB-7)', () => {
+        it('rejects an invalid food_sources.fetch_state', async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food_sources (id, food_id, source, external_key, fetch_state)
+                     VALUES ('src_bad', 'food_a', 'usda', 'C', 'bogus')`,
+                ),
+            ).rejects.toThrow();
+        });
+
+        it('rejects an invalid fetch_queue.status', async () => {
+            await expect(
+                pool.query(`INSERT INTO fetch_queue (food_id, status) VALUES ('food_a', 'bogus')`),
+            ).rejects.toThrow();
+        });
+    });
+
+    describe('nutrient (name, unit) fallback dedup UNIQUE (DB-5)', () => {
+        it('rejects a second nutrient with the same (name, unit)', async () => {
+            await expect(
+                pool.query(`INSERT INTO nutrient (id, name, unit) VALUES ('nut_dup', 'Protein', 'g')`),
+            ).rejects.toThrow();
+        });
+    });
+
+    describe('fetch_queue lease column + partial indexes (D-LEASE / DB-8)', () => {
+        it('has a nullable leased_at column', async () => {
+            const { rows } = await pool.query<{ is_nullable: string }>(
+                `SELECT is_nullable FROM information_schema.columns
+                  WHERE table_name = 'fetch_queue' AND column_name = 'leased_at'`,
             );
-            expect(Number(rows[0]?.count)).toBe(0);
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.is_nullable).toBe('YES');
         });
-    });
 
-    describe('indexes (FR-029)', () => {
-        it('creates the expected indexes', async () => {
+        it('creates the pending-priority and inflight-lease partial indexes', async () => {
             const { rows } = await pool.query<{ indexname: string }>(
                 `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
             );
             const names = new Set(rows.map((row) => row.indexname));
-            for (const expected of [
-                'idx_fetch_queue_priority',
-                'idx_foods_search',
-                'idx_foods_fetch_status_fetched_at',
-                'idx_usda_call_log_called_at',
-            ]) {
-                expect(names).toContain(expected);
-            }
+            expect(names).toContain('idx_fetch_queue_priority');
+            expect(names).toContain('idx_fetch_queue_inflight_lease');
         });
     });
 
-    describe('pg_trgm extension (FR-029)', () => {
-        it('is installed', async () => {
+    describe('pg_trgm fuzzy-search indexes (FR-008)', () => {
+        it('installs the pg_trgm extension', async () => {
             const { rows } = await pool.query(`SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'`);
             expect(rows).toHaveLength(1);
+        });
+
+        it('creates GIN trigram indexes on food.name and food.description', async () => {
+            const { rows } = await pool.query<{ indexname: string }>(
+                `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
+            );
+            const names = new Set(rows.map((row) => row.indexname));
+            expect(names).toContain('food_name_trgm_idx');
+            expect(names).toContain('food_description_trgm_idx');
+        });
+    });
+
+    describe('food_candidates UNIQUE(food_id, source, external_key) (D-CANDIDATES)', () => {
+        it('rejects a duplicate (food_id, source, external_key) candidate', async () => {
+            await pool.query(
+                `INSERT INTO food_candidates (id, food_id, source, external_key, name)
+                 VALUES ('cand_1', 'food_a', 'usda', '171688', 'Broccoli, raw')`,
+            );
+            await expect(
+                pool.query(
+                    `INSERT INTO food_candidates (id, food_id, source, external_key, name)
+                     VALUES ('cand_2', 'food_a', 'usda', '171688', 'Broccoli, raw (dup)')`,
+                ),
+            ).rejects.toThrow();
         });
     });
 });

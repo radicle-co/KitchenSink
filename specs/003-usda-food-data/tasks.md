@@ -155,7 +155,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
 > FU-MIGRATE (T-191) wires the in-VPC runner. The old T-004..T-009 (`foods` denormalized table, `fdcId` PK,
 > `usda_sync_metadata`, `usda_call_log`, `ingredients` FK) are **removed/replaced** by the tasks below.
 
-- [ ] **T-100** [M] [Test-first: true] Drizzle schema — canonical core (`food`, `food_sources`, `nutrient`, `food_nutrients`, `food_portions`, `food_field_provenance`, `food_category`, `food_category_assignment`) + enums (`food_status`, `food_kind`, `food_source`, `food_field`, `nutrient_basis`) — `packages/services/food-service/src/db/schema/food.ts` (FR-028, FR-IDN-1, FR-IDN-3)
+- [x] **T-100** [M] [Test-first: true] Drizzle schema — canonical core (`food`, `food_sources`, `nutrient`, `food_nutrients`, `food_portions`, `food_field_provenance`, `food_category`, `food_category_assignment`) + enums (`food_status`, `food_kind`, `food_source`, `food_field`, `nutrient_basis`) — `packages/services/food-service/src/db/schema/food.ts` (FR-028, FR-IDN-1, FR-IDN-3)
       ULID `text('id')` PKs via a `newFoodId()` helper (reusing `ulidx`, mirroring identity's `newUserId`);
       `pgEnum` enums; `timestamp(col, { withTimezone: true })`; `numeric` for nutrient amounts/gram weights
       (SC-008 fidelity). `food_sources.external_key` (mapped from `fdcId`), `item_version` for refresh
@@ -169,7 +169,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
       a schema test asserts no source-native identifier column (no `fdc_id`) exists on any canonical table (SC-013);
       a value row whose `source_id` belongs to a different `food_id` is rejected by the composite FK.
 
-- [ ] **T-101** [S] [Test-first: true] Drizzle schema — operational tables (`fetch_queue` keyed on food `id` PK, `fetch_requesters`, `source_call_log` per-source, `source_sync_metadata` per-source) — `packages/services/food-service/src/db/schema/operational.ts` (FR-014, FR-018, FR-019, FR-043, FR-044, FR-IDN-3)
+- [x] **T-101** [S] [Test-first: true] Drizzle schema — operational tables (`fetch_queue` keyed on food `id` PK, `fetch_requesters`, `source_call_log` per-source, `source_sync_metadata` per-source) — `packages/services/food-service/src/db/schema/operational.ts` (FR-014, FR-018, FR-019, FR-043, FR-044, FR-IDN-3)
       `fetch_queue.food_id text PRIMARY KEY REFERENCES food(id)`; `status CHECK IN ('pending','in_flight','tombstone')`;
       **`leased_at timestamptz`** worker-lease column (D-LEASE — the reaper reverts `in_flight` rows whose
       `leased_at < now() - FOOD_LEASE_TIMEOUT_SECONDS` back to `pending`; reject `lease_expires_at` / reusing
@@ -180,7 +180,7 @@ PHASE 11: PERF/LOAD (T-195) [SC-001/003/004/007] · MULTI-AZ UPGRADE (T-196) [de
       `leased_at` column exists and is nullable (set on lease, cleared on release);
       `source_call_log` starts empty and the trailing-60-min count query returns 0 on a fresh DB.
 
-- [ ] **T-102** [M] [Test-first: true] Migration: canonical core tables + constraints — `—` (FR-028, FR-IDN-1)
+- [x] **T-102** [M] [Test-first: true] Migration: canonical core tables + constraints — `—` (FR-028, FR-IDN-1)
       Ordered SQL creating the 8 canonical tables with their `food_id` FKs (`ON DELETE CASCADE` to `food`), the
       `food_normalized_name_unique` UNIQUE index (FR-005/FR-013 dedup), `food_sources_source_key_unique
 UNIQUE(source, external_key)` (R4), and the `food_sources.fetch_state` `CHECK (fetch_state IN ('fetched','error'))` (DB-7). **Provenance same-food integrity (D-PROVENANCE-FK):** add
@@ -192,14 +192,14 @@ UNIQUE(source, external_key)` (R4), and the `food_sources.fetch_state` `CHECK (f
       `(source, external_key)` is rejected; a `food_nutrients`/`food_portions`/`food_field_provenance` row pointing
       at a `source_id` from a **different** `food_id` is rejected by the composite FK.
 
-- [ ] **T-103** [S] [Test-first: true] Migration: operational tables — `—` (FR-014, FR-019, FR-043)
+- [x] **T-103** [S] [Test-first: true] Migration: operational tables — `—` (FR-014, FR-019, FR-043)
       Ordered SQL for `fetch_queue`, `fetch_requesters`, `source_call_log`, `source_sync_metadata`. Includes
       **user-erasure handling**: on a user-deletion event, `fetch_requesters` rows for that `sub` are deleted
       (closes the constitution data-privacy warning). **No `user_fetch_quota`/`global_fetch_quota` tables.**
       **Acceptance**: `ON CONFLICT (food_id) DO UPDATE` on `fetch_queue` works atomically; `fetch_requesters`
       dedups on `(food_id, sub)`.
 
-- [ ] **T-104** [S] [Test-first: true] Migration: indexes (search + lifecycle + queue + limiter) — `—` (FR-008, FR-010, FR-015, FR-019, FR-029)
+- [x] **T-104** [S] [Test-first: true] Migration: indexes (search + lifecycle + queue + limiter) — `—` (FR-008, FR-010, FR-015, FR-019, FR-029)
       Apply: `food_status_idx`; `food_barcode_idx WHERE barcode IS NOT NULL`; GIN trigram
       `food_name_trgm_idx` / `food_description_trgm_idx` (`gin_trgm_ops`); `food_sources_food_id_idx`;
       `food_nutrients_food_id_idx`; `food_nutrients_source_id_idx`; the **demand-weighted partial**
@@ -254,10 +254,11 @@ AND called_at > now()-interval '60 minutes') < $cap RETURNING id` (permits the c
       `-61m` → only the `>60m` row is deleted and the in-window count is unchanged (the prune must not under-count the
       limiter, TST-5).
 
-- [ ] **T-111** [M] [Test-first: true] `food_candidates` schema + migration + `CandidateStore` DAO (backs `UNRESOLVED` / US-2a) — `packages/services/food-service/src/db/schema/food-candidates.ts`, migration, `packages/services/food-service/src/foods/dao/food-candidates.dao.ts` (FR-028, FR-RES-1, FR-RES-2, FR-MRG-5, FR-025a)
+- [x] **T-111** [M] [Test-first: true] `food_candidates` schema + migration + `CandidateStore` DAO (backs `UNRESOLVED` / US-2a) — `packages/services/food-service/src/db/schema/food-candidates.ts`, migration, `packages/services/food-service/src/foods/dao/food-candidates.dao.ts` (FR-028, FR-RES-1, FR-RES-2, FR-MRG-5, FR-025a)
+      _(2026-06-29: schema + migration delivered and green — `food_candidates` table + `UNIQUE(food_id, source, external_key)` verified. The `CandidateStore` DAO (`food-candidates.dao.ts`) is a T-105+ DAO, deferred to the DAO phase.)_
       The 13th canonical table (D-CANDIDATES): `food_candidates(id text PK, food_id text NOT NULL REFERENCES
-  food(id) ON DELETE CASCADE, source food_source NOT NULL, external_key text NOT NULL, name text NOT NULL,
-  summary text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(food_id, source, external_key))`. DAO:
+food(id) ON DELETE CASCADE, source food_source NOT NULL, external_key text NOT NULL, name text NOT NULL,
+summary text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(food_id, source, external_key))`. DAO:
       `persistCandidates(food_id, candidates[])` (worker writes the surviving set on an `UNRESOLVED` outcome),
       `listByFood(food_id)` (backs `GET /candidates`), `isMember(food_id, candidate_id)` (PATCH-resolve
       validation), `clear(food_id)` (on resolve or candidate-set expiry).

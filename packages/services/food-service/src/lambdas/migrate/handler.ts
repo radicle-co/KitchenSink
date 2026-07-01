@@ -164,6 +164,111 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<Migr
     }
 }
 
+/** The single shared base logical database (ADR-0006) — the migration runner never CREATEs this one. */
+export const BASE_FOOD_DATABASE_NAME = 'kitchensink_food';
+
+/**
+ * Valid food logical-database names: the base name, or a per-PR name `kitchensink_food_{suffix}` where
+ * the suffix is lowercase alphanumerics/underscores (mirrors {@link foodDatabaseNameForStage} in the
+ * CDK stack). Because the name is validated against this pattern, it is safe to quote directly into a
+ * `CREATE DATABASE "<name>"` statement (which cannot be parameterized) with no injection surface.
+ */
+const FOOD_DATABASE_NAME_PATTERN = /^kitchensink_food(_[a-z0-9_]+)?$/;
+
+/**
+ * Guard that a database name is a well-formed food logical-database name.
+ *
+ * @param name - The candidate database name.
+ * @returns `true` when the name matches the food database naming contract.
+ */
+export function isValidFoodDatabaseName(name: string): boolean {
+    return FOOD_DATABASE_NAME_PATTERN.test(name);
+}
+
+/** Options for {@link ensureDatabaseExists} — a pool connected to the MAINTENANCE database. */
+export interface EnsureDatabaseOptions {
+    /** A `pg` pool connected to the maintenance database (`postgres`), NOT the target DB. */
+    readonly maintenancePool: pg.Pool;
+    /** The target food logical-database name to ensure exists. */
+    readonly databaseName: string;
+}
+
+/** The outcome of an {@link ensureDatabaseExists} call. */
+export type EnsureDatabaseResult = 'skipped-base' | 'exists' | 'created';
+
+/**
+ * Ensure a per-PR food logical database exists, creating it if absent (ADR-0006). The base database
+ * (`kitchensink_food`) is provisioned by the platform DataStack bootstrap SQL, so this is a no-op for
+ * it. For a per-PR name it validates the identifier, checks `pg_database`, and `CREATE DATABASE`s it if
+ * missing. Idempotent and re-invoke-safe: an already-present database returns `'exists'`.
+ *
+ * @param options - The maintenance pool + the target database name.
+ * @returns `'skipped-base'` for the base DB, `'exists'` if already present, `'created'` if created.
+ * @throws {Error} when the database name is not a valid food logical-database name.
+ * @sideEffect Connects to the maintenance database and may execute `CREATE DATABASE`.
+ */
+export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Promise<EnsureDatabaseResult> {
+    const { maintenancePool, databaseName } = options;
+
+    if (databaseName === BASE_FOOD_DATABASE_NAME) {
+        return 'skipped-base';
+    }
+
+    if (!isValidFoodDatabaseName(databaseName)) {
+        throw new Error(`Refusing to create database with invalid name: ${databaseName}`);
+    }
+
+    const existing = await maintenancePool.query('SELECT 1 FROM pg_database WHERE datname = $1', [databaseName]);
+
+    if ((existing.rowCount ?? 0) > 0) {
+        return 'exists';
+    }
+
+    // CREATE DATABASE cannot run inside a transaction and cannot be parameterized. The name is
+    // validated above against FOOD_DATABASE_NAME_PATTERN (no quotes/backslashes possible), so quoting
+    // it as an identifier is safe.
+    await maintenancePool.query(`CREATE DATABASE "${databaseName}"`);
+
+    return 'created';
+}
+
+/** The outcome of a {@link dropDatabase} call. */
+export type DropDatabaseResult = 'skipped-base' | 'dropped' | 'absent';
+
+/**
+ * Drop a per-PR food logical database (ADR-0006 PR-close cleanup). The base `kitchensink_food` is
+ * NEVER dropped (returns `'skipped-base'`). Uses `DROP DATABASE IF EXISTS … WITH (FORCE)` so lingering
+ * connections from a still-draining preview service are terminated (PostgreSQL 13+/RDS PG16).
+ * Idempotent: dropping an already-absent database returns `'absent'`.
+ *
+ * @param options - The maintenance pool + the target database name.
+ * @returns `'skipped-base'` for the base DB, `'dropped'` if it existed and was dropped, else `'absent'`.
+ * @throws {Error} when the database name is not a valid food logical-database name.
+ * @sideEffect Connects to the maintenance database and may execute `DROP DATABASE`.
+ */
+export async function dropDatabase(options: EnsureDatabaseOptions): Promise<DropDatabaseResult> {
+    const { maintenancePool, databaseName } = options;
+
+    if (databaseName === BASE_FOOD_DATABASE_NAME) {
+        return 'skipped-base';
+    }
+
+    if (!isValidFoodDatabaseName(databaseName)) {
+        throw new Error(`Refusing to drop database with invalid name: ${databaseName}`);
+    }
+
+    const existing = await maintenancePool.query('SELECT 1 FROM pg_database WHERE datname = $1', [databaseName]);
+
+    if ((existing.rowCount ?? 0) === 0) {
+        return 'absent';
+    }
+
+    // Identifier validated above (no quotes/backslashes possible), so quoting is injection-safe.
+    await maintenancePool.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+
+    return 'dropped';
+}
+
 /** The `food_app` secret payload — username/password only (host/port/dbname come from env). */
 interface FoodDbCredentials {
     /** The database role. */
@@ -214,22 +319,66 @@ function requireEnv(name: string): string {
     return value;
 }
 
+/** The event the migration runner accepts. Absent/`migrate` → apply migrations; `drop` → PR-close teardown. */
+export interface MigrateEvent {
+    /** `migrate` (default) applies migrations; `drop` drops the per-PR database (ADR-0006 cleanup). */
+    readonly action?: 'migrate' | 'drop';
+}
+
 /**
- * Lambda entrypoint: build the pool from the `food_app` secret + DB env, then run + validate the
- * migrations bundled alongside this handler.
+ * Lambda entrypoint. With no action (or `migrate`) it builds the pool from the `food_app` secret + DB
+ * env and runs + validates the migrations, creating the per-PR database first if it is absent
+ * (ADR-0006). With `action: 'drop'` it drops the per-PR database (never the base) for PR-close cleanup.
  *
- * @returns The applied/skipped lists + validation counts.
+ * @param event - Optional `{ action }` (defaults to `migrate`).
+ * @returns The migrate result, or the drop result when `action` is `drop`.
  * @sideEffect Reads Secrets Manager, connects to PostgreSQL, and executes DDL.
  */
-export const handler = async (): Promise<MigrateResult> => {
+export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
     const credentials = await readFoodDbCredentials(requireEnv('FOOD_DB_SECRET_ARN'));
+    const host = requireEnv('FOOD_DB_ENDPOINT');
+    const port = Number(requireEnv('FOOD_DB_PORT'));
+    const databaseName = requireEnv('FOOD_DB_NAME');
+    const ssl = process.env['STAGE'] === 'local' ? false : { rejectUnauthorized: false };
+
+    const withMaintenancePool = async <T>(run: (pool: pg.Pool) => Promise<T>): Promise<T> => {
+        const maintenancePool = new Pool({
+            user: credentials.username,
+            password: credentials.password,
+            host,
+            port,
+            database: 'postgres',
+            ssl,
+            max: 1,
+        });
+
+        try {
+            return await run(maintenancePool);
+        } finally {
+            await maintenancePool.end();
+        }
+    };
+
+    if (event.action === 'drop') {
+        const dropped = await withMaintenancePool((pool) => dropDatabase({ maintenancePool: pool, databaseName }));
+
+        return { dropped };
+    }
+
+    // Per-PR isolation (ADR-0006): a per-PR stage targets `kitchensink_food_pr_{N}`, which the platform
+    // bootstrap does NOT create. CREATE it (via the maintenance DB) if absent BEFORE migrating into it.
+    // The base `kitchensink_food` short-circuits (skipped-base), so the prod/sandbox path is unchanged.
+    if (databaseName !== BASE_FOOD_DATABASE_NAME) {
+        await withMaintenancePool((pool) => ensureDatabaseExists({ maintenancePool: pool, databaseName }));
+    }
+
     const pool = new Pool({
         user: credentials.username,
         password: credentials.password,
-        host: requireEnv('FOOD_DB_ENDPOINT'),
-        port: Number(requireEnv('FOOD_DB_PORT')),
-        database: requireEnv('FOOD_DB_NAME'),
-        ssl: process.env['STAGE'] === 'local' ? false : { rejectUnauthorized: false },
+        host,
+        port,
+        database: databaseName,
+        ssl,
         max: 1,
     });
 

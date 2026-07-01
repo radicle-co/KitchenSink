@@ -10,8 +10,9 @@
         "test": "vitest run",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "bundle:lambda": "node esbuild.mjs",
         "synth": "cdk synth --app 'npx tsx bin/app.ts'",
-        "deploy": "cdk deploy --app 'npx tsx bin/app.ts'"
+        "deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx bin/app.ts'"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
@@ -20,6 +21,7 @@
         "@types/node": "^24.0.0",
         "aws-cdk": "*",
         "dotenv": "*",
+        "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "*",

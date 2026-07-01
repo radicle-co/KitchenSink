@@ -10,6 +10,10 @@ import { FoodServiceStack } from '../lib/food-service-stack.js';
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
+// ADR-0006: a feature deploy imports the PERSISTENT platform tier, which exists only for `prod` and
+// `sandbox`. Prod rides prod; every other stage (sandbox itself + ephemeral `pr-{N}` previews) rides
+// the shared `sandbox` platform. `stage` still drives naming/tagging/routing/DB-isolation.
+const baseStage = stage === 'prod' ? 'prod' : stage === 'sandbox' ? 'sandbox' : 'sandbox';
 // food is a non-global FEATURE service: a per-PR deploy (stage = pr-{N}) is ephemeral and tagged
 // Environment=pr-{N} so the PR-close cleanup deletes it (by tag OR pr-{N} name prefix). A persistent
 // (non-PR) food deploy tags 'global'. See ADR-0005.
@@ -33,6 +37,7 @@ new FoodServiceStack(app, `FoodService-${stage}`, {
     env,
     stackName: `kitchensink-food-service-${stage}`,
     stage,
+    baseStage,
     domainName,
     vpcId,
     imageTag: process.env['FOOD_IMAGE_TAG'] ?? 'latest',

@@ -17,7 +17,12 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { discoverMigrations, runMigrations } from '../src/lambdas/migrate/handler.js';
+import {
+    discoverMigrations,
+    dropDatabase,
+    ensureDatabaseExists,
+    runMigrations,
+} from '../src/lambdas/migrate/handler.js';
 import { DATABASE_URL } from './support/db.js';
 
 const sourceMigrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
@@ -68,6 +73,60 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             writeFileSync(join(tempDir, '0000_noop.sql'), 'SELECT 1;');
 
             await expect(runMigrations({ pool, migrationsDir: tempDir })).rejects.toThrow(/tables missing/i);
+        });
+    });
+
+    describe('per-PR database lifecycle (ADR-0006)', () => {
+        // A DB name distinct from the base and any other suite; connecting to it verifies isolation.
+        const perPrName = 'kitchensink_food_pr_ittest';
+        // The maintenance pool connects to a DIFFERENT database so CREATE/DROP DATABASE are permitted.
+        const maintenancePool = new pg.Pool({ connectionString: DATABASE_URL });
+
+        const perPrConnectionString = (): string => {
+            const url = new URL(DATABASE_URL as string);
+            url.pathname = `/${perPrName}`;
+
+            return url.toString();
+        };
+
+        beforeEach(async () => {
+            await dropDatabase({ maintenancePool, databaseName: perPrName });
+        });
+
+        afterAll(async () => {
+            await dropDatabase({ maintenancePool, databaseName: perPrName });
+            await maintenancePool.end();
+        });
+
+        it('never creates or drops the shared base database', async () => {
+            await expect(ensureDatabaseExists({ maintenancePool, databaseName: 'kitchensink_food' })).resolves.toBe(
+                'skipped-base',
+            );
+            await expect(dropDatabase({ maintenancePool, databaseName: 'kitchensink_food' })).resolves.toBe(
+                'skipped-base',
+            );
+        });
+
+        it('creates the per-PR database, is idempotent, migrates into it, then drops it', async () => {
+            expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('created');
+            // Re-invoke is a no-op.
+            expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('exists');
+
+            // Migrate INTO the freshly created per-PR database (a separate connection).
+            const perPrPool = new pg.Pool({ connectionString: perPrConnectionString() });
+
+            try {
+                const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });
+
+                expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts']);
+                expect(result.validated.tables).toBeGreaterThanOrEqual(13);
+            } finally {
+                await perPrPool.end();
+            }
+
+            // Drop reclaims it (force-terminates lingering connections), and is idempotent.
+            expect(await dropDatabase({ maintenancePool, databaseName: perPrName })).toBe('dropped');
+            expect(await dropDatabase({ maintenancePool, databaseName: perPrName })).toBe('absent');
         });
     });
 });

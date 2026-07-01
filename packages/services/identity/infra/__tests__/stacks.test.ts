@@ -172,3 +172,68 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         expect(exportNames).not.toContain('TestService:IdentityAlbDnsName');
     });
 });
+
+describe('Per-stage Container Insights (ADR-0007)', () => {
+    const insightsValue = (template: Template): string => {
+        const clusters = Object.values(template.findResources('AWS::ECS::Cluster'));
+        const setting = (clusters[0] as any).Properties.ClusterSettings.find(
+            (entry: any) => entry.Name === 'containerInsights',
+        );
+
+        return setting.Value;
+    };
+
+    it('drops the non-prod (test) identity cluster to STANDARD', () => {
+        expect(insightsValue(serviceTemplate)).toBe('enabled');
+    });
+
+    it('keeps ENHANCED Container Insights for prod', () => {
+        const app = new App({
+            context: {
+                'vpc-provider:account=123456789012:filter.vpc-id=vpc-12345678:region=us-east-1:returnAsymmetricSubnets=true':
+                    {
+                        vpcId: 'vpc-12345678',
+                        vpcCidrBlock: '10.0.0.0/16',
+                        ownerAccountId: '123456789012',
+                        availabilityZones: [],
+                        subnetGroups: [
+                            {
+                                name: 'Public',
+                                type: 'Public',
+                                subnets: [
+                                    {
+                                        subnetId: 'subnet-public-1',
+                                        availabilityZone: 'us-east-1a',
+                                        routeTableId: 'rtb-public-1',
+                                        cidr: '10.0.0.0/24',
+                                    },
+                                ],
+                            },
+                            {
+                                name: 'Private',
+                                type: 'Private',
+                                subnets: [
+                                    {
+                                        subnetId: 'subnet-private-1',
+                                        availabilityZone: 'us-east-1a',
+                                        routeTableId: 'rtb-private-1',
+                                        cidr: '10.0.1.0/24',
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+            },
+        });
+        const prodService = new IdentityServiceStack(app, 'ProdService', {
+            env,
+            stage: 'prod',
+            domainName: 'example.com',
+            imageTag: 'test',
+            desiredCount: 1,
+            vpcId: 'vpc-12345678',
+        });
+
+        expect(insightsValue(Template.fromStack(prodService))).toBe('enhanced');
+    });
+});

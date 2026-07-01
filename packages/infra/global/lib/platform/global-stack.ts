@@ -4,6 +4,7 @@ import type { Construct } from 'constructs';
 import { DataStack } from './data-stack.js';
 import { DomainStack } from './domain-stack.js';
 import { NetworkStack } from './network-stack.js';
+import { SandboxSchedulerStack } from './sandbox-scheduler-stack.js';
 import { SharedAlbStack } from './shared-alb-stack.js';
 
 export interface GlobalStackProps extends StackProps {
@@ -23,6 +24,8 @@ export class GlobalStack extends Stack {
     public readonly data: DataStack;
     public readonly domain: DomainStack;
     public readonly alb: SharedAlbStack;
+    /** The sandbox nightly-shutdown scheduler — created ONLY for `stage === 'sandbox'` (ADR-0007). */
+    public readonly sandboxScheduler?: SandboxSchedulerStack;
     public readonly stage: string;
 
     public constructor(scope: Construct, id: string, props: GlobalStackProps) {
@@ -58,5 +61,16 @@ export class GlobalStack extends Stack {
             domain: this.domain,
             stage,
         });
+
+        // ADR-0007: the nightly stop/start scheduler exists ONLY for the sandbox stage. Guarding the
+        // instantiation (not just the schedule expressions) means prod/dev synthesize NOTHING here, so
+        // the prod template is unchanged (ADR-0002 no-prod-diff discipline).
+        if (stage === 'sandbox') {
+            this.sandboxScheduler = new SandboxSchedulerStack(this, `SandboxScheduler-${stage}`, {
+                env: props.env,
+                stackName: `kitchensink-sandbox-scheduler-${stage}`,
+                stage,
+            });
+        }
     }
 }

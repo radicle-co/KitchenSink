@@ -105,7 +105,10 @@ export class IdentityServiceStack extends Stack {
 
         const cluster = new ecs.Cluster(this, 'IdentityServiceCluster', {
             vpc,
-            containerInsightsV2: ecs.ContainerInsights.ENHANCED,
+            // Per-stage observability depth (ADR-0007). Prod keeps ENHANCED (unchanged → no prod diff);
+            // non-prod stages drop to the STANDARD tier — `ENABLED` (CFN `enabled`) is base Container
+            // Insights, priced well below the ENHANCED tier.
+            containerInsightsV2: stage === 'prod' ? ecs.ContainerInsights.ENHANCED : ecs.ContainerInsights.ENABLED,
         });
 
         const taskExecutionRole = new iam.Role(this, 'IdentityTaskExecutionRole', {

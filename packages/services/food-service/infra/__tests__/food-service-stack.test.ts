@@ -2,7 +2,75 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-import { FoodServiceStack } from '../lib/food-service-stack.js';
+import {
+    FoodServiceStack,
+    foodDatabaseNameForStage,
+    foodListenerPriorityForStage,
+    BASE_FOOD_LISTENER_PRIORITY,
+    PER_PR_PRIORITY_BASE,
+} from '../lib/food-service-stack.js';
+
+/**
+ * The VPC-lookup context every synth in this suite shares — `Vpc.fromLookup` resolves to this dummy
+ * VPC instead of calling AWS. The lookup key ignores `stage`, so one seeded entry serves prod/pr-N too.
+ */
+const VPC_LOOKUP_CONTEXT = {
+    'vpc-provider:account=123456789012:filter.vpc-id=vpc-12345678:region=us-east-1:returnAsymmetricSubnets=true': {
+        vpcId: 'vpc-12345678',
+        vpcCidrBlock: '10.0.0.0/16',
+        ownerAccountId: '123456789012',
+        availabilityZones: [],
+        subnetGroups: [
+            {
+                name: 'Public',
+                type: 'Public',
+                subnets: [
+                    {
+                        subnetId: 'subnet-public-1',
+                        availabilityZone: 'us-east-1a',
+                        routeTableId: 'rtb-public-1',
+                        cidr: '10.0.0.0/24',
+                    },
+                ],
+            },
+            {
+                name: 'Private',
+                type: 'Private',
+                subnets: [
+                    {
+                        subnetId: 'subnet-private-1',
+                        availabilityZone: 'us-east-1a',
+                        routeTableId: 'rtb-private-1',
+                        cidr: '10.0.1.0/24',
+                    },
+                ],
+            },
+        ],
+    },
+};
+
+/**
+ * Synthesize a food service template for a stage/baseStage pair.
+ *
+ * @param stage - The deploy stage.
+ * @param baseStage - The platform stage it imports from.
+ * @returns The synthesized template.
+ */
+function synthFoodTemplate(stage: string, baseStage: string): Template {
+    const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+    const stack = new FoodServiceStack(app, `Food-${stage}`, {
+        env: { account: '123456789012', region: 'us-east-1' },
+        stage,
+        baseStage,
+        domainName: 'example.com',
+        imageTag: 'test',
+        desiredCount: 1,
+        workerDesiredCount: 1,
+        vpcId: 'vpc-12345678',
+    });
+
+    return Template.fromStack(stack);
+}
 
 // These MUST stay byte-identical to `src/observability/emf-metrics.ts` `FOOD_METRIC` (the worker emits
 // them) and to the stack's local `FOOD_METRIC` (the alarms/dashboard chart them). They are duplicated
@@ -293,5 +361,138 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
             Threshold: 5,
             Metrics: Match.arrayWith([Match.objectLike({ Expression: Match.stringLikeRegexp('errors / requests') })]),
         });
+    });
+});
+
+// ── ADR-0007: per-stage Container Insights ───────────────────────────────────────────────────────
+describe('Per-stage Container Insights (ADR-0007)', () => {
+    it('runs the prod cluster with ENHANCED Container Insights', () => {
+        const template = synthFoodTemplate('prod', 'prod');
+
+        template.hasResourceProperties('AWS::ECS::Cluster', {
+            ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: 'enhanced' })]),
+        });
+    });
+
+    it('drops non-prod clusters to STANDARD Container Insights', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+
+        template.hasResourceProperties('AWS::ECS::Cluster', {
+            ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: 'enabled' })]),
+        });
+    });
+});
+
+// ── ADR-0006: base-stage imports + per-PR logical database ───────────────────────────────────────
+describe('Base-stage platform imports (ADR-0006)', () => {
+    it('for a base (prod) stage imports the prod platform and the shared kitchensink_food DB name', () => {
+        const template = synthFoodTemplate('prod', 'prod');
+        const json = JSON.stringify(template.toJSON());
+
+        // Base stage rides its own platform, and the DB name is the imported FoodDatabaseName export.
+        expect(json).toContain('kitchensink-data-prod:FoodDatabaseName');
+        expect(json).toContain('kitchensink-network-prod:ServiceSecurityGroupId');
+        expect(json).not.toContain('kitchensink_food_pr_');
+
+        // Base food priority is unchanged.
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_FOOD_LISTENER_PRIORITY,
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'host-header',
+                    HostHeaderConfig: Match.objectLike({ Values: ['food.example.com'] }),
+                }),
+            ]),
+        });
+    });
+
+    it('for a per-PR stage imports the SANDBOX platform (baseStage), never a per-PR platform', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const json = JSON.stringify(template.toJSON());
+
+        expect(json).toContain('kitchensink-network-sandbox:ServiceSecurityGroupId');
+        expect(json).toContain('kitchensink-data-sandbox:DatabaseSecretArn');
+        expect(json).toContain('kitchensink-alb-sandbox:SharedAlbHttpsListenerArn');
+        expect(json).toContain('kitchensink-domain-sandbox:HostedZoneId');
+        // Never references a per-PR platform stack (there is none).
+        expect(json).not.toContain('kitchensink-data-pr-7');
+        expect(json).not.toContain('kitchensink-network-pr-7');
+    });
+
+    it('gives a per-PR stage an isolated kitchensink_food_pr_7 logical DB (container + migration env)', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const taskDefs = template.findResources('AWS::ECS::TaskDefinition');
+        const containers = Object.values(taskDefs).flatMap(
+            (resource: any) => resource.Properties.ContainerDefinitions as any[],
+        );
+        const dbNames = containers.flatMap((container) =>
+            (container.Environment ?? [])
+                .filter((entry: any) => entry.Name === 'DB_NAME')
+                .map((entry: any) => entry.Value),
+        );
+
+        expect(dbNames.length).toBeGreaterThan(0);
+        for (const value of dbNames) {
+            expect(value).toBe('kitchensink_food_pr_7');
+        }
+
+        // The migration-runner Lambda targets the same per-PR DB.
+        template.hasResourceProperties('AWS::Lambda::Function', {
+            Environment: {
+                Variables: Match.objectLike({ FOOD_DB_NAME: 'kitchensink_food_pr_7' }),
+            },
+        });
+    });
+
+    it('allocates the per-PR stage a listener priority in the per-PR band with its own host rule', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: PER_PR_PRIORITY_BASE + 7,
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'host-header',
+                    HostHeaderConfig: Match.objectLike({ Values: ['food.pr-7.example.com'] }),
+                }),
+            ]),
+        });
+    });
+});
+
+describe('foodDatabaseNameForStage', () => {
+    it('returns the imported base name for a base (stage === baseStage) stage', () => {
+        expect(foodDatabaseNameForStage('prod', 'prod', '<imported-token>')).toBe('<imported-token>');
+        expect(foodDatabaseNameForStage('sandbox', 'sandbox', '<imported-token>')).toBe('<imported-token>');
+    });
+
+    it('derives a sanitized per-PR database name from the stage', () => {
+        expect(foodDatabaseNameForStage('pr-7', 'sandbox', 'x')).toBe('kitchensink_food_pr_7');
+        expect(foodDatabaseNameForStage('pr-123', 'sandbox', 'x')).toBe('kitchensink_food_pr_123');
+        expect(foodDatabaseNameForStage('team-feature-x', 'sandbox', 'x')).toBe('kitchensink_food_team_feature_x');
+    });
+
+    it('produces only valid lowercase pg identifiers', () => {
+        expect(foodDatabaseNameForStage('PR-7', 'sandbox', 'x')).toMatch(/^kitchensink_food(_[a-z0-9_]+)?$/);
+    });
+});
+
+describe('foodListenerPriorityForStage', () => {
+    it('keeps the fixed food priority for a base stage', () => {
+        expect(foodListenerPriorityForStage('prod', 'prod')).toBe(BASE_FOOD_LISTENER_PRIORITY);
+        expect(foodListenerPriorityForStage('sandbox', 'sandbox')).toBe(BASE_FOOD_LISTENER_PRIORITY);
+    });
+
+    it('allocates pr-{N} into the per-PR band as PER_PR_PRIORITY_BASE + N', () => {
+        expect(foodListenerPriorityForStage('pr-7', 'sandbox')).toBe(PER_PR_PRIORITY_BASE + 7);
+        expect(foodListenerPriorityForStage('pr-42', 'sandbox')).toBe(PER_PR_PRIORITY_BASE + 42);
+    });
+
+    it('gives distinct per-PR priorities that never collide with the base priority', () => {
+        const a = foodListenerPriorityForStage('pr-1', 'sandbox');
+        const b = foodListenerPriorityForStage('pr-15', 'sandbox');
+
+        expect(a).not.toBe(b);
+        expect(a).toBeGreaterThan(BASE_FOOD_LISTENER_PRIORITY);
+        expect(b).toBeGreaterThan(BASE_FOOD_LISTENER_PRIORITY);
     });
 });

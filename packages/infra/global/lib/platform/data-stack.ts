@@ -61,6 +61,11 @@ export class DataStack extends Stack {
 
         const stageTag = props.stage ?? 'dev';
 
+        // Per-stage RDS right-sizing (ADR-0007). Prod keeps db.t4g.small (unchanged → no prod diff);
+        // every non-prod stage (sandbox, dev, per-PR base imports) runs db.t4g.micro. The instance
+        // class is the only stage-dependent RDS property, so prod's synthesized template is untouched.
+        const dbInstanceSize = stageTag === 'prod' ? ec2.InstanceSize.SMALL : ec2.InstanceSize.MICRO;
+
         this.authSecretKey = secretsmanager.Secret.fromSecretNameV2(
             this,
             'Secret',
@@ -132,7 +137,7 @@ export class DataStack extends Stack {
             engine: rds.DatabaseInstanceEngine.postgres({
                 version: rds.PostgresEngineVersion.VER_16,
             }),
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.SMALL),
+            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, dbInstanceSize),
             allocatedStorage: 100,
             storageEncrypted: true,
             backupRetention: Duration.days(7),

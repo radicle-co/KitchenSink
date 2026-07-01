@@ -43,10 +43,94 @@ const FOOD_METRIC = {
     workerErrorCount: 'food-worker-error-count',
 } as const;
 
+/** The single shared base logical database on the persistent platform instance (ADR-0006). */
+export const BASE_FOOD_DATABASE_NAME = 'kitchensink_food';
+
+/**
+ * Per-PR listener-rule priority band on the shared sandbox ALB (ADR-0003 + ADR-0006).
+ *
+ * Base stages use the fixed food priority (200); every per-PR preview rides the shared sandbox
+ * listener and MUST carry a unique priority, so `pr-{N}` allocates `PER_PR_PRIORITY_BASE + N`. The
+ * band (10000–19999) sits well clear of the fixed service priorities (identity=100, food=200, …).
+ */
+export const PER_PR_PRIORITY_BASE = 10_000;
+
+/** The fixed shared-ALB listener-rule priority for the food service on a base (prod/sandbox) stage. */
+export const BASE_FOOD_LISTENER_PRIORITY = 200;
+
+/**
+ * Resolve the food service's logical database name for a stage.
+ *
+ * Base stages (`stage === baseStage`, i.e. prod/sandbox) use the imported shared `kitchensink_food`
+ * database. A per-PR stage gets an isolated logical database `kitchensink_food_{suffix}` on the SAME
+ * shared instance, where the suffix is the stage sanitized to a valid lowercase pg identifier (e.g.
+ * `pr-7` → `kitchensink_food_pr_7`). The result always matches `^kitchensink_food(_[a-z0-9_]+)?$`, the
+ * pattern the migration runner validates before quoting it into `CREATE DATABASE` (ADR-0006).
+ *
+ * @param stage - The deploy stage (identity: naming/routing/DB isolation).
+ * @param baseStage - The persistent platform stage the deploy rides (prod → prod, else → sandbox).
+ * @param importedBaseName - The `Fn.importValue` token for the base stage's `FoodDatabaseName` export.
+ * @returns The imported base name for a base stage, else the derived per-PR database name.
+ */
+export function foodDatabaseNameForStage(stage: string, baseStage: string, importedBaseName: string): string {
+    if (stage === baseStage) {
+        return importedBaseName;
+    }
+
+    const suffix = stage
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return `${BASE_FOOD_DATABASE_NAME}_${suffix}`;
+}
+
+/**
+ * Resolve the shared-ALB listener-rule priority for a stage.
+ *
+ * A base stage uses the fixed food priority (200). A per-PR `pr-{N}` stage allocates from the per-PR
+ * band (`PER_PR_PRIORITY_BASE + N`) so concurrent previews on the shared sandbox listener never
+ * collide with each other or with the fixed service rules. Any other non-base stage falls back to a
+ * deterministic offset inside the band derived from the stage string.
+ *
+ * @param stage - The deploy stage.
+ * @param baseStage - The resolved base stage.
+ * @returns A listener-rule priority unique to the stage within the shared listener.
+ */
+export function foodListenerPriorityForStage(stage: string, baseStage: string): number {
+    if (stage === baseStage) {
+        return BASE_FOOD_LISTENER_PRIORITY;
+    }
+
+    const prMatch = /^pr-(\d+)$/.exec(stage);
+
+    if (prMatch) {
+        return PER_PR_PRIORITY_BASE + Number(prMatch[1]);
+    }
+
+    // Non-PR ephemeral stage (e.g. a named feature sandbox): hash the stage into the band so it is
+    // stable across synths and stays clear of the fixed service priorities.
+    let hash = 0;
+
+    for (const char of stage) {
+        hash = (hash * 31 + char.charCodeAt(0)) % 9_000;
+    }
+
+    return PER_PR_PRIORITY_BASE + 1 + hash;
+}
+
 /** Props for {@link FoodServiceStack}. */
 export interface FoodServiceStackProps extends StackProps {
-    /** Deploy stage (`prod`, `sandbox-*`, `pr-{N}`, …). */
+    /** Deploy stage (`prod`, `sandbox`, `pr-{N}`, …) — drives naming, tagging, routing, DB isolation. */
     readonly stage: string;
+    /**
+     * The persistent platform stage this deploy imports from (ADR-0006): `prod → prod`, everything
+     * else → `sandbox`. All platform imports (network/data/alb/domain, the USDA key secret, the VPC)
+     * resolve against `baseStage`; `stage` still drives names, tags, routing, the EventBus, the per-PR
+     * DB name, and cleanup. Defaults to `stage` (a stage is its own base) so a base-stage synth is
+     * byte-identical to the pre-ADR-0006 template.
+     */
+    readonly baseStage?: string;
     /** Apex domain for the service's `food[.stage].{domain}` record. */
     readonly domainName: string;
     /** Container image tag (commit SHA) for the API and worker tasks. */
@@ -91,39 +175,45 @@ export class FoodServiceStack extends Stack {
 
         const { stage, imageTag, desiredCount, workerDesiredCount, vpcId, domainName } = props;
 
+        // ADR-0006: platform imports ride the persistent BASE stage (prod → prod, else → sandbox); the
+        // `stage` above still drives naming/tagging/routing/DB-isolation. For prod/sandbox stage ===
+        // baseStage, so every import string below is unchanged and the synthesized template does not
+        // diff. `vpcId` is supplied by the caller already pointing at the base stage's VPC.
+        const baseStage = props.baseStage ?? stage;
+
         const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', { vpcId });
 
         const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
             this,
             'ImportedAlbSg',
-            Fn.importValue(`kitchensink-network-${stage}:AlbSecurityGroupId`),
+            Fn.importValue(`kitchensink-network-${baseStage}:AlbSecurityGroupId`),
         );
 
         const serviceSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
             this,
             'ImportedServiceSg',
-            Fn.importValue(`kitchensink-network-${stage}:ServiceSecurityGroupId`),
+            Fn.importValue(`kitchensink-network-${baseStage}:ServiceSecurityGroupId`),
         );
 
         // Shared DB connection secret (instance master) + the dedicated least-privilege food role
         // secret (T-001b). NO RDS is created here — the instance is owned by the global DataStack.
         const sharedDbSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:DatabaseSecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${baseStage}:DatabaseSecretArn`),
         });
 
         const foodDbSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedFoodDbSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:FoodDbSecretArn`),
+            secretCompleteArn: Fn.importValue(`kitchensink-data-${baseStage}:FoodDbSecretArn`),
         });
 
         const database = rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
-            instanceIdentifier: `kitchensink-data-${stage}`,
-            instanceEndpointAddress: Fn.importValue(`kitchensink-data-${stage}:DatabaseEndpoint`),
-            port: Number(Fn.importValue(`kitchensink-data-${stage}:DatabasePort`)),
+            instanceIdentifier: `kitchensink-data-${baseStage}`,
+            instanceEndpointAddress: Fn.importValue(`kitchensink-data-${baseStage}:DatabaseEndpoint`),
+            port: Number(Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`)),
             securityGroups: [
                 ec2.SecurityGroup.fromSecurityGroupId(
                     this,
                     'ImportedDbSg',
-                    Fn.importValue(`kitchensink-network-${stage}:DatabaseSecurityGroupId`),
+                    Fn.importValue(`kitchensink-network-${baseStage}:DatabaseSecurityGroupId`),
                 ),
             ],
         });
@@ -132,7 +222,11 @@ export class FoodServiceStack extends Stack {
 
         const cluster = new ecs.Cluster(this, 'FoodServiceCluster', {
             vpc,
-            containerInsightsV2: ecs.ContainerInsights.ENHANCED,
+            // Per-stage observability depth (ADR-0007). Prod keeps ENHANCED (unchanged → no prod diff);
+            // non-prod stages (sandbox + per-PR previews) drop to the STANDARD tier — `ENABLED` (CFN
+            // `enabled`) is base Container Insights, priced well below the ENHANCED tier — to cap the
+            // cost the food cluster adds when it deploys.
+            containerInsightsV2: stage === 'prod' ? ecs.ContainerInsights.ENHANCED : ecs.ContainerInsights.ENABLED,
         });
 
         const taskExecutionRole = new iam.Role(this, 'FoodTaskExecutionRole', {
@@ -156,12 +250,18 @@ export class FoodServiceStack extends Stack {
             eventBusName: `kitchensink-food-${stage}`,
         });
 
+        // Per-PR logical database isolation (ADR-0006). A base stage (prod/sandbox) uses the imported
+        // shared `kitchensink_food`; a per-PR stage gets `kitchensink_food_pr_{N}` on the SAME shared
+        // instance. For base stages this equals the imported token, so the template does not diff.
+        const importedFoodDatabaseName = Fn.importValue(`kitchensink-data-${baseStage}:FoodDatabaseName`);
+        const foodDatabaseName = foodDatabaseNameForStage(stage, baseStage, importedFoodDatabaseName);
+
         const foodDbEnvironment: Record<string, string> = {
             NODE_ENV: 'production',
             STAGE: stage,
             DB_HOST: database.dbInstanceEndpointAddress,
-            DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
-            DB_NAME: Fn.importValue(`kitchensink-data-${stage}:FoodDatabaseName`),
+            DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
+            DB_NAME: foodDatabaseName,
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
         };
 
@@ -174,7 +274,7 @@ export class FoodServiceStack extends Stack {
         const usdaApiKeySecret = secretsmanager.Secret.fromSecretNameV2(
             this,
             'ImportedUsdaApiKeySecret',
-            `kitchensink/${stage}/food/usda-api-key`,
+            `kitchensink/${baseStage}/food/usda-api-key`,
         );
 
         const sourceCredentialsSecrets = {
@@ -379,8 +479,10 @@ export class FoodServiceStack extends Stack {
                 STAGE: stage,
                 FOOD_DB_SECRET_ARN: foodDbSecret.secretArn,
                 FOOD_DB_ENDPOINT: database.dbInstanceEndpointAddress,
-                FOOD_DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
-                FOOD_DB_NAME: Fn.importValue(`kitchensink-data-${stage}:FoodDatabaseName`),
+                FOOD_DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
+                // Per-PR isolation (ADR-0006): the runner creates this DB if absent then migrates into
+                // it. Base stages resolve to the imported `kitchensink_food`, so no template diff.
+                FOOD_DB_NAME: foodDatabaseName,
             },
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
@@ -397,7 +499,7 @@ export class FoodServiceStack extends Stack {
         const serviceDomain = `${subdomain}.${domainName}`;
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
-            hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
+            hostedZoneId: Fn.importValue(`kitchensink-domain-${baseStage}:HostedZoneId`),
             zoneName: domainName,
         });
 
@@ -424,26 +526,28 @@ export class FoodServiceStack extends Stack {
             this,
             'SharedHttpsListener',
             {
-                listenerArn: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbHttpsListenerArn`),
+                listenerArn: Fn.importValue(`kitchensink-alb-${baseStage}:SharedAlbHttpsListenerArn`),
                 securityGroup: albSecurityGroup,
             },
         );
 
         // Per-service listener-rule priority allocation: identity=100, food=200. Future services pick
-        // 300, 400, … (priorities must be unique across all rules on the shared listener).
+        // 300, 400, … A per-PR preview rides the SHARED sandbox listener, so it MUST NOT reuse 200 —
+        // it allocates from the per-PR band (PER_PR_PRIORITY_BASE + N; ADR-0006). Base stages keep 200,
+        // so their template does not diff. Priorities must be unique across all rules on the listener.
         new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {
             listener: sharedHttpsListener,
-            priority: 200,
+            priority: foodListenerPriorityForStage(stage, baseStage),
             conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
             targetGroups: [targetGroup],
         });
 
         const sharedAlb = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(this, 'SharedAlb', {
-            loadBalancerArn: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbArn`),
-            securityGroupId: Fn.importValue(`kitchensink-network-${stage}:AlbSecurityGroupId`),
-            loadBalancerDnsName: Fn.importValue(`kitchensink-alb-${stage}:SharedAlbDnsName`),
+            loadBalancerArn: Fn.importValue(`kitchensink-alb-${baseStage}:SharedAlbArn`),
+            securityGroupId: Fn.importValue(`kitchensink-network-${baseStage}:AlbSecurityGroupId`),
+            loadBalancerDnsName: Fn.importValue(`kitchensink-alb-${baseStage}:SharedAlbDnsName`),
             loadBalancerCanonicalHostedZoneId: Fn.importValue(
-                `kitchensink-alb-${stage}:SharedAlbCanonicalHostedZoneId`,
+                `kitchensink-alb-${baseStage}:SharedAlbCanonicalHostedZoneId`,
             ),
         });
 

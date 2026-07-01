@@ -1,0 +1,3 @@
+dist-lambda
+cdk.out
+*.tsbuildinfo

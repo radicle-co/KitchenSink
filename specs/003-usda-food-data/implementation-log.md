@@ -1145,3 +1145,56 @@ T-001c, T-053, T-181, T-182, T-183, T-191, FU-MIGRATE, FU-ESBUILD marked `[x]`. 
   verified via the CDK `Template.fromStack` test (a full synth that uses the real `Code.fromAsset`
   `dist-lambda` asset) rather than the `cdk synth` CLI. `bundle:lambda` runs clean and is prepended to
   `infra:synth`/`infra:deploy`.
+
+---
+
+## 2026-07-01 — Real-adapter HTTP-contract e2e (USDA→canonical over undici MockAgent) (BE-1)
+
+**Scope.** One new e2e file exercising the REAL `UsdaApiClient` + REAL `UsdaSourceAdapter` against the
+captured real USDA wire fixtures (`tests/e2e/__fixtures__/usda/*.json`), intercepted at the HTTP
+transport with undici's `MockAgent` (`setGlobalDispatcher`). The existing `food-service-client.e2e.test.ts`
+`vi.mock`s the whole adapter with a programmable stub, so the USDA→canonical translation, batch path,
+per-serving label reconciliation, and error classification were never exercised end-to-end. This test
+closes that gap: real `fetch` → mocked transport → real client status/schema mapping → real adapter
+`fdcId→externalKey`/nutrient/label/portion mapping → real merge → real persist.
+
+**File.** `packages/services/food-service/tests/e2e/usda-adapter-http-contract.e2e.test.ts` (5 cases).
+Boots the same hermetic stack as the other e2es (real Nest app + Docker Postgres `food_e2e` + real
+`FoodAuthGuard`, `FoodConsumerService` built from DI holding the REAL adapter). `MockAgent.disableNetConnect()`
+with `enableNetConnect(127.0.0.1|localhost)` so the client↔server loopback still works while every USDA
+origin call is intercepted. Batch `POST /foods` is routed by request-body `fdcIds` so one persistent route
+serves the single-key resolve, the 2-key batch, and the ghost-key 404 unambiguously.
+
+**Cases / assertions.** (1) add-by-name "cheddar cheese" (real search → real batch detail) → drain →
+RESOLVED → persisted golden record asserts `food.kind='branded'`, barcode `094395000172`, brand owner set,
+`food_nutrients` Protein `basis='per_100g'` amount `'21.43'`, 15 nutrient rows, and the API response leaks
+no `fdcId`. (2) Foundation 1750340 via the real adapter → `generic`, brand/barcode null, all `per_100g`,
+portion `{label:'RACC',gramWeight:'140'}`. (3) `fetchByKeys(['1750340','2057648'])` → 2 candidates, right
+externalKeys/kinds (the batch path no prior test covered). (4) 404 detail → `SourceApiError(404)` and the
+worker drives the food to `NOT_FOUND`; 429 detail → `SourceApiError(429)`.
+
+**Red gate (confirmed failing for the right reason).** Corrupted the branded fixture's `foodNutrients`
+Protein `amount` from `21.43000000` → `99.99000000` and re-ran case 1:
+
+```
+AssertionError: expected '99.99' to be '21.43' // Object.is equality
+  254|  expect(protein.rows[0]?.amount).toBe('21.43');
+ Tests  1 failed | 4 skipped (5)
+```
+
+Correct reason: the corrupted source value flowed the whole real chain (client flatten → adapter map →
+merge → `food_nutrients.amount`) into the DB, proving the test is NOT stubbing the mapping. Fixture then
+restored byte-identical (`cmp` clean).
+
+**Finding (NOT a bug — task-spec mis-attribution).** The task expected the persisted branded Protein to be
+the per-serving label conversion `6.0 × 100 / 28 = 21.4285…`. The REAL adapter instead persists `'21.43'`
+from the per-100g `foodNutrients` array: the label panel is correctly SKIPPED for `Protein` (its
+`(name,unit)` key is already filled) so the panel is never double-counted (D-PERSERVING "prefer
+foodNutrients"). The two paths coincide numerically (~21.43) but the exact stored string is `'21.43'`, not
+`'21.428571'`. The ONLY label-only nutrient this branded fixture actually folds in via conversion is
+`sugars` (canonical `Sugars, total including nlea`, value 0 → `'0'`) — because "Total Sugars" from
+`foodNutrients` canonicalizes to a DIFFERENT key. Adapter behavior is correct per its documented rule.
+
+**Verification.** New e2e green (5/5). Full food-service suite: unit 137/137, integration 178/178, e2e
+33→**38** (the 5 new cases). `tsc --noEmit` clean, `eslint` clean, `prettier --check` clean. Node v24.
+No production code changed; test-only addition.

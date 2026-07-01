@@ -109,16 +109,22 @@ export class DataStack extends Stack {
         // `kitchensink_food` database and its owning least-privilege `food_app` role. The runner injects
         // the generated password from `foodDbCredentialsSecret` at apply time (it reads both secrets),
         // mirroring how `migrationPlanSecret` declares ownership without embedding the credential here.
+        // ADR-0006: on a NON-prod (sandbox) instance, each PR preview gets its own logical database
+        // `kitchensink_food_pr_{N}` that the migration runner creates while connected AS `food_app`, so
+        // sandbox's `food_app` needs `CREATEDB`. Per-PR databases never exist on prod (prod is its own
+        // base stage, no previews), so prod's `food_app` stays without `CREATEDB` and prod's bootstrap
+        // SQL — hence this secret — is byte-identical (ADR-0007 no-prod-diff discipline).
+        const foodBootstrapSql = [
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'food_app') THEN CREATE ROLE food_app LOGIN; END IF; END $$;",
+            "SELECT 'CREATE DATABASE kitchensink_food OWNER food_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'kitchensink_food')\\gexec",
+            'GRANT ALL PRIVILEGES ON DATABASE kitchensink_food TO food_app;',
+            ...(stageTag === 'prod' ? [] : ['ALTER ROLE food_app CREATEDB;']),
+        ].join('\n');
+
         this.foodMigrationPlanSecret = new secretsmanager.Secret(this, 'FoodMigrationPlanSecret', {
             description: 'Bootstrap instructions for the kitchensink_food database + food_app role (feature 003)',
             secretObjectValue: {
-                bootstrapSql: SecretValue.unsafePlainText(
-                    [
-                        "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'food_app') THEN CREATE ROLE food_app LOGIN; END IF; END $$;",
-                        "SELECT 'CREATE DATABASE kitchensink_food OWNER food_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'kitchensink_food')\\gexec",
-                        'GRANT ALL PRIVILEGES ON DATABASE kitchensink_food TO food_app;',
-                    ].join('\n'),
-                ),
+                bootstrapSql: SecretValue.unsafePlainText(foodBootstrapSql),
                 migrationOwner: SecretValue.unsafePlainText('@kitchensink/food-service'),
                 credentialsSecretArn: SecretValue.unsafePlainText(this.foodDbCredentialsSecret.secretArn),
             },

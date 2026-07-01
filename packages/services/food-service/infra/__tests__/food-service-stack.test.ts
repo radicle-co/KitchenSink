@@ -6,6 +6,7 @@ import {
     FoodServiceStack,
     foodDatabaseNameForStage,
     foodListenerPriorityForStage,
+    foodSubdomainForStage,
     BASE_FOOD_LISTENER_PRIORITY,
     PER_PR_PRIORITY_BASE,
 } from '../lib/food-service-stack.js';
@@ -508,10 +509,24 @@ describe('Base-stage platform imports (ADR-0006)', () => {
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
-                    HostHeaderConfig: Match.objectLike({ Values: ['food.pr-7.example.com'] }),
+                    // Dash form (single label) so the `*.commise.app` cert covers the preview host —
+                    // `food.pr-7.*` (3 labels) would fail the TLS handshake (ADR-0006).
+                    HostHeaderConfig: Match.objectLike({ Values: ['food-pr-7.example.com'] }),
                 }),
             ]),
         });
+    });
+});
+
+describe('foodSubdomainForStage (ADR-0006 — cert-safe per-PR host)', () => {
+    it('uses the dotted host for base stages (covered by the wildcard certs)', () => {
+        expect(foodSubdomainForStage('prod', 'prod')).toBe('food');
+        expect(foodSubdomainForStage('sandbox', 'sandbox')).toBe('food.sandbox');
+    });
+
+    it('uses the dash form for a per-PR stage so `*.commise.app` covers it (no 3-label host)', () => {
+        expect(foodSubdomainForStage('pr-7', 'sandbox')).toBe('food-pr-7');
+        expect(foodSubdomainForStage('pr-123', 'sandbox')).toBe('food-pr-123');
     });
 });
 

@@ -41,6 +41,18 @@ RDS, ALB, and domain — no per-PR platform is created (consistent with ADR-0003
 ADR-0002's per-stage VPC). Priorities/host-rules on the shared sandbox ALB stay unique per active
 preview (allocate from a per-PR band; unmatched → the listener's default 404).
 
+**Cert-safe preview host.** The shared ALB cert covers `commise.app`, `*.commise.app`, and
+`*.sandbox.commise.app` — all **single-label** wildcards. A per-PR host must therefore be a single
+label under the apex: `foodSubdomainForStage` emits **`food-{stage}`** (→ `food-pr-7.commise.app`,
+covered by `*.commise.app`), NOT `food.{stage}` (→ `food.pr-7.commise.app`, a 3-label host no
+wildcard covers, which fails the TLS handshake). Base stages keep the dotted host they already use
+(prod `food`, sandbox `food.sandbox`), so their templates are unchanged.
+
+**`food_app` needs `CREATEDB` on the sandbox instance.** The per-PR database is created by the
+migration runner connected AS `food_app`, so the non-prod bootstrap SQL (DataStack) grants
+`ALTER ROLE food_app CREATEDB`. Prod's `food_app` is left without it (prod has no previews), keeping
+the prod bootstrap secret byte-identical.
+
 **2. Per-PR isolation is a per-PR logical database on the shared instance.** The database name is
 derived from `stage`: `kitchensink_food` for `sandbox`/`prod`, and **`kitchensink_food_pr_{N}`** for
 a per-PR deploy. The in-VPC migration-runner Lambda (T-191) **creates the database if absent**

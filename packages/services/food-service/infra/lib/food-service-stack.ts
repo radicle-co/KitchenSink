@@ -119,6 +119,32 @@ export function foodListenerPriorityForStage(stage: string, baseStage: string): 
     return PER_PR_PRIORITY_BASE + 1 + hash;
 }
 
+/**
+ * Resolve the food service's DNS label (the `Host` header + A-record name) for a stage.
+ *
+ * The shared ALB certificate covers `commise.app`, `*.commise.app`, and `*.sandbox.commise.app`
+ * (ADR-0003 / DomainStack) — all **single-label** wildcards. A base stage therefore uses a dotted host
+ * that the cert covers: prod → `food` (`food.commise.app`), sandbox → `food.sandbox`
+ * (`food.sandbox.commise.app`). A per-PR stage must NOT use `food.pr-{N}` — that 3-label host
+ * (`food.pr-7.commise.app`) is uncovered by any wildcard and fails the TLS handshake — so it flips the
+ * separator to a dash: `food-{stage}` → `food-pr-7.commise.app`, a single label covered by
+ * `*.commise.app` (ADR-0006; matches the `{service}-pr-{N}.commise.app` convention in
+ * `sandbox-deploy.yml`). Pure.
+ *
+ * @param stage - The deploy stage.
+ * @param baseStage - The resolved base stage (prod → prod, else → sandbox).
+ * @returns The subdomain label to prefix onto the apex domain.
+ */
+export function foodSubdomainForStage(stage: string, baseStage: string): string {
+    if (stage === 'prod') {
+        return 'food';
+    }
+
+    // A base stage (sandbox) is a single label under the apex, covered by `*.sandbox.commise.app`; a
+    // per-PR stage rides `*.commise.app` via the dash form so the shared cert covers the preview host.
+    return stage === baseStage ? `food.${stage}` : `food-${stage}`;
+}
+
 /** Props for {@link FoodServiceStack}. */
 export interface FoodServiceStackProps extends StackProps {
     /** Deploy stage (`prod`, `sandbox`, `pr-{N}`, …) — drives naming, tagging, routing, DB isolation. */
@@ -529,7 +555,7 @@ export class FoodServiceStack extends Stack {
         // listener (owned by the global infra — kitchensink-alb-${stage}) and attaches a host-based
         // rule for its subdomain. See docs/architecture/decisions/0003-shared-alb-per-stage.md.
         const isProd = stage === 'prod';
-        const subdomain = isProd ? 'food' : `food.${stage}`;
+        const subdomain = foodSubdomainForStage(stage, baseStage);
         const serviceDomain = `${subdomain}.${domainName}`;
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {

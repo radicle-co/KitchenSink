@@ -201,84 +201,84 @@ jobs:
     #                 --all --require-approval never
 
     # ═══════════════════════════════════════════════════════════════════
-    # ⚠️  DELIBERATE SWITCH — per-PR FOOD preview deploy (ADR-0006). READY BUT OFF.
+    # per-PR FOOD preview deploy (ADR-0006) — ACTIVE, gated to food-only changes.
     #
-    # This job is complete but intentionally left COMMENTED so per-PR food previews are NOT deployed
-    # until a human turns them on. To enable: uncomment the block AND add the `dorny/paths-filter` gate
-    # (or move the food paths into a workflow-level `on.pull_request.paths`) so it runs only when the
-    # food service changed. When enabled, the PR-close `Drop per-PR food database` step above will
-    # reclaim the `kitchensink_food_pr_{N}` logical DB automatically.
+    # Runs only when `packages/services/food-service/**` changed on the PR (the `dorny/paths-filter`
+    # step gates every step). On PR close, the `Drop per-PR food database` cleanup step above reclaims
+    # the `kitchensink_food_pr_{N}` logical DB, and the `Environment=pr-{N}` cleanup deletes the stacks.
     #
     # How it works (ADR-0006): the food infra bin resolves baseStage internally (prod→prod, everything
     # else→sandbox), so a `STAGE=pr-{N}` deploy imports the SHARED sandbox platform (VPC/RDS/ALB/domain)
     # and provisions an isolated `kitchensink_food_pr_{N}` logical DB on that shared instance. FOOD_VPC_ID
-    # MUST be the SANDBOX VPC id (the base platform), NOT a per-PR VPC (there is none).
-    #
-    # KNOWN WRINKLE before enabling: the food stack routes non-prod at `food.${stage}` → for pr-7 that is
-    # `food.pr-7.commise.app`, a 3-label host NOT covered by the single-label `*.commise.app` cert. Fix
-    # the subdomain scheme (e.g. `food-${stage}`) or provision a matching cert first. See ADR-0006/0003.
+    # MUST be the SANDBOX VPC id (the base platform), NOT a per-PR VPC (there is none) — set the
+    # `SANDBOX_VPC_ID` repo variable. The preview host is `food-pr-{N}.commise.app` (single label,
+    # covered by the `*.commise.app` cert — the prior `food.pr-{N}` 3-label wrinkle is resolved by the
+    # dash form in `foodSubdomainForStage`). Per-PR DB creation needs sandbox `food_app` to have
+    # `CREATEDB` (granted in the non-prod bootstrap SQL, DataStack).
     # ═══════════════════════════════════════════════════════════════════
     #
-    # deploy-food:
-    #     name: Deploy food sandbox (pr-${{ github.event.pull_request.number }})
-    #     runs-on: ubuntu-latest
-    #     if: |
-    #         (github.event_name == 'pull_request' && github.event.action != 'closed') ||
-    #         (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'food')
-    #     env:
-    #         STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
-    #         FOOD_VPC_ID: ${{ vars.SANDBOX_VPC_ID }}   # the SHARED sandbox VPC (baseStage), not per-PR
-    #     steps:
-    #         - name: Checkout
-    #           uses: actions/checkout@v6
-    #         # Gate: only proceed when the food service actually changed on this PR.
-    #         - name: Detect food changes
-    #           id: changes
-    #           uses: dorny/paths-filter@v3
-    #           with:
-    #               filters: |
-    #                   food:
-    #                       - 'packages/services/food-service/**'
-    #         - name: Setup Node.js
-    #           if: steps.changes.outputs.food == 'true'
-    #           uses: actions/setup-node@v6
-    #           with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
-    #         - name: Install dependencies
-    #           if: steps.changes.outputs.food == 'true'
-    #           run: npm ci
-    #         - name: Build food package
-    #           if: steps.changes.outputs.food == 'true'
-    #           run: npm run build --workspace=packages/services/food-service
-    #         - name: Build food infra
-    #           if: steps.changes.outputs.food == 'true'
-    #           run: npm run infra:build --workspace=packages/services/food-service
-    #         - name: Bundle migration Lambda
-    #           if: steps.changes.outputs.food == 'true'
-    #           run: npm run bundle:lambda --workspace=packages/services/food-service
-    #         - name: Configure AWS credentials
-    #           if: steps.changes.outputs.food == 'true'
-    #           uses: aws-actions/configure-aws-credentials@v4
-    #           with:
-    #               aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    #               aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    #               aws-region: ${{ vars.DEFAULT_AWS_REGION }}
-    #         - name: CDK Deploy (stage=pr-{N}, baseStage=sandbox resolved in the bin)
-    #           if: steps.changes.outputs.food == 'true'
-    #           run: |
-    #               STAGE=${{ env.STAGE }} \
-    #               FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
-    #               npx cdk deploy \
-    #                 --app "node packages/services/food-service/infra/dist/bin/app.js" \
-    #                 --all --require-approval never
-    #         # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
-    #         # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
-    #         - name: Run food migrations (creates the per-PR DB if absent)
-    #           if: steps.changes.outputs.food == 'true'
-    #           run: |
-    #               FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
-    #                   --stack-name "kitchensink-food-service-${{ env.STAGE }}" \
-    #                   --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
-    #                   --output text)
-    #               aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
-    #                   --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
-    #               cat /tmp/migrate.json
+    deploy-food:
+        name: Deploy food sandbox (pr-${{ github.event.pull_request.number }})
+        runs-on: ubuntu-latest
+        if: |
+            (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+            (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'food')
+        env:
+            STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
+            FOOD_VPC_ID: ${{ vars.SANDBOX_VPC_ID }} # the SHARED sandbox VPC (baseStage), not per-PR
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+            # Gate: only proceed when the food service actually changed on this PR.
+            - name: Detect food changes
+              id: changes
+              uses: dorny/paths-filter@v3
+              with:
+                  filters: |
+                      food:
+                          - 'packages/services/food-service/**'
+            - name: Setup Node.js
+              if: steps.changes.outputs.food == 'true'
+              uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              if: steps.changes.outputs.food == 'true'
+              run: npm ci
+            - name: Build food package
+              if: steps.changes.outputs.food == 'true'
+              run: npm run build --workspace=packages/services/food-service
+            - name: Build food infra
+              if: steps.changes.outputs.food == 'true'
+              run: npm run infra:build --workspace=packages/services/food-service
+            - name: Bundle migration Lambda
+              if: steps.changes.outputs.food == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/food-service
+            - name: Configure AWS credentials
+              if: steps.changes.outputs.food == 'true'
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: CDK Deploy (stage=pr-{N}, baseStage=sandbox resolved in the bin)
+              if: steps.changes.outputs.food == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
+                  npx cdk deploy \
+                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --all --require-approval never
+            # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
+            # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
+            - name: Run food migrations (creates the per-PR DB if absent)
+              if: steps.changes.outputs.food == 'true'
+              run: |
+                  FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                      --stack-name "kitchensink-food-service-${{ env.STAGE }}" \
+                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
+                      --output text)
+                  aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
+                      --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
+                  cat /tmp/migrate.json

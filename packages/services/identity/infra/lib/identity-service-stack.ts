@@ -42,6 +42,13 @@ export class IdentityServiceStack extends Stack {
 
         const { stage, imageTag, desiredCount, vpcId, domainName } = props;
 
+        // Fargate Spot for non-prod (ADR-0008). Prod runs on-demand `FARGATE` (unchanged → no prod
+        // diff); every non-prod stage (sandbox) runs interruption-tolerant `FARGATE_SPOT`. The cluster
+        // must advertise the FARGATE_SPOT capacity provider before a service strategy can bind to it,
+        // so the cluster flag and the service strategy are gated together on the same stage check.
+        const useSpot = stage !== 'prod';
+        const capacityProviderStrategies = useSpot ? [{ capacityProvider: 'FARGATE_SPOT', weight: 1 }] : undefined;
+
         const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', {
             vpcId,
         });
@@ -109,6 +116,9 @@ export class IdentityServiceStack extends Stack {
             // non-prod stages drop to the STANDARD tier — `ENABLED` (CFN `enabled`) is base Container
             // Insights, priced well below the ENHANCED tier.
             containerInsightsV2: stage === 'prod' ? ecs.ContainerInsights.ENHANCED : ecs.ContainerInsights.ENABLED,
+            // ADR-0008: advertise the FARGATE_SPOT capacity provider for non-prod only. `false` (prod)
+            // creates no ClusterCapacityProviderAssociations resource, so the prod template is unchanged.
+            enableFargateCapacityProviders: useSpot,
         });
 
         const taskExecutionRole = new iam.Role(this, 'IdentityTaskExecutionRole', {
@@ -219,6 +229,9 @@ export class IdentityServiceStack extends Stack {
             cluster,
             taskDefinition,
             desiredCount,
+            // ADR-0008: non-prod runs on FARGATE_SPOT (undefined for prod keeps on-demand LaunchType
+            // FARGATE → no prod diff). Providing a strategy omits LaunchType from the service resource.
+            capacityProviderStrategies,
             // Public subnet + public IP so the task egresses to Clerk/AWS via the Internet Gateway
             // (free) instead of the NAT. Inbound stays locked to the ALB SG (serviceSecurityGroup),
             // so the public IP is egress-only; the task still reaches the private RDS intra-VPC by SG.

@@ -173,6 +173,80 @@ describe('Shared ALB topology (no per-service ALB)', () => {
     });
 });
 
+const VPC_LOOKUP_CONTEXT = {
+    'vpc-provider:account=123456789012:filter.vpc-id=vpc-12345678:region=us-east-1:returnAsymmetricSubnets=true': {
+        vpcId: 'vpc-12345678',
+        vpcCidrBlock: '10.0.0.0/16',
+        ownerAccountId: '123456789012',
+        availabilityZones: [],
+        subnetGroups: [
+            {
+                name: 'Public',
+                type: 'Public',
+                subnets: [
+                    {
+                        subnetId: 'subnet-public-1',
+                        availabilityZone: 'us-east-1a',
+                        routeTableId: 'rtb-public-1',
+                        cidr: '10.0.0.0/24',
+                    },
+                ],
+            },
+            {
+                name: 'Private',
+                type: 'Private',
+                subnets: [
+                    {
+                        subnetId: 'subnet-private-1',
+                        availabilityZone: 'us-east-1a',
+                        routeTableId: 'rtb-private-1',
+                        cidr: '10.0.1.0/24',
+                    },
+                ],
+            },
+        ],
+    },
+};
+
+const identityTemplate = (stage: string): Template => {
+    const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+    const stack = new IdentityServiceStack(app, `IdentitySpot-${stage}`, {
+        env,
+        stage,
+        domainName: 'example.com',
+        imageTag: 'test',
+        desiredCount: 1,
+        vpcId: 'vpc-12345678',
+    });
+
+    return Template.fromStack(stack);
+};
+
+describe('Per-stage Fargate Spot (ADR-0008)', () => {
+    const serviceProps = (template: Template): any =>
+        (Object.values(template.findResources('AWS::ECS::Service'))[0] as any).Properties;
+
+    it('runs the non-prod (test) service on FARGATE_SPOT with the capacity provider on the cluster', () => {
+        const template = identityTemplate('sandbox');
+        const props = serviceProps(template);
+
+        expect(props.CapacityProviderStrategy).toEqual([{ CapacityProvider: 'FARGATE_SPOT', Weight: 1 }]);
+        expect(props.LaunchType).toBeUndefined();
+        template.hasResourceProperties('AWS::ECS::ClusterCapacityProviderAssociations', {
+            CapacityProviders: Match.arrayWith(['FARGATE_SPOT']),
+        });
+    });
+
+    it('keeps prod on on-demand FARGATE (no Spot strategy, no capacity-provider association → no prod diff)', () => {
+        const template = identityTemplate('prod');
+        const props = serviceProps(template);
+
+        expect(props.LaunchType).toBe('FARGATE');
+        expect(props.CapacityProviderStrategy).toBeUndefined();
+        template.resourceCountIs('AWS::ECS::ClusterCapacityProviderAssociations', 0);
+    });
+});
+
 describe('Per-stage Container Insights (ADR-0007)', () => {
     const insightsValue = (template: Template): string => {
         const clusters = Object.values(template.findResources('AWS::ECS::Cluster'));

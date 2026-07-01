@@ -181,6 +181,16 @@ export class FoodServiceStack extends Stack {
         // diff. `vpcId` is supplied by the caller already pointing at the base stage's VPC.
         const baseStage = props.baseStage ?? stage;
 
+        // Fargate Spot for non-prod (ADR-0008). Prod runs on-demand `FARGATE` (unchanged → no prod
+        // diff); every non-prod stage (sandbox + ephemeral pr-{N} previews) runs interruption-tolerant
+        // `FARGATE_SPOT` — the previews are disposable and the fetch worker is idempotent (leased
+        // fetch_queue rows re-lease after an interruption). The cluster must advertise the FARGATE_SPOT
+        // capacity provider before a service/task strategy can bind, so the flag and strategy are gated
+        // together on `stage`, NOT `baseStage` (a pr-{N} preview must run Spot even though it imports
+        // the sandbox platform).
+        const useSpot = stage !== 'prod';
+        const capacityProviderStrategies = useSpot ? [{ capacityProvider: 'FARGATE_SPOT', weight: 1 }] : undefined;
+
         const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', { vpcId });
 
         const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
@@ -227,6 +237,9 @@ export class FoodServiceStack extends Stack {
             // `enabled`) is base Container Insights, priced well below the ENHANCED tier — to cap the
             // cost the food cluster adds when it deploys.
             containerInsightsV2: stage === 'prod' ? ecs.ContainerInsights.ENHANCED : ecs.ContainerInsights.ENABLED,
+            // ADR-0008: advertise the FARGATE_SPOT capacity provider for non-prod only. `false` (prod)
+            // creates no ClusterCapacityProviderAssociations resource, so the prod template is unchanged.
+            enableFargateCapacityProviders: useSpot,
         });
 
         const taskExecutionRole = new iam.Role(this, 'FoodTaskExecutionRole', {
@@ -330,6 +343,9 @@ export class FoodServiceStack extends Stack {
             cluster,
             taskDefinition: apiTaskDefinition,
             desiredCount,
+            // ADR-0008: non-prod runs on FARGATE_SPOT (undefined for prod keeps on-demand LaunchType
+            // FARGATE → no prod diff). Providing a strategy omits LaunchType from the service resource.
+            capacityProviderStrategies,
             // Public subnet + public IP so the task egresses to USDA/AWS via the Internet Gateway (free)
             // instead of the NAT. Inbound stays locked to the ALB SG (serviceSecurityGroup), so the
             // public IP is egress-only; the task still reaches the private RDS intra-VPC by SG. This
@@ -380,6 +396,10 @@ export class FoodServiceStack extends Stack {
             taskDefinition: workerTaskDefinition,
             // FR-022: exactly one consumer holds the LISTEN connection at MVP.
             desiredCount: workerDesiredCount,
+            // ADR-0008: non-prod runs on FARGATE_SPOT (undefined for prod keeps on-demand LaunchType
+            // FARGATE → no prod diff). The worker is interruption-tolerant — an interrupted lease
+            // expires and the row re-leases, so a Spot reclaim only delays, never drops, a fetch.
+            capacityProviderStrategies,
             // Public subnet + public IP (egress-only, inbound SG-locked) — IGW egress off the NAT path,
             // intra-VPC reach to the private RDS by SG (ADR-0004), same as the API service above.
             assignPublicIp: true,
@@ -438,7 +458,7 @@ export class FoodServiceStack extends Stack {
         // D-REFRESH is explicitly low-priority idle-drain background work that yields to live demand
         // (no fixed-cadence promise). Every 6 hours is frequent enough to pick up upstream changes
         // without competing with the demand-driven fetch path.
-        new events.Rule(this, 'IngestionScheduled', {
+        const changeRefreshRule = new events.Rule(this, 'IngestionScheduled', {
             description:
                 'Change-refresh: re-enqueue RESOLVED foods for a selective in-place re-pull (FR-032, D-REFRESH)',
             schedule: events.Schedule.rate(Duration.hours(6)),
@@ -455,6 +475,20 @@ export class FoodServiceStack extends Stack {
                 }),
             ],
         });
+
+        // ADR-0008: run the change-refresh RunTask on FARGATE_SPOT for non-prod too (the 6-hourly
+        // re-pull is idempotent and interruption-tolerant). The L2 `EcsTask` target (CDK 2.254) only
+        // exposes `launchType`, not a capacity-provider strategy, so inject the strategy on the
+        // synthesized rule target via an escape hatch. `LaunchType` and `CapacityProviderStrategy` are
+        // mutually exclusive in `EcsParameters`, so the default `LaunchType: FARGATE` is deleted first.
+        // Guarded to non-prod, so prod keeps `LaunchType: FARGATE` unchanged → no prod diff.
+        if (useSpot) {
+            const cfnChangeRefreshRule = changeRefreshRule.node.defaultChild as events.CfnRule;
+            cfnChangeRefreshRule.addPropertyDeletionOverride('Targets.0.EcsParameters.LaunchType');
+            cfnChangeRefreshRule.addPropertyOverride('Targets.0.EcsParameters.CapacityProviderStrategy', [
+                { CapacityProvider: 'FARGATE_SPOT', Weight: 1 },
+            ]);
+        }
 
         // ── In-VPC migration-runner Lambda (T-191 / FU-MIGRATE) ─────────────────────────────────
         // The RDS instance is PRIVATE_ISOLATED, so the deploy pipeline invokes this VPC-attached Lambda

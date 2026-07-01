@@ -66,6 +66,13 @@ export class DataStack extends Stack {
         // class is the only stage-dependent RDS property, so prod's synthesized template is untouched.
         const dbInstanceSize = stageTag === 'prod' ? ec2.InstanceSize.SMALL : ec2.InstanceSize.MICRO;
 
+        // Per-stage RDS storage type (ADR-0008). Prod stays on the default gp2 (`undefined` here →
+        // CDK's default `StorageType: gp2`, byte-identical → no prod diff); every non-prod stage uses
+        // gp3. gp3 is cheaper per GB-month and bundles 3,000 baseline IOPS at 100 GB, so NO provisioned
+        // IOPS/throughput is set (CDK emits neither `Iops` nor `StorageThroughput` for gp3 under 400 GB).
+        // Flipping prod to gp3 later is a safe online modify, deliberately deferred to preserve no-prod-diff.
+        const dbStorageType = stageTag === 'prod' ? undefined : rds.StorageType.GP3;
+
         this.authSecretKey = secretsmanager.Secret.fromSecretNameV2(
             this,
             'Secret',
@@ -139,6 +146,7 @@ export class DataStack extends Stack {
             }),
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, dbInstanceSize),
             allocatedStorage: 100,
+            storageType: dbStorageType,
             storageEncrypted: true,
             backupRetention: Duration.days(7),
             multiAz: false,

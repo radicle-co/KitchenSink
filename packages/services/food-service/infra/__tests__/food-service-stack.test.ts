@@ -289,12 +289,15 @@ describe('In-VPC migration-runner Lambda (T-191)', () => {
 
 describe('Change-refresh Fargate scheduled task (T-001c)', () => {
     it('defines the IngestionScheduled rule firing an ECS RunTask target in a public subnet', () => {
+        // NOTE: the shared `serviceTemplate` is a non-prod (test) stage, so the RunTask target runs on
+        // FARGATE_SPOT (ADR-0008) — `LaunchType` is replaced by a capacity-provider strategy. The
+        // per-stage launch/Spot behaviour is asserted in the 'Per-stage Fargate Spot (ADR-0008)' suite;
+        // here we only pin the schedule, task count, and public-subnet placement.
         serviceTemplate.hasResourceProperties('AWS::Events::Rule', {
             ScheduleExpression: 'rate(6 hours)',
             Targets: Match.arrayWith([
                 Match.objectLike({
                     EcsParameters: Match.objectLike({
-                        LaunchType: 'FARGATE',
                         TaskCount: 1,
                         NetworkConfiguration: {
                             AwsVpcConfiguration: Match.objectLike({
@@ -380,6 +383,59 @@ describe('Per-stage Container Insights (ADR-0007)', () => {
         template.hasResourceProperties('AWS::ECS::Cluster', {
             ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: 'enabled' })]),
         });
+    });
+});
+
+// ── ADR-0008: per-stage Fargate Spot ───────────────────────────────────────────────────────────
+describe('Per-stage Fargate Spot (ADR-0008)', () => {
+    const serviceStrategies = (template: Template): unknown[] =>
+        Object.values(template.findResources('AWS::ECS::Service')).map(
+            (resource: any) => resource.Properties.CapacityProviderStrategy,
+        );
+
+    it('runs both non-prod (pr-7) services on FARGATE_SPOT with the capacity provider on the cluster', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+
+        for (const strategy of serviceStrategies(template)) {
+            expect(strategy).toEqual([{ CapacityProvider: 'FARGATE_SPOT', Weight: 1 }]);
+        }
+
+        template.hasResourceProperties('AWS::ECS::ClusterCapacityProviderAssociations', {
+            CapacityProviders: Match.arrayWith(['FARGATE_SPOT']),
+        });
+    });
+
+    it('runs the non-prod change-refresh RunTask on FARGATE_SPOT (no LaunchType on the rule target)', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const rule = Object.values(template.findResources('AWS::Events::Rule')).find((resource: any) =>
+            (resource.Properties.Targets ?? []).some((target: any) => target.EcsParameters),
+        ) as any;
+        const ecsParameters = rule.Properties.Targets.find((target: any) => target.EcsParameters).EcsParameters;
+
+        expect(ecsParameters.CapacityProviderStrategy).toEqual([{ CapacityProvider: 'FARGATE_SPOT', Weight: 1 }]);
+        expect(ecsParameters.LaunchType).toBeUndefined();
+    });
+
+    it('keeps prod on on-demand FARGATE — no Spot strategy, no capacity-provider association (no prod diff)', () => {
+        const template = synthFoodTemplate('prod', 'prod');
+
+        for (const strategy of serviceStrategies(template)) {
+            expect(strategy).toBeUndefined();
+        }
+
+        for (const service of Object.values(template.findResources('AWS::ECS::Service'))) {
+            expect((service as any).Properties.LaunchType).toBe('FARGATE');
+        }
+
+        template.resourceCountIs('AWS::ECS::ClusterCapacityProviderAssociations', 0);
+
+        const rule = Object.values(template.findResources('AWS::Events::Rule')).find((resource: any) =>
+            (resource.Properties.Targets ?? []).some((target: any) => target.EcsParameters),
+        ) as any;
+        const ecsParameters = rule.Properties.Targets.find((target: any) => target.EcsParameters).EcsParameters;
+
+        expect(ecsParameters.LaunchType).toBe('FARGATE');
+        expect(ecsParameters.CapacityProviderStrategy).toBeUndefined();
     });
 });
 

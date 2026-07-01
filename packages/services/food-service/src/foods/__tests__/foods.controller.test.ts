@@ -1,50 +1,64 @@
 /**
- * Unit tests for {@link FoodsController} — the HTTP status-code matrix (mocked service).
+ * Unit tests for {@link FoodsController} — the HTTP status-code + validation + scope mapping over a
+ * mocked {@link FoodsService}. The end-to-end behaviour (real DAOs, guard, enqueue, backpressure) is
+ * covered by `tests/foods-api.integration.test.ts`; this suite pins the pure controller mapping.
  *
  * Requirement → test mapping:
- * - FR-001 (cache hit)         → "getFood sets 200 and returns the food"
- * - FR-003 (miss/pending)      → "getFood sets 202 and returns the pending body"
- * - FR-005/FR-025 (tombstone)  → "getFood throws NotFoundException (404) for a tombstone"
- * - FR-006 (validation)        → "getFood/getStatus throw BadRequestException (400) for bad fdcId"
- * - FR-048 (provenance)        → "getFood reads requestedBy from req.user.sub / x-debug-sub"
- * - FR-007 (status)            → "getStatus maps not-found to 404"
- * - FR-002 (nutrients)         → "getNutrients maps unfetched to 404"
- * - FR-008 (search)            → "search/autocomplete delegate the trimmed query"
+ * - FR-002/003/004 → getFood 200 / 202 / 404 mapping
+ * - FR-006         → malformed ULID / empty name / oversized batch → 400
+ * - FR-RES-2/DSN-14 → CandidateMismatch / NotResolvable → 409; malformed body → 400
+ * - FR-039/FR-051   → /refetch requires the admin scope (403), checked before id validation
+ * - FR-046          → FetchUnavailableError → 503 + Retry-After
  */
-import { BadRequestException, HttpStatus, NotFoundException } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    HttpStatus,
+    NotFoundException,
+    ServiceUnavailableException,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FoodNotFoundError, FoodPendingError } from '../foods.errors.js';
+import type { AuthenticatedRequest } from '../../auth/authenticated-principal.js';
 import { FoodsController } from '../foods.controller.js';
+import {
+    CandidateMismatchError,
+    FetchUnavailableError,
+    FoodNotFoundError,
+    FoodPendingError,
+    NotResolvableError,
+} from '../foods.errors.js';
 import { FoodsService } from '../foods.service.js';
-import { makeFoodRow } from '../__fixtures__/foods.fixtures.js';
 
-function makeRes(): { res: Response; status: ReturnType<typeof vi.fn> } {
+const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
+
+function makeRes(): { res: Response; status: ReturnType<typeof vi.fn>; setHeader: ReturnType<typeof vi.fn> } {
     const status = vi.fn();
-    const res = { status } as unknown as Response;
+    const setHeader = vi.fn();
+    const res = { status, setHeader } as unknown as Response;
 
-    return { res, status };
+    return { res, status, setHeader };
 }
 
-function makeReq(headers: Record<string, string> = {}, user?: { sub: string }): Request {
-    return {
-        header: (name: string) => headers[name.toLowerCase()],
-        user,
-    } as unknown as Request & { user?: { sub: string } };
+function makeReq(sub = 'user_1', scopes: string[] = []): AuthenticatedRequest {
+    return { user: { sub, scopes, permissions: [] } } as unknown as AuthenticatedRequest;
 }
 
 function makeController(): { controller: FoodsController; service: Record<string, ReturnType<typeof vi.fn>> } {
     const service = {
         getFood: vi.fn(),
         getStatus: vi.fn(),
-        getNutrients: vi.fn(),
+        getCandidates: vi.fn(),
         search: vi.fn(),
-        autocomplete: vi.fn(),
+        addByName: vi.fn(),
+        batchAdd: vi.fn(),
+        patchResolve: vi.fn(),
+        refetch: vi.fn(),
     };
-    const controller = new FoodsController(service as unknown as FoodsService);
 
-    return { controller, service };
+    return { controller: new FoodsController(service as unknown as FoodsService), service };
 }
 
 describe('FoodsController.getFood', () => {
@@ -54,141 +68,190 @@ describe('FoodsController.getFood', () => {
         ctx = makeController();
     });
 
-    it('sets 200 and returns the food on a hit (FR-001)', async () => {
-        const food = {
-            fdcId: 171688,
-            description: 'Apple',
-            dataType: 'Foundation',
-            nutrients: {},
-            fetchStatus: 'fetched',
-        };
+    it('sets 200 and returns the golden record on RESOLVED (FR-002)', async () => {
+        const food = { id: VALID_ID, status: 'RESOLVED' };
         ctx.service.getFood.mockResolvedValue(food);
         const { res, status } = makeRes();
 
-        const result = await ctx.controller.getFood('171688', makeReq(), res);
+        const result = await ctx.controller.getFood(VALID_ID, res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.OK);
         expect(result).toBe(food);
     });
 
     it('sets 202 and returns the pending body on a FoodPendingError (FR-003)', async () => {
-        ctx.service.getFood.mockRejectedValue(new FoodPendingError(171688, 30));
+        ctx.service.getFood.mockRejectedValue(new FoodPendingError(VALID_ID, 'PENDING', 30));
         const { res, status } = makeRes();
 
-        const result = await ctx.controller.getFood('171688', makeReq(), res);
+        const result = await ctx.controller.getFood(VALID_ID, res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
-        expect(result).toEqual({ fdcId: 171688, status: 'pending', estimatedWaitSeconds: 30 });
+        expect(result).toEqual({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
     });
 
-    it('throws NotFoundException (404) on a FoodNotFoundError tombstone (FR-005/FR-025)', async () => {
-        ctx.service.getFood.mockRejectedValue(new FoodNotFoundError(999999));
+    it('throws NotFoundException (404) on a FoodNotFoundError (FR-004)', async () => {
+        ctx.service.getFood.mockRejectedValue(new FoodNotFoundError(VALID_ID, 'NOT_FOUND'));
         const { res } = makeRes();
 
-        await expect(ctx.controller.getFood('999999', makeReq(), res)).rejects.toBeInstanceOf(NotFoundException);
+        await expect(ctx.controller.getFood(VALID_ID, res)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('throws BadRequestException (400) for a non-numeric fdcId (FR-006)', async () => {
+    it('throws BadRequestException (400) for a malformed ULID, without calling the service (FR-006)', async () => {
         const { res } = makeRes();
 
-        await expect(ctx.controller.getFood('abc', makeReq(), res)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(ctx.controller.getFood('not-a-ulid', res)).rejects.toBeInstanceOf(BadRequestException);
         expect(ctx.service.getFood).not.toHaveBeenCalled();
     });
-
-    it('throws BadRequestException (400) for a zero/negative fdcId (FR-006)', async () => {
-        const { res } = makeRes();
-
-        await expect(ctx.controller.getFood('0', makeReq(), res)).rejects.toBeInstanceOf(BadRequestException);
-        await expect(ctx.controller.getFood('-5', makeReq(), res)).rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('passes req.user.sub as requestedBy when present (FR-048)', async () => {
-        ctx.service.getFood.mockResolvedValue(makeFoodRow());
-        const { res } = makeRes();
-
-        await ctx.controller.getFood('171688', makeReq({}, { sub: 'user_real' }), res);
-
-        expect(ctx.service.getFood).toHaveBeenCalledWith(171688, 'user_real');
-    });
-
-    it('falls back to the x-debug-sub header when req.user is absent (Phase-7 seam)', async () => {
-        ctx.service.getFood.mockResolvedValue(makeFoodRow());
-        const { res } = makeRes();
-
-        await ctx.controller.getFood('171688', makeReq({ 'x-debug-sub': 'debug_user' }), res);
-
-        expect(ctx.service.getFood).toHaveBeenCalledWith(171688, 'debug_user');
-    });
-
-    it('defaults requestedBy to anonymous when neither is present', async () => {
-        ctx.service.getFood.mockResolvedValue(makeFoodRow());
-        const { res } = makeRes();
-
-        await ctx.controller.getFood('171688', makeReq(), res);
-
-        expect(ctx.service.getFood).toHaveBeenCalledWith(171688, 'anonymous');
-    });
 });
 
-describe('FoodsController.getStatus / getNutrients', () => {
+describe('FoodsController.getStatus / getCandidates / search', () => {
     let ctx: ReturnType<typeof makeController>;
 
     beforeEach(() => {
         ctx = makeController();
     });
 
-    it('returns the status body on success (FR-007)', async () => {
-        const body = { fdcId: 171688, status: 'pending', estimatedWaitSeconds: 20 };
-        ctx.service.getStatus.mockResolvedValue(body);
+    it('maps a FoodNotFoundError to 404 on status', async () => {
+        ctx.service.getStatus.mockRejectedValue(new FoodNotFoundError(VALID_ID));
 
-        expect(await ctx.controller.getStatus('171688')).toBe(body);
+        await expect(ctx.controller.getStatus(VALID_ID)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('maps FoodNotFoundError to 404 on status (FR-007)', async () => {
-        ctx.service.getStatus.mockRejectedValue(new FoodNotFoundError(171688));
-
-        await expect(ctx.controller.getStatus('171688')).rejects.toBeInstanceOf(NotFoundException);
+    it('rejects a malformed id on candidates with 400', async () => {
+        await expect(ctx.controller.getCandidates('bad')).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('rejects an invalid fdcId on status with 400 (FR-006)', async () => {
-        await expect(ctx.controller.getStatus('xyz')).rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('maps an unfetched food to 404 on nutrients (FR-002)', async () => {
-        ctx.service.getNutrients.mockRejectedValue(new FoodNotFoundError(171688));
-
-        await expect(ctx.controller.getNutrients('171688')).rejects.toBeInstanceOf(NotFoundException);
-    });
-});
-
-describe('FoodsController.search / autocomplete', () => {
-    let ctx: ReturnType<typeof makeController>;
-
-    beforeEach(() => {
-        ctx = makeController();
-    });
-
-    it('delegates the search query (FR-008)', async () => {
-        ctx.service.search.mockResolvedValue({ foods: [] });
+    it('delegates the search query (and empty when omitted)', async () => {
+        ctx.service.search.mockResolvedValue({ results: [] });
 
         await ctx.controller.search('chicken');
-
-        expect(ctx.service.search).toHaveBeenCalledWith('chicken');
-    });
-
-    it('delegates an empty string when query is omitted', async () => {
-        ctx.service.search.mockResolvedValue({ foods: [] });
-
         await ctx.controller.search(undefined);
 
-        expect(ctx.service.search).toHaveBeenCalledWith('');
+        expect(ctx.service.search).toHaveBeenNthCalledWith(1, 'chicken');
+        expect(ctx.service.search).toHaveBeenNthCalledWith(2, '');
+    });
+});
+
+describe('FoodsController.addByName / batch', () => {
+    let ctx: ReturnType<typeof makeController>;
+
+    beforeEach(() => {
+        ctx = makeController();
     });
 
-    it('delegates the autocomplete query (FR-008)', async () => {
-        ctx.service.autocomplete.mockResolvedValue({ suggestions: [] });
+    it('sets 202 + returns the add result and passes the verified sub', async () => {
+        ctx.service.addByName.mockResolvedValue({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
+        const { res, status } = makeRes();
 
-        await ctx.controller.autocomplete('avo');
+        await ctx.controller.addByName({ name: 'Broccoli' }, makeReq('user_9'), res);
 
-        expect(ctx.service.autocomplete).toHaveBeenCalledWith('avo');
+        expect(status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
+        expect(ctx.service.addByName).toHaveBeenCalledWith('Broccoli', 'user_9');
+    });
+
+    it('rejects an empty name with 400 before calling the service (FR-006)', async () => {
+        const { res } = makeRes();
+
+        await expect(ctx.controller.addByName({ name: '  ' }, makeReq(), res)).rejects.toBeInstanceOf(
+            BadRequestException,
+        );
+        expect(ctx.service.addByName).not.toHaveBeenCalled();
+    });
+
+    it('maps a FetchUnavailableError to 503 + Retry-After (FR-046)', async () => {
+        ctx.service.addByName.mockRejectedValue(new FetchUnavailableError(30));
+        const { res, setHeader } = makeRes();
+
+        await expect(ctx.controller.addByName({ name: 'Broccoli' }, makeReq(), res)).rejects.toBeInstanceOf(
+            ServiceUnavailableException,
+        );
+        expect(setHeader).toHaveBeenCalledWith('Retry-After', '30');
+    });
+
+    it('rejects a batch over 100 names with 400, without calling the service (FR-045)', async () => {
+        const { res } = makeRes();
+        const names = Array.from({ length: 101 }, (_, i) => `food ${i}`);
+
+        await expect(ctx.controller.batch({ names }, makeReq(), res)).rejects.toBeInstanceOf(BadRequestException);
+        expect(ctx.service.batchAdd).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-array names body with 400', async () => {
+        const { res } = makeRes();
+
+        await expect(ctx.controller.batch({ names: 'nope' }, makeReq(), res)).rejects.toBeInstanceOf(
+            BadRequestException,
+        );
+    });
+});
+
+describe('FoodsController.patchResolve', () => {
+    let ctx: ReturnType<typeof makeController>;
+
+    beforeEach(() => {
+        ctx = makeController();
+    });
+
+    it('sets 200 and returns the resolve result on success', async () => {
+        ctx.service.patchResolve.mockResolvedValue({ id: VALID_ID, status: 'RESOLVED' });
+        const { res, status } = makeRes();
+
+        const result = await ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, makeReq(), res);
+
+        expect(status).toHaveBeenCalledWith(HttpStatus.OK);
+        expect(result).toEqual({ id: VALID_ID, status: 'RESOLVED' });
+    });
+
+    it('maps a CandidateMismatchError to 409', async () => {
+        ctx.service.patchResolve.mockRejectedValue(new CandidateMismatchError(VALID_ID));
+        const { res } = makeRes();
+
+        await expect(
+            ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, makeReq(), res),
+        ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('maps a NotResolvableError to 409', async () => {
+        ctx.service.patchResolve.mockRejectedValue(new NotResolvableError(VALID_ID, 'PENDING'));
+        const { res } = makeRes();
+
+        await expect(
+            ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, makeReq(), res),
+        ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rejects a malformed body (no candidateIds) with 400 (DSN-14)', async () => {
+        const { res } = makeRes();
+
+        await expect(ctx.controller.patchResolve(VALID_ID, {}, makeReq(), res)).rejects.toBeInstanceOf(
+            BadRequestException,
+        );
+    });
+});
+
+describe('FoodsController.refetch', () => {
+    let ctx: ReturnType<typeof makeController>;
+
+    beforeEach(() => {
+        ctx = makeController();
+    });
+
+    it('rejects a principal without the admin scope with 403, before id validation (FR-039/FR-051)', async () => {
+        const { res } = makeRes();
+
+        await expect(ctx.controller.refetch('bad-id', makeReq('user_1', []), res)).rejects.toBeInstanceOf(
+            ForbiddenException,
+        );
+        expect(ctx.service.refetch).not.toHaveBeenCalled();
+    });
+
+    it('re-enqueues (202) for an admin-scoped principal', async () => {
+        ctx.service.refetch.mockResolvedValue({ id: VALID_ID, status: 'RESOLVED', estimatedWaitSeconds: 30 });
+        const { res, status } = makeRes();
+
+        await ctx.controller.refetch(VALID_ID, makeReq('admin_1', ['food:admin']), res);
+
+        expect(status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
+        expect(ctx.service.refetch).toHaveBeenCalledWith(VALID_ID, 'admin_1');
     });
 });

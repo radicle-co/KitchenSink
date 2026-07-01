@@ -15,6 +15,8 @@
 | Observation        | 1     |
 | **Total Findings** | **6** |
 
+> ⚠️ **Verdict superseded** — the counts and verdict in this Summary predate doc-stabilization; read them through the **Stabilization reconciliation (decision register, 2026-06-28)** appendix at the foot of this file, which is the controlling record.
+
 This is a fresh pass replacing the stale 2026-06-19 review (which still scored against a token-bucket / per-`sub` quota / `429` design and reported 35 STP / 59 STS). The artifact itself has been reconciled to the locked design and is largely aligned: SYS-006 is the **RollingWindowLimiter** (STP-006-A atomic check-and-record against `usda_call_log`, STP-006-B 90%/900 pause boundary, ≤1,000 cap), STP-013-C enforces fairness **by demotion with no `429`** and dynamic re-promotion, STS-001-B6 covers **serve-stale-indefinitely**, STP-005-D2 covers the **30-day tombstone TTL** re-attempt, and STP-013 (A–F, incl. STP-013-B invalid-token-flood) is intact with the WS `$connect` authorizer scoped correctly. Totals are now 36 STP / 63 STS, internally consistent.
 
 The two Major findings are **completeness/consistency gaps against the new model**, not technique defects: (1) the rolling-window limiter has no system test for the **state-loss / empty-call-log bounded-burst** failure mode that the spec's own edge-case list calls out, and (2) the **Redis cache (SYS-008) is presented as a first-class live component** and woven into SYS-001's primary read/dedup scenarios, contradicting the lean-launch default (Postgres-only, `ON CONFLICT` dedup) where Redis is an explicitly deferred variant.
@@ -70,12 +72,12 @@ The two Major findings are **completeness/consistency gaps against the new model
 
 **Evidence**:
 
-- Spec FR-011 and the `FoodDataEvent` entity are explicit: the demand-path enqueue is a direct `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify('fetch_queued')`; **EventBridge is reserved for scheduled producers (FR-032) and the `FoodDataReceived` completion event (FR-034) only — it is not on the demand-path enqueue.**
+- Spec FR-011 and the `FoodFetchCompleted` entity are explicit: the demand-path enqueue is a direct `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify('fetch_queued')`; **EventBridge is reserved for scheduled producers (FR-032) and the `FoodFetchCompleted` completion event (FR-034) only — it is not on the demand-path enqueue.**
 - SYS-002 is named "EventBridgeBus" and its cases are titled "Enqueue Routing — FoodRequested to High-Priority fetch*queue Row" / "FoodBatchRequested to Low-Priority fetch_queue Rows", framing EventBridge as the enqueue router. The scenario \_bodies* are actually correct (STS-002-A1: "executes `INSERT INTO fetch_queue … VALUES (12345, 'high', …)` and issues a `NOTIFY fetch_queue`"), so this is a component-label/title mismatch, not a wrong test.
 
 **Impact**: A reader could infer EventBridge is on the demand-path hot path (the exact thing FR-011 forbids). Traceability of REQ-011/REQ-012 points at a component whose name no longer matches its role.
 
-**Required action**: Rename SYS-002 to reflect the demand-path enqueue (e.g. "FetchQueueEnqueue (`INSERT … ON CONFLICT` + `pg_notify`)") and retitle STP-002-A/B to drop "EventBridge" routing language; keep the scenario bodies. Reserve any genuine EventBridge component for the scheduled-producer / `FoodDataReceived` path.
+**Required action**: Rename SYS-002 to reflect the demand-path enqueue (e.g. "FetchQueueEnqueue (`INSERT … ON CONFLICT` + `pg_notify`)") and retitle STP-002-A/B to drop "EventBridge" routing language; keep the scenario bodies. Reserve any genuine EventBridge component for the scheduled-producer / `FoodFetchCompleted` path.
 
 ---
 
@@ -141,3 +143,39 @@ The two Major findings are **completeness/consistency gaps against the new model
 ## Remediation Status (2026-06-20, round 4)
 
 All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.
+
+---
+
+## Stabilization reconciliation (decision register, 2026-06-28)
+
+> This section supersedes the "Remediation Status (round 4)" note above wherever they differ. The
+> stabilization **decision register** (`../decision-register.md`), with `../.stabilization/inputs/`, is the
+> single canonical resolution. The findings above are retained verbatim as the review record; read every
+> term in them through the canonical mapping below. The only in-place body edit applied by stabilization is
+> the mandated completion-event rename to **`FoodFetchCompleted`** (the retired `FoodData*` completion-event names; D-EVENT).
+
+**Canonical names (§1; D-EVENT / D-CLEANUP / D-AUTH).**
+
+- Completion event = **`FoodFetchCompleted`** (EventBridge `DetailType`; publisher `publishFoodFetchCompleted`). `FoodRequested`/`FoodBatchRequested` are in-process enqueue markers, **not** EventBridge types; `IngestionScheduled`/`FetchFailed` keep their names.
+- `food.status` lifecycle enum = **`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`** (replaces the old `fetch_status` = `pending/fetched/failed/not_found/stale`). `fetch_queue.status` stays **`pending | in_flight | tombstone`**.
+- USDA native id = **`external_key`**; the public/PK id is the internal **ULID `id`**. `fdcId`/`fdc_id` is **adapter-only** and must not appear on schema/DTO/API/DAO. Source = the **`food_source`** enum (no free-text). Errors: **`SourceApiError`** (not `UsdaApiError`), plus `RateLimitWindowFullError`/`FoodNotFoundError`/`CandidateMismatchError`.
+- Read framing = **local-store read (RESOLVED) / local-store serve rate / add-by-name miss**; "cache hit/miss/hit-rate" is reserved for the deferred Redis variant (ARCH-007) only.
+- Auth = **`FoodAuthGuard`** (food service; networkless Clerk verify, fail-closed, scopes from `public_metadata`); the forgeable **`x-debug-sub`** / trusted-identity-header path is removed (identity = the verified Clerk `sub` only). The auth slice is unchanged in scope.
+
+**Canonical schema (§2; D-CANDIDATES / D-LEASE / D-PROVENANCE-FK).** plan.md §2 = **13 tables** (the 12 there **plus `food_candidates`** — `id, food_id, source, external_key, name, summary, created_at`; `UNIQUE(food_id, source, external_key)`, backing `UNRESOLVED`/US-2a). `fetch_queue` gains **`leased_at timestamptz`** with a reaper reverting `in_flight` rows older than 30s (single-drainer = FR-022 advisory lock). `food_sources` gains `UNIQUE(food_id, id)`; nutrients/portions/field-provenance/category-assignment use composite **`(food_id, source_id)` FKs**, `ON DELETE NO ACTION`. `source_call_log` rows beyond the trailing 60-min window are pruned on a periodic sweep.
+
+**Canonical behaviour (D-AUTORESOLVE / D-UNRESOLVED-TTL / D-LIFECYCLE / D-DEMAND / D-FAIRNESS / D-REFRESH / D-SC005).**
+
+- Auto-resolve: after pre-merge dedup, **1 survivor of normalized-name exact match → `RESOLVED`; >1 → `UNRESOLVED`** (persist survivors to `food_candidates`); **0 → `NOT_FOUND`**. No nutrient tolerance.
+- `UNRESOLVED` is kept until a human picks; its candidate set expires 30 days after `created_at` and re-fans-out on the next request (never swept to `NOT_FOUND`). The **30-day TTL is `NOT_FOUND`-only**; `FAILED→PENDING` is bounded-backoff retry (no 30-day gate).
+- Legal transitions: `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}`; `UNRESOLVED→RESOLVED`; `FAILED→PENDING`; `NOT_FOUND→PENDING` (post-TTL). `PATCH`-resolve is UNRESOLVED-only, idempotent, candidate-in-set validated (`CandidateMismatchError`). `createByName` reactivates a terminal-state row (no `23505`). Refresh never overwrites a manual pick.
+- Demand = distinct-requester: upsert `(food_id, sub)` into `fetch_requesters` `ON CONFLICT DO NOTHING`, then set `request_count` to the **capped distinct-`sub` count (`PRIORITY_CAP = 1`)** — never raw `+1`. One demand-weighted `fetch_queue` ordered `request_count DESC, first_requested ASC`; demotion is **drain-time live compute** (no `drain_priority_tier` column, no `enqueueLowPriority`). No per-user quota, no `429`; near-ceiling NEW-enqueue flood-shed = `503`. Change-refresh runs as a **Fargate scheduled task** that yields to live demand, re-enqueuing via the ordinary path.
+- SC-005 splits into **read/serve throughput** (local reads, high target) vs **first-time NEW-food resolution rate** (~500–900/hr, bounded by SC-002 ≤1,000 calls/rolling-60-min — new **SC-014**).
+
+**Finding dispositions for this artifact.**
+
+- **PRF-STP-001** (limiter state-loss STP) — carried (HAZ-041 analogue); unchanged by the register.
+- **PRF-STP-002** (Redis-as-live) — resolved by **D-CLEANUP**: the canonical serve + dedup path is the **local store (Postgres)** with `fetch_queue` `ON CONFLICT`; STP-008 Redis cases are **deferred-variant-only**.
+- **PRF-STP-003** (SYS-002 "EventBridgeBus" demand-path title) — rename off EventBridge for the demand path; EventBridge = scheduled producers + `FoodFetchCompleted` only.
+- **PRF-STP-004 / PRF-STP-005 / PRF-STP-006** — carried (config-fault EP tag; shared-state seed; D1/D2 actor framing).
+- **System tests to add** (per §3.4/§3.5/§3.6/§3.9/§3.11): candidate flow + **auto-resolve 1/>1/0**; **UNRESOLVED candidate-set TTL re-fan-out**; **`leased_at` reaper**; cross-`food_id` `source_id` **rejection** via the composite FK. The STP range extends to **STP-020** (decision register §3.14); the `food.status` enum replaces `fetch_status` in every status-bearing scenario.

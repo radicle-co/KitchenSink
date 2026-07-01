@@ -16,6 +16,8 @@
 | Observation        | 3      |
 | **Total Findings** | **10** |
 
+> ⚠️ **Verdict superseded** — the counts and verdict in this Summary predate doc-stabilization; read them through the **Stabilization reconciliation (decision register, 2026-06-28)** appendix at the foot of this file, which is the controlling record.
+
 Overall assessment: **FAIL — 2 Critical / 3 Major.** The auth/admission edge is **correctly reconciled**: SYS-013's row, Path 0, IC-007, and the Trade-off table all model **demotion (>50 pending → ranked to back, dynamic at drain time; no `429`)** rather than a per-user quota, and SYS-006 (RollingWindowLimiter) and Path 2b (stale-while-revalidate, serve-stale-indefinitely) match the locked design. **However the queue decomposition still encodes the superseded model**: SYS-002 (EventBridgeBus) traces to the stale demand-path REQ-011/REQ-012, and SYS-003/SYS-004 are split into **HighPriorityFetchQueue / LowPriorityFetchQueue** as if static origin-based priority were the ordering — contradicting the single demand-weighted `fetch_queue` with dynamic demotion that the same document describes in Path 4, SYS-013, and the Trade-off table. The decomposition view and the data-flow/dependency views therefore disagree internally. Those are the blocking findings.
 
 ## Findings
@@ -28,9 +30,9 @@ Overall assessment: **FAIL — 2 Critical / 3 Major.** The auth/admission edge i
 **Defect type**: Internal consistency / traceability vs spec.md
 **Location**: SYS-002 Decomposition row (line 23) + Parent Requirements (REQ-011, REQ-012); Component Traceability Detail (lines 253–257); Dependency View SYS-002→SYS-003/004 (lines 43–44)
 
-**Description**: SYS-002's **Parent Requirements are REQ-011, REQ-012** — the requirements that say "publish a `FoodRequested`/`FoodBatchRequested` event **to EventBridge** on cache miss." That is the superseded SQS/EventBridge demand path. SYS-002's own description correctly states it is "for **scheduled producers only** … **not** on the demand-path enqueue — cache-miss enqueues are `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify`," so the **component narrative contradicts its own traceability**: it claims it is not on the demand path while tracing to the two demand-path requirements. Per the locked design (spec.md FR-011) EventBridge carries only `IngestionScheduled` (FR-032) and `FoodDataReceived` (FR-034). A V-model trace keyed on REQ→SYS would conclude the demand-path enqueue is implemented by EventBridge, which the design forbids.
+**Description**: SYS-002's **Parent Requirements are REQ-011, REQ-012** — the requirements that say "publish a `FoodRequested`/`FoodBatchRequested` event **to EventBridge** on cache miss." That is the superseded SQS/EventBridge demand path. SYS-002's own description correctly states it is "for **scheduled producers only** … **not** on the demand-path enqueue — cache-miss enqueues are `INSERT … ON CONFLICT` into `fetch_queue` + `pg_notify`," so the **component narrative contradicts its own traceability**: it claims it is not on the demand path while tracing to the two demand-path requirements. Per the locked design (spec.md FR-011) EventBridge carries only `IngestionScheduled` (FR-032) and `FoodFetchCompleted` (FR-034). A V-model trace keyed on REQ→SYS would conclude the demand-path enqueue is implemented by EventBridge, which the design forbids.
 
-**Recommendation**: Re-parent SYS-002 to the scheduled-producer + completion requirements (REQ-032 / REQ-IF-005 `IngestionScheduled`+`FoodDataReceived`), and re-parent the demand-path enqueue (corrected REQ-011/012/013/014) to SYS-003 + SYS-001. This depends on the requirements.md fix (peer-review-requirements PRF-REQ-001); flag both together.
+**Recommendation**: Re-parent SYS-002 to the scheduled-producer + completion requirements (REQ-032 / REQ-IF-005 `IngestionScheduled`+`FoodFetchCompleted`), and re-parent the demand-path enqueue (corrected REQ-011/012/013/014) to SYS-003 + SYS-001. This depends on the requirements.md fix (peer-review-requirements PRF-REQ-001); flag both together.
 
 ---
 
@@ -145,3 +147,39 @@ Overall assessment: **FAIL — 2 Critical / 3 Major.** The auth/admission edge i
 ## Remediation Status (2026-06-20, round 4)
 
 All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.
+
+---
+
+## Stabilization reconciliation (decision register, 2026-06-28)
+
+> This section supersedes the "Remediation Status (round 4)" note above wherever they differ. The
+> stabilization **decision register** (`../decision-register.md`), with `../.stabilization/inputs/`, is the
+> single canonical resolution. The findings above are retained verbatim as the review record; read every
+> term in them through the canonical mapping below. The only in-place body edit applied by stabilization is
+> the mandated completion-event rename to **`FoodFetchCompleted`** (the retired `FoodData*` completion-event names; D-EVENT).
+
+**Canonical names (§1; D-EVENT / D-CLEANUP / D-AUTH).**
+
+- Completion event = **`FoodFetchCompleted`** (EventBridge `DetailType`; publisher `publishFoodFetchCompleted`). `FoodRequested`/`FoodBatchRequested` are in-process enqueue markers, **not** EventBridge types; `IngestionScheduled`/`FetchFailed` keep their names.
+- `food.status` lifecycle enum = **`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`** (replaces the old `fetch_status` = `pending/fetched/failed/not_found/stale`). `fetch_queue.status` stays **`pending | in_flight | tombstone`**.
+- USDA native id = **`external_key`**; the public/PK id is the internal **ULID `id`**. `fdcId`/`fdc_id` is **adapter-only** and must not appear on schema/DTO/API/DAO. Source = the **`food_source`** enum (no free-text). Errors: **`SourceApiError`** (not `UsdaApiError`), plus `RateLimitWindowFullError`/`FoodNotFoundError`/`CandidateMismatchError`.
+- Read framing = **local-store read (RESOLVED) / local-store serve rate / add-by-name miss**; "cache hit/miss/hit-rate" is reserved for the deferred Redis variant (ARCH-007) only.
+- Auth = **`FoodAuthGuard`** (food service; networkless Clerk verify, fail-closed, scopes from `public_metadata`); the forgeable **`x-debug-sub`** / trusted-identity-header path is removed (identity = the verified Clerk `sub` only). The auth slice is unchanged in scope.
+
+**Canonical schema (§2; D-CANDIDATES / D-LEASE / D-PROVENANCE-FK).** plan.md §2 = **13 tables** (the 12 there **plus `food_candidates`** — `id, food_id, source, external_key, name, summary, created_at`; `UNIQUE(food_id, source, external_key)`, backing `UNRESOLVED`/US-2a). `fetch_queue` gains **`leased_at timestamptz`** with a reaper reverting `in_flight` rows older than 30s (single-drainer = FR-022 advisory lock). `food_sources` gains `UNIQUE(food_id, id)`; nutrients/portions/field-provenance/category-assignment use composite **`(food_id, source_id)` FKs**, `ON DELETE NO ACTION`. `source_call_log` rows beyond the trailing 60-min window are pruned on a periodic sweep.
+
+**Canonical behaviour (D-AUTORESOLVE / D-UNRESOLVED-TTL / D-LIFECYCLE / D-DEMAND / D-FAIRNESS / D-REFRESH / D-SC005).**
+
+- Auto-resolve: after pre-merge dedup, **1 survivor of normalized-name exact match → `RESOLVED`; >1 → `UNRESOLVED`** (persist survivors to `food_candidates`); **0 → `NOT_FOUND`**. No nutrient tolerance.
+- `UNRESOLVED` is kept until a human picks; its candidate set expires 30 days after `created_at` and re-fans-out on the next request (never swept to `NOT_FOUND`). The **30-day TTL is `NOT_FOUND`-only**; `FAILED→PENDING` is bounded-backoff retry (no 30-day gate).
+- Legal transitions: `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}`; `UNRESOLVED→RESOLVED`; `FAILED→PENDING`; `NOT_FOUND→PENDING` (post-TTL). `PATCH`-resolve is UNRESOLVED-only, idempotent, candidate-in-set validated (`CandidateMismatchError`). `createByName` reactivates a terminal-state row (no `23505`). Refresh never overwrites a manual pick.
+- Demand = distinct-requester: upsert `(food_id, sub)` into `fetch_requesters` `ON CONFLICT DO NOTHING`, then set `request_count` to the **capped distinct-`sub` count (`PRIORITY_CAP = 1`)** — never raw `+1`. One demand-weighted `fetch_queue` ordered `request_count DESC, first_requested ASC`; demotion is **drain-time live compute** (no `drain_priority_tier` column, no `enqueueLowPriority`). No per-user quota, no `429`; near-ceiling NEW-enqueue flood-shed = `503`. Change-refresh runs as a **Fargate scheduled task** that yields to live demand, re-enqueuing via the ordinary path.
+- SC-005 splits into **read/serve throughput** (local reads, high target) vs **first-time NEW-food resolution rate** (~500–900/hr, bounded by SC-002 ≤1,000 calls/rolling-60-min — new **SC-014**).
+
+**Finding dispositions for this artifact.**
+
+- **PRF-SYS-001** (SYS-002 EventBridge demand-path) — re-parent SYS-002 to the scheduled-producer + completion requirements; EventBridge carries only `IngestionScheduled` + `FoodFetchCompleted`. The demand-path enqueue is the `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify`.
+- **PRF-SYS-002** (SYS-003/SYS-004 static high/low split) — **collapse into one demand-weighted `FetchQueue`** (D-FAIRNESS); there is no static tier and **no `drain_priority_tier` column** — demotion is drain-time compute.
+- **PRF-SYS-004** (`status='done'`; delete-vs-tombstone) — canonical `fetch_queue.status = pending | in_flight | tombstone` (drop `'done'`); the `404` path sets `status='tombstone'`; add the **`leased_at`** column + 30s reaper in Path 4; the `food.status` lifecycle enum is the separate set above.
+- **PRF-SYS-003 / PRF-SYS-005 / PRF-SYS-006 / PRF-SYS-007** — carried; SYS-005 anchors the single 30s lease; demand counting is distinct-requester (D-DEMAND).
+- **System components to add** (per §3.4/§3.7/§3.11/§3.13/§3.16): SYS-007 enumerates **13 tables incl. `food_candidates`** + composite `(food_id, source_id)` provenance FKs; SYS-013 is **`FoodAuthGuard`** (`x-debug-sub` removed); add **SYS-019** change-refresh **Fargate scheduled task** (D-REFRESH); the `source_call_log` retention sweep in SYS-006.

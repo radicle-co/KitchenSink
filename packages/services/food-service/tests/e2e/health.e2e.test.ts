@@ -42,7 +42,9 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/d
  */
 async function applyMigration(pool: pg.Pool): Promise<void> {
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    await pool.query(readFileSync(join(migrationsDir, '0000_food_schema.sql'), 'utf-8'));
+    for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+        await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
+    }
 }
 
 describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)', () => {
@@ -83,17 +85,18 @@ describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)'
         await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'food' });
     });
 
-    it('proves the harness DB is reachable end to end: the migrated foods table accepts a row', async () => {
-        // The migration created `foods`; a direct insert/read confirms the booted-app DB works.
-        await pool.query(`DELETE FROM foods WHERE fdc_id = 999999`);
-        await pool.query(`INSERT INTO foods (fdc_id, fetch_status) VALUES (999999, 'pending')`);
-
-        const { rows } = await pool.query<{ fetch_status: string }>(
-            `SELECT fetch_status FROM foods WHERE fdc_id = 999999`,
+    it('proves the harness DB is reachable end to end: the migrated food table accepts a row', async () => {
+        // The source-agnostic migration created `food` (internal id PK); a direct insert/read confirms
+        // the booted-app DB works.
+        await pool.query(`DELETE FROM food WHERE id = 'e2e-health-probe'`);
+        await pool.query(
+            `INSERT INTO food (id, name, normalized_name, status) VALUES ('e2e-health-probe', 'probe', 'probe', 'PENDING')`,
         );
-        expect(rows[0]?.fetch_status).toBe('pending');
 
-        await pool.query(`DELETE FROM foods WHERE fdc_id = 999999`);
+        const { rows } = await pool.query<{ status: string }>(`SELECT status FROM food WHERE id = 'e2e-health-probe'`);
+        expect(rows[0]?.status).toBe('PENDING');
+
+        await pool.query(`DELETE FROM food WHERE id = 'e2e-health-probe'`);
     });
 
     // TODO(Phase 2, T-061/T-063): E2E `GET /v1/foods/:id` — cache-hit 200 (no USDA call),

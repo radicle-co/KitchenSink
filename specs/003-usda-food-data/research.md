@@ -1,7 +1,13 @@
 # Research: Feature 003 — USDA Food Data Integration
 
+> **⚠️ SUPERSEDED (doc-stabilization 2026-06-28).** This root research note is a historical
+> point-in-time record. Its pre-design framing (`ingredients` + `usda_fdc_id`, "cache hit/miss",
+> `FoodRequested`→SQS, `fetch_status`) is superseded by the **source-agnostic stabilization
+> baseline** — see [`decision-register.md`](./decision-register.md) (and the per-doc
+> [`research/`](./research/) notes). Read with the decision register as the source of truth.
+
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-08
-**Spec**: [spec.md](./spec.md) | **Status**: Complete
+**Spec**: [spec.md](./spec.md) | **Status**: Complete (superseded — see banner above)
 
 ## Research Questions
 

@@ -4,6 +4,7 @@
 **Status**: Complete | **Input**: [spec.md](../spec.md), [plan.md](../plan.md), [research.md](../research.md)
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+_Updated 2026-06-28: reconciled to the source-agnostic stabilization baseline (golden-record local store; `FoodFetchCompleted`; `food_candidates`; distinct-requester demand; SC-005/SC-014 split)._
 
 ---
 
@@ -13,7 +14,7 @@ This directory contains the Product Forge Phase 1 research artifacts for feature
 
 ### [competitors.md](./competitors.md)
 
-Competitive landscape for food/nutrition data providers covering USDA FoodData Central, Edamam, Spoonacular, Open Food Facts, Nutritionix, and Cronometer-style sourcing patterns. Includes parity matrix, launch-fit trade-offs, and differentiation thesis for event-driven local caching over direct third-party pass-through.
+Competitive landscape for food/nutrition data providers covering USDA FoodData Central, Edamam, Spoonacular, Open Food Facts, Nutritionix, and Cronometer-style sourcing patterns. Includes parity matrix, launch-fit trade-offs, and differentiation thesis for an event-driven local golden-record store over direct third-party pass-through.
 
 ### [ux-patterns.md](./ux-patterns.md)
 
@@ -25,11 +26,11 @@ Monorepo and implementation fit analysis grounded in root `package.json`, `AGENT
 
 ### [tech-stack.md](./tech-stack.md)
 
-Technology stack rationale extracted from `research.md` RQ-1..RQ-8 and `plan.md`. Covers API + data model, Postgres-as-queue (fetch_queue + LISTEN/NOTIFY) + Fargate worker, rolling-60-min-window rate limiter, PostgreSQL search (`pg_trgm` + FTS), and observability stack.
+Technology stack rationale extracted from `research.md` RQ-1..RQ-8 and `plan.md`. Covers API + data model, Postgres-as-queue (fetch_queue + LISTEN/NOTIFY) + single-drainer Fargate worker + reaper, rolling-60-min-window rate limiter (`source_call_log`), PostgreSQL search (`pg_trgm` + FTS), and observability stack.
 
 ### [metrics-roi.md](./metrics-roi.md)
 
-Success metrics and ROI hypothesis for the food data layer. Covers SLOs from `SC-001..SC-009`, constitutional NFR guardrails (`NFR-001..NFR-010`), throughput/cost guardrails under USDA limits, and product-level impact metrics for ingredient resolution quality.
+Success metrics and ROI hypothesis for the food data layer. Covers SLOs from `SC-001..SC-009` plus the new `SC-014` (first-time NEW-food resolution rate, split out of SC-005), constitutional NFR guardrails (`NFR-001..NFR-010`), throughput/cost guardrails under the source budget, and product-level impact metrics for ingredient resolution quality.
 
 ## Relationship to Other Artifacts
 
@@ -43,5 +44,5 @@ Success metrics and ROI hypothesis for the food data layer. Covers SLOs from `SC
 
 ## What Is Grounded vs. TBD
 
-- **Grounded**: Rate limits, single demand-weighted fetch_queue with dynamic demotion, polling-first launch approach, USDA endpoint boundaries, and strict local-read architecture.
-- **TBD / Warning-surfaced**: First-class substitution semantics and hard unit-conversion requirements (currently represented as UX guidance, not explicit FRs).
+- **Grounded**: Rate limits, single demand-weighted `fetch_queue` with distinct-requester demand + drain-time demotion, polling-first launch approach, source-agnostic adapter boundary (USDA at launch), and strict local golden-record read architecture.
+- **TBD / Warning-surfaced**: First-class substitution semantics and hard unit-conversion requirements (currently represented as UX guidance, not explicit FRs — the single item still Open for user; see the stabilization decision register §6).

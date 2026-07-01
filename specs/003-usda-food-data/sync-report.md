@@ -1,5 +1,35 @@
 # Sync Report: 003-usda-food-data
 
+## Run #4 | Date: 2026-06-28 | Phase: pre-implement (post source-agnostic stabilization)
+
+**Verdict**: ✅ **CLEAN** — all prior drift is resolved or superseded; the artifact chain is reconciled to the source-agnostic stabilization baseline ([`decision-register.md`](./decision-register.md) + [`.stabilization/inputs/autoresolutions.md`](./.stabilization/inputs/autoresolutions.md)). This is a **design-baseline-only** pass — `.forge-status.yml` `implement` = `not-started`; Layers 5 (tasks ↔ code) and 6 (spec ↔ code) remain N/A (zero implementation code).
+
+**What changed since Run #3.** `spec.md`, `plan.md`, `tasks.md`, and the 12 v-model artifacts were re-baselined to the source-agnostic / golden-record model and then stabilized; `research/`, `product-spec/`, and the report artifacts were reconciled to match. The canonical `D-*` decisions were applied verbatim across layers.
+
+| Prior drift                                                                                                    | Status in Run #4                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **D-001** (Run #1, L2): product-spec Redis sorted-set / `ZINCRBY` keyed by `fdcId` vs spec High/Low SQS queues | ✅ **Superseded** — both mechanisms are gone. Demand is **distinct-requester** in Postgres (`fetch_requesters` upsert + capped `request_count`, `PRIORITY_CAP=1`); a single demand-weighted `fetch_queue` with drain-time demotion replaces High/Low queues; no SQS, no Redis sorted set, no DLQ (tombstone rows). |
+| **D-002 / DRIFT-102** (FR-036 collision): WebSocket vs Clerk verification                                      | ✅ **Resolved** — auth FR family is canonical; the stale WebSocket `FR-036` reference is gone.                                                                                                                                                                                                                     |
+| **D-003** (Run #1, L4): phantom task ranges T-044–T-052                                                        | ✅ **Resolved** — `tasks.md` regenerated; ranges reconciled.                                                                                                                                                                                                                                                       |
+| **DRIFT-101** (Run #2/#3): auth not propagated                                                                 | ✅ **Preserved & reaffirmed** — the US-0 / FR-035..053 Clerk slice remains fully traced. Stabilization keeps it intact: **`FoodAuthGuard`** (networkless Clerk verify, fail-closed, scopes from `public_metadata`); the forgeable **`x-debug-sub`** path is removed.                                               |
+
+**Naming/terminology reconciliation now consistent cluster-wide (per the canonical glossary):**
+
+- Completion event = **`FoodFetchCompleted`** / `publishFoodFetchCompleted` (matches plan §4 + the deployed CDK rule); `FoodDataReceived`/`FoodDataEvent` purged.
+- Canonical model is **13 tables** including the added **`food_candidates`** (backs `UNRESOLVED` / **US-2a**, re-parented under US-2).
+- Status enum **`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`** (no `stale`); queue row status **`pending | in_flight | tombstone`** with the **`leased_at`** lease column + reaper.
+- Rolling-window ledger is **`source_call_log`** (not `usda_call_log`); `source_sync_metadata` (not `usda_sync_metadata`); golden record keyed by ULID **`id`** with **`external_key`** (USDA's `fdcId` adapter-only).
+- Throughput restated: **SC-005** = read/serve throughput (local reads, no source call); **SC-014** = first-time NEW-food resolution rate (~500–900/hr, source-budget-bounded). The flat "≥5,000 foods/hr" claim is retired.
+- Notification keyword **`food.resolution.completed`** (not `food.backfill.completed`); cache-hit framing replaced by local-store-serve framing.
+
+**Auth-naming clarification (forward-fix of the Run #3 shorthand).** Run #3's "FoodAuthGuard = NestJS AuthMiddleware" was shorthand; the canonical name in the **food service** is **`FoodAuthGuard`** (a NestJS guard). `AuthMiddleware` is the **identity service's** component and is not reused here.
+
+**Remaining (not drift — readiness items):** stabilized artifacts are not yet peer-reviewed/approved (`review.md` Revision 3 awaiting confirmation); the one **Open-for-user** item (food-substitution FR, decision-register §6) stays warning-tracked.
+
+> Runs #3, #2, and #1 preserved below for history.
+
+---
+
 ## Run #3 | Date: 2026-06-19 | Phase: pre-implement (post auth re-plan + v-model regen)
 
 **Verdict**: ✅ **RESOLVED** — DRIFT-101 (Run #2 CRITICAL) is closed.

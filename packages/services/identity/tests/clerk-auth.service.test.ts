@@ -27,15 +27,16 @@ describe('ClerkAuthService', () => {
         delete process.env['CLERK_AUTHORIZED_PARTIES'];
     });
 
-    it('returns mapped claims for a valid token', async () => {
+    // Uses the BARE-payload shape @clerk/backend (>= 1.34) actually resolves on success — the regression
+    // guard for the bug where the wrapper only read `result.data` and 401'd every valid token. Other
+    // cases below keep the legacy `{ data }` envelope to prove cross-version back-compat.
+    it('returns mapped claims for a valid token (bare-payload runtime shape)', async () => {
         mockVerifyToken.mockResolvedValueOnce({
-            data: {
-                sub: 'user_abc123',
-                email: 'new@example.com',
-                first_name: 'Ada',
-                last_name: 'Lovelace',
-                image_url: 'https://img.example/a.png',
-            },
+            sub: 'user_abc123',
+            email: 'new@example.com',
+            first_name: 'Ada',
+            last_name: 'Lovelace',
+            image_url: 'https://img.example/a.png',
         });
 
         const service = await makeService();

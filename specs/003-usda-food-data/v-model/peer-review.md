@@ -12,6 +12,16 @@
 
 **Standard Applied**: ISO 29119 / V-Model bidirectional traceability
 
+> [!IMPORTANT]
+> **SUPERSEDED — historical record.** This 2026-05-09 review (and its 2026-06-19 addendum) examined the
+> **pre-reconciliation** design: SQS fetch queues, a **token-bucket** limiter, **Redis-first** reads, the
+> `fetch_status` enum (`pending/fetched/failed/not_found/stale`), and `fdcId` keys. That design no longer
+> exists. It was reconciled to **Postgres-as-queue + rolling-window + demotion** (2026-06-20; see the
+> per-artifact `peer-review-*.md`), then **stabilized** by the **decision register**
+> (`../decision-register.md`). The findings below are retained verbatim as history; read every term through
+> the canonical mapping in **"Stabilization reconciliation"** at the foot of this file. The only in-place
+> body edit is the mandated completion-event rename to **`FoodFetchCompleted`** (the retired `FoodData*` completion-event name; D-EVENT).
+
 ---
 
 ## Summary
@@ -21,6 +31,8 @@
 | CRITICAL | 4     |
 | WARNING  | 9     |
 | PASSED   | 12    |
+
+> ⚠️ **Verdict superseded** — the counts and verdict in this Summary predate doc-stabilization; read them through the **Stabilization reconciliation (decision register, 2026-06-28)** appendix at the foot of this file, which is the controlling record.
 
 Overall assessment: **CONDITIONAL PASS** — the artifact set is structurally sound and demonstrates strong traceability discipline. Four critical issues must be resolved before implementation begins; nine warnings should be addressed before the first integration test cycle.
 
@@ -173,7 +185,7 @@ Overall assessment: **CONDITIONAL PASS** — the artifact set is structurally so
 
 **Evidence**:
 
-- REQ-IF-005: "EventBridge events: `FoodRequested`, `FoodBatchRequested`, `IngestionScheduled`, `FoodDataReceived`, `FetchFailed`" — verification method: Inspection.
+- REQ-IF-005: "EventBridge events: `FoodRequested`, `FoodBatchRequested`, `IngestionScheduled`, `FoodFetchCompleted`, `FetchFailed`" — verification method: Inspection.
 - No event schema (field names, types, required/optional) is defined in the requirements or referenced artifact.
 - `FetchFailed` event is listed in REQ-IF-005 but does not appear in any acceptance test, unit test, or hazard entry. It is not referenced in REQ-024 through REQ-027 (the consumer error handling requirements).
 
@@ -338,3 +350,36 @@ MOD-012/MOD-013 · UTP-012 · ITP-012 · STP-013 · ATP-008/ATS-036 · HAZ-036/H
 predates them. A `speckit.v-model.peer-review` pass over the auth slice, and a regeneration
 of `release-audit-report.md` (its REQ-035 row still carries the old "shared API Gateway
 authorizer" wording), are required before release readiness. Auth tests remain unexecuted.
+
+The auth slice was subsequently peer-reviewed per-artifact (2026-06-20, see `peer-review-requirements.md`
+and `peer-review-system-design.md`) and reconciled to the **in-process `FoodAuthGuard`** model. Its
+canonical form is recorded in the stabilization section below; this slice must **not** be weakened or dropped.
+
+---
+
+## Stabilization reconciliation (decision register, 2026-06-28)
+
+> The findings above target the **pre-reconciliation** design and are kept only as history. The stabilization
+> **decision register** (`../decision-register.md`), with `../.stabilization/inputs/`, is the single canonical
+> resolution; the per-artifact `peer-review-*.md` files carry the live findings. Map every superseded term in
+> the body to the canonical model below.
+
+**Canonical names (§1; D-EVENT / D-CLEANUP / D-AUTH).**
+
+- Completion event = **`FoodFetchCompleted`** (EventBridge `DetailType`; publisher `publishFoodFetchCompleted`). `FoodRequested`/`FoodBatchRequested` are in-process enqueue markers, **not** EventBridge types; `IngestionScheduled`/`FetchFailed` keep their names.
+- `food.status` lifecycle enum = **`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`** — this **replaces** the `fetch_status` enum (`pending/fetched/failed/not_found/stale`) the findings below critique; "stale" is no longer a status (it is stale-while-revalidate on a `RESOLVED` record). `fetch_queue.status` = `pending | in_flight | tombstone`.
+- USDA native id = **`external_key`**; the public/PK id is the internal **ULID `id`**. `fdcId`/`fdc_id` is **adapter-only** and must not appear on schema/DTO/API/DAO (so `GET /v1/foods/{fdcId}` and the `foods.fdc_id` index in the findings below are pre-reconciliation). Source = the **`food_source`** enum; errors use **`SourceApiError`** (not `UsdaApiError`).
+- Read framing = **local-store read (RESOLVED) / local-store serve rate / add-by-name miss**; "cache hit/miss/hit-rate" (e.g. PRF-003-A7, P11) is reserved for the deferred Redis variant (ARCH-007) only.
+- Auth = **`FoodAuthGuard`** (food service; networkless Clerk verify, fail-closed, scopes from `public_metadata`); the forgeable **`x-debug-sub`** / trusted-identity-header path is removed. The auth slice is unchanged in scope.
+
+**Canonical schema (§2; D-CANDIDATES / D-LEASE / D-PROVENANCE-FK).** plan.md §2 = **13 tables** (the 12 there **plus `food_candidates`** — `id, food_id, source, external_key, name, summary, created_at`; `UNIQUE(food_id, source, external_key)`). `fetch_queue` gains **`leased_at timestamptz`** + a 30s reaper (single-drainer = FR-022 advisory lock). `food_sources` gains `UNIQUE(food_id, id)`; nutrients/portions/field-provenance/category-assignment use composite **`(food_id, source_id)` FKs**, `ON DELETE NO ACTION`. `source_call_log` is pruned beyond the trailing 60-min window. There are **no** SQS queues, no token-bucket state, and no `user_fetch_quota`/`global_fetch_quota` tables.
+
+**Canonical behaviour (D-AUTORESOLVE / D-UNRESOLVED-TTL / D-LIFECYCLE / D-DEMAND / D-FAIRNESS / D-SC005).** Auto-resolve = 1 normalized-name survivor → `RESOLVED`, >1 → `UNRESOLVED` (persist to `food_candidates`), 0 → `NOT_FOUND` (no nutrient tolerance). `UNRESOLVED` is kept until a human picks; its candidate set expires in 30 days and re-fans-out. The 30-day TTL is `NOT_FOUND`-only; `FAILED→PENDING` is bounded-backoff retry. Demand = distinct-requester (`fetch_requesters` upsert, `request_count` = capped distinct-`sub` count, `PRIORITY_CAP=1`); one demand-weighted `fetch_queue` with drain-time demotion; no per-user quota and no `429` (near-ceiling flood-shed = `503`). SC-005 splits into read/serve throughput vs first-time NEW-food resolution rate (~500–900/hr, bounded by SC-002; new **SC-014**).
+
+**Finding dispositions for this artifact.**
+
+- **PRF-003-A1 / PRF-003-A4** (`fetch_status='failed'` / `'stale'` coverage) — **superseded**: the lifecycle is the `food.status` enum + the explicit legal transition set (D-LIFECYCLE); `FAILED→PENDING` retry and SWR-on-`RESOLVED` replace the old `failed`/`stale` framing.
+- **PRF-003-A2** (atomic token bucket) — **superseded**: the limiter is the rolling-60-min atomic count+record over `source_call_log`, made safe by the single-drainer advisory lock (D-LEASE rationale).
+- **PRF-003-A3** (SQS `maxReceiveCount` DLQ) — **superseded**: no SQS; Postgres-as-queue with the **`leased_at`** lease + reaper.
+- **PRF-003-A9** (REQ-IF-005 EventBridge events) — canonical EventBridge `DetailType`s are **`IngestionScheduled`** and **`FoodFetchCompleted`**; `FoodRequested`/`FoodBatchRequested` are in-process markers; `FetchFailed` is retained.
+- **PRF-003-A7 / PRF-003-P11 / PRF-003-A13** (cache-hit latency probe; `foods` `fdc_id` indexes) — re-frame to **local-store** reads; the `fdc_id` PK/index is replaced by the internal ULID `id` (+ `food_candidates`, composite provenance FKs). The remaining typographic/traceability findings (A5/A6/A8/A10/A11) are carried by the live per-artifact reviews.

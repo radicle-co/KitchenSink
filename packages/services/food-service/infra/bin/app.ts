@@ -37,7 +37,12 @@ new FoodServiceStack(app, `FoodService-${stage}`, {
     vpcId,
     imageTag: process.env['FOOD_IMAGE_TAG'] ?? 'latest',
     desiredCount: Number(process.env['FOOD_DESIRED_COUNT'] ?? 2),
-    workerDesiredCount: Number(process.env['USDA_WORKER_DESIRED_COUNT'] ?? 1),
+    workerDesiredCount: Number(process.env['FOOD_WORKER_DESIRED_COUNT'] ?? 1),
+    // USDA_API_KEY is injected into the containers from Secrets Manager (an out-of-band, externally
+    // issued key imported by name `kitchensink/{stage}/food/usda-api-key`), not passed through here.
+    unresolvedTtlDays: process.env['FOOD_UNRESOLVED_TTL_DAYS']
+        ? Number(process.env['FOOD_UNRESOLVED_TTL_DAYS'])
+        : undefined,
 });
 
 app.synth();

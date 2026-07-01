@@ -1,99 +1,149 @@
 /**
- * Response shapes for the `/v1/foods/*` read API (plan §3).
+ * Response shapes for the source-agnostic `/v1/foods/*` API (plan §3).
  *
- * All dates are ISO 8601 strings (NFR-010). Nutrient values are numbers (the DB stores
- * `numeric`/`decimal` which `pg` returns as strings; the repository coerces them).
+ * Every path param and `id` is the internal food ULID — NEVER a source-native key (`fdcId`), which
+ * exists only inside the USDA adapter (SC-013). Dates are ISO-8601 strings (CODING_STANDARDS).
  */
+import type { FoodStatus } from './dao/index.js';
 
-/** The lifecycle status of a food record (FR-028). */
-export type FetchStatus = 'pending' | 'fetched' | 'failed' | 'not_found' | 'stale';
+export type { FoodStatus };
 
-/** Normalized nutrient breakdown (per 100g). All fields nullable; nulls are kept, not omitted. */
-export interface FoodNutrients {
-    /** Energy in kcal per 100g. */
-    calories: number | null;
-    /** Protein in grams per 100g. */
-    proteinG: number | null;
-    /** Carbohydrates in grams per 100g. */
-    carbsG: number | null;
-    /** Total fat in grams per 100g. */
-    fatG: number | null;
-    /** Dietary fiber in grams per 100g. */
-    fiberG: number | null;
-    /** Sodium in milligrams per 100g. */
-    sodiumMg: number | null;
-    /** Total sugars in grams per 100g. */
-    sugarG: number | null;
-    /** Saturated fat in grams per 100g. */
-    saturatedFatG: number | null;
-    /** Cholesterol in milligrams per 100g. */
-    cholesterolMg: number | null;
-    /** Vitamin A in IU per 100g. */
-    vitaminAIu: number | null;
-    /** Vitamin C in milligrams per 100g. */
-    vitaminCMg: number | null;
-    /** Calcium in milligrams per 100g. */
-    calciumMg: number | null;
-    /** Iron in milligrams per 100g. */
-    ironMg: number | null;
+/** A golden nutrient value in the read shape (the dictionary join, source-tagged). */
+export interface NutrientView {
+    /** Nutrient display name (e.g. `Protein`). */
+    nutrient: string;
+    /** Amount (numeric, full source fidelity). */
+    amount: number;
+    /** Unit the amount is expressed in (e.g. `g`, `kcal`). */
+    unit: string;
+    /** The basis the amount is on (`per_100g` | `per_serving`). */
+    basis: string;
+    /** The source that supplied the winning value (e.g. `usda`). */
+    source: string;
 }
 
-/** A fetched food, returned by `GET /v1/foods/{fdcId}` (success). */
+/** A household-measure portion in the read shape. */
+export interface PortionView {
+    /** Human label (e.g. `1 cup chopped`). */
+    label: string;
+    /** Gram weight (numeric, strictly positive). */
+    gramWeight: number;
+    /** The source that supplied the portion. */
+    source: string;
+}
+
+/** The full golden record returned for a `RESOLVED` food (FR-002). */
 export interface FoodResponse {
-    /** USDA FoodData Central id. */
-    fdcId: number;
-    /** Human-readable description. */
+    /** Internal food id (ULID). */
+    id: string;
+    /** Golden display name. */
+    name: string | null;
+    /** Golden free-text description. */
     description: string | null;
-    /** USDA data type (`Foundation` | `SR Legacy` | `Branded`). */
-    dataType: string | null;
-    /** Macro + micro nutrient breakdown. */
-    nutrients: FoodNutrients;
-    /** Lifecycle status (`fetched` or `stale`). */
-    fetchStatus: FetchStatus;
-    /** Present and `true` only when the served record is stale (SWR). */
-    stale?: true;
+    /** Generic/branded classification. */
+    kind: string;
+    /** Lifecycle status (always `RESOLVED` for this shape). */
+    status: FoodStatus;
+    /** Per-100g (or per-serving) golden nutrients. */
+    nutrients: NutrientView[];
+    /** Household-measure portions. */
+    portions: PortionView[];
+    /** Scalar-field provenance — `{ field: source }` (FR-029). */
+    provenance: Record<string, string>;
 }
 
-/** Body returned when a food is being fetched asynchronously (`202 Accepted`). */
-export interface FoodPendingResponse {
-    /** Always `'pending'`. */
-    status: 'pending';
-    /** The requested FDC id. */
-    fdcId: number;
-    /** Best-effort estimate of seconds until availability. */
-    estimatedWaitSeconds: number;
-}
-
-/** Body returned by `GET /v1/foods/{fdcId}/status`. */
-export interface FoodStatusResponse {
-    /** The requested FDC id. */
-    fdcId: number;
-    /** The current lifecycle status (`not_found` covers tombstoned foods/queue rows). */
-    status: FetchStatus;
-    /** Present for `pending`/`in_flight` foods: estimated seconds until availability. */
+/** Body for a `PENDING`/`UNRESOLVED` food (`202 Accepted`, FR-003). */
+export interface PendingResponse {
+    /** Internal food id. */
+    id: string;
+    /** The lifecycle status (`PENDING` or `UNRESOLVED`). */
+    status: FoodStatus;
+    /** Best-effort seconds until availability (omitted for `UNRESOLVED`). */
     estimatedWaitSeconds?: number;
-    /** Present only when `status === 'fetched'`: the full food payload. */
+}
+
+/** Body for `GET /v1/foods/{id}/status` (FR-007). */
+export interface StatusResponse {
+    /** Internal food id. */
+    id: string;
+    /** Current lifecycle status. */
+    status: FoodStatus;
+    /** Present for `PENDING`: estimated seconds until availability. */
+    estimatedWaitSeconds?: number;
+    /** Present only when `RESOLVED`: the full golden record. */
     food?: FoodResponse;
 }
 
-/** A single search/autocomplete result row. */
-export interface FoodSearchResult {
-    /** USDA FoodData Central id. */
-    fdcId: number;
-    /** Human-readable description. */
-    description: string | null;
-    /** USDA data type. */
-    dataType: string | null;
+/** A single cross-source candidate in the disambiguation list (FR-RES-1). */
+export interface CandidateView {
+    /** The candidate row id (the PATCH-resolve pick handle). */
+    candidateId: string;
+    /** The source the candidate came from. */
+    source: string;
+    /** That source's opaque key for the item. */
+    externalKey: string;
+    /** Candidate display name. */
+    name: string;
+    /** One-line disambiguation hint, when present. */
+    summary: string | null;
 }
 
-/** Body returned by `GET /v1/foods/search`. */
-export interface FoodSearchResponse {
-    /** Ranked results (max 20), or an empty array when no local match exists. */
-    foods: FoodSearchResult[];
+/** Body for `GET /v1/foods/{id}/candidates` (FR-RES-1). */
+export interface CandidatesResponse {
+    /** Internal food id. */
+    id: string;
+    /** The (non-expired) candidate set; empty for a non-`UNRESOLVED` food. */
+    candidates: CandidateView[];
 }
 
-/** Body returned by `GET /v1/foods/autocomplete`. */
-export interface FoodAutocompleteResponse {
-    /** Ranked suggestions (max 10), or an empty array when no local match exists. */
-    suggestions: FoodSearchResult[];
+/** A single search hit (FR-008). */
+export interface SearchResultView {
+    /** Internal food id. */
+    id: string;
+    /** Golden display name. */
+    name: string | null;
+    /** Relevance score (trigram similarity; `1` for a barcode/external-key crosswalk hit). */
+    score: number;
+}
+
+/** Body for `GET /v1/foods/search` (FR-008). */
+export interface SearchResponse {
+    /** Ranked results, or an empty array on no local match (never a source call). */
+    results: SearchResultView[];
+}
+
+/** Body for `POST /v1/foods` (`202 Accepted`, FR-005). */
+export interface AddResponse {
+    /** Internal food id. */
+    id: string;
+    /** The lifecycle status after the add (`PENDING` on a fresh add / reactivation). */
+    status: FoodStatus;
+    /** Best-effort seconds until availability, when enqueued. */
+    estimatedWaitSeconds?: number;
+}
+
+/** A single item in a batch add response (FR-045). */
+export interface BatchItemView {
+    /** Internal food id. */
+    id: string;
+    /** The item's lifecycle status (`RESOLVED` inline hit, else `PENDING`). */
+    status: FoodStatus;
+    /** Golden display name (present for an inline `RESOLVED` hit). */
+    name?: string | null;
+    /** Estimated seconds until availability (present for a `PENDING` miss). */
+    estimatedWaitSeconds?: number;
+}
+
+/** Body for `POST /v1/foods/batch` (FR-045). */
+export interface BatchResponse {
+    /** Per-item partial results (inline hits + pending misses). */
+    items: BatchItemView[];
+}
+
+/** Body for `PATCH /v1/foods/{id}` (FR-RES-2). */
+export interface ResolveResponse {
+    /** Internal food id. */
+    id: string;
+    /** The resulting status (`RESOLVED`). */
+    status: FoodStatus;
 }

@@ -16,6 +16,8 @@
 | Observation        | 3      |
 | **Total Findings** | **13** |
 
+> ⚠️ **Verdict superseded** — the counts and verdict in this Summary predate doc-stabilization; read them through the **Stabilization reconciliation (decision register, 2026-06-28)** appendix at the foot of this file, which is the controlling record.
+
 Overall assessment: **FAIL — 3 Critical / 4 Major.** The auth slice (REQ-035, REQ-037a..d, REQ-038a..c, REQ-039, REQ-040a..b, REQ-041..044, REQ-IF-007/008) and the lifecycle requirements (REQ-005 tombstone-TTL, REQ-031 SWR) are **correctly reconciled** to the locked design — REQ-039 is now demotion-by-back-ranking (no per-user `429`), the glossary `RateLimitWindow` is annotated "(formerly TokenBucketState)", and the rolling-window requirements (REQ-019/020/021) are clean. **However, the demand-path and queue-management requirements (REQ-011, REQ-012, REQ-013–REQ-017) were not migrated** and still describe the superseded model: cache-miss enqueue via an **EventBridge `FoodRequested`/`FoodBatchRequested` publish**, **static origin-based high/low priority**, a **claim-high-priority-first** worker, and **60s/120s leases** — all of which directly contradict spec.md (FR-011 "EventBridge is NOT on the demand-path enqueue"; FR-014/FR-015 single demand-weighted `fetch_queue`; FR-018 30s lease) and the reconciled REQ-039. These are the blocking findings.
 
 ## Findings
@@ -28,9 +30,9 @@ Overall assessment: **FAIL — 3 Critical / 4 Major.** The auth slice (REQ-035, 
 **Defect type**: Internal consistency / alignment with spec.md
 **Location**: REQ-011, REQ-012 (and REQ-IF-005 partial)
 
-**Description**: REQ-011 states "The system SHALL **publish a `FoodRequested` event to EventBridge** when a single food lookup results in a cache miss" and REQ-012 the same for `FoodBatchRequested`. This is the **superseded SQS/EventBridge demand-path model**. The locked design (spec.md FR-011, FR-014, FR-017; Glossary `FoodDataEvent`; this artifact's own Overview line 10 and REQ-IF-005) is unambiguous that the **cache-miss enqueue is a direct `INSERT … ON CONFLICT` into `fetch_queue` paired with `pg_notify('fetch_queued')`** and that **"EventBridge is reserved for scheduled producers (stale-refresh/bulk-sync) and the `FoodDataReceived` completion event — it is not on the demand-path enqueue."** As written, REQ-011/REQ-012 mandate an architecture the design forbids, and they are the parents of SYS-002 (EventBridgeBus) and SYS-003/004 (the fetch queues) in system-design.md, so the contradiction propagates downstream. Implementation is blocked: an implementer cannot satisfy both REQ-011 ("publish to EventBridge") and FR-011 ("not on the demand-path enqueue").
+**Description**: REQ-011 states "The system SHALL **publish a `FoodRequested` event to EventBridge** when a single food lookup results in a cache miss" and REQ-012 the same for `FoodBatchRequested`. This is the **superseded SQS/EventBridge demand-path model**. The locked design (spec.md FR-011, FR-014, FR-017; Glossary `FoodFetchCompleted`; this artifact's own Overview line 10 and REQ-IF-005) is unambiguous that the **cache-miss enqueue is a direct `INSERT … ON CONFLICT` into `fetch_queue` paired with `pg_notify('fetch_queued')`** and that **"EventBridge is reserved for scheduled producers (stale-refresh/bulk-sync) and the `FoodFetchCompleted` completion event — it is not on the demand-path enqueue."** As written, REQ-011/REQ-012 mandate an architecture the design forbids, and they are the parents of SYS-002 (EventBridgeBus) and SYS-003/004 (the fetch queues) in system-design.md, so the contradiction propagates downstream. Implementation is blocked: an implementer cannot satisfy both REQ-011 ("publish to EventBridge") and FR-011 ("not on the demand-path enqueue").
 
-**Recommendation**: Rewrite REQ-011/REQ-012 to "SHALL enqueue the cache-miss `fdcId`(s) into `fetch_queue` via the idempotent `INSERT … ON CONFLICT` (REQ-013/FR-014) paired with `pg_notify('fetch_queued')` (FR-017); EventBridge is used only for scheduled producers and the `FoodDataReceived` completion event." Re-cite FR-011/FR-014/FR-017. Reconcile REQ-IF-005's phrasing (it is already half-correct: it says `FoodRequested`/`FoodBatchRequested` "manifest as `fetch_queue` rows (insert + NOTIFY)").
+**Recommendation**: Rewrite REQ-011/REQ-012 to "SHALL enqueue the cache-miss `fdcId`(s) into `fetch_queue` via the idempotent `INSERT … ON CONFLICT` (REQ-013/FR-014) paired with `pg_notify('fetch_queued')` (FR-017); EventBridge is used only for scheduled producers and the `FoodFetchCompleted` completion event." Re-cite FR-011/FR-014/FR-017. Reconcile REQ-IF-005's phrasing (it is already half-correct: it says `FoodRequested`/`FoodBatchRequested` "manifest as `fetch_queue` rows (insert + NOTIFY)").
 
 ---
 
@@ -105,7 +107,7 @@ Overall assessment: **FAIL — 3 Critical / 4 Major.** The auth slice (REQ-035, 
 
 **Description**: The lean-launch default is **Postgres-only; Redis is the deferred variant** (A-002, REQ-CN-002, Glossary "Lean Launch"/"Full Architecture"). REQ-013 and REQ-020 correctly mark Redis "deferred variant." But REQ-024 still says on success the consumer "SHALL **cache it in Redis** (deferred variant only)" — the "(deferred variant only)" qualifier is present, good — while the deduplication requirement REQ-013 lists the Postgres `ON CONFLICT` as the lean default. This is internally consistent on inspection; the residual issue is only that REQ-024's success-path step lists "remove it from the pending set" (a Redis-set concept) alongside the Postgres `fetch_queue` resolution, mixing the two dedup mechanisms in one row. Minor-leaning Major because it muddies which dedup mechanism the success path clears in the default build.
 
-**Recommendation**: In REQ-024 split the lean-launch success path (resolve the `fetch_queue` row; emit `FoodDataReceived`) from the deferred-variant steps (Redis cache write, Redis pending-set removal), so the default build's success path contains no Redis-only step.
+**Recommendation**: In REQ-024 split the lean-launch success path (resolve the `fetch_queue` row; emit `FoodFetchCompleted`) from the deferred-variant steps (Redis cache write, Redis pending-set removal), so the default build's success path contains no Redis-only step.
 
 ---
 
@@ -184,3 +186,40 @@ Overall assessment: **FAIL — 3 Critical / 4 Major.** The auth slice (REQ-035, 
 ## Remediation Status (2026-06-20, round 4)
 
 All **Critical and Major** findings in this review were **remediated in the same session**. The artifacts now reflect the canonical model — Postgres demand-weighted `fetch_queue` (single queue, no high/low tier), rolling-60-min window limiter (`usda_call_log`), dynamic queue **demotion** wired on every enqueue path (incl. single-food), distinct-requester demand via `fetch_requesters` (FR-044), `status` enum `pending | in_flight | tombstone`, single 30s lease, rolling-window state-loss hazard (HAZ-041), and in-process NestJS auth. Reconciled across spec/plan/tasks + the full v-model. This record documents the findings **as reviewed**; the gate (`.forge-status.yml → peer_review_gate`) reflects the post-remediation state. An independent re-review is the optional final confirmation.
+
+---
+
+## Stabilization reconciliation (decision register, 2026-06-28)
+
+> This section supersedes the "Remediation Status (round 4)" note above wherever they differ. The
+> stabilization **decision register** (`../decision-register.md`), with `../.stabilization/inputs/`, is the
+> single canonical resolution. The findings above are retained verbatim as the review record; read every
+> term in them through the canonical mapping below. The only in-place body edit applied by stabilization is
+> the mandated completion-event rename to **`FoodFetchCompleted`** (the retired `FoodData*` completion-event names; D-EVENT).
+
+**Canonical names (§1; D-EVENT / D-CLEANUP / D-AUTH).**
+
+- Completion event = **`FoodFetchCompleted`** (EventBridge `DetailType`; publisher `publishFoodFetchCompleted`). `FoodRequested`/`FoodBatchRequested` are in-process enqueue markers, **not** EventBridge types; `IngestionScheduled`/`FetchFailed` keep their names.
+- `food.status` lifecycle enum = **`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`** (replaces the old `fetch_status` = `pending/fetched/failed/not_found/stale`). `fetch_queue.status` stays **`pending | in_flight | tombstone`**.
+- USDA native id = **`external_key`**; the public/PK id is the internal **ULID `id`**. `fdcId`/`fdc_id` is **adapter-only** and must not appear on schema/DTO/API/DAO. Source = the **`food_source`** enum (no free-text). Errors: **`SourceApiError`** (not `UsdaApiError`), plus `RateLimitWindowFullError`/`FoodNotFoundError`/`CandidateMismatchError`.
+- Read framing = **local-store read (RESOLVED) / local-store serve rate / add-by-name miss**; "cache hit/miss/hit-rate" is reserved for the deferred Redis variant (ARCH-007) only.
+- Auth = **`FoodAuthGuard`** (food service; networkless Clerk verify, fail-closed, scopes from `public_metadata`); the forgeable **`x-debug-sub`** / trusted-identity-header path is removed (identity = the verified Clerk `sub` only). The auth slice is unchanged in scope.
+
+**Canonical schema (§2; D-CANDIDATES / D-LEASE / D-PROVENANCE-FK).** plan.md §2 = **13 tables** (the 12 there **plus `food_candidates`** — `id, food_id, source, external_key, name, summary, created_at`; `UNIQUE(food_id, source, external_key)`, backing `UNRESOLVED`/US-2a). `fetch_queue` gains **`leased_at timestamptz`** with a reaper reverting `in_flight` rows older than 30s (single-drainer = FR-022 advisory lock). `food_sources` gains `UNIQUE(food_id, id)`; nutrients/portions/field-provenance/category-assignment use composite **`(food_id, source_id)` FKs**, `ON DELETE NO ACTION`. `source_call_log` rows beyond the trailing 60-min window are pruned on a periodic sweep.
+
+**Canonical behaviour (D-AUTORESOLVE / D-UNRESOLVED-TTL / D-LIFECYCLE / D-DEMAND / D-FAIRNESS / D-REFRESH / D-SC005).**
+
+- Auto-resolve: after pre-merge dedup, **1 survivor of normalized-name exact match → `RESOLVED`; >1 → `UNRESOLVED`** (persist survivors to `food_candidates`); **0 → `NOT_FOUND`**. No nutrient tolerance.
+- `UNRESOLVED` is kept until a human picks; its candidate set expires 30 days after `created_at` and re-fans-out on the next request (never swept to `NOT_FOUND`). The **30-day TTL is `NOT_FOUND`-only**; `FAILED→PENDING` is bounded-backoff retry (no 30-day gate).
+- Legal transitions: `PENDING→{RESOLVED,UNRESOLVED,NOT_FOUND,FAILED}`; `UNRESOLVED→RESOLVED`; `FAILED→PENDING`; `NOT_FOUND→PENDING` (post-TTL). `PATCH`-resolve is UNRESOLVED-only, idempotent, candidate-in-set validated (`CandidateMismatchError`). `createByName` reactivates a terminal-state row (no `23505`). Refresh never overwrites a manual pick.
+- Demand = distinct-requester: upsert `(food_id, sub)` into `fetch_requesters` `ON CONFLICT DO NOTHING`, then set `request_count` to the **capped distinct-`sub` count (`PRIORITY_CAP = 1`)** — never raw `+1`. One demand-weighted `fetch_queue` ordered `request_count DESC, first_requested ASC`; demotion is **drain-time live compute** (no `drain_priority_tier` column, no `enqueueLowPriority`). No per-user quota, no `429`; near-ceiling NEW-enqueue flood-shed = `503`. Change-refresh runs as a **Fargate scheduled task** that yields to live demand, re-enqueuing via the ordinary path.
+- SC-005 splits into **read/serve throughput** (local reads, high target) vs **first-time NEW-food resolution rate** (~500–900/hr, bounded by SC-002 ≤1,000 calls/rolling-60-min — new **SC-014**).
+
+**Finding dispositions for this artifact.**
+
+- **PRF-REQ-001 / PRF-REQ-002 / PRF-REQ-003** (EventBridge demand-path enqueue; static high/low priority; 60s/120s lease) — resolved by **D-DEMAND + D-FAIRNESS + D-LEASE**: the demand-path enqueue is the `fetch_queue` `INSERT … ON CONFLICT` + `pg_notify`; one demand-weighted queue (`request_count DESC, first_requested ASC`) with drain-time demotion (no static tier); a single **30-second `leased_at` lease**. EventBridge carries only `IngestionScheduled` + `FoodFetchCompleted`.
+- **PRF-REQ-004** (tombstone delete-vs-status; TTL conflation) — `fetch_queue.status='tombstone'` is **retained** (not deleted); the **30-day TTL is `NOT_FOUND`-only** (now `food.status='NOT_FOUND'`); the `fetch_queue` retry-exhausted tombstone keeps its own separate retention. The `fetch_status` enum this finding cites is replaced by the `food.status` enum above.
+- **PRF-REQ-005** — **closed**: bind FR-044 distinct-requester demand (`fetch_requesters` upsert, `PRIORITY_CAP=1`, aging) as a REQ row.
+- **PRF-REQ-006 / PRF-REQ-007 / PRF-REQ-008** — carried; the batch per-item-partial and queue-depth `503` ordering are unchanged by the register; the success-path "cache write / pending-set" steps are deferred-variant-only (D-CLEANUP).
+- **PRF-REQ-009 / PRF-REQ-010** — auth slice intact and **not weakened**: the canonical guard is **`FoodAuthGuard`**, the `x-debug-sub` path is removed, FR-050's no-fail-open binding stands; the REQ-036 numbering-gap note stands.
+- **Requirements to add** (per §4): REQ-028 `food_candidates` + composite-FK schema extension; **REQ-050a** (auto-resolve survivor-count); **REQ-025a** (UNRESOLVED candidate-set TTL); **REQ-028a** (legal transition set + manual-pick protection + reactivation); REQ-017 `leased_at` + reaper; REQ-020 retention sweep; the REQ-NF-015 split (serve-throughput + **SC-014** NEW-food resolution rate).

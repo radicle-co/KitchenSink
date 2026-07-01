@@ -4,6 +4,7 @@
 **Status**: Complete | **Sources**: [plan.md](../plan.md), [research.md](../research.md), [spec.md](../spec.md)
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
+_Updated 2026-06-28: reconciled to the source-agnostic stabilization baseline (`source_call_log`, `FoodFetchCompleted`, local-store-read framing, distinct-requester demand)._
 
 ---
 
@@ -22,7 +23,7 @@ API reads from PostgreSQL (optional Redis) and never calls USDA directly on requ
 ### Rationale
 
 - Required by FR-001 and FR-009.
-- Guarantees low, predictable latency for cache-hit reads.
+- Guarantees low, predictable latency for local-store reads (`RESOLVED` golden records).
 - Isolates client experience from external API outages.
 
 ### Trade-offs
@@ -43,15 +44,15 @@ PostgreSQL as durable source of truth; Redis optional accelerator for full archi
 ### Rationale
 
 - PostgreSQL supports status lifecycle, JSON nutrients, and indexed search.
-- Lean launch supports PostgreSQL-only path (A-002), including the `fetch_queue` and `usda_call_log` rolling-window tables.
-- Redis is a deferred accelerator for lower p95 reads at scale; the rolling-window rate limiter remains Postgres-backed by default.
+- Lean launch supports PostgreSQL-only path (A-002), including the `fetch_queue` and `source_call_log` rolling-window tables.
+- Redis is a deferred variant for lower p95 reads at scale (ARCH-007); the rolling-window rate limiter remains Postgres-backed by default.
 
 ### Trade-offs
 
 | Trade-off                           | Mitigated By                                  |
 | ----------------------------------- | --------------------------------------------- |
 | Redis operational overhead          | Defer Redis; add only when threshold exceeded |
-| PostgreSQL-only higher read latency | Use indexing + targeted cache layer rollout   |
+| PostgreSQL-only higher read latency | Use indexing + targeted Redis-variant rollout |
 
 ---
 
@@ -73,12 +74,12 @@ Local fuzzy search using PostgreSQL full-text + trigram matching.
 
 ### Choice
 
-Postgres-as-queue architecture: a single demand-weighted `fetch_queue` table drained by a single-instance Fargate consumer worker (held under an advisory lock), woken via `LISTEN/NOTIFY`. The demand path is a direct `INSERT … ON CONFLICT` + `pg_notify`; EventBridge is used only for scheduled producers and the `FoodDataReceived` event. There is no SQS, no consumer Lambda, and no DLQ — terminal failures are recorded as tombstone rows.
+Postgres-as-queue architecture: a single demand-weighted `fetch_queue` table drained by a single-instance Fargate consumer worker (held under an advisory lock — the single-drainer invariant, FR-022), woken via `LISTEN/NOTIFY`. The demand path is a direct `INSERT … ON CONFLICT (food_id, sub)` into `fetch_requesters` + capped distinct-requester `request_count` (`PRIORITY_CAP=1`) + `pg_notify`; EventBridge is used only for scheduled producers and the `FoodFetchCompleted` completion event. There is no SQS, no consumer Lambda, and no DLQ — terminal failures are recorded as tombstone rows. A reaper reverts `in_flight` rows whose `leased_at` is older than the 30s lease back to `pending`.
 
 ### Rationale
 
 - Matches selected architecture in plan.
-- Single fetch_queue with dynamic demotion handles user-facing misses vs bulk/stale jobs without separate High/Low queues.
+- A single demand-weighted `fetch_queue` with drain-time demotion handles user-facing add-by-name misses vs low-priority background refresh without separate High/Low queues, and without any `drain_priority_tier` column or `enqueueLowPriority` method.
 - Idempotent upsert + tombstone rows compose retry semantics and terminal-failure capture without dead-letter infrastructure.
 
 ### Trade-offs
@@ -90,11 +91,11 @@ Postgres-as-queue architecture: a single demand-weighted `fetch_queue` table dra
 
 ---
 
-## Rate Limiting: Rolling 60-minute window (usda_call_log)
+## Rate Limiting: Rolling 60-minute window (source_call_log)
 
 ### Choice
 
-A rolling 60-minute window backed by a `usda_call_log` table: ≤1,000 calls per trailing hour, pausing at 900 (90%), enforced in the consumer before each USDA call. Postgres-backed is the lean-launch default; a Redis variant is deferred.
+A rolling 60-minute window backed by a `source_call_log` table: ≤1,000 calls per trailing hour, pausing at 900 (90%), enforced in the consumer before each source call. The single-drainer advisory lock (FR-022) makes the read-committed count-and-record effectively serial, which is what makes "zero 429 in any window" safe. Rows older than the trailing 60-min window are pruned on a periodic sweep. Postgres-backed is the lean-launch default; a Redis variant is deferred (ARCH-007).
 
 ### Rationale
 
@@ -104,10 +105,10 @@ A rolling 60-minute window backed by a `usda_call_log` table: ≤1,000 calls per
 
 ### Trade-offs
 
-| Trade-off                                                | Mitigated By                            |
-| -------------------------------------------------------- | --------------------------------------- |
-| Under-utilization risk with conservative pause threshold | Batch endpoint usage (FR-023, SC-005)   |
-| Window-query cost on the hot path                        | Single-consumer + indexed usda_call_log |
+| Trade-off                                                | Mitigated By                              |
+| -------------------------------------------------------- | ----------------------------------------- |
+| Under-utilization risk with conservative pause threshold | Batch endpoint usage (FR-023, SC-014)     |
+| Window-query cost on the hot path                        | Single-consumer + indexed source_call_log |
 
 ---
 
@@ -115,13 +116,15 @@ A rolling 60-minute window backed by a `usda_call_log` table: ≤1,000 calls per
 
 ### Choice
 
-- Single fetch: `GET /v1/food/{fdcId}`
-- Batch fetch: `POST /v1/foods` up to 20 IDs
+These are the USDA adapter's upstream endpoints, used **inside the adapter boundary** only (where `fdcId` = the source's `external_key`):
+
+- Single fetch by external key: `GET /v1/food/{fdcId}`
+- Batch fetch by external key: `POST /v1/foods` up to 20 IDs
 
 ### Rationale
 
 - Required by FR-023.
-- Batch mode amortizes token consumption and boosts throughput.
+- Batch mode amortizes token consumption and boosts the change-driven refresh / external-key resolution throughput. Note that add-by-**name** search is one non-batchable call per new food, so it does **not** benefit from batching (see SC-014).
 
 ---
 
@@ -147,5 +150,5 @@ CloudWatch metrics, alarms, and dashboard-first operations with tombstone-rate a
 | RQ-3 (alternative APIs)           | USDA-first; no paid API dependency at launch                 |
 | RQ-4 (TypeScript implementations) | Typed client + explicit error taxonomy                       |
 | RQ-5 (Fargate worker patterns)    | Single demand-weighted fetch_queue + tombstone + retry model |
-| RQ-6/RQ-7 (integration pipeline)  | Optional ingredient linkage path with async backfill         |
+| RQ-6/RQ-7 (integration pipeline)  | Optional ingredient linkage path with async resolution       |
 | RQ-8 (UX lookup patterns)         | Search-as-you-type + disambiguation + pending status         |

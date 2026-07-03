@@ -200,7 +200,8 @@ export type EnsureDatabaseResult = 'skipped-base' | 'exists' | 'created';
  * Ensure a per-PR food logical database exists, creating it if absent (ADR-0006). The base database
  * (`kitchensink_food`) is provisioned by the platform DataStack bootstrap SQL, so this is a no-op for
  * it. For a per-PR name it validates the identifier, checks `pg_database`, and `CREATE DATABASE`s it if
- * missing. Idempotent and re-invoke-safe: an already-present database returns `'exists'`.
+ * missing. Idempotent and re-invoke-safe: an already-present database returns `'exists'`, and a
+ * concurrent creator that wins the `CREATE DATABASE` race (SQLSTATE 42P04) is also treated as `'exists'`.
  *
  * @param options - The maintenance pool + the target database name.
  * @returns `'skipped-base'` for the base DB, `'exists'` if already present, `'created'` if created.
@@ -227,9 +228,37 @@ export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Prom
     // CREATE DATABASE cannot run inside a transaction and cannot be parameterized. The name is
     // validated above against FOOD_DATABASE_NAME_PATTERN (no quotes/backslashes possible), so quoting
     // it as an identifier is safe.
-    await maintenancePool.query(`CREATE DATABASE "${databaseName}"`);
+    try {
+        await maintenancePool.query(`CREATE DATABASE "${databaseName}"`);
+    } catch (err) {
+        // The pg_database check above is a TOCTOU window: a concurrent invocation can create the
+        // database between our SELECT and this CREATE, making CREATE DATABASE throw `duplicate_database`
+        // (SQLSTATE 42P04). The database now exists — the desired end state — so treat that one code as
+        // success rather than failing the whole migration run.
+        if (isDuplicateDatabaseError(err)) {
+            return 'exists';
+        }
+        throw err;
+    }
 
     return 'created';
+}
+
+/** Postgres SQLSTATE for `duplicate_database`, raised when `CREATE DATABASE` names an existing DB. */
+const DUPLICATE_DATABASE_SQLSTATE = '42P04';
+
+/**
+ * Type guard for the Postgres `duplicate_database` error (SQLSTATE {@link DUPLICATE_DATABASE_SQLSTATE}) —
+ * raised when `CREATE DATABASE` loses a race to a concurrent creator. `pg` surfaces the SQLSTATE on the
+ * error's `code` property.
+ */
+function isDuplicateDatabaseError(err: unknown): boolean {
+    return (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code?: unknown }).code === DUPLICATE_DATABASE_SQLSTATE
+    );
 }
 
 /** The outcome of a {@link dropDatabase} call. */

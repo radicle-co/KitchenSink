@@ -74,6 +74,37 @@ describe('ensureDatabaseExists', () => {
         ).resolves.toBe('created');
         expect(query).toHaveBeenLastCalledWith('CREATE DATABASE "kitchensink_food_pr_7"');
     });
+
+    it('treats a lost CREATE race (SQLSTATE 42P04) as "exists" instead of failing', async () => {
+        // SELECT sees the DB missing, but a concurrent invocation CREATEs it first, so our CREATE
+        // throws duplicate_database. The database now exists — the desired end state.
+        const query = vi
+            .fn()
+            .mockResolvedValueOnce({ rowCount: 0 })
+            .mockRejectedValueOnce(
+                Object.assign(new Error('database "kitchensink_food_pr_7" already exists'), {
+                    code: '42P04',
+                }),
+            );
+        const pool = { query } as unknown as pg.Pool;
+
+        await expect(
+            ensureDatabaseExists({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' }),
+        ).resolves.toBe('exists');
+        expect(query).toHaveBeenLastCalledWith('CREATE DATABASE "kitchensink_food_pr_7"');
+    });
+
+    it('propagates a non-duplicate CREATE failure', async () => {
+        const query = vi
+            .fn()
+            .mockResolvedValueOnce({ rowCount: 0 })
+            .mockRejectedValueOnce(Object.assign(new Error('permission denied to create database'), { code: '42501' }));
+        const pool = { query } as unknown as pg.Pool;
+
+        await expect(
+            ensureDatabaseExists({ maintenancePool: pool, databaseName: 'kitchensink_food_pr_7' }),
+        ).rejects.toThrow(/permission denied/i);
+    });
 });
 
 describe('dropDatabase', () => {

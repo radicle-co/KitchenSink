@@ -29,7 +29,15 @@ export type FoodDrizzle = ReturnType<typeof drizzle<typeof schema>>;
  * Build the Postgres connection string from the validated environment.
  *
  * Prefers `DATABASE_URL`; falls back to the discrete `DB_*` parts. The discrete path appends
- * `sslmode=require` (RDS), matching the identity service.
+ * `sslmode=no-verify` (RDS), matching the identity service.
+ *
+ * `no-verify` — not `require` — is deliberate. RDS terminates TLS with a certificate signed by
+ * the Amazon RDS CA, which is absent from Node's trust store. `pg-connection-string` maps
+ * `sslmode=require` to `ssl: {}`, whose `rejectUnauthorized` then defaults to `true`, so the
+ * untrusted RDS CA is rejected (`SELF_SIGNED_CERT_IN_CHAIN`) and every query 500s. `no-verify`
+ * maps to `ssl: { rejectUnauthorized: false }` — the connection stays encrypted but skips
+ * CA/hostname verification, which is acceptable for a known RDS endpoint reached inside the VPC
+ * (bundling the RDS CA would be stricter but adds image/cert plumbing for no in-VPC gain).
  *
  * @returns A `postgresql://` connection string.
  * @throws {Error} when neither `DATABASE_URL` nor a complete `DB_*` set is present.
@@ -53,7 +61,7 @@ function buildConnectionString(): string {
         );
     }
 
-    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=require`;
+    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=no-verify`;
 }
 
 /**

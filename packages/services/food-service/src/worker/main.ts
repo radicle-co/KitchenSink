@@ -57,7 +57,10 @@ function buildConnectionString(): string {
         );
     }
 
-    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=require`;
+    // `no-verify`, not `require`: the RDS CA is absent from Node's trust store, and `require` maps
+    // to `ssl: {}` (rejectUnauthorized defaults true) → `SELF_SIGNED_CERT_IN_CHAIN`. See the API's
+    // src/database/database.module.ts for the full rationale.
+    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=no-verify`;
 }
 
 /**

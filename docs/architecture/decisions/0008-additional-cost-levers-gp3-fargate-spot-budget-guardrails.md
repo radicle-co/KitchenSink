@@ -43,13 +43,18 @@ prod-service-scoped, so creating it per stage would register duplicate budgets. 
 of `GlobalStack`; it is its own top-level stack, so its appearance is purely additive and diffs no
 existing stack. It provisions:
 
-- an SNS topic subscribed to `webb.c.brandon@gmail.com`;
+- an SNS topic whose alert recipient is supplied per-account via the `costAlertEmail` CDK context /
+  `COST_ALERT_EMAIL` env (wired through the `alertEmail` stack prop) — **never** hardcoded, so no
+  address is committed into the template; when unset, the topic is still created (budget/anomaly
+  publishers intact) but carries **no** email subscription;
 - a **MONTHLY COST** budget, limit **$300 USD**, notifying the topic at **80% ACTUAL** and
   **100% FORECASTED**;
 - a `CfnAnomalyMonitor` (`DIMENSIONAL`, dimension `SERVICE`) + `CfnAnomalySubscription`
   (`IMMEDIATE`, ~**$20** absolute-impact threshold) notifying the same topic.
 
-All limits/thresholds/email are documented tunable constants at the top of the stack file.
+The limits/thresholds are documented tunable constants at the top of the stack file; the alert email
+is **not** a constant — it is injected per-account (context/env → `alertEmail` prop), so forks and
+other accounts configure their own recipient and no PII lands in the code or the synthesized template.
 
 ## Consequences
 

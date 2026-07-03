@@ -44,16 +44,24 @@ export class SandboxSchedulerStack extends Stack {
 
         // Bundled by esbuild.mjs to dist-lambda/ (npm run bundle:lambda, run by the deploy script).
         // A bare `cdk synth` (no bundle) falls back to an inline placeholder so synth never fails; the
-        // real deploy always builds the asset. Mirrors the food migration-runner pattern.
+        // real deploy always builds the asset.
+        //
+        // The placeholder must be SELF-CONSISTENT: CDK packages `fromInline` code as a CommonJS
+        // `index.js`, so the inline module uses `exports.handler` (not ESM `export`) and the function
+        // handler switches to `index.handler`. Otherwise an (un-bundled) deploy would create a Lambda
+        // whose handler `sandbox-scheduler/handler.handler` resolves to nothing and fails to invoke.
+        // With the asset present, the bundled handler path is used.
         const lambdaAssetDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist-lambda');
-        const schedulerCode = existsSync(lambdaAssetDir)
+        const hasLambdaAsset = existsSync(lambdaAssetDir);
+        const schedulerCode = hasLambdaAsset
             ? lambda.Code.fromAsset(lambdaAssetDir)
-            : lambda.Code.fromInline('export const handler = async () => ({ ok: false, reason: "asset-not-built" });');
+            : lambda.Code.fromInline('exports.handler = async () => ({ ok: false, reason: "asset-not-built" });');
+        const schedulerHandler = hasLambdaAsset ? 'sandbox-scheduler/handler.handler' : 'index.handler';
 
         const schedulerFn = new lambda.Function(this, 'SandboxSchedulerFunction', {
             runtime: lambda.Runtime.NODEJS_22_X,
             architecture: lambda.Architecture.ARM_64,
-            handler: 'sandbox-scheduler/handler.handler',
+            handler: schedulerHandler,
             code: schedulerCode,
             timeout: Duration.seconds(300),
             memorySize: 256,

@@ -17,8 +17,11 @@ const schedulerTemplate = (): Template =>
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
     it('provisions the scheduler Lambda (Node 22, arm64)', () => {
+        // Unit synth runs WITHOUT the esbuild bundle, so the stack uses the self-consistent inline
+        // placeholder: CommonJS `index.js` ⇒ handler `index.handler`. A real (bundled) deploy swaps in
+        // the asset and the `sandbox-scheduler/handler.handler` path — verified by the bundle config.
         schedulerTemplate().hasResourceProperties('AWS::Lambda::Function', {
-            Handler: 'sandbox-scheduler/handler.handler',
+            Handler: 'index.handler',
             Runtime: 'nodejs22.x',
             Architectures: ['arm64'],
         });

@@ -37,9 +37,14 @@ new GlobalStack(app, `Global-${stage}`, {
 // account-scoped budgets. This is an ADDITIVE new stack; every existing stack is untouched, so the
 // prod synth diff is exactly "one new stack appears" and no existing prod template changes.
 if (stage === 'prod') {
+    // Recipient is account-specific — from `costAlertEmail` context or COST_ALERT_EMAIL env, never
+    // hardcoded (so a fork/other account notifies its own address and no PII is committed).
+    const alertEmail = app.node.tryGetContext('costAlertEmail') ?? process.env['COST_ALERT_EMAIL'];
+
     new CostGuardrailsStack(app, 'CostGuardrails', {
         env,
         stackName: 'kitchensink-cost-guardrails',
+        alertEmail,
     });
 }
 

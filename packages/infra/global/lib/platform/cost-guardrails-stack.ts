@@ -12,6 +12,12 @@
  *
  * It is tagged `Environment=global` and named `kitchensink-cost-guardrails` so the per-PR cleanup
  * sweep (ADR-0005) never touches it.
+ *
+ * The alert recipient is NOT hardcoded — it comes from {@link CostGuardrailsStackProps.alertEmail}
+ * (wired from the `costAlertEmail` CDK context / `COST_ALERT_EMAIL` env in `bin/app.ts`), so each
+ * account configures its own address. When unset, the SNS topic (and its budget/anomaly publishers)
+ * is still provisioned but carries no email subscription — a recipient can be added later without
+ * touching the budget.
  */
 import {
     Stack,
@@ -26,8 +32,6 @@ import {
 import type { Construct } from 'constructs';
 
 // ── Tunable guardrail constants (edit here to retune the account budget / alerts) ────────────────
-/** Where all cost alerts (budget + anomaly) are delivered. Tunable. */
-const COST_ALERT_EMAIL = 'webb.c.brandon@gmail.com';
 /** Monthly cost budget ceiling in USD. Tunable. */
 const MONTHLY_BUDGET_USD = 300;
 /** Notify when ACTUAL month-to-date spend exceeds this percent of the budget. Tunable. */
@@ -38,7 +42,14 @@ const BUDGET_FORECAST_THRESHOLD_PCT = 100;
 const ANOMALY_IMPACT_THRESHOLD_USD = 20;
 
 /** Props for {@link CostGuardrailsStack}. */
-export type CostGuardrailsStackProps = StackProps;
+export interface CostGuardrailsStackProps extends StackProps {
+    /**
+     * Email address that receives all cost alerts (budget + anomaly). Supplied per-account from the
+     * `costAlertEmail` CDK context / `COST_ALERT_EMAIL` env in `bin/app.ts`; when omitted, the topic is
+     * created without an email subscription so no address is baked into the template.
+     */
+    readonly alertEmail?: string;
+}
 
 /**
  * Account-wide cost guardrails: SNS alerting, a monthly budget, and cost anomaly detection.
@@ -59,7 +70,11 @@ export class CostGuardrailsStack extends Stack {
             displayName: 'KitchenSink cost alerts',
         });
 
-        this.alertTopic.addSubscription(new subscriptions.EmailSubscription(COST_ALERT_EMAIL));
+        // Configured per-account (never hardcoded); a topic with no email still fans out to any SNS
+        // subscriber added later, so an unset address degrades gracefully rather than failing synth.
+        if (props?.alertEmail) {
+            this.alertTopic.addSubscription(new subscriptions.EmailSubscription(props.alertEmail));
+        }
 
         // AWS Budgets and Cost Anomaly Detection are AWS services that publish to the topic on the
         // account's behalf, so the topic resource policy must explicitly allow each service principal

@@ -55,6 +55,21 @@ export const BASE_FOOD_DATABASE_NAME = 'kitchensink_food';
  */
 export const PER_PR_PRIORITY_BASE = 10_000;
 
+/** Width of each ephemeral priority band; also caps the PR number that fits below the named band. */
+export const EPHEMERAL_PRIORITY_BAND_WIDTH = 10_000;
+
+/**
+ * Listener-rule priority band for a NAMED non-PR ephemeral stage (e.g. `dev`, `team-feature-x`).
+ *
+ * Kept strictly ABOVE the per-PR band so a hashed named-stage priority can never collide with a
+ * `pr-{N}` rule: PRs occupy 10000–19999, named stages 20000–29999 (ALB rule priorities max at 50000,
+ * so both fit). Within the named band the stage string is hashed, so two *distinct, concurrently
+ * deployed* named stages could still collide — that residual is inherent to hashing and acceptable
+ * because named ephemeral stages are deployed one-at-a-time by hand (unlike PRs, which are keyed off
+ * the globally unique PR number).
+ */
+export const NAMED_STAGE_PRIORITY_BASE = 20_000;
+
 /** The fixed shared-ALB listener-rule priority for the food service on a base (prod/sandbox) stage. */
 export const BASE_FOOD_LISTENER_PRIORITY = 200;
 
@@ -82,6 +97,13 @@ export function foodDatabaseNameForStage(stage: string, baseStage: string, impor
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '');
 
+    if (suffix === '') {
+        throw new Error(
+            `Cannot derive a per-PR food database name from stage '${stage}': it sanitizes to an empty ` +
+                'suffix. A non-base stage must contain at least one alphanumeric character.',
+        );
+    }
+
     return `${BASE_FOOD_DATABASE_NAME}_${suffix}`;
 }
 
@@ -89,13 +111,16 @@ export function foodDatabaseNameForStage(stage: string, baseStage: string, impor
  * Resolve the shared-ALB listener-rule priority for a stage.
  *
  * A base stage uses the fixed food priority (200). A per-PR `pr-{N}` stage allocates from the per-PR
- * band (`PER_PR_PRIORITY_BASE + N`) so concurrent previews on the shared sandbox listener never
- * collide with each other or with the fixed service rules. Any other non-base stage falls back to a
- * deterministic offset inside the band derived from the stage string.
+ * band (`PER_PR_PRIORITY_BASE + N`, 10000–19999) keyed off the globally unique PR number. Any other
+ * non-base (named ephemeral) stage hashes into a SEPARATE band (`NAMED_STAGE_PRIORITY_BASE + hash`,
+ * 20000–29999) so a hashed value can never collide with a `pr-{N}` rule — the two bands are disjoint
+ * by construction. The per-PR band is capped at {@link EPHEMERAL_PRIORITY_BAND_WIDTH} so an
+ * (unrealistically large) PR number can never overflow into the named band; it throws instead.
  *
  * @param stage - The deploy stage.
  * @param baseStage - The resolved base stage.
- * @returns A listener-rule priority unique to the stage within the shared listener.
+ * @returns A listener-rule priority for the stage within the shared listener.
+ * @throws If a `pr-{N}` number is too large to fit the per-PR band.
  */
 export function foodListenerPriorityForStage(stage: string, baseStage: string): number {
     if (stage === baseStage) {
@@ -105,18 +130,30 @@ export function foodListenerPriorityForStage(stage: string, baseStage: string): 
     const prMatch = /^pr-(\d+)$/.exec(stage);
 
     if (prMatch) {
-        return PER_PR_PRIORITY_BASE + Number(prMatch[1]);
+        const prNumber = Number(prMatch[1]);
+
+        // Keep the PR band disjoint from the named band by construction; a PR number this large is not
+        // real, so fail loudly at synth rather than silently overflow into another stage's priority.
+        if (prNumber >= EPHEMERAL_PRIORITY_BAND_WIDTH) {
+            throw new Error(
+                `PR number ${prNumber} exceeds the per-PR listener-priority band width ` +
+                    `(${EPHEMERAL_PRIORITY_BAND_WIDTH}); the shared-ALB priority scheme cannot allocate it.`,
+            );
+        }
+
+        return PER_PR_PRIORITY_BASE + prNumber;
     }
 
-    // Non-PR ephemeral stage (e.g. a named feature sandbox): hash the stage into the band so it is
-    // stable across synths and stays clear of the fixed service priorities.
+    // Named non-PR ephemeral stage (e.g. `dev`, a named feature sandbox): hash the stage into the
+    // DEDICATED named band so it is stable across synths and stays clear of BOTH the fixed service
+    // priorities and the per-PR band (see NAMED_STAGE_PRIORITY_BASE for the residual collision note).
     let hash = 0;
 
     for (const char of stage) {
-        hash = (hash * 31 + char.charCodeAt(0)) % 9_000;
+        hash = (hash * 31 + char.charCodeAt(0)) % EPHEMERAL_PRIORITY_BAND_WIDTH;
     }
 
-    return PER_PR_PRIORITY_BASE + 1 + hash;
+    return NAMED_STAGE_PRIORITY_BASE + hash;
 }
 
 /**

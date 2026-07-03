@@ -359,7 +359,7 @@ function errorMessage(error: unknown): string {
 /**
  * Run the sandbox nightly stop/start action.
  *
- * @param action - The action to apply (`stop` at 00:00 ET, `start` at 07:00 ET).
+ * @param action - The action to apply (`stop` at 00:00 ET, `start` at 09:00 ET).
  * @param clients - The injected AWS clients.
  * @returns The structured run summary.
  * @sideEffect Stops/starts sandbox RDS, ECS, and the NAT instance.

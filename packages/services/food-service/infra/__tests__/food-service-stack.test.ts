@@ -9,6 +9,8 @@ import {
     foodSubdomainForStage,
     BASE_FOOD_LISTENER_PRIORITY,
     PER_PR_PRIORITY_BASE,
+    NAMED_STAGE_PRIORITY_BASE,
+    EPHEMERAL_PRIORITY_BAND_WIDTH,
 } from '../lib/food-service-stack.js';
 
 /**
@@ -545,6 +547,12 @@ describe('foodDatabaseNameForStage', () => {
     it('produces only valid lowercase pg identifiers', () => {
         expect(foodDatabaseNameForStage('PR-7', 'sandbox', 'x')).toMatch(/^kitchensink_food(_[a-z0-9_]+)?$/);
     });
+
+    it('throws (rather than emitting an invalid name) when the stage sanitizes to an empty suffix', () => {
+        // A misconfigured all-punctuation stage would otherwise yield `kitchensink_food_`, which fails
+        // the migration runner's identifier pattern in a non-obvious way — fail loudly at synth instead.
+        expect(() => foodDatabaseNameForStage('---', 'sandbox', 'x')).toThrow(/empty/);
+    });
 });
 
 describe('foodListenerPriorityForStage', () => {
@@ -565,5 +573,25 @@ describe('foodListenerPriorityForStage', () => {
         expect(a).not.toBe(b);
         expect(a).toBeGreaterThan(BASE_FOOD_LISTENER_PRIORITY);
         expect(b).toBeGreaterThan(BASE_FOOD_LISTENER_PRIORITY);
+    });
+
+    it('hashes a named non-PR stage into a band disjoint from the per-PR band', () => {
+        const priority = foodListenerPriorityForStage('team-feature-x', 'sandbox');
+
+        // Named stages live at 20000–29999, strictly above the per-PR band (10000–19999), so a hashed
+        // value can never equal a `pr-{N}` rule's priority on the shared listener.
+        expect(priority).toBeGreaterThanOrEqual(NAMED_STAGE_PRIORITY_BASE);
+        expect(priority).toBeLessThan(NAMED_STAGE_PRIORITY_BASE + EPHEMERAL_PRIORITY_BAND_WIDTH);
+        expect(priority).toBeGreaterThanOrEqual(PER_PR_PRIORITY_BASE + EPHEMERAL_PRIORITY_BAND_WIDTH);
+    });
+
+    it('is deterministic across synths for the same named stage', () => {
+        expect(foodListenerPriorityForStage('dev', 'sandbox')).toBe(foodListenerPriorityForStage('dev', 'sandbox'));
+    });
+
+    it('throws for a PR number too large to fit the per-PR band (cannot overflow into the named band)', () => {
+        expect(() => foodListenerPriorityForStage(`pr-${EPHEMERAL_PRIORITY_BAND_WIDTH}`, 'sandbox')).toThrow(
+            /exceeds the per-PR listener-priority band/,
+        );
     });
 });

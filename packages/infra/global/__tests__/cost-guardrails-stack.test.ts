@@ -12,19 +12,27 @@ import { describe, it, expect } from 'vitest';
 import { CostGuardrailsStack } from '../lib/platform/cost-guardrails-stack.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
+const ALERT_EMAIL = 'alerts@example.com';
 
-const guardrailsTemplate = (): Template =>
-    Template.fromStack(new CostGuardrailsStack(new App(), 'CostGuardrails', { env }));
+const guardrailsTemplate = (alertEmail?: string): Template =>
+    Template.fromStack(new CostGuardrailsStack(new App(), 'CostGuardrails', { env, alertEmail }));
 
 describe('CostGuardrailsStack (ADR-0008)', () => {
-    it('creates an SNS topic with the cost-alert email subscription', () => {
-        const template = guardrailsTemplate();
+    it('creates an SNS topic with the configured cost-alert email subscription', () => {
+        const template = guardrailsTemplate(ALERT_EMAIL);
 
         template.resourceCountIs('AWS::SNS::Topic', 1);
         template.hasResourceProperties('AWS::SNS::Subscription', {
             Protocol: 'email',
-            Endpoint: 'webb.c.brandon@gmail.com',
+            Endpoint: ALERT_EMAIL,
         });
+    });
+
+    it('omits the email subscription entirely when no alert email is configured', () => {
+        const template = guardrailsTemplate(undefined);
+
+        template.resourceCountIs('AWS::SNS::Topic', 1);
+        template.resourceCountIs('AWS::SNS::Subscription', 0);
     });
 
     it('lets both budgets and cost-anomaly-detection publish to the topic', () => {

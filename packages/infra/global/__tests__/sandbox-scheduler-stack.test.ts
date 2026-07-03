@@ -4,7 +4,7 @@
  * sandbox stage (prod gets nothing → no prod diff, ADR-0002 discipline).
  */
 import { App } from 'aws-cdk-lib';
-import { Match, Template } from 'aws-cdk-lib/assertions';
+import { Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 
 import { GlobalStack } from '../lib/platform/global-stack.js';

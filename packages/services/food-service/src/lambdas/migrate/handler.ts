@@ -238,6 +238,7 @@ export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Prom
         if (isDuplicateDatabaseError(err)) {
             return 'exists';
         }
+
         throw err;
     }
 

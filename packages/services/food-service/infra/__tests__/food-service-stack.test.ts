@@ -224,6 +224,22 @@ describe('Food worker + service wiring', () => {
             expect(envNames).not.toContain('USDA_API_KEY');
         }
     });
+
+    it('wires Clerk auth env (CLERK_JWT_KEY + CLERK_AUTHORIZED_PARTIES) so the guard can verify tokens', () => {
+        // Without these the FoodAuthGuard fail-closes and every /v1/foods/* request is 401 (regardless of
+        // token). Mirrors the identity service; the values resolve from the shared sandbox Clerk SSM params.
+        const containers = Object.values(serviceTemplate.findResources('AWS::ECS::TaskDefinition')).flatMap(
+            (resource: any) => resource.Properties.ContainerDefinitions as any[],
+        );
+
+        const withClerk = containers.filter((container) => {
+            const envNames = (container.Environment ?? []).map((entry: any) => entry.Name);
+
+            return envNames.includes('CLERK_JWT_KEY') && envNames.includes('CLERK_AUTHORIZED_PARTIES');
+        });
+
+        expect(withClerk).toHaveLength(3);
+    });
 });
 
 describe('Vestigial lambdas removed (Decisions B/C/D)', () => {

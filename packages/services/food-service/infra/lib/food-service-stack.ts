@@ -20,6 +20,7 @@ import {
     aws_route53_targets as route53_targets,
     aws_secretsmanager as secretsmanager,
     aws_sns as sns,
+    aws_ssm as ssm,
 } from 'aws-cdk-lib';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -339,6 +340,19 @@ export class FoodServiceStack extends Stack {
             DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
             DB_NAME: foodDatabaseName,
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
+            // Clerk session-token verification (FoodAuthGuard → verifyClerkToken). The JWT *public* key
+            // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy — same
+            // wiring as the identity service. Without these the guard fail-closes and every `/v1/foods/*`
+            // request is 401. Prod reads prod params; every other stage (incl. `pr-{N}`) reads the shared
+            // sandbox (dev-instance) params, matching `baseStage`.
+            CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${baseStage}/clerk/jwt-public-key`,
+            ),
+            CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${baseStage}/clerk/authorized-parties`,
+            ),
         };
 
         // Source API credential (`USDA_API_KEY`). The Nest app env validation requires it

@@ -205,6 +205,14 @@ scripts/loadtest/
   **not** work against the deployed instance).
 - **Execution note:** Spike — validate against the live sandbox before any k6 work is built on top; this
   unit ends at a **decision point** (strict distinct-users vs. documented fallback).
+- **Spike result (2026-07-03 — RESOLVED, decision made):** mechanism proven end-to-end. Per user+token:
+  `POST /users` (instance requires `username`/`first_name`/`last_name`) → `POST /sign_in_tokens` →
+  `POST /v1/dev_browser` → `POST /v1/client/sign_ins` (ticket) → `POST /sessions/{id}/tokens`. ~5 calls,
+  ~5 s/user. The token carries `sub` + `azp=https://sandbox.commise.app` (set via the **`Origin` header**
+  to FAPI) and passes `verifyToken` with the food-guard config (ACCEPTED). **TTL = 60 s** → refresh with a
+  single `POST /sessions/{id}/tokens` (retained client cookie, no re-login), ~1 call/user/min. **Decision:
+  strict distinct-users is feasible; no fallback needed.** The real FAPI is **`nice-fowl-6.clerk.accounts.dev`**
+  (the issuer SSM value `clerk.sandbox.thesouschef.app` does not resolve — separate loose end).
 - **Test scenarios:**
     - Happy path: a freshly minted user token returns `200` from `/v1/foods/search` on `food-pr-59`.
     - Edge: a token with a non-allowlisted `azp` (or missing `azp`) is rejected `401` — confirms the
@@ -213,6 +221,45 @@ scripts/loadtest/
     - `Covers FR-3.`
 - **Verification:** README documents the chosen mechanism + measured cost; a one-off provision of ≥2
   distinct users each yields a `200`-returning token; the strict-vs-fallback recommendation is written.
+- **Post-U0 live check (2026-07-03):** with U0 deployed, a minted token is **accepted** — `/v1/foods/search`
+  no longer `401`s (auth confirmed end-to-end). It now returns **500**: a _third_ latent deploy bug — the
+  food DB connection uses `?sslmode=require`, which the current `pg`/`pg-connection-string` treats as
+  `verify-full`, so the untrusted Amazon RDS CA fails (`SELF_SIGNED_CERT_IN_CHAIN`) and **every DB query
+  500s**. Identity uses the identical connection code (likely latently affected). Captured as new unit
+  **U0b** below. (Meta: the food service had never run end-to-end in a deployed env — this spike peeled
+  back three successive blockers: no image → no Clerk key → no DB TLS trust.)
+
+### U0b. Fix food DB TLS trust (prerequisite, discovered post-U0)
+
+- **Goal:** Make DB queries succeed against RDS — the connection must establish TLS the current pg driver
+  accepts (trust the Amazon RDS CA, or use `no-verify` for encrypt-without-hostname-verify inside the VPC).
+- **Requirements:** prerequisite for any DB-backed endpoint (search/add/poll — i.e. the whole load test).
+- **Dependencies:** none (independent of U0/U1; both must be true for a `200`).
+- **Files:** `packages/services/food-service/src/database/database.module.ts` (and the identical
+  `packages/services/identity/src/database/database.module.ts` if the shared fix is adopted).
+- **Approach:** Either (a) bundle + trust the RDS CA (`NODE_EXTRA_CA_CERTS` / `ssl: { ca }`) — verifies the
+  server, most correct; or (b) `sslmode=no-verify` / `ssl: { rejectUnauthorized: false }` — encrypt only,
+  acceptable within the VPC, one-line. Decide whether to fix food alone or extract a shared DB-SSL helper
+  since identity shares the code. Redeploy and re-confirm the `200`.
+- **Root cause (confirmed by reading `node_modules/pg-connection-string@2.13.0`):** its default
+  (non-libpq) branch sets `config.ssl = {}` for `sslmode=require` but **never** sets `rejectUnauthorized`,
+  so it defaults to `true` and rejects the untrusted RDS CA. `sslmode=no-verify` is the one token that
+  explicitly sets `ssl.rejectUnauthorized = false`. (Earlier "treats as verify-full" was imprecise — the
+  effect is the same, but the mechanism is the empty-ssl-object default, not a verify-full mapping.)
+- **Decision — option (b), no new package.** The fix is now a single connection-string token, so the two
+  services stay in sync by an identical one-liner + cross-referencing comment rather than a shared runtime
+  package (there is none between services today; a package for one token is over-abstraction).
+- **Fix applied (2026-07-03, code done — pending redeploy verification):** `sslmode=require` →
+  `sslmode=no-verify` in **all four** RDS connection builders:
+  `food-service/src/database/database.module.ts`, `food-service/src/worker/main.ts`,
+  `food-service/src/worker/change-refresh/main.ts` (the sync + change-refresh workers were latently
+  broken too), and `identity/src/database/database.module.ts` (defuses the identical latent bug — no prod
+  redeploy is triggered by this PR, so it simply takes effect on identity's next deploy). Local dev is
+  unaffected: it uses the `DATABASE_URL` branch, which is untouched. Both packages typecheck clean.
+- **Test scenarios:** a deployed API request that hits the DB (`/v1/foods/search`) returns `200`, not a
+  `SELF_SIGNED_CERT_IN_CHAIN` `500`; the connection is still TLS (not plaintext).
+- **Verification:** minted-token `GET /v1/foods/search` on `food-pr-59` returns `200`. **← still open:
+  requires a `food-pr-59` redeploy to pick up the rebuilt image, then re-run the minted-token check.**
 
 ### U2. Admin observation token + server-side metric collector
 

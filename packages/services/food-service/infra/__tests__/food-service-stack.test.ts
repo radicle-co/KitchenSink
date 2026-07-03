@@ -318,7 +318,7 @@ describe('Change-refresh Fargate scheduled task (T-001c)', () => {
         serviceTemplate.hasResourceProperties('AWS::ECS::TaskDefinition', {
             ContainerDefinitions: Match.arrayWith([
                 Match.objectLike({
-                    Command: ['node', 'dist/worker/change-refresh/main.js'],
+                    Command: ['node', 'dist/src/worker/change-refresh/main.js'],
                 }),
             ]),
         });

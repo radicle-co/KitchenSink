@@ -391,7 +391,7 @@ export class FoodServiceStack extends Stack {
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-service', logGroup: apiLogGroup }),
             environment: { ...foodDbEnvironment, PORT: '3000' },
             secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
-            command: ['node', 'dist/main.js'],
+            command: ['node', 'dist/src/main.js'],
             portMappings: [{ containerPort: 3000 }],
             healthCheck: {
                 command: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
@@ -451,7 +451,7 @@ export class FoodServiceStack extends Stack {
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-worker', logGroup: workerLogGroup }),
             environment: { ...foodDbEnvironment, FOOD_WORKER: '1' },
             secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
-            command: ['node', 'dist/worker/main.js'],
+            command: ['node', 'dist/src/worker/main.js'],
         });
 
         const workerService = new ecs.FargateService(this, 'FoodFetchWorkerService', {
@@ -515,7 +515,7 @@ export class FoodServiceStack extends Stack {
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-change-refresh', logGroup: changeRefreshLogGroup }),
             environment: changeRefreshEnvironment,
             secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
-            command: ['node', 'dist/worker/change-refresh/main.js'],
+            command: ['node', 'dist/src/worker/change-refresh/main.js'],
         });
 
         // D-REFRESH is explicitly low-priority idle-drain background work that yields to live demand

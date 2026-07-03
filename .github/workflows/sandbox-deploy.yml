@@ -246,9 +246,16 @@ jobs:
             - name: Install dependencies
               if: steps.changes.outputs.food == 'true'
               run: npm ci
-            - name: Build food package
+            # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
+            # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
+            # the bare specifiers without them.
+            - name: Build food package (+ shared dist)
               if: steps.changes.outputs.food == 'true'
-              run: npm run build --workspace=packages/services/food-service
+              run: npx turbo run build --filter=@kitchensink/food-service
+            # Rewrite the food package.json exports/main to ./dist (prod.package.json) for the image.
+            - name: Prepare food service Docker image (prod manifest)
+              if: steps.changes.outputs.food == 'true'
+              run: npm run docker:prepare --workspace=packages/services/food-service
             - name: Build food infra
               if: steps.changes.outputs.food == 'true'
               run: npm run infra:build --workspace=packages/services/food-service
@@ -262,11 +269,36 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
-            - name: CDK Deploy (stage=pr-{N}, baseStage=sandbox resolved in the bin)
+            - name: Login to Amazon ECR
+              id: login-ecr
+              if: steps.changes.outputs.food == 'true'
+              uses: aws-actions/amazon-ecr-login@v2
+            # The food stack imports the repo by name (ecr.Repository.fromRepositoryName); create it on
+            # first deploy so the image push + ECS pull have somewhere to go.
+            - name: Ensure ECR repository exists
+              if: steps.changes.outputs.food == 'true'
+              run: aws ecr describe-repositories --repository-names kitchensink-food || aws ecr create-repository --repository-name kitchensink-food
+            - name: Build, tag, and push food Docker image
+              if: steps.changes.outputs.food == 'true'
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                  IMAGE_TAG: sandbox-${{ github.sha }}
+              run: |
+                  docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+            # Pass 1 — provision the stack (incl. the migration Lambda) with the services scaled to ZERO.
+            # A per-PR preview's isolated DB (kitchensink_food_pr_{N}) does not exist until the migration
+            # step below runs, so booting tasks now would crash-loop on connect and trip the ECS
+            # deployment circuit breaker. Zero desired tasks also means CloudFormation never has to roll
+            # back a failed service — which is what previously wedged the Fargate-Spot capacity-provider
+            # association in ROLLBACK_FAILED.
+            - name: CDK Deploy — pass 1 (scale 0, provision infra + migration Lambda)
               if: steps.changes.outputs.food == 'true'
               run: |
                   STAGE=${{ env.STAGE }} \
                   FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
+                  FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
+                  FOOD_DESIRED_COUNT=0 \
+                  FOOD_WORKER_DESIRED_COUNT=0 \
                   npx cdk deploy \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
@@ -282,3 +314,16 @@ jobs:
                   aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
                       --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
                   cat /tmp/migrate.json
+            # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
+            # tasks boot healthy. (Defaults are 2 / 1; set explicitly for clarity.)
+            - name: CDK Deploy — pass 2 (scale services up)
+              if: steps.changes.outputs.food == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
+                  FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
+                  FOOD_DESIRED_COUNT=2 \
+                  FOOD_WORKER_DESIRED_COUNT=1 \
+                  npx cdk deploy \
+                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --all --require-approval never

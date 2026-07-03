@@ -10,6 +10,7 @@
     "scripts": {
         "dev": "nest start --watch",
         "build": "nest build",
+        "docker:prepare": "node docker-prepare.js",
         "infra:build": "tsc -p infra/tsconfig.json",
         "bundle:lambda": "node esbuild.mjs",
         "infra:synth": "npm run bundle:lambda && cdk synth --app 'npx tsx infra/bin/app.ts'",

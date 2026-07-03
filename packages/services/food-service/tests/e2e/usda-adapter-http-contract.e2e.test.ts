@@ -14,7 +14,8 @@
  *      PERSISTED golden record reflects the real branded mapping (kind/barcode/brand + per-100g Protein).
  *   2. Foundation detail through the real adapter → all per-100g, ≥1 portion, generic, no brand/barcode.
  *   3. Real batch `POST /foods` (`fetchByKeys`) → two canonical candidates with the right keys/kinds.
- *   4. Error classification: a 404 detail → SourceApiError(404) (worker → NOT_FOUND); a 429 → SourceApiError(429).
+ *   4. Error classification: a 404 detail → SourceApiError(404) (worker → NOT_FOUND).
+ *   4b. Error classification: a 429 detail → SourceApiError(429) (the back-off/window-full path).
  */
 import 'reflect-metadata';
 
@@ -117,7 +118,13 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
         previousDispatcher = getGlobalDispatcher();
         agent = new MockAgent();
         agent.disableNetConnect();
-        agent.enableNetConnect((host) => host.includes('127.0.0.1') || host.includes('localhost'));
+        // Exact host match (port stripped) so `disableNetConnect()` stays a hard guarantee — a substring
+        // test would also let through hosts that merely *contain* the loopback names (e.g. `127.0.0.1.evil.com`).
+        agent.enableNetConnect((host) => {
+            const hostname = host.replace(/:\d+$/, '');
+
+            return hostname === '127.0.0.1' || hostname === 'localhost';
+        });
         setGlobalDispatcher(agent);
 
         const usda = agent.get(USDA_ORIGIN);
@@ -315,7 +322,7 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
         expect(await drainUntilTerminal(add.id)).toBe('NOT_FOUND');
     });
 
-    it('case 4: a 429 detail classifies as SourceApiError(429) (the back-off/window-full path)', async () => {
+    it('case 4b: a 429 detail classifies as SourceApiError(429) (the back-off/window-full path)', async () => {
         const rateLimited = await registry
             .adapterFor('usda')
             .fetchByKey('429429')

@@ -1,0 +1,4 @@
+# Minted token pools are secrets — never commit
+tokens.json
+pool.json
+config.env

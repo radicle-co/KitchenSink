@@ -42,8 +42,28 @@ POOL_SIZE=100 node auth/provision-users.mjs
 k6 run --env FOOD_BASE_URL=https://food-pr-59.commise.app journey.js
 ```
 
-`run.mjs` (U5) wraps all of this — provision → k6 → collect server-side metrics (U2) → correlated report
-→ teardown — into one repeatable command. (U2/U5 in progress.)
+Or run the whole thing with one command — provision → grant observer → k6 + server-side collection →
+correlated `report.md` → teardown of every test user (in a `finally`, so an interrupt never leaks users):
+
+```bash
+POOL_SIZE=100 node run.mjs
+```
+
+## Run in CI (GitHub Action)
+
+Prefer not to run it locally? Trigger the **`Food API load test`** workflow
+(`.github/workflows/food-loadtest.yml`): **Actions → Food API load test → Run workflow**, or:
+
+```bash
+gh workflow run food-loadtest.yml \
+  -f target_url=https://food-pr-59.commise.app \
+  -f hold_rate=2 -f ramp_rate=3 -f pool_size=100 -f max_vus=100
+```
+
+It installs k6, resolves the Clerk secret/FAPI/azp for the stage from AWS, runs `run.mjs`, prints
+`report.md` to the **job summary**, and uploads `report.md` + `k6-summary.json` + `server-metrics.json`
+as artifacts. **Note:** GitHub only exposes a `workflow_dispatch` workflow once it is on the default
+branch, so this becomes triggerable after the PR merges to `main`.
 
 **Token lifetime (important):** Clerk session JWTs are ~60s-lived. `journey.js` does NOT rely on a
 static token file staying fresh — each VU re-mints its own token from FAPI before expiry (a k6
@@ -60,7 +80,7 @@ journey.js                 U4 — the k6 script (search → add → poll), stage
 config.example.env         tunables (target, pool size, stage rates/durations, SC-hold thresholds)
 auth/grant-admin.mjs         U2 — grant food:admin to one observer user → admin.json
 observe/collect-metrics.mjs  U2 — poll admin /metrics + /queue + CloudWatch over the window → series
-run.mjs                      U5 — orchestrate setup → k6 → observe → report → teardown     (todo)
+run.mjs                      U5 — orchestrate setup → k6 → observe → report → teardown
 ```
 
 ## Observing the server side (U2)

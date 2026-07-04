@@ -258,8 +258,20 @@ scripts/loadtest/
   unaffected: it uses the `DATABASE_URL` branch, which is untouched. Both packages typecheck clean.
 - **Test scenarios:** a deployed API request that hits the DB (`/v1/foods/search`) returns `200`, not a
   `SELF_SIGNED_CERT_IN_CHAIN` `500`; the connection is still TLS (not plaintext).
-- **Verification:** minted-token `GET /v1/foods/search` on `food-pr-59` returns `200`. **← still open:
-  requires a `food-pr-59` redeploy to pick up the rebuilt image, then re-run the minted-token check.**
+- **Verification:** minted-token `GET /v1/foods/search` on `food-pr-59` returns `200`. **✅ RESOLVED
+  (2026-07-04).**
+- **Resolution — the DB layer needed more than TLS (superseded by IAM auth).** The `no-verify` change
+  fixed TLS, but re-running the check then surfaced three more deployed-only defects the load test would
+  have hit: (1) `food_app`'s password was never applied to the role (the generated secret was never
+  synced — the bootstrap that should have done it was never wired), (2) the food-db-bootstrap **and**
+  migrate lambdas were silently shipping as inline no-op placeholders on CI's compiled-dist deploys (an
+  `import.meta.url` asset-path bug in the `lib/platform/` and `infra/lib/` stacks), so `food_app` and the
+  per-PR database were never created. Rather than sync a password, the food DB moved to **RDS IAM auth**
+  (no password anywhere; token minted per connection), with a master-connected bootstrap custom resource
+  provisioning `food_app` + `rds_iam` + the base DB, and the asset-path bugs fixed. TLS is still on
+  (`rejectUnauthorized: false`) — IAM auth requires it. See `src/database/pool-config.ts`,
+  `packages/infra/global/.../data-stack.ts` + `food-db-bootstrap/`. `GET /v1/foods/search → 200` confirmed
+  end-to-end on `food-pr-59`. **The whole DB-backed surface the load test exercises is now unblocked.**
 
 ### U2. Admin observation token + server-side metric collector
 

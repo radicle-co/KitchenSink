@@ -89,7 +89,7 @@ function expectedTables(): string[] {
 
 /**
  * Apply the ordered migrations idempotently against a pool, then validate the result. The testable
- * core of {@link handler} (the handler only builds the pool from the secret + env).
+ * core of {@link handler} (the handler only builds the pool from the DB env + an RDS IAM token).
  *
  * @param options - The connected pool + the migrations directory.
  * @returns The applied/skipped lists + validation counts.
@@ -323,18 +323,25 @@ export interface MigrateEvent {
 }
 
 /**
- * Lambda entrypoint. With no action (or `migrate`) it builds the pool from the `food_app` secret + DB
- * env and runs + validates the migrations, creating the per-PR database first if it is absent
- * (ADR-0006). With `action: 'drop'` it drops the per-PR database (never the base) for PR-close cleanup.
+ * Lambda entrypoint. With no action (or `migrate`) it builds the pool from the DB env (authenticating as
+ * `food_app` via an RDS IAM token — no secret) and runs + validates the migrations, creating the per-PR
+ * database first if it is absent (ADR-0006). With `action: 'drop'` it drops the per-PR database (never
+ * the base) for PR-close cleanup.
  *
  * @param event - Optional `{ action }` (defaults to `migrate`).
  * @returns The migrate result, or the drop result when `action` is `drop`.
- * @sideEffect Reads Secrets Manager, connects to PostgreSQL, and executes DDL.
+ * @sideEffect Connects to PostgreSQL (RDS IAM auth) and executes DDL.
  */
 export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
     const host = requireEnv('FOOD_DB_ENDPOINT');
     const port = Number(requireEnv('FOOD_DB_PORT'));
     const databaseName = requireEnv('FOOD_DB_NAME');
+
+    // Validate up front (defense in depth — ensureDatabaseExists/dropDatabase also validate): the name
+    // must match the food logical-database contract before we connect to / create / drop it.
+    if (!isValidFoodDatabaseName(databaseName)) {
+        throw new Error(`Refusing to migrate: invalid FOOD_DB_NAME "${databaseName}".`);
+    }
 
     const withMaintenancePool = async <T>(run: (pool: pg.Pool) => Promise<T>): Promise<T> => {
         const maintenancePool = new Pool({

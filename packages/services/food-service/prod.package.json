@@ -8,7 +8,7 @@
         "./db/schema": "./dist/src/db/schema/index.js"
     },
     "dependencies": {
-        "@aws-sdk/client-secrets-manager": "^3.935.0",
+        "@aws-sdk/rds-signer": "^3.935.0",
         "@kitchensink/clerk-verify": "*",
         "@kitchensink/usda-client": "*",
         "@nestjs/common": "^11.0.0",

@@ -28,7 +28,8 @@ function buildConnectionString(): string {
     // `pg-connection-string` maps `require` to `ssl: {}` → `rejectUnauthorized` defaults to `true`
     // → the RDS CA is rejected (`SELF_SIGNED_CERT_IN_CHAIN`) and every query 500s. `no-verify` maps
     // to `ssl: { rejectUnauthorized: false }`: still encrypted, verification skipped — fine for a
-    // known RDS endpoint inside the VPC. (Mirrors food-service; see its database.module.ts.)
+    // known RDS endpoint inside the VPC. (Food-service moved to passwordless RDS IAM auth, which also
+    // requires this un-verified TLS; identity still uses password auth via the RDS master secret.)
     return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=no-verify`;
 }
 

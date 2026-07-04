@@ -140,7 +140,8 @@ async function main() {
         throw new Error(`Cannot read observer handle ${ADMIN_FILE} (run auth/grant-admin.mjs first): ${err?.message ?? err}`);
     }
 
-    adminToken = admin.jwt;
+    // Deliberately do NOT seed adminToken from admin.jwt: it may already be near-expiry by the time the
+    // window starts, so the first freshAdminToken() (mintedAt=0) mints a guaranteed-fresh one.
 
     console.log(`Collecting server-side metrics for ${DURATION_S}s every ${INTERVAL_S}s → ${OUT_FILE}`);
     const series = [];

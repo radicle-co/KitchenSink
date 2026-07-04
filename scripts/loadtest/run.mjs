@@ -142,7 +142,7 @@ function buildReport() {
     const lines = [
         `# Food API load-test report`,
         ``,
-        `Target: \`${process.env['FOOD_BASE_URL'] ?? 'food-pr-59'}\`  ·  pool: ${POOL_SIZE} users  ·  ` +
+        `Target: \`${process.env['FOOD_BASE_URL'] ?? 'https://food-pr-59.commise.app'}\`  ·  pool: ${POOL_SIZE} users  ·  ` +
             `profile: baseline ${process.env['BASELINE_RATE'] ?? 1}/s → hold ${process.env['HOLD_RATE'] ?? 2}/s → ` +
             `ramp ${process.env['RAMP_RATE'] ?? 3}/s`,
         ``,

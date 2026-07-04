@@ -5,10 +5,10 @@
  * `schema_migrations`, so re-invoking is a no-op; a thrown error surfaces as a Lambda FunctionError and
  * fails the deploy's migration step (so a partial/drifted schema never passes silently).
  *
- * SECRET SHAPE — unlike identity's `food_db` master secret, the `food_app` least-privilege secret holds
- * ONLY `{ username, password }`. This handler therefore reads the credentials from the secret
- * (`FOOD_DB_SECRET_ARN`) and the connection target from env (`FOOD_DB_ENDPOINT`/`FOOD_DB_PORT`/
- * `FOOD_DB_NAME`) — see DataStack T-001b.
+ * AUTH — `food_app` authenticates passwordlessly via RDS IAM (feature 003): no secret to read. The
+ * connection target comes from env (`FOOD_DB_ENDPOINT`/`FOOD_DB_PORT`/`FOOD_DB_NAME`) and the IAM token
+ * is minted per connection by {@link foodPoolConfig}. The lambda role holds `rds-db:connect` on the
+ * `food_app` db-user (granted in the food service stack).
  *
  * @implements ARCH-001
  */
@@ -16,11 +16,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 
+import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/pool-config.js';
 import * as schema from '../../db/schema/index.js';
 
 const { Pool } = pg;
@@ -299,39 +299,6 @@ export async function dropDatabase(options: EnsureDatabaseOptions): Promise<Drop
     return 'dropped';
 }
 
-/** The `food_app` secret payload — username/password only (host/port/dbname come from env). */
-interface FoodDbCredentials {
-    /** The database role. */
-    readonly username: string;
-    /** The role password. */
-    readonly password: string;
-}
-
-/**
- * Read the `food_app` username/password from Secrets Manager.
- *
- * @param secretArn - The `FOOD_DB_SECRET_ARN`.
- * @returns The credentials.
- * @throws {Error} when the secret has no payload or is missing a credential field.
- * @sideEffect Calls Secrets Manager `GetSecretValue`.
- */
-async function readFoodDbCredentials(secretArn: string): Promise<FoodDbCredentials> {
-    const client = new SecretsManagerClient({});
-    const response = await client.send(new GetSecretValueCommand({ SecretId: secretArn }));
-
-    if (!response.SecretString) {
-        throw new Error(`Secret ${secretArn} has no SecretString payload`);
-    }
-
-    const parsed = JSON.parse(response.SecretString) as Partial<FoodDbCredentials>;
-
-    if (!parsed.username || !parsed.password) {
-        throw new Error(`Secret ${secretArn} missing username/password`);
-    }
-
-    return { username: parsed.username, password: parsed.password };
-}
-
 /**
  * Read a required environment variable (bracket-notation per project convention).
  *
@@ -365,20 +332,13 @@ export interface MigrateEvent {
  * @sideEffect Reads Secrets Manager, connects to PostgreSQL, and executes DDL.
  */
 export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult | { dropped: DropDatabaseResult }> => {
-    const credentials = await readFoodDbCredentials(requireEnv('FOOD_DB_SECRET_ARN'));
     const host = requireEnv('FOOD_DB_ENDPOINT');
     const port = Number(requireEnv('FOOD_DB_PORT'));
     const databaseName = requireEnv('FOOD_DB_NAME');
-    const ssl = process.env['STAGE'] === 'local' ? false : { rejectUnauthorized: false };
 
     const withMaintenancePool = async <T>(run: (pool: pg.Pool) => Promise<T>): Promise<T> => {
         const maintenancePool = new Pool({
-            user: credentials.username,
-            password: credentials.password,
-            host,
-            port,
-            database: 'postgres',
-            ssl,
+            ...foodPoolConfig({ host, port, database: 'postgres', username: FOOD_DB_USERNAME }),
             max: 1,
         });
 
@@ -403,12 +363,7 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
     }
 
     const pool = new Pool({
-        user: credentials.username,
-        password: credentials.password,
-        host,
-        port,
-        database: databaseName,
-        ssl,
+        ...foodPoolConfig({ host, port, database: databaseName, username: FOOD_DB_USERNAME }),
         max: 1,
     });
 

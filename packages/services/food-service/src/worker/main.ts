@@ -20,6 +20,7 @@ import { SourceCallLogDao } from '../foods/dao/source-call-log.dao.js';
 import { GoldenRecordMergeEngine } from '../foods/merge/merge-engine.js';
 import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service.js';
 import { FoodMetrics } from '../observability/emf-metrics.js';
+import { foodPoolConfigFromEnv } from '../database/pool-config.js';
 import * as schema from '../db/schema/index.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
@@ -32,45 +33,13 @@ import { WorkerRuntime } from './worker-runtime.js';
 const { Pool } = pg;
 
 /**
- * Build the Postgres connection string from the environment (`DATABASE_URL` or the discrete `DB_*`
- * parts). Mirrors `DatabaseModule.buildConnectionString` (which is not exported).
- *
- * @returns A `postgresql://` connection string.
- * @throws {Error} when neither `DATABASE_URL` nor a complete `DB_*` set is present.
- */
-function buildConnectionString(): string {
-    const url = process.env['DATABASE_URL'];
-
-    if (url) {
-        return url;
-    }
-
-    const host = process.env['DB_HOST'];
-    const port = process.env['DB_PORT'];
-    const database = process.env['DB_NAME'];
-    const user = process.env['DB_USERNAME'];
-    const password = process.env['DB_PASSWORD'];
-
-    if (!host || !port || !database || !user || !password) {
-        throw new Error(
-            'Missing database configuration. Provide DATABASE_URL or DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD.',
-        );
-    }
-
-    // `no-verify`, not `require`: the RDS CA is absent from Node's trust store, and `require` maps
-    // to `ssl: {}` (rejectUnauthorized defaults true) → `SELF_SIGNED_CERT_IN_CHAIN`. See the API's
-    // src/database/database.module.ts for the full rationale.
-    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=no-verify`;
-}
-
-/**
  * Bootstrap and start the consumer.
  *
  * @sideEffect Connects to Postgres, registers signal handlers, and runs the drain loop.
  */
 async function bootstrap(): Promise<void> {
     const logger = new ConsoleWorkerLogger();
-    const pool = new Pool({ connectionString: buildConnectionString(), max: 10 });
+    const pool = new Pool({ ...foodPoolConfigFromEnv(), max: 10 });
     const db = drizzle(pool, { schema });
 
     const apiKey = process.env['USDA_API_KEY'];

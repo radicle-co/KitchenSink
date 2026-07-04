@@ -12,6 +12,7 @@ import { Global, Module } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
+import { foodPoolConfigFromEnv } from './pool-config.js';
 import * as schema from '../db/schema/index.js';
 
 const { Pool } = pg;
@@ -26,45 +27,6 @@ export const PgPoolProvider = 'FOOD_PG_POOL';
 export type FoodDrizzle = ReturnType<typeof drizzle<typeof schema>>;
 
 /**
- * Build the Postgres connection string from the validated environment.
- *
- * Prefers `DATABASE_URL`; falls back to the discrete `DB_*` parts. The discrete path appends
- * `sslmode=no-verify` (RDS), matching the identity service.
- *
- * `no-verify` — not `require` — is deliberate. RDS terminates TLS with a certificate signed by
- * the Amazon RDS CA, which is absent from Node's trust store. `pg-connection-string` maps
- * `sslmode=require` to `ssl: {}`, whose `rejectUnauthorized` then defaults to `true`, so the
- * untrusted RDS CA is rejected (`SELF_SIGNED_CERT_IN_CHAIN`) and every query 500s. `no-verify`
- * maps to `ssl: { rejectUnauthorized: false }` — the connection stays encrypted but skips
- * CA/hostname verification, which is acceptable for a known RDS endpoint reached inside the VPC
- * (bundling the RDS CA would be stricter but adds image/cert plumbing for no in-VPC gain).
- *
- * @returns A `postgresql://` connection string.
- * @throws {Error} when neither `DATABASE_URL` nor a complete `DB_*` set is present.
- */
-function buildConnectionString(): string {
-    const url = process.env['DATABASE_URL'];
-
-    if (url) {
-        return url;
-    }
-
-    const host = process.env['DB_HOST'];
-    const port = process.env['DB_PORT'];
-    const database = process.env['DB_NAME'];
-    const user = process.env['DB_USERNAME'];
-    const password = process.env['DB_PASSWORD'];
-
-    if (!host || !port || !database || !user || !password) {
-        throw new Error(
-            'Missing required database configuration. Provide DATABASE_URL or DB_HOST, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD.',
-        );
-    }
-
-    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=no-verify`;
-}
-
-/**
  * Global module providing the shared `pg.Pool` and Drizzle client to the food service.
  *
  * @sideEffect Opens a Postgres connection pool at module init.
@@ -76,7 +38,7 @@ function buildConnectionString(): string {
             provide: PgPoolProvider,
             useFactory(): pg.Pool {
                 return new Pool({
-                    connectionString: buildConnectionString(),
+                    ...foodPoolConfigFromEnv(),
                     max: 20,
                     idleTimeoutMillis: 30_000,
                     connectionTimeoutMillis: 5_000,

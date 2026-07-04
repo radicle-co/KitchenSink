@@ -269,18 +269,12 @@ export class FoodServiceStack extends Stack {
             Fn.importValue(`kitchensink-network-${baseStage}:ServiceSecurityGroupId`),
         );
 
-        // Shared DB connection secret (instance master) + the dedicated least-privilege food role
-        // secret (T-001b). NO RDS is created here — the instance is owned by the global DataStack.
-        const sharedDbSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-data-${baseStage}:DatabaseSecretArn`),
-        });
-
-        const foodDbSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedFoodDbSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-data-${baseStage}:FoodDbSecretArn`),
-        });
-
+        // NO RDS is created here — the instance is owned by the global DataStack. `food_app` connects via
+        // RDS IAM auth (feature 003), so there is no DB secret to import; the instance resource id is
+        // imported so `grantConnect` can scope `rds-db:connect` to the food_app db-user.
         const database = rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
             instanceIdentifier: `kitchensink-data-${baseStage}`,
+            instanceResourceId: Fn.importValue(`kitchensink-data-${baseStage}:DatabaseResourceId`),
             instanceEndpointAddress: Fn.importValue(`kitchensink-data-${baseStage}:DatabaseEndpoint`),
             port: Number(Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`)),
             securityGroups: [
@@ -339,6 +333,8 @@ export class FoodServiceStack extends Stack {
             DB_HOST: database.dbInstanceEndpointAddress,
             DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
             DB_NAME: foodDatabaseName,
+            // `food_app` authenticates via RDS IAM (no password) — see src/database/pool-config.ts.
+            DB_USERNAME: 'food_app',
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
             // Clerk session-token verification (FoodAuthGuard → verifyClerkToken). The JWT *public* key
             // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy — same
@@ -371,18 +367,12 @@ export class FoodServiceStack extends Stack {
             USDA_API_KEY: ecs.Secret.fromSecretsManager(usdaApiKeySecret),
         };
 
-        const foodDbSecrets = {
-            DB_USERNAME: ecs.Secret.fromSecretsManager(foodDbSecret, 'username'),
-            DB_PASSWORD: ecs.Secret.fromSecretsManager(foodDbSecret, 'password'),
-        };
-
         // ── API service (ECS/Fargate behind the shared ALB) ─────────────────────────────────────
         const apiTaskRole = new iam.Role(this, 'FoodApiTaskRole', {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
             description: 'Least-privilege runtime role for the food API',
         });
-        sharedDbSecret.grantRead(apiTaskRole);
-        foodDbSecret.grantRead(apiTaskRole);
+        database.grantConnect(apiTaskRole, 'food_app');
         eventBus.grantPutEventsTo(apiTaskRole);
 
         const apiTaskDefinition = new ecs.FargateTaskDefinition(this, 'FoodApiTaskDefinition', {
@@ -404,7 +394,7 @@ export class FoodServiceStack extends Stack {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-service', logGroup: apiLogGroup }),
             environment: { ...foodDbEnvironment, PORT: '3000' },
-            secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
+            secrets: { ...sourceCredentialsSecrets },
             command: ['node', 'dist/src/main.js'],
             portMappings: [{ containerPort: 3000 }],
             healthCheck: {
@@ -441,8 +431,7 @@ export class FoodServiceStack extends Stack {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
             description: 'Least-privilege runtime role for the food fetch worker',
         });
-        sharedDbSecret.grantRead(workerTaskRole);
-        foodDbSecret.grantRead(workerTaskRole);
+        database.grantConnect(workerTaskRole, 'food_app');
         eventBus.grantPutEventsTo(workerTaskRole);
 
         const workerTaskDefinition = new ecs.FargateTaskDefinition(this, 'FoodWorkerTaskDefinition', {
@@ -464,7 +453,7 @@ export class FoodServiceStack extends Stack {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-worker', logGroup: workerLogGroup }),
             environment: { ...foodDbEnvironment, FOOD_WORKER: '1' },
-            secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
+            secrets: { ...sourceCredentialsSecrets },
             command: ['node', 'dist/src/worker/main.js'],
         });
 
@@ -496,8 +485,7 @@ export class FoodServiceStack extends Stack {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
             description: 'Least-privilege runtime role for the change-refresh scheduled task (T-053)',
         });
-        sharedDbSecret.grantRead(changeRefreshTaskRole);
-        foodDbSecret.grantRead(changeRefreshTaskRole);
+        database.grantConnect(changeRefreshTaskRole, 'food_app');
         // T-053: this named role is the only refresh-path principal allowed to PutEvents on the bus.
         eventBus.grantPutEventsTo(changeRefreshTaskRole);
 
@@ -528,7 +516,7 @@ export class FoodServiceStack extends Stack {
             image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
             logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'food-change-refresh', logGroup: changeRefreshLogGroup }),
             environment: changeRefreshEnvironment,
-            secrets: { ...foodDbSecrets, ...sourceCredentialsSecrets },
+            secrets: { ...sourceCredentialsSecrets },
             command: ['node', 'dist/src/worker/change-refresh/main.js'],
         });
 
@@ -588,7 +576,6 @@ export class FoodServiceStack extends Stack {
             memorySize: 512,
             environment: {
                 STAGE: stage,
-                FOOD_DB_SECRET_ARN: foodDbSecret.secretArn,
                 FOOD_DB_ENDPOINT: database.dbInstanceEndpointAddress,
                 FOOD_DB_PORT: Fn.importValue(`kitchensink-data-${baseStage}:DatabasePort`),
                 // Per-PR isolation (ADR-0006): the runner creates this DB if absent then migrates into
@@ -599,7 +586,8 @@ export class FoodServiceStack extends Stack {
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [serviceSecurityGroup],
         });
-        foodDbSecret.grantRead(migrationFn);
+        // `food_app` authenticates via RDS IAM — the migrate lambda mints a token per connection.
+        database.grantConnect(migrationFn, 'food_app');
 
         // ── Shared ALB host-rule + DNS (mirrors identity) ───────────────────────────────────────
         // This service does NOT create its own ALB. It imports the shared per-stage ALB's HTTPS

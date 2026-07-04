@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs';
  * A bare `cdk synth` that skips this bundle still works: `SandboxSchedulerStack` falls back to an inline
  * placeholder when `dist-lambda/` is absent. The real deploy always runs this first.
  */
-const entryPoints = ['src/sandbox-scheduler/handler.ts'];
+const entryPoints = ['src/sandbox-scheduler/handler.ts', 'src/food-db-bootstrap/handler.ts'];
 
 await build({
     entryPoints,
@@ -22,7 +22,10 @@ await build({
     target: 'node22',
     format: 'esm',
     sourcemap: true,
-    external: ['@aws-sdk/*'],
+    // `@aws-sdk/*` is provided by the Node 22 Lambda runtime; `pg-native` is an optional native binding
+    // `pg` only require()s when explicitly asked for it (we never do), so neither is bundled. `pg` itself
+    // (pure JS, needed by the food-db-bootstrap handler) IS bundled — the runtime does not provide it.
+    external: ['@aws-sdk/*', 'pg-native'],
     banner: {
         js: [
             "import { createRequire as __createRequire } from 'node:module';",

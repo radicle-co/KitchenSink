@@ -77,3 +77,43 @@ describe('DataStack per-stage RDS storage type (ADR-0008)', () => {
         expect(instance.Properties.StorageThroughput).toBeUndefined();
     });
 });
+
+describe('Food DB IAM auth + role/database bootstrap (feature 003, ADR-0006)', () => {
+    it('enables RDS IAM database authentication on the shared instance', () => {
+        const instance = Object.values(dataTemplate('sandbox').findResources('AWS::RDS::DBInstance'))[0] as any;
+
+        expect(instance.Properties.EnableIAMDatabaseAuthentication).toBe(true);
+    });
+
+    it('provisions a VPC-attached master-connected bootstrap lambda for the food_app role', () => {
+        const template = dataTemplate('sandbox');
+        const fns = template.findResources('AWS::Lambda::Function');
+        const bootstrap = Object.values(fns).find((fn: any) =>
+            String(fn.Properties.Description ?? '').includes('Bootstrap food_app role'),
+        ) as any;
+
+        expect(bootstrap).toBeDefined();
+        // Connects as master (reads the instance credentials secret) and targets the base food database.
+        expect(bootstrap.Properties.Environment.Variables.FOOD_DATABASE_NAME).toBe('kitchensink_food');
+        expect(bootstrap.Properties.Environment.Variables.DB_SECRET_ARN).toBeDefined();
+        // Must be VPC-attached to reach the PRIVATE_ISOLATED RDS.
+        expect(bootstrap.Properties.VpcConfig).toBeDefined();
+    });
+
+    it('grants the bootstrap lambda read on the master credentials secret', () => {
+        const json = JSON.stringify(dataTemplate('sandbox').toJSON());
+
+        expect(json).toContain('secretsmanager:GetSecretValue');
+    });
+
+    it('exports the RDS resource id (for food_app rds-db:connect scoping) and no food DB password secret', () => {
+        const template = dataTemplate('sandbox');
+        const outputs = template.findOutputs('*');
+        const exportNames = Object.values(outputs).map((o: any) => o.Export?.Name ?? '');
+
+        expect(exportNames.some((n: string) => n.endsWith(':DatabaseResourceId'))).toBe(true);
+        // The password-based food secret + its bootstrap-SQL plan secret are gone (IAM auth, no password).
+        expect(exportNames.some((n: string) => n.endsWith(':FoodDbSecretArn'))).toBe(false);
+        expect(exportNames.some((n: string) => n.endsWith(':FoodMigrationPlanSecretArn'))).toBe(false);
+    });
+});

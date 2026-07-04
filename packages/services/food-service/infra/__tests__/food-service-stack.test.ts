@@ -273,7 +273,7 @@ describe('In-VPC migration-runner Lambda (T-191)', () => {
             Environment: {
                 Variables: Match.objectLike({
                     STAGE: 'test',
-                    FOOD_DB_SECRET_ARN: Match.anyValue(),
+                    // No FOOD_DB_SECRET_ARN — `food_app` authenticates via RDS IAM, not a secret.
                     FOOD_DB_ENDPOINT: Match.anyValue(),
                     FOOD_DB_PORT: Match.anyValue(),
                     FOOD_DB_NAME: Match.anyValue(),
@@ -286,16 +286,14 @@ describe('In-VPC migration-runner Lambda (T-191)', () => {
         });
     });
 
-    it('grants the migration function read on the food DB secret', () => {
-        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
-            PolicyDocument: Match.objectLike({
-                Statement: Match.arrayWith([
-                    Match.objectLike({
-                        Action: Match.arrayWith(['secretsmanager:GetSecretValue']),
-                    }),
-                ]),
-            }),
-        });
+    it('grants the migration function rds-db:connect on the food_app db-user (RDS IAM auth)', () => {
+        // The db-user ARN is `…:dbuser:<DatabaseResourceId>/food_app`; assert the action + that the
+        // resource ARN is scoped to the food_app db-user (the resource-id import + /food_app suffix).
+        const json = JSON.stringify(serviceTemplate.toJSON());
+
+        expect(json).toContain('rds-db:connect');
+        expect(json).toContain('/food_app');
+        expect(json).toContain(':DatabaseResourceId');
     });
 
     it('exports the migration function name for the deploy-time lambda invoke', () => {
@@ -486,7 +484,7 @@ describe('Base-stage platform imports (ADR-0006)', () => {
         const json = JSON.stringify(template.toJSON());
 
         expect(json).toContain('kitchensink-network-sandbox:ServiceSecurityGroupId');
-        expect(json).toContain('kitchensink-data-sandbox:DatabaseSecretArn');
+        expect(json).toContain('kitchensink-data-sandbox:DatabaseResourceId');
         expect(json).toContain('kitchensink-alb-sandbox:SharedAlbHttpsListenerArn');
         expect(json).toContain('kitchensink-domain-sandbox:HostedZoneId');
         // Never references a per-PR platform stack (there is none).

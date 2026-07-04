@@ -4,7 +4,7 @@
  * sandbox stage (prod gets nothing → no prod diff, ADR-0002 discipline).
  */
 import { App } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 
 import { GlobalStack } from '../lib/platform/global-stack.js';
@@ -17,11 +17,13 @@ const schedulerTemplate = (): Template =>
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
     it('provisions the scheduler Lambda (Node 22, arm64)', () => {
-        // Unit synth runs WITHOUT the esbuild bundle, so the stack uses the self-consistent inline
-        // placeholder: CommonJS `index.js` ⇒ handler `index.handler`. A real (bundled) deploy swaps in
-        // the asset and the `sandbox-scheduler/handler.handler` path — verified by the bundle config.
+        // The handler depends on whether the esbuild bundle is present at synth: a bare synth uses the
+        // self-consistent inline placeholder (`index.handler`), a bundled deploy swaps in the asset and
+        // the `sandbox-scheduler/handler.handler` path. Both are valid — assert the invariant properties
+        // and that the handler is one of the two (not pinned to the placeholder, which was the bug that
+        // let the no-op placeholder ship unnoticed).
         schedulerTemplate().hasResourceProperties('AWS::Lambda::Function', {
-            Handler: 'index.handler',
+            Handler: Match.stringLikeRegexp('(index|sandbox-scheduler/handler)\\.handler'),
             Runtime: 'nodejs22.x',
             Architectures: ['arm64'],
         });

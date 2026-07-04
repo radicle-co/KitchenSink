@@ -51,7 +51,14 @@ export class SandboxSchedulerStack extends Stack {
         // handler switches to `index.handler`. Otherwise an (un-bundled) deploy would create a Lambda
         // whose handler `sandbox-scheduler/handler.handler` resolves to nothing and fails to invoke.
         // With the asset present, the bundled handler path is used.
-        const lambdaAssetDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist-lambda');
+        // This module lives at lib/platform/, so the package-root dist-lambda/ is two levels up from
+        // source (tsx) but three from the compiled dist/lib/platform/ (how CI deploys via
+        // `node dist/bin/app.js`) — probe both so the REAL handler ships either way, not the placeholder.
+        const here = dirname(fileURLToPath(import.meta.url));
+        const lambdaAssetDir =
+            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
+                existsSync(candidate),
+            ) ?? resolve(here, '../../dist-lambda');
         const hasLambdaAsset = existsSync(lambdaAssetDir);
         const schedulerCode = hasLambdaAsset
             ? lambda.Code.fromAsset(lambdaAssetDir)

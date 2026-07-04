@@ -559,10 +559,17 @@ export class FoodServiceStack extends Stack {
         // The RDS instance is PRIVATE_ISOLATED, so the deploy pipeline invokes this VPC-attached Lambda
         // to apply the ordered SQL against kitchensink_food. It is the ONLY food workload on the NAT (a
         // VPC Lambda's public IP does NOT give egress — ADR-0004 — and it must reach the private RDS).
-        // Asset: esbuild bundles to dist-lambda/ (npm run bundle:lambda, run by infra:synth/deploy).
-        // Synth must not fail when the asset is absent (e.g. a bare `cdk synth`), so fall back to an
-        // inline placeholder when dist-lambda/ has not been built — the real deploy always builds it.
-        const lambdaAssetDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist-lambda');
+        // Asset: esbuild bundles to the package-root dist-lambda/ (npm run bundle:lambda, run by
+        // infra:synth/deploy). Synth must not fail when the asset is absent (e.g. a bare `cdk synth`), so
+        // fall back to an inline placeholder — the real deploy always builds it. This module lives at
+        // infra/lib/, so the package root is two levels up from source (tsx) but three from the compiled
+        // infra/dist/lib/ (how CI deploys via `node infra/dist/bin/app.js`) — probe both so the REAL
+        // handler ships either way (otherwise CI silently deploys the no-op placeholder).
+        const here = dirname(fileURLToPath(import.meta.url));
+        const lambdaAssetDir =
+            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
+                existsSync(candidate),
+            ) ?? resolve(here, '../../dist-lambda');
         const migrationCode = existsSync(lambdaAssetDir)
             ? lambda.Code.fromAsset(lambdaAssetDir)
             : lambda.Code.fromInline('export const handler = async () => ({ ok: false, reason: "asset-not-built" });');

@@ -33,15 +33,23 @@ export CLERK_SECRET_KEY=$(aws secretsmanager get-secret-value \
   --secret-id kitchensink/sandbox/identity/keys --query SecretString --output text \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['SECRET_KEY'])")
 
-# 1. Provision the distinct-user token pool (writes tokens.json + pool.json).
-POOL_SIZE=20 node auth/provision-users.mjs
+# 1. Provision the distinct-user pool (writes pool.json + tokens.json).
+#    POOL_SIZE must be >= MAX_VUS (journey.js fails fast otherwise — VU i authenticates as user i).
+POOL_SIZE=100 node auth/provision-users.mjs
 
-# 2. Run the journey (session JWTs are ~60s-lived — start k6 promptly after step 1).
+# 2. Run the journey. journey.js loads pool.json and refreshes each VU's ~60s token in-run via FAPI,
+#    so the run can last minutes without the tokens expiring.
 k6 run --env FOOD_BASE_URL=https://food-pr-59.commise.app journey.js
 ```
 
-`run.mjs` (U5) wraps all of this — provision → refresh the pool → k6 → collect server-side metrics (U2)
-→ correlated report → teardown — into one repeatable command. (U2/U5 in progress.)
+`run.mjs` (U5) wraps all of this — provision → k6 → collect server-side metrics (U2) → correlated report
+→ teardown — into one repeatable command. (U2/U5 in progress.)
+
+**Token lifetime (important):** Clerk session JWTs are ~60s-lived. `journey.js` does NOT rely on a
+static token file staying fresh — each VU re-mints its own token from FAPI before expiry (a k6
+`SharedArray` is loaded once at init and can never receive a disk refresh). `FAPI`/`ORIGIN` in the config
+must match what the provisioner used. If tokens ever do expire, the `food_auth_fail` threshold fails the
+run loudly rather than silently measuring 401-rejection latency.
 
 ## Layout
 
@@ -57,8 +65,10 @@ run.mjs                      U5 — orchestrate setup → k6 → observe → rep
 
 ## Metrics
 
-`journey.js` emits, beyond k6's built-ins: `food_search_latency`, `food_add_accept_latency`,
-`food_poll_to_terminal`, `food_reached_terminal` (share of adds reaching a terminal state within the poll
-timeout — the throttle-backlog signal), `food_terminal_status{status}` (RESOLVED/UNRESOLVED/NOT_FOUND/
-FAILED mix), and `food_auth_shed_503` tagged separately from `food_unexpected_5xx` (graceful backpressure
-vs real failures). SC-hold is encoded as k6 `thresholds` — the run fails if breached.
+`journey.js` emits, beyond k6's built-ins: `food_search_latency` / `food_add_accept_latency` (recorded
+**only for successful** 200/202 responses so failures can't deflate p95), `food_poll_to_terminal`,
+`food_reached_terminal` (share of adds reaching a terminal state within the poll timeout — the
+throttle-backlog signal), `food_terminal_status{status}` (RESOLVED/UNRESOLVED/NOT_FOUND/FAILED mix),
+`food_auth_shed_503` (graceful backpressure), and the **rates** `food_unexpected_5xx` and
+`food_auth_fail`. SC-hold is encoded as k6 `thresholds` (p95 latencies, `food_unexpected_5xx` rate,
+`food_auth_fail` rate ~0, and a `dropped_iterations` cap so silent VU starvation fails the run).

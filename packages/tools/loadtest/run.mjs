@@ -227,31 +227,31 @@ async function main() {
 
     try {
         console.log(`\n[1/4] Provisioning ${POOL_SIZE}-user pool + admin observer…`);
-        await run('node', ['auth/provision-users.mjs'], { env: { ...process.env, POOL_SIZE: String(POOL_SIZE), OUT_DIR } });
+        await run('node', ['auth/provision-users.mjs'], {
+            env: { ...process.env, POOL_SIZE: String(POOL_SIZE), OUT_DIR },
+        });
         await run('node', ['auth/grant-admin.mjs'], { env: { ...process.env, OUT_DIR } });
 
         const windowS = runWindowSeconds();
 
         if (!Number.isFinite(windowS) || windowS <= 0) {
-            throw new Error(`Collector window computed as ${windowS}s — check the *_DURATION / COLLECT_DURATION_S envs.`);
+            throw new Error(
+                `Collector window computed as ${windowS}s — check the *_DURATION / COLLECT_DURATION_S envs.`,
+            );
         }
 
         console.log(`\n[2/4] Starting server-side collector for ~${windowS}s…`);
-        collector = spawn(
-            'node',
-            ['observe/collect-metrics.mjs'],
-            {
-                stdio: 'inherit',
-                cwd: HERE,
-                env: {
-                    ...process.env,
-                    ADMIN_FILE: adminPath,
-                    OUT_FILE: SERVER_FILE,
-                    DURATION_S: String(windowS),
-                    INTERVAL_S: String(COLLECT_INTERVAL_S),
-                },
+        collector = spawn('node', ['observe/collect-metrics.mjs'], {
+            stdio: 'inherit',
+            cwd: HERE,
+            env: {
+                ...process.env,
+                ADMIN_FILE: adminPath,
+                OUT_FILE: SERVER_FILE,
+                DURATION_S: String(windowS),
+                INTERVAL_S: String(COLLECT_INTERVAL_S),
             },
-        );
+        });
         // Attach lifecycle NOW, before the (blocking) k6 run — if the collector exits early or fails to
         // spawn, we must still observe it, or the post-k6 await would hang forever and skip teardown.
         collectorDone = new Promise((res) => {
@@ -271,9 +271,17 @@ async function main() {
             console.log('  SKIP_K6 set — skipping the k6 run (orchestration dry run).');
         } else {
             await run('k6', ['run', `--summary-export=${SUMMARY_FILE}`, 'journey.js'], {
-                env: { ...process.env, POOL_FILE: poolPath },
+                // Prepend this package's node_modules/.bin so the k6 installed by `npm run k6:install` is
+                // found whether run.mjs is invoked via `npm run loadtest` or bare `node run.mjs`.
+                env: {
+                    ...process.env,
+                    POOL_FILE: poolPath,
+                    PATH: `${join(HERE, 'node_modules', '.bin')}:${process.env['PATH'] ?? ''}`,
+                },
             }).catch((err) => {
-                console.error(`  k6 failed (${err.message}). Is k6 installed? https://grafana.com/docs/k6/latest/set-up/install-k6/`);
+                console.error(
+                    `  k6 failed (${err.message}). Is k6 installed? https://grafana.com/docs/k6/latest/set-up/install-k6/`,
+                );
                 throw err;
             });
         }

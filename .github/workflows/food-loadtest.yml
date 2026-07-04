@@ -1,4 +1,4 @@
-# Manually-triggered food-API load test (k6). Runs the scripts/loadtest harness against a deployed
+# Manually-triggered food-API load test (k6). Runs the packages/tools/loadtest harness against a deployed
 # food preview: provisions a distinct-user pool + an admin observer, runs the k6 journey while sampling
 # server-side metrics, produces a capacity/degradation report, and tears down every test user.
 #
@@ -72,12 +72,11 @@ jobs:
               with:
                   node-version: ${{ env.NODE_VERSION }}
 
-            - name: Install k6
-              run: |
-                  K6_VERSION=v0.54.0
-                  curl -sSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" | tar xz
-                  sudo mv "k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
-                  k6 version
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Install k6 (into the loadtest package)
+              run: npm run k6:install --workspace=@kitchensink/loadtest
 
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
@@ -108,7 +107,6 @@ jobs:
                   echo "Resolved FAPI=https://${FAPI_HOST}  azp=${AZP}"
 
             - name: Run load test
-              working-directory: scripts/loadtest
               env:
                   CLERK_SECRET_KEY: ${{ steps.clerk.outputs.sk }}
                   FAPI: ${{ steps.clerk.outputs.fapi }}
@@ -124,12 +122,12 @@ jobs:
                   POLL_TIMEOUT_S: ${{ inputs.poll_timeout_s }}
                   KEEP: ${{ inputs.keep_users && '1' || '0' }}
                   REGION: ${{ env.DEFAULT_AWS_REGION }}
-                  OUT_DIR: .
-              run: node run.mjs
+              # `npm run -w` sets cwd to the package, so run.mjs writes report/series there (OUT_DIR=.).
+              run: npm run loadtest --workspace=@kitchensink/loadtest
 
             - name: Publish report to job summary
               if: always()
-              working-directory: scripts/loadtest
+              working-directory: packages/tools/loadtest
               run: |
                   if [ -f report.md ]; then cat report.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report produced." >> "$GITHUB_STEP_SUMMARY"; fi
 
@@ -139,7 +137,7 @@ jobs:
               with:
                   name: food-loadtest-results
                   path: |
-                      scripts/loadtest/report.md
-                      scripts/loadtest/k6-summary.json
-                      scripts/loadtest/server-metrics.json
+                      packages/tools/loadtest/report.md
+                      packages/tools/loadtest/k6-summary.json
+                      packages/tools/loadtest/server-metrics.json
                   if-no-files-found: warn

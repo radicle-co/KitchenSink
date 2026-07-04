@@ -87,7 +87,7 @@ Carried from origin (FR-IDs are this plan's local trace back to the requirements
 - **KTD-5 — Observation is out-of-band, correlated by wall-clock window.** k6 emits client-side metrics;
   a separate collector samples the admin endpoints + CloudWatch over the same window. Correlation is by
   timestamp, not by wiring k6 into AWS — keeps the load engine and the observer decoupled.
-- **KTD-6 — Harness lives in the repo** under `scripts/loadtest/` (committed, reusable), not a throwaway,
+- **KTD-6 — Harness lives in the repo** under `packages/tools/loadtest/` (committed, reusable), not a throwaway,
   so the run is repeatable and reviewable.
 
 ---
@@ -130,7 +130,7 @@ thousands** — real USDA can't absorb more.
 Greenfield harness (implementer may adjust; per-unit `Files` remain authoritative):
 
 ```text
-scripts/loadtest/
+packages/tools/loadtest/
   README.md                     # how to run, prerequisites, safety notes (shared sandbox, USDA burn)
   auth/
     provision-users.mjs         # U1: create N Clerk users + mint service-accepted tokens
@@ -190,7 +190,7 @@ scripts/loadtest/
   call can be made with evidence.
 - **Requirements:** FR-3.
 - **Dependencies:** **U0** (the service must have a Clerk key before any token can be accepted).
-- **Files:** `scripts/loadtest/auth/provision-users.mjs`, `scripts/loadtest/README.md` (findings +
+- **Files:** `packages/tools/loadtest/auth/provision-users.mjs`, `packages/tools/loadtest/README.md` (findings +
   chosen mechanism).
 - **Approach:** Use the Clerk backend API (sandbox secret key) to create test users. Evaluate, in order,
   the mechanism that yields a service-accepted token with correct `azp`: (a) sign-in-token → Frontend-API
@@ -279,7 +279,7 @@ scripts/loadtest/
   samples the admin endpoints and CloudWatch over a run window.
 - **Requirements:** FR-5.
 - **Dependencies:** U1 (reuses the token mechanism for the observer user).
-- **Files:** `scripts/loadtest/auth/grant-admin.mjs`, `scripts/loadtest/observe/collect-metrics.mjs`.
+- **Files:** `packages/tools/loadtest/auth/grant-admin.mjs`, `packages/tools/loadtest/observe/collect-metrics.mjs`.
 - **Approach:** `grant-admin.mjs` sets `public_metadata.scopes = ["food:admin"]` on the observer user via
   the Clerk backend API, then mints its token (U1 mechanism). `collect-metrics.mjs` polls
   `GET /v1/foods/admin/queue` and `GET /v1/foods/admin/metrics` on an interval, and pulls CloudWatch for
@@ -301,7 +301,7 @@ scripts/loadtest/
 - **Goal:** A curated set of varied real food queries plus a selection strategy so VUs exercise breadth.
 - **Requirements:** FR-2.
 - **Dependencies:** none.
-- **Files:** `scripts/loadtest/corpus/food-queries.json`, plus a small picker in `journey.js` (U4).
+- **Files:** `packages/tools/loadtest/corpus/food-queries.json`, plus a small picker in `journey.js` (U4).
 - **Approach:** Curate ~100 common, real food names spanning branded and generic (e.g. cheddar cheese,
   banana, chicken breast, greek yogurt) — items likely to resolve through USDA so the add→poll path
   reaches terminal states. Selection distributes queries across VUs/iterations (e.g. index by
@@ -319,7 +319,7 @@ scripts/loadtest/
   metrics + thresholds, with auth-load-shedder `503`s tagged distinctly.
 - **Requirements:** FR-1, FR-2, FR-4, SC-hold.
 - **Dependencies:** U1 (token pool), U3 (corpus).
-- **Files:** `scripts/loadtest/journey.js`, `scripts/loadtest/config.example.env`.
+- **Files:** `packages/tools/loadtest/journey.js`, `packages/tools/loadtest/config.example.env`.
 - **Approach:** Each iteration: `search` a corpus query → `add-by-name` (`POST /v1/foods`) → poll
   `GET /v1/foods/:id/status` until terminal (`RESOLVED`/`UNRESOLVED`/`NOT_FOUND`) or a bounded timeout,
   with think-time between steps. VU _i_ sends token _i_ from the pool (loaded via `setup()` / env). Define
@@ -346,7 +346,7 @@ scripts/loadtest/
   capacity + degradation deliverable and cleans up.
 - **Requirements:** FR-3, FR-5, FR-6, SC-hold, SC-ramp.
 - **Dependencies:** U1, U2, U3, U4.
-- **Files:** `scripts/loadtest/run.mjs`, `scripts/loadtest/README.md`.
+- **Files:** `packages/tools/loadtest/run.mjs`, `packages/tools/loadtest/README.md`.
 - **Approach:** `run.mjs` orchestrates: provision the token pool (U1) + observer token (U2), launch the
   collector (U2) and the k6 run (U4) over a shared window, then merge k6 summary output with the
   server-side series into a run report — sustained supported throughput (adds/hr, read req/s), the

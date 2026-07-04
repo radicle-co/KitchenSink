@@ -98,7 +98,11 @@ async function provisionOne(index) {
     const ticket = stBody.token;
 
     // Dev instances need a dev-browser handle before the ticket sign-in. Origin = ORIGIN so `azp` matches.
-    const dbRes = await retryingFetch(`${FAPI}/v1/dev_browser`, { method: 'POST', headers: { Origin: ORIGIN } }, 'FAPI dev_browser');
+    const dbRes = await retryingFetch(
+        `${FAPI}/v1/dev_browser`,
+        { method: 'POST', headers: { Origin: ORIGIN } },
+        'FAPI dev_browser',
+    );
     const dbBody = await dbRes.json().catch(() => ({}));
     const devJwt = dbBody?.token ?? dbBody?.id ?? '';
     const q = `__clerk_db_jwt=${encodeURIComponent(devJwt)}`;

@@ -156,11 +156,18 @@ async function main() {
         }
 
         if (status !== 200) {
-            throw new Error(`admin verify got ${status} from /v1/foods/admin/queue after retries (service unavailable?).`);
+            throw new Error(
+                `admin verify got ${status} from /v1/foods/admin/queue after retries (service unavailable?).`,
+            );
         }
 
-        writeFileSync(join(OUT_DIR, 'admin.json'), `${JSON.stringify({ userId, sessionId, devJwt, cookie, jwt }, null, 2)}\n`);
-        console.log(`Observer ready (${ADMIN_SCOPE}); /v1/foods/admin/queue -> 200. Wrote ${join(OUT_DIR, 'admin.json')}.`);
+        writeFileSync(
+            join(OUT_DIR, 'admin.json'),
+            `${JSON.stringify({ userId, sessionId, devJwt, cookie, jwt }, null, 2)}\n`,
+        );
+        console.log(
+            `Observer ready (${ADMIN_SCOPE}); /v1/foods/admin/queue -> 200. Wrote ${join(OUT_DIR, 'admin.json')}.`,
+        );
     } catch (err) {
         console.error(`Grant failed, deleting observer ${userId}: ${err?.message ?? err}`);
         await deleteUser(userId);

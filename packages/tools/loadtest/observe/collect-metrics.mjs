@@ -102,7 +102,10 @@ async function cwLatest(namespace, metricName, dimensions, stat = 'Average') {
 async function cloudwatchSnapshot() {
     const jobs = [
         ['food-fetch-queue-depth', () => cwLatest(CW_NAMESPACE, 'food-fetch-queue-depth', [], 'Maximum')],
-        ['food-fetch-pending-age-seconds', () => cwLatest(CW_NAMESPACE, 'food-fetch-pending-age-seconds', [], 'Maximum')],
+        [
+            'food-fetch-pending-age-seconds',
+            () => cwLatest(CW_NAMESPACE, 'food-fetch-pending-age-seconds', [], 'Maximum'),
+        ],
         ['food-in-flight-leases', () => cwLatest(CW_NAMESPACE, 'food-in-flight-leases', [], 'Maximum')],
     ];
 
@@ -131,13 +134,17 @@ function writeSeries(series) {
 
 async function main() {
     if (!Number.isFinite(DURATION_S) || DURATION_S <= 0 || !Number.isFinite(INTERVAL_S) || INTERVAL_S <= 0) {
-        throw new Error(`DURATION_S and INTERVAL_S must be finite positive numbers (got ${DURATION_S}, ${INTERVAL_S}).`);
+        throw new Error(
+            `DURATION_S and INTERVAL_S must be finite positive numbers (got ${DURATION_S}, ${INTERVAL_S}).`,
+        );
     }
 
     try {
         admin = JSON.parse(readFileSync(ADMIN_FILE, 'utf8'));
     } catch (err) {
-        throw new Error(`Cannot read observer handle ${ADMIN_FILE} (run auth/grant-admin.mjs first): ${err?.message ?? err}`);
+        throw new Error(
+            `Cannot read observer handle ${ADMIN_FILE} (run auth/grant-admin.mjs first): ${err?.message ?? err}`,
+        );
     }
 
     // Deliberately do NOT seed adminToken from admin.jwt: it may already be near-expiry by the time the

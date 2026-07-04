@@ -15,17 +15,21 @@ throttle saturates — recording sustained throughput and how it degrades. See t
   teardown (or `run.mjs`) so they don't accumulate.
 - `tokens.json` / `pool.json` hold live session JWTs — **secrets, gitignored, never commit.**
 
+This is the `@kitchensink/loadtest` workspace (`packages/tools/loadtest`); commands run from here.
+
 ## Prerequisites
 
-- [`k6`](https://grafana.com/docs/k6/latest/set-up/install-k6/) installed (the load engine).
-- Node 24 (the provisioner/orchestrator).
+- Node 24 + repo deps installed (`npm ci` at the repo root).
+- `k6` — installed into this package via `npm run k6:install` (downloads the pinned binary into
+  `node_modules/.bin`, so the npm scripts below find it). No global install needed.
 - AWS credentials for the sandbox account (to read the Clerk backend secret + CloudWatch for U2).
 - A deployed, healthy food preview (e.g. `food-pr-59.commise.app`) — `GET /health` → 200.
 
 ## Run
 
 ```bash
-cd scripts/loadtest
+cd packages/tools/loadtest
+npm run k6:install                       # one-time: fetch the k6 binary
 cp config.example.env config.env         # then edit knobs (target host, pool size, stage rates/thresholds)
 
 # Clerk backend secret (mints the distinct-user token pool):
@@ -33,21 +37,13 @@ export CLERK_SECRET_KEY=$(aws secretsmanager get-secret-value \
   --secret-id kitchensink/sandbox/identity/keys --query SecretString --output text \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['SECRET_KEY'])")
 
-# 1. Provision the distinct-user pool (writes pool.json + tokens.json).
-#    POOL_SIZE must be >= MAX_VUS (journey.js fails fast otherwise — VU i authenticates as user i).
-POOL_SIZE=100 node auth/provision-users.mjs
-
-# 2. Run the journey. journey.js loads pool.json and refreshes each VU's ~60s token in-run via FAPI,
-#    so the run can last minutes without the tokens expiring.
-k6 run --env FOOD_BASE_URL=https://food-pr-59.commise.app journey.js
+# One command — provision → grant observer → k6 + server-side collection → correlated report.md →
+# teardown of every test user (in a finally, so an interrupt never leaks users):
+POOL_SIZE=100 FOOD_BASE_URL=https://food-pr-59.commise.app npm run loadtest
 ```
 
-Or run the whole thing with one command — provision → grant observer → k6 + server-side collection →
-correlated `report.md` → teardown of every test user (in a `finally`, so an interrupt never leaks users):
-
-```bash
-POOL_SIZE=100 node run.mjs
-```
+Or the steps individually: `npm run provision`, `npm run grant-admin`, `npm run journey`, `npm run collect`
+(`POOL_SIZE` must be `>= MAX_VUS` — `journey.js` fails fast otherwise, since VU `i` authenticates as user `i`).
 
 ## Run in CI (GitHub Action)
 
@@ -74,6 +70,8 @@ run loudly rather than silently measuring 401-rejection latency.
 ## Layout
 
 ```text
+package.json                 @kitchensink/loadtest — npm scripts (k6:install, loadtest, provision, …)
+install-k6.mjs               downloads the pinned k6 binary into node_modules/.bin
 auth/provision-users.mjs   U1 — mint N Clerk users + session tokens → pool.json / tokens.json
 corpus/food-queries.json   U3 — 113 varied, USDA-resolvable food queries
 journey.js                 U4 — the k6 script (search → add → poll), staged profile, thresholds
@@ -85,16 +83,16 @@ run.mjs                      U5 — orchestrate setup → k6 → observe → rep
 
 ## Observing the server side (U2)
 
-Run alongside the k6 journey (in a second shell, or from `run.mjs`):
+`run.mjs` does this automatically; to run it standalone (in a second shell):
 
 ```bash
 # One-time per run: a dedicated food:admin observer (kept OUT of the VU pool).
-OUT_DIR=. node auth/grant-admin.mjs            # writes admin.json; verifies /v1/foods/admin/queue -> 200
+npm run grant-admin                            # writes admin.json; verifies /v1/foods/admin/queue -> 200
 
 # Sample the service's own operational truth over the window (refreshes the ~60s admin token itself).
 DURATION_S=180 INTERVAL_S=10 \
   FOOD_CLUSTER=<ecs-cluster-name> FOOD_SERVICE=<api-service-name> \
-  node observe/collect-metrics.mjs             # writes server-metrics.json (queue + metrics + CloudWatch)
+  npm run collect                              # writes server-metrics.json (queue + metrics + CloudWatch)
 ```
 
 ## Metrics

@@ -177,11 +177,15 @@ export class DataStack extends Stack {
             onEventHandler: foodBootstrapFn,
         });
 
-        new CustomResource(this, 'FoodDbBootstrap', {
+        const foodBootstrap = new CustomResource(this, 'FoodDbBootstrap', {
             serviceToken: foodBootstrapProvider.serviceToken,
             // Re-runs the (idempotent) bootstrap whenever the target database or stage changes.
             properties: { foodDatabaseName: this.foodDatabaseName, stage: stageTag },
         });
+        // `GRANT rds_iam` needs the instance's IAM-auth modify to be applied first. The env already
+        // references the endpoint (an implicit dependency), but make the ordering explicit so a fresh
+        // deploy (e.g. prod's first apply of this change) cannot race the instance update.
+        foodBootstrap.node.addDependency(this.database);
 
         this.deletionDlq = new sqs.Queue(this, 'DeletionDlq', {
             encryption: sqs.QueueEncryption.SQS_MANAGED,

@@ -69,7 +69,7 @@ async function readMasterCredentials(secretArn: string): Promise<MasterSecret> {
  *
  * @sideEffect Executes DDL as the master user.
  */
-async function bootstrap(pool: pg.Pool, foodDatabaseName: string, isProd: boolean): Promise<void> {
+export async function bootstrap(pool: pg.Pool, foodDatabaseName: string, isProd: boolean): Promise<void> {
     // 1. The least-privilege login role. LOGIN but NO password — it authenticates via IAM (step 2).
     await pool.query(
         "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'food_app') THEN CREATE ROLE food_app LOGIN; END IF; END $$;",

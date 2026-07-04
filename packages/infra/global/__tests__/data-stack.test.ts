@@ -117,3 +117,21 @@ describe('Food DB IAM auth + role/database bootstrap (feature 003, ADR-0006)', (
         expect(exportNames.some((n: string) => n.endsWith(':FoodMigrationPlanSecretArn'))).toBe(false);
     });
 });
+
+describe('Food DB bootstrap on prod (safety of the merge-time change)', () => {
+    it('enables IAM auth and provisions the bootstrap on prod too (STAGE=prod, no CREATEDB at runtime)', () => {
+        const template = dataTemplate('prod');
+
+        const instance = Object.values(template.findResources('AWS::RDS::DBInstance'))[0] as any;
+        expect(instance.Properties.EnableIAMDatabaseAuthentication).toBe(true);
+
+        const fns = template.findResources('AWS::Lambda::Function');
+        const bootstrap = Object.values(fns).find((fn: any) =>
+            String(fn.Properties.Description ?? '').includes('Bootstrap food_app role'),
+        ) as any;
+        expect(bootstrap).toBeDefined();
+        // STAGE=prod is what makes the runtime bootstrap skip the CREATEDB grant (asserted in the
+        // handler unit test); per-PR databases never exist on prod.
+        expect(bootstrap.Properties.Environment.Variables.STAGE).toBe('prod');
+    });
+});

@@ -218,7 +218,7 @@ async function main() {
     const adminPath = join(OUT_DIR, 'admin.json');
     let collector = null;
     let collectorExited = false;
-    let collectorDone = Promise.resolve();
+    let collectorDone; // assigned to the collector's exit/error promise the moment it is spawned
 
     // A run must only ever report on its OWN artifacts — never a prior run's stale summary/series.
     for (const f of [SUMMARY_FILE, SERVER_FILE, REPORT_FILE]) {

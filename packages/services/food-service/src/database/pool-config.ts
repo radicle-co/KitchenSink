@@ -48,7 +48,13 @@ export function foodPoolConfig(connection: FoodDbConnection): pg.PoolConfig {
 
     // Local docker Postgres speaks no TLS and has a static password — no SSL, no IAM.
     if (process.env['STAGE'] === 'local') {
-        return { ...base, ssl: false, password: process.env['DB_PASSWORD'] };
+        const password = process.env['DB_PASSWORD'];
+
+        if (!password) {
+            throw new Error('STAGE=local with the discrete DB_* config requires DB_PASSWORD (or use DATABASE_URL).');
+        }
+
+        return { ...base, ssl: false, password };
     }
 
     const signer = new Signer({

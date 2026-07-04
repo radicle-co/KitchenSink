@@ -232,6 +232,11 @@ export default function (data) {
     const foodId = addRes.json('id');
 
     if (!foodId) {
+        // A 202 with no `id` is malformed server behavior — record it as a non-terminal outcome so it is
+        // not silently dropped (which would bias the reached-terminal rate upward).
+        reachedTerminal.add(false);
+        check(addRes, { 'add returned id': () => false });
+
         return;
     }
 

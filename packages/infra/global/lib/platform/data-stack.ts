@@ -138,8 +138,15 @@ export class DataStack extends Stack {
         // master can. This VPC-attached custom resource connects AS MASTER on every deploy and, idempotently,
         // creates the `food_app` LOGIN role, grants it `rds_iam`, creates the base `kitchensink_food`
         // database, and (non-prod only) grants CREATEDB so the migrate lambda can make per-PR databases.
-        // Bundled by esbuild.mjs to dist-lambda/; a bare `cdk synth` falls back to an inline no-op asset.
-        const lambdaAssetDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist-lambda');
+        // Bundled by esbuild.mjs to the package-root `dist-lambda/`; a bare `cdk synth` (no bundle) falls
+        // back to an inline no-op asset. This module lives at `lib/platform/`, so the package root is two
+        // levels up when run from source (tsx) but three when run from the compiled `dist/lib/platform/`
+        // (how CI deploys via `node dist/bin/app.js`) — probe both so the REAL handler ships either way.
+        const here = dirname(fileURLToPath(import.meta.url));
+        const lambdaAssetDir =
+            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
+                existsSync(candidate),
+            ) ?? resolve(here, '../../dist-lambda');
         const hasLambdaAsset = existsSync(lambdaAssetDir);
         const foodBootstrapFn = new lambda.Function(this, 'FoodDbBootstrapFunction', {
             runtime: lambda.Runtime.NODEJS_22_X,

@@ -270,20 +270,31 @@ async function main() {
         if (SKIP_K6) {
             console.log('  SKIP_K6 set — skipping the k6 run (orchestration dry run).');
         } else {
-            await run('k6', ['run', `--summary-export=${SUMMARY_FILE}`, 'journey.js'], {
-                // Prepend this package's node_modules/.bin so the k6 installed by `npm run k6:install` is
-                // found whether run.mjs is invoked via `npm run loadtest` or bare `node run.mjs`.
-                env: {
-                    ...process.env,
-                    POOL_FILE: poolPath,
-                    PATH: `${join(HERE, 'node_modules', '.bin')}:${process.env['PATH'] ?? ''}`,
-                },
+            // Prepend this package's node_modules/.bin so the k6 from `npm run k6:install` is found whether
+            // run.mjs is invoked via `npm run loadtest` or bare `node run.mjs`.
+            const code = await new Promise((res, rej) => {
+                const k6 = spawn('k6', ['run', `--summary-export=${SUMMARY_FILE}`, 'journey.js'], {
+                    stdio: 'inherit',
+                    cwd: HERE,
+                    env: {
+                        ...process.env,
+                        POOL_FILE: poolPath,
+                        PATH: `${join(HERE, 'node_modules', '.bin')}:${process.env['PATH'] ?? ''}`,
+                    },
+                });
+                k6.on('error', rej);
+                k6.on('exit', res);
             }).catch((err) => {
-                console.error(
-                    `  k6 failed (${err.message}). Is k6 installed? https://grafana.com/docs/k6/latest/set-up/install-k6/`,
-                );
-                throw err;
+                throw new Error(`could not start k6 (${err.message}). Run \`npm run k6:install\` first.`);
             });
+
+            // Exit 99 = k6 thresholds were breached — that's a RESULT (the report shows which), not a
+            // harness failure, so proceed to build the report. Any other non-zero is a real k6 error.
+            if (code === 99) {
+                console.warn('  ⚠️ k6 thresholds breached — see the report for which (this is a result, not an error).');
+            } else if (code !== 0) {
+                throw new Error(`k6 exited ${code} — script/config error (see the k6 output above).`);
+            }
         }
 
         await collectorDone; // resolves immediately if the collector already exited during the k6 run

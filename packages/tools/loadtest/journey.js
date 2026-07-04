@@ -94,7 +94,8 @@ export const options = {
             executor: 'ramping-arrival-rate',
             startRate: BASELINE_RATE,
             timeUnit: '1s',
-            preAllocatedVUs: PRE_ALLOCATED_VUS,
+            // k6 rejects preAllocatedVUs > maxVUs; clamp so a small MAX_VUS can't produce a config error.
+            preAllocatedVUs: Math.min(PRE_ALLOCATED_VUS, MAX_VUS),
             maxVUs: MAX_VUS,
             stages: [
                 { target: BASELINE_RATE, duration: BASELINE_DURATION },

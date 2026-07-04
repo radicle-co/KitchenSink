@@ -29,8 +29,13 @@ const ORIGIN = process.env['ORIGIN'] ?? 'https://sandbox.commise.app';
 const BAPI = 'https://api.clerk.com/v1';
 const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? 20);
 const OUT_DIR = process.env['OUT_DIR'] ?? '.';
-const CONCURRENCY = Number(process.env['CONCURRENCY'] ?? 5);
+// The sandbox Clerk *dev* instance rate-limits the FAPI sign-in endpoints aggressively; keep concurrency
+// low so provisioning a pool doesn't trip a multi-minute cool-down.
+const CONCURRENCY = Number(process.env['CONCURRENCY'] ?? 2);
 const MAX_RETRIES = Number(process.env['MAX_RETRIES'] ?? 4);
+// Cap on a single 429 back-off. Clerk can return `retry-after: 600` (10 min); honoring that verbatim
+// makes a run hang for tens of minutes, so clamp it and fail fast if the limit truly won't clear.
+const MAX_BACKOFF_MS = Number(process.env['MAX_BACKOFF_MS'] ?? 20_000);
 
 // NB: no module-level SK check. `mintSessionToken` (imported by the collector) authenticates via the
 // session cookie/FAPI, NOT the backend secret — so importing this module must not require CLERK_SECRET_KEY.
@@ -48,7 +53,10 @@ async function retryingFetch(url, opts, label) {
             return res;
         }
 
-        const retryAfterMs = Number(res.headers.get('retry-after') || 0) * 1000 || 500 * 2 ** attempt;
+        const retryAfterMs = Math.min(
+            Number(res.headers.get('retry-after') || 0) * 1000 || 500 * 2 ** attempt,
+            MAX_BACKOFF_MS,
+        );
         console.warn(`  429 on ${label} — retry ${attempt + 1}/${MAX_RETRIES} in ${retryAfterMs}ms`);
         await delay(retryAfterMs);
     }

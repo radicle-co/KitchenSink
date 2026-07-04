@@ -337,6 +337,12 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
     const port = Number(requireEnv('FOOD_DB_PORT'));
     const databaseName = requireEnv('FOOD_DB_NAME');
 
+    // Fail fast on a malformed port — Number('abc'/'5432\n') → NaN, which would otherwise surface as a
+    // confusing connection error deep in pg.
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+        throw new Error(`Invalid FOOD_DB_PORT "${process.env['FOOD_DB_PORT']}" — expected a TCP port (1-65535).`);
+    }
+
     // Validate up front (defense in depth — ensureDatabaseExists/dropDatabase also validate): the name
     // must match the food logical-database contract before we connect to / create / drop it.
     if (!isValidFoodDatabaseName(databaseName)) {

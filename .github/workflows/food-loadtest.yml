@@ -95,8 +95,10 @@ jobs:
                       --secret-id "kitchensink/${STAGE}/identity/keys" --query SecretString --output text)
                   SK=$(printf '%s' "$SECRET" | python3 -c "import sys,json;print(json.load(sys.stdin)['SECRET_KEY'])")
                   PK=$(printf '%s' "$SECRET" | python3 -c "import sys,json;print(json.load(sys.stdin)['PUBLISHABLE_KEY'])")
-                  # FAPI host is base64-encoded in the publishable key (pk_test_<base64(host$)>).
-                  FAPI_HOST=$(printf '%s' "${PK#pk_test_}" | python3 -c "import sys,base64;print(base64.b64decode(sys.stdin.read().strip()+'==').decode().rstrip('$'))")
+                  # FAPI host is base64-encoded in the publishable key (pk_{test,live}_<base64(host$)>).
+                  # Strip whichever prefix is present so base_stage=prod (pk_live_…) works too.
+                  PK_B64=${PK#pk_test_}; PK_B64=${PK_B64#pk_live_}
+                  FAPI_HOST=$(printf '%s' "$PK_B64" | python3 -c "import sys,base64;print(base64.b64decode(sys.stdin.read().strip()+'==').decode().rstrip('$'))")
                   # azp the minted tokens must carry = the first configured authorized party.
                   AZP=$(aws ssm get-parameter --region "$DEFAULT_AWS_REGION" \
                       --name "/kitchensink/${STAGE}/clerk/authorized-parties" --query Parameter.Value --output text | cut -d, -f1 | tr -d '[:space:]')

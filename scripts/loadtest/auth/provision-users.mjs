@@ -21,6 +21,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const SK = process.env['CLERK_SECRET_KEY'] ?? process.env['CLERK_SK'];
 const FAPI = (process.env['FAPI'] ?? 'https://nice-fowl-6.clerk.accounts.dev').replace(/\/$/, '');
@@ -31,9 +32,9 @@ const OUT_DIR = process.env['OUT_DIR'] ?? '.';
 const CONCURRENCY = Number(process.env['CONCURRENCY'] ?? 5);
 const MAX_RETRIES = Number(process.env['MAX_RETRIES'] ?? 4);
 
-if (!SK) {
-    throw new Error('CLERK_SECRET_KEY (or CLERK_SK) is required — the Clerk backend API secret.');
-}
+// NB: no module-level SK check. `mintSessionToken` (imported by the collector) authenticates via the
+// session cookie/FAPI, NOT the backend secret — so importing this module must not require CLERK_SECRET_KEY.
+// The secret is only needed to PROVISION, so main() checks it.
 
 /** userIds registered for teardown the instant they are created (so a mid-flow failure never orphans). */
 const created = [];
@@ -176,6 +177,10 @@ async function mapSettled(count, limit, worker) {
 }
 
 async function main() {
+    if (!SK) {
+        throw new Error('CLERK_SECRET_KEY (or CLERK_SK) is required — the Clerk backend API secret.');
+    }
+
     const t0 = Date.now();
     console.log(`Provisioning ${POOL_SIZE} users against ${FAPI} (azp=${ORIGIN})…`);
 
@@ -201,4 +206,8 @@ async function main() {
     console.log('Reminder: session JWTs are ~60s-lived — journey.js refreshes each VU token in-run.');
 }
 
-await main();
+// Only provision when run directly — importing this module (e.g. for `mintSessionToken`) must not
+// kick off a full pool provision.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+    await main();
+}

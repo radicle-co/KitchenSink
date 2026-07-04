@@ -54,13 +54,27 @@ run loudly rather than silently measuring 401-rejection latency.
 ## Layout
 
 ```text
-auth/provision-users.mjs   U1 — mint N Clerk users + session tokens → tokens.json / pool.json
+auth/provision-users.mjs   U1 — mint N Clerk users + session tokens → pool.json / tokens.json
 corpus/food-queries.json   U3 — 113 varied, USDA-resolvable food queries
 journey.js                 U4 — the k6 script (search → add → poll), staged profile, thresholds
 config.example.env         tunables (target, pool size, stage rates/durations, SC-hold thresholds)
-observe/collect-metrics.mjs  U2 — poll admin endpoints + CloudWatch over the run window  (todo)
-auth/grant-admin.mjs         U2 — grant food:admin to one observer user                   (todo)
+auth/grant-admin.mjs         U2 — grant food:admin to one observer user → admin.json
+observe/collect-metrics.mjs  U2 — poll admin /metrics + /queue + CloudWatch over the window → series
 run.mjs                      U5 — orchestrate setup → k6 → observe → report → teardown     (todo)
+```
+
+## Observing the server side (U2)
+
+Run alongside the k6 journey (in a second shell, or from `run.mjs`):
+
+```bash
+# One-time per run: a dedicated food:admin observer (kept OUT of the VU pool).
+OUT_DIR=. node auth/grant-admin.mjs            # writes admin.json; verifies /v1/foods/admin/queue -> 200
+
+# Sample the service's own operational truth over the window (refreshes the ~60s admin token itself).
+DURATION_S=180 INTERVAL_S=10 \
+  FOOD_CLUSTER=<ecs-cluster-name> FOOD_SERVICE=<api-service-name> \
+  node observe/collect-metrics.mjs             # writes server-metrics.json (queue + metrics + CloudWatch)
 ```
 
 ## Metrics

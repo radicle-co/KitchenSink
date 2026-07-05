@@ -34,9 +34,14 @@ const BASE_URL = (__ENV.FOOD_BASE_URL || 'https://food-pr-59.commise.app').repla
 const POOL_FILE = __ENV.POOL_FILE || './pool.json';
 const CORPUS_FILE = __ENV.CORPUS_FILE || './corpus/food-queries.json';
 
-// Clerk FAPI for in-VU token refresh (invariant #1). Must match what the provisioner used.
+// Token refresh (invariant #1). Two pool shapes: a FAPI entry carries {devJwt, cookie} and refreshes via
+// the Frontend API; a Backend entry carries just {sessionId} and refreshes via the Backend API — no FAPI,
+// so no per-IP sign-in throttle. The backend path needs CLERK_SECRET_KEY in __ENV (the harness passes it;
+// sk_test_, dev instance only). Which path is used is decided per-entry by whether it has a cookie.
 const FAPI = (__ENV.FAPI || 'https://nice-fowl-6.clerk.accounts.dev').replace(/\/$/, '');
 const ORIGIN = __ENV.ORIGIN || 'https://sandbox.commise.app';
+const CLERK_SK = __ENV.CLERK_SECRET_KEY || '';
+const BAPI = 'https://api.clerk.com/v1';
 const REFRESH_AFTER_S = Number(__ENV.REFRESH_AFTER_S || 20);
 
 const THINK_MIN_S = Number(__ENV.THINK_MIN_S || 0.5);
@@ -142,11 +147,24 @@ function freshToken() {
         return token;
     }
 
-    const q = `__clerk_db_jwt=${encodeURIComponent(handle.devJwt)}`;
-    const res = http.post(`${FAPI}/v1/client/sessions/${handle.sessionId}/tokens?${q}`, null, {
-        headers: { Origin: ORIGIN, Cookie: handle.cookie },
-        tags: { step: 'token-refresh' },
-    });
+    let res;
+
+    if (handle.cookie) {
+        // FAPI pool entry: refresh via the Frontend API with the dev-browser + session cookie.
+        const q = `__clerk_db_jwt=${encodeURIComponent(handle.devJwt)}`;
+        res = http.post(`${FAPI}/v1/client/sessions/${handle.sessionId}/tokens?${q}`, null, {
+            headers: { Origin: ORIGIN, Cookie: handle.cookie },
+            tags: { step: 'token-refresh' },
+        });
+    } else {
+        // Backend pool entry: refresh via the Backend API (sk_test_) — no FAPI, no per-IP throttle.
+        // Content-Type is required (Clerk 415s a bodyless POST without it).
+        res = http.post(`${BAPI}/sessions/${handle.sessionId}/tokens`, null, {
+            headers: { Authorization: `Bearer ${CLERK_SK}`, 'Content-Type': 'application/json' },
+            tags: { step: 'token-refresh' },
+        });
+    }
+
     const jwt = res.status === 200 ? res.json('jwt') : null;
 
     if (jwt) {
@@ -188,14 +206,23 @@ function gate(res, step, okStatus) {
     return res.status === okStatus;
 }
 
-export function setup() {
+// The pool is loaded in the INIT context — `open()` is init-only (not allowed in setup()). A SharedArray
+// is safe here: userId/sessionId are stable; only the ~60s token is refreshed in-VU (freshToken), never
+// from this array.
+const pool = new SharedArray('pool', () => {
     const parsed = JSON.parse(open(POOL_FILE));
-    const pool = Array.isArray(parsed) ? parsed : parsed.pool;
+    const list = Array.isArray(parsed) ? parsed : parsed.pool;
 
-    if (!Array.isArray(pool) || pool.length === 0) {
-        throw new Error(`Pool ${POOL_FILE} is empty — run auth/provision-users.mjs first`);
+    if (!Array.isArray(list) || list.length === 0) {
+        throw new Error(
+            `Pool ${POOL_FILE} is empty — run \`npm run provision:pool\` (or auth/provision-users.mjs) first`,
+        );
     }
 
+    return list;
+});
+
+export function setup() {
     // Distinct-user invariant (invariant #5): every concurrent VU needs its own user.
     if (pool.length < MAX_VUS) {
         throw new Error(
@@ -203,12 +230,12 @@ export function setup() {
         );
     }
 
-    return { pool };
+    return {};
 }
 
-export default function (data) {
+export default function () {
     if (!handle) {
-        handle = data.pool[(__VU - 1) % data.pool.length];
+        handle = pool[(__VU - 1) % pool.length];
         token = null; // force a fresh mint on first use regardless of how stale the pooled jwt is
         mintedAt = 0;
     }

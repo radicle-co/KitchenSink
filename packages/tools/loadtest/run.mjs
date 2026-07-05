@@ -27,6 +27,9 @@ const BAPI = 'https://api.clerk.com/v1';
 const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? process.env['MAX_VUS'] ?? 100);
 const COLLECT_INTERVAL_S = Number(process.env['COLLECT_INTERVAL_S'] ?? 10);
 const KEEP = process.env['KEEP'] === '1' || process.env['KEEP'] === 'true';
+// Reuse an existing PERSISTENT pool (from `npm run provision:pool`): skip provisioning AND teardown, so
+// the stable test-*@… users survive the run. The pool/admin files must already exist.
+const REUSE_POOL = process.env['REUSE_POOL'] === '1' || process.env['REUSE_POOL'] === 'true';
 const SKIP_K6 = process.env['SKIP_K6'] === '1';
 
 const SUMMARY_FILE = join(OUT_DIR, 'k6-summary.json');
@@ -49,17 +52,18 @@ function run(cmd, args, opts = {}) {
 /** Parse a k6 duration string ("30s", "1m", "1m30s") to seconds; throws on an unrecognized format. */
 function durationSeconds(text) {
     const s = String(text).trim();
+
+    // The WHOLE string must be one or more <n><unit> tokens — otherwise partially-valid input like
+    // "1mfoo", "2m30" (missing unit), "120" or "abc" would be silently accepted by summing only the
+    // matching prefix. Validate the full match first, then sum.
+    if (!/^(\d+(ms|s|m|h))+$/.test(s)) {
+        throw new Error(`Unrecognized duration "${text}" — use units like 30s, 1m, 1m30s.`);
+    }
+
     let total = 0;
-    let matched = false;
 
     for (const [, n, unit] of s.matchAll(/(\d+)(ms|s|m|h)/g)) {
         total += Number(n) * { ms: 0.001, s: 1, m: 60, h: 3600 }[unit];
-        matched = true;
-    }
-
-    // Digits present but no valid <n><unit> token (e.g. "120", "abc") — fail loud, don't silently return 0.
-    if (!matched && /\d/.test(s)) {
-        throw new Error(`Unrecognized duration "${text}" — use units like 30s, 1m, 1m30s.`);
     }
 
     return total;
@@ -121,10 +125,19 @@ function buildReport() {
     const summary = readJson(SUMMARY_FILE);
     const server = readJson(SERVER_FILE) ?? [];
     const m = summary?.metrics ?? {};
-    const val = (name, key) => m[name]?.values?.[key];
-    // Shape-agnostic threshold read: k6's summary-export represents a threshold entry as either a bare
-    // boolean or `{ ok }`. Returns true ONLY if the metric has thresholds and ALL passed; null if the
-    // metric/thresholds are absent (which the verdict treats as NOT a pass, never as success).
+    // Shape-agnostic: `--summary-export` puts values flat under the metric (m[name][key]); handleSummary
+    // nests them under m[name].values. Rate metrics also differ — the export stores the ratio under
+    // `value`, handleSummary under `rate` — so a `rate` read falls back to `value`.
+    const val = (name, key) => {
+        const metric = m[name];
+        const rateFallback = key === 'rate' ? (metric?.values?.value ?? metric?.value) : undefined;
+
+        return metric?.values?.[key] ?? metric?.[key] ?? rateFallback;
+    };
+    // Shape-agnostic threshold read. `--summary-export`: `{ "p(95)<800": <crossed> }` — a bare boolean
+    // where `false` means NOT crossed = PASSED. handleSummary: `{ "p(95)<800": { ok } }` — passed when
+    // `ok === true`. Returns true ONLY if the metric has thresholds and ALL passed; null if absent (the
+    // verdict treats absent as NOT a pass, never as success).
     const thr = (name) => {
         const t = m[name]?.thresholds;
 
@@ -132,7 +145,7 @@ function buildReport() {
             return null;
         }
 
-        return Object.values(t).every((x) => x === true || x?.ok === true);
+        return Object.values(t).every((x) => (typeof x === 'object' && x !== null ? x.ok === true : x === false));
     };
 
     // Each sample's `queue` is the /v1/foods/admin/queue body: { pending, inFlight, tombstone }.
@@ -226,11 +239,22 @@ async function main() {
     }
 
     try {
-        console.log(`\n[1/4] Provisioning ${POOL_SIZE}-user pool + admin observer…`);
-        await run('node', ['auth/provision-users.mjs'], {
-            env: { ...process.env, POOL_SIZE: String(POOL_SIZE), OUT_DIR },
-        });
-        await run('node', ['auth/grant-admin.mjs'], { env: { ...process.env, OUT_DIR } });
+        if (REUSE_POOL) {
+            if (!existsSync(poolPath) || !existsSync(adminPath)) {
+                throw new Error(
+                    `REUSE_POOL set but ${poolPath} / ${adminPath} missing — run \`npm run provision:pool\` first.`,
+                );
+            }
+
+            const n = (readJson(poolPath) ?? []).length;
+            console.log(`\n[1/4] Reusing persistent pool (${n} users + admin) — skipping provisioning.`);
+        } else {
+            console.log(`\n[1/4] Provisioning ${POOL_SIZE}-user pool + admin observer…`);
+            await run('node', ['auth/provision-users.mjs'], {
+                env: { ...process.env, POOL_SIZE: String(POOL_SIZE), OUT_DIR },
+            });
+            await run('node', ['auth/grant-admin.mjs'], { env: { ...process.env, OUT_DIR } });
+        }
 
         const windowS = runWindowSeconds();
 
@@ -307,7 +331,9 @@ async function main() {
             collector.kill('SIGTERM');
         }
 
-        if (!KEEP) {
+        if (REUSE_POOL) {
+            console.log('\nREUSE_POOL set — leaving the persistent pool in place (delete it with `npm run sweep`).');
+        } else if (!KEEP) {
             const pool = readJson(poolPath) ?? [];
             const admin = readJson(adminPath);
             const ids = [...pool.map((p) => p.userId), ...(admin ? [admin.userId] : [])].filter(Boolean);

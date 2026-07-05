@@ -89,9 +89,17 @@ export function foodPoolConfigFromEnv(): pg.PoolConfig {
         throw new Error('Missing required database configuration. Provide DATABASE_URL or DB_HOST, DB_PORT, DB_NAME.');
     }
 
+    // Fail fast on a malformed port — Number('abc'/'') → NaN, which would otherwise surface as a confusing
+    // error deep inside pg/rds-signer at connect time.
+    const portNumber = Number(port);
+
+    if (!Number.isInteger(portNumber) || portNumber <= 0 || portNumber > 65535) {
+        throw new Error(`Invalid DB_PORT "${port}" — expected a TCP port (1-65535).`);
+    }
+
     return foodPoolConfig({
         host,
-        port: Number(port),
+        port: portNumber,
         database,
         username: process.env['DB_USERNAME'] ?? FOOD_DB_USERNAME,
     });

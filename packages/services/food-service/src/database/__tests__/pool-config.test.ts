@@ -71,4 +71,13 @@ describe('foodPoolConfigFromEnv', () => {
     it('throws when neither DATABASE_URL nor the discrete DB_* set is present', () => {
         expect(() => foodPoolConfigFromEnv()).toThrow(/DATABASE_URL or DB_HOST/);
     });
+
+    it('fails fast on a non-numeric DB_PORT (rather than a confusing pg/rds-signer error later)', () => {
+        process.env['STAGE'] = 'pr-59';
+        process.env['DB_HOST'] = 'db.example.com';
+        process.env['DB_PORT'] = 'not-a-port';
+        process.env['DB_NAME'] = 'kitchensink_food_pr_59';
+
+        expect(() => foodPoolConfigFromEnv()).toThrow(/Invalid DB_PORT/);
+    });
 });

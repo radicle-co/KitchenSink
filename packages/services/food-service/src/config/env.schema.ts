@@ -25,7 +25,10 @@ const DatabaseConfigSchema = z.union([
         DB_HOST: z.string(),
         DB_PORT: z.string().transform(Number).pipe(z.number().int().positive()),
         DB_NAME: z.string(),
-        DB_USERNAME: z.string(),
+        // Defaults to the least-privilege `food_app` role, mirroring `FOOD_DB_USERNAME` in
+        // src/database/pool-config.ts (the runtime default at the pool seam) — so the schema and the pool
+        // agree on the default rather than the schema requiring what the pool already defaults.
+        DB_USERNAME: z.string().default('food_app'),
         // Optional: deployed stages authenticate `food_app` via an RDS IAM token (no password); only
         // local docker Postgres supplies a static `DB_PASSWORD`. See src/database/pool-config.ts.
         DB_PASSWORD: z.string().optional(),

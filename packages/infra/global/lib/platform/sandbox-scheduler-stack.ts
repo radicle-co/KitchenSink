@@ -62,7 +62,12 @@ export class SandboxSchedulerStack extends Stack {
         const hasLambdaAsset = existsSync(lambdaAssetDir);
         const schedulerCode = hasLambdaAsset
             ? lambda.Code.fromAsset(lambdaAssetDir)
-            : lambda.Code.fromInline('exports.handler = async () => ({ ok: false, reason: "asset-not-built" });');
+            : // THROW (don't return { ok: false }) when the bundle is missing: a returned value makes the
+              // scheduled invocation succeed, so an accidentally un-bundled deploy would look healthy while
+              // silently never stopping/starting the sandbox. Throwing surfaces it as a Lambda error/alarm.
+              lambda.Code.fromInline(
+                  'exports.handler = async () => { throw new Error("sandbox-scheduler asset not built — deploy shipped the placeholder"); };',
+              );
         const schedulerHandler = hasLambdaAsset ? 'sandbox-scheduler/handler.handler' : 'index.handler';
 
         const schedulerFn = new lambda.Function(this, 'SandboxSchedulerFunction', {

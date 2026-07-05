@@ -89,6 +89,9 @@ export class CostGuardrailsStack extends Stack {
                 principals: [new iam.ServicePrincipal('budgets.amazonaws.com')],
                 actions: ['sns:Publish'],
                 resources: [this.alertTopic.topicArn],
+                // Confused-deputy guard: only budgets acting for THIS account may publish, so another
+                // account's budgets service can't be tricked into targeting our alert topic.
+                conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
             }),
             new iam.PolicyStatement({
                 sid: 'AllowCostAnomalyDetectionPublish',
@@ -96,6 +99,8 @@ export class CostGuardrailsStack extends Stack {
                 principals: [new iam.ServicePrincipal('costalerts.amazonaws.com')],
                 actions: ['sns:Publish'],
                 resources: [this.alertTopic.topicArn],
+                // Same confused-deputy guard for the cost-anomaly-detection service principal.
+                conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
             }),
         );
 

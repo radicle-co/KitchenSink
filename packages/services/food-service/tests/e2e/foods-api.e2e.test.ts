@@ -476,8 +476,10 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
     // ── FAILED tombstone (FR-016/FR-027/DSN-9) ──────────────────────────────────────────────────────
     describe('FAILED', () => {
-        it('repeated 5xx past the retry budget → FAILED tombstone + FetchFailed; GET → 404', async () => {
-            stub.programSearchError('kombucha scoby', 503);
+        it('repeated genuine 5xx (500) past the retry budget → FAILED tombstone + FetchFailed; GET → 404', async () => {
+            // 500 = a genuine per-food server error (consumes the retry budget). A 503/504/timeout is now
+            // treated as backpressure (deferred, no attempts++) — see the FoodConsumerService fan-out buckets.
+            stub.programSearchError('kombucha scoby', 500);
             const { id, status } = await addAndDrain(userToken, 'kombucha scoby');
             expect(status).toBe('FAILED');
 

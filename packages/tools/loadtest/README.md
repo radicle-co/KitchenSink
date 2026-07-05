@@ -60,6 +60,30 @@ npm run sweep              # delete ALL test users (test-…/loadtest+…) — i
 The persistent users have stable emails and are **never torn down** by a run (only `sweep` deletes them),
 so the pool survives across runs. Backend-minted tokens carry no `azp`, which the food guard accepts.
 
+### USDA rate-limit stall→resume (`npm run ratelimit`)
+
+Proves the load behavior: when the worker's USDA rolling window hits its cap it **pauses** (queue stalls),
+then **resumes** once the window clears. Needs a preview deployed with a **low cap + short window** so it's
+observable without 900+ real USDA calls or an hour's wait:
+
+```bash
+# deploy the food preview with a low cap + short window (CDK context; prod/normal deploys are unaffected):
+npm run infra:deploy --workspace=packages/services/food-service -- -c stage=pr-59 \
+  -c foodSourceRateLimitPerHour=15 -c foodSourceWindowSeconds=60
+# then, from packages/tools/loadtest (persistent pool already provisioned):
+WINDOW_SECONDS=60 BURST_COUNT=60 npm run ratelimit
+```
+
+`ratelimit.js` floods unique (cache-missing) adds to drive the window to the cap; `ratelimit.mjs` samples
+the admin `/metrics` (`sources[usda].paused`/`utilization`) + `/queue` depth and prints a **verdict**:
+STALL seen (worker paused at the cap, queue backed up) → RESUME seen (paused clears, queue drains).
+Deterministic correctness of the same behavior lives in
+`food-service/tests/food-consumer.integration.test.ts` (`stall→resume`) — the load test demonstrates it end-to-end.
+
+> **Promotion-by-request-count** (#2) and **flooding-user demotion/flood-shed** (#3) are queue-ordering
+> invariants that only manifest under a backlog / near the depth ceiling — proven deterministically by
+> `fetch-queue.dao`, `fairness-demotion`, and `admission` integration tests, not the k6 load test.
+
 ### Does the food really land in the DB?
 
 Yes — with `VERIFY_PERSISTENCE=1` (default), when a food reaches a terminal state the journey reads the

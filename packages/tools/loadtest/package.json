@@ -13,6 +13,7 @@
         "journey": "k6 run journey.js",
         "loadtest": "node run.mjs",
         "loadtest:reuse": "REUSE_POOL=1 node run.mjs",
+        "ratelimit": "node ratelimit.mjs",
         "sweep": "node sweep.mjs"
     },
     "devDependencies": {

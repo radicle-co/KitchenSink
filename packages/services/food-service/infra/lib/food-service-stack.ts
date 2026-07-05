@@ -351,6 +351,21 @@ export class FoodServiceStack extends Stack {
             ),
         };
 
+        // Optional load-test overrides (see packages/tools/loadtest): a preview can lower the USDA cap +
+        // rolling window via CDK context (`-c foodSourceRateLimitPerHour=15 -c foodSourceWindowSeconds=60`)
+        // to exercise the rate-limit stall→resume under real load without 900+ USDA calls or an hour's wait.
+        // Absent on normal deploys → the service uses the schema defaults (1000/hr, 3600s) → no diff.
+        const rateLimitOverride = this.node.tryGetContext('foodSourceRateLimitPerHour');
+        const windowOverride = this.node.tryGetContext('foodSourceWindowSeconds');
+
+        if (rateLimitOverride !== undefined) {
+            foodDbEnvironment['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = String(rateLimitOverride);
+        }
+
+        if (windowOverride !== undefined) {
+            foodDbEnvironment['FOOD_SOURCE_WINDOW_SECONDS'] = String(windowOverride);
+        }
+
         // Source API credential (`USDA_API_KEY`). The Nest app env validation requires it
         // (config/env.schema.ts) and both the worker and the change-refresh entrypoint THROW without it,
         // so all three containers receive it — injected from Secrets Manager as an `ecs.Secret` (like the

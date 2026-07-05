@@ -10,8 +10,10 @@ import { fileURLToPath } from 'node:url';
  * NestJS API + worker `node dist/...` build) — the Lambda asset is shipped separately via
  * `Code.fromAsset('dist-lambda')`.
  *
- * `Code.fromAsset` carries no `node_modules`, so every dependency (pg, drizzle, the food schema) is
- * inlined here. `@aws-sdk/*` is left external because the Node 22 Lambda runtime provides it. The
+ * `Code.fromAsset` carries no `node_modules`, so every dependency (pg, drizzle, the food schema,
+ * `@aws-sdk/rds-signer` for the IAM auth token) is inlined here. `@aws-sdk/rds-signer` is NOT reliably
+ * present in the Node 22 Lambda runtime SDK, so — unlike the commonly-provided clients — it must be
+ * bundled; only `pg-native` (pg's optional native binding we never use) is left external. The
  * `dist-lambda/package.json` `{"type":"module"}` marker makes Node load the emitted `.js` as ESM.
  */
 const entryPoints = ['src/lambdas/migrate/handler.ts'];
@@ -25,7 +27,7 @@ await build({
     target: 'node22',
     format: 'esm',
     sourcemap: true,
-    external: ['@aws-sdk/*'],
+    external: ['pg-native'],
     // CJS dependencies bundled into an ESM output may reference `require`/`__dirname`; provide shims so
     // esbuild's "Dynamic require of … is not supported" path resolves at runtime.
     banner: {

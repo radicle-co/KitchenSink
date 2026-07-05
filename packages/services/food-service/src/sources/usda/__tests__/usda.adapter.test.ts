@@ -284,6 +284,22 @@ describe('UsdaSourceAdapter — error classification', () => {
         expect(isSourceApiError(thrown)).toBe(true);
         expect((thrown as SourceApiErrorLike).statusCode).toBe(0);
     });
+
+    it('classifies a 2xx schema drift as SourceApiError(statusCode=422), distinct from a gateway 502', async () => {
+        // A 200 whose body fails the modelled shape → UsdaSchemaError → classified 422 (NOT 502) so the
+        // consumer fails persistent corruption instead of deferring it as transient gateway backpressure.
+        const adapter = makeAdapter(makeJsonFetch({ totalHits: 1, foods: [{ description: 'no fdcId' }] }));
+
+        let thrown: unknown;
+        try {
+            await adapter.searchByName('broccoli');
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(isSourceApiError(thrown)).toBe(true);
+        expect((thrown as SourceApiErrorLike).statusCode).toBe(422);
+    });
 });
 
 /** Narrow shape used only to read `statusCode` off a classified error in assertions. */

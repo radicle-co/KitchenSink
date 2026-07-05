@@ -1,0 +1,32 @@
+{
+    "name": "@kitchensink/food-service",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./dist/src/index.js",
+        "./db/schema": "./dist/src/db/schema/index.js"
+    },
+    "dependencies": {
+        "@aws-sdk/rds-signer": "^3.935.0",
+        "@kitchensink/clerk-verify": "*",
+        "@kitchensink/usda-client": "*",
+        "@nestjs/common": "^11.0.0",
+        "@nestjs/config": "^4.0.0",
+        "@nestjs/core": "^11.0.0",
+        "@nestjs/platform-express": "^11.0.0",
+        "aws-cdk-lib": "*",
+        "constructs": "*",
+        "drizzle-orm": "^0.45.2",
+        "pg": "^8.13.0",
+        "reflect-metadata": "^0.2.2",
+        "rxjs": "^7.8.1",
+        "ulidx": "^2.4.1",
+        "zod": "^3.24.0"
+    },
+    "engines": {
+        "node": "24.x"
+    },
+    "main": "./dist/src/main.js",
+    "types": "./dist/src/main.d.ts"
+}

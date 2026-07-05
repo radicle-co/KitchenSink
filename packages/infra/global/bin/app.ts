@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
+import { CostGuardrailsStack } from '../lib/platform/cost-guardrails-stack.js';
 import { GlobalStack } from '../lib/platform/global-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -30,5 +31,21 @@ new GlobalStack(app, `Global-${stage}`, {
     stage,
     domainName,
 });
+
+// ADR-0008: account-wide cost guardrails (budget + anomaly detection) are created ONCE, guarded to
+// the prod stage so the two persistent stages (prod/sandbox) don't each register duplicate
+// account-scoped budgets. This is an ADDITIVE new stack; every existing stack is untouched, so the
+// prod synth diff is exactly "one new stack appears" and no existing prod template changes.
+if (stage === 'prod') {
+    // Recipient is account-specific — from `costAlertEmail` context or COST_ALERT_EMAIL env, never
+    // hardcoded (so a fork/other account notifies its own address and no PII is committed).
+    const alertEmail = app.node.tryGetContext('costAlertEmail') ?? process.env['COST_ALERT_EMAIL'];
+
+    new CostGuardrailsStack(app, 'CostGuardrails', {
+        env,
+        stackName: 'kitchensink-cost-guardrails',
+        alertEmail,
+    });
+}
 
 app.synth();

@@ -1,15 +1,22 @@
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
     CfnOutput,
+    CustomResource,
     Duration,
     RemovalPolicy,
     SecretValue,
     Stack,
     type StackProps,
     aws_ec2 as ec2,
+    aws_lambda as lambda,
     aws_rds as rds,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
     aws_sqs as sqs,
+    custom_resources as cr,
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
@@ -34,17 +41,11 @@ export class DataStack extends Stack {
     public readonly migrationPlanSecret: secretsmanager.Secret;
     public readonly databaseName: string;
     /**
-     * Least-privilege credentials for the `food_app` role that owns the second logical database
-     * `kitchensink_food` on this same shared instance (feature 003). No new instance/cluster.
+     * Name of the second logical database provisioned on the shared instance (feature 003). The
+     * database + its owning IAM-auth `food_app` role are created by {@link FoodDbBootstrap}, a
+     * master-connected custom resource — `food_app` has no password and cannot bootstrap itself.
      */
-    public readonly foodDbCredentialsSecret: secretsmanager.Secret;
-    /** Name of the second logical database provisioned on the shared instance (feature 003). */
     public readonly foodDatabaseName: string;
-    /**
-     * Bootstrap-SQL secret that the schema-migration runner executes to `CREATE DATABASE
-     * kitchensink_food` and its owning `food_app` role (mirrors {@link migrationPlanSecret}).
-     */
-    public readonly foodMigrationPlanSecret: secretsmanager.Secret;
 
     public constructor(scope: Construct, id: string, props: DataStackProps) {
         super(scope, id, props);
@@ -60,6 +61,18 @@ export class DataStack extends Stack {
         });
 
         const stageTag = props.stage ?? 'dev';
+
+        // Per-stage RDS right-sizing (ADR-0007). Prod keeps db.t4g.small (unchanged → no prod diff);
+        // every non-prod stage (sandbox, dev, per-PR base imports) runs db.t4g.micro. The instance
+        // class is the only stage-dependent RDS property, so prod's synthesized template is untouched.
+        const dbInstanceSize = stageTag === 'prod' ? ec2.InstanceSize.SMALL : ec2.InstanceSize.MICRO;
+
+        // Per-stage RDS storage type (ADR-0008). Prod stays on the default gp2 (`undefined` here →
+        // CDK's default `StorageType: gp2`, byte-identical → no prod diff); every non-prod stage uses
+        // gp3. gp3 is cheaper per GB-month and bundles 3,000 baseline IOPS at 100 GB, so NO provisioned
+        // IOPS/throughput is set (CDK emits neither `Iops` nor `StorageThroughput` for gp3 under 400 GB).
+        // Flipping prod to gp3 later is a safe online modify, deliberately deferred to preserve no-prod-diff.
+        const dbStorageType = stageTag === 'prod' ? undefined : rds.StorageType.GP3;
 
         this.authSecretKey = secretsmanager.Secret.fromSecretNameV2(
             this,
@@ -83,35 +96,6 @@ export class DataStack extends Stack {
         // the instance (see `migrationPlanSecret`), so FR-008 search needs no extra extension here.
         this.foodDatabaseName = 'kitchensink_food';
 
-        this.foodDbCredentialsSecret = new secretsmanager.Secret(this, 'FoodDatabaseCredentialsSecret', {
-            description: 'PostgreSQL credentials for the kitchensink_food logical database (feature 003)',
-            generateSecretString: {
-                secretStringTemplate: JSON.stringify({ username: 'food_app' }),
-                generateStringKey: 'password',
-                excludePunctuation: true,
-                includeSpace: false,
-            },
-        });
-
-        // Bootstrap-SQL the schema-migration runner executes against the shared instance to create the
-        // `kitchensink_food` database and its owning least-privilege `food_app` role. The runner injects
-        // the generated password from `foodDbCredentialsSecret` at apply time (it reads both secrets),
-        // mirroring how `migrationPlanSecret` declares ownership without embedding the credential here.
-        this.foodMigrationPlanSecret = new secretsmanager.Secret(this, 'FoodMigrationPlanSecret', {
-            description: 'Bootstrap instructions for the kitchensink_food database + food_app role (feature 003)',
-            secretObjectValue: {
-                bootstrapSql: SecretValue.unsafePlainText(
-                    [
-                        "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'food_app') THEN CREATE ROLE food_app LOGIN; END IF; END $$;",
-                        "SELECT 'CREATE DATABASE kitchensink_food OWNER food_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'kitchensink_food')\\gexec",
-                        'GRANT ALL PRIVILEGES ON DATABASE kitchensink_food TO food_app;',
-                    ].join('\n'),
-                ),
-                migrationOwner: SecretValue.unsafePlainText('@kitchensink/food-service'),
-                credentialsSecretArn: SecretValue.unsafePlainText(this.foodDbCredentialsSecret.secretArn),
-            },
-        });
-
         const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
             description: 'Isolated subnets for identity PostgreSQL',
             vpc: props.network.vpc,
@@ -129,11 +113,16 @@ export class DataStack extends Stack {
             subnetGroup: dbSubnetGroup,
             securityGroups: [props.network.databaseSecurityGroup],
             credentials: rds.Credentials.fromSecret(this.dbCredentialsSecret),
+            // The `food_app` role authenticates passwordlessly with short-lived RDS IAM tokens (feature
+            // 003). The master `identity_app` keeps password auth — enabling IAM auth is additive and
+            // non-disruptive. See {@link FoodDbBootstrap} for the role/database provisioning.
+            iamAuthentication: true,
             engine: rds.DatabaseInstanceEngine.postgres({
                 version: rds.PostgresEngineVersion.VER_16,
             }),
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.SMALL),
+            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, dbInstanceSize),
             allocatedStorage: 100,
+            storageType: dbStorageType,
             storageEncrypted: true,
             backupRetention: Duration.days(7),
             multiAz: false,
@@ -143,6 +132,60 @@ export class DataStack extends Stack {
             removalPolicy: RemovalPolicy.DESTROY,
             autoMinorVersionUpgrade: true,
         });
+
+        // ── Food role + base database bootstrap (feature 003, ADR-0006) ──────────────────────────────
+        // `food_app` authenticates via RDS IAM (no password), so it cannot create itself — only the
+        // master can. This VPC-attached custom resource connects AS MASTER on every deploy and, idempotently,
+        // creates the `food_app` LOGIN role, grants it `rds_iam`, creates the base `kitchensink_food`
+        // database, and (non-prod only) grants CREATEDB so the migrate lambda can make per-PR databases.
+        // Bundled by esbuild.mjs to the package-root `dist-lambda/`; a bare `cdk synth` (no bundle) falls
+        // back to an inline no-op asset. This module lives at `lib/platform/`, so the package root is two
+        // levels up when run from source (tsx) but three when run from the compiled `dist/lib/platform/`
+        // (how CI deploys via `node dist/bin/app.js`) — probe both so the REAL handler ships either way.
+        const here = dirname(fileURLToPath(import.meta.url));
+        const lambdaAssetDir =
+            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
+                existsSync(candidate),
+            ) ?? resolve(here, '../../dist-lambda');
+        const hasLambdaAsset = existsSync(lambdaAssetDir);
+        const foodBootstrapFn = new lambda.Function(this, 'FoodDbBootstrapFunction', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            architecture: lambda.Architecture.ARM_64,
+            handler: hasLambdaAsset ? 'food-db-bootstrap/handler.handler' : 'index.handler',
+            code: hasLambdaAsset
+                ? lambda.Code.fromAsset(lambdaAssetDir)
+                : lambda.Code.fromInline(
+                      'exports.handler = async (e) => ({ PhysicalResourceId: e.PhysicalResourceId ?? "food-db-bootstrap" });',
+                  ),
+            timeout: Duration.seconds(300),
+            memorySize: 256,
+            description: `Bootstrap food_app role + base database (${stageTag})`,
+            vpc: props.network.vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [props.network.lambdaSecurityGroup],
+            environment: {
+                DB_SECRET_ARN: this.dbCredentialsSecret.secretArn,
+                DB_ENDPOINT: this.database.dbInstanceEndpointAddress,
+                DB_PORT: this.database.dbInstanceEndpointPort,
+                FOOD_DATABASE_NAME: this.foodDatabaseName,
+                STAGE: stageTag,
+            },
+        });
+        this.dbCredentialsSecret.grantRead(foodBootstrapFn);
+
+        const foodBootstrapProvider = new cr.Provider(this, 'FoodDbBootstrapProvider', {
+            onEventHandler: foodBootstrapFn,
+        });
+
+        const foodBootstrap = new CustomResource(this, 'FoodDbBootstrap', {
+            serviceToken: foodBootstrapProvider.serviceToken,
+            // Re-runs the (idempotent) bootstrap whenever the target database or stage changes.
+            properties: { foodDatabaseName: this.foodDatabaseName, stage: stageTag },
+        });
+        // `GRANT rds_iam` needs the instance's IAM-auth modify to be applied first. The env already
+        // references the endpoint (an implicit dependency), but make the ordering explicit so a fresh
+        // deploy (e.g. prod's first apply of this change) cannot race the instance update.
+        foodBootstrap.node.addDependency(this.database);
 
         this.deletionDlq = new sqs.Queue(this, 'DeletionDlq', {
             encryption: sqs.QueueEncryption.SQS_MANAGED,
@@ -208,17 +251,21 @@ export class DataStack extends Stack {
             value: this.migrationPlanSecret.secretArn,
             exportName: `${this.stackName}:MigrationPlanSecretArn`,
         });
-        new CfnOutput(this, 'FoodDbSecretArn', {
-            value: this.foodDbCredentialsSecret.secretArn,
-            exportName: `${this.stackName}:FoodDbSecretArn`,
-        });
         new CfnOutput(this, 'FoodDatabaseName', {
             value: this.foodDatabaseName,
             exportName: `${this.stackName}:FoodDatabaseName`,
         });
-        new CfnOutput(this, 'FoodMigrationPlanSecretArn', {
-            value: this.foodMigrationPlanSecret.secretArn,
-            exportName: `${this.stackName}:FoodMigrationPlanSecretArn`,
+        // RDS instance resource id (dbi-…), needed to scope `rds-db:connect` IAM to the food_app db-user.
+        // Always present on an owned instance (only `undefined` for some imports), so guard for the type.
+        const databaseResourceId = this.database.instanceResourceId;
+
+        if (!databaseResourceId) {
+            throw new Error('DatabaseInstance.instanceResourceId is unexpectedly undefined');
+        }
+
+        new CfnOutput(this, 'DatabaseResourceId', {
+            value: databaseResourceId,
+            exportName: `${this.stackName}:DatabaseResourceId`,
         });
         new CfnOutput(this, 'DeletionQueueArn', {
             value: this.deletionQueue.queueArn,

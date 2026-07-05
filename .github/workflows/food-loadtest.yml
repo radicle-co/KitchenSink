@@ -1,0 +1,145 @@
+# Manually-triggered food-API load test (k6). Runs the packages/tools/loadtest harness against a deployed
+# food preview: provisions a distinct-user pool + an admin observer, runs the k6 journey while sampling
+# server-side metrics, produces a capacity/degradation report, and tears down every test user.
+#
+# Trigger: Actions → "Food API load test" → Run workflow (or `gh workflow run food-loadtest.yml`).
+# Needs the same repo AWS credentials the deploy workflows use (to read the Clerk secret + CloudWatch).
+name: Food API load test
+
+on:
+    workflow_dispatch:
+        inputs:
+            target_url:
+                description: 'Food API base URL to hit'
+                required: true
+                default: 'https://food-pr-59.commise.app'
+            base_stage:
+                description: 'Clerk instance / secret stage (sandbox or prod)'
+                required: true
+                default: 'sandbox'
+            pool_size:
+                description: 'Distinct-user pool size (MUST be >= max_vus)'
+                required: true
+                default: '100'
+            baseline_rate:
+                description: 'Baseline arrival rate (req/s)'
+                required: true
+                default: '1'
+            hold_rate:
+                description: 'Hold-at-target rate (req/s) — the "supported rate" being validated'
+                required: true
+                default: '2'
+            ramp_rate:
+                description: 'Over-ramp peak rate (req/s) — pushes past hold to find saturation'
+                required: true
+                default: '3'
+            hold_duration:
+                description: 'Hold phase duration (k6 duration, e.g. 1m, 2m30s)'
+                required: true
+                default: '1m'
+            ramp_duration:
+                description: 'Ramp phase duration'
+                required: true
+                default: '1m'
+            max_vus:
+                description: 'Max VUs — must cover ramp_rate x max-iteration-duration (poll_timeout + think)'
+                required: true
+                default: '100'
+            poll_timeout_s:
+                description: 'Max seconds to poll an add to a terminal state'
+                required: true
+                default: '20'
+            keep_users:
+                description: 'Skip teardown (leave the test users) — for debugging'
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+env:
+    NODE_VERSION: 24
+    DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+
+jobs:
+    loadtest:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v6
+
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Install k6 (into the loadtest package)
+              run: npm run k6:install --workspace=@kitchensink/loadtest
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+
+            - name: Resolve Clerk config (secret, FAPI, azp)
+              id: clerk
+              env:
+                  STAGE: ${{ inputs.base_stage }}
+              run: |
+                  set -euo pipefail
+                  SECRET=$(aws secretsmanager get-secret-value --region "$DEFAULT_AWS_REGION" \
+                      --secret-id "kitchensink/${STAGE}/identity/keys" --query SecretString --output text)
+                  SK=$(printf '%s' "$SECRET" | python3 -c "import sys,json;print(json.load(sys.stdin)['SECRET_KEY'])")
+                  PK=$(printf '%s' "$SECRET" | python3 -c "import sys,json;print(json.load(sys.stdin)['PUBLISHABLE_KEY'])")
+                  # FAPI host is base64-encoded in the publishable key (pk_{test,live}_<base64(host$)>).
+                  # Strip whichever prefix is present so base_stage=prod (pk_live_…) works too.
+                  PK_B64=${PK#pk_test_}; PK_B64=${PK_B64#pk_live_}
+                  FAPI_HOST=$(printf '%s' "$PK_B64" | python3 -c "import sys,base64;print(base64.b64decode(sys.stdin.read().strip()+'==').decode().rstrip('$'))")
+                  # azp the minted tokens must carry = the first configured authorized party.
+                  AZP=$(aws ssm get-parameter --region "$DEFAULT_AWS_REGION" \
+                      --name "/kitchensink/${STAGE}/clerk/authorized-parties" --query Parameter.Value --output text | cut -d, -f1 | tr -d '[:space:]')
+                  echo "::add-mask::$SK"
+                  echo "sk=$SK" >> "$GITHUB_OUTPUT"
+                  echo "fapi=https://${FAPI_HOST}" >> "$GITHUB_OUTPUT"
+                  echo "origin=${AZP}" >> "$GITHUB_OUTPUT"
+                  echo "Resolved FAPI=https://${FAPI_HOST}  azp=${AZP}"
+
+            - name: Run load test
+              env:
+                  CLERK_SECRET_KEY: ${{ steps.clerk.outputs.sk }}
+                  FAPI: ${{ steps.clerk.outputs.fapi }}
+                  ORIGIN: ${{ steps.clerk.outputs.origin }}
+                  FOOD_BASE_URL: ${{ inputs.target_url }}
+                  POOL_SIZE: ${{ inputs.pool_size }}
+                  MAX_VUS: ${{ inputs.max_vus }}
+                  BASELINE_RATE: ${{ inputs.baseline_rate }}
+                  HOLD_RATE: ${{ inputs.hold_rate }}
+                  RAMP_RATE: ${{ inputs.ramp_rate }}
+                  HOLD_DURATION: ${{ inputs.hold_duration }}
+                  RAMP_DURATION: ${{ inputs.ramp_duration }}
+                  POLL_TIMEOUT_S: ${{ inputs.poll_timeout_s }}
+                  KEEP: ${{ inputs.keep_users && '1' || '0' }}
+                  REGION: ${{ env.DEFAULT_AWS_REGION }}
+              # `npm run -w` sets cwd to the package, so run.mjs writes report/series there (OUT_DIR=.).
+              run: npm run loadtest --workspace=@kitchensink/loadtest
+
+            - name: Publish report to job summary
+              if: always()
+              working-directory: packages/tools/loadtest
+              run: |
+                  if [ -f report.md ]; then cat report.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report produced." >> "$GITHUB_STEP_SUMMARY"; fi
+
+            - name: Upload artifacts
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: food-loadtest-results
+                  path: |
+                      packages/tools/loadtest/report.md
+                      packages/tools/loadtest/k6-summary.json
+                      packages/tools/loadtest/server-metrics.json
+                  if-no-files-found: warn

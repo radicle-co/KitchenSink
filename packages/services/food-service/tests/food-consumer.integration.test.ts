@@ -24,7 +24,7 @@ import {
     type FoodSourceAdapter,
     type SourceCandidate,
 } from '../src/sources/food-source-adapter.js';
-import { RollingWindowLimiter, type SourceCap } from '../src/sources/rolling-window-limiter.js';
+import { RollingWindowLimiter, sourceCapsFromEnv, type SourceCap } from '../src/sources/rolling-window-limiter.js';
 import { FoodConsumerService } from '../src/worker/food-consumer.service.js';
 import { SilentWorkerLogger } from '../src/worker/worker-logger.js';
 import { acquireWorkerLock } from '../src/worker/worker-lock.js';
@@ -74,6 +74,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
     function build(
         adapter: FoodSourceAdapter,
         caps?: Partial<Record<'usda', SourceCap>>,
+        concurrency?: number,
     ): { consumer: FoodConsumerService; puts: EventBusPutInput[] } {
         const registry = new SourceAdapterRegistry();
         registry.register(adapter);
@@ -94,6 +95,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             merge,
             events: new FoodEventEmitter(bus),
             logger: new SilentWorkerLogger(),
+            ...(concurrency !== undefined ? { concurrency } : {}),
         });
 
         return { consumer, puts };
@@ -220,10 +222,10 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(puts[0]?.detail).toMatchObject({ id, status: 'NOT_FOUND' });
     });
 
-    it('5xx → attempts++ with backoff; after 5 real failures → FAILED tombstone + FetchFailed (DSN-9)', async () => {
+    it('a genuine 5xx (500) → attempts++ with backoff; after 5 real failures → FAILED tombstone + FetchFailed (DSN-9)', async () => {
         const id = await enqueueFood('broken source food');
         const adapter = makeFakeUsdaAdapter();
-        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 503, 'USDA server error'));
+        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 500, 'USDA server error'));
         const { consumer, puts } = build(adapter);
 
         const dispositions: string[] = [];
@@ -269,6 +271,63 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(await consumer.processNext()).toBe('idle');
     });
 
+    it('gateway backpressure (502/503/504) → deferred + source paused, NO attempts++ (not a per-food failure)', async () => {
+        for (const status of [502, 503, 504]) {
+            await resetSchema(pool);
+            const id = await enqueueFood(`gateway ${status} food`);
+            const adapter = makeFakeUsdaAdapter();
+            adapter.searchByName.mockRejectedValue(new SourceApiError('usda', status, 'gateway backpressure'));
+            const { consumer } = build(adapter);
+
+            expect(await consumer.processNext()).toBe('deferred');
+
+            const qrow = await queue.getByFoodId(id);
+            expect(qrow?.status).toBe('pending'); // re-queued, not failed
+            expect(qrow?.attempts).toBe(0); // backpressure never consumes the retry budget
+
+            // markWindowFull paused the whole source: a re-eligible row defers again WITHOUT a second search.
+            await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 minute' WHERE food_id = $1`, [
+                id,
+            ]);
+            expect(await consumer.processNext()).toBe('deferred');
+            expect(adapter.searchByName).toHaveBeenCalledTimes(1); // 2nd pass blocked by the source-wide pause
+        }
+    });
+
+    it('client timeout / transport failure (statusCode 0) → deferred, NO attempts++ and NO source-wide pause', async () => {
+        const id = await enqueueFood('timing-out food');
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 0, 'USDA request timed out'));
+        const { consumer } = build(adapter);
+
+        expect(await consumer.processNext()).toBe('deferred');
+
+        const qrow = await queue.getByFoodId(id);
+        expect(qrow?.status).toBe('pending');
+        // A self-inflicted latency timeout must NOT burn the failure budget / tombstone an otherwise-good food.
+        expect(qrow?.attempts).toBe(0);
+
+        // Unlike gateway backpressure, an isolated timeout does NOT markWindowFull: a re-eligible row
+        // re-attempts the fan-out (searches again) rather than being blocked by a source-wide pause.
+        await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 minute' WHERE food_id = $1`, [
+            id,
+        ]);
+        expect(await consumer.processNext()).toBe('deferred');
+        expect(adapter.searchByName).toHaveBeenCalledTimes(2); // retried — the source was never paused
+    });
+
+    it('schema drift (422) → attempts++ genuine failure (a persistently malformed item, not backpressure)', async () => {
+        const id = await enqueueFood('schema-drift food');
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockRejectedValue(
+            new SourceApiError('usda', 422, 'USDA response failed schema validation'),
+        );
+        const { consumer } = build(adapter);
+
+        expect(await consumer.processNext()).toBe('record_failure');
+        expect((await queue.getByFoodId(id))?.attempts).toBe(1);
+    });
+
     it('limiter pause at 90% halts fan-out for that source (deferred; no source call, no event)', async () => {
         const id = await enqueueFood('paused food');
         for (let i = 0; i < 9; i += 1) {
@@ -284,6 +343,84 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect((await foodDao.getById(id))?.status).toBe('PENDING');
         expect((await queue.getByFoodId(id))?.status).toBe('pending'); // re-queued, not in_flight
         expect(puts).toHaveLength(0);
+    });
+
+    it('stalls at the cap then RESUMES draining once the rolling window clears (stall→resume, FR-019/FR-021/FR-026)', async () => {
+        // A fake USDA that resolves any food to a golden candidate, so a processed food reaches a terminal
+        // state and leaves the queue — letting us assert the queue stalls, then fully drains after resume.
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockImplementation(async (name) => [{ source: 'usda', externalKey: `k-${name}`, name }]);
+        adapter.fetchByKeys.mockImplementation(async (keys) =>
+            keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: key })),
+        );
+        const { consumer } = build(adapter, { usda: { hardCap: 3, pauseThreshold: 3 } });
+
+        // Enqueue 5 distinct foods — more than the cap of 3.
+        for (let i = 0; i < 5; i += 1) await enqueueFood(`ratelimit food ${i}`);
+
+        // The first 3 each charge one windowed call and reach a terminal state (row deleted).
+        for (let i = 0; i < 3; i += 1) {
+            expect(await consumer.processNext()).not.toBe('deferred');
+        }
+
+        // STALL: the window is now full (3 >= pause threshold). Every further claim DEFERS — the remaining
+        // foods stay pending (no source call, no attempts++), stuck in the queue until the limit clears.
+        expect(await consumer.processNext()).toBe('deferred');
+        const stalled = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue WHERE status = 'pending'`);
+        expect(Number(stalled.rows[0].n)).toBe(2); // the 2 un-processed foods are stalled in the queue
+
+        // The rate limit CLEARS: recorded calls age out of the trailing window (time passing), and the
+        // 30s pause-defer backoff elapses so the stalled rows are eligible to claim again.
+        await pool.query(`UPDATE source_call_log SET called_at = now() - interval '2 hours'`);
+        await pool.query(`UPDATE fetch_queue SET last_requested = now() WHERE status = 'pending'`);
+
+        // RESUME: with the window clear, the stalled foods drain to a terminal state and leave the queue.
+        for (let i = 0; i < 5; i += 1) {
+            if ((await consumer.processNext()) === 'idle') break;
+        }
+        const drained = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue`);
+        expect(Number(drained.rows[0].n)).toBe(0); // fully drained once the limit cleared
+    });
+
+    it('the worker honors the configured cap via FOOD_SOURCE_RATE_LIMIT_PER_HOUR (sourceCapsFromEnv)', async () => {
+        const prev = process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
+        process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = '20';
+
+        try {
+            const caps = sourceCapsFromEnv();
+            expect(caps.usda.hardCap).toBe(20);
+            expect(caps.usda.pauseThreshold).toBe(18); // 90%
+        } finally {
+            if (prev === undefined) delete process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
+            else process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = prev;
+        }
+    });
+
+    it('drain(concurrency=K) overlaps foods in-flight and drains them all (serial would be 1)', async () => {
+        // Track the max simultaneous in-flight source calls; a small delay lets multiple foods overlap.
+        let inFlight = 0;
+        let maxInFlight = 0;
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockImplementation(async (name) => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise((res) => setTimeout(res, 40));
+            inFlight -= 1;
+            return [{ source: 'usda', externalKey: `k-${name}`, name }];
+        });
+        adapter.fetchByKeys.mockImplementation(async (keys) =>
+            keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: key })),
+        );
+        const { consumer } = build(adapter, undefined, 4);
+
+        for (let i = 0; i < 8; i += 1) await enqueueFood(`concurrent food ${i}`);
+
+        const processed = await consumer.drain();
+
+        expect(processed).toBe(8); // every food drained
+        expect(maxInFlight).toBeGreaterThan(1); // the fan-outs overlapped (a serial drain never exceeds 1)
+        const remaining = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue`);
+        expect(Number(remaining.rows[0].n)).toBe(0);
     });
 
     it('reapStaleLeases reverts a stale in_flight lease back to pending (FR-018)', async () => {

@@ -54,6 +54,39 @@ jobs:
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
 
+            # Drop the per-PR food logical database (ADR-0006) BEFORE the stacks are deleted — the
+            # in-VPC migration-runner Lambda is the only thing that can reach the PRIVATE_ISOLATED RDS,
+            # and it is torn down with the food stack in the next step. We invoke THIS PR's food
+            # migration function (which knows FOOD_DB_NAME=kitchensink_food_pr_{N}) with {action:'drop'};
+            # the handler refuses to drop the shared base `kitchensink_food` and DROPs … WITH (FORCE) so
+            # a still-draining preview's connections don't block it. Guarded: if this PR never deployed a
+            # food service (the common case until the deploy job below is switched on), the stack/output
+            # is absent and we skip. $PR is exactly `pr-{N}`, so the stack-name match is delimiter-safe.
+            - name: Drop per-PR food database for ${{ env.PR }}
+              run: |
+                  set -uo pipefail
+                  STACK="kitchensink-food-service-$PR"
+                  FN=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
+                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
+                      --output text 2>/dev/null) || FN=""
+                  if [ -z "$FN" ] || [ "$FN" = "None" ]; then
+                      echo "No food migration function for $PR (stack $STACK absent or no output) — nothing to drop."
+                      exit 0
+                  fi
+
+                  echo "[food-db] invoking $FN with {action:drop} to drop kitchensink_food_${PR//-/_}"
+                  if aws lambda invoke --region "$REGION" --function-name "$FN" \
+                      --payload '{"action":"drop"}' --cli-binary-format raw-in-base64-out \
+                      /tmp/food-drop-result.json >/tmp/food-drop-invoke.json 2>/dev/null; then
+                      if grep -q '"FunctionError"' /tmp/food-drop-invoke.json; then
+                          echo "::warning::food DB drop for $PR returned a FunctionError — inspect $FN logs"
+                      else
+                          echo "[food-db] drop result: $(cat /tmp/food-drop-result.json)"
+                      fi
+                  else
+                      echo "::warning::could not invoke $FN to drop the per-PR food DB — drop it manually"
+                  fi
+
             - name: Delete ephemeral resources for ${{ env.PR }}
               run: |
                   set -uo pipefail
@@ -166,3 +199,131 @@ jobs:
     #               npx cdk deploy \
     #                 --app "node packages/services/{service}/infra/dist/bin/app.js" \
     #                 --all --require-approval never
+
+    # ═══════════════════════════════════════════════════════════════════
+    # per-PR FOOD preview deploy (ADR-0006) — ACTIVE, gated to food-only changes.
+    #
+    # Runs only when `packages/services/food-service/**` changed on the PR (the `dorny/paths-filter`
+    # step gates every step). On PR close, the `Drop per-PR food database` cleanup step above reclaims
+    # the `kitchensink_food_pr_{N}` logical DB, and the `Environment=pr-{N}` cleanup deletes the stacks.
+    #
+    # How it works (ADR-0006): the food infra bin resolves baseStage internally (prod→prod, everything
+    # else→sandbox), so a `STAGE=pr-{N}` deploy imports the SHARED sandbox platform (VPC/RDS/ALB/domain)
+    # and provisions an isolated `kitchensink_food_pr_{N}` logical DB on that shared instance. FOOD_VPC_ID
+    # MUST be the SANDBOX VPC id (the base platform), NOT a per-PR VPC (there is none) — set the
+    # `SANDBOX_VPC_ID` repo variable. The preview host is `food-pr-{N}.commise.app` (single label,
+    # covered by the `*.commise.app` cert — the prior `food.pr-{N}` 3-label wrinkle is resolved by the
+    # dash form in `foodSubdomainForStage`). Per-PR DB creation needs sandbox `food_app` to have
+    # `CREATEDB` (granted in the non-prod bootstrap SQL, DataStack).
+    # ═══════════════════════════════════════════════════════════════════
+    #
+    deploy-food:
+        name: Deploy food sandbox (pr-${{ github.event.pull_request.number }})
+        runs-on: ubuntu-latest
+        if: |
+            (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+            (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'food')
+        env:
+            STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
+            FOOD_VPC_ID: ${{ vars.SANDBOX_VPC_ID }} # the SHARED sandbox VPC (baseStage), not per-PR
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+            # Gate: only proceed when the food service actually changed on this PR.
+            - name: Detect food changes
+              id: changes
+              uses: dorny/paths-filter@v3
+              with:
+                  filters: |
+                      food:
+                          - 'packages/services/food-service/**'
+            - name: Setup Node.js
+              if: steps.changes.outputs.food == 'true'
+              uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              if: steps.changes.outputs.food == 'true'
+              run: npm ci
+            # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
+            # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
+            # the bare specifiers without them.
+            - name: Build food package (+ shared dist)
+              if: steps.changes.outputs.food == 'true'
+              run: npx turbo run build --filter=@kitchensink/food-service
+            # Rewrite the food package.json exports/main to ./dist (prod.package.json) for the image.
+            - name: Prepare food service Docker image (prod manifest)
+              if: steps.changes.outputs.food == 'true'
+              run: npm run docker:prepare --workspace=packages/services/food-service
+            - name: Build food infra
+              if: steps.changes.outputs.food == 'true'
+              run: npm run infra:build --workspace=packages/services/food-service
+            - name: Bundle migration Lambda
+              if: steps.changes.outputs.food == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/food-service
+            - name: Configure AWS credentials
+              if: steps.changes.outputs.food == 'true'
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Login to Amazon ECR
+              id: login-ecr
+              if: steps.changes.outputs.food == 'true'
+              uses: aws-actions/amazon-ecr-login@v2
+            # The food stack imports the repo by name (ecr.Repository.fromRepositoryName); create it on
+            # first deploy so the image push + ECS pull have somewhere to go.
+            - name: Ensure ECR repository exists
+              if: steps.changes.outputs.food == 'true'
+              run: aws ecr describe-repositories --repository-names kitchensink-food || aws ecr create-repository --repository-name kitchensink-food
+            - name: Build, tag, and push food Docker image
+              if: steps.changes.outputs.food == 'true'
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                  IMAGE_TAG: sandbox-${{ github.sha }}
+              run: |
+                  docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+            # Pass 1 — provision the stack (incl. the migration Lambda) with the services scaled to ZERO.
+            # A per-PR preview's isolated DB (kitchensink_food_pr_{N}) does not exist until the migration
+            # step below runs, so booting tasks now would crash-loop on connect and trip the ECS
+            # deployment circuit breaker. Zero desired tasks also means CloudFormation never has to roll
+            # back a failed service — which is what previously wedged the Fargate-Spot capacity-provider
+            # association in ROLLBACK_FAILED.
+            - name: CDK Deploy — pass 1 (scale 0, provision infra + migration Lambda)
+              if: steps.changes.outputs.food == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
+                  FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
+                  FOOD_DESIRED_COUNT=0 \
+                  FOOD_WORKER_DESIRED_COUNT=0 \
+                  npx cdk deploy \
+                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --all --require-approval never
+            # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
+            # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
+            - name: Run food migrations (creates the per-PR DB if absent)
+              if: steps.changes.outputs.food == 'true'
+              run: |
+                  FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                      --stack-name "kitchensink-food-service-${{ env.STAGE }}" \
+                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
+                      --output text)
+                  aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
+                      --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
+                  cat /tmp/migrate.json
+            # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
+            # tasks boot healthy. (Defaults are 2 / 1; set explicitly for clarity.)
+            - name: CDK Deploy — pass 2 (scale services up)
+              if: steps.changes.outputs.food == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
+                  FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
+                  FOOD_DESIRED_COUNT=2 \
+                  FOOD_WORKER_DESIRED_COUNT=1 \
+                  npx cdk deploy \
+                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --all --require-approval never

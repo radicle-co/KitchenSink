@@ -19,6 +19,7 @@ import { CandidateStore } from '../../foods/dao/food-candidates.dao.js';
 import { FoodSourcesDao } from '../../foods/dao/food-sources.dao.js';
 import { SourceCallLogDao } from '../../foods/dao/source-call-log.dao.js';
 import { EnqueueEmitter } from '../../foods/enqueue.emitter.js';
+import { foodPoolConfigFromEnv } from '../../database/pool-config.js';
 import * as schema from '../../db/schema/index.js';
 import { SourceAdapterRegistry } from '../../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../../sources/rolling-window-limiter.js';
@@ -30,42 +31,13 @@ import { ChangeRefreshConsumer } from './change-refresh.consumer.js';
 const { Pool } = pg;
 
 /**
- * Build the Postgres connection string from the environment (`DATABASE_URL` or the discrete `DB_*`
- * parts). Mirrors the consumer worker's bootstrap.
- *
- * @returns A `postgresql://` connection string.
- * @throws {Error} when neither `DATABASE_URL` nor a complete `DB_*` set is present.
- */
-function buildConnectionString(): string {
-    const url = process.env['DATABASE_URL'];
-
-    if (url) {
-        return url;
-    }
-
-    const host = process.env['DB_HOST'];
-    const port = process.env['DB_PORT'];
-    const database = process.env['DB_NAME'];
-    const user = process.env['DB_USERNAME'];
-    const password = process.env['DB_PASSWORD'];
-
-    if (!host || !port || !database || !user || !password) {
-        throw new Error(
-            'Missing database configuration. Provide DATABASE_URL or DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD.',
-        );
-    }
-
-    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}?sslmode=require`;
-}
-
-/**
  * Bootstrap, run one change-refresh pass, and exit.
  *
  * @sideEffect Connects to Postgres, re-fetches changed items, enqueues refresh rows, then closes.
  */
 async function bootstrap(): Promise<void> {
     const logger = new ConsoleWorkerLogger();
-    const pool = new Pool({ connectionString: buildConnectionString(), max: 5 });
+    const pool = new Pool({ ...foodPoolConfigFromEnv(), max: 5 });
     const db = drizzle(pool, { schema });
 
     const apiKey = process.env['USDA_API_KEY'];

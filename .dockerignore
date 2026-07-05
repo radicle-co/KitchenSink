@@ -9,3 +9,13 @@
 # for fresh consumers; the image copies prod.package.json (which exports ./dist) over it instead.
 !packages/utils/identity/dist
 !packages/utils/identity/prod.package.json
+# Food service image (mirrors the identity allowlist): the service dist + prod manifest, plus the two
+# shared @kitchensink runtime deps (clerk-verify, usda-client) whose root node_modules symlinks resolve
+# to these dist + dist-pointing prod.package.json paths.
+!packages/services/food-service/node_modules
+!packages/services/food-service/dist
+!packages/services/food-service/prod.package.json
+!packages/shared/clerk-verify/dist
+!packages/shared/clerk-verify/prod.package.json
+!packages/clients/usda/dist
+!packages/clients/usda/prod.package.json

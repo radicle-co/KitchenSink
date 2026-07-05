@@ -140,12 +140,14 @@ class StubController {
     }
 
     /**
-     * Program a name whose search throws a transport error (→ the FAILED retry path).
+     * Program a name whose search throws a classified source error.
      *
      * @param name - The add-by-name value.
-     * @param errorStatus - The classified status code (default 503 — a real failure).
+     * @param errorStatus - The classified status code. Default 500 — a genuine per-food failure that
+     *   consumes the retry budget → FAILED. Pass 429/502/503/504/0 to exercise the backpressure path
+     *   (deferred, no attempts++) instead.
      */
-    public programSearchError(name: string, errorStatus = 503): void {
+    public programSearchError(name: string, errorStatus = 500): void {
         this.scenarios.set(normalizeName(name), { candidates: [], errorStatus });
     }
 

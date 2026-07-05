@@ -1,0 +1,8 @@
+# Minted token pools + run artifacts are secrets / per-run outputs — never commit
+tokens.json
+pool.json
+admin.json
+config.env
+k6-summary.json
+server-metrics.json
+report.md

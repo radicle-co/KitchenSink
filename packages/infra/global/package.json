@@ -10,16 +10,24 @@
         "test": "vitest run",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "bundle:lambda": "node esbuild.mjs",
         "synth": "cdk synth --app 'npx tsx bin/app.ts'",
-        "deploy": "cdk deploy --app 'npx tsx bin/app.ts'"
+        "deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx bin/app.ts'"
     },
     "devDependencies": {
+        "@aws-sdk/client-ec2": "^3.935.0",
+        "@aws-sdk/client-ecs": "^3.935.0",
+        "@aws-sdk/client-rds": "^3.935.0",
+        "@aws-sdk/client-secrets-manager": "^3.935.0",
+        "@aws-sdk/client-ssm": "^3.935.0",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@types/node": "^24.0.0",
+        "@types/pg": "^8.11.10",
         "aws-cdk": "*",
         "dotenv": "*",
+        "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "*",
@@ -28,7 +36,8 @@
     },
     "dependencies": {
         "aws-cdk-lib": "*",
-        "constructs": "*"
+        "constructs": "*",
+        "pg": "^8.13.0"
     },
     "engines": {
         "node": "24.x"

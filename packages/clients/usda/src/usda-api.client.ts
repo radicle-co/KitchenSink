@@ -12,6 +12,7 @@ import type { z } from 'zod';
 
 import {
     InvalidBatchSizeError,
+    isUsdaClientError,
     UsdaNotFoundError,
     UsdaRateLimitError,
     UsdaSchemaError,
@@ -35,6 +36,14 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 /** Upstream maximum number of ids accepted by `POST /v1/foods` in a single call. */
 const MAX_BATCH_SIZE = 20;
+
+/**
+ * Search page size. USDA defaults to 50, but the worker only ever batch-fetches the top {@link
+ * MAX_BATCH_SIZE}; USDA returns hits in relevance order, so a smaller page yields the same top-N with a
+ * much smaller payload. Set EXACTLY to the batch cap so the fan-out issues one search + ONE batch (=2 USDA
+ * requests/food, not 3) — every extra hit would force a second batch POST that adds USDA load for no gain.
+ */
+const SEARCH_PAGE_SIZE = 20;
 
 /** Configuration for {@link UsdaApiClient}. */
 export interface UsdaApiClientOptions {
@@ -77,8 +86,7 @@ export class UsdaApiClient {
      */
     public async getFood(fdcId: number): Promise<UsdaFoodDetail> {
         const url = `${this.baseUrl}/food/${fdcId}?api_key=${encodeURIComponent(this.apiKey)}`;
-        const response = await this.request(url, { method: 'GET' }, fdcId);
-        const body = this.parse(RawUsdaFoodSchema, await response.json());
+        const body = this.parse(RawUsdaFoodSchema, await this.request(url, { method: 'GET' }, fdcId));
 
         return this.toFoodDetail(body);
     }
@@ -99,12 +107,14 @@ export class UsdaApiClient {
         }
 
         const url = `${this.baseUrl}/foods?api_key=${encodeURIComponent(this.apiKey)}`;
-        const response = await this.request(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ fdcIds }),
-        });
-        const body = this.parse(RawUsdaFoodArraySchema, await response.json());
+        const body = this.parse(
+            RawUsdaFoodArraySchema,
+            await this.request(url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ fdcIds }),
+            }),
+        );
 
         return body.map((food) => this.toFoodDetail(food));
     }
@@ -119,9 +129,8 @@ export class UsdaApiClient {
      * @throws {UsdaTimeoutError} when the request exceeds the configured timeout.
      */
     public async searchFoods(query: string): Promise<UsdaSearchResult> {
-        const url = `${this.baseUrl}/foods/search?api_key=${encodeURIComponent(this.apiKey)}&query=${encodeURIComponent(query)}`;
-        const response = await this.request(url, { method: 'GET' });
-        const body = this.parse(RawUsdaSearchResultSchema, await response.json());
+        const url = `${this.baseUrl}/foods/search?api_key=${encodeURIComponent(this.apiKey)}&query=${encodeURIComponent(query)}&pageSize=${SEARCH_PAGE_SIZE}`;
+        const body = this.parse(RawUsdaSearchResultSchema, await this.request(url, { method: 'GET' }));
 
         const foods: UsdaSearchHit[] = body.foods.map((food) => ({
             fdcId: food.fdcId,
@@ -141,43 +150,48 @@ export class UsdaApiClient {
      * @returns The successful `Response`.
      * @sideEffect Performs a network request via the injected `fetch`.
      */
-    private async request(url: string, init: RequestInit, fdcId?: number): Promise<Response> {
+    private async request(url: string, init: RequestInit, fdcId?: number): Promise<unknown> {
         const controller = new AbortController();
         const timeout = setTimeout(() => {
             controller.abort();
         }, this.timeoutMs);
 
-        let response: Response;
-
         try {
-            response = await this.fetchFn(url, { ...init, signal: controller.signal });
-        } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
-                throw new UsdaTimeoutError();
+            const response = await this.fetchFn(url, { ...init, signal: controller.signal });
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    throw new UsdaNotFoundError(fdcId ?? 0);
+                }
+
+                if (response.status === 429) {
+                    throw new UsdaRateLimitError();
+                }
+
+                if (response.status >= 500) {
+                    throw new UsdaServerError(response.status);
+                }
+
+                throw new UsdaServerError(response.status, `Unexpected USDA response status ${response.status}`);
             }
 
-            throw error;
+            // Read the body INSIDE the armed deadline. Under a load-degraded USDA the response body can
+            // stall AFTER headers arrive; clearing the timeout before this (or reading in the caller) would
+            // leave a body-read hang that is never aborted → the whole fetch call never resolves.
+            return await response.json();
+        } catch (error) {
+            // Our own typed status errors (thrown just above) are re-thrown as-is. Everything else — a
+            // client abort (headers OR body), a raw transport failure (ECONNRESET / ENOTFOUND / undici
+            // "fetch failed"), or a non-JSON body under gateway overload — means "USDA did not respond
+            // usably", the same class as a timeout. Carry the cause so a permanent misconfig is diagnosable.
+            if (isUsdaClientError(error)) {
+                throw error;
+            }
+
+            throw new UsdaTimeoutError('USDA request failed or timed out', error);
         } finally {
             clearTimeout(timeout);
         }
-
-        if (response.ok) {
-            return response;
-        }
-
-        if (response.status === 404) {
-            throw new UsdaNotFoundError(fdcId ?? 0);
-        }
-
-        if (response.status === 429) {
-            throw new UsdaRateLimitError();
-        }
-
-        if (response.status >= 500) {
-            throw new UsdaServerError(response.status);
-        }
-
-        throw new UsdaServerError(response.status, `Unexpected USDA response status ${response.status}`);
     }
 
     /**

@@ -25,8 +25,13 @@ const DatabaseConfigSchema = z.union([
         DB_HOST: z.string(),
         DB_PORT: z.string().transform(Number).pipe(z.number().int().positive()),
         DB_NAME: z.string(),
-        DB_USERNAME: z.string(),
-        DB_PASSWORD: z.string(),
+        // Defaults to the least-privilege `food_app` role, mirroring `FOOD_DB_USERNAME` in
+        // src/database/pool-config.ts (the runtime default at the pool seam) — so the schema and the pool
+        // agree on the default rather than the schema requiring what the pool already defaults.
+        DB_USERNAME: z.string().default('food_app'),
+        // Optional: deployed stages authenticate `food_app` via an RDS IAM token (no password); only
+        // local docker Postgres supplies a static `DB_PASSWORD`. See src/database/pool-config.ts.
+        DB_PASSWORD: z.string().optional(),
     }),
 ]);
 
@@ -48,6 +53,16 @@ const FoodOperationalConfigSchema = z.object({
     // Per-source rolling-60-min-window cap (FR-019); the worker pauses draining at 90% of this. USDA's
     // wired cap is 1,000/hr → pause at 900. A future source overrides its own cap via the adapter.
     FOOD_SOURCE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(1000),
+    // Trailing rolling-window length in seconds (default 3,600 = 60 min). Lowerable on a preview so the
+    // rate-limit stall→resume is observable under load without waiting an hour; prod keeps the default.
+    FOOD_SOURCE_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
+    // Worker drain concurrency. The fan-out is ~80% USDA network I/O, so the drainer processes several
+    // foods in-flight for ~K× throughput. Unset → sized off the task's vCPUs (availableParallelism ×
+    // FOOD_WORKER_CONCURRENCY_PER_CPU, clamped [2,8]); set to force an exact value. The upper bound is
+    // conservative because each in-flight food is ~2 USDA requests, so a wide burst from one IP drove
+    // USDA latency past the client timeout. The rolling-window limiter still caps the actual call rate.
+    FOOD_WORKER_CONCURRENCY: z.coerce.number().int().positive().optional(),
+    FOOD_WORKER_CONCURRENCY_PER_CPU: z.coerce.number().positive().default(2),
     // Per-`sub` pending threshold above which a requester is demoted at drain time / flood-shed near the
     // queue ceiling (FR-043/FR-043b).
     FOOD_DEMOTE_THRESHOLD: z.coerce.number().int().positive().default(50),

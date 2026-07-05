@@ -14,8 +14,20 @@ import { sql } from 'drizzle-orm';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import type { FoodSource } from './food-sources.dao.js';
 
-/** The trailing window length (60 minutes, FR-019/FR-020). */
-const WINDOW = sql`interval '3600 seconds'`;
+/**
+ * The trailing window length (default 3,600s = 60 min, FR-019/FR-020). Configurable via
+ * `FOOD_SOURCE_WINDOW_SECONDS` so a preview can use a short window to observe the rate-limit stall→resume
+ * under load without waiting a full hour for calls to age out. Prod leaves the default (no behavior change).
+ */
+const WINDOW_SECONDS = Number(process.env['FOOD_SOURCE_WINDOW_SECONDS'] ?? 3600);
+
+if (!Number.isInteger(WINDOW_SECONDS) || WINDOW_SECONDS <= 0) {
+    throw new Error(
+        `Invalid FOOD_SOURCE_WINDOW_SECONDS "${process.env['FOOD_SOURCE_WINDOW_SECONDS']}" — expected a positive integer (seconds).`,
+    );
+}
+
+const WINDOW = sql`make_interval(secs => ${WINDOW_SECONDS})`;
 
 /** Two-int advisory-lock classid for the per-source limiter (DSN-15) — distinct from drainer/dedup. */
 const LOCK_CLASS_LIMITER = 3;

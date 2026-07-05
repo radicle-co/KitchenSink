@@ -8,6 +8,8 @@
  *
  * @sideEffect Opens Postgres connections, acquires the advisory lock, and begins draining.
  */
+import { availableParallelism } from 'node:os';
+
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
@@ -37,9 +39,31 @@ const { Pool } = pg;
  *
  * @sideEffect Connects to Postgres, registers signal handlers, and runs the drain loop.
  */
+/**
+ * How many foods the drainer processes concurrently. The fan-out is ~80% USDA network I/O, so a single
+ * food leaves a core mostly idle — we oversubscribe the task's vCPUs (`availableParallelism` is
+ * container-aware, unlike a hard-coded number) by `FOOD_WORKER_CONCURRENCY_PER_CPU` (default 4), clamped
+ * to [1, 16] so a large box doesn't burst USDA. `FOOD_WORKER_CONCURRENCY` overrides the whole computation.
+ * The rolling-window limiter still caps the actual USDA call rate, so this only sets the burst width.
+ */
+function workerConcurrency(): number {
+    const explicit = Number(process.env['FOOD_WORKER_CONCURRENCY']);
+
+    if (Number.isInteger(explicit) && explicit > 0) {
+        return explicit;
+    }
+
+    const perCpu = Number(process.env['FOOD_WORKER_CONCURRENCY_PER_CPU'] ?? 4);
+    const scaled = availableParallelism() * (Number.isFinite(perCpu) && perCpu > 0 ? perCpu : 4);
+
+    return Math.max(1, Math.min(16, Math.round(scaled)));
+}
+
 async function bootstrap(): Promise<void> {
     const logger = new ConsoleWorkerLogger();
-    const pool = new Pool({ ...foodPoolConfigFromEnv(), max: 10 });
+    // A pool large enough to back the concurrent drainer (each in-flight food may hold a connection).
+    const concurrency = workerConcurrency();
+    const pool = new Pool({ ...foodPoolConfigFromEnv(), max: Math.max(10, concurrency + 2) });
     const db = drizzle(pool, { schema });
 
     const apiKey = process.env['USDA_API_KEY'];
@@ -67,7 +91,10 @@ async function bootstrap(): Promise<void> {
         ),
         logger,
         metrics,
+        concurrency,
     });
+
+    logger.info('worker-concurrency', { concurrency, vcpus: availableParallelism() });
 
     // T-181: a periodic operational-metrics snapshot (queue depth / backlog / tombstone / oldest-pending
     // age) emitted as EMF — reuses the admin operational-read DAO and the queue freshness signal. The

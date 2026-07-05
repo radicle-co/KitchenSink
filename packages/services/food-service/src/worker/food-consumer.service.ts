@@ -104,6 +104,12 @@ export interface FoodConsumerDeps {
     readonly metrics?: FoodMetrics;
     /** Lease window in seconds (default 30). */
     readonly leaseSeconds?: number;
+    /**
+     * How many foods to process concurrently in {@link FoodConsumerService.drain} (default 1). The fan-out
+     * is ~80% USDA network I/O, so K in-flight foods overlap their waits for ~K× throughput; `leaseNext`
+     * uses `FOR UPDATE SKIP LOCKED`, so concurrent claims never collide. The worker sizes this off vCPUs.
+     */
+    readonly concurrency?: number;
 }
 
 export class FoodConsumerService {
@@ -117,6 +123,7 @@ export class FoodConsumerService {
     private readonly logger: WorkerLogger;
     private readonly metrics: FoodMetrics | undefined;
     private readonly leaseSeconds: number;
+    private readonly concurrency: number;
 
     /** @param deps - The injected DAOs, registry, limiter, merge seam, and event publisher. */
     public constructor(deps: FoodConsumerDeps) {
@@ -130,6 +137,7 @@ export class FoodConsumerService {
         this.logger = deps.logger ?? new ConsoleWorkerLogger();
         this.metrics = deps.metrics;
         this.leaseSeconds = deps.leaseSeconds ?? 30;
+        this.concurrency = Math.max(1, deps.concurrency ?? 1);
     }
 
     /**
@@ -190,15 +198,24 @@ export class FoodConsumerService {
     public async drain(): Promise<number> {
         let processed = 0;
 
-        for (;;) {
-            const disposition = await this.processNext();
+        // Bounded concurrency: run `this.concurrency` claim→process loops in parallel. Because each food is
+        // ~80% network wait (USDA), the in-flight foods overlap their I/O for ~K× throughput. `leaseNext`
+        // (FOR UPDATE SKIP LOCKED) hands each loop a distinct row, so they never double-claim; a loop stops
+        // when nothing is eligible (`idle`), and the drain returns once every loop has idled. JS is
+        // single-threaded, so `processed += 1` between awaits is race-free.
+        const claimLoop = async (): Promise<void> => {
+            for (;;) {
+                const disposition = await this.processNext();
 
-            if (disposition === 'idle') {
-                break;
+                if (disposition === 'idle') {
+                    return;
+                }
+
+                processed += 1;
             }
+        };
 
-            processed += 1;
-        }
+        await Promise.all(Array.from({ length: this.concurrency }, () => claimLoop()));
 
         return processed;
     }

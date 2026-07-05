@@ -36,6 +36,13 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 /** Upstream maximum number of ids accepted by `POST /v1/foods` in a single call. */
 const MAX_BATCH_SIZE = 20;
 
+/**
+ * Search page size. USDA defaults to 50, but the worker only ever batch-fetches the top {@link
+ * MAX_BATCH_SIZE}; USDA returns hits in relevance order, so a smaller page yields the same top-N with a
+ * ~3× smaller payload to transfer + parse. Kept a little above the batch cap for headroom.
+ */
+const SEARCH_PAGE_SIZE = 25;
+
 /** Configuration for {@link UsdaApiClient}. */
 export interface UsdaApiClientOptions {
     /** USDA FoodData Central API key (required). */
@@ -119,7 +126,7 @@ export class UsdaApiClient {
      * @throws {UsdaTimeoutError} when the request exceeds the configured timeout.
      */
     public async searchFoods(query: string): Promise<UsdaSearchResult> {
-        const url = `${this.baseUrl}/foods/search?api_key=${encodeURIComponent(this.apiKey)}&query=${encodeURIComponent(query)}`;
+        const url = `${this.baseUrl}/foods/search?api_key=${encodeURIComponent(this.apiKey)}&query=${encodeURIComponent(query)}&pageSize=${SEARCH_PAGE_SIZE}`;
         const response = await this.request(url, { method: 'GET' });
         const body = this.parse(RawUsdaSearchResultSchema, await response.json());
 

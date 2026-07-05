@@ -74,6 +74,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
     function build(
         adapter: FoodSourceAdapter,
         caps?: Partial<Record<'usda', SourceCap>>,
+        concurrency?: number,
     ): { consumer: FoodConsumerService; puts: EventBusPutInput[] } {
         const registry = new SourceAdapterRegistry();
         registry.register(adapter);
@@ -94,6 +95,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             merge,
             events: new FoodEventEmitter(bus),
             logger: new SilentWorkerLogger(),
+            ...(concurrency !== undefined ? { concurrency } : {}),
         });
 
         return { consumer, puts };
@@ -335,6 +337,33 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             if (prev === undefined) delete process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
             else process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = prev;
         }
+    });
+
+    it('drain(concurrency=K) overlaps foods in-flight and drains them all (serial would be 1)', async () => {
+        // Track the max simultaneous in-flight source calls; a small delay lets multiple foods overlap.
+        let inFlight = 0;
+        let maxInFlight = 0;
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockImplementation(async (name) => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise((res) => setTimeout(res, 40));
+            inFlight -= 1;
+            return [{ source: 'usda', externalKey: `k-${name}`, name }];
+        });
+        adapter.fetchByKeys.mockImplementation(async (keys) =>
+            keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: key })),
+        );
+        const { consumer } = build(adapter, undefined, 4);
+
+        for (let i = 0; i < 8; i += 1) await enqueueFood(`concurrent food ${i}`);
+
+        const processed = await consumer.drain();
+
+        expect(processed).toBe(8); // every food drained
+        expect(maxInFlight).toBeGreaterThan(1); // the fan-outs overlapped (a serial drain never exceeds 1)
+        const remaining = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue`);
+        expect(Number(remaining.rows[0].n)).toBe(0);
     });
 
     it('reapStaleLeases reverts a stale in_flight lease back to pending (FR-018)', async () => {

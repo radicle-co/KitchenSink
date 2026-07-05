@@ -23,7 +23,7 @@ import { FoodMetrics } from '../observability/emf-metrics.js';
 import { foodPoolConfigFromEnv } from '../database/pool-config.js';
 import * as schema from '../db/schema/index.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
-import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
+import { RollingWindowLimiter, sourceCapsFromEnv } from '../sources/rolling-window-limiter.js';
 import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
 import { UsdaApiClient } from '@kitchensink/usda-client';
 import { FoodConsumerService } from './food-consumer.service.js';
@@ -58,7 +58,9 @@ async function bootstrap(): Promise<void> {
         sources: new FoodSourcesDao(db),
         queue,
         registry,
-        limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
+        // Honor FOOD_SOURCE_RATE_LIMIT_PER_HOUR — the worker is what consults isPaused, so it MUST use the
+        // same configured cap as the API (previously it silently used the 1,000 default).
+        limiter: new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCapsFromEnv() }),
         merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
         events: new FoodEventEmitter(new ConsoleEventBus(), undefined, (error, detailType) =>
             logger.warn('event-bus-put-failed', { detailType, error: String(error) }),

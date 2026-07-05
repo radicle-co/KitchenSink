@@ -19,7 +19,7 @@ import { UsdaApiClient } from '@kitchensink/usda-client';
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 import { FoodAuthGuard } from '../auth/food-auth.guard.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
-import { RollingWindowLimiter, type SourceCap } from '../sources/rolling-window-limiter.js';
+import { RollingWindowLimiter, sourceCapsFromEnv } from '../sources/rolling-window-limiter.js';
 import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
 import { AdmissionService } from './admission.service.js';
 import { AdminMetricsDao } from './admin/admin-metrics.dao.js';
@@ -33,13 +33,6 @@ import { FoodsService } from './foods.service.js';
 import { GoldenRecordMergeEngine } from './merge/merge-engine.js';
 import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
 import { UserErasureService } from './user-erasure.service.js';
-
-/** Build the per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`); pause at 90% (FR-019). */
-function sourceCaps(): { usda: SourceCap } {
-    const hardCap = Number(process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] ?? 1000);
-
-    return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * 0.9) } };
-}
 
 @Module({
     controllers: [FoodsController, FoodsAdminController],
@@ -97,7 +90,7 @@ function sourceCaps(): { usda: SourceCap } {
             provide: RollingWindowLimiter,
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): RollingWindowLimiter =>
-                new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCaps() }),
+                new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCapsFromEnv() }),
         },
     ],
     exports: [FoodsService, EnqueueEmitter, UserErasureService],

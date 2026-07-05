@@ -24,7 +24,7 @@ import {
     type FoodSourceAdapter,
     type SourceCandidate,
 } from '../src/sources/food-source-adapter.js';
-import { RollingWindowLimiter, type SourceCap } from '../src/sources/rolling-window-limiter.js';
+import { RollingWindowLimiter, sourceCapsFromEnv, type SourceCap } from '../src/sources/rolling-window-limiter.js';
 import { FoodConsumerService } from '../src/worker/food-consumer.service.js';
 import { SilentWorkerLogger } from '../src/worker/worker-logger.js';
 import { acquireWorkerLock } from '../src/worker/worker-lock.js';
@@ -284,6 +284,57 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect((await foodDao.getById(id))?.status).toBe('PENDING');
         expect((await queue.getByFoodId(id))?.status).toBe('pending'); // re-queued, not in_flight
         expect(puts).toHaveLength(0);
+    });
+
+    it('stalls at the cap then RESUMES draining once the rolling window clears (stall→resume, FR-019/FR-021/FR-026)', async () => {
+        // A fake USDA that resolves any food to a golden candidate, so a processed food reaches a terminal
+        // state and leaves the queue — letting us assert the queue stalls, then fully drains after resume.
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockImplementation(async (name) => [{ source: 'usda', externalKey: `k-${name}`, name }]);
+        adapter.fetchByKeys.mockImplementation(async (keys) =>
+            keys.map((key) => makeMergeCandidate('usda', { externalKey: key, name: key })),
+        );
+        const { consumer } = build(adapter, { usda: { hardCap: 3, pauseThreshold: 3 } });
+
+        // Enqueue 5 distinct foods — more than the cap of 3.
+        for (let i = 0; i < 5; i += 1) await enqueueFood(`ratelimit food ${i}`);
+
+        // The first 3 each charge one windowed call and reach a terminal state (row deleted).
+        for (let i = 0; i < 3; i += 1) {
+            expect(await consumer.processNext()).not.toBe('deferred');
+        }
+
+        // STALL: the window is now full (3 >= pause threshold). Every further claim DEFERS — the remaining
+        // foods stay pending (no source call, no attempts++), stuck in the queue until the limit clears.
+        expect(await consumer.processNext()).toBe('deferred');
+        const stalled = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue WHERE status = 'pending'`);
+        expect(Number(stalled.rows[0].n)).toBe(2); // the 2 un-processed foods are stalled in the queue
+
+        // The rate limit CLEARS: recorded calls age out of the trailing window (time passing), and the
+        // 30s pause-defer backoff elapses so the stalled rows are eligible to claim again.
+        await pool.query(`UPDATE source_call_log SET called_at = now() - interval '2 hours'`);
+        await pool.query(`UPDATE fetch_queue SET last_requested = now() WHERE status = 'pending'`);
+
+        // RESUME: with the window clear, the stalled foods drain to a terminal state and leave the queue.
+        for (let i = 0; i < 5; i += 1) {
+            if ((await consumer.processNext()) === 'idle') break;
+        }
+        const drained = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue`);
+        expect(Number(drained.rows[0].n)).toBe(0); // fully drained once the limit cleared
+    });
+
+    it('the worker honors the configured cap via FOOD_SOURCE_RATE_LIMIT_PER_HOUR (sourceCapsFromEnv)', async () => {
+        const prev = process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
+        process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = '20';
+
+        try {
+            const caps = sourceCapsFromEnv();
+            expect(caps.usda.hardCap).toBe(20);
+            expect(caps.usda.pauseThreshold).toBe(18); // 90%
+        } finally {
+            if (prev === undefined) delete process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
+            else process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = prev;
+        }
     });
 
     it('reapStaleLeases reverts a stale in_flight lease back to pending (FR-018)', async () => {

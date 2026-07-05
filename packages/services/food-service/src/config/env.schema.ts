@@ -50,6 +50,9 @@ const FoodOperationalConfigSchema = z.object({
     // Per-source rolling-60-min-window cap (FR-019); the worker pauses draining at 90% of this. USDA's
     // wired cap is 1,000/hr → pause at 900. A future source overrides its own cap via the adapter.
     FOOD_SOURCE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(1000),
+    // Trailing rolling-window length in seconds (default 3,600 = 60 min). Lowerable on a preview so the
+    // rate-limit stall→resume is observable under load without waiting an hour; prod keeps the default.
+    FOOD_SOURCE_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
     // Per-`sub` pending threshold above which a requester is demoted at drain time / flood-shed near the
     // queue ceiling (FR-043/FR-043b).
     FOOD_DEMOTE_THRESHOLD: z.coerce.number().int().positive().default(50),

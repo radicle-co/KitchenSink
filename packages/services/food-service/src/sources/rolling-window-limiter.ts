@@ -25,6 +25,21 @@ export const DEFAULT_SOURCE_CAPS: Readonly<Record<FoodSourceId, SourceCap>> = {
     usda: { hardCap: 1000, pauseThreshold: 900 },
 };
 
+/**
+ * Build per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`, default 1,000);
+ * the pause threshold is 90% of the hard cap (FR-019). Shared by the API DI (foods.module) AND the worker
+ * entrypoint so BOTH honor the configured cap — the worker is what consults `isPaused`, so if only the API
+ * read the env the pause would use the wrong ceiling. A preview can lower the cap to exercise the pause
+ * under load without 900+ real USDA calls.
+ *
+ * @sideEffect Reads `process.env`.
+ */
+export function sourceCapsFromEnv(): Record<FoodSourceId, SourceCap> {
+    const hardCap = Number(process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] ?? DEFAULT_SOURCE_CAPS.usda.hardCap);
+
+    return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * 0.9) } };
+}
+
 /** Default 429-failsafe back-off (ms) the window is treated as full for after a source `429`. */
 const DEFAULT_BACKOFF_MS = 60_000;
 

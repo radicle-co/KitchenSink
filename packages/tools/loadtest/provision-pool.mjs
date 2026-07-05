@@ -15,6 +15,7 @@
  *   ADMIN_SCOPE (default food:admin), FOOD_BASE_URL (to verify the admin grant), OUT_DIR.
  * @sideEffect Creates/reuses Clerk users + sessions; writes pool.json/admin.json.
  */
+import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -77,7 +78,9 @@ async function findOrCreateUser(name) {
             username: `test_${name}`,
             first_name: 'Load',
             last_name: name,
-            password: `PoolPw-${name}-xZ9kQ2`,
+            // Random per-user password (never reused for login — backend session creation doesn't need it);
+            // a committed static pattern would let anyone with sandbox Clerk access log in as these users.
+            password: `Pp1!${randomBytes(24).toString('base64url')}`,
         }),
     });
     const body = await res.json();
@@ -118,7 +121,7 @@ async function mapSettled(items, limit, worker) {
             const i = next++;
 
             try {
-                results[i] = { ok: true, value: await worker(items[i], i) };
+                results[i] = { ok: true, value: await worker(items[i]) };
             } catch (error) {
                 results[i] = { ok: false, error };
             }

@@ -35,7 +35,13 @@ export const DEFAULT_SOURCE_CAPS: Readonly<Record<FoodSourceId, SourceCap>> = {
  * @sideEffect Reads `process.env`.
  */
 export function sourceCapsFromEnv(): Record<FoodSourceId, SourceCap> {
-    const hardCap = Number(process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] ?? DEFAULT_SOURCE_CAPS.usda.hardCap);
+    const raw = process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
+    const hardCap = Number(raw ?? DEFAULT_SOURCE_CAPS.usda.hardCap);
+
+    // Fail fast on a malformed value — NaN would silently break pause/admission (never pausing).
+    if (!Number.isInteger(hardCap) || hardCap <= 0) {
+        throw new Error(`Invalid FOOD_SOURCE_RATE_LIMIT_PER_HOUR "${raw}" — expected a positive integer.`);
+    }
 
     return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * 0.9) } };
 }

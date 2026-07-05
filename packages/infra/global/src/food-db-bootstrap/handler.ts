@@ -105,11 +105,17 @@ export const handler = async (event: CustomResourceEvent): Promise<CustomResourc
     const foodDatabaseName = requireEnv('FOOD_DATABASE_NAME');
     const isProd = requireEnv('STAGE') === 'prod';
 
+    const port = Number(requireEnv('DB_PORT'));
+
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+        throw new Error(`Invalid DB_PORT "${process.env['DB_PORT']}" — expected a TCP port (1-65535).`);
+    }
+
     const pool = new Pool({
         user: credentials.username,
         password: credentials.password,
         host: requireEnv('DB_ENDPOINT'),
-        port: Number(requireEnv('DB_PORT')),
+        port,
         database: 'postgres',
         // The RDS CA is absent from Node's trust store; encrypt without verifying it (in-VPC, known
         // endpoint) — mirrors the food service's connection policy.

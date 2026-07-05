@@ -20,6 +20,13 @@ import type { FoodSource } from './food-sources.dao.js';
  * under load without waiting a full hour for calls to age out. Prod leaves the default (no behavior change).
  */
 const WINDOW_SECONDS = Number(process.env['FOOD_SOURCE_WINDOW_SECONDS'] ?? 3600);
+
+if (!Number.isInteger(WINDOW_SECONDS) || WINDOW_SECONDS <= 0) {
+    throw new Error(
+        `Invalid FOOD_SOURCE_WINDOW_SECONDS "${process.env['FOOD_SOURCE_WINDOW_SECONDS']}" — expected a positive integer (seconds).`,
+    );
+}
+
 const WINDOW = sql`make_interval(secs => ${WINDOW_SECONDS})`;
 
 /** Two-int advisory-lock classid for the per-source limiter (DSN-15) — distinct from drainer/dedup. */

@@ -77,7 +77,7 @@ await collectorDone;
 const series = existsSync(SERVER_FILE) ? JSON.parse(readFileSync(SERVER_FILE, 'utf8')) : [];
 const usda = (sample) => (sample?.metrics?.sources ?? []).find((s) => s.source === 'usda');
 const rows = series.map((s) => ({
-    t: s.t ?? s.timestamp,
+    t: s.ts, // collect-metrics.mjs writes the sample timestamp as `ts`
     paused: usda(s)?.paused ?? null,
     util: usda(s)?.utilization ?? null,
     windowCount: usda(s)?.windowCount ?? null,

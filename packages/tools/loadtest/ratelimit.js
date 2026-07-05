@@ -24,6 +24,12 @@ const BURST_COUNT = Number(__ENV.BURST_COUNT || 60);
 const BURST_RATE = Number(__ENV.BURST_RATE || 20);
 const RUN_TAG = __ENV.RUN_TAG || 'rl';
 
+if (!CLERK_SK) {
+    // Backend token refresh needs the secret; without it every mint 401s and the food adds would look like
+    // "enqueue failures" rather than a config error. Fail fast at init.
+    throw new Error('CLERK_SECRET_KEY is required (backend token refresh) — pass it in the run env.');
+}
+
 const pool = new SharedArray('pool', () => {
     const parsed = JSON.parse(open(POOL_FILE));
     const list = Array.isArray(parsed) ? parsed : parsed.pool;

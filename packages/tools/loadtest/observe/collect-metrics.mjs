@@ -29,6 +29,8 @@ const DURATION_S = Number(process.env['DURATION_S'] ?? 60);
 const INTERVAL_S = Number(process.env['INTERVAL_S'] ?? 10);
 const OUT_FILE = process.env['OUT_FILE'] ?? './server-metrics.json';
 const REFRESH_AFTER_S = Number(process.env['REFRESH_AFTER_S'] ?? 30);
+const CLERK_SK = process.env['CLERK_SECRET_KEY'] ?? process.env['CLERK_SK'];
+const BAPI = 'https://api.clerk.com/v1';
 
 const REGION = process.env['REGION'] ?? process.env['AWS_REGION'] ?? 'us-east-1';
 const CW_NAMESPACE = process.env['CW_NAMESPACE'] ?? 'Commise/Food';
@@ -44,7 +46,23 @@ async function freshAdminToken() {
         return adminToken;
     }
 
-    adminToken = await mintSessionToken(admin.sessionId, admin.devJwt, admin.cookie);
+    // A Backend pool (provision-pool / REUSE_POOL) writes admin.json as { jwt, sessionId, userId } with no
+    // devJwt/cookie → refresh via the Backend API. A FAPI pool (grant-admin) carries a cookie → use FAPI.
+    if (admin.cookie) {
+        adminToken = await mintSessionToken(admin.sessionId, admin.devJwt, admin.cookie);
+    } else {
+        const res = await fetch(`${BAPI}/sessions/${admin.sessionId}/tokens`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${CLERK_SK}`, 'Content-Type': 'application/json' },
+        });
+
+        if (!res.ok) {
+            throw new Error(`backend admin-token mint ${res.status} — is CLERK_SECRET_KEY set for the collector?`);
+        }
+
+        adminToken = (await res.json()).jwt;
+    }
+
     mintedAt = Date.now();
 
     return adminToken;

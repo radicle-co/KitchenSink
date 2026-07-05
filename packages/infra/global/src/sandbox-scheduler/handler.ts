@@ -169,8 +169,13 @@ const clients: SchedulerClients = {
  * @returns The structured run summary (also logged).
  */
 export const handler = async (event: { action?: SchedulerAction }): Promise<SchedulerSummary> => {
-    const action: SchedulerAction = event.action === 'start' ? 'start' : 'stop';
-    const summary = await runSchedulerAction(action, clients);
+    // Require an EXPLICIT valid action — never default an unknown/typo'd input to 'stop', which would
+    // silently tear the sandbox down on a malformed schedule or manual invocation.
+    if (event.action !== 'start' && event.action !== 'stop') {
+        throw new Error(`Invalid scheduler action ${JSON.stringify(event.action)} — expected 'start' or 'stop'.`);
+    }
+
+    const summary = await runSchedulerAction(event.action, clients);
 
     console.log(JSON.stringify({ message: 'sandbox-scheduler run complete', ...summary }));
 

@@ -30,7 +30,7 @@ const QueueConfigSchema = z.object({
 
 const AppConfigSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    PORT: z.string().transform(Number).pipe(z.number().int().positive()).default('3001'),
+    PORT: z.string().transform(Number).pipe(z.number().int().positive()).default(3001),
     // Permissive: deploy stages include `prod` and `sandbox-*`/`mr-*`/`pr-*`, which a fixed enum
     // would reject now that STAGE is injected into the running container (U8).
     STAGE: z.string().min(1).default('dev'),

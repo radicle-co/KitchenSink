@@ -38,7 +38,7 @@
         "tamagui": "^2.3.0"
     },
     "devDependencies": {
-        "@babel/core": "^7.29.6",
+        "@babel/core": "^8.0.1",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

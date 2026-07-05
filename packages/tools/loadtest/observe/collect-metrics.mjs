@@ -51,6 +51,12 @@ async function freshAdminToken() {
     if (admin.cookie) {
         adminToken = await mintSessionToken(admin.sessionId, admin.devJwt, admin.cookie);
     } else {
+        if (!CLERK_SK) {
+            throw new Error(
+                'admin.json is a backend-pool handle (no cookie), so refreshing its token needs CLERK_SECRET_KEY (or CLERK_SK) — set it for the collector.',
+            );
+        }
+
         const res = await fetch(`${BAPI}/sessions/${admin.sessionId}/tokens`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${CLERK_SK}`, 'Content-Type': 'application/json' },

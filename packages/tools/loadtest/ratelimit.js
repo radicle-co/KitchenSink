@@ -56,19 +56,43 @@ export const options = {
 };
 
 let handle = null;
+let vuToken = null;
+let vuMintedAt = 0;
 
+// Cache the backend token per VU and refresh only near expiry — a big burst (>1000 iters) must not mint a
+// fresh token on every add.
 function token() {
-    if (!handle) handle = pool[__VU % pool.length];
+    // __VU is 1-based — subtract 1 so VU 1 maps to pool[0] (matches journey.js's mapping).
+    if (!handle) handle = pool[(__VU - 1) % pool.length];
+
+    if (vuToken && Date.now() - vuMintedAt < 40_000) {
+        return vuToken;
+    }
 
     const res = http.post(`${BAPI}/sessions/${handle.sessionId}/tokens`, null, {
         headers: { Authorization: `Bearer ${CLERK_SK}`, 'Content-Type': 'application/json' },
     });
 
-    return res.status === 200 ? res.json('jwt') : null;
+    if (res.status === 200) {
+        vuToken = res.json('jwt');
+        vuMintedAt = Date.now();
+    }
+
+    return vuToken;
 }
 
 export default function () {
     const jwt = token();
+
+    if (!jwt) {
+        // Token mint failed (bad/missing CLERK_SECRET_KEY, expired session). Record the failure instead of
+        // sending `Bearer null` — which would 401 and inflate the enqueue-fail count, masking the real cause.
+        enqueueFail.add(1);
+        check(null, { 'burst token minted': () => false });
+
+        return;
+    }
+
     // Unique per (tag, VU, iter) → always cache-missing → forces a real USDA search that charges the window.
     const name = `zzq ${RUN_TAG} ${__VU} ${__ITER} nonfood`;
     const res = http.post(`${BASE_URL}/v1/foods`, JSON.stringify({ name }), {

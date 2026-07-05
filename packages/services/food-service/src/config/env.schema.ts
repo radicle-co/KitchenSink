@@ -55,7 +55,7 @@ const FoodOperationalConfigSchema = z.object({
     FOOD_SOURCE_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
     // Worker drain concurrency. The fan-out is ~80% USDA network I/O, so the drainer processes several
     // foods in-flight for ~K× throughput. Unset → sized off the task's vCPUs (availableParallelism ×
-    // FOOD_WORKER_CONCURRENCY_PER_CPU, clamped [1,16]); set to force an exact value. The rolling-window
+    // FOOD_WORKER_CONCURRENCY_PER_CPU, clamped [2,16]); set to force an exact value. The rolling-window
     // limiter still caps the actual USDA call rate, so this only sets the burst width.
     FOOD_WORKER_CONCURRENCY: z.coerce.number().int().positive().optional(),
     FOOD_WORKER_CONCURRENCY_PER_CPU: z.coerce.number().positive().default(4),

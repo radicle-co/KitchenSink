@@ -102,7 +102,7 @@ const AuthConfigSchema = z.object({
 /** Process/runtime configuration shared across NestJS and the Fargate worker. */
 const AppConfigSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    PORT: z.string().transform(Number).pipe(z.number().int().positive()).default('3002'),
+    PORT: z.string().transform(Number).pipe(z.number().int().positive()).default(3002),
     // Permissive: deploy stages include `prod` and `sandbox-*`/`mr-*`/`pr-*`, which a fixed enum would reject.
     STAGE: z.string().min(1).default('dev'),
     SENTRY_DSN: z.string().url().optional(),

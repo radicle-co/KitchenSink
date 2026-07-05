@@ -56,6 +56,20 @@ const RAMP_DURATION = __ENV.RAMP_DURATION || '1m';
 const PRE_ALLOCATED_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 30);
 const MAX_VUS = Number(__ENV.MAX_VUS || 100);
 
+// k6's arrival-rate `rate`/`target` are int64 — a fractional req/s (e.g. 0.3, handy for a small pool)
+// is rejected. Pick the smallest timeUnit (seconds) that turns every configured rate into a whole count,
+// then express rates over that unit. 0.3/s → rate 3 per 10s = same arrival rate, but integer-valued.
+function rateUnitSeconds(rates) {
+    for (const unit of [1, 2, 4, 5, 10, 20, 60]) {
+        if (rates.every((r) => Math.abs(r * unit - Math.round(r * unit)) < 1e-9)) {
+            return unit;
+        }
+    }
+    return 60; // fall back; the Math.round below absorbs any residual fraction
+}
+const RATE_UNIT_S = rateUnitSeconds([BASELINE_RATE, HOLD_RATE, RAMP_RATE]);
+const perUnit = (rate) => Math.max(0, Math.round(rate * RATE_UNIT_S));
+
 // SC-hold pass bars (tunable; final numbers set at run time).
 const THRESH_SEARCH_P95_MS = __ENV.THRESH_SEARCH_P95_MS || '800';
 const THRESH_ADD_P95_MS = __ENV.THRESH_ADD_P95_MS || '1500';
@@ -92,16 +106,16 @@ export const options = {
     scenarios: {
         journey: {
             executor: 'ramping-arrival-rate',
-            startRate: BASELINE_RATE,
-            timeUnit: '1s',
+            startRate: perUnit(BASELINE_RATE),
+            timeUnit: `${RATE_UNIT_S}s`,
             // k6 rejects preAllocatedVUs > maxVUs; clamp so a small MAX_VUS can't produce a config error.
             preAllocatedVUs: Math.min(PRE_ALLOCATED_VUS, MAX_VUS),
             maxVUs: MAX_VUS,
             stages: [
-                { target: BASELINE_RATE, duration: BASELINE_DURATION },
-                { target: HOLD_RATE, duration: '15s' },
-                { target: HOLD_RATE, duration: HOLD_DURATION },
-                { target: RAMP_RATE, duration: RAMP_DURATION },
+                { target: perUnit(BASELINE_RATE), duration: BASELINE_DURATION },
+                { target: perUnit(HOLD_RATE), duration: '15s' },
+                { target: perUnit(HOLD_RATE), duration: HOLD_DURATION },
+                { target: perUnit(RAMP_RATE), duration: RAMP_DURATION },
                 { target: 0, duration: '15s' },
             ],
         },

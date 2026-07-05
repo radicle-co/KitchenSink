@@ -48,6 +48,9 @@ const THINK_MIN_S = Number(__ENV.THINK_MIN_S || 0.5);
 const THINK_MAX_S = Number(__ENV.THINK_MAX_S || 2);
 const POLL_INTERVAL_S = Number(__ENV.POLL_INTERVAL_S || 2);
 const POLL_TIMEOUT_S = Number(__ENV.POLL_TIMEOUT_S || 20);
+// When a food reaches a terminal state, read the USDA-sourced data back from the DB to prove it actually
+// persisted (not just that a status flag flipped). On by default; set VERIFY_PERSISTENCE=0 for pure-load.
+const VERIFY_PERSISTENCE = (__ENV.VERIFY_PERSISTENCE ?? '1') !== '0';
 
 // Staged arrival-rate profile (req/s per stage). Defaults are a modest real run; tune per target.
 const BASELINE_RATE = Number(__ENV.BASELINE_RATE || 1);
@@ -106,6 +109,9 @@ const shed503 = new Counter('food_auth_shed_503'); // AuthLoadShedder graceful b
 const unexpected5xx = new Rate('food_unexpected_5xx'); // fraction of food requests that 5xx'd (not shed)
 const authFail = new Rate('food_auth_fail'); // fraction that 401'd — should be ~0 (invariant #3)
 const tokenRefreshFail = new Counter('food_token_refresh_fail');
+// Of foods that reached a terminal state, the fraction whose USDA data is actually readable from the DB
+// (candidate set for UNRESOLVED, golden record for RESOLVED). A gap means the sync→DB write is broken.
+const dataPersisted = new Rate('food_data_persisted');
 
 export const options = {
     scenarios: {
@@ -131,6 +137,8 @@ export const options = {
         food_unexpected_5xx: [`rate<${THRESH_UNEXPECTED_5XX_RATE}`],
         // Non-zero auth failures mean tokens expired → the whole run (incl. any shed-503s) is suspect.
         food_auth_fail: [`rate<${THRESH_AUTH_FAIL_RATE}`],
+        // Terminal foods must have their USDA data in the DB — a persistence gap fails the run.
+        food_data_persisted: [`rate>${__ENV.THRESH_DATA_PERSISTED || '0.99'}`],
         // Silent VU starvation: the requested arrival rate was not actually delivered.
         dropped_iterations: [`count<${THRESH_DROPPED}`],
     },
@@ -310,6 +318,29 @@ export default function () {
         pollToTerminal.add(Date.now() - startedAt);
         statusMix.add(1, { status: terminal });
         reachedTerminal.add(true);
+
+        // Read the USDA data back from the DB to confirm it persisted (not just a status flip). UNRESOLVED
+        // keeps its candidate set (food_candidates); RESOLVED materializes a golden record (foods). Only
+        // these two states carry persisted USDA data — NOT_FOUND (no match) / FAILED (fetch error) do not.
+        if (VERIFY_PERSISTENCE && (terminal === 'UNRESOLVED' || terminal === 'RESOLVED')) {
+            let persisted = false;
+
+            if (terminal === 'UNRESOLVED') {
+                const candRes = http.get(`${BASE_URL}/v1/foods/${foodId}/candidates`, {
+                    ...auth,
+                    tags: { step: 'candidates' },
+                });
+                const body = candRes.status === 200 ? candRes.json() : null;
+                const list = body?.candidates ?? body?.items ?? body?.results ?? (Array.isArray(body) ? body : []);
+                persisted = Array.isArray(list) && list.length > 0;
+            } else {
+                const detailRes = http.get(`${BASE_URL}/v1/foods/${foodId}`, { ...auth, tags: { step: 'detail' } });
+                persisted = detailRes.status === 200 && Boolean(detailRes.json('id'));
+            }
+
+            dataPersisted.add(persisted);
+            check(persisted, { 'usda data persisted in DB': (ok) => ok === true });
+        }
     } else {
         reachedTerminal.add(false);
     }

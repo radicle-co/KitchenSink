@@ -45,6 +45,27 @@ POOL_SIZE=100 FOOD_BASE_URL=https://food-pr-59.commise.app npm run loadtest
 Or the steps individually: `npm run provision`, `npm run grant-admin`, `npm run journey`, `npm run collect`
 (`POOL_SIZE` must be `>= MAX_VUS` — `journey.js` fails fast otherwise, since VU `i` authenticates as user `i`).
 
+### Persistent pool (recommended locally — avoids Clerk's rate limit)
+
+`npm run provision` mints users via Clerk's **Frontend API** (dev_browser → sign_ins), which is **per-IP
+rate-limited** — minting a pool from one machine trips a multi-minute cool-down. Instead, provision a
+**persistent** pool via the **Backend API** (no FAPI, no throttle) once and reuse it:
+
+```bash
+npm run provision:pool     # create-or-reuse test-{name}@radcile.com + admin (Backend API); writes pool.json
+REUSE_POOL=1 ... npm run loadtest:reuse   # skips provisioning AND teardown; k6 refreshes tokens via Backend API
+npm run sweep              # delete ALL test users (test-…/loadtest+…) — incl. crash-orphaned ones
+```
+
+The persistent users have stable emails and are **never torn down** by a run (only `sweep` deletes them),
+so the pool survives across runs. Backend-minted tokens carry no `azp`, which the food guard accepts.
+
+### Does the food really land in the DB?
+
+Yes — with `VERIFY_PERSISTENCE=1` (default), when a food reaches a terminal state the journey reads the
+USDA data **back from the DB** (the candidate set for `UNRESOLVED`, the golden record for `RESOLVED`) and
+records `food_data_persisted`; a threshold (`rate>0.99`) **fails the run** if the sync→DB write is broken.
+
 ## Run in CI (GitHub Action)
 
 Prefer not to run it locally? Trigger the **`Food API load test`** workflow

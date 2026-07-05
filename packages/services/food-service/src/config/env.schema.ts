@@ -55,10 +55,11 @@ const FoodOperationalConfigSchema = z.object({
     FOOD_SOURCE_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
     // Worker drain concurrency. The fan-out is ~80% USDA network I/O, so the drainer processes several
     // foods in-flight for ~K× throughput. Unset → sized off the task's vCPUs (availableParallelism ×
-    // FOOD_WORKER_CONCURRENCY_PER_CPU, clamped [2,16]); set to force an exact value. The rolling-window
-    // limiter still caps the actual USDA call rate, so this only sets the burst width.
+    // FOOD_WORKER_CONCURRENCY_PER_CPU, clamped [2,8]); set to force an exact value. The upper bound is
+    // conservative because each in-flight food is ~2 USDA requests, so a wide burst from one IP drove
+    // USDA latency past the client timeout. The rolling-window limiter still caps the actual call rate.
     FOOD_WORKER_CONCURRENCY: z.coerce.number().int().positive().optional(),
-    FOOD_WORKER_CONCURRENCY_PER_CPU: z.coerce.number().positive().default(4),
+    FOOD_WORKER_CONCURRENCY_PER_CPU: z.coerce.number().positive().default(2),
     // Per-`sub` pending threshold above which a requester is demoted at drain time / flood-shed near the
     // queue ceiling (FR-043/FR-043b).
     FOOD_DEMOTE_THRESHOLD: z.coerce.number().int().positive().default(50),

@@ -62,8 +62,12 @@ const TERMINAL_DISPOSITIONS: ReadonlySet<ProcessDisposition> = new Set([
 /** Seconds a row is deferred on a 90%-pause / window-full back-pressure (DSN-5 — no `attempts++`). */
 const DEFER_PAUSE_SECONDS = 30;
 
-/** Seconds a row is deferred after a source `429` (matches the limiter's 429 failsafe back-off). */
+/** Seconds a row is deferred on source backpressure — a `429` or a gateway 502/503/504 (no `attempts++`). */
 const DEFER_429_SECONDS = 60;
+
+/** Seconds a single food is deferred after a client timeout / transport failure (statusCode 0). Per-food
+ *  (no source-wide pause), so shorter than the authoritative-backpressure back-off. No `attempts++`. */
+const DEFER_TIMEOUT_SECONDS = 30;
 
 /** The outcome of a per-source fan-out pass over the wired adapters. */
 type FanOutResult =
@@ -452,17 +456,40 @@ export class FoodConsumerService {
                 candidates.push(...fetched);
             } catch (error) {
                 if (isSourceApiError(error)) {
-                    if (error.statusCode === 429) {
-                        // Source rate-limited despite our limiter → back off; back-pressure, not a failure.
+                    if (
+                        error.statusCode === 429 ||
+                        error.statusCode === 502 ||
+                        error.statusCode === 503 ||
+                        error.statusCode === 504
+                    ) {
+                        // Authoritative source/gateway BACKPRESSURE — rate-limited (429), bad-gateway (502),
+                        // unavailable (503), or gateway-timeout (504): the source is telling us it's
+                        // overwhelmed, so pause the WHOLE source + defer. NOT a per-food failure → no
+                        // attempts++ (DSN-5). (Schema drift is mapped to 422, so 502 here is only a real
+                        // gateway 502.)
                         this.limiter.markWindowFull(source);
                         await this.queue.deferLease(foodId, DEFER_429_SECONDS);
-                        this.logger.warn('defer-429', { foodId, source });
+                        this.logger.warn('defer-backpressure', { foodId, source, statusCode: error.statusCode });
 
                         return { kind: 'deferred' };
                     }
 
-                    if (error.statusCode >= 500 || error.statusCode === 0) {
-                        // 5xx / timeout = a REAL failure for this source (consumes the budget, FR-016/DSN-5).
+                    if (error.statusCode === 0) {
+                        // Client timeout / transport failure. Defer ONLY THIS food — do NOT markWindowFull:
+                        // one item timing out is weak evidence of source-wide distress, and a source-wide
+                        // pause would let a single always-timing-out food stall every healthy one. This is
+                        // self-inflicted latency under our own concurrency, not a per-food defect → no
+                        // attempts++ (so a transient timeout can't burn the failure budget / tombstone a
+                        // good food). The reduced worker concurrency + rolling window shed the actual load.
+                        await this.queue.deferLease(foodId, DEFER_TIMEOUT_SECONDS);
+                        this.logger.warn('defer-timeout', { foodId, source });
+
+                        return { kind: 'deferred' };
+                    }
+
+                    if (error.statusCode >= 500 || error.statusCode === 422) {
+                        // Genuine per-source failure — a 500/501/… server error, or 422 schema drift (a
+                        // persistently malformed item). Consume the retry budget (FR-016/DSN-5).
                         failedSources += 1;
                         this.logger.warn('source-error', { foodId, source, statusCode: error.statusCode });
 

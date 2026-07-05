@@ -222,10 +222,10 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(puts[0]?.detail).toMatchObject({ id, status: 'NOT_FOUND' });
     });
 
-    it('5xx → attempts++ with backoff; after 5 real failures → FAILED tombstone + FetchFailed (DSN-9)', async () => {
+    it('a genuine 5xx (500) → attempts++ with backoff; after 5 real failures → FAILED tombstone + FetchFailed (DSN-9)', async () => {
         const id = await enqueueFood('broken source food');
         const adapter = makeFakeUsdaAdapter();
-        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 503, 'USDA server error'));
+        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 500, 'USDA server error'));
         const { consumer, puts } = build(adapter);
 
         const dispositions: string[] = [];
@@ -269,6 +269,63 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         // backoff pushed last_requested into the future → not immediately eligible.
         expect(qrow && qrow.lastRequested.getTime()).toBeGreaterThan(Date.now());
         expect(await consumer.processNext()).toBe('idle');
+    });
+
+    it('gateway backpressure (502/503/504) → deferred + source paused, NO attempts++ (not a per-food failure)', async () => {
+        for (const status of [502, 503, 504]) {
+            await resetSchema(pool);
+            const id = await enqueueFood(`gateway ${status} food`);
+            const adapter = makeFakeUsdaAdapter();
+            adapter.searchByName.mockRejectedValue(new SourceApiError('usda', status, 'gateway backpressure'));
+            const { consumer } = build(adapter);
+
+            expect(await consumer.processNext()).toBe('deferred');
+
+            const qrow = await queue.getByFoodId(id);
+            expect(qrow?.status).toBe('pending'); // re-queued, not failed
+            expect(qrow?.attempts).toBe(0); // backpressure never consumes the retry budget
+
+            // markWindowFull paused the whole source: a re-eligible row defers again WITHOUT a second search.
+            await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 minute' WHERE food_id = $1`, [
+                id,
+            ]);
+            expect(await consumer.processNext()).toBe('deferred');
+            expect(adapter.searchByName).toHaveBeenCalledTimes(1); // 2nd pass blocked by the source-wide pause
+        }
+    });
+
+    it('client timeout / transport failure (statusCode 0) → deferred, NO attempts++ and NO source-wide pause', async () => {
+        const id = await enqueueFood('timing-out food');
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 0, 'USDA request timed out'));
+        const { consumer } = build(adapter);
+
+        expect(await consumer.processNext()).toBe('deferred');
+
+        const qrow = await queue.getByFoodId(id);
+        expect(qrow?.status).toBe('pending');
+        // A self-inflicted latency timeout must NOT burn the failure budget / tombstone an otherwise-good food.
+        expect(qrow?.attempts).toBe(0);
+
+        // Unlike gateway backpressure, an isolated timeout does NOT markWindowFull: a re-eligible row
+        // re-attempts the fan-out (searches again) rather than being blocked by a source-wide pause.
+        await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 minute' WHERE food_id = $1`, [
+            id,
+        ]);
+        expect(await consumer.processNext()).toBe('deferred');
+        expect(adapter.searchByName).toHaveBeenCalledTimes(2); // retried — the source was never paused
+    });
+
+    it('schema drift (422) → attempts++ genuine failure (a persistently malformed item, not backpressure)', async () => {
+        const id = await enqueueFood('schema-drift food');
+        const adapter = makeFakeUsdaAdapter();
+        adapter.searchByName.mockRejectedValue(
+            new SourceApiError('usda', 422, 'USDA response failed schema validation'),
+        );
+        const { consumer } = build(adapter);
+
+        expect(await consumer.processNext()).toBe('record_failure');
+        expect((await queue.getByFoodId(id))?.attempts).toBe(1);
     });
 
     it('limiter pause at 90% halts fan-out for that source (deferred; no source call, no event)', async () => {

@@ -71,9 +71,13 @@ export function isUsdaServerError(error: unknown): error is UsdaServerError {
 
 /** Thrown when a request exceeds the configured (10s) timeout. */
 export class UsdaTimeoutError extends UsdaClientError {
-    public constructor(message = 'USDA request timed out') {
+    /** The underlying transport error (abort / ECONNRESET / DNS / non-JSON body), when there is one. */
+    public override readonly cause: unknown;
+
+    public constructor(message = 'USDA request timed out', cause?: unknown) {
         super(message);
         this.name = 'UsdaTimeoutError';
+        this.cause = cause;
         Object.setPrototypeOf(this, UsdaTimeoutError.prototype);
     }
 }

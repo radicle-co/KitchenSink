@@ -18,6 +18,8 @@ import {
     isUsdaRateLimitError,
     isUsdaSchemaError,
     isUsdaServerError,
+    isUsdaTimeoutError,
+    UsdaTimeoutError,
 } from '../errors.js';
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -188,6 +190,53 @@ describe('UsdaApiClient', () => {
             const client = makeClient(fetchFn);
 
             await expect(client.searchFoods('apple')).rejects.toSatisfy(isUsdaRateLimitError);
+        });
+
+        it('requests exactly one batch-sized page (pageSize = the 20-key batch cap)', async () => {
+            const fetchFn = vi.fn().mockResolvedValue(mockResponse({ status: 200, body: { totalHits: 0, foods: [] } }));
+            const client = makeClient(fetchFn);
+
+            await client.searchFoods('apple');
+
+            expect(fetchFn.mock.calls[0]?.[0]).toContain('pageSize=20');
+        });
+    });
+
+    // Transport failures and client aborts are the same class ("USDA did not respond usably") and must all
+    // surface as UsdaTimeoutError so the worker treats them as backpressure, never a per-food failure.
+    describe('transport / timeout mapping', () => {
+        it('maps a raw transport failure (ECONNRESET) to UsdaTimeoutError, carrying the cause', async () => {
+            const cause = Object.assign(new Error('fetch failed'), { name: 'TypeError', code: 'ECONNRESET' });
+            const fetchFn = vi.fn().mockRejectedValue(cause);
+            const client = makeClient(fetchFn);
+
+            const err = await client.getFood(171688).catch((error: unknown) => error);
+
+            expect(isUsdaTimeoutError(err)).toBe(true);
+            expect((err as UsdaTimeoutError).cause).toBe(cause);
+        });
+
+        it('maps a fetch AbortError (client timeout on headers) to UsdaTimeoutError', async () => {
+            const abort = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+            const fetchFn = vi.fn().mockRejectedValue(abort);
+            const client = makeClient(fetchFn);
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
+        });
+
+        it('maps a stalled response body (abort DURING .json()) to UsdaTimeoutError — the deadline covers the body read', async () => {
+            const abort = Object.assign(new Error('aborted'), { name: 'AbortError' });
+            const response = {
+                ok: true,
+                status: 200,
+                json: async () => {
+                    throw abort;
+                },
+            } as unknown as Response;
+            const fetchFn = vi.fn().mockResolvedValue(response);
+            const client = makeClient(fetchFn);
+
+            await expect(client.getFood(171688)).rejects.toSatisfy(isUsdaTimeoutError);
         });
     });
 });

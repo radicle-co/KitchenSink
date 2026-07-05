@@ -76,8 +76,10 @@ function containerCpus(): number {
 /**
  * How many foods the drainer processes concurrently. The fan-out is ~80% USDA network I/O, so a single
  * food leaves the CPU mostly idle — oversubscribe the task's vCPUs by `FOOD_WORKER_CONCURRENCY_PER_CPU`
- * (default 4). vCPUs come from {@link containerCpus} (sub-1-vCPU tasks round up to 1 logical slot), and
- * the result is clamped to [2, 16] so even a tiny task overlaps I/O while a big one doesn't burst USDA.
+ * (default 2). vCPUs come from {@link containerCpus} (sub-1-vCPU tasks round up to 1 logical slot), and
+ * the result is clamped to [2, 8]. The upper bound is deliberately conservative: each concurrent food
+ * issues ~2 USDA requests, so N-in-flight is ~2N simultaneous requests from one Fargate IP, and a higher
+ * width drove USDA's response latency past the client timeout (self-inflicted timeouts → deferred foods).
  * `FOOD_WORKER_CONCURRENCY` overrides the whole computation. The rolling-window limiter still caps the
  * actual USDA call rate, so this only sets the burst width.
  */
@@ -88,11 +90,11 @@ function workerConcurrency(): number {
         return explicit;
     }
 
-    const perCpuRaw = Number(process.env['FOOD_WORKER_CONCURRENCY_PER_CPU'] ?? 4);
-    const perCpu = Number.isFinite(perCpuRaw) && perCpuRaw > 0 ? perCpuRaw : 4;
+    const perCpuRaw = Number(process.env['FOOD_WORKER_CONCURRENCY_PER_CPU'] ?? 2);
+    const perCpu = Number.isFinite(perCpuRaw) && perCpuRaw > 0 ? perCpuRaw : 2;
     const cpus = Math.max(1, Math.round(containerCpus()));
 
-    return Math.max(2, Math.min(16, Math.round(cpus * perCpu)));
+    return Math.max(2, Math.min(8, Math.round(cpus * perCpu)));
 }
 
 async function bootstrap(): Promise<void> {

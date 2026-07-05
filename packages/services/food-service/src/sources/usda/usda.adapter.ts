@@ -519,8 +519,10 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
         }
 
         if (isUsdaSchemaError(error)) {
-            // 2xx whose body drifted from the modelled shape — treat as an upstream (bad-gateway) failure.
-            return new SourceApiError(SOURCE, 502, 'USDA response failed schema validation');
+            // A 2xx whose body drifted from the modelled shape. Use 422 (not 502) so the consumer can tell
+            // persistent schema corruption (a genuine per-food failure) apart from a transient gateway 502
+            // under load (backpressure) — the two must NOT share a status code.
+            return new SourceApiError(SOURCE, 422, 'USDA response failed schema validation');
         }
 
         return error instanceof Error ? error : new Error('Unknown USDA adapter error');

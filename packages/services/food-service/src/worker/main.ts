@@ -8,6 +8,7 @@
  *
  * @sideEffect Opens Postgres connections, acquires the advisory lock, and begins draining.
  */
+import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -40,11 +41,45 @@ const { Pool } = pg;
  * @sideEffect Connects to Postgres, registers signal handlers, and runs the drain loop.
  */
 /**
+ * The container's actual CPU allowance (vCPUs). `availableParallelism()`/`os.cpus()` report the HOST's
+ * cores, which on Fargate/K8s is NOT the task's CPU limit (a CFS quota) — a 0.25-vCPU task on an 8-core
+ * host would read 8. So prefer the cgroup quota (cgroup v2 `cpu.max`, then v1 `cpu.cfs_quota_us`), and
+ * fall back to `availableParallelism()` off-container (local dev / macOS, where the files are absent).
+ *
+ * @sideEffect Reads cgroup files under /sys/fs/cgroup.
+ */
+function containerCpus(): number {
+    try {
+        const [quota, period] = readFileSync('/sys/fs/cgroup/cpu.max', 'utf8').trim().split(/\s+/); // cgroup v2
+
+        if (quota !== 'max' && Number(quota) > 0 && Number(period) > 0) {
+            return Number(quota) / Number(period);
+        }
+    } catch {
+        /* not cgroup v2 */
+    }
+
+    try {
+        const quota = Number(readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'utf8').trim()); // cgroup v1
+        const period = Number(readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_period_us', 'utf8').trim());
+
+        if (quota > 0 && period > 0) {
+            return quota / period;
+        }
+    } catch {
+        /* not cgroup v1 */
+    }
+
+    return availableParallelism();
+}
+
+/**
  * How many foods the drainer processes concurrently. The fan-out is ~80% USDA network I/O, so a single
- * food leaves a core mostly idle — we oversubscribe the task's vCPUs (`availableParallelism` is
- * container-aware, unlike a hard-coded number) by `FOOD_WORKER_CONCURRENCY_PER_CPU` (default 4), clamped
- * to [1, 16] so a large box doesn't burst USDA. `FOOD_WORKER_CONCURRENCY` overrides the whole computation.
- * The rolling-window limiter still caps the actual USDA call rate, so this only sets the burst width.
+ * food leaves the CPU mostly idle — oversubscribe the task's vCPUs by `FOOD_WORKER_CONCURRENCY_PER_CPU`
+ * (default 4). vCPUs come from {@link containerCpus} (sub-1-vCPU tasks round up to 1 logical slot), and
+ * the result is clamped to [2, 16] so even a tiny task overlaps I/O while a big one doesn't burst USDA.
+ * `FOOD_WORKER_CONCURRENCY` overrides the whole computation. The rolling-window limiter still caps the
+ * actual USDA call rate, so this only sets the burst width.
  */
 function workerConcurrency(): number {
     const explicit = Number(process.env['FOOD_WORKER_CONCURRENCY']);
@@ -53,10 +88,11 @@ function workerConcurrency(): number {
         return explicit;
     }
 
-    const perCpu = Number(process.env['FOOD_WORKER_CONCURRENCY_PER_CPU'] ?? 4);
-    const scaled = availableParallelism() * (Number.isFinite(perCpu) && perCpu > 0 ? perCpu : 4);
+    const perCpuRaw = Number(process.env['FOOD_WORKER_CONCURRENCY_PER_CPU'] ?? 4);
+    const perCpu = Number.isFinite(perCpuRaw) && perCpuRaw > 0 ? perCpuRaw : 4;
+    const cpus = Math.max(1, Math.round(containerCpus()));
 
-    return Math.max(1, Math.min(16, Math.round(scaled)));
+    return Math.max(2, Math.min(16, Math.round(cpus * perCpu)));
 }
 
 async function bootstrap(): Promise<void> {
@@ -94,7 +130,11 @@ async function bootstrap(): Promise<void> {
         concurrency,
     });
 
-    logger.info('worker-concurrency', { concurrency, vcpus: availableParallelism() });
+    logger.info('worker-concurrency', {
+        concurrency,
+        containerCpus: Number(containerCpus().toFixed(2)),
+        hostCpus: availableParallelism(),
+    });
 
     // T-181: a periodic operational-metrics snapshot (queue depth / backlog / tombstone / oldest-pending
     // age) emitted as EMF — reuses the admin operational-read DAO and the queue freshness signal. The

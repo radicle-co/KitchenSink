@@ -2,7 +2,7 @@
 
 _Date: 2026-05-12_
 _Updated: 2026-05-13 — GR-002 documentation/contract paths and GR-007 task wording corrected for handoff._
-_Reconciled: 2026-07-06 — **SUPERSEDED where noted** per the 2026-07-06 reconciliation. The canonical public API prefix is bare `/v1/*` (matching shipped 002/003), **not** the `/api`-prefixed `v1` scheme this document originally proposed — that recommendation is REVERSED. The shared recipe types package is `@kitchensink/recipe-core` (folder `packages/shared/recipe-core`) under the `@commise` scope, not the old `@kitchensink/*` name. Historical recommendations are retained below and annotated inline._
+_Reconciled: 2026-07-06 — **SUPERSEDED where noted** per the 2026-07-06 reconciliation. The canonical public API prefix is bare `/v1/*` (matching shipped 002/003), **not** the `/api`-prefixed `v1` scheme this document originally proposed — that recommendation is REVERSED. The shared recipe types package is `@kitchensink/recipe-core` (folder `packages/shared/recipe-core`) — the rename was `shared-recipe-core` → `recipe-core`, a **name** change under the same `@kitchensink` scope, **not** a scope change. Historical recommendations are retained below and annotated inline._
 
 ## 1. API URL prefix collision
 

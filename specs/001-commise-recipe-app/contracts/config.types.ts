@@ -60,7 +60,8 @@ export const ssmConfigSchema = z.object({
      * SSM parameter path prefix. Parameters are namespaced:
      * `/{prefix}/{environment}/{key}`
      *
-     * Example: `/commise/production/DATABASE_URL`
+     * Example: `/commise/production/SENTRY_DSN`. Note the database is passwordless (RDS-IAM),
+     * so there is no `DATABASE_URL`/DB-password parameter in SSM.
      */
     prefix: z.string().default('/commise'),
 
@@ -131,15 +132,58 @@ export type BaseConfig = z.infer<typeof baseConfigSchema>;
 // Database Config
 // ---------------------------------------------------------------------------
 
-/**
- * Database configuration. Secret fields marked below.
- * In production: CDK injects `DATABASE_URL` from SSM → env var.
- * In local dev: `.env` file or SSM fetch.
- */
-export const databaseConfigSchema = z.object({
-    /** PostgreSQL connection string. SECRET. */
-    DATABASE_URL: z.string().url(),
+/** The recipe service's logical database on the shared RDS cluster. */
+export const RECIPE_DB_NAME = 'kitchensink_recipes';
 
+/** The least-privilege role the recipe workloads authenticate as (passwordless, RDS-IAM). */
+export const RECIPE_DB_USERNAME = 'recipe_app';
+
+/** Default AWS region used when minting RDS IAM auth tokens. */
+export const DEFAULT_AWS_REGION = 'us-east-1';
+
+/**
+ * Database CONNECTION config — passwordless **RDS-IAM**, mirroring the shipped food service
+ * (`packages/services/food-service/src/database/pool-config.ts`). There is deliberately **no**
+ * database password secret and **no** `secret: true` `DATABASE_URL` fetched from SSM.
+ *
+ * Either/or, exactly like the food service's `EnvironmentSchema`:
+ * - `DATABASE_URL` — **LOCAL DEV ONLY** (a full libpq URL against docker Postgres). It is **not** a
+ *   production secret; deployed stages never set it.
+ * - the discrete `DB_HOST` / `DB_PORT` / `DB_NAME` (=`kitchensink_recipes`) / `DB_USERNAME`
+ *   (=`recipe_app`) parts plus `AWS_REGION`. Deployed stages authenticate `recipe_app`
+ *   passwordlessly: the `pg` pool's `password` provider mints a short-lived (~15-min) RDS IAM auth
+ *   token per new connection via `@aws-sdk/rds-signer` `new Signer({ hostname, port, username, region
+ *   }).getAuthToken()`, so the token is refreshed transparently as the pool opens/recycles
+ *   connections — no rotation, no stored secret. TLS is required by RDS IAM auth.
+ */
+export const databaseConnectionSchema = z.union([
+    z.object({
+        /** LOCAL DEV ONLY libpq URL (docker Postgres). NOT a production secret; unset in deployed stages. */
+        DATABASE_URL: z.string().url(),
+    }),
+    z.object({
+        /** RDS endpoint host. */
+        DB_HOST: z.string().min(1),
+        /** RDS port. Defaults to 5432. */
+        DB_PORT: z.coerce.number().int().positive().default(5432),
+        /** Recipe logical database name. Defaults to `kitchensink_recipes`. */
+        DB_NAME: z.string().min(1).default(RECIPE_DB_NAME),
+        /** Least-privilege role. Defaults to `recipe_app`. */
+        DB_USERNAME: z.string().min(1).default(RECIPE_DB_USERNAME),
+        /** Region for minting the RDS IAM auth token (`@aws-sdk/rds-signer`). */
+        AWS_REGION: z.string().min(1).default(DEFAULT_AWS_REGION),
+    }),
+]);
+
+/** Typed database connection configuration (URL form or discrete IAM form). */
+export type DatabaseConnectionConfig = z.infer<typeof databaseConnectionSchema>;
+
+/**
+ * Non-secret connection-pool tuning knobs. Kept as a plain object schema (separate from the
+ * either/or {@link databaseConnectionSchema}) so it can be `.merge()`d into the composite
+ * {@link apiConfigSchema}; the connection union is applied with `.and()`.
+ */
+export const databasePoolConfigSchema = z.object({
     /** Connection pool size. Defaults to 50. */
     DATABASE_POOL_SIZE: z.coerce.number().int().positive().default(50),
 
@@ -147,12 +191,24 @@ export const databaseConfigSchema = z.object({
     DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().min(0).default(10_000),
 });
 
-/** Typed database configuration. */
-export type DatabaseConfig = z.infer<typeof databaseConfigSchema>;
+/** Typed pool configuration. */
+export type DatabasePoolConfig = z.infer<typeof databasePoolConfigSchema>;
 
-/** Secret/non-secret metadata for database config fields. */
-export const databaseConfigMeta: Record<keyof DatabaseConfig, ConfigFieldMeta> = {
-    DATABASE_URL: { secret: true, description: 'PostgreSQL connection string' },
+/** Full typed database configuration: connection (either form) plus pool knobs. */
+export type DatabaseConfig = DatabaseConnectionConfig & DatabasePoolConfig;
+
+/**
+ * Secret/non-secret metadata for database config fields. Every field is **non-secret**: there is no
+ * database password anywhere under RDS-IAM. `DATABASE_URL` is a local-dev-only convenience, not a
+ * production secret, so it is not marked `secret`.
+ */
+export const databaseConfigMeta: Record<string, ConfigFieldMeta> = {
+    DATABASE_URL: { secret: false, description: 'LOCAL DEV ONLY libpq URL (docker Postgres); unset in deployed stages' },
+    DB_HOST: { secret: false, description: 'RDS endpoint host' },
+    DB_PORT: { secret: false, description: 'RDS port (default 5432)' },
+    DB_NAME: { secret: false, description: 'Recipe logical database (kitchensink_recipes)' },
+    DB_USERNAME: { secret: false, description: 'Least-privilege recipe_app role (RDS-IAM, passwordless)' },
+    AWS_REGION: { secret: false, description: 'Region for minting RDS IAM auth tokens' },
     DATABASE_POOL_SIZE: { secret: false, description: 'Connection pool size' },
     DATABASE_IDLE_TIMEOUT_MS: { secret: false, description: 'Pool idle timeout (ms)' },
 };
@@ -257,10 +313,13 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
  * ```
  */
 export const apiConfigSchema = baseConfigSchema
-    .merge(databaseConfigSchema)
+    .merge(databasePoolConfigSchema)
     .merge(clerkConfigSchema)
     .merge(storageConfigSchema)
-    .merge(rateLimitConfigSchema);
+    .merge(rateLimitConfigSchema)
+    // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
+    // than merged — a union is not a ZodObject and cannot be `.merge()`d.
+    .and(databaseConnectionSchema);
 
 /** Typed full API configuration. */
 export type ApiConfig = z.infer<typeof apiConfigSchema>;
@@ -275,7 +334,8 @@ export type ApiConfig = z.infer<typeof apiConfigSchema>;
  * S3-only: no database, no Clerk, no rate limits. The processor is **not** VPC-attached and never
  * touches RDS (preserves ADR-0004 minimize-NAT/VPC). It resizes, writes to S3, and emits an SQS
  * `photo-processed` message; the in-VPC Fargate recipe API consumes that message and performs the
- * `recipe_photos` completion `UPDATE`. Hence the deliberate absence of `databaseConfigSchema` here.
+ * `recipe_photos` completion `UPDATE`. Hence the deliberate absence of the database connection/pool
+ * schemas here.
  */
 export const photoProcessorConfigSchema = baseConfigSchema.merge(storageConfigSchema);
 

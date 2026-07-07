@@ -200,9 +200,12 @@ paths:
             tags: [Recipes]
             summary: List recipe instruction steps
             description: |
-                Returns the ordered instruction steps for a recipe. This is the canonical
-                instruction list surface (008 depends on it); steps are returned in
-                ascending `position` order.
+                x-deferred: feature-008. This endpoint has no 001 task and is owned by
+                feature-008 (guided cooking); it is documented here for forward-compat
+                but is NOT part of the 001 deliverable. Returns the ordered instruction
+                steps for a recipe (the canonical instruction-list surface 008 depends
+                on); steps are returned in ascending `stepNumber` order.
+            x-deferred: feature-008
             operationId: listRecipeInstructions
             parameters:
                 - $ref: '#/components/parameters/RecipeId'
@@ -642,7 +645,7 @@ paths:
             description: |
                 Creates a new collection owned by the caller whose `sourceCollectionId`
                 points back to the original. Each membership row in the new collection
-                records `addedVia=clone`. The clone is independent — subsequent
+                records `addedVia=clone_seed`. The clone is independent — subsequent
                 additions to the source collection are not propagated automatically;
                 the owner must call `POST /v1/collections/{id}/pull-from-source`.
             operationId: cloneCollection
@@ -1037,9 +1040,9 @@ components:
 
         RecipeStep:
             type: object
-            required: [position, instruction]
+            required: [stepNumber, instruction]
             properties:
-                position:
+                stepNumber:
                     type: integer
                     minimum: 1
                 instruction:
@@ -1049,8 +1052,29 @@ components:
                     type: integer
                     minimum: 0
 
+        CreateRecipeStepInput:
+            type: object
+            required: [instruction]
+            description: |
+                Input shape for a single instruction step in a create/update request.
+                The server assigns `stepNumber` from array order; the client sends only
+                the instruction text and an optional inline timer.
+            properties:
+                instruction:
+                    type: string
+                    minLength: 1
+                timerSeconds:
+                    type: integer
+                    minimum: 0
+
         RecipeIngredient:
             type: object
+            description: |
+                Wire shape for a recipe ingredient line. Field names are the short
+                wire aliases of the canonical domain type (`RecipeIngredient` in
+                `recipe.types.ts`): wire `name` ↔ domain `ingredientName`, and wire
+                `notes` ↔ domain `displayText`. `ingredientId`/`quantity`/`unit` are
+                shared. Server serialization is responsible for this mapping.
             required: [ingredientId, name, quantity]
             properties:
                 ingredientId:
@@ -1058,13 +1082,18 @@ components:
                     format: uuid
                 name:
                     type: string
+                    description: Canonical ingredient label (domain `ingredientName`).
                 quantity:
                     type: number
-                    minimum: 0
+                    exclusiveMinimum: 0
+                    description: |
+                        Must be strictly greater than 0 — the `recipe_ingredients` DB
+                        CHECK is `quantity > 0`, so a zero quantity is rejected.
                 unit:
                     type: string
                 notes:
                     type: string
+                    description: Free-form display override (domain `displayText`).
 
         RecipePhoto:
             type: object
@@ -1160,14 +1189,20 @@ components:
                     minimum: 1
                 snapshot:
                     $ref: '#/components/schemas/RecipeSnapshot'
-                changedBy:
+                createdBy:
                     type: string
-                    description: User ID that created the version
+                    description: User ID that created the version (domain `created_by`).
                 createdAt:
                     type: string
                     format: date-time
-                archivedToS3:
-                    type: boolean
+                s3Key:
+                    type: string
+                    nullable: true
+                    description: |
+                        S3 object key of the archived snapshot. Chosen over a boolean
+                        `archivedToS3` flag to match the domain `RecipeVersion.s3Key?`:
+                        present (non-null) once the async S3 archive has completed,
+                        absent while the archive is still pending (FR-007b-i).
 
         Recipe:
             type: object
@@ -1290,7 +1325,7 @@ components:
                     type: array
                     minItems: 1
                     items:
-                        $ref: '#/components/schemas/RecipeStep'
+                        $ref: '#/components/schemas/CreateRecipeStepInput'
                 servings:
                     type: integer
                     minimum: 1
@@ -1339,7 +1374,7 @@ components:
                     type: array
                     minItems: 1
                     items:
-                        $ref: '#/components/schemas/RecipeStep'
+                        $ref: '#/components/schemas/CreateRecipeStepInput'
                 servings:
                     type: integer
                     minimum: 1
@@ -1510,7 +1545,7 @@ components:
 
         Collection:
             type: object
-            required: [id, ownerId, name, createdAt, updatedAt]
+            required: [id, ownerId, name, visibility, createdAt, updatedAt]
             properties:
                 id:
                     type: string
@@ -1524,6 +1559,12 @@ components:
                 description:
                     type: string
                     maxLength: 1000
+                visibility:
+                    type: string
+                    enum: [public, private]
+                    description: |
+                        Collection visibility (FR-010). `private` collections are visible
+                        only to the owner; `public` collections may be shared/discovered.
                 recipeCount:
                     type: integer
                     minimum: 0
@@ -1563,6 +1604,11 @@ components:
                 description:
                     type: string
                     maxLength: 1000
+                visibility:
+                    type: string
+                    enum: [public, private]
+                    default: private
+                    description: Collection visibility (FR-010). Defaults to `private`.
 
         UpdateCollectionRequest:
             type: object
@@ -1574,6 +1620,10 @@ components:
                 description:
                     type: string
                     maxLength: 1000
+                visibility:
+                    type: string
+                    enum: [public, private]
+                    description: Collection visibility (FR-010).
             minProperties: 1
 
         AddRecipeToCollectionRequest:
@@ -1596,10 +1646,10 @@ components:
                     format: uuid
                 addedVia:
                     type: string
-                    enum: [manual, clone, pull]
+                    enum: [manual, clone_seed, pull]
                     description: |
                         Provenance of the membership: `manual` for direct adds,
-                        `clone` for memberships copied during initial collection clone,
+                        `clone_seed` for memberships copied during initial collection clone,
                         `pull` for memberships added later via pull-from-source.
                 createdAt:
                     type: string

@@ -155,6 +155,8 @@ CREATE TABLE recipe_steps (
     recipe_id   UUID    NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
     step_number INTEGER NOT NULL CHECK (step_number > 0),
     instruction TEXT    NOT NULL,
+    -- Optional per-step timer in seconds (contract `timerSeconds`); NULL = no timer.
+    timer_seconds INTEGER CHECK (timer_seconds IS NULL OR timer_seconds > 0),
     UNIQUE (recipe_id, step_number)
 );
 
@@ -330,11 +332,19 @@ CREATE TABLE collections (
     name                 TEXT        NOT NULL,
     description          TEXT,
 
+    -- Collection visibility (FR-010). Collections are PRIVATE by default; a
+    -- collection must be explicitly made 'public' before it can be discovered
+    -- or cloned by another user (FR-011 clone-a-public-collection depends on this).
+    visibility           TEXT        NOT NULL DEFAULT 'private'
+                         CHECK (visibility IN ('public', 'private')),
+
     -- Clone provenance (FR-011). NULL = original collection authored by owner.
     -- NOT NULL = this collection was cloned from another (snapshot at clone time).
     -- Pull-from-source updates are EXPLICIT and OPT-IN; setting this column
     -- never causes implicit re-sync of recipe membership.
-    source_collection_id UUID        REFERENCES collections(id),
+    -- ON DELETE SET NULL (T119): deleting a source collection orphans the clone's
+    -- provenance pointer rather than cascading the delete to the clone.
+    source_collection_id UUID        REFERENCES collections(id) ON DELETE SET NULL,
 
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()

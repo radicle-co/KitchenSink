@@ -38,11 +38,11 @@ Verify compliance with each KitchenSink Constitution principle (v1.1.0) before p
 | --- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | I   | **Correctness & Type Safety** — strict TS, no `any`, proper error types, ISO dates                                                 | ☑️ Pass | Strict TS via shared `typescript` base config (`strict: true`). Drizzle schema provides end-to-end type safety. ISO 8601 timestamps in all date columns (`created_at`, `updated_at`, `deleted_at`). New error codes (`RECIPE_DELETED`, `ARCHIVE_PENDING`) extend `Error`.                                                                                                                 |
 | II  | **Readability & JSDoc** — JSDoc on all exports, braces, blank-line rules, named exports                                            | ☑️ Pass | All new exported functions/types (pending-archive worker, erasure service, collection-pull service) carry JSDoc. Named exports only. ESLint rules enforced via shared config.                                                                                                                                                                                                             |
-| III | **Code Organization & Imports** — aliased imports, `.js` extensions, `utils/`/`lib/`/`dal/` layout, no `helpers/`                  | ☑️ Pass | Monorepo workspace imports via workspace aliases (`@commise/<category>-<name>` for new 001 packages; existing shipped services keep `@kitchensink/*`). NestJS modules follow `dal/`/`lib/`/`utils/` convention. New `versions/archive/` and `users/erasure/` modules follow same structure. No `helpers/`. `.js` extensions in ESM imports.                                                                                                                                             |
+| III | **Code Organization & Imports** — aliased imports, `.js` extensions, `utils/`/`lib/`/`dal/` layout, no `helpers/`                  | ☑️ Pass | Monorepo workspace imports via workspace aliases following the platform/product split: 001's recipe **backend** packages are KitchenSink-platform `@kitchensink/*` (role-suffix style — `@kitchensink/recipe-service`, `@kitchensink/recipe-workers`, `@kitchensink/recipe-service-client`, `@kitchensink/recipe-core`), matching the existing shipped services; only the Commise-**product** widget/feature packages are `@commise/features-*` (`@commise/features-recipes`, `@commise/features-core`) under `packages/apps/commise/`. NestJS modules follow `dal/`/`lib/`/`utils/` convention. New `versions/archive/` and `users/erasure/` modules follow same structure. No `helpers/`. `.js` extensions in ESM imports.                                                                                                                                             |
 | IV  | **Testing Discipline** — pyramid ratios, `getByRole`/`getByLabel` only, no `waitForTimeout`, test-plan comments                    | ☑️ Pass | Vitest for unit + integration; Playwright for E2E. New flows (per-photo retry, pending-archive replay, erase-my-data, pull-from-source) get unit + integration coverage. `getByRole`/`getByLabel` selectors only. Pyramid: ≥70% unit / ≤20% integration / ≤10% E2E.                                                                                                                       |
 | V   | **Monorepo & Workspace Governance** — workspace registered, shared tooling extended, Turbo tasks declared, per-PR schema isolation | ☑️ Pass | All workspaces registered in root `package.json`. Shared `tsconfig`, ESLint, Prettier configs extended from `packages/tools/`. Turbo tasks declared in `turbo.json`. Per-PR schema isolation via Drizzle migrations + Docker Compose local PostgreSQL.                                                                                                                                    |
 | VI  | **Formatting & Tooling** — Prettier/ESLint shared configs, git hooks active, CI gates passing, `generate:types` runs first         | ☑️ Pass | Prettier + ESLint shared. Git hooks (lint-staged) active. CI gates enforce lint + typecheck + test. Drizzle `generate:types` in Turbo dependency graph before build. New SQS/LocalStack service container in CI for archive-worker integration tests.                                                                                                                                     |
-| VII | **Accessibility & UX Consistency** — accessible names, design tokens, design-token–driven components, platform parity              | ☑️ Pass | FR-044 platform parity (web + mobile). FR-044a parity enforcement rule: every user-facing task must cover both platforms or carry a documented exception. New UX surfaces — per-photo error/retry control, "Erase my data" confirmation, "Pull updates from source" action, Home screen — carry accessible names and pair color status with icon/text. Design tokens from `packages/ui/`. |
+| VII | **Accessibility & UX Consistency** — accessible names, design tokens, design-token–driven components, platform parity              | ☑️ Pass | FR-044 platform parity (web + mobile). FR-044a parity enforcement rule: every user-facing task must cover both platforms or carry a documented exception. New UX surfaces — per-photo error/retry control, "Erase my data" confirmation, "Pull updates from source" action, Home screen — carry accessible names and pair color status with icon/text. Design tokens from `packages/apps/commise/ui/` (`@commise/ui`). |
 
 Any justified deviation MUST be documented in the **Complexity Tracking** table below.
 
@@ -69,7 +69,7 @@ packages/
 │       ├── web/                        # Next.js 15 App Router (Clerk web SDK, @clerk/nextjs)
 │       │   ├── src/
 │   │   │   ├── app/                # Next.js app directory (routes)
-│   │   │   │   └── page.tsx        # Post-login Home widget surface — the root `/` route (FR-046, US-0)
+│   │   │   │   └── page.tsx        # Post-login Home widget surface — the root `/` route (FR-046, US-000)
 │   │   │   ├── components/         # Domain-grouped UI components
 │   │   │   │   ├── home/           # Home widget-surface host (composition root; live widgets come from @commise/features-*/widget/web)
 │   │   │   │   ├── recipe-form/    # Recipe create/edit + per-photo retry UI (FR-001a)
@@ -79,17 +79,26 @@ packages/
 │       │   └── tests/
 │       │       ├── unit/
 │       │       └── e2e/                # Playwright E2E tests
-│       └── mobile/                     # Expo 53 + React Native (Clerk native SDK, @clerk/expo)
-│           ├── src/
-│           │   ├── screens/            # Screen components
-│           │   │   └── HomeScreen.tsx  # Post-login Home widget surface (FR-046, US-0)
-│           │   ├── components/         # Domain-grouped UI components (home, recipe-form, account, collections)
-│           │   └── lib/                # Mobile utilities
-│           └── tests/
-│               ├── unit/
-│               └── e2e/                # Maestro E2E flow files (*.yaml)
+│       ├── mobile/                     # Expo 53 + React Native (Clerk native SDK, @clerk/expo)
+│       │   ├── src/
+│       │   │   ├── screens/            # Screen components
+│       │   │   │   └── HomeScreen.tsx  # Post-login Home widget surface (FR-046, US-000)
+│       │   │   ├── components/         # Domain-grouped UI components (home, recipe-form, account, collections)
+│       │   │   └── lib/                # Mobile utilities
+│       │   └── tests/
+│       │       ├── unit/
+│       │       └── e2e/                # Maestro E2E flow files (*.yaml)
+│       ├── features/                   # @commise/features-* — Commise product feature packages (widget/feature UI)
+│       │   ├── recipes/                # @commise/features-recipes — exports `.`, `./widget/web`, `./widget/mobile` (NO page exports)
+│       │   │   └── src/
+│       │   │       └── widget/         # Recent-recipes Home widget (widget.web.tsx + widget.native.tsx; .native suffix, never .mobile)
+│       │   └── core/                   # @commise/features-core — Home-widget contract + appShell ditox tokens (Discovery/Composition/Render seam)
+│       │       └── src/
+│       └── ui/                         # @commise/ui — design system (tokens only, no components)
+│           └── src/
+│               └── tokens/             # Design tokens (colors, spacing, typography)
 ├── services/
-│   ├── recipes/                        # @kitchensink/recipe-service — NestJS 11 REST API (Fargate); own logical DB `kitchensink_recipes` on the shared RDS instance (mirrors food; no new instance)
+│   ├── recipe-service/                 # @kitchensink/recipe-service — NestJS 11 REST API (Fargate); own logical DB `kitchensink_recipes` on the shared RDS instance (mirrors food; no new instance)
 │   │   ├── src/
 │   │   │   ├── recipes/                 # Recipe module (controller, service, dal)
 │   │   │   │   ├── recipes.controller.ts
@@ -115,7 +124,7 @@ packages/
 │   │   └── tests/
 │   │       ├── unit/
 │   │       └── integration/             # Vitest + Docker PostgreSQL + LocalStack S3/SQS
-│   └── recipes-workers/                # @kitchensink/recipe-workers — worker Lambdas (pattern of identity-webhooks)
+│   └── recipe-workers/                 # @kitchensink/recipe-workers — worker Lambdas (pattern of identity-webhooks)
 │       ├── src/
 │       │   ├── photo-processor/        # Lambda (Sharp image resize) — S3 only, NOT VPC-attached; emits SQS photo-processed (the Fargate API, not this Lambda, writes recipe_photos)
 │       │   │   └── handler.ts
@@ -126,27 +135,20 @@ packages/
 │       └── tests/
 │           └── unit/
 ├── clients/
-│   └── recipes/                        # @kitchensink/recipe-service-client — typed recipe API client (mirrors @kitchensink/food-service-client)
+│   └── recipe-service/                 # @kitchensink/recipe-service-client — typed recipe API client (mirrors @kitchensink/food-service-client)
 │       └── src/
-├── features/
-│   └── recipes/                        # @commise/features-recipes — frontend feature UI; exports `.`, `./widget/web`, `./widget/mobile` (NO page exports)
-│       └── src/
-│           └── widget/                 # Recent-recipes Home widget (widget.web.tsx + widget.native.tsx; .native suffix, never .mobile)
 ├── shared/
 │   └── recipe-core/                    # @kitchensink/recipe-core — pure TS types + zod only (no UI, no runtime deps)
 │       └── src/
 │           ├── types/                  # Recipe (with deletedAt), Ingredient (foodId + foodResolutionStatus + isUserEntered), Step, Collection (with sourceCollectionId), PendingArchive interfaces
 │           └── utils/                  # Validation helpers, slug generation
-├── ui/                                 # @kitchensink/ui — design tokens (existing; tokens only, no components)
-│   └── src/
-│       └── tokens/                     # Design tokens (colors, spacing, typography)
 └── tools/                              # Shared tooling configs (existing)
     ├── typescript/
     ├── eslint/
     └── prettier/
 ```
 
-**Structure Decision**: Monorepo with category-first workspaces (`packages/<category>/<name>` → `@commise/<category>-<name>`). The recipe backend (`@kitchensink/recipe-service`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@kitchensink/recipe-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance), while the **photo-processor is S3-only and NOT VPC-attached** — it resizes to S3 and emits an SQS `photo-processed` message that the in-VPC Fargate API consumes to perform the `recipe_photos` completion write (the Lambda never touches the DB, preserving ADR-0004). The typed recipe API client is `@kitchensink/recipe-service-client` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@kitchensink/recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
+**Structure Decision**: Monorepo split along a platform/product boundary (CODING_STANDARDS §5.1, Option B): KitchenSink **platform** packages (backend services, workers, clients, shared libs, tools, infra) are `@kitchensink/*` at `packages/{services,clients,shared,tools,infra}/<name>` and keep the existing role-suffix style (`-service`, `-workers`, `-service-client`); the Commise **product** (apps + feature/UI packages) is `@commise/*` under `packages/apps/commise/{web,mobile,features/*,ui}`. The recipe backend (`@kitchensink/recipe-service`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@kitchensink/recipe-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance), while the **photo-processor is S3-only and NOT VPC-attached** — it resizes to S3 and emits an SQS `photo-processed` message that the in-VPC Fargate API consumes to perform the `recipe_photos` completion write (the Lambda never touches the DB, preserving ADR-0004). The typed recipe API client is `@kitchensink/recipe-service-client` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@kitchensink/recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
 
 ## Reliability Architecture (FR-001a, FR-007b-i, C-007, FR-011)
 
@@ -419,7 +421,7 @@ new_jobs: # ADD these
 - **Playwright**: Browser binaries cached by `playwright-version + runner-os` key. Traces/reports uploaded on failure only.
 - **Maestro**: Installed via `maestro-cli` action; flows run against Expo dev build on emulator/simulator.
 
-## Post-Login Home Screen — Widget Surface (FR-046, US-0)
+## Post-Login Home Screen — Widget Surface (FR-046, US-000)
 
 **Design authority: [`research/home-widget-architecture.md`](./research/home-widget-architecture.md) — the `## DECISION (2026-07-06)` section.**
 
@@ -429,7 +431,7 @@ The Home screen is the first screen rendered after the Clerk post-login redirect
 
 - **Discovery** = explicit startup registration at a composition root (`.use(addFeature)`); each feature contributes its widget descriptor. NOT build-time codegen or `require.context` — pure, bundler-portable code.
 - **Composition** = `curateHomeWidgets(widgets, ctx)`, a pure function that gates each widget by **capability** (feature flag: is the backing service live) + **subscription tier**, then orders by **personalization**.
-- **Render** = `React.lazy(reg.load)` + `Suspense` + `ErrorBoundary`; unknown widget ids are skipped (safe server/client version skew + auto-appear).
+- **Render** = lazy loader (`reg.load`) + `Suspense` + `ErrorBoundary`; unknown widget ids are skipped (safe server/client version skew + auto-appear). The lazy primitive is platform-specific: **web (RSC) uses `next/dynamic`** (T104-web) while **mobile uses `React.lazy`** — the "lazy + Suspense" contract is identical, only the loader differs.
 
 ### Dependency injection (`appShell`)
 
@@ -441,11 +443,11 @@ The Home screen is the first screen rendered after the Clerk post-login redirect
 - Widgets ship from feature packages (e.g. `@commise/features-recipes`) exporting `./widget/web` + `./widget/mobile`; platform files use the **`.native.ts(x)`** suffix (never `.mobile.*`).
 - Widget registration carries a **loader**, not a component: `load: () => import('@commise/features-recipes/widget/web')` (and `/widget/mobile` on mobile) — forward-compatible with turning a widget into a Module Federation remote one line at a time.
 
-### Capability gating rescopes US-0
+### Capability gating rescopes US-000
 
 Home v1 ships with **only the recipe widget live** (recent-recipes) and **only the recipe widget registered**. The meal-plan, nutrition-snapshot, shopping-list, AI-suggestion, and resume-cooking widgets are **not registered in v1** — their `@commise/features-*` packages (backed by services **005–009**) don't exist yet, and registering literal `import('@commise/features-*/widget/...')` loaders for unbuilt packages would fail the build. The capability/subscription curate pipeline is already in place and is exercised by the recipe widget's own capability check. Each gated widget is **added with its loader when its feature package ships**, at which point capability gating makes it **auto-appear** with no client redeploy (e.g. the AI-suggestion widget lights up when service 005 deploys).
 
-- **US-0 acceptance**: v1 asserts the **recipe widget renders** and the **gated widgets are absent** (not present-with-empty-state). The per-section empty-state (e.g. the recipe widget's "Create your first recipe" CTA) applies **only to live widgets**.
+- **US-000 acceptance**: v1 asserts the **recipe widget renders** and the **gated widgets are absent** (not present-with-empty-state). The per-section empty-state (e.g. the recipe widget's "Create your first recipe" CTA) applies **only to live widgets**.
 
 ### Personalization (owned by identity service, 002)
 

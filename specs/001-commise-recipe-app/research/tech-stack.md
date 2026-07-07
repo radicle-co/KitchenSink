@@ -46,7 +46,7 @@ The tech stack for Commise is derived from RQ-1 through RQ-9 in [research.md](..
 ### Rationale
 
 - [research.md](../research.md) RQ-2: "Database decision: RDS PostgreSQL over Aurora DSQL" — RDS was chosen for: proven tsvector GIN FTS performance (12ms at 100k rows, 65ms at 1M rows per benchmarks), JSONB for version snapshots, simpler operational model for a small team.
-- Per [plan.md](../plan.md): `db.t4g.small` (~**$25/mo launch**) — cost-constrained design.
+- Per [plan.md](../plan.md): recipes run on the **shared** RDS `db.t4g.small` instance with their own `kitchensink_recipes` **logical database** — **no new/incremental RDS instance cost** (the instance already exists at the platform level; adding a logical DB is free). Cost-constrained design.
 - tsvector stored generated column maintained by PostgreSQL trigger (not application layer) — [research.md](../research.md) RQ-1 benchmarks show 118x speedup (283ms → 2.4ms) with GIN index.
 
 ### Search Architecture

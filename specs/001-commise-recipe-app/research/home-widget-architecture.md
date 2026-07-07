@@ -37,7 +37,7 @@ _This supersedes the option exploration below; the rest of the doc is the ration
 - **Frontend → ditox** (`ditox`) + `@ditox/react`. Token-based (`token<T>()`), typed, decorator-free, esbuild/Hermes-safe, singleton/scoped/transient + child scopes. Provider = `CustomDependencyContainer` (injects the pre-built startup container); hooks = `useDependency(token)`. **RSC/server uses the core `ditox` container directly** (hooks are client-only). Widget list via `bindMultiValue` → `resolve(HomeWidgetsT)`.
 - **Backend → keep NestJS decorator DI** (already has metadata via `nest build`/tsc). Frontend token DI ≠ backend decorator DI — that asymmetry is intentional and fine.
 
-**Feature packages:** `packages/features/<name>` published as `@commise/features-*`. Exports: `.` (definition + widget metadata), `./widget/web`, `./widget/mobile`, plus component building blocks. **No page exports** — the apps compose pages. Platform files use **`.native.ts(x)`** (CODING_STANDARDS §14; never `.mobile`).
+**Feature packages:** `packages/apps/commise/features/<name>` published as `@commise/features-*`. Exports: `.` (definition + widget metadata), `./widget/web`, `./widget/mobile`, plus component building blocks. **No page exports** — the apps compose pages. Platform files use **`.native.ts(x)`** (CODING_STANDARDS §14; never `.mobile`).
 
 **Loader seam (forward-compat):** widget registration carries a **loader** — `load: () => import('@commise/features-*/widget/{web|mobile}')` — not a component. A widget can later become a Module Federation remote (`load: () => loadRemote(...)`) one line at a time.
 

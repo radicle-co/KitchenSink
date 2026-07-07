@@ -6,6 +6,9 @@ import { z } from 'zod';
 const idSchema = z.string().min(1);
 const isoDateTimeStringSchema = z.string().datetime({ offset: true });
 const nonNegativeNumberSchema = z.number().finite().nonnegative();
+// Strictly-positive quantity validator: the `recipe_ingredients` DB CHECK is `quantity > 0`,
+// so 0 must be rejected (a zero-quantity ingredient line is meaningless).
+const positiveNumberSchema = z.number().finite().positive();
 const positiveIntSchema = z.number().int().positive();
 const nonNegativeIntSchema = z.number().int().nonnegative();
 
@@ -172,13 +175,15 @@ export const recipeSchema = z.object({
 });
 
 /**
- * A numbered instruction line within a recipe.
+ * A numbered instruction line within a recipe. `stepNumber` is server-assigned
+ * (1-based ordering); `timerSeconds` is an optional inline timer for the step.
  */
 export interface RecipeStep {
     id: string;
     recipeId: string;
     stepNumber: number;
     instruction: string;
+    timerSeconds?: number;
 }
 
 /**
@@ -189,6 +194,7 @@ export const recipeStepSchema = z.object({
     recipeId: idSchema,
     stepNumber: positiveIntSchema,
     instruction: z.string().min(1),
+    timerSeconds: nonNegativeIntSchema.optional(),
 });
 
 /**
@@ -278,6 +284,11 @@ export const ingredientSchema = z.object({
 
 /**
  * Ingredient line item linked to a recipe, including optional user-provided nutrition.
+ *
+ * These are the canonical DOMAIN field names. The REST wire schema
+ * (`RecipeIngredient` in `api.openapi.yaml`) exposes a subset under shorter
+ * names — the mapping is: domain `ingredientName` ↔ wire `name`, domain
+ * `displayText` ↔ wire `notes`. `quantity`/`unit`/`ingredientId` are shared.
  */
 export interface RecipeIngredient {
     id: string;
@@ -285,8 +296,10 @@ export interface RecipeIngredient {
     ingredientId: string;
     quantity: number;
     unit: string;
+    /** Free-form display override (wire field: `notes`). */
     displayText?: string;
     sortOrder: number;
+    /** Canonical ingredient label (wire field: `name`). */
     ingredientName: string;
     isUserEntered: boolean;
     userCalories?: number;
@@ -302,7 +315,7 @@ export const recipeIngredientSchema = z.object({
     id: idSchema,
     recipeId: idSchema,
     ingredientId: idSchema,
-    quantity: nonNegativeNumberSchema,
+    quantity: positiveNumberSchema,
     unit: z.string().min(1),
     displayText: z.string().min(1).optional(),
     sortOrder: nonNegativeIntSchema,
@@ -550,7 +563,7 @@ export interface CreateRecipeIngredientInput {
 export const createRecipeIngredientInputSchema = z.object({
     ingredientId: idSchema.optional(),
     ingredientName: z.string().min(1),
-    quantity: nonNegativeNumberSchema,
+    quantity: positiveNumberSchema,
     unit: z.string().min(1),
     displayText: z.string().min(1).optional(),
     userCalories: nonNegativeNumberSchema.optional(),
@@ -560,13 +573,31 @@ export const createRecipeIngredientInputSchema = z.object({
 });
 
 /**
+ * Input payload for a single instruction step when creating or updating a recipe
+ * draft. The server assigns `stepNumber` from array order; the client sends only
+ * the instruction text and an optional inline timer.
+ */
+export interface CreateRecipeStepInput {
+    instruction: string;
+    timerSeconds?: number;
+}
+
+/**
+ * Runtime validator for {@link CreateRecipeStepInput}.
+ */
+export const createRecipeStepInputSchema = z.object({
+    instruction: z.string().min(1),
+    timerSeconds: nonNegativeIntSchema.optional(),
+});
+
+/**
  * Input payload to create a new recipe.
  */
 export interface CreateRecipeInput {
     title: string;
     description?: string;
     ingredients: CreateRecipeIngredientInput[];
-    steps: string[];
+    steps: CreateRecipeStepInput[];
     prepTimeMinutes?: number;
     cookTimeMinutes?: number;
     servings?: number;
@@ -583,7 +614,7 @@ export const createRecipeInputSchema = z.object({
     title: z.string().min(1),
     description: z.string().optional(),
     ingredients: z.array(createRecipeIngredientInputSchema),
-    steps: z.array(z.string().min(1)),
+    steps: z.array(createRecipeStepInputSchema),
     prepTimeMinutes: nonNegativeIntSchema.optional(),
     cookTimeMinutes: nonNegativeIntSchema.optional(),
     servings: positiveIntSchema.optional(),
@@ -736,82 +767,3 @@ export const recipeErrorSchema = z.object({
     message: z.string().min(1),
     details: z.record(z.string(), z.unknown()).optional(),
 });
-
-/**
- * Stable identifier for a Home-screen widget (US-0 / FR-046). Each feature owns
- * its own widget id; the id is the anti-drift keystone shared by the three
- * layers of the Home surface — discovery (explicit startup registration),
- * composition ({@link CurateHomeWidgets}), and render (`React.lazy(load)` +
- * `Suspense` + a per-widget `ErrorBoundary`). In v1 the recipe widget is the
- * **only** live widget; gated widgets (backed by 005–009) are **ABSENT** — not
- * present-with-empty-state — and are added, each with its own loader, when its
- * feature package ships, at which point they auto-appear. Consumers MUST skip
- * unknown ids so an older client tolerates a newer server (graceful version
- * skew). See `research/home-widget-architecture.md` (DECISION section).
- */
-export type HomeWidgetId = string;
-
-/**
- * Lazy loader for a widget's platform component module — the "loader seam". It
- * resolves the dynamic import of a feature package's `./widget/web` or
- * `./widget/mobile` entry (never a component directly), so the render layer can
- * wrap it in `React.lazy` + `Suspense` + an `ErrorBoundary`, and so a widget can
- * later become a Module Federation remote one line at a time. Descriptors are
- * only registered for feature packages that exist; v1 registers just the recipe
- * widget's loader.
- */
-export type HomeWidgetLoader = () => Promise<{ default: unknown }>;
-
-/**
- * Descriptor a feature contributes for its Home widget via explicit startup
- * registration (the discovery layer). Colocated with the feature, so adding a
- * feature package makes its widget eligible without editing a central registry.
- */
-export interface HomeWidgetDescriptor {
-    id: HomeWidgetId;
-    /** The loader seam; see {@link HomeWidgetLoader}. */
-    load: HomeWidgetLoader;
-    /**
-     * Default ordering weight used when the viewer has no personalization
-     * override for this widget; higher weights sort earlier.
-     */
-    defaultWeight: number;
-    /**
-     * Capability flag gating the widget on whether its backing service is live.
-     * When the capability is absent from the viewer's live capabilities, the
-     * widget is omitted **entirely** (ABSENT, not rendered as an empty tile).
-     * This is what lets Home ship in v1 with only the recipe widget live while
-     * gated widgets light up automatically as their services deploy.
-     */
-    capability?: string;
-    /** Minimum subscription tier required for the widget to be eligible. */
-    minTier?: string;
-}
-
-/**
- * Per-viewer curation context for {@link CurateHomeWidgets}: which capabilities
- * (backing services) are live, the viewer's subscription tier, and their
- * persisted personalization layout. The layout (`order` + `hidden`) is loaded
- * from and saved via `PATCH /v1/profiles/me`, which is **owned by the
- * identity service (002)** and merely **consumed** here — 001 does not own that
- * endpoint or a `home_layouts` store — the layout lives in the identity profile preferences (`profiles.preferences.homeLayout`).
- */
-export interface HomeWidgetCurationContext {
-    liveCapabilities: string[];
-    tier?: string;
-    order?: HomeWidgetId[];
-    hidden?: HomeWidgetId[];
-}
-
-/**
- * Pure composition step (L2): given the registered descriptors and a viewer
- * context, return the ordered, capability- and tier-gated list of widgets to
- * render. A descriptor is dropped when its `capability` is not in
- * `liveCapabilities`, its `minTier` exceeds the viewer's tier, or its id is in
- * `hidden`; the survivors are ordered by the viewer's `order` and then by
- * `defaultWeight`. No side effects.
- */
-export type CurateHomeWidgets = (
-    widgets: readonly HomeWidgetDescriptor[],
-    ctx: HomeWidgetCurationContext,
-) => HomeWidgetDescriptor[];

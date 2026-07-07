@@ -2,7 +2,7 @@
 
 **Feature**: `001-commise-recipe-app`
 **Standards Basis**: DO-178C §6.3.3 (Low-Level Requirements) · ISO 26262-6 §7 (Software Unit Design) · IEC 62304 §5.4 (Software Detailed Design)
-**Parent Architecture**: [`architecture-design.md`](./architecture-design.md) (33 ARCH modules, ARCH-001 … ARCH-033)
+**Parent Architecture**: [`architecture-design.md`](./architecture-design.md) (36 ARCH modules, ARCH-001 … ARCH-036)
 **Generated**: 2026-05-08 (PRF-MOD-001 remediation: added stateless confirmation to MOD-004, MOD-008, MOD-010, MOD-012, MOD-013, MOD-016)
 
 ---
@@ -56,8 +56,11 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 | MOD-031 | Archive Backlog Alarm            | ARCH-031    | Utility   | `[CROSS-CUTTING]` — infra-as-code       |
 | MOD-032 | CI & Test Governance Harness     | ARCH-032    | Utility   | `[CROSS-CUTTING]`                       |
 | MOD-033 | NestJS Module Wiring             | ARCH-033    | Utility   | `[CROSS-CUTTING]` — DI composition root |
+| MOD-034 | Home Widget Contract & Registry  | ARCH-034    | Library   | Low-level design delegated to `research/home-widget-architecture.md` (DECISION) |
+| MOD-035 | curateHomeWidgets Composition Fn | ARCH-035    | Library   | Low-level design delegated to `research/home-widget-architecture.md` (DECISION) |
+| MOD-036 | Home Widget Host Render          | ARCH-036    | Component | Low-level design delegated to `research/home-widget-architecture.md` (DECISION) |
 
-**Coverage**: 33 / 33 ARCH modules → at least one MOD each (100% forward coverage).
+**Coverage**: 36 / 36 ARCH modules → at least one MOD each (100% forward coverage).
 
 ---
 
@@ -585,14 +588,86 @@ function normalizeInstructions(steps):
 
 #### State Machine View
 
-Stateless. All state transitions are delegated to the persistence layer (ARCH-008 via MOD-024) and the module itself holds no mutable state. Concurrency safety is ensured by optimistic locking at the repository level (see MOD-016).
+Stateless. Pure function over the two supplied snapshots; holds no mutable state and performs no I/O.
 
 #### Internal Data Structures
 
 ```ts
-type ResolvedItem =
-    | { inputIndex: number; ingredientId: string; normalizedQty: { quantity: number; unit: string } }
-    | { inputIndex: number; freeform: string; normalizedQty: { quantity: number; unit: string } };
+type RecipeSnapshot = {
+    title: string;
+    ingredients: { kind: 'linked' | 'freeform'; foodId?: string; text?: string; quantity: number; unit: string }[];
+    instructions: string[];
+};
+type EditResult = { isSubstantive: boolean; changedFields: string[] };
+```
+
+#### Error Handling & Return Codes
+
+| Trigger                                            | Error Code | HTTP |
+| -------------------------------------------------- | ---------- | ---- |
+| none — pure function; total over well-formed input | —          | —    |
+
+---
+
+### Module: MOD-008 (Ingredient Resolver Service)
+
+**Parent Architecture Modules**: ARCH-008
+**Type**: Service
+**Target Source File(s)**: `packages/services/recipe-service/src/ingredients/ingredient-resolver.service.ts`
+
+**Food resolution is asynchronous (003).** This module owns the `ingredients` / `recipe_ingredients` link plus a `foodResolutionStatus` field and a separate `isUserEntered` boolean; it resolves linked references against the source-agnostic food service (003) via `@kitchensink/food-service-client` (`FoodServiceClient`) using an **opaque food `foodId` ULID** and never stores the source `fdcId`. A just-added food may still be `PENDING` / `UNRESOLVED`; `NOT_FOUND` / `FAILED` are terminal.
+
+#### Interface View
+
+| Direction | Name                   | Type  | Format                                                                                         | Constraints                                                                                                                                                                                                                                    |
+| --------- | ---------------------- | ----- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input     | `items`                | array | `[{ kind: "linked"\|"freeform", foodId?, text?, quantity, unit }]`                              | `linked` requires an opaque food `foodId` (ULID from `@kitchensink/food-service-client`, never the source `fdcId`); `freeform` requires `text`                                                                                                  |
+| Output    | `resolved`             | array | `[{ inputIndex, ingredientId?, foodId?, foodResolutionStatus?, isUserEntered, normalizedQty }]` | Stable order matching input; `foodResolutionStatus ∈ {PENDING, UNRESOLVED, RESOLVED, NOT_FOUND, FAILED}` (UPPER_SNAKE); freeform / user-supplied entry is the **separate** `isUserEntered` boolean, never a resolution-status value             |
+| Exception | `INGREDIENT_NOT_FOUND` | 404   | `{ code, inputIndex, attemptedFoodId }`                                                         | Linked `foodId` unknown to the food service                                                                                                                                                                                                    |
+| Exception | `UNIT_INCONVERTIBLE`   | 422   | `{ code, inputIndex, fromUnit, toUnit }`                                                        | Quantity unit cannot normalize to the canonical unit                                                                                                                                                                                           |
+
+#### Algorithmic / Logic View
+
+```text
+function resolve(items):
+  resolved ← []
+  linkedIds ← items.filter(i ⇒ i.kind == "linked").map(i ⇒ i.foodId)
+  foods     ← MOD-024.ingredients.loadByIds(linkedIds)   # link rows + current foodResolutionStatus
+  for (i, idx) in items:
+    if i.kind == "freeform":
+      resolved.push({ inputIndex: idx, isUserEntered: true,
+                      normalizedQty: normalize(i.quantity, i.unit) })
+      continue
+    link ← foods.get(i.foodId)
+    if !link:
+      throw INGREDIENT_NOT_FOUND({ code:"INGREDIENT_NOT_FOUND", inputIndex: idx, attemptedFoodId: i.foodId })
+    resolved.push({ inputIndex: idx, ingredientId: link.ingredientId, foodId: i.foodId,
+                    foodResolutionStatus: link.foodResolutionStatus,   # PENDING|UNRESOLVED|RESOLVED|NOT_FOUND|FAILED
+                    isUserEntered: false, normalizedQty: normalize(i.quantity, i.unit) })
+  return resolved
+
+# normalize(quantity, fromUnit) → { quantity, unit } in a canonical unit; UNIT_INCONVERTIBLE on unknown unit.
+function normalize(quantity, fromUnit):
+  if fromUnit in MASS_TO_G:   return { quantity: quantity * MASS_TO_G[fromUnit], unit: "g" }
+  if fromUnit in VOLUME_TO_ML: return { quantity: quantity * VOLUME_TO_ML[fromUnit], unit: "ml" }
+  throw UNIT_INCONVERTIBLE({ code:"UNIT_INCONVERTIBLE", fromUnit, toUnit: "g|ml" })
+```
+
+#### State Machine View
+
+Stateless service. The `foodResolutionStatus` lifecycle (`PENDING`/`UNRESOLVED` → `RESOLVED` | `NOT_FOUND` | `FAILED`) is advanced **asynchronously by the food service (003)** and read through the persistence layer (MOD-024); this module holds no mutable state and issues no status transition itself.
+
+#### Internal Data Structures
+
+```ts
+type ResolvedItem = {
+    inputIndex: number;
+    ingredientId?: string;
+    foodId?: string;
+    foodResolutionStatus?: 'PENDING' | 'UNRESOLVED' | 'RESOLVED' | 'NOT_FOUND' | 'FAILED';
+    isUserEntered: boolean;
+    normalizedQty: { quantity: number; unit: string };
+};
 type UnitConversionMap = Record<string, number>;
 const MASS_TO_G: UnitConversionMap = { g: 1, kg: 1000, oz: 28.3495, lb: 453.592 };
 const VOLUME_TO_ML: UnitConversionMap = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14.7868, cup: 236.588 };
@@ -602,7 +677,7 @@ const VOLUME_TO_ML: UnitConversionMap = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14
 
 | Trigger                                                     | Error Code                 | HTTP |
 | ----------------------------------------------------------- | -------------------------- | ---- |
-| Linked ingredient id not in catalog                         | `INGREDIENT_NOT_FOUND`     | 404  |
+| Linked `foodId` unknown to the food service                 | `INGREDIENT_NOT_FOUND`     | 404  |
 | Ingredient quantity unit cannot normalize to canonical unit | `UNIT_INCONVERTIBLE`       | 422  |
 | DB unavailable                                              | `DB_UNAVAILABLE` (MOD-024) | 503  |
 
@@ -2231,6 +2306,16 @@ DI tokens declared per module.
 
 ---
 
+### Modules: MOD-034 / MOD-035 / MOD-036 (Home Widget Surface — SYS-021)
+
+**Parent Architecture Modules**: ARCH-034 (Home Widget Contract & Registry, `@commise/features-core`), ARCH-035 (`curateHomeWidgets` pure composition fn), ARCH-036 (Home Widget Host Render — `next/dynamic` web / `React.lazy` mobile)
+**Type**: Library (MOD-034, MOD-035) · Component (MOD-036)
+**Target Source File(s)**: `packages/apps/commise/features/core/**` (contract + `appShell` registry + `curateHomeWidgets`); Home host in `packages/apps/commise/{web,mobile}` rendering `@commise/features-recipes/widget/{web,mobile}`
+
+**Design delegation (stated).** The low-level design for the Home widget surface — the `HomeWidgetDescriptor` shape (`capability` / `minTier` / lazy `load`), the ditox `appShell` container + startup registration (`.use(addFeature)`), the pure `curateHomeWidgets(widgets, ctx)` capability + tier gating and personalization ordering (absent capability → excluded, never an empty tile; unknown ids skipped), and the per-platform lazy render chain (Suspense + per-widget `ErrorBoundary`) — is **authoritatively specified in `research/home-widget-architecture.md` (`## DECISION (2026-07-06)`)** and is **not duplicated here**. Unit-level verification traces to that design; in v1 only the recipe widget is registered, and widgets backed by services 005–009 stay absent until their feature packages ship and their backing capability is live.
+
+---
+
 ## ARCH → MOD Coverage Matrix
 
 | ARCH-ID  | MOD-IDs                   |
@@ -2268,8 +2353,11 @@ DI tokens declared per module.
 | ARCH-031 | MOD-031 `[CROSS-CUTTING]` |
 | ARCH-032 | MOD-032 `[CROSS-CUTTING]` |
 | ARCH-033 | MOD-033 `[CROSS-CUTTING]` |
+| ARCH-034 | MOD-034                   |
+| ARCH-035 | MOD-035                   |
+| ARCH-036 | MOD-036                   |
 
-**Coverage**: 33 / 33 ARCH modules covered (100%). External modules: 1 (MOD-025). Cross-cutting modules: 4 (MOD-030, MOD-031, MOD-032, MOD-033).
+**Coverage**: 36 / 36 ARCH modules covered (100%). External modules: 1 (MOD-025). Cross-cutting modules: 4 (MOD-030, MOD-031, MOD-032, MOD-033). MOD-034/035/036 (Home Widget Surface) delegate low-level design to `research/home-widget-architecture.md`.
 
 ## Peer-Review Remediation Log
 

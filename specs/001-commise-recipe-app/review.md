@@ -13,7 +13,7 @@
 > **SUPERSEDED where noted (2026-07-06)** per the 2026-07-06 reconciliation. This is a **historical revalidation log** — its revision entries are preserved as-written and **not rewritten**. Two classes of reference below are stale and have been overtaken by the reconciliation pass:
 >
 > - **API prefix.** Every `/api/*` and `/api/v1/*` (and the never-adopted `/api/v1/v{N}/*`) reference is **SUPERSEDED → bare `/v1/*`**. Shipped identity (002) and food (003) services expose `@Controller('v1/...')`, so the canonical public prefix is `/v1/*`. The Revision 1/2 push to add an `/api/v1` segment is **REVERSED**.
-> - **Shared types package.** Every `@kitchensink/shared-recipe-core` (a.k.a. `shared/recipe-core`) reference is **SUPERSEDED → `@kitchensink/recipe-core`** (folder `packages/shared/recipe-core`, `@commise` scope;.
+> - **Shared types package.** Every `@kitchensink/shared-recipe-core` (a.k.a. `shared/recipe-core`) reference is **SUPERSEDED → `@kitchensink/recipe-core`** (folder `packages/shared/recipe-core`, `@kitchensink` scope) — the rename was `shared-recipe-core` → `recipe-core`, a **name** change, **not** a scope change (it stays under `@kitchensink`).
 >
 > Each affected section carries an inline SUPERSEDED note repeating these mappings. History is annotated, not deleted.
 

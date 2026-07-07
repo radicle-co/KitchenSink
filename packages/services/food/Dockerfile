@@ -5,9 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 WORKDIR /app
 
 COPY node_modules ./node_modules
-COPY packages/services/food-service/node_modules ./packages/services/food-service/node_modules
-COPY packages/services/food-service/prod.package.json ./packages/services/food-service/package.json
-COPY packages/services/food-service/dist ./packages/services/food-service/dist
+COPY packages/services/food/node_modules ./packages/services/food/node_modules
+COPY packages/services/food/prod.package.json ./packages/services/food/package.json
+COPY packages/services/food/dist ./packages/services/food/dist
 # Shared @commise runtime deps. The root node_modules symlinks (@commise/shared-clerk-verify,
 # @commise/clients-usda) resolve to these paths, so each package's built dist + a dist-pointing
 # prod.package.json must exist in the image or the bare-specifier imports crash-loop at boot. The
@@ -23,6 +23,6 @@ EXPOSE 3000
 # WORKDIR the food package so the ECS task commands (`node dist/src/main.js`,
 # `node dist/src/worker/main.js`, `node dist/src/worker/change-refresh/main.js`) resolve; bare
 # @commise/* specifiers still resolve via the copied root node_modules symlinks.
-WORKDIR /app/packages/services/food-service
+WORKDIR /app/packages/services/food
 
 CMD ["node", "dist/src/main.js"]

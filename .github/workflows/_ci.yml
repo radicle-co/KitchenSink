@@ -64,7 +64,7 @@ jobs:
             - name: Cache UI build artifacts
               uses: actions/cache/save@v5
               with:
-                  path: packages/ui/dist
+                  path: packages/shared/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
 
     lint:
@@ -224,7 +224,7 @@ jobs:
             - name: Run food integration tests
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_test
-              run: npm run test:integration --workspace=packages/services/food-service
+              run: npm run test:integration --workspace=packages/services/food
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)
@@ -285,7 +285,7 @@ jobs:
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_e2e
                   USDA_API_KEY: e2e-dummy-key
-              run: npm run test:e2e --workspace=packages/services/food-service
+              run: npm run test:e2e --workspace=packages/services/food
 
     build:
         name: Build ${{ matrix.workspace }}
@@ -315,11 +315,11 @@ jobs:
             - name: Restore UI build artifacts
               uses: actions/cache/restore@v5
               with:
-                  path: packages/ui/dist
+                  path: packages/shared/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
             - name: Ensure @commise/shared-ui is built (fallback if the per-SHA cache restore missed)
               if: matrix.workspace == '@commise/web'
-              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/shared-ui'
+              run: '[ -n "$(ls -A packages/shared/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/shared-ui'
 
             # The web build statically prerenders Clerk-wrapped pages and needs a real publishable
             # key. Load the stage-scoped key; if creds are unavailable (e.g. fork PRs) the build is
@@ -397,10 +397,10 @@ jobs:
             - name: Restore UI build artifacts
               uses: actions/cache/restore@v5
               with:
-                  path: packages/ui/dist
+                  path: packages/shared/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
             - name: Ensure @commise/shared-ui is built (fallback if the per-SHA cache restore missed)
-              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/shared-ui'
+              run: '[ -n "$(ls -A packages/shared/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/shared-ui'
             # The web E2E runs ClerkJS in a browser against the Playwright dev server on
             # http://localhost:3000. Clerk *production* instances (pk_live) are domain-locked and
             # refuse to initialize on any origin other than their production domain — ClerkJS aborts

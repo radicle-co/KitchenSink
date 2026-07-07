@@ -12,9 +12,9 @@
 # Food service image (mirrors the identity allowlist): the service dist + prod manifest, plus the two
 # shared @commise runtime deps (clerk-verify, usda-client) whose root node_modules symlinks resolve
 # to these dist + dist-pointing prod.package.json paths.
-!packages/services/food-service/node_modules
-!packages/services/food-service/dist
-!packages/services/food-service/prod.package.json
+!packages/services/food/node_modules
+!packages/services/food/dist
+!packages/services/food/prod.package.json
 !packages/shared/clerk-verify/dist
 !packages/shared/clerk-verify/prod.package.json
 !packages/clients/usda/dist

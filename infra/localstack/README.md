@@ -29,7 +29,7 @@ app on an ephemeral port, and asserts `GET /health` plus end-to-end DB reachabil
 ```bash
 npm run localstack:up
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_e2e \
-  npm run test:e2e --workspace=packages/services/food-service
+  npm run test:e2e --workspace=packages/services/food
 ```
 
 The suite **skips cleanly** when no `DATABASE_URL` (or `TEST_DATABASE_URL`) is set, so it never fails

@@ -3,7 +3,7 @@
 - **Status:** Accepted — _`SharedAlbStack` implemented_ (`packages/infra/global/lib/platform/shared-alb-stack.ts`, wired into `GlobalStack` as `kitchensink-alb-{stage}`). Identity and food refactored to import the shared HTTPS listener and add host-based rules (priorities 100 / 200) instead of owning an ALB.
 - **Date:** 2026-06-20
 - **Area:** AWS edge topology · CDK global infra · ELBv2 (ALB) · cross-stack exports · Route53
-- **Related:** `packages/infra/global/lib/platform/shared-alb-stack.ts`, `packages/infra/global/lib/platform/global-stack.ts`, `packages/services/identity/infra/lib/identity-service-stack.ts`, `packages/services/food-service/infra/lib/food-service-stack.ts`, `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (shared VPC/SGs this builds on), `specs/003-usda-food-data/plan.md`
+- **Related:** `packages/infra/global/lib/platform/shared-alb-stack.ts`, `packages/infra/global/lib/platform/global-stack.ts`, `packages/services/identity/infra/lib/identity-service-stack.ts`, `packages/services/food/infra/lib/food-service-stack.ts`, `docs/architecture/decisions/0002-vpc-consolidation-and-cidr-scheme.md` (shared VPC/SGs this builds on), `specs/003-usda-food-data/plan.md`
 
 ## ⚠️ Before you change this — the trap
 
@@ -56,4 +56,4 @@ Move a service back to its **own** ALB when any of: sustained LCU/traffic makes 
 ## Implementation guards
 
 - `packages/infra/global/__tests__/shared-alb-stack.test.ts` asserts exactly 1 ALB, the HTTPS 404 default action, the HTTP→HTTPS redirect, and the 4 exports.
-- `packages/services/identity/infra/__tests__/stacks.test.ts` and `packages/services/food-service/infra/__tests__/food-service-stack.test.ts` assert each service synthesizes **0** ALBs, **1** host-based `ListenerRule` (correct priority + host header), **1** target group, and the A-record — guarding against a regression that re-adds a per-service ALB.
+- `packages/services/identity/infra/__tests__/stacks.test.ts` and `packages/services/food/infra/__tests__/food-service-stack.test.ts` assert each service synthesizes **0** ALBs, **1** host-based `ListenerRule` (correct priority + host header), **1** target group, and the A-record — guarding against a regression that re-adds a per-service ALB.

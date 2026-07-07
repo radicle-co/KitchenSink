@@ -68,7 +68,7 @@ observable without 900+ real USDA calls or an hour's wait:
 
 ```bash
 # deploy the food preview with a low cap + short window (CDK context; prod/normal deploys are unaffected):
-npm run infra:deploy --workspace=packages/services/food-service -- -c stage=pr-59 \
+npm run infra:deploy --workspace=packages/services/food -- -c stage=pr-59 \
   -c foodSourceRateLimitPerHour=15 -c foodSourceWindowSeconds=60
 # then, from packages/tools/loadtest (persistent pool already provisioned):
 WINDOW_SECONDS=60 BURST_COUNT=60 npm run ratelimit

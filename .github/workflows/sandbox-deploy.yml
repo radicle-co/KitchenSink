@@ -203,7 +203,7 @@ jobs:
     # ═══════════════════════════════════════════════════════════════════
     # per-PR FOOD preview deploy (ADR-0006) — ACTIVE, gated to food-only changes.
     #
-    # Runs only when `packages/services/food-service/**` changed on the PR (the `dorny/paths-filter`
+    # Runs only when `packages/services/food/**` changed on the PR (the `dorny/paths-filter`
     # step gates every step). On PR close, the `Drop per-PR food database` cleanup step above reclaims
     # the `kitchensink_food_pr_{N}` logical DB, and the `Environment=pr-{N}` cleanup deletes the stacks.
     #
@@ -236,7 +236,7 @@ jobs:
               with:
                   filters: |
                       food:
-                          - 'packages/services/food-service/**'
+                          - 'packages/services/food/**'
             - name: Setup Node.js
               if: steps.changes.outputs.food == 'true'
               uses: actions/setup-node@v6
@@ -255,13 +255,13 @@ jobs:
             # Rewrite the food package.json exports/main to ./dist (prod.package.json) for the image.
             - name: Prepare food service Docker image (prod manifest)
               if: steps.changes.outputs.food == 'true'
-              run: npm run docker:prepare --workspace=packages/services/food-service
+              run: npm run docker:prepare --workspace=packages/services/food
             - name: Build food infra
               if: steps.changes.outputs.food == 'true'
-              run: npm run infra:build --workspace=packages/services/food-service
+              run: npm run infra:build --workspace=packages/services/food
             - name: Bundle migration Lambda
               if: steps.changes.outputs.food == 'true'
-              run: npm run bundle:lambda --workspace=packages/services/food-service
+              run: npm run bundle:lambda --workspace=packages/services/food
             - name: Configure AWS credentials
               if: steps.changes.outputs.food == 'true'
               uses: aws-actions/configure-aws-credentials@v4
@@ -284,7 +284,7 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: sandbox-${{ github.sha }}
               run: |
-                  docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+                  docker buildx build --platform linux/amd64 -f packages/services/food/Dockerfile -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
             # Pass 1 — provision the stack (incl. the migration Lambda) with the services scaled to ZERO.
             # A per-PR preview's isolated DB (kitchensink_food_pr_{N}) does not exist until the migration
             # step below runs, so booting tasks now would crash-loop on connect and trip the ECS
@@ -300,7 +300,7 @@ jobs:
                   FOOD_DESIRED_COUNT=0 \
                   FOOD_WORKER_DESIRED_COUNT=0 \
                   npx cdk deploy \
-                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --app "node packages/services/food/infra/dist/bin/app.js" \
                     --all --require-approval never
             # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
             # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
@@ -325,5 +325,5 @@ jobs:
                   FOOD_DESIRED_COUNT=2 \
                   FOOD_WORKER_DESIRED_COUNT=1 \
                   npx cdk deploy \
-                    --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --app "node packages/services/food/infra/dist/bin/app.js" \
                     --all --require-approval never

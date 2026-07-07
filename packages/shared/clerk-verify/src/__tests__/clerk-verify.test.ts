@@ -57,11 +57,13 @@ describe('verifyClerkToken', () => {
     });
 
     it('leaves userId undefined when external_id is absent or empty (shared verifier is backward-compatible; per-service policy fails closed)', async () => {
+        // empty-string external_id
         mockVerify.mockResolvedValue({ sub: 'user_123', external_id: '' } as never);
+        expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
 
-        const claims = await verifyClerkToken('tok', CONFIG);
-
-        expect(claims.userId).toBeUndefined();
+        // external_id omitted entirely (no key on the payload)
+        mockVerify.mockResolvedValue({ sub: 'user_123' } as never);
+        expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
     });
 
     it('also accepts the legacy { data } envelope (back-compat across @clerk/backend versions)', async () => {

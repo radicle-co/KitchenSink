@@ -84,7 +84,7 @@ phases:
                 - 'full session work preserved at wip/001-session-snapshot (84605fc) + stash@{0}'
                 - 'husky NOT broken on main — prior failure was git-add-A of the 269-file stale rename (prettier on renamed tool configs + cold full-typecheck OOM); per-task commits are fine'
             prerequisites_before_code_tasks:
-                - '@commise rename must land (own PR) — recipe service imports @commise/* names; on main those existing packages are still @kitchensink/*'
+                - 'PR #62 (packages/ui → apps/commise/ui = @commise/ui) merges — the ONLY existing-package move under the platform/product split. Recipe BACKEND packages are @kitchensink platform (no rename needed; PR #61 full-rename was closed as wrong-direction); only the recipe widget + features-core are @commise under apps/commise/features/'
                 - 'npm install in the worktree (fresh worktree has no node_modules) + one warm build so turbo typecheck cache is hot for husky'
                 - 'Clerk session-token external_id claim on both instances (MANUAL) — needed for recipe ownership end-to-end, not for scaffolding'
         note: >
@@ -184,10 +184,10 @@ reconciliation:
             /v1/ingredients/search, /v1/search/recipes, and idempotent
             /v1/account/erasure routes. Next.js-internal framework routes stay private.
         - >
-            R2 — New 001 packages use @commise/<category>-<name>: services/recipes →
-            @commise/services-recipes, services/recipes-workers →
-            @commise/services-recipes-workers, clients/recipes → @commise/clients-recipes,
-            shared/recipe-core → @commise/shared-recipe-core, features/recipes →
+            R2 (REVISED 2026-07-07 — platform/product split) — recipe BACKEND = @kitchensink platform (@kitchensink/recipe-service|recipe-workers|recipe-service-client|recipe-core); recipe WIDGET/feature = @commise product (@commise/features-recipes + @commise/features-core) at apps/commise/features/*; packages/ui → apps/commise/ui = @commise/ui (PR #62). The earlier "everything @commise" reading was a miscommunication, corrected.
+            @kitchensink/recipe-service, services/recipes-workers →
+            @kitchensink/recipe-workers, clients/recipes → @kitchensink/recipe-service-client,
+            shared/recipe-core → @kitchensink/recipe-core, features/recipes →
             @commise/features-recipes. The former monolithic api package and the shared
             db/config package references are replaced. Existing shipped packages keep their
             real names — the food client stays @commise/clients-food.

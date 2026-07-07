@@ -322,7 +322,7 @@ sequenceDiagram
 
 Package layout follows the category-first convention `packages/<category>/<name>` → `@commise/<category>-<name>` (scope `@commise`; no `-service`/`-client` suffix). Existing shipped packages keep their real names (e.g. the food client stays `@kitchensink/food-service-client`).
 
-- **Recipe service package** (`packages/services/recipes` → `@commise/services-recipes`): NestJS backend that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (mirrors `kitchensink_food`; the stack imports the shared instance — no new RDS instance; there is no shared `db` package), organized by feature/domain module boundaries.
+- **Recipe service package** (`packages/services/recipe-service` → `@kitchensink/recipe-service`): NestJS backend that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (mirrors `kitchensink_food`; the stack imports the shared instance — no new RDS instance; there is no shared `db` package), organized by feature/domain module boundaries.
     - `auth/`: Clerk session-token `AuthMiddleware` + policy guards (ARCH-001, ARCH-002).
     - `recipes/`: controller + command/query orchestration + DTO/contracts (ARCH-003, ARCH-004, ARCH-005, ARCH-010, ARCH-011, ARCH-028).
     - `visibility/`: visibility rules and substantive edit policy helpers (ARCH-006, ARCH-007).
@@ -332,33 +332,33 @@ Package layout follows the category-first convention `packages/<category>/<name>
     - `collections/`: collection and clone/pull-from-source modules (ARCH-020, ARCH-021).
     - `privacy/erasure/`: account erasure orchestrator paths (ARCH-022, ARCH-023).
     - `database/` + `infrastructure/`: Drizzle repository, cloud adapters, config, telemetry, wiring (ARCH-024, ARCH-025, ARCH-029, ARCH-030, ARCH-033).
-- **Recipe worker package** (`packages/services/recipes-workers` → `@commise/services-recipes-workers`): raw Lambda handlers following the `identity-webhooks` pattern.
+- **Recipe worker package** (`packages/services/recipe-workers` → `@kitchensink/recipe-workers`): raw Lambda handlers following the `identity-webhooks` pattern.
     - `photo-processor/` for the rendition Lambda (ARCH-014) — **S3-only, NOT VPC-attached**.
     - `version-archive-worker/` for the SQS archive worker (ARCH-018) — **VPC-attached** (reads the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance).
     - `archive-reconciler/` for scheduled replay (ARCH-019).
-- **Typed recipe API client** (`packages/clients/recipes` → `@commise/clients-recipes`): mirrors `@kitchensink/food-service-client`; consumed by the web/mobile apps and feature UI.
-- **Shared recipe types** (`packages/shared/recipe-core` → `@commise/shared-recipe-core`): pure recipe types + zod schemas only (no UI), consumed across service, client, and feature packages.
-- **Frontend feature UI** (`packages/features/recipes` → `@commise/features-recipes`): recipe/collection building-block components plus the Home widget exports (`.`, `./widget/web`, `./widget/mobile`); platform files use `.native.tsx` (never `.mobile.*`); **no page exports** — the apps compose pages (ARCH-026, ARCH-027 building blocks).
+- **Typed recipe API client** (`packages/clients/recipe-service` → `@kitchensink/recipe-service-client`): mirrors `@kitchensink/food-service-client`; consumed by the web/mobile apps and feature UI.
+- **Shared recipe types** (`packages/shared/recipe-core` → `@kitchensink/recipe-core`): pure recipe types + zod schemas only (no UI), consumed across service, client, and feature packages.
+- **Frontend feature UI** (`apps/commise/features/recipes` → `@commise/features-recipes`): recipe/collection building-block components plus the Home widget exports (`.`, `./widget/web`, `./widget/mobile`); platform files use `.native.tsx` (never `.mobile.*`); **no page exports** — the apps compose pages (ARCH-026, ARCH-027 building blocks).
 - **Web app package** (`packages/apps/commise/web` → `@commise/web`): Next.js App Router UI modules and API client orchestration (ARCH-026).
 - **Mobile app package** (`packages/apps/commise/mobile` → `@commise/mobile`): Expo React Native screens, secure token handling, API client (ARCH-027).
 - **Shared UI tokens** (`packages/ui` → `@kitchensink/ui`): design-system tokens consumed by ARCH-026/ARCH-027.
-- **Infrastructure as code** (`packages/services/recipes/infra`, `packages/services/recipes-workers/infra`): CDK stacks for RDS, S3, CloudFront, SQS, Lambda, alarms, IAM; attaches to the shared ALB (`SharedAlbStack`, global infra) at **listener priority 300** and does not create its own ALB (ARCH-025, ARCH-031, ARCH-032).
+- **Infrastructure as code** (`packages/services/recipe-service/infra`, `packages/services/recipe-workers/infra`): CDK stacks for RDS, S3, CloudFront, SQS, Lambda, alarms, IAM; attaches to the shared ALB (`SharedAlbStack`, global infra) at **listener priority 300** and does not create its own ALB (ARCH-025, ARCH-031, ARCH-032).
 - **Quality and governance tooling** (`packages/tools/*`, root Turborepo pipelines, CI workflows): lint/type/test gates and integration harnesses mapped to ARCH-032.
 
 ### Development Allocation Matrix
 
 | Repository Area                                              | Primary Modules (ARCH)                                                                   | Responsibility                                                     |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `packages/services/recipes/src/auth`                        | ARCH-001, ARCH-002                                                                       | AuthN/AuthZ pipeline and route guards                              |
-| `packages/services/recipes/src/recipes`                     | ARCH-003, ARCH-004, ARCH-005, ARCH-010, ARCH-011, ARCH-028                               | Recipe command/query endpoints and validation/error contracts      |
-| `packages/services/recipes/src/domain`                      | ARCH-006, ARCH-007, ARCH-008, ARCH-009, ARCH-015, ARCH-016, ARCH-020, ARCH-021, ARCH-022 | Domain policies and orchestrators (ingredients via food client)   |
-| `packages/services/recipes/src/{database,infrastructure}`   | ARCH-024, ARCH-025, ARCH-029, ARCH-030, ARCH-033                                         | Persistence, cloud adapters, config, telemetry, module composition |
-| `packages/services/recipes-workers/*`                       | ARCH-014, ARCH-018, ARCH-019                                                             | Event/schedule-driven worker runtimes                              |
-| `packages/clients/recipes` + `packages/shared/recipe-core`  | (consumed by ARCH-026, ARCH-027)                                                        | Typed recipe API client and pure shared recipe types/zod schemas   |
-| `packages/features/recipes`                                 | ARCH-026, ARCH-027 (building blocks + widget exports)                                    | Cross-platform recipe/collection UI and Home widget (`.native.tsx`) |
+| `packages/services/recipe-service/src/auth`                        | ARCH-001, ARCH-002                                                                       | AuthN/AuthZ pipeline and route guards                              |
+| `packages/services/recipe-service/src/recipes`                     | ARCH-003, ARCH-004, ARCH-005, ARCH-010, ARCH-011, ARCH-028                               | Recipe command/query endpoints and validation/error contracts      |
+| `packages/services/recipe-service/src/domain`                      | ARCH-006, ARCH-007, ARCH-008, ARCH-009, ARCH-015, ARCH-016, ARCH-020, ARCH-021, ARCH-022 | Domain policies and orchestrators (ingredients via food client)   |
+| `packages/services/recipe-service/src/{database,infrastructure}`   | ARCH-024, ARCH-025, ARCH-029, ARCH-030, ARCH-033                                         | Persistence, cloud adapters, config, telemetry, module composition |
+| `packages/services/recipe-workers/*`                       | ARCH-014, ARCH-018, ARCH-019                                                             | Event/schedule-driven worker runtimes                              |
+| `packages/clients/recipe-service` + `packages/shared/recipe-core`  | (consumed by ARCH-026, ARCH-027)                                                        | Typed recipe API client and pure shared recipe types/zod schemas   |
+| `apps/commise/features/recipes`                                 | ARCH-026, ARCH-027 (building blocks + widget exports)                                    | Cross-platform recipe/collection UI and Home widget (`.native.tsx`) |
 | `packages/apps/commise/web`                                 | ARCH-026                                                                                 | Web user interface and client orchestration                        |
 | `packages/apps/commise/mobile`                              | ARCH-027                                                                                 | Mobile user interface and secure token/API handling                |
-| `packages/services/recipes{,-workers}/infra` + CI workflows | ARCH-031, ARCH-032                                                                       | Deployment topology (shared ALB priority 300), alarms, governance  |
+| `packages/services/recipe-service{,-workers}/infra` + CI workflows | ARCH-031, ARCH-032                                                                       | Deployment topology (shared ALB priority 300), alarms, governance  |
 
 ## Interface View — API Contracts (IEEE 42010 §8 Extension)
 

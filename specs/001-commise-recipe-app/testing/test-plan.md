@@ -237,7 +237,7 @@ executable case list). Playwright `.spec.ts` files live in `testing/playwright-t
 - [ ] Vitest configured: `vitest.config.ts` in each workspace
 - [ ] Clerk test instance credentials in `testing/env.md`
 - [ ] Database migrations run in test environment
-- [ ] Seed data script (`packages/services/recipes/src/database/seed/`) ready
+- [ ] Seed data script (`packages/services/recipe-service/src/database/seed/`) ready
 
 ---
 
@@ -271,7 +271,7 @@ executable case list). Playwright `.spec.ts` files live in `testing/playwright-t
 
 ```bash
 # Run unit tests in watch mode (TDD workflow)
-cd packages/services/recipes
+cd packages/services/recipe-service
 npx vitest --watch
 
 # Run single test file

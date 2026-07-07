@@ -65,7 +65,7 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 **Parent Architecture Modules**: ARCH-001
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/auth/clerk-auth.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerk-auth.service.ts`
 
 #### Interface View
 
@@ -153,7 +153,7 @@ type VerifiedClerkClaims = {
 
 **Parent Architecture Modules**: ARCH-002
 **Type**: Library (NestJS Guard)
-**Target Source File(s)**: `packages/services/recipes/src/auth/owner-tier.guard.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/owner-tier.guard.ts`
 
 #### Interface View
 
@@ -223,7 +223,7 @@ const TIER_REQUIREMENTS: Record<Kind, Record<Action, 'free' | 'premium'>>;
 
 **Parent Architecture Modules**: ARCH-003
 **Type**: Component (NestJS Controller)
-**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.controller.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.controller.ts`
 
 #### Interface View
 
@@ -309,7 +309,7 @@ The controller never throws domain errors itself — it delegates and lets MOD-0
 
 **Parent Architecture Modules**: ARCH-004
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.command.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.command.service.ts`
 
 #### Interface View
 
@@ -424,7 +424,7 @@ type RecipeView = { id: string; versionNumber: number; rowVersion: string /* …
 
 **Parent Architecture Modules**: ARCH-005
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.dto.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.dto.ts`
 
 #### Interface View
 
@@ -486,7 +486,7 @@ class IngredientItem {
 
 **Parent Architecture Modules**: ARCH-006
 **Type**: Library (pure function)
-**Target Source File(s)**: `packages/services/recipes/src/recipes/visibility.policy.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/visibility.policy.ts`
 
 #### Interface View
 
@@ -545,7 +545,7 @@ type PolicyDecision = { allowed: boolean; reason: string; ruleId: string };
 
 **Parent Architecture Modules**: ARCH-007
 **Type**: Library (pure function)
-**Target Source File(s)**: `packages/services/recipes/src/recipes/substantive-edit.detector.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/substantive-edit.detector.ts`
 
 #### Interface View
 
@@ -612,7 +612,7 @@ const VOLUME_TO_ML: UnitConversionMap = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14
 
 **Parent Architecture Modules**: ARCH-009
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/nutrition/nutrition.calculator.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/nutrition/nutrition.calculator.ts`
 
 #### Interface View
 
@@ -691,7 +691,7 @@ const VOLUME_TO_ML: UnitConversionMap = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14
 
 **Parent Architecture Modules**: ARCH-010
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.search.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.search.service.ts`
 
 #### Interface View
 
@@ -763,7 +763,7 @@ type RecipeListItem = {
 
 **Parent Architecture Modules**: ARCH-011
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/recipes/search-query.builder.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/search-query.builder.ts`
 
 #### Interface View
 
@@ -830,7 +830,7 @@ type QuerySpec = { where: string; params: Record<string, unknown>; orderBy: stri
 
 **Parent Architecture Modules**: ARCH-012
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/photos/photo.presign.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/photos/photo.presign.service.ts`
 
 #### Interface View
 
@@ -892,7 +892,7 @@ const QUOTA_LIMIT = 25;
 
 **Parent Architecture Modules**: ARCH-013
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/photos/photo.confirm.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/photos/photo.confirm.service.ts`
 
 #### Interface View
 
@@ -954,7 +954,7 @@ type PhotoView = { photoId: string; recipeId: string; status: 'pending_processin
 
 **Parent Architecture Modules**: ARCH-014
 **Type**: Service (Lambda)
-**Target Source File(s)**: `packages/services/recipes-workers/src/photo-processor/handler.ts`
+**Target Source File(s)**: `packages/services/recipe-workers/src/photo-processor/handler.ts`
 
 **Topology (D1 / ADR-0004)**: This Lambda is **S3-only and NOT VPC-attached** — it **touches no DB**. It reads the original from S3, renders WebP derivatives back to S3, and emits an SQS **`photo-processed`** message. The `recipe_photos` completion `UPDATE` is performed downstream by the in-VPC **Fargate `photo-processed` consumer** (see below), never by this Lambda.
 
@@ -1004,7 +1004,7 @@ function handle(event):
       throw e                                         # let Lambda retry → DLQ
 ```
 
-**Downstream completion — Fargate `photo-processed` consumer.** The `recipe_photos` completion `UPDATE` is performed by an **in-VPC SQS consumer inside the Fargate recipe API** (`packages/services/recipes`, Photos module domain), which reaches RDS. On each `photo-processed` message it runs (idempotent):
+**Downstream completion — Fargate `photo-processed` consumer.** The `recipe_photos` completion `UPDATE` is performed by an **in-VPC SQS consumer inside the Fargate recipe API** (`packages/services/recipe-service`, Photos module domain), which reaches RDS. On each `photo-processed` message it runs (idempotent):
 
 ```text
 UPDATE recipe_photos SET
@@ -1047,7 +1047,7 @@ type PhotoProcessedMessage = {
 
 **Parent Architecture Modules**: ARCH-015
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/recipes/version-snapshot.writer.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/version-snapshot.writer.ts`
 
 #### Interface View
 
@@ -1109,7 +1109,7 @@ type VersionWriteResult = { versionNumber: number; versionId: string; pendingArc
 
 **Parent Architecture Modules**: ARCH-016
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/persistence/concurrency.guard.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/persistence/concurrency.guard.ts`
 
 #### Interface View
 
@@ -1156,7 +1156,7 @@ type ConcurrencyRequest = { table: 'recipes' | 'collections' | 'photos'; id: str
 
 **Parent Architecture Modules**: ARCH-017
 **Type**: Adapter
-**Target Source File(s)**: `packages/services/recipes/src/archive/archive-queue.producer.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/archive/archive-queue.producer.ts`
 
 #### Interface View
 
@@ -1212,7 +1212,7 @@ type ArchiveJob = { jobId: string; recipeId: string; versionId: string; snapshot
 
 **Parent Architecture Modules**: ARCH-018
 **Type**: Service (Lambda)
-**Target Source File(s)**: `packages/services/recipes-workers/src/version-archive-worker/handler.ts`
+**Target Source File(s)**: `packages/services/recipe-workers/src/version-archive-worker/handler.ts`
 
 #### Interface View
 
@@ -1269,7 +1269,7 @@ type ArchiveJob = { jobId: string; recipeId: string; versionId: string; snapshot
 
 **Parent Architecture Modules**: ARCH-019
 **Type**: Service (cron)
-**Target Source File(s)**: `packages/services/recipes/src/archive/pending-archive.reconciler.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/archive/pending-archive.reconciler.ts`
 
 #### Interface View
 
@@ -1344,7 +1344,7 @@ const MAX_ATTEMPTS = 8;
 
 **Parent Architecture Modules**: ARCH-020
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/collections/collections.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/collections/collections.service.ts`
 
 #### Interface View
 
@@ -1455,7 +1455,7 @@ type CollectionCommand =
 
 **Parent Architecture Modules**: ARCH-021
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/collections/collections.clone.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/collections/collections.clone.service.ts`
 
 #### Interface View
 
@@ -1540,7 +1540,7 @@ type CollectionCloneCommand = { kind: 'clone' | 'pull'; sourceId: string; target
 
 **Parent Architecture Modules**: ARCH-022
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/gdpr/erasure.orchestrator.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/gdpr/erasure.orchestrator.ts`
 
 #### Interface View
 
@@ -1612,7 +1612,7 @@ type ErasureReport = { erasureId: string; status: ErasureJobStatus; recipeCount:
 
 **Parent Architecture Modules**: ARCH-023
 **Type**: Service
-**Target Source File(s)**: `packages/services/recipes/src/gdpr/erasure.storage-purger.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/gdpr/erasure.storage-purger.ts`
 
 #### Interface View
 
@@ -1667,7 +1667,7 @@ type StoragePurgeRequest = { erasureId: string; photoKeys: string[] };
 
 **Parent Architecture Modules**: ARCH-024
 **Type**: Adapter
-**Target Source File(s)**: `packages/services/recipes/src/persistence/*.repository.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/persistence/*.repository.ts`
 
 #### Interface View
 
@@ -1731,7 +1731,7 @@ Connection pool: `idle → in_use → idle | broken → recreated`. Repositories
 
 #### Internal Data Structures
 
-Drizzle schema types live in `packages/services/recipes/src/persistence/schema/*.ts`. Repositories return inferred row types.
+Drizzle schema types live in `packages/services/recipe-service/src/persistence/schema/*.ts`. Repositories return inferred row types.
 
 #### Error Handling & Return Codes
 
@@ -1748,7 +1748,7 @@ Drizzle schema types live in `packages/services/recipes/src/persistence/schema/*
 
 **Parent Architecture Modules**: ARCH-025
 **Type**: Adapter (wraps AWS SDK)
-**Target Source File(s)**: `packages/services/recipes/src/aws/s3-cloudfront.adapter.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/aws/s3-cloudfront.adapter.ts`
 
 #### Interface View
 
@@ -1899,7 +1899,7 @@ Same as MOD-026. Additional auth state: `bootstrapping → authenticated | needs
 
 #### Internal Data Structures
 
-Shared types imported from `@commise/shared-recipe-core` package.
+Shared types imported from `@kitchensink/recipe-core` package.
 
 #### Error Handling & Return Codes
 
@@ -1915,7 +1915,7 @@ Shared types imported from `@commise/shared-recipe-core` package.
 
 **Parent Architecture Modules**: ARCH-028
 **Type**: Library (NestJS exception filter)
-**Target Source File(s)**: `packages/services/recipes/src/errors/api-error.filter.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/errors/api-error.filter.ts`
 
 #### Interface View
 
@@ -1983,7 +1983,7 @@ The mapper is itself the error contract. Unknown errors map to `INTERNAL` (500) 
 
 **Parent Architecture Modules**: ARCH-029
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/config/config.module.ts`, `…/config.schema.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/config/config.module.ts`, `…/config.schema.ts`
 
 #### Interface View
 
@@ -2037,7 +2037,7 @@ type Config = z.infer<typeof schema>;
 
 **Parent Architecture Modules**: ARCH-030
 **Type**: Library
-**Target Source File(s)**: `packages/services/recipes/src/observability/logger.ts`, `…/metrics.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/observability/logger.ts`, `…/metrics.ts`
 
 #### Interface View
 
@@ -2171,7 +2171,7 @@ type TraceabilityGap = { id: string; severity: 'CRITICAL' | 'WARNING'; descripti
 
 **Parent Architecture Modules**: ARCH-033
 **Type**: Utility (composition root)
-**Target Source File(s)**: `packages/services/recipes/src/app.module.ts`, `…/main.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/app.module.ts`, `…/main.ts`
 
 #### Interface View
 

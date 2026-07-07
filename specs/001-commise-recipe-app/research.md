@@ -10,8 +10,8 @@
 > current guidance:
 >
 > - API route prefix `/api/v1/...` → **`/v1/...`** (e.g. `POST /api/v1/recipes/{id}/photos/...` → `POST /v1/recipes/{id}/photos/...`).
-> - Service layout `apps/api/v1/*` (and generic `apps/api`) → **`packages/services/recipes`** (NestJS recipe service).
-> - Shared-types package `@kitchensink/recipe-core` → **`@commise/shared-recipe-core`**.
+> - Service layout `apps/api/v1/*` (and generic `apps/api`) → **`packages/services/recipe-service`** (NestJS recipe service).
+> - Shared-types package `@kitchensink/recipe-core` → **`@kitchensink/recipe-core`**.
 >
 > The technical findings (FTS, versioning, photo pipeline, framework/ORM choices) remain valid; only the
 > naming/routing scaffolding above was renamed downstream.

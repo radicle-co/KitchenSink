@@ -2,7 +2,7 @@
 
 _Date: 2026-05-12_
 _Updated: 2026-05-13 — GR-002 documentation/contract paths and GR-007 task wording corrected for handoff._
-_Reconciled: 2026-07-06 — **SUPERSEDED where noted** per the 2026-07-06 reconciliation. The canonical public API prefix is bare `/v1/*` (matching shipped 002/003), **not** the `/api`-prefixed `v1` scheme this document originally proposed — that recommendation is REVERSED. The shared recipe types package is `@commise/shared-recipe-core` (folder `packages/shared/recipe-core`) under the `@commise` scope, not the old `@kitchensink/*` name. Historical recommendations are retained below and annotated inline._
+_Reconciled: 2026-07-06 — **SUPERSEDED where noted** per the 2026-07-06 reconciliation. The canonical public API prefix is bare `/v1/*` (matching shipped 002/003), **not** the `/api`-prefixed `v1` scheme this document originally proposed — that recommendation is REVERSED. The shared recipe types package is `@kitchensink/recipe-core` (folder `packages/shared/recipe-core`) under the `@commise` scope, not the old `@kitchensink/*` name. Historical recommendations are retained below and annotated inline._
 
 ## 1. API URL prefix collision
 
@@ -88,11 +88,11 @@ Because the canonical prefix is bare `/v1/*`, the services already on `/v1/*` ne
 
 ---
 
-## 2. Shared `@commise/shared-recipe-core`
+## 2. Shared `@kitchensink/recipe-core`
 
 ### Recommendation
 
-Create `packages/shared/recipe-core` as an internal workspace package named `@commise/shared-recipe-core` (per the 2026-07-06 naming convention: `packages/<category>/<name>` → `@commise/<category>-<name>`). Keep it pure TypeScript + Zod only, and make it the single source of truth for recipe-domain entities and API-facing payload types shared by web, mobile, and the recipe service.
+Create `packages/shared/recipe-core` as an internal workspace package named `@kitchensink/recipe-core` (per the 2026-07-06 naming convention: `packages/<category>/<name>` → `@commise/<category>-<name>`). Keep it pure TypeScript + Zod only, and make it the single source of truth for recipe-domain entities and API-facing payload types shared by web, mobile, and the recipe service.
 
 ### Put inside the package
 
@@ -137,4 +137,4 @@ High. By then 004/008/006/007/009 will likely have local copies of `Recipe`, `In
 1. Revert `001/spec.md`, `001/plan.md`, `001/tasks.md`, and `001/contracts/api.openapi.yaml` to bare `/v1/*`; add `GET /v1/recipes/{id}/instructions`.
 2. Remove `POST /recipes/{id}/clone` from 004's public contract/tasks and treat clone as a 001-owned endpoint.
 3. Add or refresh `docs/api-conventions.md` (or equivalent) so GR-002 points to one concrete route ownership document.
-4. Freeze the initial export list for `@commise/shared-recipe-core` and make it a first-wave 001 setup task before any API or UI implementation.
+4. Freeze the initial export list for `@kitchensink/recipe-core` and make it a first-wave 001 setup task before any API or UI implementation.

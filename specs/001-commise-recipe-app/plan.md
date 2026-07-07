@@ -89,7 +89,7 @@ packages/
 │               ├── unit/
 │               └── e2e/                # Maestro E2E flow files (*.yaml)
 ├── services/
-│   ├── recipes/                        # @commise/services-recipes — NestJS 11 REST API (Fargate); own logical DB `kitchensink_recipes` on the shared RDS instance (mirrors food; no new instance)
+│   ├── recipes/                        # @kitchensink/recipe-service — NestJS 11 REST API (Fargate); own logical DB `kitchensink_recipes` on the shared RDS instance (mirrors food; no new instance)
 │   │   ├── src/
 │   │   │   ├── recipes/                 # Recipe module (controller, service, dal)
 │   │   │   │   ├── recipes.controller.ts
@@ -115,7 +115,7 @@ packages/
 │   │   └── tests/
 │   │       ├── unit/
 │   │       └── integration/             # Vitest + Docker PostgreSQL + LocalStack S3/SQS
-│   └── recipes-workers/                # @commise/services-recipes-workers — worker Lambdas (pattern of identity-webhooks)
+│   └── recipes-workers/                # @kitchensink/recipe-workers — worker Lambdas (pattern of identity-webhooks)
 │       ├── src/
 │       │   ├── photo-processor/        # Lambda (Sharp image resize) — S3 only, NOT VPC-attached; emits SQS photo-processed (the Fargate API, not this Lambda, writes recipe_photos)
 │       │   │   └── handler.ts
@@ -126,14 +126,14 @@ packages/
 │       └── tests/
 │           └── unit/
 ├── clients/
-│   └── recipes/                        # @commise/clients-recipes — typed recipe API client (mirrors @kitchensink/food-service-client)
+│   └── recipes/                        # @kitchensink/recipe-service-client — typed recipe API client (mirrors @kitchensink/food-service-client)
 │       └── src/
 ├── features/
 │   └── recipes/                        # @commise/features-recipes — frontend feature UI; exports `.`, `./widget/web`, `./widget/mobile` (NO page exports)
 │       └── src/
 │           └── widget/                 # Recent-recipes Home widget (widget.web.tsx + widget.native.tsx; .native suffix, never .mobile)
 ├── shared/
-│   └── recipe-core/                    # @commise/shared-recipe-core — pure TS types + zod only (no UI, no runtime deps)
+│   └── recipe-core/                    # @kitchensink/recipe-core — pure TS types + zod only (no UI, no runtime deps)
 │       └── src/
 │           ├── types/                  # Recipe (with deletedAt), Ingredient (foodId + foodResolutionStatus + isUserEntered), Step, Collection (with sourceCollectionId), PendingArchive interfaces
 │           └── utils/                  # Validation helpers, slug generation
@@ -146,7 +146,7 @@ packages/
     └── prettier/
 ```
 
-**Structure Decision**: Monorepo with category-first workspaces (`packages/<category>/<name>` → `@commise/<category>-<name>`). The recipe backend (`@commise/services-recipes`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@commise/services-recipes-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance), while the **photo-processor is S3-only and NOT VPC-attached** — it resizes to S3 and emits an SQS `photo-processed` message that the in-VPC Fargate API consumes to perform the `recipe_photos` completion write (the Lambda never touches the DB, preserving ADR-0004). The typed recipe API client is `@commise/clients-recipes` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@commise/shared-recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
+**Structure Decision**: Monorepo with category-first workspaces (`packages/<category>/<name>` → `@commise/<category>-<name>`). The recipe backend (`@kitchensink/recipe-service`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@kitchensink/recipe-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance), while the **photo-processor is S3-only and NOT VPC-attached** — it resizes to S3 and emits an SQS `photo-processed` message that the in-VPC Fargate API consumes to perform the `recipe_photos` completion write (the Lambda never touches the DB, preserving ADR-0004). The typed recipe API client is `@kitchensink/recipe-service-client` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@kitchensink/recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
 
 ## Reliability Architecture (FR-001a, FR-007b-i, C-007, FR-011)
 
@@ -320,7 +320,7 @@ Every implementation task in `tasks.md` is paired with a corresponding test task
 | Integration | Vitest         | `*.integration.test.ts` | `__tests__/integration/`                  |
 | Web E2E     | Playwright     | `*.spec.ts`             | `packages/apps/commise/web/tests/e2e/`    |
 | Mobile E2E  | Maestro        | `*.yaml`                | `packages/apps/commise/mobile/tests/e2e/` |
-| Load        | k6 / Artillery | `*.load.ts`             | `packages/services/recipes/tests/load/`   |
+| Load        | k6 / Artillery | `*.load.ts`             | `packages/services/recipe-service/tests/load/`   |
 
 ### LocalStack in Tests (NFR-007)
 
@@ -340,13 +340,13 @@ Maestro flows test native mobile interactions on iOS Simulator and Android Emula
 
 All unit and component tests use `make*` factories (constitution Principle IV):
 
-- **Backend**: `packages/services/recipes/src/__fixtures__/index.ts` — `makeRecipe()`, `makeIngredient()`, `makeCollection()`, `makeUser()`, `makePendingArchive()`, etc.
+- **Backend**: `packages/services/recipe-service/src/__fixtures__/index.ts` — `makeRecipe()`, `makeIngredient()`, `makeCollection()`, `makeUser()`, `makePendingArchive()`, etc.
 - **Frontend**: `packages/apps/commise/web/src/__fixtures__/index.ts` and `mobile/src/__fixtures__/index.ts`
 - Factories return typed objects with sensible defaults; all fields overridable via partial argument.
 
 ### E2E Database Seeding (NFR-010)
 
-- Seed script: `packages/services/recipes/src/database/seed.ts` — idempotent, deterministic IDs.
+- Seed script: `packages/services/recipe-service/src/database/seed.ts` — idempotent, deterministic IDs.
 - Playwright `globalSetup.ts` runs migrations + seed before E2E suite.
 - Maestro flows expect seeded data (stable user IDs, recipe IDs for assertions).
 
@@ -358,7 +358,7 @@ Frontend apps connect to local or remote API servers via environment variables.
 
 | Service                | Port   | Notes                                           |
 | ---------------------- | ------ | ----------------------------------------------- |
-| Recipe API (NestJS)    | `4000` | `PORT=4000` in `packages/services/recipes/.env.local` |
+| Recipe API (NestJS)    | `4000` | `PORT=4000` in `packages/services/recipe-service/.env.local` |
 | Next.js web app        | `3000` | Next.js default                                 |
 | Expo mobile dev server | `8081` | Metro default                                   |
 | PostgreSQL (docker)    | `5432` | `docker-compose.yml`                            |
@@ -368,7 +368,7 @@ Frontend env defaults:
 
 - **Next.js (web)**: `NEXT_PUBLIC_API_URL` — defaults to `http://localhost:4000` in `.env.local`
 - **Expo (mobile)**: `EXPO_PUBLIC_API_URL` — defaults to `http://localhost:4000` in `.env` (use `http://10.0.2.2:4000` for Android emulator, `http://<host-lan-ip>:4000` for physical devices)
-- The typed recipe API client (`packages/clients/recipes`, `@commise/clients-recipes`) reads the base URL from the environment at initialization.
+- The typed recipe API client (`packages/clients/recipe-service`, `@kitchensink/recipe-service-client`) reads the base URL from the environment at initialization.
 - E2E tests configure this to point at the local test server.
 
 ### Async Archive Worker — Deployment Ordering Note
@@ -505,4 +505,4 @@ T060 (Phase 6 parity audit) remains in place as a final gate. It now checks that
 
 | Violation                                            | Why Needed                                                                                                                                                               | Simpler Alternative Rejected Because                                                                                                                                     |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| New workspace `packages/services/recipes-workers/` (photo-processor + version-archive-worker + erasure-worker) | FR-007b-i (archive) and C-007 (GDPR erasure) require async work that must not block the user request. SQS-triggered Lambdas are the standard AWS pattern for at-least-once async processing with DLQ + retry; the photo-processor stays S3-only/non-VPC per ADR-0004. | Inlining the archive/erasure writes in the Fargate API process would violate "save/erase MUST succeed independently of S3" and would couple recipe-save p95 to S3 latency/availability. |
+| New workspace `packages/services/recipe-workers/` (photo-processor + version-archive-worker + erasure-worker) | FR-007b-i (archive) and C-007 (GDPR erasure) require async work that must not block the user request. SQS-triggered Lambdas are the standard AWS pattern for at-least-once async processing with DLQ + retry; the photo-processor stays S3-only/non-VPC per ADR-0004. | Inlining the archive/erasure writes in the Fargate API process would violate "save/erase MUST succeed independently of S3" and would couple recipe-save p95 to S3 latency/availability. |

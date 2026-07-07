@@ -181,7 +181,7 @@ CREATE TABLE ingredients (
     -- NEVER a USDA fdcId (003 is source-agnostic); this is a cross-service reference,
     -- not a cross-DB FK. Null for user-entered / freeform ingredients.
     food_id         TEXT,
-    -- Async food-resolution status (`foodResolutionStatus` in @commise/shared-recipe-core),
+    -- Async food-resolution status (`foodResolutionStatus` in @kitchensink/recipe-core),
     -- mirroring the shipped food client's FoodStatus (UPPER_SNAKE, incl. the terminal states):
     --   'PENDING'    → addByName accepted (202), nutrition not ready yet
     --   'UNRESOLVED' → needs disambiguation (getCandidates + resolve)
@@ -500,12 +500,12 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 
 All schema in this document is expressed as reference SQL DDL for clarity. The **actual implementation** uses:
 
-- **Drizzle ORM** (`drizzle-orm` + `pg`) for schema definitions in `packages/services/recipes/src/database/schema/`
+- **Drizzle ORM** (`drizzle-orm` + `pg`) for schema definitions in `packages/services/recipe-service/src/database/schema/`
 - **drizzle-kit** for migration generation (`drizzle-kit generate`) and execution (`drizzle-kit migrate`)
-- Migrations live in `packages/services/recipes/src/database/migrations/` (auto-generated, committed to git)
+- Migrations live in `packages/services/recipe-service/src/database/migrations/` (auto-generated, committed to git)
 - Schema files: `recipes.ts`, `ingredients.ts`, `versions.ts`, `photos.ts`, `collections.ts`
 
-The recipe service (`@commise/services-recipes`) **uses the shared RDS instance with its own logical
+The recipe service (`@kitchensink/recipe-service`) **uses the shared RDS instance with its own logical
 database `kitchensink_recipes`** — it does **not** provision a new RDS instance. The database + its owning
 role are provisioned by a **`RecipeDbBootstrap` custom resource** (a master-connected Lambda mirroring
 `FoodDbBootstrap`): a passwordless **IAM-auth `recipe_app` LOGIN role** (`GRANT rds_iam`) and the base
@@ -524,7 +524,7 @@ The Drizzle schema is the **source of truth** — this DDL document is a design 
 The `recipes_search_vector_update()` trigger function (see Search Vector Maintenance above) is created via a **custom SQL migration** in drizzle-kit, since Drizzle ORM does not natively support trigger definitions. Add as a `sql` block in the initial migration:
 
 ```typescript
-// packages/services/recipes/src/database/migrations/0001_add_search_trigger.ts
+// packages/services/recipe-service/src/database/migrations/0001_add_search_trigger.ts
 import { sql } from 'drizzle-orm';
 
 export const searchTriggerMigration = sql`

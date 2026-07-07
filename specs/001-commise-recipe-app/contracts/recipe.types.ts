@@ -1,6 +1,6 @@
-/** @module @commise/shared-recipe-core — Shared types and Zod schemas for Commise recipe management */
+/** @module @kitchensink/recipe-core — Shared types and Zod schemas for Commise recipe management */
 
-// @ts-expect-error -- Design artifact imports zod as a package dependency of @commise/shared-recipe-core.
+// @ts-expect-error -- Design artifact imports zod as a package dependency of @kitchensink/recipe-core.
 import { z } from 'zod';
 
 const idSchema = z.string().min(1);

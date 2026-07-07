@@ -1,6 +1,6 @@
 /**
  * @module recipes/config — Configuration contract for the recipe service, living in its own
- * `config/` module at `packages/services/recipes/src/config/`.
+ * `config/` module at `packages/services/recipe-service/src/config/`.
  *
  * There is **no** shared `@commise/shared-config` package: like the identity and food services,
  * each service owns its config module (schemas + loader). This file documents the recipe service's
@@ -247,7 +247,7 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
 // ---------------------------------------------------------------------------
 
 /**
- * Complete configuration schema for the recipe NestJS service (`@commise/services-recipes`).
+ * Complete configuration schema for the recipe NestJS service (`@kitchensink/recipe-service`).
  * Merges all config domains into a single validated schema.
  *
  * Usage at app boot:

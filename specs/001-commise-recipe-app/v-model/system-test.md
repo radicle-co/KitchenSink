@@ -993,7 +993,7 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-058, REQ-059, REQ-060, REQ-061, REQ-062, REQ-063, REQ-064, REQ-065, REQ-IF-004c, REQ-IF-006
 
-_Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by explicit startup registration, composition by `curateHomeWidgets(widgets, ctx)` (capability + subscription-tier gating, personalization ordering), and render via `React.lazy`/`next/dynamic` + Suspense + per-widget `ErrorBoundary` (unknown ids skipped). Design authority: `research/home-widget-architecture.md` (`## DECISION (2026-07-06)`). The Home widget contract (`HomeWidgetId`, `HomeWidgetDescriptor`, `curateHomeWidgets`) lives in `@commise/shared-recipe-core`; the live recipe widget loads via `@commise/features-recipes/widget/{web|mobile}`. Per-user layout is persisted via `PATCH /v1/profiles/me`, **owned by the identity service (002) and consumed here**._
+_Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by explicit startup registration, composition by `curateHomeWidgets(widgets, ctx)` (capability + subscription-tier gating, personalization ordering), and render via `React.lazy`/`next/dynamic` + Suspense + per-widget `ErrorBoundary` (unknown ids skipped). Design authority: `research/home-widget-architecture.md` (`## DECISION (2026-07-06)`). The Home widget contract (`HomeWidgetId`, `HomeWidgetDescriptor`, `curateHomeWidgets`) lives in `@commise/features-core`; the live recipe widget loads via `@commise/features-recipes/widget/{web|mobile}`. Per-user layout is persisted via `PATCH /v1/profiles/me`, **owned by the identity service (002) and consumed here**._
 
 #### Test Case: STP-021-A (Widget Curation Capability-Gating Decision Matrix)
 

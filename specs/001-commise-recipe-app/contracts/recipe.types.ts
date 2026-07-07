@@ -194,7 +194,7 @@ export const recipeStepSchema = z.object({
 /**
  * Async resolution state of an ingredient's backing food record in the
  * source-agnostic food service (003). Values mirror the shipped food client's
- * `FoodStatus` (`@commise/clients-food`), including the terminal
+ * `FoodStatus` (`@kitchensink/food-service-client`), including the terminal
  * `NOT_FOUND` / `FAILED` states. A just-added food may report `PENDING` or
  * `UNRESOLVED` (nutrition not ready yet, or awaiting disambiguation) and
  * transition to `RESOLVED` later; consumers must tolerate partial nutrition in
@@ -231,7 +231,7 @@ export const foodResolutionStatusSchema = z.enum([
  * Canonical ingredient definition, optionally enriched with nutrition per 100g.
  *
  * Nutrition is backed by the source-agnostic food service (003) via its typed
- * client (`@commise/clients-food`); foods are referenced by the food
+ * client (`@kitchensink/food-service-client`); foods are referenced by the food
  * service's internal id ({@link foodId}), and resolution is asynchronous. The
  * food↔ingredient link is owned by 001.
  */

@@ -225,8 +225,8 @@ The thing the user cares about — how it ends in a mounted React component:
         │
         ▼
 registry.generated.ts  (per app, from codegen)
-  { 'meal-plan': { load: () => import('@commise/meal-plan/home-widget.web'),  defaultWeight: 300, capability: 'meal-plans' },
-    'nutrition': { load: () => import('@commise/nutrition/home-widget.web'),  ... }, ... }
+  { 'meal-plan': { load: () => import('@commise/features-meal-plan/home-widget.web'),  defaultWeight: 300, capability: 'meal-plans' },
+    'nutrition': { load: () => import('@commise/features-nutrition/home-widget.web'),  ... }, ... }
         │
         ▼
 for each id in order:

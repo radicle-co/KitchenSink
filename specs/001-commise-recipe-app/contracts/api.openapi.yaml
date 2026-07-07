@@ -228,7 +228,7 @@ paths:
             summary: Search ingredients by name (autocomplete, fuzzy)
             description: |
                 Thin proxy over the source-agnostic food service (003) via its typed client
-                (`@commise/clients-food` → `foodClient.search(query)`). Returns known
+                (`@kitchensink/food-service-client` → `foodClient.search(query)`). Returns known
                 foods for typeahead; foods are referenced by the food service's internal id and
                 nutrition resolves asynchronously (see the `Ingredient.foodResolutionStatus` field).
             operationId: searchIngredients
@@ -1005,7 +1005,7 @@ components:
                     nullable: true
                     description: |
                         Opaque reference to the food service's (003) internal ULID for the linked
-                        food, obtained via `@commise/clients-food`. This is NOT a USDA
+                        food, obtained via `@kitchensink/food-service-client`. This is NOT a USDA
                         `fdcId` — 001 never stores or keys on a USDA identifier, and there is no
                         cross-DB foreign key to the food database. Null for a freeform
                         (user-entered) ingredient with no linked food record yet.

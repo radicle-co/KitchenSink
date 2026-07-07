@@ -2,7 +2,7 @@
  * @module recipes/config — Configuration contract for the recipe service, living in its own
  * `config/` module at `packages/services/recipe-service/src/config/`.
  *
- * There is **no** shared `@commise/shared-config` package: like the identity and food services,
+ * There is **no** shared `@kitchensink/shared-config` package: like the identity and food services,
  * each service owns its config module (schemas + loader). This file documents the recipe service's
  * config contract; the schemas below are defined and validated inside that service's `config/` module.
  */

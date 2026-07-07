@@ -89,7 +89,7 @@ phases:
                 - 'Clerk session-token external_id claim on both instances (MANUAL) — needed for recipe ownership end-to-end, not for scaffolding'
         note: >
             T000-prereq clerk-verify code MERGED to main in PR #60 (as @kitchensink/clerk-verify — it
-            becomes @commise/shared-clerk-verify when the rename lands). Remaining for T000-prereq:
+            becomes @kitchensink/clerk-verify when the rename lands). Remaining for T000-prereq:
             (1) Clerk session-token external_id customization — MANUAL, both instances; (2) recipe
             AuthMiddleware fail-closed on absent userId — T019, after the recipe service is scaffolded (T001).
         red_gate:
@@ -190,7 +190,7 @@ reconciliation:
             shared/recipe-core → @kitchensink/recipe-core, features/recipes →
             @commise/features-recipes. The former monolithic api package and the shared
             db/config package references are replaced. Existing shipped packages keep their
-            real names — the food client stays @commise/clients-food.
+            real names — the food client stays @kitchensink/food-service-client.
         - >
             R3 — Recipe service attaches to the shared ALB at priority 300 (identity=100,
             food=200); Fargate in public subnets with assignPublicIp (egress via IGW);
@@ -199,7 +199,7 @@ reconciliation:
             forgeable authorizer-context header); Environment=pr-{N} tagging + per-PR logical DB.
         - >
             R5 — Ingredients back onto the source-agnostic food service (003) via
-            @commise/clients-food (FoodServiceClient); foods referenced by
+            @kitchensink/food-service-client (FoodServiceClient); foods referenced by
             internal ULID (foodId), never the external USDA food identifier, no cross-DB
             FK; resolution is asynchronous (addByName → 202 PENDING|UNRESOLVED → poll
             getById/getStatus → RESOLVED; getCandidates/resolve for disambiguation).

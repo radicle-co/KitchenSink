@@ -22,9 +22,9 @@
         "packages/infra/*",
         "packages/apps/commise/web",
         "packages/apps/commise/mobile",
-        "packages/clients/usda",
-        "packages/clients/food-service",
-        "packages/apps/commise/ui"
+        "packages/apps/commise/ui",
+        "packages/apps/commise/features/*",
+        "packages/clients/*"
     ],
     "scripts": {
         "build": "turbo run build",

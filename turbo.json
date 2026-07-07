@@ -12,6 +12,9 @@
         "test": {
             "outputs": []
         },
+        "test:integration": {
+            "outputs": []
+        },
         "test:e2e": {
             "dependsOn": ["^build"],
             "outputs": []

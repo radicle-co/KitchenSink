@@ -322,7 +322,7 @@ Every implementation task in `tasks.md` is paired with a corresponding test task
 | Integration | Vitest         | `*.integration.test.ts` | `__tests__/integration/`                  |
 | Web E2E     | Playwright     | `*.spec.ts`             | `packages/apps/commise/web/tests/e2e/`    |
 | Mobile E2E  | Maestro        | `*.yaml`                | `packages/apps/commise/mobile/tests/e2e/` |
-| Load        | k6 / Artillery | `*.load.ts`             | `packages/services/recipe-service/tests/load/`   |
+| Load        | k6             | `*.load.ts`             | `packages/services/recipe-service/tests/load/`   |
 
 ### LocalStack in Tests (NFR-007)
 

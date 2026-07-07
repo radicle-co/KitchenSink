@@ -5,56 +5,46 @@
 
 ## Design Constraints
 
-- **Storage**: RDS PostgreSQL 16 (`db.t4g.small` ~$25/mo launch)
+- **Storage**: the **shared RDS PostgreSQL 16 instance** (`kitchensink-identity-{stage}`, global DataStack) — recipe tables live in their **own logical database `kitchensink_recipes`** on that shared instance (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap`: a passwordless IAM-auth `recipe_app` role + the `kitchensink_recipes` database; the service authenticates via RDS IAM tokens — no password secret). **No new RDS instance** — a separate logical database on the shared instance costs nothing extra and keeps recipes isolated from identity/food data.
 - **Extensions**: `pg_trgm` (fuzzy search), `pgcrypto` (gen_random_uuid) — enabled via `CREATE EXTENSION`
 - **Triggers**: `search_vector` tsvector maintained by PostgreSQL trigger (not application layer)
 - **JSONB**: used for recipe version snapshots, flexible metadata
 - **GIN indexes**: full support on tsvector, text[], and JSONB columns
 - **No transaction row limit**: bulk operations work natively
-- **Per-PR schema isolation**: schema `pr_<number>` for each PR; `public` for production
+- **Per-PR isolation**: per-PR **logical databases** within the shared RDS (ADR-0006); `kitchensink_recipes` follows the same per-PR cloning as the other service databases.
 
 ---
 
 ## Entity Relationship Overview
 
 ```
-users ──< recipes ──< recipe_ingredients >── ingredients
-              │
-              ├──< recipe_steps
-              ├──< recipe_photos
-              ├──< recipe_versions
-              └──< recipe_collections >── collections
+recipes ──< recipe_ingredients >── ingredients
+   │
+   ├──< recipe_steps
+   ├──< recipe_photos
+   ├──< recipe_versions
+   └──< recipe_collections >── collections
 ```
 
 ---
 
 ## Schema DDL
 
-### `users`
+> **Database.** All tables below live in the recipe service's **own logical database `kitchensink_recipes`** on the **shared** RDS instance (default `public` schema, like identity/food). The logical database is the isolation boundary — no new RDS instance, and no cross-database FKs (recipes never FKs into identity/food; `owner_id`/`food_id` are opaque values).
 
-```sql
--- (superseded — see 002-user-auth) The users table is owned by feature 002.
--- users.sub (VARCHAR(255) COLLATE "C" PRIMARY KEY) is the canonical user identifier.
--- The id/clerk_id columns shown below are superseded; downstream FKs reference users(sub).
-CREATE TABLE users (
-    sub          VARCHAR(255) COLLATE "C" PRIMARY KEY,  -- Clerk sub claim; canonical PK
-    email        TEXT        NOT NULL UNIQUE,
-    display_name TEXT        NOT NULL,
-    tier         TEXT        NOT NULL DEFAULT 'free'    -- 'free' | 'premium'
-                             CHECK (tier IN ('free', 'premium')),
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
----
+> **User reference (no local `users` table).** The recipe service does **not** own a `users` table.
+> `owner_id` / `created_by` store the **app-user ULID (from the token claim)** directly as `VARCHAR(255) NOT NULL`
+> with **no FK** and **no read-through user replication**. The recipe `AuthMiddleware` verifies the
+> Clerk session token and reads the app-user ULID from the token claim; author display/profile is resolved via the identity
+> client (002) when needed, never stored here.
 
 ### `recipes`
 
 ```sql
 CREATE TABLE recipes (
     id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_sub              VARCHAR(255) NOT NULL REFERENCES users(sub),
+    -- App-user ULID of the owner (from token claim). No FK, no local users table (see note above).
+    owner_id              VARCHAR(255) NOT NULL,
     title                  TEXT        NOT NULL,
     description            TEXT,
     prep_time_minutes      INTEGER     CHECK (prep_time_minutes >= 0),
@@ -87,7 +77,9 @@ CREATE TABLE recipes (
     tags                   TEXT[]      NOT NULL DEFAULT '{}',
 
     -- Nutrition summary (aggregate from recipe_ingredients)
-    has_partial_nutrition  BOOLEAN     NOT NULL DEFAULT false,  -- any user-entered ingredient
+    has_partial_nutrition  BOOLEAN     NOT NULL DEFAULT false,  -- any user-entered ingredient, or any
+                                                                -- ingredient whose food resolution is
+                                                                -- still pending/unresolved (async, R5)
 
     -- Versioning (FR-007b)
     current_version        INTEGER     NOT NULL DEFAULT 1,
@@ -112,7 +104,7 @@ CREATE TABLE recipes (
 CREATE INDEX idx_recipes_search_vector    ON recipes USING GIN (search_vector);
 
 -- B-tree indexes for faceted filtering
-CREATE INDEX idx_recipes_owner_sub         ON recipes (owner_sub);
+CREATE INDEX idx_recipes_owner_id         ON recipes (owner_id);
 CREATE INDEX idx_recipes_visibility       ON recipes (visibility);
 CREATE INDEX idx_recipes_cuisine          ON recipes (cuisine);
 CREATE INDEX idx_recipes_cloned_from      ON recipes (cloned_from_id);
@@ -171,15 +163,39 @@ CREATE INDEX idx_recipe_steps_recipe_id ON recipe_steps (recipe_id);
 
 ---
 
-### `ingredients` (USDA-backed + user-entered, from 003-usda-food-data)
+### `ingredients` (food-service-backed + user-entered, from 003-food-data)
+
+Backed by the **source-agnostic food service (003)** via its typed client
+`@kitchensink/food-service-client` (`FoodServiceClient`) — **not** by querying USDA directly. Foods are
+referenced by the food service's internal **ULID** (`food_id`), stored as an **opaque cross-service
+reference** (never a USDA `fdcId`, and **not** a cross-DB FK to the food DB). The `ingredients` +
+`recipe_ingredients` tables — and the food↔ingredient link — are owned by **001**. Resolution is
+**asynchronous**: a just-added food may be `pending` (nutrition not ready yet) or `unresolved` (needs
+disambiguation) before it becomes `resolved` (golden record with nutrition). See R5 / FR-007.
 
 ```sql
 CREATE TABLE ingredients (
     id              UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     name            TEXT    NOT NULL,
-    usda_fdc_id     INTEGER,                -- null for user-entered
+    -- Opaque reference to the food service (003) golden record by its internal ULID.
+    -- NEVER a USDA fdcId (003 is source-agnostic); this is a cross-service reference,
+    -- not a cross-DB FK. Null for user-entered / freeform ingredients.
+    food_id         TEXT,
+    -- Async food-resolution status (`foodResolutionStatus` in @commise/shared-recipe-core),
+    -- mirroring the shipped food client's FoodStatus (UPPER_SNAKE, incl. the terminal states):
+    --   'PENDING'    → addByName accepted (202), nutrition not ready yet
+    --   'UNRESOLVED' → needs disambiguation (getCandidates + resolve)
+    --   'RESOLVED'   → golden record available (nutrition populated below)
+    --   'NOT_FOUND'  → food service could not match the name (terminal)
+    --   'FAILED'     → resolution failed (terminal)
+    -- Nullable: set ONLY for database-backed ingredients (food_id present); NULL for
+    -- user-entered / freeform ingredients (is_user_entered=true, no food reference).
+    -- Freeform / user-supplied nutrition (FR-007a) is the SEPARATE is_user_entered
+    -- boolean below — it is NOT a food-resolution-status value.
+    food_resolution_status TEXT
+                      CHECK (food_resolution_status IN ('PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED')),
     is_user_entered BOOLEAN NOT NULL DEFAULT false,
-    -- Per-100g nutrition
+    -- Per-100g nutrition — populated from the food golden record once 'resolved'; null while pending
     calories_per_100g   NUMERIC(8,2),
     protein_g_per_100g  NUMERIC(8,2),
     carbs_g_per_100g    NUMERIC(8,2),
@@ -189,11 +205,17 @@ CREATE TABLE ingredients (
 );
 
 CREATE INDEX idx_ingredients_search_vector ON ingredients USING GIN (search_vector);
-CREATE INDEX idx_ingredients_usda_fdc_id   ON ingredients (usda_fdc_id) WHERE usda_fdc_id IS NOT NULL;
+CREATE INDEX idx_ingredients_food_id       ON ingredients (food_id) WHERE food_id IS NOT NULL;
 
 -- pg_trgm GIN index for fuzzy autocomplete (typo-tolerant ingredient search)
 CREATE INDEX idx_ingredients_name_trgm     ON ingredients USING GIN (name gin_trgm_ops);
 ```
+
+**Food-client call surface (R5)**: typeahead over known foods → `foodClient.search(query)` (sync,
+local `/v1/foods/search`); an unknown name → `foodClient.addByName(name)` → `202 { id, status }`
+(`PENDING`/`UNRESOLVED`), poll via `getById(id)` / `getStatus(id)` until `RESOLVED`; disambiguate an
+`UNRESOLVED` food via `getCandidates(id)` + `resolve(id, candidateIds)`. The ingredient picker MUST
+surface a "nutrition pending" state, and a recipe may temporarily show partial nutrition.
 
 ---
 
@@ -268,7 +290,7 @@ CREATE TABLE recipe_versions (
     snapshot        JSONB       NOT NULL,    -- full recipe snapshot at this version
     base_version    INTEGER,                 -- enables 3-way merge conflict detection
     s3_key          TEXT,                    -- S3 archive key (all versions)
-    created_by      VARCHAR(255) NOT NULL REFERENCES users(sub),
+    created_by      VARCHAR(255) NOT NULL,   -- app-user ULID (from token claim); no FK, no local users table
     change_summary  TEXT,                    -- optional: what changed
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (recipe_id, version_number)
@@ -304,7 +326,7 @@ Application purges DB rows beyond 10 most recent on each write. All versions rem
 ```sql
 CREATE TABLE collections (
     id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_sub            VARCHAR(255) NOT NULL REFERENCES users(sub),
+    owner_id            VARCHAR(255) NOT NULL,   -- app-user ULID (from token claim); no FK, no local users table
     name                 TEXT        NOT NULL,
     description          TEXT,
 
@@ -333,7 +355,7 @@ CREATE TABLE recipe_collections (
     PRIMARY KEY (collection_id, recipe_id)
 );
 
-CREATE INDEX idx_collections_owner_sub            ON collections (owner_sub);
+CREATE INDEX idx_collections_owner_id            ON collections (owner_id);
 CREATE INDEX idx_collections_source_collection   ON collections (source_collection_id)
     WHERE source_collection_id IS NOT NULL;
 CREATE INDEX idx_recipe_collections_recipe_id    ON recipe_collections (recipe_id);
@@ -343,7 +365,7 @@ CREATE INDEX idx_recipe_collections_recipe_id    ON recipe_collections (recipe_i
 
 - Cloning a collection inserts a new `collections` row with `source_collection_id` set to the source, plus one `recipe_collections` row per source recipe with `added_via = 'clone_seed'`.
 - Subsequent edits to the source collection do **not** propagate automatically.
-- The owner of the cloned collection may invoke `POST /api/v1/collections/{id}/pull-from-source` to fetch new recipes added to the source since the last pull; new memberships are inserted with `added_via = 'pull'`. Removed recipes in the source are **not** removed from the clone.
+- The owner of the cloned collection may invoke `POST /v1/collections/{id}/pull-from-source` to fetch new recipes added to the source since the last pull; new memberships are inserted with `added_via = 'pull'`. Removed recipes in the source are **not** removed from the clone.
 
 ---
 
@@ -388,19 +410,24 @@ HAVING count(DISTINCT ingredient_id) = array_length($1::uuid[], 1);
 ## Image Processing Pipeline
 
 ```
-POST /api/v1/recipes/{id}/photos/upload-url
-  → Lambda generates S3 presigned PUT URL
+POST /v1/recipes/{id}/photos/upload-url
+  → Fargate recipe API generates S3 presigned PUT URL
   → Returns { uploadUrl, key, expiresIn: 900 }
 
 Client PUT → s3://bucket/uploads/{uuid}/original.{ext}
-  → S3 event → Lambda (Sharp)
+  → S3 event → photo-processor Lambda (Sharp) — S3-ONLY, NOT VPC-attached, touches NO DB (ADR-0004)
      ├── Resize to 150×150 → s3://bucket/photos/{uuid}/thumb.webp
      ├── Resize to 400×400 → s3://bucket/photos/{uuid}/card.webp
      └── Resize to 1200×1200 → s3://bucket/photos/{uuid}/full.webp
-  → UPDATE recipe_photos SET
-        s3_key_thumb = ..., s3_key_card = ..., s3_key_full = ...,
-        processing_status = 'complete'
+  → emits SQS `photo-processed` { recipePhotoId, s3_key_thumb, s3_key_card, s3_key_full, status }
   → (Optional) DELETE original from S3 after successful processing
+
+  → Fargate recipe API (in-VPC, reaches RDS) CONSUMES `photo-processed` and performs the
+    completion UPDATE — the Lambda never writes the DB:
+      UPDATE recipe_photos SET
+          s3_key_thumb = ..., s3_key_card = ..., s3_key_full = ...,
+          processing_status = 'complete'   -- or 'failed'
+      WHERE id = {recipePhotoId}
 
 Serving:
   https://cdn.commise.app/photos/{uuid}/thumb.webp   (CloudFront, immutable cache)
@@ -473,10 +500,22 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 
 All schema in this document is expressed as reference SQL DDL for clarity. The **actual implementation** uses:
 
-- **Drizzle ORM** (`drizzle-orm` + `pg`) for schema definitions in `packages/shared/db/src/schema/`
+- **Drizzle ORM** (`drizzle-orm` + `pg`) for schema definitions in `packages/services/recipes/src/database/schema/`
 - **drizzle-kit** for migration generation (`drizzle-kit generate`) and execution (`drizzle-kit migrate`)
-- Migrations live in `packages/shared/db/src/migrations/` (auto-generated, committed to git)
-- Schema files: `recipes.ts`, `ingredients.ts`, `versions.ts`, `photos.ts`, `collections.ts`, `users.ts`
+- Migrations live in `packages/services/recipes/src/database/migrations/` (auto-generated, committed to git)
+- Schema files: `recipes.ts`, `ingredients.ts`, `versions.ts`, `photos.ts`, `collections.ts`
+
+The recipe service (`@commise/services-recipes`) **uses the shared RDS instance with its own logical
+database `kitchensink_recipes`** — it does **not** provision a new RDS instance. The database + its owning
+role are provisioned by a **`RecipeDbBootstrap` custom resource** (a master-connected Lambda mirroring
+`FoodDbBootstrap`): a passwordless **IAM-auth `recipe_app` LOGIN role** (`GRANT rds_iam`) and the base
+`kitchensink_recipes` database. The service authenticates with **short-lived RDS IAM tokens** (no password
+secret), its Fargate task role granted `rds-db:connect` scoped to the `recipe_app` db-user, and
+`Fn.importValue`s the shared instance endpoint exactly as the food service does. Tables use the default `public` schema within
+`kitchensink_recipes` — the logical database is the isolation boundary, so no PII adjacency and no
+cross-database FKs. There is **no** shared db package. The recipe service does **not** own a `users` table: `owner_id` / `created_by` store the
+app-user ULID (from the token claim) directly (`VARCHAR(255) NOT NULL`, no FK, no read-through user replication);
+author display/profile is resolved via the identity client (002) when needed.
 
 The Drizzle schema is the **source of truth** — this DDL document is a design reference only.
 
@@ -485,7 +524,7 @@ The Drizzle schema is the **source of truth** — this DDL document is a design 
 The `recipes_search_vector_update()` trigger function (see Search Vector Maintenance above) is created via a **custom SQL migration** in drizzle-kit, since Drizzle ORM does not natively support trigger definitions. Add as a `sql` block in the initial migration:
 
 ```typescript
-// packages/shared/db/src/migrations/0001_add_search_trigger.ts
+// packages/services/recipes/src/database/migrations/0001_add_search_trigger.ts
 import { sql } from 'drizzle-orm';
 
 export const searchTriggerMigration = sql`
@@ -567,16 +606,61 @@ CREATE INDEX idx_pending_archives_recipe_id
 
 User-initiated GDPR erasure is the **only** path that physically removes data:
 
-1. Frontend calls `POST /api/v1/account/erasure-requests` to enumerate the user's tombstoned + active recipes, photos, versions, collections, and pending archives.
+1. Frontend calls `POST /v1/account/erasure` (idempotent per C-007) to enumerate the user's tombstoned + active recipes, photos, versions, collections, and pending archives.
 2. User confirms; backend records an `erasure_request` audit row (out of scope for this feature; tracked in compliance backlog) and enqueues an erasure job.
 3. Erasure worker, in order:
     - DELETEs `recipe_version_pending_archives` rows for the user's recipes.
     - DELETEs S3 objects under `versions/{recipe_id}/` and `photos/{recipe_id}/` for each owned recipe.
     - DELETEs `recipe_versions`, `recipe_photos`, `recipe_ingredients`, `recipe_steps`, `recipe_collections`, `recipes`, and `collections` for the user.
-    - DELETEs the `users` row last.
+
+   (No local `users` row to delete — the recipe service does not own one; the user's identity record is erased by feature 002.)
 4. Cloned descendants owned by **other** users are unaffected; their `cloned_from_id` is set to NULL by the erasure worker prior to deleting the source recipe to preserve referential integrity without leaking source data.
 
 This is the **only** code path permitted to issue `DELETE FROM recipes`. All other "delete" operations MUST set `deleted_at` instead.
+
+### `account_erasure_jobs` (erasure idempotency, C-007)
+
+Tracks each `POST /v1/account/erasure` enqueue so the endpoint is idempotent per C-007 (**not** a 409).
+This table is the **single authoritative source** for the erasure job status enum.
+
+```sql
+CREATE TABLE account_erasure_jobs (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- App-user ULID (from token claim) of the user whose data is being erased. No FK, no local users table.
+    owner_id    VARCHAR(255) NOT NULL,
+
+    -- Canonical erasure job status enum (authoritative source for every artifact).
+    --   'queued'    → enqueued, worker has not started
+    --   'running'   → worker is draining the erasure steps
+    --   'completed' → all data physically removed (terminal)
+    --   'failed'    → worker errored; a fresh POST retries (terminal-until-retry)
+    status       TEXT        NOT NULL DEFAULT 'queued'
+                 CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+    attempts     INTEGER     NOT NULL DEFAULT 0,
+    last_error   TEXT,
+
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- At most one in-flight job per user: a duplicate POST while a job is 'queued'/'running'
+-- collides here, so the endpoint returns 202 with the existing job id (no second enqueue).
+CREATE UNIQUE INDEX idx_erasure_jobs_active_owner
+    ON account_erasure_jobs (owner_id)
+    WHERE status IN ('queued', 'running');
+
+CREATE INDEX idx_erasure_jobs_status
+    ON account_erasure_jobs (status)
+    WHERE status IN ('queued', 'running');
+```
+
+**Idempotency behavior (C-007)** — `POST /v1/account/erasure`:
+
+- Duplicate while a job is `queued`/`running` → **202 with the existing job id** (no second enqueue).
+- After a `completed` job → **410** (already erased).
+- After a `failed` job → **202** (fresh retry; a new `queued` job is enqueued).
+
+The cron sweeper re-drains jobs stuck in `queued`/`running` (see plan.md).
 
 ---
 

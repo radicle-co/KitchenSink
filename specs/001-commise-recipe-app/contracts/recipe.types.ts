@@ -1,6 +1,6 @@
-/** @module @kitchensink/recipe-core — Shared types and Zod schemas for Commise recipe management */
+/** @module @commise/shared-recipe-core — Shared types and Zod schemas for Commise recipe management */
 
-// @ts-expect-error -- Design artifact imports zod as a package dependency of @kitchensink/recipe-core.
+// @ts-expect-error -- Design artifact imports zod as a package dependency of @commise/shared-recipe-core.
 import { z } from 'zod';
 
 const idSchema = z.string().min(1);
@@ -192,12 +192,66 @@ export const recipeStepSchema = z.object({
 });
 
 /**
+ * Async resolution state of an ingredient's backing food record in the
+ * source-agnostic food service (003). Values mirror the shipped food client's
+ * `FoodStatus` (`@commise/clients-food`), including the terminal
+ * `NOT_FOUND` / `FAILED` states. A just-added food may report `PENDING` or
+ * `UNRESOLVED` (nutrition not ready yet, or awaiting disambiguation) and
+ * transition to `RESOLVED` later; consumers must tolerate partial nutrition in
+ * the interim (FR-007). `NOT_FOUND` / `FAILED` are terminal — the picker UX
+ * surfaces an error, offers a freeform fallback, and allows removal. Whether an
+ * ingredient is freeform is a SEPARATE concern tracked by
+ * {@link Ingredient.isUserEntered}, never a resolution-status value.
+ */
+export const FoodResolutionStatus = {
+    PENDING: 'PENDING',
+    UNRESOLVED: 'UNRESOLVED',
+    RESOLVED: 'RESOLVED',
+    NOT_FOUND: 'NOT_FOUND',
+    FAILED: 'FAILED',
+} as const;
+
+/**
+ * Resolution lifecycle status for an ingredient's {@link Ingredient.foodId}.
+ */
+export type FoodResolutionStatus = (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus];
+
+/**
+ * Runtime validator for {@link FoodResolutionStatus}.
+ */
+export const foodResolutionStatusSchema = z.enum([
+    FoodResolutionStatus.PENDING,
+    FoodResolutionStatus.UNRESOLVED,
+    FoodResolutionStatus.RESOLVED,
+    FoodResolutionStatus.NOT_FOUND,
+    FoodResolutionStatus.FAILED,
+]);
+
+/**
  * Canonical ingredient definition, optionally enriched with nutrition per 100g.
+ *
+ * Nutrition is backed by the source-agnostic food service (003) via its typed
+ * client (`@commise/clients-food`); foods are referenced by the food
+ * service's internal id ({@link foodId}), and resolution is asynchronous. The
+ * food↔ingredient link is owned by 001.
  */
 export interface Ingredient {
     id: string;
     name: string;
-    usdaFdcId?: string;
+    /**
+     * Opaque reference to the food service's internal id (ULID) for the golden
+     * food record backing this ingredient. Never a source-specific external
+     * identifier, and never a cross-DB foreign key — the food service (003) is
+     * source-agnostic and owns its own store; 001 holds only this opaque
+     * reference.
+     */
+    foodId?: string;
+    /**
+     * Async resolution state of {@link foodId} in the food service. Present only
+     * for database-backed ingredients (a {@link foodId} is set); absent for
+     * user-entered ingredients that carry no food reference.
+     */
+    foodResolutionStatus?: FoodResolutionStatus;
     isUserEntered: boolean;
     caloriesPer100g?: number;
     proteinGPer100g?: number;
@@ -212,7 +266,8 @@ export interface Ingredient {
 export const ingredientSchema = z.object({
     id: idSchema,
     name: z.string().min(1),
-    usdaFdcId: z.string().min(1).optional(),
+    foodId: idSchema.optional(),
+    foodResolutionStatus: foodResolutionStatusSchema.optional(),
     isUserEntered: z.boolean(),
     caloriesPer100g: nonNegativeNumberSchema.optional(),
     proteinGPer100g: nonNegativeNumberSchema.optional(),
@@ -451,6 +506,7 @@ export interface RecipeVersionPendingArchive {
     lastError?: string;
     nextAttemptAt: IsoDateTimeString;
     sqsMessageId?: string;
+    sqsReceipt?: string;
     createdAt: IsoDateTimeString;
     updatedAt: IsoDateTimeString;
 }
@@ -468,6 +524,7 @@ export const recipeVersionPendingArchiveSchema = z.object({
     lastError: z.string().min(1).optional(),
     nextAttemptAt: isoDateTimeStringSchema,
     sqsMessageId: z.string().min(1).optional(),
+    sqsReceipt: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
     updatedAt: isoDateTimeStringSchema,
 });
@@ -679,3 +736,82 @@ export const recipeErrorSchema = z.object({
     message: z.string().min(1),
     details: z.record(z.string(), z.unknown()).optional(),
 });
+
+/**
+ * Stable identifier for a Home-screen widget (US-0 / FR-046). Each feature owns
+ * its own widget id; the id is the anti-drift keystone shared by the three
+ * layers of the Home surface — discovery (explicit startup registration),
+ * composition ({@link CurateHomeWidgets}), and render (`React.lazy(load)` +
+ * `Suspense` + a per-widget `ErrorBoundary`). In v1 the recipe widget is the
+ * **only** live widget; gated widgets (backed by 005–009) are **ABSENT** — not
+ * present-with-empty-state — and are added, each with its own loader, when its
+ * feature package ships, at which point they auto-appear. Consumers MUST skip
+ * unknown ids so an older client tolerates a newer server (graceful version
+ * skew). See `research/home-widget-architecture.md` (DECISION section).
+ */
+export type HomeWidgetId = string;
+
+/**
+ * Lazy loader for a widget's platform component module — the "loader seam". It
+ * resolves the dynamic import of a feature package's `./widget/web` or
+ * `./widget/mobile` entry (never a component directly), so the render layer can
+ * wrap it in `React.lazy` + `Suspense` + an `ErrorBoundary`, and so a widget can
+ * later become a Module Federation remote one line at a time. Descriptors are
+ * only registered for feature packages that exist; v1 registers just the recipe
+ * widget's loader.
+ */
+export type HomeWidgetLoader = () => Promise<{ default: unknown }>;
+
+/**
+ * Descriptor a feature contributes for its Home widget via explicit startup
+ * registration (the discovery layer). Colocated with the feature, so adding a
+ * feature package makes its widget eligible without editing a central registry.
+ */
+export interface HomeWidgetDescriptor {
+    id: HomeWidgetId;
+    /** The loader seam; see {@link HomeWidgetLoader}. */
+    load: HomeWidgetLoader;
+    /**
+     * Default ordering weight used when the viewer has no personalization
+     * override for this widget; higher weights sort earlier.
+     */
+    defaultWeight: number;
+    /**
+     * Capability flag gating the widget on whether its backing service is live.
+     * When the capability is absent from the viewer's live capabilities, the
+     * widget is omitted **entirely** (ABSENT, not rendered as an empty tile).
+     * This is what lets Home ship in v1 with only the recipe widget live while
+     * gated widgets light up automatically as their services deploy.
+     */
+    capability?: string;
+    /** Minimum subscription tier required for the widget to be eligible. */
+    minTier?: string;
+}
+
+/**
+ * Per-viewer curation context for {@link CurateHomeWidgets}: which capabilities
+ * (backing services) are live, the viewer's subscription tier, and their
+ * persisted personalization layout. The layout (`order` + `hidden`) is loaded
+ * from and saved via `PATCH /v1/profiles/me`, which is **owned by the
+ * identity service (002)** and merely **consumed** here — 001 does not own that
+ * endpoint or a `home_layouts` store — the layout lives in the identity profile preferences (`profiles.preferences.homeLayout`).
+ */
+export interface HomeWidgetCurationContext {
+    liveCapabilities: string[];
+    tier?: string;
+    order?: HomeWidgetId[];
+    hidden?: HomeWidgetId[];
+}
+
+/**
+ * Pure composition step (L2): given the registered descriptors and a viewer
+ * context, return the ordered, capability- and tier-gated list of widgets to
+ * render. A descriptor is dropped when its `capability` is not in
+ * `liveCapabilities`, its `minTier` exceeds the viewer's tier, or its id is in
+ * `hidden`; the survivors are ordered by the viewer's `order` and then by
+ * `defaultWeight`. No side effects.
+ */
+export type CurateHomeWidgets = (
+    widgets: readonly HomeWidgetDescriptor[],
+    ctx: HomeWidgetCurationContext,
+) => HomeWidgetDescriptor[];

@@ -4,6 +4,8 @@
 **Mode**: Retroactive bootstrap pilot
 **Verifier**: Sisyphus (deterministic checks + manual cross-reference)
 
+> **SUPERSEDED where noted (2026-07-06).** This is a historical verify-full report, retained as-is for audit. Two conventions it records as "resolved" were later **reversed** per the 2026-07-06 reconciliation; the affected lines are annotated inline below. In brief: (1) the canonical public API prefix is bare **`/v1/*`** (matching shipped 002/003), **not** the `/api`-prefixed `v1` scheme this report treats as the fix — every `/api/v1/*` reference below is superseded by `/v1/*`; (2) the shared recipe types package is **`@commise/shared-recipe-core`** (folder `packages/shared/recipe-core`), **not** `@kitchensink/shared-recipe-core`. The planned workspace paths in G-003 have also been re-homed (see that annotation). History is not rewritten.
+
 ---
 
 ## Scope
@@ -23,7 +25,7 @@ Verification re-executed across the full Product Forge chain for `specs/001-comm
 | ------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | code ↔ tasks              | ⚠️ EXPECTED-GAP | `tasks.md`: 0/179 tasks complete; implementation workspaces in plan are not created yet.                                                                                     |
 | tasks ↔ plan              | ⚠️ WARNING      | Structural phase alignment is intact, but FR-level determinism remains transitive (story-grouped tasking).                                                                   |
-| plan ↔ spec.md            | ✅ PASS         | Route-prefix governance references have been normalized to `/api/v1/*` for documentation handoff.                                                                            |
+| plan ↔ spec.md            | ✅ PASS         | Route-prefix governance references have been normalized to `/api/v1/*` for documentation handoff. _(SUPERSEDED 2026-07-06: canonical prefix is bare `/v1/*`, not `/api/v1/*`.)_                                                                            |
 | spec.md ↔ product-spec/   | ✅ PASS         | FR/C coverage remains complete across product-spec, journey, and wireframes.                                                                                                 |
 | product-spec/ ↔ research/ | ✅ PASS         | NFR and architecture rationale linkage remains complete.                                                                                                                     |
 | v-model ↔ spec.md         | ⚠️ WARNING      | V-model corpus exists and peer reviews are clean, but traceability matrix/release audit still mark the execution baseline as pre-implementation and blocked for release use. |
@@ -38,6 +40,8 @@ Verification re-executed across the full Product Forge chain for `specs/001-comm
 
 ### C-001: API route standard mismatch resolved (`/api/*` → `/api/v1/*`)
 
+> **SUPERSEDED (2026-07-06).** The `/api/v1/*` target recorded here is **reversed**. Shipped identity (002) and food (003) expose bare `/v1/*`, so the canonical public prefix is **`/v1/*`** — every `/api/v1/*` in this finding should read `/v1/*`. The route-standard fix still stands; only the chosen prefix changed.
+
 - **Where**:
     - `review.md` Revision 1 + Revision 2: blocking correction for GR-002
     - `blocker-recommendations.md` section 1 (dated 2026-05-12)
@@ -45,6 +49,8 @@ Verification re-executed across the full Product Forge chain for `specs/001-comm
 - **Current state**: resolved for documentation handoff; execution remains unstarted.
 
 ### C-002: Shared `@kitchensink/shared-recipe-core` handoff task added
+
+> **SUPERSEDED (2026-07-06).** The shared package name recorded here is **reversed**: it is **`@commise/shared-recipe-core`** (folder `packages/shared/recipe-core`), not `@kitchensink/shared-recipe-core`. Every `@kitchensink/shared-recipe-core` in this finding should read `@commise/shared-recipe-core`. The GR-007 shared-contract-first requirement itself still stands.
 
 - **Where**:
     - `review.md` Revision 1 + Revision 2: GR-007 blocking correction
@@ -83,6 +89,8 @@ Verification re-executed across the full Product Forge chain for `specs/001-comm
 - **Status**: expected while implementation phase has not begun.
 
 ### G-003: Planned implementation workspaces are not present yet
+
+> **SUPERSEDED (2026-07-06).** The target workspace paths recorded here have been **re-homed** per: `packages/api/recipe` → **`packages/services/recipes`** (`@commise/services-recipes`, owns its own Drizzle schema + RDS); the photo-processor is a worker Lambda under **`packages/services/recipes-workers`** (`@commise/services-recipes-workers`), not `packages/api/photo-processor`; `packages/shared/recipe-core` keeps that folder as **`@commise/shared-recipe-core`**; **`packages/shared/config` no longer exists** (config lives in each service's own `config/` module — no shared config package); and **`packages/shared/db` no longer exists** (each service owns its own per-service DB). The "not created yet" observation still holds.
 
 - **Expected from plan/tasks context**: `packages/api/recipe`, `packages/api/photo-processor`, `packages/shared/recipe-core`, `packages/shared/config`, `packages/shared/db`
 - **Observed**: those target workspace paths are not created yet.
@@ -129,6 +137,8 @@ Verification re-executed across the full Product Forge chain for `specs/001-comm
 ---
 
 ## Required Next Actions Before `implement` Starts
+
+> **SUPERSEDED (2026-07-06).** Read the two prefix/package targets below at their **reconciled** values: GR-002 resolves to bare **`/v1/*`** (not `/api/v1/*`) and GR-007's shared package is **`@commise/shared-recipe-core`** (not `@kitchensink/shared-recipe-core`)./R2.
 
 1. Resolve GR-002 across 001 artifacts (`/api/v1/*` → `/api/v1/*`, including OpenAPI contract and spec/plan/task references).
 2. Resolve GR-007 explicitly in `tasks.md` with the shared contract-first `@kitchensink/shared-recipe-core` handoff tasking.

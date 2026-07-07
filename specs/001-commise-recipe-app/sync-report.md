@@ -55,13 +55,13 @@
 ### Layer 4: plan.md ↔ tasks.md — ✅ no findings
 
 ### Layer 5: tasks.md ↔ Code — 🔧 RESCOPED
-- DRIFT-001: Originally CRITICAL ("182 pending tasks, 0 implementation"). Post-HITL delegation analysis: ~150 tasks are correctly delegated to sub-features 002–014 (with their own active implementations). Only ~30 orphan tasks remain — core recipe CRUD under `packages/api/recipe`, `packages/shared/recipe-core`, `packages/api/photo-processor`. **Severity reduced to RESCOPED**.
+- DRIFT-001: Originally CRITICAL ("182 pending tasks, 0 implementation"). Post-HITL delegation analysis: ~150 tasks are correctly delegated to sub-features 002–014 (with their own active implementations). Only ~30 orphan tasks remain — core recipe CRUD under `packages/services/recipes`, `packages/shared/recipe-core`, `packages/services/recipes-workers/src/photo-processor`. **Severity reduced to RESCOPED**.
 
 ### Layer 6: spec.md ↔ Code — ❌ 1 CRITICAL + ℹ️ 1 INFO
 
-- **DRIFT-002 (CRITICAL — OPEN, accepted)**: All 3 Must Have user stories (US-0, US-1, US-2, all P1) have **no implementation evidence**. Branch diff contains only auth/identity files from 002-user-auth. No code under `packages/api/recipe/` or `packages/shared/recipe-core/`. Core recipe data model and CRUD entirely absent.
+- **DRIFT-002 (CRITICAL — OPEN, accepted)**: All 3 Must Have user stories (US-0, US-1, US-2, all P1) have **no implementation evidence**. Branch diff contains only auth/identity files from 002-user-auth. No code under `packages/services/recipes/` or `packages/shared/recipe-core/`. Core recipe data model and CRUD entirely absent.
 
-  **HITL resolution (2026-06-02)**: Option 2 selected — **implement under 001 directly**. Meta-feature 001 will dual-purpose as both planning home and implementation owner for the recipe domain. No new sub-feature spawned. DRIFT-002 remains OPEN-CRITICAL as the active work-in-progress signal for 001 until core recipe scaffolding lands under `packages/api/recipe/`, `packages/shared/recipe-core/`, and `packages/api/photo-processor/` (or equivalent paths under `packages/apps/commise/`). Next sync-verify run should re-evaluate Layer 5 once any 001 `[x]` tasks materialize.
+  **HITL resolution (2026-06-02)**: Option 2 selected — **implement under 001 directly**. Meta-feature 001 will dual-purpose as both planning home and implementation owner for the recipe domain. No new sub-feature spawned. DRIFT-002 remains OPEN-CRITICAL as the active work-in-progress signal for 001 until core recipe scaffolding lands under `packages/services/recipes/`, `packages/shared/recipe-core/`, and `packages/services/recipes-workers/src/photo-processor/` (or equivalent paths under `packages/apps/commise/`). Next sync-verify run should re-evaluate Layer 5 once any 001 `[x]` tasks materialize.
 
 - DRIFT-005 (INFO): FR-045 (auth) dependency satisfied by 002-user-auth files in branch diff.
 

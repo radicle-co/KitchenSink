@@ -69,16 +69,16 @@ element via the traceability matrix (`v-model/traceability-matrix.md`).
 | ---------------------------- | ------------------- | ------------------------------- |
 | JWT Principal → Auth Guard   | ARCH-001 → ARCH-002 | Interface contract testing      |
 | Recipe DAL → Service         | ARCH-003 → ARCH-004 | Data flow testing               |
-| Ingredient → USDA            | ARCH-013 → ARCH-014 | Consumer-driven contract (CDCT) |
+| Ingredient → Food Service Client | ARCH-013 → ARCH-014 | Consumer-driven contract (CDCT) against `@kitchensink/food-service-client` |
 | Version → S3 Archive         | ARCH-017 → ARCH-018 | Interface fault injection       |
 | SQS Queue → Archive Consumer | ARCH-018 → ARCH-019 | Concurrency & race condition    |
 | Search → PostgreSQL FTS      | ARCH-024 → ARCH-025 | Interface contract testing      |
 | Photo Upload → S3 + Lambda   | ARCH-028 → ARCH-029 | Interface fault injection       |
-| API Gateway → Lambda         | ARCH-030 → ARCH-031 | Interface contract testing      |
+| Shared ALB → NestJS Service  | ARCH-030 → ARCH-031 | Interface contract testing      |
 
 **Key scenarios**:
 
-- `ITS-001-A1`: JWT token flows through authorizer → principal injected into request context
+- `ITS-001-A1`: Clerk session token verified by AuthMiddleware (networkless) → principal injected into `req.user`
 - `ITS-004-B1`: Recipe create → DAL insert → version snapshot created in same transaction
 - `ITS-018-E1`: SQS message received → Clerk delete → success → message deleted
 - `ITS-018-E2`: SQS message received → Clerk delete → failure → visibility timeout extended with backoff
@@ -237,7 +237,7 @@ executable case list). Playwright `.spec.ts` files live in `testing/playwright-t
 - [ ] Vitest configured: `vitest.config.ts` in each workspace
 - [ ] Clerk test instance credentials in `testing/env.md`
 - [ ] Database migrations run in test environment
-- [ ] Seed data script (`packages/shared/db/src/seed.ts`) ready
+- [ ] Seed data script (`packages/services/recipes/src/database/seed/`) ready
 
 ---
 
@@ -271,7 +271,7 @@ executable case list). Playwright `.spec.ts` files live in `testing/playwright-t
 
 ```bash
 # Run unit tests in watch mode (TDD workflow)
-cd packages/api/recipe
+cd packages/services/recipes
 npx vitest --watch
 
 # Run single test file

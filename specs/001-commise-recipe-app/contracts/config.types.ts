@@ -1,4 +1,11 @@
-/** @module @kitchensink/config — Unified configuration system for all Commise apps and services */
+/**
+ * @module recipes/config — Configuration contract for the recipe service, living in its own
+ * `config/` module at `packages/services/recipes/src/config/`.
+ *
+ * There is **no** shared `@commise/shared-config` package: like the identity and food services,
+ * each service owns its config module (schemas + loader). This file documents the recipe service's
+ * config contract; the schemas below are defined and validated inside that service's `config/` module.
+ */
 
 import { z } from 'zod';
 
@@ -240,12 +247,12 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
 // ---------------------------------------------------------------------------
 
 /**
- * Complete configuration schema for the NestJS API (`@kitchensink/api`).
+ * Complete configuration schema for the recipe NestJS service (`@commise/services-recipes`).
  * Merges all config domains into a single validated schema.
  *
  * Usage at app boot:
  * ```typescript
- * import { loadConfig, apiConfigSchema } from '@kitchensink/config';
+ * import { loadConfig, apiConfigSchema } from './config/index.js';
  * const config = await loadConfig(apiConfigSchema);
  * ```
  */
@@ -264,9 +271,13 @@ export type ApiConfig = z.infer<typeof apiConfigSchema>;
 
 /**
  * Configuration schema for the photo processor Lambda.
- * Subset of the full API config — no Clerk, no rate limits.
+ *
+ * S3-only: no database, no Clerk, no rate limits. The processor is **not** VPC-attached and never
+ * touches RDS (preserves ADR-0004 minimize-NAT/VPC). It resizes, writes to S3, and emits an SQS
+ * `photo-processed` message; the in-VPC Fargate recipe API consumes that message and performs the
+ * `recipe_photos` completion `UPDATE`. Hence the deliberate absence of `databaseConfigSchema` here.
  */
-export const photoProcessorConfigSchema = baseConfigSchema.merge(storageConfigSchema).merge(databaseConfigSchema);
+export const photoProcessorConfigSchema = baseConfigSchema.merge(storageConfigSchema);
 
 /** Typed photo processor configuration. */
 export type PhotoProcessorConfig = z.infer<typeof photoProcessorConfigSchema>;
@@ -319,8 +330,8 @@ export interface LoadConfigOptions {
  *
  * @example
  * ```typescript
- * // In NestJS main.ts
- * import { loadConfig, apiConfigSchema } from '@kitchensink/config';
+ * // In the recipe service's NestJS main.ts
+ * import { loadConfig, apiConfigSchema } from './config/index.js';
  *
  * async function bootstrap() {
  *   const config = await loadConfig(apiConfigSchema, {
@@ -335,8 +346,8 @@ export interface LoadConfigOptions {
  *
  * @example
  * ```typescript
- * // In Lambda handler
- * import { loadConfig, photoProcessorConfigSchema } from '@kitchensink/config';
+ * // In the photo-processor Lambda handler (its own config/ module)
+ * import { loadConfig, photoProcessorConfigSchema } from './config/index.js';
  *
  * const config = await loadConfig(photoProcessorConfigSchema, {
  *   ssmFallback: true,

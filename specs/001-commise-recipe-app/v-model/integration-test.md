@@ -39,8 +39,8 @@ Integration scenarios are module-boundary-only (Given/When/Then) and avoid user-
 
 - **Integration Scenario: ITS-001-A1**
     - **Given** ARCH-003 sends a bearer token to ARCH-001 for route authentication
-    - **When** ARCH-001 returns `principal { sub, email, tier, iat, exp }` to ARCH-002
-    - **Then** the interface between ARCH-001 and ARCH-002 accepts the principal with `tier ∈ {"free","premium"}` and non-empty `sub`
+    - **When** ARCH-001 returns `principal { userId, sub, email, tier, iat, exp }` to ARCH-002, where `userId` is the app-user ULID read from the verified token's `external_id` claim (`sub` is the Clerk subject, retained for trace/audit only)
+    - **Then** the interface between ARCH-001 and ARCH-002 accepts the principal with `tier ∈ {"free","premium"}` and a non-empty `userId` (the ULID owner key against which ownership compares `owner_id == principal.userId`); `sub` is never used as the owner key
 
 #### Test Case: ITP-001-B (networkless verification fail-closed propagation contract)
 
@@ -86,7 +86,7 @@ Integration scenarios are module-boundary-only (Given/When/Then) and avoid user-
 **Description**: Verifies ARCH-003 boundary contracts with ARCH-001/002/005/004 and JSON response envelope.
 
 - **Integration Scenario: ITS-003-A1**
-    - **Given** ARCH-026 sends `PUT /api/v1/recipes/{id}` to ARCH-003 with bearer token and DTO body
+    - **Given** ARCH-026 sends `PATCH /v1/recipes/{id}` to ARCH-003 with bearer token and DTO body
     - **When** ARCH-003 chains calls to ARCH-001, ARCH-002, ARCH-005, and ARCH-004
     - **Then** ARCH-003 returns 2xx JSON resource response and preserves pagination/headers contract where applicable
 

@@ -1,9 +1,10 @@
 # Product Forge Lifecycle Status
 # Feature: 001-commise-recipe-app
-# Last updated: 2026-05-13
+# Last updated: 2026-07-06
 
 feature: 001-commise-recipe-app
 mode: retroactive-bootstrap
+feature_mode: standard
 pilot: true
 
 phases:
@@ -69,8 +70,49 @@ phases:
         artifact: null
 
     implement:
-        state: not-started
-        note: tasks.md present but no T-IDs marked complete.
+        state: in-progress
+        started_at: '2026-07-06'
+        stable_checkpoint:
+            at: '2026-07-06'
+            workspace: '.worktrees/001-commise-recipe-app (branch 001-commise-recipe-app)'
+            base: 'current main bdf4987 (#57 zod, #58, #59 cost/per-PR-DB, #60 clerk-verify all merged)'
+            specs_commit: b272fbb
+            verified:
+                - 'specs = 57 files, exact parity with preserved snapshot 84605fc (0 stragglers, 0 missing)'
+                - 'DB reconciled to post-#59 reality: kitchensink_recipes own logical DB via RecipeDbBootstrap custom resource + passwordless RDS-IAM recipe_app (no password secret); 0 stale RecipeDbSecret refs'
+                - 'worktree on current main, clean tree, docs-only commit'
+                - 'full session work preserved at wip/001-session-snapshot (84605fc) + stash@{0}'
+                - 'husky NOT broken on main — prior failure was git-add-A of the 269-file stale rename (prettier on renamed tool configs + cold full-typecheck OOM); per-task commits are fine'
+            prerequisites_before_code_tasks:
+                - '@commise rename must land (own PR) — recipe service imports @commise/* names; on main those existing packages are still @kitchensink/*'
+                - 'npm install in the worktree (fresh worktree has no node_modules) + one warm build so turbo typecheck cache is hot for husky'
+                - 'Clerk session-token external_id claim on both instances (MANUAL) — needed for recipe ownership end-to-end, not for scaffolding'
+        note: >
+            T000-prereq clerk-verify code MERGED to main in PR #60 (as @kitchensink/clerk-verify — it
+            becomes @commise/shared-clerk-verify when the rename lands). Remaining for T000-prereq:
+            (1) Clerk session-token external_id customization — MANUAL, both instances; (2) recipe
+            AuthMiddleware fail-closed on absent userId — T019, after the recipe service is scaffolded (T001).
+        red_gate:
+            status: confirmed_failing
+            tests:
+                - 'clerk-verify > surfaces the app-user ULID from the external_id claim as userId (T000-prereq)'
+            note: confirmed failing before implementation; now green.
+    gates:
+        - phase: implement
+          decision: approved
+          mode: interactive
+          risk: low
+          at: '2026-07-06'
+          note: 'Start T000-prereq first (clerk-verify external_id→userId), TDD-first.'
+    task_log:
+        - id: T000-prereq
+          part: 'clerk-verify external_id→userId (shared verifier surface; optional field)'
+          size: S
+          status: done
+          tests: '11/11 green'
+          paths:
+              - packages/shared/clerk-verify/src/clerk-verify.ts
+              - packages/shared/clerk-verify/src/__tests__/clerk-verify.test.ts
 
     code-review:
         state: not-applicable
@@ -125,6 +167,60 @@ governance_note: >
     Blocking corrections required before implementation handoff — see review.md Revision 2.
     Release readiness gated by GR-001 (specs/governance-rules.md).
     release-readiness phase must not be marked complete until all test scenarios are executed or formally waived.
+
+reconciliation:
+    date: '2026-07-06'
+    spec: (folded into spec.md / plan.md / data-model.md / contracts)
+    authority: research/home-widget-architecture.md
+    note: >
+        Docs/specs/contracts alignment pass (no implementation code) bringing every
+        001 artifact into line with how 002 (identity) and 003 (food) shipped in main
+        and with the finalized Home widget architecture (DECISION 2026-07-06). Phase
+        states below are unchanged by this pass.
+    rules_applied:
+        - >
+            R1 — Public API prefix is bare /v1/* (the earlier api-prefixed proposal is
+            superseded and reversed): canonical recipe, collection,
+            /v1/ingredients/search, /v1/search/recipes, and idempotent
+            /v1/account/erasure routes. Next.js-internal framework routes stay private.
+        - >
+            R2 — New 001 packages use @commise/<category>-<name>: services/recipes →
+            @commise/services-recipes, services/recipes-workers →
+            @commise/services-recipes-workers, clients/recipes → @commise/clients-recipes,
+            shared/recipe-core → @commise/shared-recipe-core, features/recipes →
+            @commise/features-recipes. The former monolithic api package and the shared
+            db/config package references are replaced. Existing shipped packages keep their
+            real names — the food client stays @commise/clients-food.
+        - >
+            R3 — Recipe service attaches to the shared ALB at priority 300 (identity=100,
+            food=200); Fargate in public subnets with assignPublicIp (egress via IGW);
+            version-archive-worker Lambda is VPC-attached, photo-processor is S3-only;
+            per-service Clerk session-token AuthMiddleware (no API-Gateway authorizer, no
+            forgeable authorizer-context header); Environment=pr-{N} tagging + per-PR logical DB.
+        - >
+            R5 — Ingredients back onto the source-agnostic food service (003) via
+            @commise/clients-food (FoodServiceClient); foods referenced by
+            internal ULID (foodId), never the external USDA food identifier, no cross-DB
+            FK; resolution is asynchronous (addByName → 202 PENDING|UNRESOLVED → poll
+            getById/getStatus → RESOLVED; getCandidates/resolve for disambiguation).
+            Freeform FR-007a (user-entered nutrition) unchanged.
+        - >
+            R6 — Home widget architecture: explicit startup registration (composition
+            root, .use(addFeature)); curateHomeWidgets(widgets, ctx) pure fn gating by
+            capability + subscription tier; React.lazy + Suspense + ErrorBoundary render;
+            ditox + @ditox/react frontend DI (appShell), NestJS decorator DI backend. US-0
+            rescoped by capability gating: Home v1 ships only the recipe widget live;
+            meal-plan/nutrition/shopping/AI/cooking widgets are NOT registered in v1
+            (feature packages 005–009 don't exist yet — a literal import() loader for an
+            unbuilt package would fail the build) so they are absent; each registers when
+            its package ships and capability gating then shows it. Per-user home
+            layout via PATCH /v1/profiles/me owned by identity (002), consumed by 001.
+        - >
+            R7 — Cross-artifact consistency propagated across
+            spec/plan/data-model/contracts/tasks/v-model, and confirmed zero residual
+            legacy api-prefixed routes, monolithic-api or shared db/config package paths,
+            external-lookup ingredient framing, external-food-id ingredient keys, or
+            unconditional six-section US-0 assertions.
 
 sync_runs:
     last_run: '2026-06-02T09:35:00Z'

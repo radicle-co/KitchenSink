@@ -7,7 +7,7 @@
   "summary": {"critical": 1, "warning": 2, "info": 3, "clean": 1, "rescoped": 1},
   "drifts": [
     {"id":"DRIFT-001","layer":5,"severity":"RESCOPED","note":"Originally CRITICAL (182 pending tasks). Post-delegation analysis: ~150 tasks delegated to 002-014 (correct), ~30 orphan core-recipe tasks remain genuinely pending."},
-    {"id":"DRIFT-002","layer":6,"severity":"CRITICAL","status":"open-accepted","note":"US-0/1/2 Must Have stories have NO implementation evidence. Core recipe scaffolding absent. HITL 2026-06-02 selected: implement under 001 directly (no sub-feature spawn). OPEN-CRITICAL remains as active WIP signal until core recipe code lands under packages/api/recipe + packages/shared/recipe-core + packages/api/photo-processor (or equivalent under packages/apps/commise)."},
+    {"id":"DRIFT-002","layer":6,"severity":"CRITICAL","status":"open-accepted","note":"US-0/1/2 Must Have stories have NO implementation evidence. Core recipe scaffolding absent. HITL 2026-06-02 selected: implement under 001 directly (no sub-feature spawn). OPEN-CRITICAL remains as active WIP signal until core recipe code lands under packages/services/recipes + packages/shared/recipe-core + packages/services/recipes-workers/src/photo-processor (or equivalent under packages/apps/commise)."},
     {"id":"DRIFT-003","layer":3,"severity":"WARNING","note":"FR-003/004/006/009/014a/SC-001/SC-005 not in plan.md"},
     {"id":"DRIFT-004","layer":2,"severity":"WARNING","note":"Product-spec doesn't cover FR-003/004/009 visibility constraints"},
     {"id":"DRIFT-005","layer":6,"severity":"INFO","note":"FR-045 auth dependency satisfied by 002"},

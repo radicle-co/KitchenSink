@@ -89,12 +89,12 @@ strict Given/When/Then format.
 **Linked Requirement:** REQ-003b
 **Description:** Validates that ingredients can be added and linked to a real food record when a match exists.
 **Validation Condition:** Ingredient text with an exact food-database match is selected during recipe save.
-**Expected Result:** Persisted ingredient row includes the selected food-database record identifier and remains attached to the recipe.
+**Expected Result:** Persisted ingredient row includes the selected food service internal id (`foodId`, an opaque ULID — never a USDA `fdcId`) and remains attached to the recipe.
 
 - **User Scenario: SCN-003-A1**
-    - **Given** an authenticated user editing a recipe and ingredient suggestion `"Tomato, raw"` maps to food record `FDC-11529`
+    - **Given** an authenticated user editing a recipe and ingredient suggestion `"Tomato, raw"` resolves (via `@kitchensink/food-service-client`) to a food service record with internal id `01J8F3ZK9PQ7VN2M4T7XR8W123`
     - **When** the user saves the recipe with that linked ingredient
-    - **Then** the saved recipe includes the ingredient linked to `FDC-11529`
+    - **Then** the saved recipe includes the ingredient linked by `foodId` `01J8F3ZK9PQ7VN2M4T7XR8W123`
 
 #### Test Case: ATP-003-B (Ingredient-count bounds 1..100)
 
@@ -765,13 +765,13 @@ strict Given/When/Then format.
 
 **Linked Requirement:** REQ-031
 **Description:** Validates per-unit calories/protein/carbohydrate/fat resolution for linked ingredients.
-**Validation Condition:** Recipe ingredient links to an existing food-database record with known nutrient profile.
+**Validation Condition:** Recipe ingredient links (by internal `foodId`) to an existing food service golden record with known nutrient profile.
 **Expected Result:** Ingredient payload includes resolved numeric fields for calories, protein, carbohydrate, and fat per unit.
 
 - **User Scenario: SCN-031-A1**
-    - **Given** a recipe ingredient is linked to food record `FDC-20001` with known per-unit nutrient values
+    - **Given** a recipe ingredient is linked by `foodId` to food service record `01J8F3ZK9PQ7VN2M4T7XN9T456` (`foodResolutionStatus = RESOLVED`) with known per-unit nutrient values
     - **When** the recipe nutrition payload is requested
-    - **Then** the ingredient entry includes calories, protein, carbohydrate, and fat values derived from `FDC-20001`
+    - **Then** the ingredient entry includes calories, protein, carbohydrate, and fat values derived from food id `01J8F3ZK9PQ7VN2M4T7XN9T456`
 
 ---
 
@@ -928,14 +928,14 @@ strict Given/When/Then format.
 #### Test Case: ATP-039-A (Persist full payload to pending archive table on failure)
 
 **Linked Requirement:** REQ-039
-**Description:** Validates durable persistence of exact failed version payload for replay.
+**Description:** Validates that a durable, exactly-replayable version payload is retained for a failed archive via the pending-archive row's foreign key to its `recipe_versions` snapshot.
 **Validation Condition:** Archive write fails for a version event.
-**Expected Result:** `recipe_version_pending_archives` contains row with recipe ID, version, and full payload sufficient for exact replay.
+**Expected Result:** `recipe_version_pending_archives` contains a row that references (via `recipe_version_id` FK) the `recipe_versions` row whose `snapshot` is the full replayable payload; no snapshot/payload is duplicated into the pending row.
 
 - **User Scenario: SCN-039-A1**
     - **Given** a version archive write has failed for recipe `R5` version `12`
     - **When** failure handling transaction commits
-    - **Then** a pending-archive row exists storing the full replayable payload for `R5` version `12`
+    - **Then** a pending-archive row exists referencing (by `recipe_version_id`) the `recipe_versions` row for `R5` version `12`, whose `snapshot` supplies the full replayable payload
 
 ---
 
@@ -1400,6 +1400,223 @@ strict Given/When/Then format.
 
 ---
 
+### Requirement Validation: REQ-058 (Home widget surface discovered via startup registration)
+
+> **US-0 / FR-046 (Home widget surface).** The following ATPs validate the atomic FR-046
+> requirements decomposed in `requirements.md` (REQ-058..REQ-068) and the consumed external
+> dependency REQ-IF-006 (`PATCH /v1/profiles/me`, owned by feature 002). Design authority:
+> [`research/home-widget-architecture.md`](../research/home-widget-architecture.md) (the
+> `## DECISION (2026-07-06)` section). In **Home v1 the recent-recipes (recipe) widget is the only
+> live widget**; every other widget (meal-plan, nutrition, shopping, AI, resume-cooking) is
+> capability-gated **absent** until its backing service (005–009) deploys.
+
+#### Test Case: ATP-058-A (Home presents a discovered widget surface immediately after login)
+
+**Linked Requirement:** REQ-058
+**Description:** Validates that immediately after login the Home screen renders as a curated widget surface whose constituent widgets are **discovered** by explicit startup registration (a composition root using `.use(addFeature)`) — not build-time codegen or `require.context`.
+**Validation Condition:** An authenticated user completes login and lands on Home, whose widget set is composed from the startup-registered widget registry.
+**Expected Result:** Home renders as a personalized widget surface composed from the startup-registered widgets; the recipe (recent-recipes) widget — the only widget registered in v1 — is present on the surface.
+
+- **User Scenario: SCN-058-A1**
+    - **Given** an authenticated user whose Home widgets are discovered via startup registration completes login
+    - **When** the app redirects to the Home screen
+    - **Then** Home renders as a curated widget surface and the startup-registered recipe (recent-recipes) widget is present
+
+---
+
+### Requirement Validation: REQ-059 (curateHomeWidgets capability gating)
+
+#### Test Case: ATP-059-A (Capability-gating invariant excludes widgets whose backing service is off)
+
+**Linked Requirement:** REQ-059
+**Description:** Validates the `curateHomeWidgets(widgets, ctx)` pure-function invariant: a registered widget whose backing-service capability is off is excluded from the composed set.
+**Validation Condition:** `curateHomeWidgets` is evaluated with a registry containing the recipe widget (capability on) and at least one widget whose backing-service capability is off.
+**Expected Result:** The composed widget list includes the recipe widget and excludes every widget whose capability is off; enabling a capability includes its widget on the next evaluation with no other change.
+
+- **User Scenario: SCN-059-A1**
+    - **Given** the Home widget registry contains the recipe widget (capability on) and a meal-plan widget whose backing service (006) capability is off
+    - **When** `curateHomeWidgets` composes the surface for the user
+    - **Then** the result contains the recipe widget and does not contain the meal-plan widget
+
+---
+
+### Requirement Validation: REQ-060 (curateHomeWidgets subscription-tier gating)
+
+#### Test Case: ATP-060-A (Subscription-tier gating excludes widgets the user's tier does not entitle)
+
+**Linked Requirement:** REQ-060
+**Description:** Validates that `curateHomeWidgets(widgets, ctx)` additionally gates each widget by the requesting user's subscription tier, excluding any widget the user's tier does not entitle.
+**Validation Condition:** `curateHomeWidgets` is evaluated for a free-tier user against a registry containing the recipe widget and a premium-only widget whose backing-service capability is on.
+**Expected Result:** The composed list excludes the premium-only widget for the unentitled free-tier user; the same evaluation for an entitled premium user includes it, with no other change.
+
+- **User Scenario: SCN-060-A1**
+    - **Given** a free-tier user and a registry containing the recipe widget and a premium-only widget whose capability is on
+    - **When** `curateHomeWidgets` composes the surface for that free-tier user
+    - **Then** the result contains the recipe widget and excludes the premium-only widget the user's tier does not entitle
+
+---
+
+### Requirement Validation: REQ-061 (Personalization ordering of Home widgets)
+
+#### Test Case: ATP-061-A (Composed order reflects per-user personalization)
+
+**Linked Requirement:** REQ-061
+**Description:** Validates that `curateHomeWidgets` orders the surviving widgets by the user's persisted personalization (per-user layout order, hidden) rather than a fixed registration order.
+**Validation Condition:** A user has a persisted Home layout that orders/hides live widgets differently from registration order.
+**Expected Result:** The composed Home surface presents live widgets in the user's personalized order and omits any user-hidden widget.
+
+- **User Scenario: SCN-061-A1**
+    - **Given** an authenticated user whose persisted Home layout ranks the recipe widget first and marks a second live widget hidden
+    - **When** Home composes and renders the surface
+    - **Then** the recipe widget appears in the user's personalized position and the hidden widget is not rendered
+
+---
+
+### Requirement Validation: REQ-062 (Lazy widget render with per-widget error isolation)
+
+#### Test Case: ATP-062-A (A failing widget is isolated by its error boundary)
+
+**Linked Requirement:** REQ-062
+**Description:** Validates that widgets render lazily (web: `next/dynamic`; mobile: `React.lazy`) under Suspense with a per-widget error boundary, so a single widget failure does not break the Home surface.
+**Validation Condition:** One registered widget throws during render while at least one other live widget renders normally.
+**Expected Result:** The failing widget's error boundary contains the failure and renders its fallback; all other live widgets on Home continue to render.
+
+- **User Scenario: SCN-062-A1**
+    - **Given** Home has two live widgets and one of them throws during render
+    - **When** the Home surface renders
+    - **Then** the throwing widget shows its error-boundary fallback and the other live widget renders unaffected
+
+---
+
+### Requirement Validation: REQ-063 (Graceful unknown-widget-id skip)
+
+#### Test Case: ATP-063-A (Unknown widget ids are skipped)
+
+**Linked Requirement:** REQ-063
+**Description:** Validates that a curated layout referencing a widget id absent from the client's render registry (server/client version skew) is skipped rather than erroring the surface.
+**Validation Condition:** A user's persisted Home layout references a widget id that is not present in the client render registry.
+**Expected Result:** Home renders the known live widgets and silently skips the unknown widget id; no error tile is shown.
+
+- **User Scenario: SCN-063-A1**
+    - **Given** a user's persisted Home layout references an unknown widget id alongside the recipe widget
+    - **When** Home composes and renders
+    - **Then** the recipe widget renders and the unknown widget id is skipped with no error surfaced
+
+---
+
+### Requirement Validation: REQ-064 (Home v1 recipe-only live widget)
+
+#### Test Case: ATP-064-A (Recipe widget is the only live widget, in no-data and with-data states)
+
+**Linked Requirement:** REQ-064
+**Description:** Validates that in Home v1 the recent-recipes (recipe) widget is the only **live** widget and renders in both the no-data and with-data states, showing up to 4 of the user's most recently viewed or edited recipes.
+**Validation Condition:** An authenticated user lands on Home as a new user (no recipes) and, separately, as a returning user with recipes.
+**Expected Result:** With no recipes the recipe widget shows the empty state ("Create your first recipe"); with recipes it shows up to 4 most recently viewed or edited recipes; no other live widget is present.
+
+- **User Scenario: SCN-064-A1**
+    - **Given** an authenticated user with no recipes completes login
+    - **When** the app redirects to the Home screen
+    - **Then** the recipe (recent-recipes) widget renders its empty state with a "Create your first recipe" call to action and is the only live widget
+
+- **User Scenario: SCN-064-A2**
+    - **Given** an authenticated user with at least 5 recipes completes login
+    - **When** the app redirects to the Home screen
+    - **Then** the recipe widget renders showing up to 4 of the user's most recently viewed or edited recipes
+
+---
+
+### Requirement Validation: REQ-065 (Gated widgets absent until 005–009 deploy; auto-appear on deploy)
+
+#### Test Case: ATP-065-A (Gated widgets are absent, not empty tiles, in v1)
+
+**Linked Requirement:** REQ-065
+**Description:** Validates that in Home v1 every widget whose backing service is not yet deployed is **absent** — not registered and not rendered as a dead or empty tile — because its feature package (005–009) does not exist yet. The per-widget empty state applies only to **live** widgets that have no data.
+**Validation Condition:** Home renders in the v1 configuration where only the recipe service is live (005–009 not deployed).
+**Expected Result:** The recipe widget renders; the meal-plan, nutrition, shopping-list, AI-suggestion, and resume-cooking widgets are absent from the DOM/tree (no dead or empty tile is rendered for them).
+
+- **User Scenario: SCN-065-A1**
+    - **Given** an authenticated user views Home while services 005–009 are not deployed
+    - **When** the Home surface renders
+    - **Then** the recipe widget is present and the meal-plan, nutrition, shopping-list, AI-suggestion, and resume-cooking widgets are absent (not shown as empty tiles)
+
+#### Test Case: ATP-065-B (A gated widget auto-appears when its feature package ships and its service deploys)
+
+**Linked Requirement:** REQ-065
+**Description:** Validates that a capability-gated widget lights up with no client change once its feature package ships and its backing service becomes live — exercised via the AI-suggestion widget backed by feature 005.
+**Validation Condition:** The AI-suggestion widget's feature package (005) is not present in v1 (so the widget is absent); when feature package 005 ships and its backing service deploys, the AI widget registers and its capability turns on.
+**Expected Result:** While 005 is absent the AI-suggestion widget is absent; after feature package 005 ships and its service deploys, the AI widget registers and appears on the same user's next Home view with one AI-generated recipe suggestion, with no client build or code change.
+
+- **User Scenario: SCN-065-B1**
+    - **Given** an authenticated user views Home while the AI feature package (005) is not shipped and the AI-suggestion widget is absent
+    - **When** feature package 005 ships, its backing service deploys and turns its capability on, and the user next views Home
+    - **Then** the AI-suggestion widget registers and appears, showing one AI-generated recipe suggestion, with no client change
+
+---
+
+### Requirement Validation: REQ-066 (Per-session subscription nudge on premium-gated interaction)
+
+#### Test Case: ATP-066-A (Subscription nudge appears at most once per session)
+
+**Linked Requirement:** REQ-066
+**Description:** Validates that a free-tier user sees a subscription upgrade nudge when interacting with a premium-gated Home entry point, and that the nudge appears at most once per session regardless of how many premium entry points are tapped.
+**Validation Condition:** A free-tier user taps two distinct premium-gated entry points within a single session.
+**Expected Result:** A subscription upgrade nudge is shown on the first premium-gated interaction; no second nudge is shown for the second interaction within the same session.
+
+- **User Scenario: SCN-066-A1**
+    - **Given** a free-tier authenticated user is on Home in a single session
+    - **When** the user taps a premium-gated entry point and then taps a second premium-gated entry point
+    - **Then** the subscription upgrade nudge appears exactly once for that session
+
+---
+
+### Requirement Validation: REQ-067 (Cross-platform parity of live Home widgets)
+
+#### Test Case: ATP-067-A (Every live widget is present on both web and mobile)
+
+**Linked Requirement:** REQ-067
+**Description:** Validates that every **live** Home widget is present on both web and mobile behind one widget id (per-platform `.native.tsx` implementations); no live widget is absent on either platform.
+**Validation Condition:** The Home surface is rendered on web and on mobile under the same v1 capability configuration.
+**Expected Result:** The set of live widget ids rendered on web equals the set rendered on mobile; in v1 both platforms render the recipe widget and no other live widget is present on only one platform.
+
+- **User Scenario: SCN-067-A1**
+    - **Given** the Home screen is rendered on web and on mobile for the same user under identical capability configuration
+    - **When** the live widget ids on each platform are enumerated
+    - **Then** the live widget id sets are identical across web and mobile (in v1, exactly the recipe widget)
+
+---
+
+### Requirement Validation: REQ-068 (Cross-device Home layout persistence via the 002-owned endpoint)
+
+#### Test Case: ATP-068-A (Personalized layout persists across devices via PATCH /v1/profiles/me)
+
+**Linked Requirement:** REQ-068
+**Description:** Validates that per-user Home layout (widget order and hidden set) is persisted across devices via `PATCH /v1/profiles/me` — owned by the identity service (002) and **consumed** here — so layout changes made on one device are reflected on another.
+**Validation Condition:** A user changes their Home layout (reorder/hide) on one device; the layout is loaded on a second device.
+**Expected Result:** The layout change is persisted through the 002-owned endpoint and the second device renders Home in the updated order/visibility.
+
+- **User Scenario: SCN-068-A1**
+    - **Given** an authenticated user reorders and hides a Home widget on device A, persisted via `PATCH /v1/profiles/me`
+    - **When** the same user opens Home on device B and the layout is loaded
+    - **Then** device B renders Home in the updated order with the hidden widget omitted
+
+---
+
+### Requirement Validation: REQ-IF-006 (Home layout persistence is a 002-owned interface consumed here)
+
+#### Test Case: ATP-IF-006-A (Layout endpoint consumed not implemented; absent layout falls back to default)
+
+**Linked Requirement:** REQ-IF-006
+**Description:** Validates that feature 001 **consumes** — and does not implement — the external `PATCH /v1/profiles/me` endpoint owned by feature 002, and tolerates an absent layout (new user) by falling back to the default Home template.
+**Validation Condition:** A new user with no persisted Home layout in the 002-owned store loads Home.
+**Expected Result:** Home renders using the default widget template when the 002-owned layout is absent; feature 001 defines no `PATCH /v1/profiles/me` endpoint in its own API contract (it consumes the 002-owned one).
+
+- **User Scenario: SCN-IF-006-A1**
+    - **Given** a new authenticated user has no persisted Home layout in the feature-002-owned store
+    - **When** the user opens Home and the layout is loaded from the 002-owned `PATCH /v1/profiles/me` endpoint's store
+    - **Then** Home falls back to the default widget template and feature 001 defines no home-layout endpoint of its own
+
+---
+
 ### Requirement Validation: REQ-NF-001 (Search/filter <=2.0s for >=20 recipes)
 
 #### Test Case: ATP-NF-001-A (20-recipe search/filter response-time compliance)
@@ -1779,12 +1996,12 @@ strict Given/When/Then format.
 
 **Linked Requirement:** REQ-IF-001a, REQ-IF-001b
 **Description:** Validates idempotent response for users with existing queued erasure job.
-**Validation Condition:** Caller already has one queued erasure job and re-calls `POST /api/v1/account/erasure`.
+**Validation Condition:** Caller already has one queued erasure job and re-calls `POST /v1/account/erasure`.
 **Expected Result:** HTTP 202 is returned with existing job ID; queue depth does not increase.
 
 - **User Scenario: SCN-IF-001-A1**
     - **Given** an authenticated user already has erasure job `E1` in `queued` state
-    - **When** the user calls `POST /api/v1/account/erasure` again
+    - **When** the user calls `POST /v1/account/erasure` again
     - **Then** the response is HTTP 202 with job id `E1` and no second job is enqueued
 
 #### Test Case: ATP-IF-001-B (Running job returns HTTP 202 existing job id)
@@ -1796,7 +2013,7 @@ strict Given/When/Then format.
 
 - **User Scenario: SCN-IF-001-B1**
     - **Given** an authenticated user already has erasure job `E2` in `running` state
-    - **When** the user calls `POST /api/v1/account/erasure` again
+    - **When** the user calls `POST /v1/account/erasure` again
     - **Then** the response is HTTP 202 with job id `E2` and no additional job is created
 
 ---
@@ -1808,11 +2025,11 @@ strict Given/When/Then format.
 **Linked Requirement:** REQ-IF-002
 **Description:** Validates terminal-state contract for completed erasure jobs.
 **Validation Condition:** Caller's most recent erasure job status is `completed`.
-**Expected Result:** `POST /api/v1/account/erasure` returns HTTP 410 (Gone).
+**Expected Result:** `POST /v1/account/erasure` returns HTTP 410 (Gone).
 
 - **User Scenario: SCN-IF-002-A1**
     - **Given** an authenticated user has most recent erasure job `E3` in `completed` state
-    - **When** the user calls `POST /api/v1/account/erasure`
+    - **When** the user calls `POST /v1/account/erasure`
     - **Then** the API responds with HTTP 410
 
 ---
@@ -1828,24 +2045,24 @@ strict Given/When/Then format.
 
 - **User Scenario: SCN-IF-003-A1**
     - **Given** an authenticated user's most recent erasure job `E4` is in `failed` state
-    - **When** the user calls `POST /api/v1/account/erasure`
+    - **When** the user calls `POST /v1/account/erasure`
     - **Then** the API returns HTTP 202 with a newly created job id different from `E4`
 
 ---
 
-### Requirement Validation: REQ-IF-004a, REQ-IF-004b, REQ-IF-004c (Web/mobile feature parity for REQ-001..REQ-057)
+### Requirement Validation: REQ-IF-004a, REQ-IF-004b, REQ-IF-004c (Web/mobile feature parity for REQ-001..REQ-068)
 
 #### Test Case: ATP-IF-004-A (Parity matrix complete across both platforms)
 
 **Linked Requirement:** REQ-IF-004a, REQ-IF-004b, REQ-IF-004c
 **Description:** Validates full functional parity between web and mobile for every functional requirement.
-**Validation Condition:** A parity matrix maps all 83 functional requirements (REQ-001 through REQ-057, including all functional sub-IDs) to implemented and tested capabilities on both web and mobile.
-**Expected Result:** Matrix shows 83/83 functional requirements implemented and validated on both platforms, with no parity gaps.
+**Validation Condition:** A parity matrix maps all 99 functional requirements (REQ-001 through REQ-068, including all functional sub-IDs) to implemented and tested capabilities on both web and mobile.
+**Expected Result:** Matrix shows 99/99 functional requirements implemented and validated on both platforms, with no parity gaps.
 
 - **User Scenario: SCN-IF-004-A1**
-    - **Given** a parity evidence matrix listing all 83 functional requirements (REQ-001 through REQ-057, including sub-IDs) for web and mobile implementations
+    - **Given** a parity evidence matrix listing all 99 functional requirements (REQ-001 through REQ-068, including sub-IDs) for web and mobile implementations
     - **When** the parity evidence matrix is queried for each requirement across web and mobile test suites
-    - **Then** all 83 functional requirements show complete web/mobile parity
+    - **Then** all 99 functional requirements show complete web/mobile parity
 
 ---
 
@@ -1973,14 +2190,16 @@ strict Given/When/Then format.
 
 | Metric                   | Count            |
 | ------------------------ | ---------------- |
-| Total Requirements (REQ) | 134              |
-| Total Test Cases (ATP)   | 129              |
-| Total Scenarios (SCN)    | 134              |
-| Requirements with ≥1 ATP | 134 / 134 (100%) |
-| Test Cases with ≥1 SCN   | 129 / 129 (100%) |
+| Total Requirements (REQ) | 146              |
+| Total Test Cases (ATP)   | 142              |
+| Total Scenarios (SCN)    | 148              |
+| Requirements with ≥1 ATP | 146 / 146 (100%) |
+| Test Cases with ≥1 SCN   | 142 / 142 (100%) |
 | **Overall Coverage**     | **100%**         |
 
-Coverage note: The ATP count (129) reflects test cases with dedicated `Linked Requirement` rows. Five functional REQs (REQ-002a, REQ-002b, REQ-003a, REQ-003b, REQ-030f) have no dedicated ATP row — their individual fields are validated as part of their parent REQ's ATP (ATP-002-A for REQ-002a/b, ATP-003-A/B for REQ-003a/b, ATP-030-A for REQ-030f). Coverage is complete at 134/134. REQ-035a/035b, REQ-038a/038b/038c, and REQ-049a/049b are explicitly linked in ATP linked-requirement fields. REQ-049b cap-boundary execution remains blocked pending resolution of `[TBD: per-user collection cap]` in `requirements.md`.
+Coverage note: The ATP count (142) reflects test cases with dedicated `Linked Requirement` rows. Five functional REQs (REQ-002a, REQ-002b, REQ-003a, REQ-003b, REQ-030f) have no dedicated ATP row — their individual fields are validated as part of their parent REQ's ATP (ATP-002-A for REQ-002a/b, ATP-003-A/B for REQ-003a/b, ATP-030-A for REQ-030f). Coverage is complete at 146/146. REQ-035a/035b, REQ-038a/038b/038c, and REQ-049a/049b are explicitly linked in ATP linked-requirement fields. REQ-049b cap-boundary execution remains blocked pending resolution of `[TBD: per-user collection cap]` in `requirements.md`.
+
+US-0 / FR-046 coverage note: The eleven FR-046 requirements covered here — REQ-058 (widget surface discovered via startup registration), REQ-059 (`curateHomeWidgets` capability gating), REQ-060 (`curateHomeWidgets` subscription-tier gating), REQ-061 (personalization ordering), REQ-062 (lazy render with per-widget error isolation), REQ-063 (graceful unknown-id skip), REQ-064 (Home v1 recipe-only live widget), REQ-065 (gated widgets absent-not-empty until 005–009 deploy; auto-appear on deploy), REQ-066 (per-session premium nudge), REQ-067 (live-widget web/mobile parity), REQ-068 (cross-device layout persistence) — plus REQ-IF-006 (`PATCH /v1/profiles/me`, consumed from feature 002) are the acceptance-plan's decomposition of spec FR-046, matching the REQ-058..REQ-068 + REQ-IF-006 scheme in `requirements.md`. ATP-IF-004-A's parity scope now covers the full functional set (REQ-001 through REQ-068, 99 functional requirements including sub-IDs).
 
 ## Uncovered Requirements
 
@@ -2002,3 +2221,7 @@ None — full coverage achieved.
 - **PRF-ACC-012** (source: PRF-ATP-012): Added "Test Plan Context" section with Test Level, Entry Criteria, and Exit Criteria.
 - **PRF-ACC-013** (source: PRF-ATP-013): Added ATP-003-C for explicit 101-ingredient rejection; existing ATP-003-B scenarios already cover exactly-100 success.
 - **PRF-ACC-014** (source: PRF-ATP-014): Added ATP-007-B with explicit exactly-50 success and 51-rejection boundary scenarios.
+- **PRF-ACC-015** (round-2 fix D3 + C8): Added the US-0 / FR-046 Home widget-surface acceptance section (ATP-058-A through ATP-064-A + ATP-IF-006-A) covering: recipe widget renders (empty + with-data), capability-gating invariant, personalization ordering, per-widget error isolation + unknown-id skip, Home v1 recipe-only with gated widgets **absent** (not empty tiles), a gated widget (AI/005) auto-appearing on deploy, per-session subscription nudge, live-widget web/mobile parity, and layout persistence via the 002-owned `PATCH /v1/profiles/me`.
+- **PRF-ACC-016** (round-2 fix D5): Normalized the food-resolution status in SCN-031-A1 to the canonical `foodResolutionStatus = RESOLVED` (UPPER_SNAKE enum `PENDING|UNRESOLVED|RESOLVED|NOT_FOUND|FAILED`); the freeform marker remains the separate `isUserEntered` boolean.
+- **PRF-ACC-017** (round-2 fix D6): Reworded ATP-039-A (SCN-039-A1) to the canonical FK pending-archive design — the pending row references (`recipe_version_id`) the `recipe_versions` row whose `snapshot` is the replay payload; no snapshot/payload is duplicated into the pending row.
+- **PRF-ACC-018** (round-3 convergence): Renumbered the US-0 / FR-046 Requirement-Validation sections from the interim 7-id scheme (REQ-058..REQ-064) to the authoritative 11-req decomposition in `requirements.md` (REQ-058..REQ-068 + REQ-IF-006); split capability vs subscription-tier gating (REQ-059/REQ-060), lazy render vs unknown-id skip (REQ-062/REQ-063), v1 recipe-only live vs gated-absent (REQ-064/REQ-065), and cross-device persistence vs the 002-owned consumed interface (REQ-068/REQ-IF-006); added the startup-registration surface ATP (REQ-058); extended ATP-IF-004-A parity scope to the full functional set (REQ-001..REQ-068, 99 functional requirements); updated Coverage Summary counts to 146/142/148.

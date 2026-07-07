@@ -22,7 +22,7 @@ tags:
     - name: Search
     - name: Account
 paths:
-    /api/v1/recipes:
+    /v1/recipes:
         post:
             tags: [Recipes]
             summary: Create recipe
@@ -75,7 +75,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /api/v1/recipes/{id}:
+    /v1/recipes/{id}:
         get:
             tags: [Recipes]
             summary: Get recipe by ID
@@ -131,7 +131,7 @@ paths:
                 Marks the recipe as deleted by setting `deletedAt`. The row is retained
                 for audit and version-restore purposes and is excluded from all list,
                 search, and detail responses. Hard purge of recipe rows only happens
-                via the GDPR account erasure flow (`POST /api/v1/account/erasure`).
+                via the GDPR account erasure flow (`POST /v1/account/erasure`).
             operationId: deleteRecipe
             parameters:
                 - $ref: '#/components/parameters/RecipeId'
@@ -145,7 +145,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{id}/clone:
+    /v1/recipes/{id}/clone:
         post:
             tags: [Recipes]
             summary: Clone a public recipe
@@ -166,7 +166,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{id}/visibility:
+    /v1/recipes/{id}/visibility:
         patch:
             tags: [Recipes]
             summary: Set recipe visibility
@@ -195,10 +195,42 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/ingredients/search:
+    /v1/recipes/{id}/instructions:
+        get:
+            tags: [Recipes]
+            summary: List recipe instruction steps
+            description: |
+                Returns the ordered instruction steps for a recipe. This is the canonical
+                instruction list surface (008 depends on it); steps are returned in
+                ascending `position` order.
+            operationId: listRecipeInstructions
+            parameters:
+                - $ref: '#/components/parameters/RecipeId'
+            responses:
+                '200':
+                    description: Ordered instruction steps
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/RecipeStep'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '403':
+                    $ref: '#/components/responses/Forbidden'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+
+    /v1/ingredients/search:
         get:
             tags: [Ingredients]
             summary: Search ingredients by name (autocomplete, fuzzy)
+            description: |
+                Thin proxy over the source-agnostic food service (003) via its typed client
+                (`@commise/clients-food` → `foodClient.search(query)`). Returns known
+                foods for typeahead; foods are referenced by the food service's internal id and
+                nutrition resolves asynchronously (see the `Ingredient.foodResolutionStatus` field).
             operationId: searchIngredients
             parameters:
                 - name: q
@@ -228,7 +260,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /api/v1/ingredients:
+    /v1/ingredients:
         post:
             tags: [Ingredients]
             summary: Create freeform ingredient
@@ -251,14 +283,14 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /api/v1/recipes/{recipeId}/versions:
+    /v1/recipes/{id}/versions:
         get:
             tags: [Versions]
             summary: List recipe versions
             description: Returns the most recent versions stored in the primary database (up to 10).
             operationId: listRecipeVersions
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForVersions'
+                - $ref: '#/components/parameters/RecipeId'
             responses:
                 '200':
                     description: Version list
@@ -275,13 +307,13 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{recipeId}/versions/{versionNumber}:
+    /v1/recipes/{id}/versions/{versionNumber}:
         get:
             tags: [Versions]
             summary: Get specific version snapshot
             operationId: getRecipeVersion
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForVersions'
+                - $ref: '#/components/parameters/RecipeId'
                 - $ref: '#/components/parameters/VersionNumber'
             responses:
                 '200':
@@ -297,13 +329,13 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{recipeId}/versions/{versionNumber}/restore:
+    /v1/recipes/{id}/versions/{versionNumber}/restore:
         post:
             tags: [Versions]
             summary: Restore recipe to a prior version
             operationId: restoreRecipeVersion
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForVersions'
+                - $ref: '#/components/parameters/RecipeId'
                 - $ref: '#/components/parameters/VersionNumber'
             responses:
                 '200':
@@ -321,14 +353,14 @@ paths:
                 '409':
                     $ref: '#/components/responses/VersionConflict'
 
-    /api/v1/recipes/{recipeId}/photos/upload-url:
+    /v1/recipes/{id}/photos/upload-url:
         post:
             tags: [Photos]
             summary: Get presigned S3 upload URL
             description: Request a temporary upload URL for direct client upload. Max file size is 5MB.
             operationId: createPhotoUploadUrl
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForPhotos'
+                - $ref: '#/components/parameters/RecipeId'
             requestBody:
                 required: true
                 content:
@@ -349,14 +381,14 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{recipeId}/photos/confirm:
+    /v1/recipes/{id}/photos/confirm:
         post:
             tags: [Photos]
             summary: Confirm photo upload completed
             description: Associates an uploaded object key with the recipe. Maximum of 10 photos per recipe.
             operationId: confirmPhotoUpload
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForPhotos'
+                - $ref: '#/components/parameters/RecipeId'
             requestBody:
                 required: true
                 content:
@@ -379,13 +411,13 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{recipeId}/photos:
+    /v1/recipes/{id}/photos:
         get:
             tags: [Photos]
             summary: List photos for recipe
             operationId: listRecipePhotos
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForPhotos'
+                - $ref: '#/components/parameters/RecipeId'
             responses:
                 '200':
                     description: Photos for recipe
@@ -400,13 +432,13 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{recipeId}/photos/{photoId}:
+    /v1/recipes/{id}/photos/{photoId}:
         delete:
             tags: [Photos]
             summary: Delete photo
             operationId: deleteRecipePhoto
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForPhotos'
+                - $ref: '#/components/parameters/RecipeId'
                 - $ref: '#/components/parameters/PhotoId'
             responses:
                 '204':
@@ -418,13 +450,13 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/recipes/{recipeId}/photos/reorder:
+    /v1/recipes/{id}/photos/reorder:
         patch:
             tags: [Photos]
             summary: Reorder photos
             operationId: reorderRecipePhotos
             parameters:
-                - $ref: '#/components/parameters/RecipeIdForPhotos'
+                - $ref: '#/components/parameters/RecipeId'
             requestBody:
                 required: true
                 content:
@@ -447,7 +479,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/collections:
+    /v1/collections:
         post:
             tags: [Collections]
             summary: Create collection
@@ -493,7 +525,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /api/v1/collections/{id}:
+    /v1/collections/{id}:
         get:
             tags: [Collections]
             summary: Get collection with recipes
@@ -556,7 +588,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/collections/{id}/recipes:
+    /v1/collections/{id}/recipes:
         post:
             tags: [Collections]
             summary: Add recipe to collection
@@ -585,7 +617,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/collections/{id}/recipes/{recipeId}:
+    /v1/collections/{id}/recipes/{recipeId}:
         delete:
             tags: [Collections]
             summary: Remove recipe from collection
@@ -603,7 +635,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/collections/{id}/clone:
+    /v1/collections/{id}/clone:
         post:
             tags: [Collections]
             summary: Clone a collection
@@ -612,7 +644,7 @@ paths:
                 points back to the original. Each membership row in the new collection
                 records `addedVia=clone`. The clone is independent — subsequent
                 additions to the source collection are not propagated automatically;
-                the owner must call `POST /api/v1/collections/{id}/pull-from-source`.
+                the owner must call `POST /v1/collections/{id}/pull-from-source`.
             operationId: cloneCollection
             parameters:
                 - $ref: '#/components/parameters/CollectionId'
@@ -636,7 +668,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/collections/{id}/pull-from-source:
+    /v1/collections/{id}/pull-from-source:
         post:
             tags: [Collections]
             summary: Pull new recipes from source collection
@@ -672,7 +704,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /api/v1/search/recipes:
+    /v1/search/recipes:
         get:
             tags: [Search]
             summary: Full-text recipe search with facets
@@ -750,7 +782,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /api/v1/account/erasure:
+    /v1/account/erasure:
         post:
             tags: [Account]
             summary: Request GDPR account erasure
@@ -761,6 +793,12 @@ paths:
                 version blobs owned by the user. Soft-deleted (tombstoned) recipes
                 are also purged. Returns 202 Accepted with a job identifier the
                 client can use to poll status.
+
+                Idempotent (spec C-007): a duplicate request while a job is
+                `queued` or `running` returns 202 with the **existing** job id
+                (no second job is enqueued). After a `completed` job the account
+                is already erased and the endpoint returns 410. After a `failed`
+                job a fresh retry is accepted (202 with a new job id).
             operationId: requestAccountErasure
             requestBody:
                 required: false
@@ -770,22 +808,26 @@ paths:
                             $ref: '#/components/schemas/ErasureRequest'
             responses:
                 '202':
-                    description: Erasure request accepted
+                    description: |
+                        Erasure request accepted. Returned both for a newly enqueued
+                        job and, idempotently, for a duplicate request while an existing
+                        job is `queued`/`running` (the existing job id is returned, no
+                        second job is enqueued) or a fresh retry after a `failed` job.
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErasureRequestAcceptedResponse'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
-                '409':
-                    description: Erasure already in progress for this account
+                '410':
+                    description: Account already erased (a prior erasure job completed)
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                             example:
-                                code: ERASURE_ALREADY_IN_PROGRESS
-                                message: Erasure already in progress
+                                code: ALREADY_ERASED
+                                message: Account has already been erased
 
 components:
     securitySchemes:
@@ -814,20 +856,6 @@ components:
                 default: 20
         RecipeId:
             name: id
-            in: path
-            required: true
-            schema:
-                type: string
-                format: uuid
-        RecipeIdForVersions:
-            name: recipeId
-            in: path
-            required: true
-            schema:
-                type: string
-                format: uuid
-        RecipeIdForPhotos:
-            name: recipeId
             in: path
             required: true
             schema:
@@ -959,11 +987,12 @@ components:
 
         Ingredient:
             type: object
-            required: [id, name, createdAt, updatedAt]
+            required: [id, name, isUserEntered, createdAt, updatedAt]
             properties:
                 id:
                     type: string
                     format: uuid
+                    description: The 001-owned ingredient id (recipes owns the `ingredients` table).
                 name:
                     type: string
                     minLength: 1
@@ -971,6 +1000,34 @@ components:
                 normalizedName:
                     type: string
                     description: Normalized value used for fuzzy/autocomplete matching
+                foodId:
+                    type: string
+                    nullable: true
+                    description: |
+                        Opaque reference to the food service's (003) internal ULID for the linked
+                        food, obtained via `@commise/clients-food`. This is NOT a USDA
+                        `fdcId` — 001 never stores or keys on a USDA identifier, and there is no
+                        cross-DB foreign key to the food database. Null for a freeform
+                        (user-entered) ingredient with no linked food record yet.
+                foodResolutionStatus:
+                    type: string
+                    enum: [PENDING, UNRESOLVED, RESOLVED, NOT_FOUND, FAILED]
+                    description: |
+                        Resolution state of the linked food (mirrors the shipped food client
+                        `FoodStatus`). Food data resolves asynchronously via the food service:
+                        a just-added food is `PENDING` (nutrition not ready yet), `UNRESOLVED`
+                        when disambiguation is required, and `RESOLVED` once the golden record
+                        with nutrition is available. `NOT_FOUND` and `FAILED` are terminal
+                        error states (surface an error and offer freeform fallback/removal).
+                        Clients MUST tolerate a non-`RESOLVED` status and show a "nutrition
+                        pending" state. Freeform (user-entered) is tracked separately via
+                        `isUserEntered`, NOT as a resolution-status value.
+                isUserEntered:
+                    type: boolean
+                    description: |
+                        `true` for a freeform ingredient (FR-007a) whose nutrition the user
+                        supplied directly, with no linked food record. Independent of
+                        `foodResolutionStatus`.
                 createdAt:
                     type: string
                     format: date-time
@@ -1476,7 +1533,7 @@ components:
                     nullable: true
                     description: |
                         If set, this collection was cloned from the referenced collection.
-                        Used by `POST /api/v1/collections/{id}/pull-from-source` to add
+                        Used by `POST /v1/collections/{id}/pull-from-source` to add
                         recipes that were added to the source after the clone.
                 createdAt:
                     type: string
@@ -1592,7 +1649,11 @@ components:
                     format: uuid
                 status:
                     type: string
-                    enum: [queued]
+                    enum: [queued, running]
+                    description: |
+                        Status of the returned job. `queued` for a newly enqueued job;
+                        may be `running` when an in-progress job is returned idempotently
+                        for a duplicate request.
 
         RestoreVersionResponse:
             type: object

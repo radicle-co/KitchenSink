@@ -43,7 +43,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-001-A1**
     - **Given** a Clerk session token verifiable against the configured `CLERK_JWT_KEY` public key with unexpired `exp`, an allowed `azp` (`CLERK_AUTHORIZED_PARTIES`), and required scopes
-    - **When** the guard processes `GET /api/v1/recipes/{id}` for a resource the principal can access
+    - **When** the guard processes `GET /v1/recipes/{id}` for a resource the principal can access
     - **Then** the request pipeline receives principal context (`userId`, tier, claims) and the endpoint continues with HTTP 200 response behavior
 
 - **System Scenario: STS-001-A2**
@@ -63,7 +63,7 @@ Each test case identifies its technique by name:
     - **Then** the guard fails closed with HTTP 401 and no protected route logic runs
 
 - **System Scenario: STS-001-B2**
-    - **Given** a valid authenticated principal attempts `PATCH /api/v1/recipes/{id}` for a recipe owned by a different principal
+    - **Given** a valid authenticated principal attempts `PATCH /v1/recipes/{id}` for a recipe owned by a different principal
     - **When** owner authorization is evaluated
     - **Then** the guard returns HTTP 403 and no recipe mutation SQL statements are issued
 
@@ -102,17 +102,17 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-002-A1**
     - **Given** a valid `CreateRecipeRequest` payload with title, ingredients, ordered steps, times, servings, and tags
-    - **When** `POST /api/v1/recipes` is processed
+    - **When** `POST /v1/recipes` is processed
     - **Then** the service commits metadata tables atomically, creates recipe version `1`, defaults visibility to `public`, and returns HTTP 201 with persisted fields
 
 - **System Scenario: STS-002-A2**
     - **Given** an existing recipe and a valid update payload referencing the current version
-    - **When** `PATCH /api/v1/recipes/{id}` is executed
+    - **When** `PATCH /v1/recipes/{id}` is executed
     - **Then** the update increments version, persists mutation state, and response contracts conform to documented status codes
 
 - **System Scenario: STS-002-A3**
     - **Given** an existing recipe eligible for owner deletion
-    - **When** `DELETE /api/v1/recipes/{id}` is executed
+    - **When** `DELETE /v1/recipes/{id}` is executed
     - **Then** delete applies tombstone semantics with HTTP 204 and command response contracts conform to documented status codes
 
 #### Test Case: STP-002-B (Command Payload Boundary Enforcement)
@@ -226,13 +226,13 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-004-A1**
     - **Given** ingredient catalog records indexed by normalized names and nutrition attributes per unit
-    - **When** `GET /api/v1/ingredients/search?q=chick` is processed with `limit=10`
+    - **When** `GET /v1/ingredients/search?q=chick` is processed with `limit=10`
     - **Then** the response returns ranked ingredient suggestions with stable IDs, names, and linked nutrition metadata for matched records
 
 - **System Scenario: STS-004-A2**
     - **Given** no catalog match for a submitted ingredient text
-    - **When** `POST /api/v1/ingredients` receives freeform payload with optional manual macro values
-    - **Then** the service creates a user-entered ingredient record with `userEntered=true`, stores provided manual nutrition values when present, and returns HTTP 201
+    - **When** `POST /v1/ingredients` receives freeform payload with optional manual macro values
+    - **Then** the service creates a user-entered ingredient record with `isUserEntered=true`, stores provided manual nutrition values when present, and returns HTTP 201
 
 #### Test Case: STP-004-B (Ingredient Data-Class Partitioning)
 
@@ -264,7 +264,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-005-A1**
     - **Given** recipe corpus includes active and tombstoned rows with tags, cuisine, dietary flags, ingredient links, and time fields
-    - **When** `GET /api/v1/search/recipes` is executed with combined keyword and structured filter parameters
+    - **When** `GET /v1/search/recipes` is executed with combined keyword and structured filter parameters
     - **Then** results include only active recipes, return `results/total/page/pageSize/facets/appliedFilters`, and preserve deterministic ordering for selected `sortBy`
 
 - **System Scenario: STS-005-A2**
@@ -308,7 +308,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-006-A1**
     - **Given** a recipe with 9 existing photos and an upload request containing `fileSize=5242880`
-    - **When** `POST /api/v1/recipes/{recipeId}/photos/upload-url` is processed
+    - **When** `POST /v1/recipes/{id}/photos/upload-url` is processed
     - **Then** the service returns HTTP 200 with a presigned URL and object key because both boundaries are valid
 
 - **System Scenario: STS-006-A2**
@@ -324,7 +324,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-006-B1**
     - **Given** an uploaded object whose declared `contentType=image/jpeg` does not match inspected magic bytes
-    - **When** `POST /api/v1/recipes/{recipeId}/photos/confirm` validates object metadata and content signature
+    - **When** `POST /v1/recipes/{id}/photos/confirm` validates object metadata and content signature
     - **Then** the service rejects confirmation with per-file reason details, marks retryability, and avoids persisting a valid recipe-photo reference for the failed object
 
 - **System Scenario: STS-006-B2**
@@ -340,7 +340,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-006-C1**
     - **Given** a multipart upload with missing or incomplete parts where confirm is requested before object completeness is guaranteed
-    - **When** `POST /api/v1/recipes/{recipeId}/photos/confirm` validates staged object integrity
+    - **When** `POST /v1/recipes/{id}/photos/confirm` validates staged object integrity
     - **Then** confirmation is rejected deterministically, retryability is preserved, and no finalized photo attachment is persisted
 
 - **System Scenario: STS-006-C2**
@@ -358,17 +358,17 @@ Each test case identifies its technique by name:
 
 **Technique**: Specification-Based Testing
 **Target View**: Interface View
-**Description**: Verifies S3 event handling, derivative generation, and processing-state transitions for recipe photos.
+**Description**: Verifies S3 event handling, derivative generation, and the `photo-processed` completion handoff for recipe photos. The processor Lambda is **S3-only and not VPC-attached** — it does **not** touch the database; on completion it emits an SQS `photo-processed` message, and the in-VPC **Fargate recipe API `photo-processed` consumer** performs the `recipe_photos` completion `UPDATE` (ADR-0004; FIXES D1).
 
 - **System Scenario: STS-007-A1**
     - **Given** an S3 ObjectCreated event with bucket/key metadata for a confirmed recipe photo
     - **When** the Lambda handler retrieves the original and runs Sharp processing pipelines
-    - **Then** derivative objects are written to expected prefixes and the associated `recipe_photos.processing_status` transitions to `complete` with populated dimensions
+    - **Then** derivative objects are written to expected prefixes and the Lambda emits an SQS `photo-processed` message carrying the derivative keys and dimensions (no direct DB write); the Fargate `photo-processed` consumer then transitions `recipe_photos.processing_status` to `complete` with populated dimensions
 
 - **System Scenario: STS-007-A2**
     - **Given** a valid HEIC/HEIF source object in the allowed media set
     - **When** the processor executes format conversion and rendition generation
-    - **Then** output objects are generated in supported delivery formats and the persisted photo record points to CDN-deliverable keys
+    - **Then** output objects are generated in supported delivery formats and the `photo-processed` message carries CDN-deliverable keys that the Fargate consumer persists to the `recipe_photos` record
 
 #### Test Case: STP-007-B (Photo Processing Failure Behavior)
 
@@ -379,22 +379,22 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-007-B1**
     - **Given** the Lambda receives an event for an object key that cannot be decoded by Sharp
     - **When** transformation execution throws a processing exception
-    - **Then** the photo record transitions to a failed/non-complete state with an explicit error reason, preserving no broken finalized attachment
+    - **Then** the Lambda surfaces a `failed` outcome via the `photo-processed` message (it performs no DB write itself), and the Fargate `photo-processed` consumer transitions the `recipe_photos` record to a failed/non-complete state with an explicit error reason, preserving no broken finalized attachment
 
 - **System Scenario: STS-007-B2**
     - **Given** transient S3 read timeouts during source retrieval
     - **When** Lambda invocation retries under configured retry policy
-    - **Then** processing remains retryable and state does not transition to `complete` until a successful end-to-end run occurs
+    - **Then** processing remains retryable, no `photo-processed` success message is emitted, and the `recipe_photos` state does not transition to `complete` until a successful end-to-end run emits a success message consumed by the Fargate consumer
 
 #### Test Case: STP-007-C (Photo Lifecycle State Machine Transition Guards)
 
 **Technique**: State Transition Testing
 **Target View**: Operational States
-**Description**: Verifies valid transitions (`PHOTO_PENDING` → `PHOTO_PROCESSING` → `NORMAL` and `PHOTO_PENDING` → `PHOTO_FAILED`), invalid transition attempts, and terminal-state re-entry guards for photo lifecycle.
+**Description**: Verifies valid transitions (`PHOTO_PENDING` → `PHOTO_PROCESSING` → `NORMAL` and `PHOTO_PENDING` → `PHOTO_FAILED`), invalid transition attempts, and terminal-state re-entry guards for photo lifecycle. The completion/failed DB transitions are applied by the Fargate `photo-processed` consumer (the processor Lambda only emits the `photo-processed` message).
 
 - **System Scenario: STS-007-C1**
     - **Given** a photo is in `PHOTO_PENDING` with a valid staged object and a corresponding processing trigger event
-    - **When** the processor consumes the event and completes derivative generation successfully
+    - **When** the processor consumes the event, completes derivative generation successfully, and emits `photo-processed`, and the Fargate consumer processes that message
     - **Then** state transitions `PHOTO_PENDING` → `PHOTO_PROCESSING` → `NORMAL` and the photo record is marked `complete`
 
 - **System Scenario: STS-007-C2**
@@ -405,8 +405,8 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-007-C3**
     - **Given** a photo is already in terminal `complete` state
-    - **When** a duplicate or replayed processing trigger arrives for the same photo key
-    - **Then** terminal-state re-entry is prevented and no second processing side effects are applied
+    - **When** a duplicate or replayed `photo-processed` message arrives for the same photo key
+    - **Then** the Fargate consumer's idempotency guard prevents terminal-state re-entry and no second processing side effects are applied
 
 ---
 
@@ -422,7 +422,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-008-A1**
     - **Given** a recipe at server version `7` and an update payload with `expectedVersion=7`
-    - **When** `PATCH /api/v1/recipes/{id}` executes
+    - **When** `PATCH /v1/recipes/{id}` executes
     - **Then** the mutation succeeds, a new recipe version row is created, and the resulting recipe version increments to `8`
 
 - **System Scenario: STS-008-A2**
@@ -438,13 +438,13 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-008-B1**
     - **Given** a recipe with 12 pre-seeded version rows (versions `1..12`) established via deterministic seed fixtures
-    - **When** `GET /api/v1/recipes/{recipeId}/versions` is requested
+    - **When** `GET /v1/recipes/{id}/versions` is requested
     - **Then** exactly the most recent 10 versions (`3..12`) are returned from primary database storage
     - **Note**: Scenario independence — STS-008-B1 requires a recipe with ≥12 version rows as a fixture; it is independent of STS-008-A1 but shares the recipe fixture. Execute in isolated test environment.
 
 - **System Scenario: STS-008-B2**
     - **Given** a restore request for historical version `5`
-    - **When** `POST /api/v1/recipes/{recipeId}/versions/5/restore` executes
+    - **When** `POST /v1/recipes/{id}/versions/5/restore` executes
     - **Then** a new current version is created from snapshot `5` while pre-existing version snapshots remain immutable
 
 #### Test Case: STP-008-C (Conflict/Concurrency Error-Path Guesses)
@@ -483,7 +483,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-009-A2**
     - **Given** archive producer emits a queue message for a new version
     - **When** persistence validation inspects the database
-    - **Then** a matching `recipe_version_pending_archives` row exists with replayable payload content for the same version ID
+    - **Then** a matching `recipe_version_pending_archives` row exists referencing that version via the `recipe_version_id` FK (no duplicated `snapshot` column); the replay payload is the same-transaction `recipe_versions.snapshot`
 
 #### Test Case: STP-009-B (Queue Producer Failure Decoupling)
 
@@ -494,12 +494,12 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-009-B1**
     - **Given** recipe metadata and version rows are committed successfully
     - **When** SQS `SendMessage` fails due to transport or service unavailability
-    - **Then** recipe save response remains successful and pending-archive payload remains stored for replay
+    - **Then** recipe save response remains successful and the `recipe_version_pending_archives` row (referencing `recipe_version_id`) remains, so the same-transaction `recipe_versions.snapshot` is available for replay
 
 - **System Scenario: STS-009-B2**
     - **Given** pending-archive rows older than replay threshold with no successful enqueue
     - **When** replay sweeper executes re-enqueue logic
-    - **Then** queue dispatch is retried using original payload metadata without modifying version snapshot content
+    - **Then** queue dispatch is retried using the pending row's `recipe_version_id` without modifying the referenced `recipe_versions.snapshot`
 
 ---
 
@@ -515,7 +515,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-010-A1**
     - **Given** an SQS message referencing a pending archive row with attempt count `0`
-    - **When** the worker consumes the message and performs `PutObject` to `versions/{recipeId}/v{n}.json`
+    - **When** the worker consumes the message and performs `PutObject` to `versions/{recipe_id}/v{n}.json`
     - **Then** the worker updates `recipe_versions.s3_key`, deletes the corresponding pending row, and acknowledges message completion
 
 - **System Scenario: STS-010-A2**
@@ -589,12 +589,12 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-011-A1**
     - **Given** authenticated ownership context and valid collection payloads
-    - **When** `POST /api/v1/collections`, `PATCH /api/v1/collections/{id}`, and `POST /api/v1/collections/{id}/recipes` execute
+    - **When** `POST /v1/collections`, `PATCH /v1/collections/{id}`, and `POST /v1/collections/{id}/recipes` execute
     - **Then** collection rows are created/updated and membership rows are created with deterministic response bodies
 
 - **System Scenario: STS-011-A2**
     - **Given** one recipe mapped into multiple collections and one collection selected for deletion
-    - **When** `DELETE /api/v1/collections/{id}` executes
+    - **When** `DELETE /v1/collections/{id}` executes
     - **Then** collection and membership rows for that collection are removed while recipe rows and other collection memberships remain intact (non-cascade invariant)
 
 #### Test Case: STP-011-B (Collection Policy Class Partitioning)
@@ -627,7 +627,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-012-A1**
     - **Given** a public source collection with accessible and inaccessible recipe memberships relative to caller permissions
-    - **When** `POST /api/v1/collections/{id}/clone` executes
+    - **When** `POST /v1/collections/{id}/clone` executes
     - **Then** cloned collection is created under caller ownership, `sourceCollectionId` references source, and inaccessible source recipes are excluded from clone membership
 
 - **System Scenario: STS-012-A2**
@@ -643,7 +643,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-012-B1**
     - **Given** cloned collection with source linkage and source collection gains new public recipes while losing access to others
-    - **When** `POST /api/v1/collections/{id}/pull-from-source` executes
+    - **When** `POST /v1/collections/{id}/pull-from-source` executes
     - **Then** reconcile adds newly accessible source recipes and removes source-derived recipes that are no longer accessible
 
 - **System Scenario: STS-012-B2**
@@ -665,12 +665,12 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-013-A1**
     - **Given** an account with an existing erasure job in `queued` or `running` state
-    - **When** `POST /api/v1/account/erasure` is invoked repeatedly
+    - **When** `POST /v1/account/erasure` is invoked repeatedly
     - **Then** endpoint returns HTTP 202 with existing job ID and does not enqueue a duplicate job
 
 - **System Scenario: STS-013-A2**
     - **Given** terminal erasure states for an account
-    - **When** `POST /api/v1/account/erasure` is invoked with most recent state `completed` or `failed`
+    - **When** `POST /v1/account/erasure` is invoked with most recent state `completed` or `failed`
     - **Then** endpoint returns HTTP 410 for completed state and returns HTTP 202 with a new job ID for failed state
 
 #### Test Case: STP-013-B (Erasure Dependency Failure and Recovery)
@@ -702,7 +702,7 @@ Each test case identifies its technique by name:
 
 - **System Scenario: STS-013-C2**
     - **Given** an account whose latest erasure job is already in terminal `ERASURE_COMPLETED`
-    - **When** `POST /api/v1/account/erasure` is invoked again
+    - **When** `POST /v1/account/erasure` is invoked again
     - **Then** no new S3 delete calls, no new DB purge operations, and no new erasure job rows are created; state remains `ERASURE_COMPLETED` and API response is HTTP 410
 
 #### Test Case: STP-013-D (Erasure Concurrency Error-Path Guesses)
@@ -989,15 +989,91 @@ Each test case identifies its technique by name:
 
 ---
 
+### Component Verification: SYS-021 (Home Widget Surface and Curation Pipeline)
+
+**Parent Requirements**: REQ-058, REQ-059, REQ-060, REQ-061, REQ-062, REQ-063, REQ-064, REQ-065, REQ-IF-004c, REQ-IF-006
+
+_Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by explicit startup registration, composition by `curateHomeWidgets(widgets, ctx)` (capability + subscription-tier gating, personalization ordering), and render via `React.lazy`/`next/dynamic` + Suspense + per-widget `ErrorBoundary` (unknown ids skipped). Design authority: `research/home-widget-architecture.md` (`## DECISION (2026-07-06)`). The Home widget contract (`HomeWidgetId`, `HomeWidgetDescriptor`, `curateHomeWidgets`) lives in `@commise/shared-recipe-core`; the live recipe widget loads via `@commise/features-recipes/widget/{web|mobile}`. Per-user layout is persisted via `PATCH /v1/profiles/me`, **owned by the identity service (002) and consumed here**._
+
+#### Test Case: STP-021-A (Widget Curation Capability-Gating Decision Matrix)
+
+**Technique**: Decision Table Testing
+**Target View**: Decomposition View
+**Description**: Verifies the `curateHomeWidgets` capability-gating invariant across the multi-condition matrix of backing-service capability (live/absent) × subscription tier, and personalization ordering of the surviving widgets.
+
+- **System Scenario: STS-021-A1**
+    - **Given** a widget descriptor whose backing-service **capability is absent** (service not deployed) and a widget descriptor whose capability is present and tier requirement is satisfied
+    - **When** `curateHomeWidgets(widgets, ctx)` evaluates the registered set for a user
+    - **Then** the capability-gating invariant holds: the absent-capability widget is **excluded from the curated list entirely** (it is not returned as a hidden/empty entry), and the satisfied widget is included and ordered by its personalization weight
+
+- **System Scenario: STS-021-A2**
+    - **Given** curation inputs `capability ∈ {live, absent}` and `tier ∈ {premium, free}` applied to a registered widget carrying a `minTier` and a `capability`
+    - **When** decision-table evaluation executes for inclusion in the curated Home list
+    - **Then** expected outcomes are:
+
+        | Capability | Tier    | `minTier` | Outcome for widget |
+        | ---------- | ------- | --------- | ------------------ |
+        | live       | premium | premium   | Included           |
+        | live       | free    | premium   | Excluded           |
+        | live       | premium | free      | Included           |
+        | live       | free    | free      | Included           |
+        | absent     | premium | premium   | Excluded           |
+        | absent     | free    | free      | Excluded           |
+
+#### Test Case: STP-021-B (Home Surface Composition and Render Contract)
+
+**Technique**: Specification-Based Testing
+**Target View**: Interface View
+**Description**: Verifies the v1 recipe-only-live registration contract, absent-not-empty gated-widget behavior, unknown-id skip, and per-widget error isolation of the render chain.
+
+- **System Scenario: STS-021-B1**
+    - **Given** a v1 client build in which **only the recipe (recent-recipes) widget is registered** (the meal-plan/nutrition/shopping/AI-suggestion/resume-cooking widgets are not registered — their `@commise/features-*` packages backed by services 005–009 do not exist yet)
+    - **When** the Home host runs discovery + `curateHomeWidgets` and renders the surface
+    - **Then** exactly the recipe widget renders (its empty-state applies only because it is live), and every gated widget is **absent — not present as an empty or dead tile**
+
+- **System Scenario: STS-021-B2**
+    - **Given** an ordered widget-id list that includes (a) an id not present in the client render registry and (b) a registered widget whose lazy `load`/render throws
+    - **When** the render chain maps ids through the registry and mounts each via `React.lazy`/`next/dynamic` + Suspense + per-widget `ErrorBoundary`
+    - **Then** the unknown id is skipped and the throwing widget is contained by its `ErrorBoundary` (renders nothing), while all other widgets still render — a single widget never breaks the page
+
+#### Test Case: STP-021-C (Capability Emergence State Transition)
+
+**Technique**: State Transition Testing
+**Target View**: Operational States
+**Description**: Verifies that a gated widget auto-appears when its backing service deploys (capability transitions absent → present) with no client change, using the AI-suggestion widget backed by service **005** as the representative case.
+
+- **System Scenario: STS-021-C1**
+    - **Given** the AI-suggestion widget descriptor is registered with `capability='ai-suggestions'` while service 005 is **not deployed** (capability absent), so `curateHomeWidgets` excludes it and the Home surface renders without it
+    - **When** service 005 deploys and the capability flag transitions **absent → present**, and the same user next views Home (no client redeploy)
+    - **Then** `curateHomeWidgets` now includes the AI-suggestion widget and it renders one AI-generated recipe suggestion; the transition is one-directional for this scenario and no other widget's presence changes
+
+#### Test Case: STP-021-D (Nudge Suppression and Cross-Platform Parity Partitions)
+
+**Technique**: Equivalence Partitioning + Error Guessing
+**Target View**: Decomposition View
+**Description**: Verifies the once-per-session subscription-nudge suppression class and the cross-platform live-widget parity invariant (FR-044a).
+
+- **System Scenario: STS-021-D1**
+    - **Given** a free-tier user on the Home surface who taps one or more premium-gated entry points within a single session
+    - **When** the first and subsequent premium-gated taps are handled
+    - **Then** the subscription upgrade nudge appears on the first tap and is suppressed for the remainder of the session (component-state suppression, no backend call) — at most once per session regardless of tap count
+
+- **System Scenario: STS-021-D2**
+    - **Given** the Home surface composed on web (`next/dynamic` client host) and on mobile (`React.lazy` host) for the same user context
+    - **When** the curated live-widget set is compared across platforms
+    - **Then** every **live** widget (the recipe widget in v1) is present on both web and mobile behind one widget id with per-platform `.native.tsx` implementations; no live widget is absent on either platform
+
+---
+
 ## Coverage Summary
 
 | Metric                         | Count          |
 | ------------------------------ | -------------- |
-| Total System Components (SYS)  | 20             |
-| Total Test Cases (STP)         | 49             |
-| Total Scenarios (STS)          | 103            |
-| Components with ≥1 STP         | 20 / 20 (100%) |
-| Test Cases with ≥1 STS         | 49 / 49 (100%) |
+| Total System Components (SYS)  | 21             |
+| Total Test Cases (STP)         | 53             |
+| Total Scenarios (STS)          | 110            |
+| Components with ≥1 STP         | 21 / 21 (100%) |
+| Test Cases with ≥1 STS         | 53 / 53 (100%) |
 | **Overall Coverage (SYS→STP)** | **100%**       |
 
 ### STS Index (Grouped by STP)
@@ -1053,6 +1129,10 @@ Each test case identifies its technique by name:
 | STP-019-B | STS-019-B1, STS-019-B2                                     |
 | STP-020-A | STS-020-A1, STS-020-A2                                     |
 | STP-020-B | STS-020-B1, STS-020-B2                                     |
+| STP-021-A | STS-021-A1, STS-021-A2                                     |
+| STP-021-B | STS-021-B1, STS-021-B2                                     |
+| STP-021-C | STS-021-C1                                                 |
+| STP-021-D | STS-021-D1, STS-021-D2                                     |
 
 ## Uncovered Components
 
@@ -1072,3 +1152,7 @@ None — full coverage achieved.
 | PRF-STP-008 | Clarified `STS-008-B1` Given clause to deterministic seeded setup: recipe with 12 pre-seeded version rows (`1..12`).                                                                                                                                                                                                                                                                                    |
 | PRF-STP-009 | Added flat `STS Index (Grouped by STP)` under Coverage Summary so scenario totals are independently verifiable from document structure.                                                                                                                                                                                                                                                                 |
 | PRF-STP-010 | Updated `STP-016-B` technique from `Equivalence Partitioning` to `Equivalence Partitioning + Error Guessing` to cover accessibility partition (STS-016-B2) as error-guessing target. Added scenario independence notes to STS-007-C2 and STS-008-B1. Updated Performance Testing technique description to document Analysis verification for STP-NF-004-A, STP-NF-015-A, and executable case STP-005-C. |
+| FIX2-STP-001 (D3) | Added `SYS-021` (Home Widget Surface and Curation Pipeline) with `STP-021-A..D` / `STS-021-A1..D2` covering US-0 / FR-046: capability-gating invariant + decision matrix (`STP-021-A`), recipe-only-live registration with gated widgets **absent not empty** and unknown-id/ErrorBoundary render isolation (`STP-021-B`), AI-suggestion capability-emergence on service **005** deploy (`STP-021-C`), and once-per-session nudge + cross-platform live-widget parity (`STP-021-D`). Coverage counts updated 20→21 SYS, 49→53 STP, 103→110 STS. |
+| FIX2-STP-002 (D1) | Reworked `SYS-007` (Photo Processing Lambda) scenarios so the processor is **S3-only / not VPC-attached** and emits an SQS `photo-processed` message; the `recipe_photos` completion/failed `UPDATE` is performed by the in-VPC **Fargate `photo-processed` consumer** (STS-007-A1/A2, B1/B2, C1, C3). |
+| FIX2-STP-003 (D6) | Reworded `STS-009-A2/B1/B2` to the pending-archive **FK design**: `recipe_version_pending_archives` references the version via `recipe_version_id` with **no duplicated `snapshot` column** — the replay payload is the same-transaction `recipe_versions.snapshot`. |
+| FIX2-STP-004 (D5/C4) | Normalized canonical values: freeform ingredient flag `userEntered=true` → `isUserEntered=true` (D5 separate boolean) in STS-004-A2; unified the recipe id path param to `{id}` (C4) in STS-006/008 endpoints; aligned the archive S3 key to `versions/{recipe_id}/v{n}.json`. |

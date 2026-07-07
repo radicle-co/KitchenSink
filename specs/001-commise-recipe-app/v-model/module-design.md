@@ -65,14 +65,14 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 **Parent Architecture Modules**: ARCH-001
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/auth/clerk-auth.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/auth/clerk-auth.service.ts`
 
 #### Interface View
 
 | Direction | Name            | Type   | Format                           | Constraints                                                                                                                                  |
 | --------- | --------------- | ------ | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Input     | `bearerToken`   | string | JWT compact serialization        | Required; non-empty; valid Clerk session token; signature verifies against `CLERK_JWT_KEY`; `azp` in `CLERK_AUTHORIZED_PARTIES`; not expired |
-| Output    | `principal`     | object | `{ sub, email, tier, iat, exp }` | `sub` non-empty; `tier ∈ {"free","premium"}` read from `public_metadata`; `exp` > now                                                        |
+| Output    | `principal`     | object | `{ userId, sub, email, tier, roles, permissions, iat, exp }` | `userId` non-empty (app-user ULID from the `external_id` claim — THE owner key); `sub` retained for trace/audit only; `tier ∈ {"free","premium"}` read from `public_metadata`; `exp` > now                                                        |
 | Exception | `INVALID_TOKEN` | 401    | `{ code, message }`              | Signature/claim/expiry/`azp` failure (networkless — no JWKS fetch)                                                                           |
 
 #### Algorithmic / Logic View
@@ -88,13 +88,22 @@ function verify(bearerToken):
   })  # @clerk/backend; throws on bad signature / azp mismatch / expiry
   if payload.exp ≤ now():
     throw INVALID_TOKEN("expired")
+  # app-user ULID is THE owner key — read it networklessly from the external_id claim (REQ-IF-007).
+  userId ← payload.external_id
+  if !userId or userId is empty:
+    throw INVALID_TOKEN("external_id (app ULID) claim missing")   # prerequisite, not optional (A2)
   tier ← payload.public_metadata?.tier
   if tier not in ["free","premium"]:
     throw INVALID_TOKEN("tier claim missing/invalid")
+  roles       ← payload.public_metadata?.roles ?? []
+  permissions ← payload.public_metadata?.permissions ?? []
   return Principal{
-    sub: payload.sub,
+    userId: userId,                             # app-user ULID from external_id — THE owner key
+    sub: payload.sub,                           # Clerk subject — trace/audit only, NOT for ownership
     email: payload.email,
     tier: tier,                                 # read from public_metadata
+    roles: roles,                               # from public_metadata (admin checks use these)
+    permissions: permissions,                   # from public_metadata
     iat: payload.iat,
     exp: payload.exp
   }
@@ -102,16 +111,26 @@ function verify(bearerToken):
 
 #### State Machine View
 
-Stateless. Photo row transitions (`pending_processing → ready | failed`) are delegated to MOD-014 (processing Lambda); the service itself holds no mutable state. Concurrency safety is ensured by optimistic locking at the repository level (see MOD-016).
+Stateless. Photo-row completion (`pending → complete | failed`) is performed by the Fargate `photo-processed` SQS consumer after MOD-014 renders derivatives to S3 (MOD-014 is S3-only and touches no DB — D1); the service itself holds no mutable state. Concurrency safety is ensured by optimistic locking at the repository level (see MOD-016).
 
 #### Internal Data Structures
 
 ```ts
-type Principal = { sub: string; email: string; tier: 'free' | 'premium'; iat: number; exp: number };
+type Principal = {
+    userId: string; // app-user ULID — THE owner key; read from the verified token's `external_id` claim
+    sub: string; // Clerk subject — retained for trace/audit only, NOT for ownership
+    email: string;
+    tier: 'free' | 'premium';
+    roles: string[]; // from token public_metadata (admin checks use these)
+    permissions: string[]; // from token public_metadata
+    iat: number;
+    exp: number;
+};
 type VerifiedClerkClaims = {
+    external_id: string; // app-user ULID (owner key) — surfaced as Principal.userId
     sub: string;
     email: string;
-    public_metadata: { tier?: 'free' | 'premium' };
+    public_metadata: { tier?: 'free' | 'premium'; roles?: string[]; permissions?: string[] };
     azp?: string;
     iat: number;
     exp: number;
@@ -125,6 +144,7 @@ type VerifiedClerkClaims = {
 | Missing/empty bearer token            | `INVALID_TOKEN` | 401  | Caller returns 401 to client                       |
 | Bad signature / `azp` not authorized  | `INVALID_TOKEN` | 401  | Caller returns 401                                 |
 | Expired token                         | `INVALID_TOKEN` | 401  | Caller returns 401; client refreshes session       |
+| `external_id` (app ULID) claim missing/empty | `INVALID_TOKEN` | 401  | Caller returns 401; feature 002 must emit the claim (REQ-IF-007) |
 | `tier` claim missing or unknown value | `INVALID_TOKEN` | 401  | Caller returns 401; `public_metadata` config error |
 
 ---
@@ -133,7 +153,7 @@ type VerifiedClerkClaims = {
 
 **Parent Architecture Modules**: ARCH-002
 **Type**: Library (NestJS Guard)
-**Target Source File(s)**: `packages/api/src/auth/owner-tier.guard.ts`
+**Target Source File(s)**: `packages/services/recipes/src/auth/owner-tier.guard.ts`
 
 #### Interface View
 
@@ -152,7 +172,7 @@ function authorize(principal, resourceRef):
   resource ← repository.loadByKind(resourceRef.kind, resourceRef.id)
   if resource is null:
     throw NOT_FOUND  # surfaced by controller as 404
-  isOwner  ← (resource.ownerId == principal.sub)
+  isOwner  ← (resource.ownerId == principal.userId)
   isPublic ← (resource.visibility == "public")
 
   if resourceRef.action in {write, delete}:
@@ -203,7 +223,7 @@ const TIER_REQUIREMENTS: Record<Kind, Record<Action, 'free' | 'premium'>>;
 
 **Parent Architecture Modules**: ARCH-003
 **Type**: Component (NestJS Controller)
-**Target Source File(s)**: `packages/api/src/recipes/recipes.controller.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.controller.ts`
 
 #### Interface View
 
@@ -216,7 +236,7 @@ const TIER_REQUIREMENTS: Record<Kind, Record<Action, 'free' | 'premium'>>;
 #### Algorithmic / Logic View
 
 ```text
-@Controller("/api/v1/recipes")
+@Controller("/v1/recipes")
 class RecipesController:
   @Post("/")
   create(@Body raw, @Principal p):
@@ -289,7 +309,7 @@ The controller never throws domain errors itself — it delegates and lets MOD-0
 
 **Parent Architecture Modules**: ARCH-004
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/recipes/recipes.command.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.command.service.ts`
 
 #### Interface View
 
@@ -365,7 +385,7 @@ function execute(command):
     case "clone":
       source ← MOD-024.recipes.loadById(command.payload.sourceId)
       MOD-002.authorize(command.principal, { kind:"recipe", id:source.id, action:"clone" })
-      cloned ← buildClone(source, owner=command.principal.sub)
+      cloned ← buildClone(source, owner=command.principal.userId)
       return execute({ kind:"create", payload: cloned, principal: command.principal })
 ```
 
@@ -404,7 +424,7 @@ type RecipeView = { id: string; versionNumber: number; rowVersion: string /* …
 
 **Parent Architecture Modules**: ARCH-005
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/recipes/recipes.dto.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.dto.ts`
 
 #### Interface View
 
@@ -466,7 +486,7 @@ class IngredientItem {
 
 **Parent Architecture Modules**: ARCH-006
 **Type**: Library (pure function)
-**Target Source File(s)**: `packages/api/src/recipes/visibility.policy.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/visibility.policy.ts`
 
 #### Interface View
 
@@ -525,7 +545,7 @@ type PolicyDecision = { allowed: boolean; reason: string; ruleId: string };
 
 **Parent Architecture Modules**: ARCH-007
 **Type**: Library (pure function)
-**Target Source File(s)**: `packages/api/src/recipes/substantive-edit.detector.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/substantive-edit.detector.ts`
 
 #### Interface View
 
@@ -592,7 +612,7 @@ const VOLUME_TO_ML: UnitConversionMap = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14
 
 **Parent Architecture Modules**: ARCH-009
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/nutrition/nutrition.calculator.ts`
+**Target Source File(s)**: `packages/services/recipes/src/nutrition/nutrition.calculator.ts`
 
 #### Interface View
 
@@ -671,7 +691,7 @@ const VOLUME_TO_ML: UnitConversionMap = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14
 
 **Parent Architecture Modules**: ARCH-010
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/recipes/recipes.search.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/recipes.search.service.ts`
 
 #### Interface View
 
@@ -743,7 +763,7 @@ type RecipeListItem = {
 
 **Parent Architecture Modules**: ARCH-011
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/recipes/search-query.builder.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/search-query.builder.ts`
 
 #### Interface View
 
@@ -765,13 +785,13 @@ function build(q, p):
   where  ← []
   params ← {}
   if q.ownerScope == "mine":
-    where.push("owner_id = :uid"); params.uid = p.sub
+    where.push("owner_id = :uid"); params.uid = p.userId
     if q.visibility: where.push("visibility = :v"); params.v = q.visibility
   elif q.ownerScope == "public":
     where.push("visibility = 'public'")
   else:                                         # "all"
     where.push("(visibility = 'public' OR owner_id = :uid)")
-    params.uid = p.sub
+    params.uid = p.userId
   if q.q:
     where.push("search_tsv @@ plainto_tsquery('english', :q)")
     params.q = q.q
@@ -810,7 +830,7 @@ type QuerySpec = { where: string; params: Record<string, unknown>; orderBy: stri
 
 **Parent Architecture Modules**: ARCH-012
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/photos/photo.presign.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/photos/photo.presign.service.ts`
 
 #### Interface View
 
@@ -829,7 +849,7 @@ type QuerySpec = { where: string; params: Record<string, unknown>; orderBy: stri
 function presign(req, principal):
   validate(req)                                # type + size whitelist
   MOD-002.authorize(principal, { kind:"recipe", id:req.recipeId, action:"write" })
-  if MOD-024.photoUploads.countPendingForUser(principal.sub) >= QUOTA_LIMIT:
+  if MOD-024.photoUploads.countPendingForUser(principal.userId) >= QUOTA_LIMIT:
     throw UPLOAD_QUOTA_EXCEEDED({ code:"UPLOAD_QUOTA_EXCEEDED", retryAfter: 60 })
   objectKey ← `recipes/${req.recipeId}/photos/${uuidv7()}.${extOf(req.contentType)}`
   url       ← MOD-025.getPresignedPutUrl({
@@ -840,7 +860,7 @@ function presign(req, principal):
               })
   MOD-024.photoUploads.insertPending({ key: objectKey,
                                        recipeId: req.recipeId,
-                                       ownerId: principal.sub })
+                                       ownerId: principal.userId })
   return { uploadUrl: url, objectKey, expiresAt: now()+300s,
            headers: { "Content-Type": req.contentType } }
 ```
@@ -872,7 +892,7 @@ const QUOTA_LIMIT = 25;
 
 **Parent Architecture Modules**: ARCH-013
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/photos/photo.confirm.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/photos/photo.confirm.service.ts`
 
 #### Interface View
 
@@ -890,7 +910,7 @@ const QUOTA_LIMIT = 25;
 function confirm(c, principal):
   pending ← MOD-024.photoUploads.findPendingByKey(c.objectKey)
   if !pending:                              throw UPLOAD_NOT_FOUND({ code:"UPLOAD_NOT_FOUND", key:c.objectKey })
-  if pending.ownerId != principal.sub:      throw FORBIDDEN_OWNER
+  if pending.ownerId != principal.userId:      throw FORBIDDEN_OWNER
   meta ← MOD-025.headObject(c.objectKey)
   if !meta:                                 throw UPLOAD_INVALID({ code:"UPLOAD_INVALID", reason:"object missing" })
   if meta.etag != c.etag:                   throw UPLOAD_INVALID({ code:"UPLOAD_INVALID", reason:"etag mismatch" })
@@ -910,7 +930,7 @@ function confirm(c, principal):
 
 #### State Machine View
 
-Stateless. Photo row transitions (`pending_processing → ready | failed`) are delegated to MOD-014 (processing Lambda); the service itself holds no mutable state. Concurrency safety is ensured by optimistic locking at the repository level (see MOD-016).
+Stateless. Photo-row completion (`pending → complete | failed`) is performed by the Fargate `photo-processed` SQS consumer after MOD-014 renders derivatives to S3 (MOD-014 is S3-only and touches no DB — D1); the service itself holds no mutable state. Concurrency safety is ensured by optimistic locking at the repository level (see MOD-016).
 
 #### Internal Data Structures
 
@@ -934,61 +954,92 @@ type PhotoView = { photoId: string; recipeId: string; status: 'pending_processin
 
 **Parent Architecture Modules**: ARCH-014
 **Type**: Service (Lambda)
-**Target Source File(s)**: `packages/photo-processor/src/handler.ts`
+**Target Source File(s)**: `packages/services/recipes-workers/src/photo-processor/handler.ts`
+
+**Topology (D1 / ADR-0004)**: This Lambda is **S3-only and NOT VPC-attached** — it **touches no DB**. It reads the original from S3, renders WebP derivatives back to S3, and emits an SQS **`photo-processed`** message. The `recipe_photos` completion `UPDATE` is performed downstream by the in-VPC **Fargate `photo-processed` consumer** (see below), never by this Lambda.
 
 #### Interface View
 
-| Direction | Name          | Type   | Format                                 | Constraints                                       |
-| --------- | ------------- | ------ | -------------------------------------- | ------------------------------------------------- |
-| Input     | `s3Event`     | object | S3 ObjectCreated event                 | Triggered by S3 PutObject in `recipes/*/photos/*` |
-| Output    | (side-effect) | —      | Updates photo row + writes derivatives | Idempotent on re-delivery                         |
-| Exception | (logged)      | —      | Marks row `failed` and re-throws       | Routed to Lambda DLQ after retries                |
+| Direction | Name          | Type   | Format                                      | Constraints                                       |
+| --------- | ------------- | ------ | ------------------------------------------- | ------------------------------------------------- |
+| Input     | `s3Event`     | object | S3 ObjectCreated event                      | Triggered by S3 PutObject in `uploads/*/original.*` |
+| Output    | (side-effect) | —      | Writes S3 derivatives + emits `photo-processed` SQS | No DB access; idempotent on re-delivery   |
+| Exception | (logged)      | —      | Emits `photo-processed` with `status:"failed"` and re-throws | Routed to Lambda DLQ after retries |
 
 #### Algorithmic / Logic View
 
 ```text
 function handle(event):
   for record in event.Records:
-    key   ← record.s3.object.key
-    photo ← MOD-024.photos.findByObjectKey(key)
-    if !photo:        return                          # late confirm; ignore
-    if photo.status == "ready": return                # idempotent
+    key           ← record.s3.object.key             # uploads/{uuid}/original.{ext}
+    recipePhotoId ← parsePhotoId(record)             # from object key / S3 object metadata
     try:
-      bytes      ← MOD-025.getObject(key)
-      orig       ← Sharp(bytes).rotate()              # honor EXIF
-      stripped   ← orig.withMetadata(false)           # strip GPS/EXIF
-      thumb      ← stripped.clone().resize(320,320,{fit:"cover"}).webp({quality:80}).toBuffer()
-      display    ← stripped.clone().resize(1280,null,{withoutEnlargement:true}).webp({quality:82}).toBuffer()
-      MOD-025.putObject(derivedKey(key,"thumb"),  thumb,  "image/webp")
-      MOD-025.putObject(derivedKey(key,"display"), display, "image/webp")
-      MOD-024.photos.markReady(photo.id, {
-        thumbKey: derivedKey(key,"thumb"),
-        displayKey: derivedKey(key,"display"),
-        widthPx: orig.metadata().width,
-        heightPx: orig.metadata().height
+      bytes    ← MOD-025.getObject(key)
+      orig     ← Sharp(bytes).rotate()               # honor EXIF
+      stripped ← orig.withMetadata(false)            # strip GPS/EXIF
+      thumb    ← stripped.clone().resize(150,150,{fit:"cover"}).webp({quality:80}).toBuffer()
+      card     ← stripped.clone().resize(400,400,{fit:"cover"}).webp({quality:82}).toBuffer()
+      full     ← stripped.clone().resize(1200,1200,{fit:"inside",withoutEnlargement:true}).webp({quality:82}).toBuffer()
+      MOD-025.putObject(renditionKey(key,"thumb"), thumb, "image/webp")
+      MOD-025.putObject(renditionKey(key,"card"),  card,  "image/webp")
+      MOD-025.putObject(renditionKey(key,"full"),  full,  "image/webp")
+      # S3-only: signal completion via SQS; the Fargate consumer writes the DB row.
+      MOD-025.sqs.sendMessage({
+        queueUrl: config.photoProcessedQueueUrl,
+        messageBody: JSON.stringify({
+          recipePhotoId,
+          s3_key_thumb: renditionKey(key,"thumb"),
+          s3_key_card:  renditionKey(key,"card"),
+          s3_key_full:  renditionKey(key,"full"),
+          status: "complete"
+        })
       })
+      # Optional: delete the original from S3 after successful processing.
     catch e:
-      MOD-024.photos.markFailed(photo.id, e.message)
+      # Never writes the DB; reports the failure downstream via SQS.
+      MOD-025.sqs.sendMessage({
+        queueUrl: config.photoProcessedQueueUrl,
+        messageBody: JSON.stringify({ recipePhotoId, status: "failed", error: e.message })
+      })
       throw e                                         # let Lambda retry → DLQ
 ```
 
+**Downstream completion — Fargate `photo-processed` consumer.** The `recipe_photos` completion `UPDATE` is performed by an **in-VPC SQS consumer inside the Fargate recipe API** (`packages/services/recipes`, Photos module domain), which reaches RDS. On each `photo-processed` message it runs (idempotent):
+
+```text
+UPDATE recipe_photos SET
+    s3_key_thumb = msg.s3_key_thumb, s3_key_card = msg.s3_key_card, s3_key_full = msg.s3_key_full,
+    processing_status = msg.status            -- 'complete' | 'failed'
+WHERE id = msg.recipePhotoId
+```
+
+This split preserves ADR-0004: the processor Lambda stays S3-only / not VPC-attached, and only the Fargate service touches the DB.
+
 #### State Machine View
 
-Photo row: `pending_processing → ready` on success; `pending_processing → failed` on terminal failure after Lambda retries.
+The Lambda is stateless and holds no DB state; it renders S3 derivatives and emits a `photo-processed` message. The `recipe_photos.processing_status` transition (`pending → complete | failed`) is owned by the Fargate `photo-processed` consumer, never by this Lambda.
 
 #### Internal Data Structures
 
 ```ts
-type DerivativeKey = `${string}/photos/${string}.${'thumb' | 'display'}.webp`;
+type RenditionKey = `photos/${string}/${'thumb' | 'card' | 'full'}.webp`;
+type PhotoProcessedMessage = {
+    recipePhotoId: string;
+    s3_key_thumb?: string;
+    s3_key_card?: string;
+    s3_key_full?: string;
+    status: 'complete' | 'failed';
+    error?: string;
+};
 ```
 
 #### Error Handling & Return Codes
 
-| Trigger                           | Behavior                           |
-| --------------------------------- | ---------------------------------- |
-| Object not found in S3            | Photo marked `failed`; throw → DLQ |
-| Sharp decode failure              | Photo marked `failed`; throw → DLQ |
-| Repeated delivery for ready photo | No-op (idempotent)                 |
+| Trigger                           | Behavior                                                    |
+| --------------------------------- | ---------------------------------------------------------- |
+| Object not found in S3            | Emit `photo-processed` `status:"failed"`; throw → DLQ (no DB write) |
+| Sharp decode failure              | Emit `photo-processed` `status:"failed"`; throw → DLQ (no DB write) |
+| Repeated delivery                 | Re-render + re-emit; the Fargate consumer's `UPDATE` is idempotent |
 
 ---
 
@@ -996,7 +1047,7 @@ type DerivativeKey = `${string}/photos/${string}.${'thumb' | 'display'}.webp`;
 
 **Parent Architecture Modules**: ARCH-015
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/recipes/version-snapshot.writer.ts`
+**Target Source File(s)**: `packages/services/recipes/src/recipes/version-snapshot.writer.ts`
 
 #### Interface View
 
@@ -1017,10 +1068,13 @@ function write(req):
            snapshotJson: req.snapshot,
            createdAt: now()
          })
+  # D6: the pending-archive row carries NO snapshot column — the replay payload IS
+  # recipe_versions.snapshot (the same-transaction row just inserted above).
   pending ← MOD-024.recipeVersionPendingArchives.insert(req.txn, {
+              recipeVersionId: row.id,        # FK → recipe_versions(id)
               recipeId: req.recipeId,
-              versionId: row.id,
-              snapshotKey: `versions/${req.recipeId}/v${next}.json`
+              versionNumber: next,
+              status: "pending"               # attempts, next_attempt_at, timestamps default
             })
   return { versionNumber: next, versionId: row.id, pendingArchiveId: pending.id }
 ```
@@ -1055,7 +1109,7 @@ type VersionWriteResult = { versionNumber: number; versionId: string; pendingArc
 
 **Parent Architecture Modules**: ARCH-016
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/persistence/concurrency.guard.ts`
+**Target Source File(s)**: `packages/services/recipes/src/persistence/concurrency.guard.ts`
 
 #### Interface View
 
@@ -1102,7 +1156,7 @@ type ConcurrencyRequest = { table: 'recipes' | 'collections' | 'photos'; id: str
 
 **Parent Architecture Modules**: ARCH-017
 **Type**: Adapter
-**Target Source File(s)**: `packages/api/src/archive/archive-queue.producer.ts`
+**Target Source File(s)**: `packages/services/recipes/src/archive/archive-queue.producer.ts`
 
 #### Interface View
 
@@ -1158,7 +1212,7 @@ type ArchiveJob = { jobId: string; recipeId: string; versionId: string; snapshot
 
 **Parent Architecture Modules**: ARCH-018
 **Type**: Service (Lambda)
-**Target Source File(s)**: `packages/archive-worker/src/handler.ts`
+**Target Source File(s)**: `packages/services/recipes-workers/src/version-archive-worker/handler.ts`
 
 #### Interface View
 
@@ -1215,7 +1269,7 @@ type ArchiveJob = { jobId: string; recipeId: string; versionId: string; snapshot
 
 **Parent Architecture Modules**: ARCH-019
 **Type**: Service (cron)
-**Target Source File(s)**: `packages/api/src/archive/pending-archive.reconciler.ts`
+**Target Source File(s)**: `packages/services/recipes/src/archive/pending-archive.reconciler.ts`
 
 #### Interface View
 
@@ -1229,19 +1283,27 @@ type ArchiveJob = { jobId: string; recipeId: string; versionId: string; snapshot
 
 ```text
 function tick():
-  rows ← MOD-024.archiveJobs.findPending(olderThan=2min, limit=500)
+  rows ← MOD-024.recipeVersionPendingArchives.findPending(olderThan=2min, limit=500)
   report ← { scanned: rows.length, requeued: 0, deadLettered: 0 }
   for row in rows:
-    if row.attempt >= MAX_ATTEMPTS:
-      MOD-024.archiveJobs.markDeadLettered(row.jobId)
+    if row.attempts >= MAX_ATTEMPTS:
+      MOD-024.recipeVersionPendingArchives.markDeadLettered(row.id)   # status='dlq'
       report.deadLettered++
       continue
     try:
-      MOD-017.enqueue({ ...row, attempt: row.attempt + 1 })
-      MOD-024.archiveJobs.bumpAttempt(row.jobId)
+      # D6: the pending row stores no snapshot key — derive the S3 destination from
+      # recipe_id + version_number; the worker loads the payload from recipe_versions.snapshot.
+      MOD-017.enqueue({
+        jobId: row.id,
+        recipeId: row.recipeId,
+        versionId: row.recipeVersionId,
+        snapshotKey: `versions/${row.recipeId}/v${row.versionNumber}.json`,
+        attempt: row.attempts + 1
+      })
+      MOD-024.recipeVersionPendingArchives.bumpAttempt(row.id)
       report.requeued++
     catch e:
-      MOD-030.warn("requeue_failed", { jobId: row.jobId, err: e.message })
+      MOD-030.warn("requeue_failed", { pendingArchiveId: row.id, err: e.message })
   MOD-030.metric("archive_reconciler_run", report)
   return report
 ```
@@ -1254,12 +1316,16 @@ Stateless per tick; modifies job rows.
 
 ```ts
 type ReconcilerReport = { scanned: number; requeued: number; deadLettered: number };
+// D6: mirrors the `recipe_version_pending_archives` FK-design columns — no snapshot column.
 type PendingArchiveRow = {
-    jobId: string;
+    id: string;
+    recipeVersionId: string; // FK → recipe_versions(id)
     recipeId: string;
-    versionId: string;
-    snapshotKey: string;
-    attempt: number;
+    versionNumber: number;
+    status: 'pending' | 'in_flight' | 'failed' | 'dlq';
+    attempts: number;
+    nextAttemptAt: Date;
+    lastError?: string;
     createdAt: Date;
 };
 const MAX_ATTEMPTS = 8;
@@ -1269,7 +1335,7 @@ const MAX_ATTEMPTS = 8;
 
 | Trigger                   | Behavior                  |
 | ------------------------- | ------------------------- |
-| `attempt >= MAX_ATTEMPTS` | Move to dead-letter state |
+| `attempts >= MAX_ATTEMPTS` | Move to dead-letter state (`status='dlq'`) |
 | Requeue failure           | Logged; retried next tick |
 
 ---
@@ -1278,7 +1344,7 @@ const MAX_ATTEMPTS = 8;
 
 **Parent Architecture Modules**: ARCH-020
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/collections/collections.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/collections/collections.service.ts`
 
 #### Interface View
 
@@ -1299,7 +1365,7 @@ function execute(cmd):
   match cmd.kind:
     case "create":
       MOD-002.authorize(cmd.principal, { kind:"collection", id:"*", action:"write" })
-      return MOD-024.collections.insert(cmd.payload, ownerId=cmd.principal.sub)
+      return MOD-024.collections.insert(cmd.payload, ownerId=cmd.principal.userId)
 
     case "update":
       before ← MOD-024.collections.loadById(cmd.payload.id)
@@ -1389,7 +1455,7 @@ type CollectionCommand =
 
 **Parent Architecture Modules**: ARCH-021
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/collections/collections.clone.service.ts`
+**Target Source File(s)**: `packages/services/recipes/src/collections/collections.clone.service.ts`
 
 #### Interface View
 
@@ -1418,7 +1484,7 @@ function execute(cmd, principal):
                name: source.name + " (cloned)",
                description: source.description,
                visibility: "private"
-              }, ownerId=principal.sub)
+              }, ownerId=principal.userId)
   else:                                # pull into existing
     lockAcquired ← MOD-024.collections.acquireAdvisoryLock(cmd.targetId)
     if !lockAcquired:
@@ -1437,7 +1503,7 @@ function execute(cmd, principal):
       srcRecipe ← MOD-024.recipes.loadById(srcRecipeId)
       if srcRecipe.visibility != "public":
         skipped.push(srcRecipeId); continue           # private item from public list
-      if MOD-024.recipes.userHasClonedFrom(principal.sub, srcRecipeId):
+      if MOD-024.recipes.userHasClonedFrom(principal.userId, srcRecipeId):
         skipped.push(srcRecipeId); continue
       cloneCmd ← { kind:"clone", payload:{ sourceId: srcRecipeId }, principal }
       cloned   ← MOD-004.execute(cloneCmd)
@@ -1474,60 +1540,71 @@ type CollectionCloneCommand = { kind: 'clone' | 'pull'; sourceId: string; target
 
 **Parent Architecture Modules**: ARCH-022
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/gdpr/erasure.orchestrator.ts`
+**Target Source File(s)**: `packages/services/recipes/src/gdpr/erasure.orchestrator.ts`
 
 #### Interface View
 
 | Direction | Name                  | Type   | Format                                                     | Constraints                                |
 | --------- | --------------------- | ------ | ---------------------------------------------------------- | ------------------------------------------ |
-| Input     | `request`             | object | `{ subjectUserId, requestedBy }`                           | `requestedBy` must be the subject or admin |
-| Output    | `report`              | object | `{ erasureId, recipeCount, photoKeys[], collectionCount }` |                                            |
+| Input     | `request`             | object | `{ subjectUserId, requestedBy }`                           | `requestedBy` (the principal's app-user ULID) must be the subject or admin |
+| Input     | `principal`           | object | Principal from MOD-001                                     | Required; admin is derived from its `roles` (no `users` lookup — D2) |
+| Output    | `report`              | object | `{ erasureId, status, recipeCount, photoKeys[], collectionCount }` | 202 Accepted; idempotent per spec C-007 — a duplicate while a job is `queued`/`running` returns the **existing** `erasureId` (no second enqueue); a fresh retry after a `failed` job returns a new `erasureId` |
 | Exception | `FORBIDDEN_OWNER`     | 403    |                                                            | Non-subject, non-admin                     |
-| Exception | `ERASURE_IN_PROGRESS` | 409    | `{ code, existingErasureId }`                              | One in-flight erasure per subject          |
+| Exception | `ALREADY_ERASED`      | 410    | `{ code, message }`                                        | A prior erasure job `completed` (idempotent C-007; **not** a 409) |
 
 #### Algorithmic / Logic View
 
 ```text
-function erase(req):
-  if req.requestedBy != req.subjectUserId and !isAdmin(req.requestedBy):
+function erase(req, principal):
+  # requestedBy is the verified principal's app-user ULID (principal.userId).
+  if req.requestedBy != req.subjectUserId and !isAdmin(principal):
     throw FORBIDDEN_OWNER
-  existing ← MOD-024.erasures.findInFlight(req.subjectUserId)
-  if existing: throw ERASURE_IN_PROGRESS(existing.id)
+  # Idempotency per spec C-007 — account_erasure_jobs.status ∈ {queued, running, completed, failed}.
+  existing ← MOD-024.erasures.findLatest(req.subjectUserId)
+  if existing and existing.status in ["queued","running"]:
+    return { erasureId: existing.id, status: existing.status }   # 202; no second enqueue
+  if existing and existing.status == "completed":
+    throw ALREADY_ERASED                                          # 410; account already erased
+  # No prior job, or the prior job "failed" → enqueue a fresh 'queued' job (202).
 
   return repository.transaction(tx ⇒ {
-    erasureId ← MOD-024.erasures.start(tx, req.subjectUserId, req.requestedBy)
+    erasureId ← MOD-024.erasures.start(tx, req.subjectUserId, req.requestedBy)   # status='queued'
     photoKeys ← MOD-024.photos.collectKeysForUser(tx, req.subjectUserId)
     counts    ← MOD-024.applyErasureMutations(tx, req.subjectUserId)   # tombstones + nullouts
     MOD-024.erasures.markDbDone(tx, erasureId)
     MOD-023.purge({ erasureId, photoKeys })           # async S3 + cache purge
-    return { erasureId, recipeCount: counts.recipes,
+    return { erasureId, status: "queued", recipeCount: counts.recipes,
              collectionCount: counts.collections, photoKeys }
   })
 
-function isAdmin(userId):
-  principal ← MOD-024.users.loadPrincipal(userId)
+# Admin is derived from the verified Principal's roles (from the session token's public_metadata) —
+# there is no `users` table/accessor (D2). No DB lookup.
+function isAdmin(principal):
   return principal.roles.includes("admin")   # role from session token public_metadata claim
 ```
 
 #### State Machine View
 
-Erasure: `requested → db_done → storage_done → completed | failed`.
+Persisted `account_erasure_jobs.status` (canonical enum, single authoritative source): `queued → running → completed | failed`. The db-purge and storage-purge steps run within `running`. Terminal states: `completed` (a subsequent POST → **410** `ALREADY_ERASED`) and `failed` (a subsequent POST → a fresh `queued` retry, **202**).
 
 #### Internal Data Structures
 
 ```ts
+type ErasureJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 type ErasureRequest = { subjectUserId: string; requestedBy: string };
-type ErasureReport = { erasureId: string; recipeCount: number; collectionCount: number; photoKeys: string[] };
-type PrincipalRoles = { userId: string; roles: string[] };
+type ErasureReport = { erasureId: string; status: ErasureJobStatus; recipeCount: number; collectionCount: number; photoKeys: string[] };
+// Admin is read from the verified Principal (MOD-001) `roles` — there is no `users` accessor (D2).
 ```
 
 #### Error Handling & Return Codes
 
-| Trigger                         | Error Code            | HTTP |
-| ------------------------------- | --------------------- | ---- |
-| Non-subject non-admin requester | `FORBIDDEN_OWNER`     | 403  |
-| Concurrent erasure              | `ERASURE_IN_PROGRESS` | 409  |
-| DB mutation failure             | `INTERNAL`            | 500  |
+| Trigger                                                        | Error Code        | HTTP |
+| -------------------------------------------------------------- | ----------------- | ---- |
+| Non-subject non-admin requester                                | `FORBIDDEN_OWNER` | 403  |
+| Duplicate while `queued`/`running` → existing `erasureId`, no second enqueue | — (idempotent)    | 202  |
+| Prior job `completed` (already erased; C-007, **not** 409)     | `ALREADY_ERASED`  | 410  |
+| Prior job `failed` → fresh `queued` retry                      | — (idempotent)    | 202  |
+| DB mutation failure                                            | `INTERNAL`        | 500  |
 
 ---
 
@@ -1535,7 +1612,7 @@ type PrincipalRoles = { userId: string; roles: string[] };
 
 **Parent Architecture Modules**: ARCH-023
 **Type**: Service
-**Target Source File(s)**: `packages/api/src/gdpr/erasure.storage-purger.ts`
+**Target Source File(s)**: `packages/services/recipes/src/gdpr/erasure.storage-purger.ts`
 
 #### Interface View
 
@@ -1590,7 +1667,7 @@ type StoragePurgeRequest = { erasureId: string; photoKeys: string[] };
 
 **Parent Architecture Modules**: ARCH-024
 **Type**: Adapter
-**Target Source File(s)**: `packages/api/src/persistence/*.repository.ts`
+**Target Source File(s)**: `packages/services/recipes/src/persistence/*.repository.ts`
 
 #### Interface View
 
@@ -1654,7 +1731,7 @@ Connection pool: `idle → in_use → idle | broken → recreated`. Repositories
 
 #### Internal Data Structures
 
-Drizzle schema types live in `packages/api/src/persistence/schema/*.ts`. Repositories return inferred row types.
+Drizzle schema types live in `packages/services/recipes/src/persistence/schema/*.ts`. Repositories return inferred row types.
 
 #### Error Handling & Return Codes
 
@@ -1671,7 +1748,7 @@ Drizzle schema types live in `packages/api/src/persistence/schema/*.ts`. Reposit
 
 **Parent Architecture Modules**: ARCH-025
 **Type**: Adapter (wraps AWS SDK)
-**Target Source File(s)**: `packages/api/src/aws/s3-cloudfront.adapter.ts`
+**Target Source File(s)**: `packages/services/recipes/src/aws/s3-cloudfront.adapter.ts`
 
 #### Interface View
 
@@ -1731,7 +1808,7 @@ Re-exports SDK input/output types where stable; otherwise re-shapes to internal 
 | Direction | Name              | Type  | Format                                             | Constraints                                            |
 | --------- | ----------------- | ----- | -------------------------------------------------- | ------------------------------------------------------ |
 | Input     | route + session   | mixed | Next.js route params + Clerk session               | Session token attached server-side via `@clerk/nextjs` |
-| Input     | API responses     | mixed | JSON from `/api/v1/recipes`, `/api/v1/collections` | Includes `rowVersion`                                  |
+| Input     | API responses     | mixed | JSON from `/v1/recipes`, `/v1/collections` | Includes `rowVersion`                                  |
 | Output    | rendered HTML     | HTML  | server + client components                         | Uses Tailwind v4 + Radix UI per `frontend-ux-engineer` |
 | Exception | UI error boundary | —     | Renders typed error component                      | All API errors shown by `code`                         |
 
@@ -1739,17 +1816,17 @@ Re-exports SDK input/output types where stable; otherwise re-shapes to internal 
 
 ```text
 loaders (server components):
-  loadRecipe(id):       fetch `/api/v1/recipes/{id}` with bearer; on 401 redirect /login
-  searchRecipes(query): fetch `/api/v1/recipes?…`
+  loadRecipe(id):       fetch `/v1/recipes/{id}` with bearer; on 401 redirect /login
+  searchRecipes(query): fetch `/v1/recipes?…`
 
 mutations (server actions):
   saveRecipe(form, rowVersion):
      send PATCH with `If-Match: rowVersion`
      on 409 → re-fetch latest, render conflict resolver
   uploadPhoto(file):
-     POST /api/v1/photos/presign
+     POST /v1/recipes/{id}/photos/upload-url
      PUT to presigned URL
-     POST /api/v1/photos/confirm
+     POST /v1/recipes/{id}/photos/confirm
      poll status until ready|failed
 
 UI invariants:
@@ -1809,7 +1886,7 @@ authBootstrap():
   attach Authorization: Bearer <token> to all fetches
 
 photoCapture():
-  ImagePicker → POST /presign → PUT → POST /confirm → poll status
+  ImagePicker → POST /v1/recipes/{id}/photos/upload-url → PUT → POST /v1/recipes/{id}/photos/confirm → poll status
 
 offline:
   TanStack Query with `cacheTime` and persisted query cache (read-only)
@@ -1822,7 +1899,7 @@ Same as MOD-026. Additional auth state: `bootstrapping → authenticated | needs
 
 #### Internal Data Structures
 
-Shared types imported from `@kitchensink/api-types` package.
+Shared types imported from `@commise/shared-recipe-core` package.
 
 #### Error Handling & Return Codes
 
@@ -1838,7 +1915,7 @@ Shared types imported from `@kitchensink/api-types` package.
 
 **Parent Architecture Modules**: ARCH-028
 **Type**: Library (NestJS exception filter)
-**Target Source File(s)**: `packages/api/src/errors/api-error.filter.ts`
+**Target Source File(s)**: `packages/services/recipes/src/errors/api-error.filter.ts`
 
 #### Interface View
 
@@ -1871,8 +1948,9 @@ const STATUS_FOR = {
   INVALID_TOKEN: 401,
   FORBIDDEN_OWNER: 403, FORBIDDEN_TIER: 403, POLICY_DENIED: 403,
   NOT_FOUND: 404, PHOTO_NOT_FOUND: 404, UPLOAD_NOT_FOUND: 404, INGREDIENT_NOT_FOUND: 404,
-  CONCURRENCY_CONFLICT: 409, UNIQUE_VIOLATION: 409, ERASURE_IN_PROGRESS: 409,
+  CONCURRENCY_CONFLICT: 409, UNIQUE_VIOLATION: 409,
   S3_OBJECT_MISSING: 409, INTEGRITY_ERROR: 409,
+  ALREADY_ERASED: 410,
   UPLOAD_QUOTA_EXCEEDED: 429,
   UPLOAD_INVALID: 422, UNIT_INCONVERTIBLE: 422,
   INTERNAL: 500, VERSION_WRITE_FAILED: 500, POLICY_INTERNAL: 500,
@@ -1905,7 +1983,7 @@ The mapper is itself the error contract. Unknown errors map to `INTERNAL` (500) 
 
 **Parent Architecture Modules**: ARCH-029
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/config/config.module.ts`, `…/config.schema.ts`
+**Target Source File(s)**: `packages/services/recipes/src/config/config.module.ts`, `…/config.schema.ts`
 
 #### Interface View
 
@@ -1959,7 +2037,7 @@ type Config = z.infer<typeof schema>;
 
 **Parent Architecture Modules**: ARCH-030
 **Type**: Library
-**Target Source File(s)**: `packages/api/src/observability/logger.ts`, `…/metrics.ts`
+**Target Source File(s)**: `packages/services/recipes/src/observability/logger.ts`, `…/metrics.ts`
 
 #### Interface View
 
@@ -2093,7 +2171,7 @@ type TraceabilityGap = { id: string; severity: 'CRITICAL' | 'WARNING'; descripti
 
 **Parent Architecture Modules**: ARCH-033
 **Type**: Utility (composition root)
-**Target Source File(s)**: `packages/api/src/app.module.ts`, `…/main.ts`
+**Target Source File(s)**: `packages/services/recipes/src/app.module.ts`, `…/main.ts`
 
 #### Interface View
 
@@ -2220,3 +2298,5 @@ DI tokens declared per module.
 | PRF-MOD-021 | Added `DB_UNAVAILABLE` (503) propagation row to MOD-009 Error Handling and documented caller-visible behavior.                                                                                                                                                                                                                                                                                                                                                                |
 | PRF-MOD-022 | Added explicit MOD-004 pseudocode comment documenting `VERSION_WRITE_FAILED` propagation and transaction abort behavior.                                                                                                                                                                                                                                                                                                                                                      |
 | PRF-MOD-023 | Expanded MOD-024 `applyErasureMutations` with explicit table order, tombstone/nullify operations, and FK-handling strategy.                                                                                                                                                                                                                                                                                                                                                   |
+| FIX2-D1     | Rewrote MOD-014 to the D1 topology: the photo-processor Lambda is **S3-only, not VPC-attached, touches no DB** — it renders WebP derivatives to S3 and emits an SQS `photo-processed` message. The `recipe_photos` completion `UPDATE` (`processing_status='complete'\|'failed'`) is performed by the in-VPC **Fargate `photo-processed` consumer** (documented in the section). Corrected the MOD-001 and MOD-013 State Machine notes that had attributed the DB transition to MOD-014. |
+| FIX2-D6     | Aligned the `recipe_version_pending_archives` FK design (D6): MOD-015 insert now writes `recipe_version_id` (FK) + `recipe_id`/`version_number`/`status` and **no snapshot column** (replay payload IS `recipe_versions.snapshot`). Updated MOD-019 `PendingArchiveRow` to the canonical columns and the reconciler to derive the S3 destination from `recipe_id`+`version_number` rather than a stored key.                                                                     |

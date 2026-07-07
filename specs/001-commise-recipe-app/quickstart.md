@@ -95,7 +95,7 @@ This file runs once when the container first initializes. It won't re-run on sub
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` at the monorepo root (or in `packages/api/recipe/` if the workspace loads env from there). Never commit `.env`.
+Copy `.env.example` to `.env` at the monorepo root (or in `packages/services/recipes/` if the workspace loads env from there). Never commit `.env`.
 
 ```dotenv
 # .env.example
@@ -121,10 +121,10 @@ CLOUDFRONT_URL=http://localhost:4566/commise-photos
 
 # App
 NODE_ENV=development
-PORT=3000
+PORT=4000
 ```
 
-Clerk values won't affect most API behavior in dev mode, but the `AuthMiddleware` (networkless session-token verification via `CLERK_JWT_KEY` plus `azp` enforcement from `CLERK_AUTHORIZED_PARTIES`) will reject requests without a valid Clerk session token unless you configure the API to bypass auth in `NODE_ENV=development`. Check `packages/api/recipe/src/auth/auth.middleware.ts` for the local bypass flag.
+Clerk values won't affect most API behavior in dev mode, but the `AuthMiddleware` (networkless session-token verification via `CLERK_JWT_KEY` plus `azp` enforcement from `CLERK_AUTHORIZED_PARTIES`) will reject requests without a valid Clerk session token unless you configure the API to bypass auth in `NODE_ENV=development`. Check `packages/services/recipes/src/auth/auth.middleware.ts` for the local bypass flag.
 
 ---
 
@@ -165,22 +165,22 @@ This compiles all packages in dependency order. Only the shared packages need a 
 
 ### 4. Run database migrations
 
-Migrations live in `packages/shared/db` and are managed by drizzle-kit. Run them from that workspace:
+Migrations live in the recipe service's own database module (`packages/services/recipes/src/database/migrations` — the recipe tables live in their own logical database `kitchensink_recipes` on the shared RDS instance, not a shared db package) and are managed by drizzle-kit. Run them from that workspace:
 
 ```bash
-npx drizzle-kit migrate --config=packages/shared/db/drizzle.config.ts
+npx drizzle-kit migrate --config=packages/services/recipes/drizzle.config.ts
 ```
 
 Or, if the workspace defines a `migrate` script:
 
 ```bash
-npm run migrate --workspace=packages/shared/db
+npm run migrate --workspace=packages/services/recipes
 ```
 
 drizzle-kit reads `DATABASE_URL` from your `.env`. Confirm migrations applied:
 
 ```bash
-npx drizzle-kit studio --config=packages/shared/db/drizzle.config.ts
+npx drizzle-kit studio --config=packages/services/recipes/drizzle.config.ts
 # Opens a browser-based DB browser at http://localhost:4983
 ```
 
@@ -191,7 +191,7 @@ See [LocalStack S3 Setup](#localstack-s3-setup) below.
 ### 6. Seed test data
 
 ```bash
-npm run seed --workspace=packages/shared/db
+npm run seed --workspace=packages/services/recipes
 ```
 
 See [Seed Data](#seed-data) for what this creates.
@@ -199,22 +199,20 @@ See [Seed Data](#seed-data) for what this creates.
 ### 7. Start the API dev server
 
 ```bash
-npm run dev --workspace=packages/apps/api
+npm run dev --workspace=packages/services/recipes
 ```
 
-> **Note**: This path will be updated to `packages/api/recipe` once workspace scaffolding is complete per plan.md.
-
-The server starts on `http://localhost:3000`. NestJS logs the registered routes on boot. Hit `http://localhost:3000/health` to confirm it's up.
+The server starts on `http://localhost:4000`. NestJS logs the registered routes on boot. Hit `http://localhost:4000/health` to confirm it's up.
 
 ---
 
 ## Seed Data
 
-The seed script (`packages/shared/db/src/seed.ts`) populates a baseline dataset for manual testing and integration tests that don't manage their own fixtures.
+The seed script (`packages/services/recipes/src/database/seed.ts`) populates a baseline dataset for manual testing and integration tests that don't manage their own fixtures.
 
 After seeding, the database contains:
 
-- **2 test users**: one with the `free` plan tier and one with `pro`. Both have stable IDs that match fixture tokens in `packages/apps/api/v1/test/fixtures/`.
+- **2 test users**: one with the `free` plan tier and one with `pro`. Both have stable IDs that match fixture tokens in `packages/services/recipes/src/__fixtures__/`.
 - **5 test recipes**: a mix of visibility levels (`private`, `public`, `shared`). Each recipe has a full ingredient list, preparation steps, and at least one version snapshot. Two recipes belong to the `pro` user and three to the `free` user.
 - **1 collection**: owned by the `pro` user, containing 3 of the 5 recipes. Used to test collection membership queries and ordering.
 
@@ -251,14 +249,14 @@ LocalStack doesn't persist bucket contents across container restarts unless you 
 
 | Command                                                                  | What it does                                       |
 | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| `npm run dev --workspace=packages/api/recipe`                            | Start recipe API dev server only                   |
-| `npm run build`                                                          | Build all packages in dependency order             |
-| `npm run test`                                                           | Run all tests across the monorepo                  |
-| `npm run test --workspace=packages/api/recipe`                           | Run API tests only                                 |
-| `npm run lint`                                                           | Lint all packages                                  |
-| `npx drizzle-kit generate --config=packages/shared/db/drizzle.config.ts` | Generate a new migration file after schema changes |
-| `npx drizzle-kit migrate --config=packages/shared/db/drizzle.config.ts`  | Apply pending migrations                           |
-| `npx drizzle-kit studio --config=packages/shared/db/drizzle.config.ts`   | Open Drizzle Studio at `localhost:4983`            |
+| `npm run dev --workspace=packages/services/recipes`                            | Start recipe API dev server only                   |
+| `npm run build`                                                                | Build all packages in dependency order             |
+| `npm run test`                                                                 | Run all tests across the monorepo                  |
+| `npm run test --workspace=packages/services/recipes`                           | Run API tests only                                 |
+| `npm run lint`                                                                 | Lint all packages                                  |
+| `npx drizzle-kit generate --config=packages/services/recipes/drizzle.config.ts` | Generate a new migration file after schema changes |
+| `npx drizzle-kit migrate --config=packages/services/recipes/drizzle.config.ts`  | Apply pending migrations                           |
+| `npx drizzle-kit studio --config=packages/services/recipes/drizzle.config.ts`   | Open Drizzle Studio at `localhost:4983`            |
 
 When running drizzle-kit commands outside the workspace directory, always pass `--config` explicitly. drizzle-kit will look for `drizzle.config.ts` in the current working directory otherwise.
 
@@ -291,11 +289,11 @@ drizzle-kit resolves `DATABASE_URL` from environment variables. If you're runnin
 ```bash
 # Explicitly pass it
 DATABASE_URL=postgresql://commise:commise@localhost:5432/commise \
-  npx drizzle-kit migrate --config=packages/shared/db/drizzle.config.ts
+  npx drizzle-kit migrate --config=packages/services/recipes/drizzle.config.ts
 
 # Or source .env first
 set -a && source .env && set +a
-npx drizzle-kit migrate --config=packages/shared/db/drizzle.config.ts
+npx drizzle-kit migrate --config=packages/services/recipes/drizzle.config.ts
 ```
 
 Also confirm the PostgreSQL container is healthy before running migrations (`docker compose ps`).
@@ -323,15 +321,15 @@ LocalStack can take 10–15 seconds after the container starts before the S3 ser
 
 If `aws s3 ls --endpoint-url=http://localhost:4566` returns an error, wait a few seconds and retry. If the buckets are missing, re-run the bucket creation commands from [LocalStack S3 Setup](#localstack-s3-setup).
 
-### Port 3000 is already in use
+### Port 4000 is already in use
 
-Another process (possibly a previous API instance) is holding port 3000. Find and kill it:
+Another process (possibly a previous API instance) is holding port 4000. Find and kill it:
 
 ```bash
-lsof -ti :3000 | xargs kill -9
+lsof -ti :4000 | xargs kill -9
 ```
 
-Or change the API port in `.env` (`PORT=3001`) and restart.
+Or change the API port in `.env` (`PORT=4001`) and restart.
 
 ---
 
@@ -341,13 +339,13 @@ Or change the API port in `.env` (`PORT=3001`) and restart.
 
 ```bash
 npm run test                                    # All workspaces
-npm run test --workspace=packages/api/recipe    # API only
+npm run test --workspace=packages/services/recipes    # API only
 ```
 
 ### Integration Tests (requires Docker Compose running)
 
 ```bash
-npm run test:integration --workspace=packages/api/recipe
+npm run test:integration --workspace=packages/services/recipes
 ```
 
 Integration tests run against real PostgreSQL and LocalStack S3. Make sure `docker compose up -d` is running first.
@@ -395,7 +393,7 @@ All jobs must pass before a PR can merge. See `plan.md` § CI Pipeline for the f
 
 ### Frontend API Configuration
 
-Frontend apps default to `http://localhost:3000` for API calls. Override via environment variables:
+Frontend apps default to `http://localhost:4000` for API calls. Override via environment variables:
 
 - **Next.js (web)**: Set `NEXT_PUBLIC_API_URL` in `.env.local` or CI environment
 - **Expo (mobile)**: Set `EXPO_PUBLIC_API_URL` in `.env` or EAS build environment
@@ -410,7 +408,7 @@ A few behaviors are easy to trip over when poking at the local DB or hitting the
 
 ### Soft-deleted recipes (tombstones)
 
-`DELETE /api/v1/recipes/{id}` is a **soft delete**. The row stays in `recipes` with `deleted_at` set to the deletion timestamp. List, search, get-by-id, and collection responses all filter out tombstoned rows, but they remain visible in Drizzle Studio and via direct SQL.
+`DELETE /v1/recipes/{id}` is a **soft delete**. The row stays in `recipes` with `deleted_at` set to the deletion timestamp. List, search, get-by-id, and collection responses all filter out tombstoned rows, but they remain visible in Drizzle Studio and via direct SQL.
 
 If you need to inspect or reset state during development:
 
@@ -422,15 +420,15 @@ SELECT id, title, deleted_at FROM recipes WHERE deleted_at IS NOT NULL;
 UPDATE recipes SET deleted_at = NULL WHERE id = '<uuid>';
 ```
 
-Hard deletion of recipe rows, version snapshots, photos, and S3-archived version blobs only happens via the GDPR erasure flow (`POST /api/v1/account/erasure`), which runs asynchronously.
+Hard deletion of recipe rows, version snapshots, photos, and S3-archived version blobs only happens via the GDPR erasure flow (`POST /v1/account/erasure`), which runs asynchronously.
 
 ### Cloned collections and pull-from-source
 
-`POST /api/v1/collections/{id}/clone` creates a new collection whose `source_collection_id` points back to the original. Each membership row carries an `added_via` value:
+`POST /v1/collections/{id}/clone` creates a new collection whose `source_collection_id` points back to the original. Each membership row carries an `added_via` value:
 
-- `manual` — direct add via `POST /api/v1/collections/{id}/recipes`
+- `manual` — direct add via `POST /v1/collections/{id}/recipes`
 - `clone` — copied during the initial clone
-- `pull` — added later via `POST /api/v1/collections/{id}/pull-from-source`
+- `pull` — added later via `POST /v1/collections/{id}/pull-from-source`
 
 Pulls are additive only: recipes removed from the source after the clone are **not** removed from the clone. Removing a recipe from the source collection has no effect on existing clones.
 
@@ -440,4 +438,4 @@ Version snapshots are written synchronously to PostgreSQL but archived to S3 asy
 
 ### Account erasure (local)
 
-`POST /api/v1/account/erasure` queues an async job that hard-deletes everything owned by the calling user, including tombstoned recipes and all S3 objects. Locally this runs against LocalStack and the dev Postgres — re-seed afterward with `npm run seed --workspace=packages/shared/db` if you want the test fixtures back.
+`POST /v1/account/erasure` queues an async job that hard-deletes everything owned by the calling user, including tombstoned recipes and all S3 objects. Locally this runs against LocalStack and the dev Postgres — re-seed afterward with `npm run seed --workspace=packages/services/recipes` if you want the test fixtures back.

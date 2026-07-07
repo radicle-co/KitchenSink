@@ -1,7 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { apiConfigSchema } from '../config.types.js';
 import { ConfigValidationError, isConfigValidationError, loadConfig } from '../load-config.js';
+
+// Mock the SSM client so the fallback path is exercised without any network / AWS credentials.
+const ssmSend = vi.fn();
+
+vi.mock('@aws-sdk/client-ssm', () => ({
+    SSMClient: class {
+        public send = ssmSend;
+    },
+    GetParametersCommand: class {
+        public input: unknown;
+        constructor(input: unknown) {
+            this.input = input;
+        }
+    },
+}));
 
 /**
  * A minimal but fully-valid environment for {@link apiConfigSchema}: the required
@@ -95,5 +110,87 @@ describe('loadConfig', () => {
             expect(configError.message).toContain('S3_BUCKET_PHOTOS');
             expect(configError.message).toContain('CLERK_AUTHORIZED_PARTIES');
         }
+    });
+});
+
+/**
+ * SSM-fallback path (T017): when `ssmFallback` is enabled and a required var is absent from the
+ * environment, the loader resolves it from AWS SSM Parameter Store at `/{prefix}/{environment}/{KEY}`
+ * and re-validates. The async overload reads `process.env`, so each case snapshots + restores it.
+ */
+describe('loadConfig — SSM fallback', () => {
+    const savedEnv = { ...process.env };
+
+    beforeEach(() => {
+        ssmSend.mockReset();
+        // Seed process.env with a fully-valid environment, then remove one required var per case.
+        for (const [key, value] of Object.entries(validEnv())) {
+            process.env[key] = value;
+        }
+    });
+
+    afterEach(() => {
+        for (const key of Object.keys(process.env)) {
+            if (!(key in savedEnv)) {
+                delete process.env[key];
+            }
+        }
+        for (const [key, value] of Object.entries(savedEnv)) {
+            process.env[key] = value;
+        }
+    });
+
+    it('resolves a missing required var from SSM and returns the merged, validated config', async () => {
+        delete process.env['CLERK_JWT_KEY'];
+        ssmSend.mockResolvedValue({
+            Parameters: [
+                { Name: '/commise/production/CLERK_JWT_KEY', Value: '-----BEGIN PUBLIC KEY-----ssm-----END PUBLIC KEY-----' },
+            ],
+        });
+
+        const config = await loadConfig(apiConfigSchema, {
+            ssmFallback: true,
+            ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
+            environment: 'production',
+        });
+
+        expect(ssmSend).toHaveBeenCalledOnce();
+        // The missing key was requested from SSM at the namespaced path.
+        const command = ssmSend.mock.calls[0]![0] as { input: { Names: string[]; WithDecryption?: boolean } };
+        expect(command.input.Names).toContain('/commise/production/CLERK_JWT_KEY');
+        expect(command.input.WithDecryption).toBe(true);
+        // The value fetched from SSM is present in the validated config.
+        expect(config.CLERK_JWT_KEY).toContain('ssm');
+        expect(config.NODE_ENV).toBe('production');
+    });
+
+    it('does not touch SSM when the environment already validates', async () => {
+        const config = await loadConfig(apiConfigSchema, {
+            ssmFallback: true,
+            ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
+            environment: 'production',
+        });
+
+        expect(ssmSend).not.toHaveBeenCalled();
+        expect(config.S3_BUCKET_PHOTOS).toBe('commise-photos');
+    });
+
+    it('still throws ConfigValidationError when SSM cannot supply the missing var', async () => {
+        delete process.env['CLERK_JWT_KEY'];
+        ssmSend.mockResolvedValue({ Parameters: [] });
+
+        let caught: unknown;
+        try {
+            await loadConfig(apiConfigSchema, {
+                ssmFallback: true,
+                ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
+                environment: 'production',
+            });
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isConfigValidationError(caught)).toBe(true);
+        expect((caught as ConfigValidationError).message).toContain('CLERK_JWT_KEY');
     });
 });

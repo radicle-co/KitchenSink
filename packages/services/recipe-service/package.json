@@ -12,7 +12,7 @@
         "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
         "test": "vitest run",
-        "lint": "eslint 'src/**/*.ts'",
+        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -28,7 +28,14 @@
         "class-validator": "^0.14.0",
         "zod": "^4.4.3",
         "aws-cdk-lib": "^2.0.0",
-        "constructs": "^10.0.0"
+        "constructs": "^10.0.0",
+        "@nestjs/throttler": "^6.4.0",
+        "drizzle-orm": "^0.45.2",
+        "pg": "^8.21.0",
+        "@aws-sdk/rds-signer": "^3.1079.0",
+        "@aws-sdk/client-ssm": "^3.1079.0",
+        "@kitchensink/clerk-verify": "*",
+        "@kitchensink/recipe-core": "*"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
@@ -43,7 +50,8 @@
         "@types/express": "^5.0.0",
         "@types/node": "^24.0.0",
         "aws-cdk": "^2.0.0",
-        "tsx": "^4.0.0"
+        "tsx": "^4.0.0",
+        "@types/pg": "^8.15.6"
     },
     "engines": {
         "node": "24.x"

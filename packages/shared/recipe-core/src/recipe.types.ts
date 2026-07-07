@@ -766,3 +766,14 @@ export const recipeErrorSchema = z.object({
     message: z.string().min(1),
     details: z.record(z.string(), z.unknown()).optional(),
 });
+
+/**
+ * Type guard for {@link RecipeError}. Because `RecipeError` is a structural
+ * contract (not an `Error` subclass), the check is structural: a value is a
+ * `RecipeError` when it carries a known {@link RecipeErrorCode} `code` and a
+ * non-empty `message`. This deliberately rejects a plain `Error` (which has a
+ * `message` but no domain `code`), `null`/`undefined`, and primitives, so the
+ * API exception filter can distinguish thrown domain errors from everything
+ * else and map them to the correct HTTP status.
+ */
+export const isRecipeError = (value: unknown): value is RecipeError => recipeErrorSchema.safeParse(value).success;

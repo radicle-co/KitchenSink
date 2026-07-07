@@ -44,6 +44,28 @@ describe('verifyClerkToken', () => {
         expect(claims.permissions).toEqual(['p1']);
     });
 
+    it('surfaces the app-user ULID from the external_id claim as userId (T000-prereq)', async () => {
+        mockVerify.mockResolvedValue({
+            sub: 'user_123',
+            external_id: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+            azp: 'https://app.example.com',
+        } as never);
+
+        const claims = await verifyClerkToken('tok', CONFIG);
+
+        expect(claims.userId).toBe('01J9ZK8N7QF3B2X4M6T0V5C1AB');
+    });
+
+    it('leaves userId undefined when external_id is absent or empty (shared verifier is backward-compatible; per-service policy fails closed)', async () => {
+        // empty-string external_id
+        mockVerify.mockResolvedValue({ sub: 'user_123', external_id: '' } as never);
+        expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
+
+        // external_id omitted entirely (no key on the payload)
+        mockVerify.mockResolvedValue({ sub: 'user_123' } as never);
+        expect((await verifyClerkToken('tok', CONFIG)).userId).toBeUndefined();
+    });
+
     it('also accepts the legacy { data } envelope (back-compat across @clerk/backend versions)', async () => {
         mockVerify.mockResolvedValue({
             data: { sub: 'user_legacy', azp: 'https://app.example.com', public_metadata: { scopes: ['s1'] } },

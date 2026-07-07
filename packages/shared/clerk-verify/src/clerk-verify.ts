@@ -20,6 +20,13 @@ import { verifyToken } from '@clerk/backend';
 export interface VerifiedClerkClaims {
     /** The Clerk subject (the authenticated principal id). */
     readonly sub: string;
+    /**
+     * The app-user ULID (identity's canonical `users.id`), surfaced from the token's `external_id`
+     * claim. Optional: absent until the Clerk session-token customization emits `external_id` AND the
+     * user's external_id has been backfilled (first-token sync race). Per-service policy decides
+     * whether to fail closed on absence — recipe ownership (T019) requires it; identity/food do not.
+     */
+    readonly userId?: string;
     /** The authorized party (origin / service-client id) the token was minted for. */
     readonly azp?: string;
     /** Customized session-token email claim, when present. */
@@ -132,6 +139,7 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
 
     return {
         sub,
+        userId: asNonEmptyString(payload['external_id']),
         azp: asNonEmptyString(payload['azp']),
         email: asNonEmptyString(payload['email']),
         firstName: asNonEmptyString(payload['first_name']),

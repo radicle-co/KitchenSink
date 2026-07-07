@@ -233,6 +233,15 @@ import { Recipe } from '@kitchensink/models';
 | Boolean variables/props           | Prefix with `is`, `has`, `should`, `can`                                | `isLoading`, `hasError`                 |
 | Event handlers                    | Prefix with `on` (prop) or `handle` (implementation)                    | `onClick`, `handleSubmit`               |
 
+### 5.1 Package & workspace naming — the platform/product split
+
+Two publish scopes, split by **platform vs. product**:
+
+- **`@kitchensink/*` — the KitchenSink _platform_.** Reusable backend + tooling: everything under `packages/{services,clients,shared,tools,infra,utils}/*`. The existing style is kept (role suffixes are fine): `@kitchensink/food-service`, `@kitchensink/food-service-client`, `@kitchensink/clerk-verify`, `@kitchensink/infra-global`, `@kitchensink/eslint`.
+- **`@commise/*` — the Commise _product_.** Everything under `packages/apps/commise/`: the apps (`@commise/web`, `@commise/mobile`, `@commise/ui`) and the feature packages under `packages/apps/commise/features/*` — `@commise/features-<name>` (e.g. `@commise/features-recipes`, `@commise/features-core`, both introduced by feature 001).
+
+**Rule of thumb: if it lives under `packages/apps/commise/`, it's `@commise/*`; otherwise it's `@kitchensink/*`.** A domain's *backend* (service/client/types) is platform, while its Commise *widget / feature UI* is product — e.g. feature 001 adds the recipe backend as `@kitchensink/recipe-service` (alongside today's `@kitchensink/food-service`) and its Home widget as `@commise/features-recipes`. CDK stack/resource names (`kitchensink-*`) are a separate namespace and are **not** governed by this rule.
+
 ---
 
 ## 6. TypeScript Rules

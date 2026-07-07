@@ -24,7 +24,7 @@
         "packages/apps/commise/mobile",
         "packages/clients/usda",
         "packages/clients/food-service",
-        "packages/ui"
+        "packages/apps/commise/ui"
     ],
     "scripts": {
         "build": "turbo run build",

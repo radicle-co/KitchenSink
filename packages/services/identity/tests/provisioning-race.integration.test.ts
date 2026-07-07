@@ -7,7 +7,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
+import { provisionCompleteUser, type ProvisionDeps } from '@commise/utils-identity';
 import { users, accounts, profiles } from '../src/database/index.js';
 import { UserDAO } from '../src/database/dao/index.js';
 import { newUserId } from '../src/database/ulid.js';

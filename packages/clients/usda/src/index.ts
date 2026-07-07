@@ -1,7 +1,7 @@
 /**
- * `@kitchensink/usda-client` — typed client for the USDA FoodData Central REST API.
+ * `@commise/clients-usda` — typed client for the USDA FoodData Central REST API.
  *
- * External-API client only: no database, no HTTP server. Consumed by `@kitchensink/food-service`
+ * External-API client only: no database, no HTTP server. Consumed by `@commise/services-food`
  * (the Fargate fetch worker and bulk-sync lambdas).
  */
 export { UsdaApiClient } from './usda-api.client.js';

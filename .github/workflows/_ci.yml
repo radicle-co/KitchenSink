@@ -43,7 +43,7 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
     build-ui:
-        name: Build @kitchensink/ui
+        name: Build @commise/shared-ui
         runs-on: ubuntu-latest
         needs: [install]
         steps:
@@ -60,7 +60,7 @@ jobs:
                       packages/*/node_modules
                       packages/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            - run: npm run build --workspace=@kitchensink/ui
+            - run: npm run build --workspace=@commise/shared-ui
             - name: Cache UI build artifacts
               uses: actions/cache/save@v5
               with:
@@ -184,7 +184,7 @@ jobs:
             - name: Run identity integration tests
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_test
-              run: npm run test:integration --workspace=@kitchensink/identity-service
+              run: npm run test:integration --workspace=@commise/services-identity
 
     integration-food:
         name: Integration (food — Postgres)
@@ -295,8 +295,8 @@ jobs:
             fail-fast: false
             matrix:
                 workspace:
-                    - '@kitchensink/identity-service'
-                    - '@kitchensink/identity-webhooks'
+                    - '@commise/services-identity'
+                    - '@commise/services-identity-webhooks'
                     - '@commise/web'
         steps:
             - uses: actions/checkout@v6
@@ -317,9 +317,9 @@ jobs:
               with:
                   path: packages/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
-            - name: Ensure @kitchensink/ui is built (fallback if the per-SHA cache restore missed)
+            - name: Ensure @commise/shared-ui is built (fallback if the per-SHA cache restore missed)
               if: matrix.workspace == '@commise/web'
-              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@kitchensink/ui'
+              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/shared-ui'
 
             # The web build statically prerenders Clerk-wrapped pages and needs a real publishable
             # key. Load the stage-scoped key; if creds are unavailable (e.g. fork PRs) the build is
@@ -371,8 +371,8 @@ jobs:
             - name: Run e2e tests
               if: steps.secrets.outcome == 'success'
               run: |
-                  npm run test:e2e --workspace=@kitchensink/identity-service
-                  npm run test:e2e --workspace=@kitchensink/identity-webhooks
+                  npm run test:e2e --workspace=@commise/services-identity
+                  npm run test:e2e --workspace=@commise/services-identity-webhooks
 
     e2e-web:
         name: E2E (web — Playwright)
@@ -392,15 +392,15 @@ jobs:
                       packages/*/node_modules
                       packages/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # The Playwright dev server imports @kitchensink/ui/theme.css, so the built UI dist must
+            # The Playwright dev server imports @commise/shared-ui/theme.css, so the built UI dist must
             # be present (mirrors the build job).
             - name: Restore UI build artifacts
               uses: actions/cache/restore@v5
               with:
                   path: packages/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
-            - name: Ensure @kitchensink/ui is built (fallback if the per-SHA cache restore missed)
-              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@kitchensink/ui'
+            - name: Ensure @commise/shared-ui is built (fallback if the per-SHA cache restore missed)
+              run: '[ -n "$(ls -A packages/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/shared-ui'
             # The web E2E runs ClerkJS in a browser against the Playwright dev server on
             # http://localhost:3000. Clerk *production* instances (pk_live) are domain-locked and
             # refuse to initialize on any origin other than their production domain — ClerkJS aborts

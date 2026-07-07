@@ -5,9 +5,9 @@ vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
 vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
 vi.mock('../../common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
-vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
+vi.mock('@commise/utils-identity', () => ({ provisionCompleteUser: vi.fn() }));
 
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@commise/services-identity/database/dao', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
         return {
             upsertByIdentityId: vi.fn(),
@@ -34,13 +34,13 @@ vi.mock('../../common/observability.js', () => ({
 }));
 
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
+import { UserDAO } from '@commise/services-identity/database/dao';
+import { recordOnce, hasProcessedWebhookEvent } from '@commise/services-identity/database/dao';
 
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
 import { setExternalId } from '../../common/identityClient.js';
-import { provisionCompleteUser } from '@kitchensink/identity-utils';
+import { provisionCompleteUser } from '@commise/utils-identity';
 import { captureProvisioningFailure } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
 

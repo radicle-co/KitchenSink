@@ -1,7 +1,7 @@
 import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
+import { UserDAO } from '@commise/services-identity/database/dao';
 
 import { getDb } from '../common/db.js';
 import { buildErrorEnvelope, resolveRequestId } from '../common/error-envelope.js';

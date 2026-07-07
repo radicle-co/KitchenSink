@@ -72,14 +72,14 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                 // such as the webhook Lambdas import those directly so they don't pull
                                 // the whole package (e.g. the NestJS service) in via the top barrel.
                                 group: [
-                                    '@kitchensink/*/*',
-                                    '!@kitchensink/*/database',
-                                    '!@kitchensink/*/database/*',
-                                    '!@kitchensink/*/types',
-                                    '!@kitchensink/*/types/*',
+                                    '@commise/*/*',
+                                    '!@commise/*/database',
+                                    '!@commise/*/database/*',
+                                    '!@commise/*/types',
+                                    '!@commise/*/types/*',
                                 ],
                                 message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*) — don't reach into other internals.",
+                                    "Import a package's barrel '@commise/<package>' or one of its declared subpath exports (database/*, types/*) — don't reach into other internals.",
                             },
                         ],
                     },

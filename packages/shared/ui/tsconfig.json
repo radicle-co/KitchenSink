@@ -1,0 +1,12 @@
+{
+    "extends": "@commise/tools-typescript/build.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "rootDir": "./src",
+        "emitDeclarationOnly": false,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true
+    },
+    "include": ["src/**/*.ts"]
+}

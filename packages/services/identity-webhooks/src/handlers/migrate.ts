@@ -6,7 +6,7 @@ import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
 
-import * as schema from '@kitchensink/identity-service/database/schema';
+import * as schema from '@commise/services-identity/database/schema';
 
 import { requireEnv } from '../common/config.js';
 import { getJsonSecret } from '../common/secrets.js';

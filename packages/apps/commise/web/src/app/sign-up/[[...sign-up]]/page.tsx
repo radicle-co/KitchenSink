@@ -1,5 +1,5 @@
 import { SignUp } from '@clerk/nextjs';
-import { clerkAppearance } from '@kitchensink/ui';
+import { clerkAppearance } from '@commise/shared-ui';
 
 import { withBasePath } from '@/lib/base-path';
 

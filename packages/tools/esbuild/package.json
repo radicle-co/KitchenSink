@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/esbuild",
+    "name": "@commise/tools-esbuild",
     "version": "0.0.0",
     "private": true,
     "type": "module",

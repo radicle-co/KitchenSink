@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { buildApiClient } from '@/lib/api-client';
-import type { UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile } from '@commise/services-identity';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 
 export const metadata: Metadata = {

@@ -8,7 +8,7 @@ import {
 import * as Sentry from '@sentry/nestjs';
 import type { UserId } from '../types/index.js';
 import { AccountDAO, UserDAO } from '../database/dao/index.js';
-import type { AccountRow, UserRow } from '@kitchensink/identity-service/database/schema';
+import type { AccountRow, UserRow } from '@commise/services-identity/database/schema';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 

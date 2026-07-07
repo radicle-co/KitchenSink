@@ -15,7 +15,7 @@ throttle saturates — recording sustained throughput and how it degrades. See t
   teardown (or `run.mjs`) so they don't accumulate.
 - `tokens.json` / `pool.json` hold live session JWTs — **secrets, gitignored, never commit.**
 
-This is the `@kitchensink/loadtest` workspace (`packages/tools/loadtest`); commands run from here.
+This is the `@commise/tools-loadtest` workspace (`packages/tools/loadtest`); commands run from here.
 
 ## Prerequisites
 
@@ -115,7 +115,7 @@ run loudly rather than silently measuring 401-rejection latency.
 ## Layout
 
 ```text
-package.json                 @kitchensink/loadtest — npm scripts (k6:install, loadtest, provision, …)
+package.json                 @commise/tools-loadtest — npm scripts (k6:install, loadtest, provision, …)
 install-k6.mjs               downloads the pinned k6 binary into node_modules/.bin
 auth/provision-users.mjs   U1 — mint N Clerk users + session tokens → pool.json / tokens.json
 corpus/food-queries.json   U3 — 113 varied, USDA-resolvable food queries

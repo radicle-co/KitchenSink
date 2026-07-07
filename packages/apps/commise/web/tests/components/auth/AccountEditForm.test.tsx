@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountEditForm } from '@/components/auth/AccountEditForm';
-import type { UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile } from '@commise/services-identity';
 
 const mockUseRouter = vi.fn();
 
@@ -12,7 +12,7 @@ vi.mock('next/navigation', () => ({
 
 const mockProfile: UserProfile = {
     user: {
-        id: '01JVXXXXXXXXXXXXXXXXXXXXXXXXX' as import('@kitchensink/identity-service').UserId,
+        id: '01JVXXXXXXXXXXXXXXXXXXXXXXXXX' as import('@commise/services-identity').UserId,
         email: 'test@example.com',
         displayName: 'Test User',
         avatarUrl: null,
@@ -22,7 +22,7 @@ const mockProfile: UserProfile = {
     },
     account: {
         id: 'acc-123',
-        userId: '01JVXXXXXXXXXXXXXXXXXXXXXXXXX' as import('@kitchensink/identity-service').UserId,
+        userId: '01JVXXXXXXXXXXXXXXXXXXXXXXXXX' as import('@commise/services-identity').UserId,
         subscriptionTier: 'free',
         createdAt: '2026-01-01T00:00:00Z',
         updatedAt: '2026-01-01T00:00:00Z',

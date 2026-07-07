@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-import type { ClerkSessionClaims } from '@kitchensink/identity-service';
+import type { ClerkSessionClaims } from '@commise/services-identity';
 
 let cachedJWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
 

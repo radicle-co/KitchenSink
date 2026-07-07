@@ -1,7 +1,7 @@
 import type { APIGatewayProxyEvent, Context } from 'aws-lambda';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { provisionCompleteUser } from '@kitchensink/identity-utils';
+import { provisionCompleteUser } from '@commise/utils-identity';
 
 /**
  * E2E: the identityWebhook Lambda exercised end-to-end against mocked AWS SDK
@@ -47,7 +47,7 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     listUsers: vi.fn().mockResolvedValue([]),
     deleteUser: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@commise/services-identity/database/dao', () => ({
     UserDAO: vi.fn(function () {
         return {
             upsertByIdentityId: mockUpsert,
@@ -65,7 +65,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
 // the user/account/profile writes itself, so mock the routine (its real behavior is proven by the
 // identity-service Postgres integration test) and assert the handler delegates with the right policy.
 vi.mock('../../../src/common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
-vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
+vi.mock('@commise/utils-identity', () => ({ provisionCompleteUser: vi.fn() }));
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function () {
         return { send: mockSqsSend };

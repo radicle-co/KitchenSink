@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/prettier",
+    "name": "@commise/tools-prettier",
     "version": "0.0.0",
     "private": true,
     "type": "module",

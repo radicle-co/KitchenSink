@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
-import { baseConfig } from '@kitchensink/vitest';
+import { baseConfig } from '@commise/tools-vitest';
 
 export default mergeConfig(
     baseConfig,

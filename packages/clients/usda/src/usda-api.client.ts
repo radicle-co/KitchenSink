@@ -4,7 +4,7 @@
  * Wraps the upstream `GET /v1/food/{fdcId}`, `POST /v1/foods`, and `GET /v1/foods/search`
  * endpoints with a 10-second request timeout and maps upstream status codes onto the typed
  * error hierarchy in {@link ./errors}. This is the external-API client only — no database and
- * no HTTP server; `@kitchensink/food-service` depends on it.
+ * no HTTP server; `@commise/services-food` depends on it.
  *
  * @implements FR-023
  */

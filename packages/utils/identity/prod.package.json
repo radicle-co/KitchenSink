@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/identity-utils",
+    "name": "@commise/utils-identity",
     "version": "0.0.0",
     "private": true,
     "type": "module",

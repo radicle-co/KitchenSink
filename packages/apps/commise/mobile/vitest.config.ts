@@ -15,8 +15,8 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@kitchensink/identity-service': '../../services/identity/src/index.ts',
-            '@kitchensink/identity-service/*': '../../services/identity/src/*',
+            '@commise/services-identity': '../../services/identity/src/index.ts',
+            '@commise/services-identity/*': '../../services/identity/src/*',
         },
     },
 });

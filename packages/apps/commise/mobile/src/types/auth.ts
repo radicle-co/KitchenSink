@@ -1,4 +1,4 @@
-import type { UserReadDto, UserStatus } from '@kitchensink/identity-service';
+import type { UserReadDto, UserStatus } from '@commise/services-identity';
 
 export type { UserReadDto, UserStatus };
 

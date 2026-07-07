@@ -7,7 +7,7 @@ vi.mock('../../common/db.js', () => ({
 
 const mockPurgePrivateData = vi.fn();
 
-vi.mock('@kitchensink/identity-service/database/dao', () => {
+vi.mock('@commise/services-identity/database/dao', () => {
     const UserDAO = vi.fn().mockImplementation(function () {
         return {
             purgePrivateDataByIdentityId: mockPurgePrivateData,

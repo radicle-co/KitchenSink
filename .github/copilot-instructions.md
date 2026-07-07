@@ -32,7 +32,7 @@ Each package may use a different test runner — check the package's own `packag
 
 Shared packages are referenced as workspace dependencies:
 ```json
-"@kitchensink/<name>": "*"
+"@commise/<name>": "*"
 ```
 
 ## AI-Driven Development Workflow (SpecKit)

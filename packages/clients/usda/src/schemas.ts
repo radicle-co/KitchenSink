@@ -2,7 +2,7 @@
  * Runtime zod schemas validating USDA FoodData Central responses at the external-API boundary.
  *
  * The USDA API is untrusted: these schemas catch upstream shape drift the moment a body arrives,
- * so malformed/`undefined` data can never flow downstream into `@kitchensink/food-service`.
+ * so malformed/`undefined` data can never flow downstream into `@commise/services-food`.
  *
  * These schemas model the **raw upstream wire shape** — the body as USDA sends it — NOT the
  * normalized {@link import('./types.js').UsdaFoodDetail} the client returns. The public type

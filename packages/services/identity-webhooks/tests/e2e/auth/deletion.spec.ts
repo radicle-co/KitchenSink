@@ -1,7 +1,7 @@
 import type { Context, ScheduledEvent, SQSEvent } from 'aws-lambda';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { provisionCompleteUser } from '@kitchensink/identity-utils';
+import { provisionCompleteUser } from '@commise/utils-identity';
 
 /**
  * E2E: identity-webhooks async Lambdas (deletion-worker + reconciliation).
@@ -30,7 +30,7 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     deleteUser: vi.fn(),
     setExternalId: vi.fn(),
 }));
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@commise/services-identity/database/dao', () => ({
     UserDAO: vi.fn(function () {
         return {
             findByIdentityId: mockFindByIdentityId,
@@ -47,7 +47,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
 // proven by the identity-service Postgres integration test); findByIdentityId still drives the
 // inserted-vs-updated split.
 vi.mock('../../../src/common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
-vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
+vi.mock('@commise/utils-identity', () => ({ provisionCompleteUser: vi.fn() }));
 vi.mock('../../../src/common/observability.js', () => ({
     emitMetric: vi.fn(),
     captureProvisioningFailure: vi.fn(),

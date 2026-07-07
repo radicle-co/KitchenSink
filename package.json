@@ -23,8 +23,7 @@
         "packages/apps/commise/web",
         "packages/apps/commise/mobile",
         "packages/clients/usda",
-        "packages/clients/food-service",
-        "packages/ui"
+        "packages/clients/food"
     ],
     "scripts": {
         "build": "turbo run build",

@@ -1,5 +1,5 @@
 {
-    "extends": "@kitchensink/typescript/base.json",
+    "extends": "@commise/tools-typescript/base.json",
     "include": ["packages/**/*"],
     "exclude": ["node_modules", "dist"]
 }

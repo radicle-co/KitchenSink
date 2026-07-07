@@ -156,7 +156,7 @@ function jsonResponse(statusCode: number, payload: unknown): ApiResponse { ... }
 ### Order
 
 1. External packages (`react`, `@nestjs/common`, `sharp`)
-2. Aliased internal imports (`@kitchensink/*`, `@kitchensink/*`, `@kitchensink/<pkg>`)
+2. Aliased internal imports (`@commise/*`, `@commise/*`, `@commise/<pkg>`)
 
 Blank line between groups. No other grouping required.
 
@@ -168,8 +168,8 @@ Blank line between groups. No other grouping required.
 ```typescript
 // Good — aliased imports with .js extension
 import { describe, it, expect } from 'vitest';
-import type { Recipe } from '@kitchensink/models';
-import { RecipeService } from '@kitchensink/core';
+import type { Recipe } from '@commise/models';
+import { RecipeService } from '@commise/core';
 import { makeRecipe } from '@/e2e/__fixtures__/makeRecipe.js';
 
 // Bad — relative import crossing workspace boundaries
@@ -207,15 +207,15 @@ makes the import's purpose explicit.
 
 ```typescript
 // Good — type-only import
-import type { Recipe } from '@kitchensink/models';
-import type { DatabaseAdapter } from '@kitchensink/data';
+import type { Recipe } from '@commise/models';
+import type { DatabaseAdapter } from '@commise/data';
 
 // Good — mixed import (values + types)
-import { RecipeStatus } from '@kitchensink/models';
-import { parseIngredient, type IngredientInput } from '@kitchensink/core';
+import { RecipeStatus } from '@commise/models';
+import { parseIngredient, type IngredientInput } from '@commise/core';
 
 // Bad — importing types without 'type' keyword
-import { Recipe } from '@kitchensink/models';
+import { Recipe } from '@commise/models';
 ```
 
 ---
@@ -384,7 +384,7 @@ return a complete object with sensible defaults.
 
 ```typescript
 // __fixtures__/makeRecipe.ts
-import type { Recipe } from '@kitchensink/models';
+import type { Recipe } from '@commise/models';
 
 /** Creates a minimal Recipe fixture. */
 export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
@@ -408,7 +408,7 @@ When testing code that uses global registries, call the registry's `clear*` func
 in `beforeEach` to prevent cross-test pollution.
 
 ```typescript
-import { clearIngredientRegistry } from '@kitchensink/core';
+import { clearIngredientRegistry } from '@commise/core';
 
 describe('ingredient registry', () => {
     beforeEach(() => {
@@ -669,7 +669,7 @@ const apiKey = process.env.RECIPE_API_KEY;
 Use typed error classes with corresponding type guards:
 
 ```typescript
-import { RecipeNotFoundError, isRecipeNotFoundError } from '@kitchensink/models';
+import { RecipeNotFoundError, isRecipeNotFoundError } from '@commise/models';
 
 try {
     await recipeService.getById(recipeId);

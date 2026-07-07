@@ -1,0 +1,32 @@
+{
+    "name": "@commise/clients-food",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "lint": "eslint 'src/**/*.ts'",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@commise/tools-eslint": "*",
+        "@commise/tools-prettier": "*",
+        "@commise/tools-typescript": "*",
+        "@commise/tools-vitest": "*",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

@@ -84,7 +84,7 @@ export class DataStack extends Stack {
             description: 'Deployment bootstrap instructions for pg_trgm extension',
             secretObjectValue: {
                 bootstrapSql: SecretValue.unsafePlainText('CREATE EXTENSION IF NOT EXISTS pg_trgm;'),
-                migrationOwner: SecretValue.unsafePlainText('@kitchensink/identity-service'),
+                migrationOwner: SecretValue.unsafePlainText('@commise/services-identity'),
             },
         });
 

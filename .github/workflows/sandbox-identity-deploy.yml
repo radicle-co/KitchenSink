@@ -105,9 +105,9 @@ jobs:
             - name: Build identity service package
               if: steps.flags.outputs.deploy_service == 'true'
               # turbo (not a bare workspace build) so `^build` compiles the shared
-              # @kitchensink/identity-utils dist first — the image copies that dist and crash-loops
+              # @commise/utils-identity dist first — the image copies that dist and crash-loops
               # without it (KTD2a). nest build alone does not build workspace dependencies.
-              run: npx turbo run build --filter=@kitchensink/identity-service
+              run: npx turbo run build --filter=@commise/services-identity
 
             - name: Prepare identity service Docker image
               if: steps.flags.outputs.deploy_service == 'true'

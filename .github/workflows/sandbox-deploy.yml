@@ -246,12 +246,12 @@ jobs:
             - name: Install dependencies
               if: steps.changes.outputs.food == 'true'
               run: npm ci
-            # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
-            # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
+            # turbo (not a bare workspace build) so `^build` compiles the shared @commise/shared-clerk-verify
+            # and @commise/clients-usda dist first — the image copies those dists and crash-loops on
             # the bare specifiers without them.
             - name: Build food package (+ shared dist)
               if: steps.changes.outputs.food == 'true'
-              run: npx turbo run build --filter=@kitchensink/food-service
+              run: npx turbo run build --filter=@commise/services-food
             # Rewrite the food package.json exports/main to ./dist (prod.package.json) for the image.
             - name: Prepare food service Docker image (prod manifest)
               if: steps.changes.outputs.food == 'true'

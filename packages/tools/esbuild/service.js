@@ -7,9 +7,9 @@
  *   dist/ — Node-targeted ESM bundle
  *
  * Usage:
- *   node --import=tsx node_modules/@kitchensink/esbuild/service.js [--entry src/handler.ts]
+ *   node --import=tsx node_modules/@commise/tools-esbuild/service.js [--entry src/handler.ts]
  *
- * @module @kitchensink/esbuild/service
+ * @module @commise/tools-esbuild/service
  *
  * @requirements
  * 1. Must build a node-only ESM bundle.

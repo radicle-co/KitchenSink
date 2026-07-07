@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
-import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
+import { provisionCompleteUser, type Db, type ProvisionDeps } from '@commise/utils-identity';
 
 import { users, accounts, profiles } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';

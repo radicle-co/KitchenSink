@@ -9,9 +9,9 @@
  *   dist/node/    — Node-targeted ESM bundle
  *
  * Usage:
- *   node --import=tsx node_modules/@kitchensink/esbuild/library.js [--entry src/index.ts] [--entry src/system.ts]
+ *   node --import=tsx node_modules/@commise/tools-esbuild/library.js [--entry src/index.ts] [--entry src/system.ts]
  *
- * @module @kitchensink/esbuild/library
+ * @module @commise/tools-esbuild/library
  *
  * @requirements
  * 1. Must build ESM bundles for both browser and node platforms.

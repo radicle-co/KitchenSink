@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/typescript",
+    "name": "@commise/tools-typescript",
     "version": "0.0.0",
     "private": true,
     "type": "module",

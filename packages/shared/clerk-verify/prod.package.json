@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/clerk-verify",
+    "name": "@commise/shared-clerk-verify",
     "version": "0.0.0",
     "private": true,
     "type": "module",

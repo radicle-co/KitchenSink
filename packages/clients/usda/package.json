@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/usda-client",
+    "name": "@commise/clients-usda",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -20,10 +20,10 @@
         "format:check": "prettier --check ."
     },
     "devDependencies": {
-        "@kitchensink/eslint": "*",
-        "@kitchensink/prettier": "*",
-        "@kitchensink/typescript": "*",
-        "@kitchensink/vitest": "*",
+        "@commise/tools-eslint": "*",
+        "@commise/tools-prettier": "*",
+        "@commise/tools-typescript": "*",
+        "@commise/tools-vitest": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "typescript": "^5.9.3",

@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/usda-client",
+    "name": "@commise/clients-usda",
     "version": "0.0.0",
     "private": true,
     "type": "module",

@@ -4,7 +4,7 @@
  * Provides common build configuration: dependency externalization,
  * browserslist target resolution, and base esbuild options.
  *
- * @module @kitchensink/esbuild/base
+ * @module @commise/tools-esbuild/base
  *
  * @requirements
  * 1. Must read workspace package.json and return all dependency names to externalize.

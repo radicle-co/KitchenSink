@@ -1,7 +1,7 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { provisionCompleteUser } from '@kitchensink/identity-utils';
+import { UserDAO } from '@commise/services-identity/database/dao';
+import { provisionCompleteUser } from '@commise/utils-identity';
 
 import { getDb } from '../common/db.js';
 import { buildProvisionDeps } from '../common/provisioning.js';

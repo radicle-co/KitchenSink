@@ -1,7 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { users, accounts, profiles } from '@kitchensink/identity-service/database/schema';
-import { newUserId } from '@kitchensink/identity-service/database/ulid';
-import type { ProvisionDeps } from '@kitchensink/identity-utils';
+import { users, accounts, profiles } from '@commise/services-identity/database/schema';
+import { newUserId } from '@commise/services-identity/database/ulid';
+import type { ProvisionDeps } from '@commise/utils-identity';
 
 /**
  * Build the dependency bundle for the shared `provisionCompleteUser` routine, wired to the identity

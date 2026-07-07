@@ -11,7 +11,7 @@ vi.mock('../../common/identityClient.js', () => ({
     listUsers: vi.fn(),
 }));
 
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@commise/services-identity/database/dao', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
         return { findByIdentityId: vi.fn() };
     }),
@@ -28,15 +28,15 @@ vi.mock('../../common/provisioning.js', () => ({
     buildProvisionDeps: vi.fn(() => ({})),
 }));
 
-vi.mock('@kitchensink/identity-utils', () => ({
+vi.mock('@commise/utils-identity', () => ({
     provisionCompleteUser: vi.fn(),
 }));
 
 import { handler as rawHandler } from '../reconciliation.js';
 import { getDb } from '../../common/db.js';
 import { listUsers } from '../../common/identityClient.js';
-import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
+import { provisionCompleteUser } from '@commise/utils-identity';
+import { UserDAO } from '@commise/services-identity/database/dao';
 import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
 
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { buildApiClient } from '@/lib/api-client';
-import type { UserUpdateInput, UserProfile } from '@kitchensink/identity-service';
+import type { UserUpdateInput, UserProfile } from '@commise/services-identity';
 
 interface AccountEditFormProps {
     accessToken: string;

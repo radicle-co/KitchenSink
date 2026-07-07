@@ -1,5 +1,5 @@
 {
-    "name": "@kitchensink/identity-service",
+    "name": "@commise/services-identity",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -35,7 +35,7 @@
         "@aws-sdk/client-sqs": "^3.723.0",
         "@aws-sdk/s3-request-presigner": "^3.723.0",
         "@clerk/backend": "^1.27.0",
-        "@kitchensink/identity-utils": "*",
+        "@commise/utils-identity": "*",
         "@nestjs/common": "^11.1.27",
         "@nestjs/config": "^4.0.0",
         "@nestjs/core": "^11.0.0",
@@ -54,10 +54,10 @@
         "zod": "^4.4.3"
     },
     "devDependencies": {
-        "@kitchensink/eslint": "*",
-        "@kitchensink/prettier": "*",
-        "@kitchensink/typescript": "*",
-        "@kitchensink/vitest": "*",
+        "@commise/tools-eslint": "*",
+        "@commise/tools-prettier": "*",
+        "@commise/tools-typescript": "*",
+        "@commise/tools-vitest": "*",
         "@nestjs/cli": "^11.0.0",
         "@types/express": "^5.0.6",
         "@types/node": "^24.0.0",

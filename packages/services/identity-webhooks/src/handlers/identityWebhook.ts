@@ -3,10 +3,10 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
-import { profiles, users } from '@kitchensink/identity-service/database/schema';
-import type { UserRow } from '@kitchensink/identity-service/database/schema';
-import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
+import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@commise/services-identity/database/dao';
+import { profiles, users } from '@commise/services-identity/database/schema';
+import type { UserRow } from '@commise/services-identity/database/schema';
+import { provisionCompleteUser, type ProvisionResult } from '@commise/utils-identity';
 
 import { setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';

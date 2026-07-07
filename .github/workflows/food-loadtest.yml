@@ -76,7 +76,7 @@ jobs:
               run: npm ci
 
             - name: Install k6 (into the loadtest package)
-              run: npm run k6:install --workspace=@kitchensink/loadtest
+              run: npm run k6:install --workspace=@commise/tools-loadtest
 
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
@@ -125,7 +125,7 @@ jobs:
                   KEEP: ${{ inputs.keep_users && '1' || '0' }}
                   REGION: ${{ env.DEFAULT_AWS_REGION }}
               # `npm run -w` sets cwd to the package, so run.mjs writes report/series there (OUT_DIR=.).
-              run: npm run loadtest --workspace=@kitchensink/loadtest
+              run: npm run loadtest --workspace=@commise/tools-loadtest
 
             - name: Publish report to job summary
               if: always()

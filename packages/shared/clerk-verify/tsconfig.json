@@ -1,6 +1,6 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
-    "extends": "@kitchensink/typescript/base.json",
+    "extends": "@commise/tools-typescript/base.json",
     "compilerOptions": {
         "outDir": "dist",
         "rootDir": "src"

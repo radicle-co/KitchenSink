@@ -27,7 +27,6 @@
         "packages/apps/commise/ui"
     ],
     "scripts": {
-        "preinstall": "node scripts/check-node-version.mjs",
         "build": "turbo run build",
         "test": "turbo run test",
         "test:e2e": "turbo run test:e2e",

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Enforce the repo's required Node major version (from `.nvmrc`) at install-time (`preinstall`) and
- * commit-time (husky `pre-commit`). Fails fast with a clear, actionable message instead of the cryptic
- * downstream errors a too-old Node produces (e.g. Prettier `Unexpected token 'with'` on the config's
- * import attributes, or vitest 4 refusing to start). Uses only Node built-ins so it runs before any
- * dependency is installed.
+ * Enforce the repo's required Node major version (from `.nvmrc`) at **commit time** (husky `pre-commit`),
+ * complementing the `engine-strict=true` in `.npmrc` that already blocks `npm install` on the wrong Node
+ * (git hooks are not npm, so engine-strict cannot gate them). Fails fast with a clear, actionable message
+ * instead of the cryptic downstream errors a too-old Node produces inside the hook — e.g. Prettier
+ * `Unexpected token 'with'` loading its import-attribute config, which would otherwise fail lint-staged
+ * and revert the working tree from its stash. Uses only Node built-ins.
  */
 import { readFileSync } from 'node:fs';
 

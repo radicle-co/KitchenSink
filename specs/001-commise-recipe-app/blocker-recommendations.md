@@ -62,19 +62,19 @@ Prefer top-level resource routes over user-nested ones:
 
 Because the canonical prefix is bare `/v1/*`, the services already on `/v1/*` need **no** change; only the features that were on the `/api`-prefixed scheme (001, 011) migrate.
 
-| Feature | Migration                                                                                                                                                                                    |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feature | Migration                                                                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `001`   | Revert public endpoint references to bare `/v1/*` in `spec.md`, `plan.md`, `tasks.md`, V-Model/Product Forge artifacts, and `contracts/api.openapi.yaml` (the `/api`-prefixed pass is undone). |
-| `002`   | No change — already on bare `/v1/*` (`/v1/users/me`, `/v1/accounts/me`); leave framework-owned Next.js auth routes unchanged.                                                                |
-| `003`   | No change — already on `/v1/foods/*`.                                                                                                                                                        |
-| `004`   | Keep import routes on `/v1/recipes/import/*`; remove the public clone endpoint from 004 and point to the 001-owned `/v1/recipes/{id}/clone`.                                                  |
-| `005`   | Enforce bare `/v1/*` before public endpoint design hardens.                                                                                                                                  |
-| `006`   | No change — already on `/v1/meal-plans/*`.                                                                                                                                                   |
-| `007`   | No change — already on `/v1/grocery-lists/*`.                                                                                                                                                |
-| `008`   | Update dependency refs to `GET /v1/recipes/{id}/instructions`.                                                                                                                               |
-| `009`   | No change — already on `/v1/nutrition-plans/*`.                                                                                                                                              |
-| `010`   | No change — already on `/v1/billing/*`.                                                                                                                                                      |
-| `011`   | Move to bare `/v1/*` (was on the `/api`-prefixed scheme).                                                                                                                                    |
+| `002`   | No change — already on bare `/v1/*` (`/v1/users/me`, `/v1/accounts/me`); leave framework-owned Next.js auth routes unchanged.                                                                  |
+| `003`   | No change — already on `/v1/foods/*`.                                                                                                                                                          |
+| `004`   | Keep import routes on `/v1/recipes/import/*`; remove the public clone endpoint from 004 and point to the 001-owned `/v1/recipes/{id}/clone`.                                                   |
+| `005`   | Enforce bare `/v1/*` before public endpoint design hardens.                                                                                                                                    |
+| `006`   | No change — already on `/v1/meal-plans/*`.                                                                                                                                                     |
+| `007`   | No change — already on `/v1/grocery-lists/*`.                                                                                                                                                  |
+| `008`   | Update dependency refs to `GET /v1/recipes/{id}/instructions`.                                                                                                                                 |
+| `009`   | No change — already on `/v1/nutrition-plans/*`.                                                                                                                                                |
+| `010`   | No change — already on `/v1/billing/*`.                                                                                                                                                        |
+| `011`   | Move to bare `/v1/*` (was on the `/api`-prefixed scheme).                                                                                                                                      |
 
 ### Breaking-change blast radius
 

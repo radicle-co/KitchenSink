@@ -55,14 +55,22 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
 
     it('retries a 401 IDENTITY_SYNC_PENDING with a force-refreshed token, then succeeds', async () => {
         const recipe = { id: 'rec_1', ownerId: 'usr_1', title: 'Soup' };
-        const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }, { status: 200, body: recipe }]);
+        const fetchMock = sequenceFetch([
+            { status: 401, body: SYNC_PENDING },
+            { status: 200, body: recipe },
+        ]);
         const forceRefreshFlags: (boolean | undefined)[] = [];
         const getToken = vi.fn((opts?: { forceRefresh?: boolean }) => {
             forceRefreshFlags.push(opts?.forceRefresh);
 
             return 'tok';
         });
-        const client = new RecipeServiceClient({ baseUrl: BASE, token: getToken, fetch: fetchMock, sleep: instantSleep });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: getToken,
+            fetch: fetchMock,
+            sleep: instantSleep,
+        });
 
         const result = await client.getRecipeById('rec_1');
 

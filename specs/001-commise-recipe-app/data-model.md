@@ -617,7 +617,8 @@ User-initiated GDPR erasure is the **only** path that physically removes data:
     - DELETEs S3 objects under `versions/{recipe_id}/` and `photos/{recipe_id}/` for each owned recipe.
     - DELETEs `recipe_versions`, `recipe_photos`, `recipe_ingredients`, `recipe_steps`, `recipe_collections`, `recipes`, and `collections` for the user.
 
-   (No local `users` row to delete — the recipe service does not own one; the user's identity record is erased by feature 002.)
+    (No local `users` row to delete — the recipe service does not own one; the user's identity record is erased by feature 002.)
+
 4. Cloned descendants owned by **other** users are unaffected; their `cloned_from_id` is set to NULL by the erasure worker prior to deleting the source recipe to preserve referential integrity without leaking source data.
 
 This is the **only** code path permitted to issue `DELETE FROM recipes`. All other "delete" operations MUST set `deleted_at` instead.

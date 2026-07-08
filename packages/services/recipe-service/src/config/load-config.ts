@@ -128,7 +128,8 @@ async function loadConfigAsync<Schema extends z.ZodTypeAny>(
     }
 
     const ssm = ssmConfigSchema.parse(options.ssm ?? {});
-    const environment: Environment | string = options.environment ?? (env['NODE_ENV'] as string | undefined) ?? 'development';
+    const environment: Environment | string =
+        options.environment ?? (env['NODE_ENV'] as string | undefined) ?? 'development';
     const fetched = await fetchFromSsm(missingKeysFromError(first.error), ssm, environment);
 
     return parseOrThrow(schema, { ...env, ...fetched });
@@ -153,7 +154,10 @@ async function loadConfigAsync<Schema extends z.ZodTypeAny>(
  * @sideEffect Reads `process.env` when no explicit source is provided; the options form may perform a
  *   single SSM `GetParameters` call.
  */
-export function loadConfig<Schema extends z.ZodTypeAny>(schema: Schema, options: LoadConfigOptions): Promise<z.infer<Schema>>;
+export function loadConfig<Schema extends z.ZodTypeAny>(
+    schema: Schema,
+    options: LoadConfigOptions,
+): Promise<z.infer<Schema>>;
 
 export function loadConfig<Schema extends z.ZodTypeAny>(schema: Schema, env?: Record<string, unknown>): z.infer<Schema>;
 

@@ -247,13 +247,13 @@ LocalStack doesn't persist bucket contents across container restarts unless you 
 
 ## Common Commands
 
-| Command                                                                  | What it does                                       |
-| ------------------------------------------------------------------------ | -------------------------------------------------- |
-| `npm run dev --workspace=packages/services/recipe-service`                            | Start recipe API dev server only                   |
-| `npm run build`                                                                | Build all packages in dependency order             |
-| `npm run test`                                                                 | Run all tests across the monorepo                  |
-| `npm run test --workspace=packages/services/recipe-service`                           | Run API tests only                                 |
-| `npm run lint`                                                                 | Lint all packages                                  |
+| Command                                                                                | What it does                                       |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `npm run dev --workspace=packages/services/recipe-service`                             | Start recipe API dev server only                   |
+| `npm run build`                                                                        | Build all packages in dependency order             |
+| `npm run test`                                                                         | Run all tests across the monorepo                  |
+| `npm run test --workspace=packages/services/recipe-service`                            | Run API tests only                                 |
+| `npm run lint`                                                                         | Lint all packages                                  |
 | `npx drizzle-kit generate --config=packages/services/recipe-service/drizzle.config.ts` | Generate a new migration file after schema changes |
 | `npx drizzle-kit migrate --config=packages/services/recipe-service/drizzle.config.ts`  | Apply pending migrations                           |
 | `npx drizzle-kit studio --config=packages/services/recipe-service/drizzle.config.ts`   | Open Drizzle Studio at `localhost:4983`            |

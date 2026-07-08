@@ -94,9 +94,8 @@ export const configToken: Token<AppShellConfig> = token<AppShellConfig>('commise
  * set, which the Home composition root feeds to `curateHomeWidgets`. Bound with
  * `bindMultiValue`, so the token's value type is a read-only array.
  */
-export const homeWidgetToken: Token<readonly HomeWidgetDescriptor[]> = token<readonly HomeWidgetDescriptor[]>(
-    'commise.appShell.homeWidgets',
-);
+export const homeWidgetToken: Token<readonly HomeWidgetDescriptor[]> =
+    token<readonly HomeWidgetDescriptor[]>('commise.appShell.homeWidgets');
 
 /**
  * Explicit startup-registration function a feature exposes so the composition

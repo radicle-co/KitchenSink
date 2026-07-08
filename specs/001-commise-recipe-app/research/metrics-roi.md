@@ -108,12 +108,12 @@ The following metrics are not yet defined in the existing artifacts. They are re
 
 **Source**: [data-model.md](../data-model.md) Section "Design Constraints"
 
-| Resource                       | Launch Target  | Actual (us-east-1)                            |
-| ------------------------------ | -------------- | --------------------------------------------- |
+| Resource                                                      | Launch Target  | Actual (us-east-1)                                                                                            |
+| ------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
 | RDS (shared `db.t4g.small`, `kitchensink_recipes` logical DB) | $0 incremental | Instance already provisioned at the platform level; recipes add a free logical DB — no new/dedicated instance |
-| S3 storage (photos + archives) | Cost-contained | ~$0.023/GB                                    |
-| SQS queue                      | Minimal        | ~$0.40/million requests                       |
-| Fargate (2 tasks for HA)       | Cost-contained | ~$0.0408/vCPU-hr                              |
+| S3 storage (photos + archives)                                | Cost-contained | ~$0.023/GB                                                                                                    |
+| SQS queue                                                     | Minimal        | ~$0.40/million requests                                                                                       |
+| Fargate (2 tasks for HA)                                      | Cost-contained | ~$0.0408/vCPU-hr                                                                                              |
 
 **Total launch estimate**: ~$25–55/mo of feature-incremental cost for a production launch with conservative sizing (the shared RDS instance is already provisioned at the platform level and is **not** re-counted here; recipes add only a free logical DB).
 

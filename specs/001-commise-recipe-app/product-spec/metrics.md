@@ -22,13 +22,13 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 **FRs**: [FR-044](../spec.md#fr-044), [FR-045](../spec.md#fr-045), [FR-046](../spec.md#fr-046)
 
-| Metric ID    | Metric                                                                 | Target                                        | Source        | Signal                                                                 |
-| ------------ | ---------------------------------------------------------------------- | --------------------------------------------- | ------------- | ---------------------------------------------------------------------- |
-| MET-US000-01 | Home screen load time from login redirect                              | p95 <= 2s (AC-1)                              | UX event      | "home_rendered" timer from login redirect                              |
-| MET-US000-02 | Recent-recipes widget first-render success rate                        | >= 99% of Home loads                          | UX event      | "widget_rendered" (recent-recipes) / Home loads                        |
-| MET-US000-03 | Capability gating correctness (undeployed-service widgets are absent)  | 100% (no dead/empty tile for absent services) | E2E test      | Home DOM contains no widget whose backing service is not live          |
-| MET-US000-04 | Web/mobile parity — no live widget absent on either platform           | 100% parity                                   | E2E test      | Live-widget id set identical across web and mobile Home                 |
-| MET-US000-05 | Subscription nudge frequency on premium-gated entry points             | <= 1 per session                              | UX event      | "subscription_nudge_shown" count per session                           |
+| Metric ID    | Metric                                                                | Target                                        | Source   | Signal                                                        |
+| ------------ | --------------------------------------------------------------------- | --------------------------------------------- | -------- | ------------------------------------------------------------- |
+| MET-US000-01 | Home screen load time from login redirect                             | p95 <= 2s (AC-1)                              | UX event | "home_rendered" timer from login redirect                     |
+| MET-US000-02 | Recent-recipes widget first-render success rate                       | >= 99% of Home loads                          | UX event | "widget_rendered" (recent-recipes) / Home loads               |
+| MET-US000-03 | Capability gating correctness (undeployed-service widgets are absent) | 100% (no dead/empty tile for absent services) | E2E test | Home DOM contains no widget whose backing service is not live |
+| MET-US000-04 | Web/mobile parity — no live widget absent on either platform          | 100% parity                                   | E2E test | Live-widget id set identical across web and mobile Home       |
+| MET-US000-05 | Subscription nudge frequency on premium-gated entry points            | <= 1 per session                              | UX event | "subscription_nudge_shown" count per session                  |
 
 ---
 

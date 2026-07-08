@@ -21,41 +21,41 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 ### Module Inventory & ARCH Mapping
 
-| MOD-ID  | Module Name                      | Parent ARCH | Type      | Notes                                   |
-| ------- | -------------------------------- | ----------- | --------- | --------------------------------------- |
-| MOD-001 | Clerk Auth Service               | ARCH-001    | Library   |                                         |
-| MOD-002 | Owner & Tier Authorization Guard | ARCH-002    | Library   |                                         |
-| MOD-003 | Recipe HTTP Controller           | ARCH-003    | Component |                                         |
-| MOD-004 | Recipe Command Service           | ARCH-004    | Service   |                                         |
-| MOD-005 | Recipe DTO Validator             | ARCH-005    | Library   |                                         |
-| MOD-006 | Visibility Policy Engine         | ARCH-006    | Library   | Pure function                           |
-| MOD-007 | Substantive Edit Detector        | ARCH-007    | Library   | Pure function                           |
-| MOD-008 | Ingredient Resolver Service      | ARCH-008    | Service   |                                         |
-| MOD-009 | Nutrition Calculator             | ARCH-009    | Library   |                                         |
-| MOD-010 | Recipe Search Service            | ARCH-010    | Service   |                                         |
-| MOD-011 | Search Query Builder             | ARCH-011    | Library   |                                         |
-| MOD-012 | Photo Presign Service            | ARCH-012    | Service   |                                         |
-| MOD-013 | Photo Confirm Service            | ARCH-013    | Service   |                                         |
-| MOD-014 | Photo Processing Lambda Handler  | ARCH-014    | Service   |                                         |
-| MOD-015 | Version Snapshot Writer          | ARCH-015    | Service   |                                         |
-| MOD-016 | Optimistic Concurrency Guard     | ARCH-016    | Library   |                                         |
-| MOD-017 | Archive Queue Producer           | ARCH-017    | Adapter   |                                         |
-| MOD-018 | Archive Worker Lambda            | ARCH-018    | Service   |                                         |
-| MOD-019 | Pending Archive Reconciler       | ARCH-019    | Service   |                                         |
-| MOD-020 | Collection Service               | ARCH-020    | Service   |                                         |
-| MOD-021 | Collection Clone & Pull Service  | ARCH-021    | Service   |                                         |
-| MOD-022 | GDPR Erasure Orchestrator        | ARCH-022    | Service   |                                         |
-| MOD-023 | Erasure Storage Purger           | ARCH-023    | Service   |                                         |
-| MOD-024 | Drizzle Repository Layer         | ARCH-024    | Adapter   |                                         |
-| MOD-025 | S3 & CloudFront Adapter          | ARCH-025    | Adapter   | `[EXTERNAL]` — wraps AWS SDK            |
-| MOD-026 | Web Recipe & Collection UI       | ARCH-026    | Component |                                         |
-| MOD-027 | Mobile Recipe & Collection UI    | ARCH-027    | Component |                                         |
-| MOD-028 | API Error Mapper                 | ARCH-028    | Library   |                                         |
-| MOD-029 | Config Loader                    | ARCH-029    | Library   |                                         |
-| MOD-030 | Telemetry & Logger               | ARCH-030    | Library   | `[CROSS-CUTTING]`                       |
-| MOD-031 | Archive Backlog Alarm            | ARCH-031    | Utility   | `[CROSS-CUTTING]` — infra-as-code       |
-| MOD-032 | CI & Test Governance Harness     | ARCH-032    | Utility   | `[CROSS-CUTTING]`                       |
-| MOD-033 | NestJS Module Wiring             | ARCH-033    | Utility   | `[CROSS-CUTTING]` — DI composition root |
+| MOD-ID  | Module Name                      | Parent ARCH | Type      | Notes                                                                           |
+| ------- | -------------------------------- | ----------- | --------- | ------------------------------------------------------------------------------- |
+| MOD-001 | Clerk Auth Service               | ARCH-001    | Library   |                                                                                 |
+| MOD-002 | Owner & Tier Authorization Guard | ARCH-002    | Library   |                                                                                 |
+| MOD-003 | Recipe HTTP Controller           | ARCH-003    | Component |                                                                                 |
+| MOD-004 | Recipe Command Service           | ARCH-004    | Service   |                                                                                 |
+| MOD-005 | Recipe DTO Validator             | ARCH-005    | Library   |                                                                                 |
+| MOD-006 | Visibility Policy Engine         | ARCH-006    | Library   | Pure function                                                                   |
+| MOD-007 | Substantive Edit Detector        | ARCH-007    | Library   | Pure function                                                                   |
+| MOD-008 | Ingredient Resolver Service      | ARCH-008    | Service   |                                                                                 |
+| MOD-009 | Nutrition Calculator             | ARCH-009    | Library   |                                                                                 |
+| MOD-010 | Recipe Search Service            | ARCH-010    | Service   |                                                                                 |
+| MOD-011 | Search Query Builder             | ARCH-011    | Library   |                                                                                 |
+| MOD-012 | Photo Presign Service            | ARCH-012    | Service   |                                                                                 |
+| MOD-013 | Photo Confirm Service            | ARCH-013    | Service   |                                                                                 |
+| MOD-014 | Photo Processing Lambda Handler  | ARCH-014    | Service   |                                                                                 |
+| MOD-015 | Version Snapshot Writer          | ARCH-015    | Service   |                                                                                 |
+| MOD-016 | Optimistic Concurrency Guard     | ARCH-016    | Library   |                                                                                 |
+| MOD-017 | Archive Queue Producer           | ARCH-017    | Adapter   |                                                                                 |
+| MOD-018 | Archive Worker Lambda            | ARCH-018    | Service   |                                                                                 |
+| MOD-019 | Pending Archive Reconciler       | ARCH-019    | Service   |                                                                                 |
+| MOD-020 | Collection Service               | ARCH-020    | Service   |                                                                                 |
+| MOD-021 | Collection Clone & Pull Service  | ARCH-021    | Service   |                                                                                 |
+| MOD-022 | GDPR Erasure Orchestrator        | ARCH-022    | Service   |                                                                                 |
+| MOD-023 | Erasure Storage Purger           | ARCH-023    | Service   |                                                                                 |
+| MOD-024 | Drizzle Repository Layer         | ARCH-024    | Adapter   |                                                                                 |
+| MOD-025 | S3 & CloudFront Adapter          | ARCH-025    | Adapter   | `[EXTERNAL]` — wraps AWS SDK                                                    |
+| MOD-026 | Web Recipe & Collection UI       | ARCH-026    | Component |                                                                                 |
+| MOD-027 | Mobile Recipe & Collection UI    | ARCH-027    | Component |                                                                                 |
+| MOD-028 | API Error Mapper                 | ARCH-028    | Library   |                                                                                 |
+| MOD-029 | Config Loader                    | ARCH-029    | Library   |                                                                                 |
+| MOD-030 | Telemetry & Logger               | ARCH-030    | Library   | `[CROSS-CUTTING]`                                                               |
+| MOD-031 | Archive Backlog Alarm            | ARCH-031    | Utility   | `[CROSS-CUTTING]` — infra-as-code                                               |
+| MOD-032 | CI & Test Governance Harness     | ARCH-032    | Utility   | `[CROSS-CUTTING]`                                                               |
+| MOD-033 | NestJS Module Wiring             | ARCH-033    | Utility   | `[CROSS-CUTTING]` — DI composition root                                         |
 | MOD-034 | Home Widget Contract & Registry  | ARCH-034    | Library   | Low-level design delegated to `research/home-widget-architecture.md` (DECISION) |
 | MOD-035 | curateHomeWidgets Composition Fn | ARCH-035    | Library   | Low-level design delegated to `research/home-widget-architecture.md` (DECISION) |
 | MOD-036 | Home Widget Host Render          | ARCH-036    | Component | Low-level design delegated to `research/home-widget-architecture.md` (DECISION) |
@@ -72,11 +72,11 @@ This document decomposes every architecture module (ARCH-NNN) from `architecture
 
 #### Interface View
 
-| Direction | Name            | Type   | Format                           | Constraints                                                                                                                                  |
-| --------- | --------------- | ------ | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input     | `bearerToken`   | string | JWT compact serialization        | Required; non-empty; valid Clerk session token; signature verifies against `CLERK_JWT_KEY`; `azp` in `CLERK_AUTHORIZED_PARTIES`; not expired |
-| Output    | `principal`     | object | `{ userId, sub, email, tier, roles, permissions, iat, exp }` | `userId` non-empty (app-user ULID from the `external_id` claim — THE owner key); `sub` retained for trace/audit only; `tier ∈ {"free","premium"}` read from `public_metadata`; `exp` > now                                                        |
-| Exception | `INVALID_TOKEN` | 401    | `{ code, message }`              | Signature/claim/expiry/`azp` failure (networkless — no JWKS fetch)                                                                           |
+| Direction | Name            | Type   | Format                                                       | Constraints                                                                                                                                                                                |
+| --------- | --------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Input     | `bearerToken`   | string | JWT compact serialization                                    | Required; non-empty; valid Clerk session token; signature verifies against `CLERK_JWT_KEY`; `azp` in `CLERK_AUTHORIZED_PARTIES`; not expired                                               |
+| Output    | `principal`     | object | `{ userId, sub, email, tier, roles, permissions, iat, exp }` | `userId` non-empty (app-user ULID from the `external_id` claim — THE owner key); `sub` retained for trace/audit only; `tier ∈ {"free","premium"}` read from `public_metadata`; `exp` > now |
+| Exception | `INVALID_TOKEN` | 401    | `{ code, message }`                                          | Signature/claim/expiry/`azp` failure (networkless — no JWKS fetch)                                                                                                                         |
 
 #### Algorithmic / Logic View
 
@@ -142,13 +142,13 @@ type VerifiedClerkClaims = {
 
 #### Error Handling & Return Codes
 
-| Trigger                               | Error Code      | HTTP | Recovery                                           |
-| ------------------------------------- | --------------- | ---- | -------------------------------------------------- |
-| Missing/empty bearer token            | `INVALID_TOKEN` | 401  | Caller returns 401 to client                       |
-| Bad signature / `azp` not authorized  | `INVALID_TOKEN` | 401  | Caller returns 401                                 |
-| Expired token                         | `INVALID_TOKEN` | 401  | Caller returns 401; client refreshes session       |
+| Trigger                                      | Error Code      | HTTP | Recovery                                                         |
+| -------------------------------------------- | --------------- | ---- | ---------------------------------------------------------------- |
+| Missing/empty bearer token                   | `INVALID_TOKEN` | 401  | Caller returns 401 to client                                     |
+| Bad signature / `azp` not authorized         | `INVALID_TOKEN` | 401  | Caller returns 401                                               |
+| Expired token                                | `INVALID_TOKEN` | 401  | Caller returns 401; client refreshes session                     |
 | `external_id` (app ULID) claim missing/empty | `INVALID_TOKEN` | 401  | Caller returns 401; feature 002 must emit the claim (REQ-IF-007) |
-| `tier` claim missing or unknown value | `INVALID_TOKEN` | 401  | Caller returns 401; `public_metadata` config error |
+| `tier` claim missing or unknown value        | `INVALID_TOKEN` | 401  | Caller returns 401; `public_metadata` config error               |
 
 ---
 
@@ -619,12 +619,12 @@ type EditResult = { isSubstantive: boolean; changedFields: string[] };
 
 #### Interface View
 
-| Direction | Name                   | Type  | Format                                                                                         | Constraints                                                                                                                                                                                                                                    |
-| --------- | ---------------------- | ----- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input     | `items`                | array | `[{ kind: "linked"\|"freeform", foodId?, text?, quantity, unit }]`                              | `linked` requires an opaque food `foodId` (ULID from `@kitchensink/food-service-client`, never the source `fdcId`); `freeform` requires `text`                                                                                                  |
-| Output    | `resolved`             | array | `[{ inputIndex, ingredientId?, foodId?, foodResolutionStatus?, isUserEntered, normalizedQty }]` | Stable order matching input; `foodResolutionStatus ∈ {PENDING, UNRESOLVED, RESOLVED, NOT_FOUND, FAILED}` (UPPER_SNAKE); freeform / user-supplied entry is the **separate** `isUserEntered` boolean, never a resolution-status value             |
-| Exception | `INGREDIENT_NOT_FOUND` | 404   | `{ code, inputIndex, attemptedFoodId }`                                                         | Linked `foodId` unknown to the food service                                                                                                                                                                                                    |
-| Exception | `UNIT_INCONVERTIBLE`   | 422   | `{ code, inputIndex, fromUnit, toUnit }`                                                        | Quantity unit cannot normalize to the canonical unit                                                                                                                                                                                           |
+| Direction | Name                   | Type  | Format                                                                                          | Constraints                                                                                                                                                                                                                         |
+| --------- | ---------------------- | ----- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input     | `items`                | array | `[{ kind: "linked"\|"freeform", foodId?, text?, quantity, unit }]`                              | `linked` requires an opaque food `foodId` (ULID from `@kitchensink/food-service-client`, never the source `fdcId`); `freeform` requires `text`                                                                                      |
+| Output    | `resolved`             | array | `[{ inputIndex, ingredientId?, foodId?, foodResolutionStatus?, isUserEntered, normalizedQty }]` | Stable order matching input; `foodResolutionStatus ∈ {PENDING, UNRESOLVED, RESOLVED, NOT_FOUND, FAILED}` (UPPER_SNAKE); freeform / user-supplied entry is the **separate** `isUserEntered` boolean, never a resolution-status value |
+| Exception | `INGREDIENT_NOT_FOUND` | 404   | `{ code, inputIndex, attemptedFoodId }`                                                         | Linked `foodId` unknown to the food service                                                                                                                                                                                         |
+| Exception | `UNIT_INCONVERTIBLE`   | 422   | `{ code, inputIndex, fromUnit, toUnit }`                                                        | Quantity unit cannot normalize to the canonical unit                                                                                                                                                                                |
 
 #### Algorithmic / Logic View
 
@@ -1035,11 +1035,11 @@ type PhotoView = { photoId: string; recipeId: string; status: 'pending_processin
 
 #### Interface View
 
-| Direction | Name          | Type   | Format                                      | Constraints                                       |
-| --------- | ------------- | ------ | ------------------------------------------- | ------------------------------------------------- |
-| Input     | `s3Event`     | object | S3 ObjectCreated event                      | Triggered by S3 PutObject in `uploads/*/original.*` |
-| Output    | (side-effect) | —      | Writes S3 derivatives + emits `photo-processed` SQS | No DB access; idempotent on re-delivery   |
-| Exception | (logged)      | —      | Emits `photo-processed` with `status:"failed"` and re-throws | Routed to Lambda DLQ after retries |
+| Direction | Name          | Type   | Format                                                       | Constraints                                         |
+| --------- | ------------- | ------ | ------------------------------------------------------------ | --------------------------------------------------- |
+| Input     | `s3Event`     | object | S3 ObjectCreated event                                       | Triggered by S3 PutObject in `uploads/*/original.*` |
+| Output    | (side-effect) | —      | Writes S3 derivatives + emits `photo-processed` SQS          | No DB access; idempotent on re-delivery             |
+| Exception | (logged)      | —      | Emits `photo-processed` with `status:"failed"` and re-throws | Routed to Lambda DLQ after retries                  |
 
 #### Algorithmic / Logic View
 
@@ -1110,11 +1110,11 @@ type PhotoProcessedMessage = {
 
 #### Error Handling & Return Codes
 
-| Trigger                           | Behavior                                                    |
-| --------------------------------- | ---------------------------------------------------------- |
-| Object not found in S3            | Emit `photo-processed` `status:"failed"`; throw → DLQ (no DB write) |
-| Sharp decode failure              | Emit `photo-processed` `status:"failed"`; throw → DLQ (no DB write) |
-| Repeated delivery                 | Re-render + re-emit; the Fargate consumer's `UPDATE` is idempotent |
+| Trigger                | Behavior                                                            |
+| ---------------------- | ------------------------------------------------------------------- |
+| Object not found in S3 | Emit `photo-processed` `status:"failed"`; throw → DLQ (no DB write) |
+| Sharp decode failure   | Emit `photo-processed` `status:"failed"`; throw → DLQ (no DB write) |
+| Repeated delivery      | Re-render + re-emit; the Fargate consumer's `UPDATE` is idempotent  |
 
 ---
 
@@ -1408,10 +1408,10 @@ const MAX_ATTEMPTS = 8;
 
 #### Error Handling & Return Codes
 
-| Trigger                   | Behavior                  |
-| ------------------------- | ------------------------- |
+| Trigger                    | Behavior                                   |
+| -------------------------- | ------------------------------------------ |
 | `attempts >= MAX_ATTEMPTS` | Move to dead-letter state (`status='dlq'`) |
-| Requeue failure           | Logged; retried next tick |
+| Requeue failure            | Logged; retried next tick                  |
 
 ---
 
@@ -1619,13 +1619,13 @@ type CollectionCloneCommand = { kind: 'clone' | 'pull'; sourceId: string; target
 
 #### Interface View
 
-| Direction | Name                  | Type   | Format                                                     | Constraints                                |
-| --------- | --------------------- | ------ | ---------------------------------------------------------- | ------------------------------------------ |
-| Input     | `request`             | object | `{ subjectUserId, requestedBy }`                           | `requestedBy` (the principal's app-user ULID) must be the subject or admin |
-| Input     | `principal`           | object | Principal from MOD-001                                     | Required; admin is derived from its `roles` (no `users` lookup — D2) |
-| Output    | `report`              | object | `{ erasureId, status, recipeCount, photoKeys[], collectionCount }` | 202 Accepted; idempotent per spec C-007 — a duplicate while a job is `queued`/`running` returns the **existing** `erasureId` (no second enqueue); a fresh retry after a `failed` job returns a new `erasureId` |
-| Exception | `FORBIDDEN_OWNER`     | 403    |                                                            | Non-subject, non-admin                     |
-| Exception | `ALREADY_ERASED`      | 410    | `{ code, message }`                                        | A prior erasure job `completed` (idempotent C-007; **not** a 409) |
+| Direction | Name              | Type   | Format                                                             | Constraints                                                                                                                                                                                                    |
+| --------- | ----------------- | ------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input     | `request`         | object | `{ subjectUserId, requestedBy }`                                   | `requestedBy` (the principal's app-user ULID) must be the subject or admin                                                                                                                                     |
+| Input     | `principal`       | object | Principal from MOD-001                                             | Required; admin is derived from its `roles` (no `users` lookup — D2)                                                                                                                                           |
+| Output    | `report`          | object | `{ erasureId, status, recipeCount, photoKeys[], collectionCount }` | 202 Accepted; idempotent per spec C-007 — a duplicate while a job is `queued`/`running` returns the **existing** `erasureId` (no second enqueue); a fresh retry after a `failed` job returns a new `erasureId` |
+| Exception | `FORBIDDEN_OWNER` | 403    |                                                                    | Non-subject, non-admin                                                                                                                                                                                         |
+| Exception | `ALREADY_ERASED`  | 410    | `{ code, message }`                                                | A prior erasure job `completed` (idempotent C-007; **not** a 409)                                                                                                                                              |
 
 #### Algorithmic / Logic View
 
@@ -1667,19 +1667,25 @@ Persisted `account_erasure_jobs.status` (canonical enum, single authoritative so
 ```ts
 type ErasureJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 type ErasureRequest = { subjectUserId: string; requestedBy: string };
-type ErasureReport = { erasureId: string; status: ErasureJobStatus; recipeCount: number; collectionCount: number; photoKeys: string[] };
+type ErasureReport = {
+    erasureId: string;
+    status: ErasureJobStatus;
+    recipeCount: number;
+    collectionCount: number;
+    photoKeys: string[];
+};
 // Admin is read from the verified Principal (MOD-001) `roles` — there is no `users` accessor (D2).
 ```
 
 #### Error Handling & Return Codes
 
-| Trigger                                                        | Error Code        | HTTP |
-| -------------------------------------------------------------- | ----------------- | ---- |
-| Non-subject non-admin requester                                | `FORBIDDEN_OWNER` | 403  |
+| Trigger                                                                      | Error Code        | HTTP |
+| ---------------------------------------------------------------------------- | ----------------- | ---- |
+| Non-subject non-admin requester                                              | `FORBIDDEN_OWNER` | 403  |
 | Duplicate while `queued`/`running` → existing `erasureId`, no second enqueue | — (idempotent)    | 202  |
-| Prior job `completed` (already erased; C-007, **not** 409)     | `ALREADY_ERASED`  | 410  |
-| Prior job `failed` → fresh `queued` retry                      | — (idempotent)    | 202  |
-| DB mutation failure                                            | `INTERNAL`        | 500  |
+| Prior job `completed` (already erased; C-007, **not** 409)                   | `ALREADY_ERASED`  | 410  |
+| Prior job `failed` → fresh `queued` retry                                    | — (idempotent)    | 202  |
+| DB mutation failure                                                          | `INTERNAL`        | 500  |
 
 ---
 
@@ -1880,12 +1886,12 @@ Re-exports SDK input/output types where stable; otherwise re-shapes to internal 
 
 #### Interface View
 
-| Direction | Name              | Type  | Format                                             | Constraints                                            |
-| --------- | ----------------- | ----- | -------------------------------------------------- | ------------------------------------------------------ |
-| Input     | route + session   | mixed | Next.js route params + Clerk session               | Session token attached server-side via `@clerk/nextjs` |
+| Direction | Name              | Type  | Format                                     | Constraints                                            |
+| --------- | ----------------- | ----- | ------------------------------------------ | ------------------------------------------------------ |
+| Input     | route + session   | mixed | Next.js route params + Clerk session       | Session token attached server-side via `@clerk/nextjs` |
 | Input     | API responses     | mixed | JSON from `/v1/recipes`, `/v1/collections` | Includes `rowVersion`                                  |
-| Output    | rendered HTML     | HTML  | server + client components                         | Uses Tailwind v4 + Radix UI per `frontend-ux-engineer` |
-| Exception | UI error boundary | —     | Renders typed error component                      | All API errors shown by `code`                         |
+| Output    | rendered HTML     | HTML  | server + client components                 | Uses Tailwind v4 + Radix UI per `frontend-ux-engineer` |
+| Exception | UI error boundary | —     | Renders typed error component              | All API errors shown by `code`                         |
 
 #### Algorithmic / Logic View
 
@@ -2361,30 +2367,30 @@ DI tokens declared per module.
 
 ## Peer-Review Remediation Log
 
-| Finding ID  | Action Taken                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PRF-MOD-001 | Updated MOD-015 pseudocode to insert `recipe_version_pending_archives` in the same transaction (`MOD-024.recipeVersionPendingArchives.insert(...)`) and updated output/internal types to include `pendingArchiveId`. Added stateless confirmation to MOD-004, MOD-008, MOD-010, MOD-012, MOD-013, MOD-016 State Machine View entries: all state transitions delegated to persistence layer, module holds no mutable state, concurrency safety via MOD-016 optimistic locking. |
-| PRF-MOD-002 | Updated MOD-009 interface and data model to ARCH contract output `{ perServing, perRecipe, missingItems[] }`; added `UNIT_INCONVERTIBLE` (422) throw path for unconvertible units.                                                                                                                                                                                                                                                                                            |
-| PRF-MOD-003 | Added whitelist validation at start of MOD-011 `build()` and throws `INVALID_FILTER({ code, field })`; added Error Handling row.                                                                                                                                                                                                                                                                                                                                              |
-| PRF-MOD-004 | Aligned MOD-010 `pageSize` constraint/guard to `≤ 100`; added `SEARCH_TIMEOUT` (504) exception in interface, pseudocode timeout guard, and error table.                                                                                                                                                                                                                                                                                                                       |
-| PRF-MOD-005 | Added quota check to MOD-012 pseudocode with `MOD-024.photoUploads.countPendingForUser(...)`; added `UPLOAD_QUOTA_EXCEEDED` (429) in interface/error table and `QUOTA_LIMIT` constant.                                                                                                                                                                                                                                                                                        |
-| PRF-MOD-006 | Reconciled MOD-013 to ARCH codes (`UPLOAD_INVALID` 422, `UPLOAD_NOT_FOUND` 404) and updated MOD-028 `STATUS_FOR` mapping to include upload and conversion codes.                                                                                                                                                                                                                                                                                                              |
-| PRF-MOD-007 | Added advisory lock acquisition/release to MOD-021 pull path and added `PULL_LOCK_HELD` (409) to interface and error handling.                                                                                                                                                                                                                                                                                                                                                |
-| PRF-MOD-008 | Replaced empty MOD-003 Internal Data Structures prose with explicit route params, list query, `If-Match` header binding, and DTO aliases.                                                                                                                                                                                                                                                                                                                                     |
-| PRF-MOD-009 | Removed non-conformant "inherits" statement from MOD-020 and replaced NestJS class-name errors with domain error codes across the full matrix.                                                                                                                                                                                                                                                                                                                                |
-| PRF-MOD-010 | Defined `roundTo3` algorithm inline in MOD-007 pseudocode and added typed function specification to Internal Data Structures.                                                                                                                                                                                                                                                                                                                                                 |
-| PRF-MOD-011 | Added explicit `normalize(quantity, fromUnit, toUnit)` specification in MOD-008, with conversion maps, unknown-unit behavior (`UNIT_INCONVERTIBLE`), and data-structure definitions.                                                                                                                                                                                                                                                                                          |
-| PRF-MOD-012 | Added full `convertToGrams(quantity, unit, density)` specification in MOD-009 with mass/volume tables, formula, and unsupported-unit behavior.                                                                                                                                                                                                                                                                                                                                |
-| PRF-MOD-013 | Added named `CDN_INVALIDATION_FAILED` handling in MOD-023: warning log + append CDN paths to `failed` list + retry via reconciler path.                                                                                                                                                                                                                                                                                                                                       |
-| PRF-MOD-014 | Added explicit MOD-032 internal types `CoverageReport` and `TraceabilityGap`.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| PRF-MOD-015 | Added MOD-019 `PendingArchiveRow` type for rows returned by `findPending()` and iterated by reconciler loop.                                                                                                                                                                                                                                                                                                                                                                  |
-| PRF-MOD-016 | Documented SQS FIFO 5-minute dedup window in MOD-017 and switched dedup ID derivation to include attempt (`${job.jobId}-attempt-${job.attempt}`).                                                                                                                                                                                                                                                                                                                             |
-| PRF-MOD-017 | Added MOD-018 `ArchiveJob` type to make message-body contract self-contained in Internal Data Structures.                                                                                                                                                                                                                                                                                                                                                                     |
-| PRF-MOD-018 | Quantified MOD-025 retry/backoff policy as `3 attempts, exponential backoff base 200 ms, full jitter, max delay 2 s`.                                                                                                                                                                                                                                                                                                                                                         |
-| PRF-MOD-019 | Added explicit offline behavior statement to MOD-026: no offline mutations; network errors surfaced via error boundary with retry affordance.                                                                                                                                                                                                                                                                                                                                 |
-| PRF-MOD-020 | Specified MOD-022 `isAdmin(userId)` mechanism using principal roles (`admin` via the session token's `public_metadata` claim) and typed supporting structure.                                                                                                                                                                                                                                                                                                                 |
-| PRF-MOD-021 | Added `DB_UNAVAILABLE` (503) propagation row to MOD-009 Error Handling and documented caller-visible behavior.                                                                                                                                                                                                                                                                                                                                                                |
-| PRF-MOD-022 | Added explicit MOD-004 pseudocode comment documenting `VERSION_WRITE_FAILED` propagation and transaction abort behavior.                                                                                                                                                                                                                                                                                                                                                      |
-| PRF-MOD-023 | Expanded MOD-024 `applyErasureMutations` with explicit table order, tombstone/nullify operations, and FK-handling strategy.                                                                                                                                                                                                                                                                                                                                                   |
+| Finding ID  | Action Taken                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRF-MOD-001 | Updated MOD-015 pseudocode to insert `recipe_version_pending_archives` in the same transaction (`MOD-024.recipeVersionPendingArchives.insert(...)`) and updated output/internal types to include `pendingArchiveId`. Added stateless confirmation to MOD-004, MOD-008, MOD-010, MOD-012, MOD-013, MOD-016 State Machine View entries: all state transitions delegated to persistence layer, module holds no mutable state, concurrency safety via MOD-016 optimistic locking.            |
+| PRF-MOD-002 | Updated MOD-009 interface and data model to ARCH contract output `{ perServing, perRecipe, missingItems[] }`; added `UNIT_INCONVERTIBLE` (422) throw path for unconvertible units.                                                                                                                                                                                                                                                                                                       |
+| PRF-MOD-003 | Added whitelist validation at start of MOD-011 `build()` and throws `INVALID_FILTER({ code, field })`; added Error Handling row.                                                                                                                                                                                                                                                                                                                                                         |
+| PRF-MOD-004 | Aligned MOD-010 `pageSize` constraint/guard to `≤ 100`; added `SEARCH_TIMEOUT` (504) exception in interface, pseudocode timeout guard, and error table.                                                                                                                                                                                                                                                                                                                                  |
+| PRF-MOD-005 | Added quota check to MOD-012 pseudocode with `MOD-024.photoUploads.countPendingForUser(...)`; added `UPLOAD_QUOTA_EXCEEDED` (429) in interface/error table and `QUOTA_LIMIT` constant.                                                                                                                                                                                                                                                                                                   |
+| PRF-MOD-006 | Reconciled MOD-013 to ARCH codes (`UPLOAD_INVALID` 422, `UPLOAD_NOT_FOUND` 404) and updated MOD-028 `STATUS_FOR` mapping to include upload and conversion codes.                                                                                                                                                                                                                                                                                                                         |
+| PRF-MOD-007 | Added advisory lock acquisition/release to MOD-021 pull path and added `PULL_LOCK_HELD` (409) to interface and error handling.                                                                                                                                                                                                                                                                                                                                                           |
+| PRF-MOD-008 | Replaced empty MOD-003 Internal Data Structures prose with explicit route params, list query, `If-Match` header binding, and DTO aliases.                                                                                                                                                                                                                                                                                                                                                |
+| PRF-MOD-009 | Removed non-conformant "inherits" statement from MOD-020 and replaced NestJS class-name errors with domain error codes across the full matrix.                                                                                                                                                                                                                                                                                                                                           |
+| PRF-MOD-010 | Defined `roundTo3` algorithm inline in MOD-007 pseudocode and added typed function specification to Internal Data Structures.                                                                                                                                                                                                                                                                                                                                                            |
+| PRF-MOD-011 | Added explicit `normalize(quantity, fromUnit, toUnit)` specification in MOD-008, with conversion maps, unknown-unit behavior (`UNIT_INCONVERTIBLE`), and data-structure definitions.                                                                                                                                                                                                                                                                                                     |
+| PRF-MOD-012 | Added full `convertToGrams(quantity, unit, density)` specification in MOD-009 with mass/volume tables, formula, and unsupported-unit behavior.                                                                                                                                                                                                                                                                                                                                           |
+| PRF-MOD-013 | Added named `CDN_INVALIDATION_FAILED` handling in MOD-023: warning log + append CDN paths to `failed` list + retry via reconciler path.                                                                                                                                                                                                                                                                                                                                                  |
+| PRF-MOD-014 | Added explicit MOD-032 internal types `CoverageReport` and `TraceabilityGap`.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| PRF-MOD-015 | Added MOD-019 `PendingArchiveRow` type for rows returned by `findPending()` and iterated by reconciler loop.                                                                                                                                                                                                                                                                                                                                                                             |
+| PRF-MOD-016 | Documented SQS FIFO 5-minute dedup window in MOD-017 and switched dedup ID derivation to include attempt (`${job.jobId}-attempt-${job.attempt}`).                                                                                                                                                                                                                                                                                                                                        |
+| PRF-MOD-017 | Added MOD-018 `ArchiveJob` type to make message-body contract self-contained in Internal Data Structures.                                                                                                                                                                                                                                                                                                                                                                                |
+| PRF-MOD-018 | Quantified MOD-025 retry/backoff policy as `3 attempts, exponential backoff base 200 ms, full jitter, max delay 2 s`.                                                                                                                                                                                                                                                                                                                                                                    |
+| PRF-MOD-019 | Added explicit offline behavior statement to MOD-026: no offline mutations; network errors surfaced via error boundary with retry affordance.                                                                                                                                                                                                                                                                                                                                            |
+| PRF-MOD-020 | Specified MOD-022 `isAdmin(userId)` mechanism using principal roles (`admin` via the session token's `public_metadata` claim) and typed supporting structure.                                                                                                                                                                                                                                                                                                                            |
+| PRF-MOD-021 | Added `DB_UNAVAILABLE` (503) propagation row to MOD-009 Error Handling and documented caller-visible behavior.                                                                                                                                                                                                                                                                                                                                                                           |
+| PRF-MOD-022 | Added explicit MOD-004 pseudocode comment documenting `VERSION_WRITE_FAILED` propagation and transaction abort behavior.                                                                                                                                                                                                                                                                                                                                                                 |
+| PRF-MOD-023 | Expanded MOD-024 `applyErasureMutations` with explicit table order, tombstone/nullify operations, and FK-handling strategy.                                                                                                                                                                                                                                                                                                                                                              |
 | FIX2-D1     | Rewrote MOD-014 to the D1 topology: the photo-processor Lambda is **S3-only, not VPC-attached, touches no DB** — it renders WebP derivatives to S3 and emits an SQS `photo-processed` message. The `recipe_photos` completion `UPDATE` (`processing_status='complete'\|'failed'`) is performed by the in-VPC **Fargate `photo-processed` consumer** (documented in the section). Corrected the MOD-001 and MOD-013 State Machine notes that had attributed the DB transition to MOD-014. |
-| FIX2-D6     | Aligned the `recipe_version_pending_archives` FK design (D6): MOD-015 insert now writes `recipe_version_id` (FK) + `recipe_id`/`version_number`/`status` and **no snapshot column** (replay payload IS `recipe_versions.snapshot`). Updated MOD-019 `PendingArchiveRow` to the canonical columns and the reconciler to derive the S3 destination from `recipe_id`+`version_number` rather than a stored key.                                                                     |
+| FIX2-D6     | Aligned the `recipe_version_pending_archives` FK design (D6): MOD-015 insert now writes `recipe_version_id` (FK) + `recipe_id`/`version_number`/`status` and **no snapshot column** (replay payload IS `recipe_versions.snapshot`). Updated MOD-019 `PendingArchiveRow` to the canonical columns and the reconciler to derive the S3 destination from `recipe_id`+`version_number` rather than a stored key.                                                                             |

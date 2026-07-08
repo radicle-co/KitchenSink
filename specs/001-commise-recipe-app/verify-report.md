@@ -21,14 +21,14 @@ Verification re-executed across the full Product Forge chain for `specs/001-comm
 
 ## Summary
 
-| Layer                     | Status          | Findings                                                                                                                                                                     |
-| ------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| code ↔ tasks              | ⚠️ EXPECTED-GAP | `tasks.md`: 0/179 tasks complete; implementation workspaces in plan are not created yet.                                                                                     |
-| tasks ↔ plan              | ⚠️ WARNING      | Structural phase alignment is intact, but FR-level determinism remains transitive (story-grouped tasking).                                                                   |
-| plan ↔ spec.md            | ✅ PASS         | Route-prefix governance references have been normalized to `/api/v1/*` for documentation handoff. _(SUPERSEDED 2026-07-06: canonical prefix is bare `/v1/*`, not `/api/v1/*`.)_                                                                            |
-| spec.md ↔ product-spec/   | ✅ PASS         | FR/C coverage remains complete across product-spec, journey, and wireframes.                                                                                                 |
-| product-spec/ ↔ research/ | ✅ PASS         | NFR and architecture rationale linkage remains complete.                                                                                                                     |
-| v-model ↔ spec.md         | ⚠️ WARNING      | V-model corpus exists and peer reviews are clean, but traceability matrix/release audit still mark the execution baseline as pre-implementation and blocked for release use. |
+| Layer                     | Status          | Findings                                                                                                                                                                        |
+| ------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| code ↔ tasks              | ⚠️ EXPECTED-GAP | `tasks.md`: 0/179 tasks complete; implementation workspaces in plan are not created yet.                                                                                        |
+| tasks ↔ plan              | ⚠️ WARNING      | Structural phase alignment is intact, but FR-level determinism remains transitive (story-grouped tasking).                                                                      |
+| plan ↔ spec.md            | ✅ PASS         | Route-prefix governance references have been normalized to `/api/v1/*` for documentation handoff. _(SUPERSEDED 2026-07-06: canonical prefix is bare `/v1/*`, not `/api/v1/*`.)_ |
+| spec.md ↔ product-spec/   | ✅ PASS         | FR/C coverage remains complete across product-spec, journey, and wireframes.                                                                                                    |
+| product-spec/ ↔ research/ | ✅ PASS         | NFR and architecture rationale linkage remains complete.                                                                                                                        |
+| v-model ↔ spec.md         | ⚠️ WARNING      | V-model corpus exists and peer reviews are clean, but traceability matrix/release audit still mark the execution baseline as pre-implementation and blocked for release use.    |
 
 **Counts (post-remediation, 2026-05-13)**: **CRITICAL 0** · **WARNING 2** · **EXPECTED-GAP 3** · **PASSED 6**
 

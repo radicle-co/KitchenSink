@@ -29,5 +29,7 @@
         "typescript": "^5.9.3",
         "vitest": "^4.0.0"
     },
-    "engines": { "node": "24.x" }
+    "engines": {
+        "node": "24.x"
+    }
 }

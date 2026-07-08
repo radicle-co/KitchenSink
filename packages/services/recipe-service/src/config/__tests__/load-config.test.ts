@@ -144,7 +144,10 @@ describe('loadConfig — SSM fallback', () => {
         delete process.env['CLERK_JWT_KEY'];
         ssmSend.mockResolvedValue({
             Parameters: [
-                { Name: '/commise/production/CLERK_JWT_KEY', Value: '-----BEGIN PUBLIC KEY-----ssm-----END PUBLIC KEY-----' },
+                {
+                    Name: '/commise/production/CLERK_JWT_KEY',
+                    Value: '-----BEGIN PUBLIC KEY-----ssm-----END PUBLIC KEY-----',
+                },
             ],
         });
 

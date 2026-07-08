@@ -9,7 +9,9 @@ import { curateHomeWidgets } from '../curate-home-widgets.js';
  */
 const noopLoad = (): Promise<{ default: unknown }> => Promise.resolve({ default: null });
 
-const makeWidget = (overrides: Partial<HomeWidgetDescriptor> & Pick<HomeWidgetDescriptor, 'id'>): HomeWidgetDescriptor => ({
+const makeWidget = (
+    overrides: Partial<HomeWidgetDescriptor> & Pick<HomeWidgetDescriptor, 'id'>,
+): HomeWidgetDescriptor => ({
     load: noopLoad,
     defaultWeight: 0,
     ...overrides,
@@ -80,7 +82,10 @@ describe('curateHomeWidgets', () => {
         });
 
         it('treats an absent viewer tier as the default (rank 0) tier', () => {
-            const widgets = [makeWidget({ id: 'free-ok', minTier: 'free' }), makeWidget({ id: 'pro-only', minTier: 'pro' })];
+            const widgets = [
+                makeWidget({ id: 'free-ok', minTier: 'free' }),
+                makeWidget({ id: 'pro-only', minTier: 'pro' }),
+            ];
             const ctx: HomeWidgetCurationContext = { liveCapabilities: [] };
 
             // Default tier meets 'free' (rank 0) but not 'pro' (rank 1).
@@ -156,10 +161,7 @@ describe('curateHomeWidgets', () => {
 
     describe('purity', () => {
         it('does not mutate the input widgets array or its elements', () => {
-            const widgets = [
-                makeWidget({ id: 'a', defaultWeight: 1 }),
-                makeWidget({ id: 'b', defaultWeight: 9 }),
-            ];
+            const widgets = [makeWidget({ id: 'a', defaultWeight: 1 }), makeWidget({ id: 'b', defaultWeight: 9 })];
             const snapshot = widgets.map((widget) => ({ ...widget }));
 
             const result = curateHomeWidgets(widgets, { liveCapabilities: [] });

@@ -65,16 +65,16 @@ element via the traceability matrix (`v-model/traceability-matrix.md`).
 **Total**: 33 ARCH modules with integration test cases.
 **Source**: `v-model/architecture-design.md` — module boundary contracts.
 
-| Contract Type                | ARCH Pairs          | Technique                       |
-| ---------------------------- | ------------------- | ------------------------------- |
-| JWT Principal → Auth Guard   | ARCH-001 → ARCH-002 | Interface contract testing      |
-| Recipe DAL → Service         | ARCH-003 → ARCH-004 | Data flow testing               |
+| Contract Type                    | ARCH Pairs          | Technique                                                                  |
+| -------------------------------- | ------------------- | -------------------------------------------------------------------------- |
+| JWT Principal → Auth Guard       | ARCH-001 → ARCH-002 | Interface contract testing                                                 |
+| Recipe DAL → Service             | ARCH-003 → ARCH-004 | Data flow testing                                                          |
 | Ingredient → Food Service Client | ARCH-013 → ARCH-014 | Consumer-driven contract (CDCT) against `@kitchensink/food-service-client` |
-| Version → S3 Archive         | ARCH-017 → ARCH-018 | Interface fault injection       |
-| SQS Queue → Archive Consumer | ARCH-018 → ARCH-019 | Concurrency & race condition    |
-| Search → PostgreSQL FTS      | ARCH-024 → ARCH-025 | Interface contract testing      |
-| Photo Upload → S3 + Lambda   | ARCH-028 → ARCH-029 | Interface fault injection       |
-| Shared ALB → NestJS Service  | ARCH-030 → ARCH-031 | Interface contract testing      |
+| Version → S3 Archive             | ARCH-017 → ARCH-018 | Interface fault injection                                                  |
+| SQS Queue → Archive Consumer     | ARCH-018 → ARCH-019 | Concurrency & race condition                                               |
+| Search → PostgreSQL FTS          | ARCH-024 → ARCH-025 | Interface contract testing                                                 |
+| Photo Upload → S3 + Lambda       | ARCH-028 → ARCH-029 | Interface fault injection                                                  |
+| Shared ALB → NestJS Service      | ARCH-030 → ARCH-031 | Interface contract testing                                                 |
 
 **Key scenarios**:
 

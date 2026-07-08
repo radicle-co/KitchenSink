@@ -203,7 +203,10 @@ export type DatabaseConfig = DatabaseConnectionConfig & DatabasePoolConfig;
  * production secret, so it is not marked `secret`.
  */
 export const databaseConfigMeta: Record<string, ConfigFieldMeta> = {
-    DATABASE_URL: { secret: false, description: 'LOCAL DEV ONLY libpq URL (docker Postgres); unset in deployed stages' },
+    DATABASE_URL: {
+        secret: false,
+        description: 'LOCAL DEV ONLY libpq URL (docker Postgres); unset in deployed stages',
+    },
     DB_HOST: { secret: false, description: 'RDS endpoint host' },
     DB_PORT: { secret: false, description: 'RDS port (default 5432)' },
     DB_NAME: { secret: false, description: 'Recipe logical database (kitchensink_recipes)' },

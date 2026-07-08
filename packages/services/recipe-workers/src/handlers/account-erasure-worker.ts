@@ -35,10 +35,7 @@ export const ownerMediaPrefix = (ownerId: string): string => `recipes/${ownerId}
  *
  * @sideEffect deletes rows from RDS.
  */
-export const eraseRecipeRows = async (
-    _db: NodePgDatabase<Record<string, never>>,
-    _ownerId: string,
-): Promise<void> => {
+export const eraseRecipeRows = async (_db: NodePgDatabase<Record<string, never>>, _ownerId: string): Promise<void> => {
     // TODO(Phase 4+): within a single transaction, delete the owner's rows in FK-safe order
     // (steps + ingredients + photos -> versions -> recipes), keyed on ownerId.
 };

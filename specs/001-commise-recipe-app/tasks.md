@@ -53,7 +53,7 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Test Infrastructure
 
-- [ ] T082 [P] Create backend fixture factories (`makeRecipe`, `makeIngredient`, `makeCollection`, `makeUser`, `makeVersion`, `makePhoto`) in `packages/services/recipe-service/src/__fixtures__/index.ts` — typed, overridable defaults, `make*` naming per constitution
+- [x] T082 [P] Create backend fixture factories (`makeRecipe`, `makeIngredient`, `makeCollection`, `makeUser`, `makeVersion`, `makePhoto`) in `packages/services/recipe-service/src/__fixtures__/index.ts` — typed, overridable defaults, `make*` naming per constitution
 - [ ] T083 [P] Create web frontend fixture factories (`makeRecipeViewModel`, `makeCollectionViewModel`) in `packages/apps/commise/web/src/__fixtures__/index.ts`
 - [ ] T084 [P] Create mobile frontend fixture factories in `packages/apps/commise/mobile/src/__fixtures__/index.ts`
 - [x] T085 [P] Configure Vitest base config for API workspace with unit/integration/e2e splits in `packages/services/recipe-service/vitest.config.ts`, `packages/services/recipe-service/vitest.integration.config.ts`
@@ -128,36 +128,36 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Tests First (TDD Red) — Backend Unit Tests
 
-- [ ] T024-test Write unit tests for recipe DAL (create, findById, findAll with pagination, update, delete, ownership check) using fixtures in `packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.test.ts`
-- [ ] T025-test Write unit tests for recipe service (CRUD orchestration, authorization, validation) using mocked DAL in `packages/services/recipe-service/src/recipes/__tests__/recipes.service.test.ts`
-- [ ] T027-test Write unit tests for ingredient DAL (pg_trgm search, tsvector search, freeform creation) in `packages/services/recipe-service/src/ingredients/dal/__tests__/ingredients.dal.test.ts`
-- [ ] T028-test Write unit tests for ingredient service (food-service-client resolution: typeahead `search`, `addByName` → async `PENDING`/`UNRESOLVED`, poll `getById`/`getStatus`, disambiguation `getCandidates`/`resolve(id, candidateIds)`; **terminal `NOT_FOUND`/`FAILED` → surface error + freeform fallback + allow removal**; freeform + user-entered nutrition via the separate `isUserEntered` flag; dedup) in `packages/services/recipe-service/src/ingredients/__tests__/ingredients.service.test.ts`
+- [x] T024-test Write unit tests for recipe DAL (create, findById, findAll with pagination, update, delete, ownership check) using fixtures in `packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.test.ts`
+- [x] T025-test Write unit tests for recipe service (CRUD orchestration, authorization, validation) using mocked DAL in `packages/services/recipe-service/src/recipes/__tests__/recipes.service.test.ts`
+- [x] T027-test Write unit tests for ingredient DAL (pg_trgm search, tsvector search, freeform creation) in `packages/services/recipe-service/src/ingredients/dal/__tests__/ingredients.dal.test.ts`
+- [x] T028-test Write unit tests for ingredient service (food-service-client resolution: typeahead `search`, `addByName` → async `PENDING`/`UNRESOLVED`, poll `getById`/`getStatus`, disambiguation `getCandidates`/`resolve(id, candidateIds)`; **terminal `NOT_FOUND`/`FAILED` → surface error + freeform fallback + allow removal**; freeform + user-entered nutrition via the separate `isUserEntered` flag; dedup) in `packages/services/recipe-service/src/ingredients/__tests__/ingredients.service.test.ts`
 - [ ] T030-test Write unit tests for version DAL (snapshot create, list by recipe, retention query) in `packages/services/recipe-service/src/versions/dal/__tests__/versions.dal.test.ts`
 - [ ] T031-test Write unit tests for version service (snapshot write, DB retention pruning, S3 archive call) using mocked S3 in `packages/services/recipe-service/src/versions/__tests__/versions.service.test.ts`
-- [ ] T033-test Write unit tests for optimistic concurrency (version mismatch detection, 409 payload) in `packages/services/recipe-service/src/recipes/__tests__/conflict.service.test.ts`
+- [x] T033-test Write unit tests for optimistic concurrency (version mismatch detection, 409 payload) in `packages/services/recipe-service/src/recipes/__tests__/conflict.service.test.ts`
 - [ ] T034-test Write unit tests for photo DAL (metadata CRUD, 10-photo limit enforcement) in `packages/services/recipe-service/src/photos/dal/__tests__/photos.dal.test.ts`
 - [ ] T035-test Write unit tests for photo service (presigned URL generation with mocked S3, confirmation, deletion) in `packages/services/recipe-service/src/photos/__tests__/photos.service.test.ts`
 - [ ] T037-test Write unit tests for photo processor handler (S3 event parsing, Sharp invocation, output key generation, **`photo-processed` SQS emit payload**) in `packages/services/recipe-workers/src/photo-processor/__tests__/handler.test.ts`
 - [ ] T037b-test Write unit tests for the Fargate `photo-processed` SQS consumer (message parse, `recipe_photos` completion `UPDATE` to `complete`/`failed`, unknown-id no-op) in `packages/services/recipe-service/src/photos/__tests__/photo-processed.consumer.test.ts`
 - [ ] T038-test Write unit tests for Sharp resize utility (WebP conversion, variant dimensions) in `packages/services/recipe-workers/src/photo-processor/lib/__tests__/sharp.lib.test.ts`
-- [ ] T039-test Write unit tests for collections DAL (CRUD, membership add/remove, multi-membership) in `packages/services/recipe-service/src/collections/dal/__tests__/collections.dal.test.ts`
-- [ ] T040-test Write unit tests for collections service (CRUD, membership, no-cascade delete) in `packages/services/recipe-service/src/collections/__tests__/collections.service.test.ts`
-- [ ] T140-test Write unit tests for set-collection-visibility (FR-010): toggles `collections.visibility` public↔private, ownership enforced, invalid value rejected, response reflects new visibility in `packages/services/recipe-service/src/collections/__tests__/collection-visibility.service.test.ts`
+- [x] T039-test Write unit tests for collections DAL (CRUD, membership add/remove, multi-membership) in `packages/services/recipe-service/src/collections/dal/__tests__/collections.dal.test.ts`
+- [x] T040-test Write unit tests for collections service (CRUD, membership, no-cascade delete) in `packages/services/recipe-service/src/collections/__tests__/collections.service.test.ts`
+- [x] T140-test Write unit tests for set-collection-visibility (FR-010): toggles `collections.visibility` public↔private, ownership enforced, invalid value rejected, response reflects new visibility in `packages/services/recipe-service/src/collections/__tests__/collection-visibility.service.test.ts`
 - [ ] T042-test Write unit tests for search DAL (FTS rank query, facet aggregation, empty result) in `packages/services/recipe-service/src/search/dal/__tests__/search.dal.test.ts`
 
 ### Implementation (TDD Green)
 
-- [ ] T023 [P] [US1] Define create/update/list recipe DTOs in `packages/services/recipe-service/src/recipes/dto/{create-recipe.dto.ts,update-recipe.dto.ts,list-recipes.query.dto.ts}`
-- [ ] T024 [P] [US1] Implement recipe DAL queries in `packages/services/recipe-service/src/recipes/dal/recipes.dal.ts`
-- [ ] T025 [US1] Implement recipe create/list/get/update/delete service logic in `packages/services/recipe-service/src/recipes/recipes.service.ts`
-- [ ] T026 [US1] Implement recipes controller endpoints for `/v1/recipes` and `/v1/recipes/{id}` in `packages/services/recipe-service/src/recipes/recipes.controller.ts`
-- [ ] T027 [P] [US1] Implement ingredient search DAL with pg_trgm + tsvector strategy in `packages/services/recipe-service/src/ingredients/dal/ingredients.dal.ts`
-- [ ] T028 [US1] Implement ingredient service backed by the source-agnostic food service (003) via `@kitchensink/food-service-client` (`FoodServiceClient`) — typeahead `search`, `addByName` (→ `202 { id, status: PENDING | UNRESOLVED }`, async resolution), poll `getById`/`getStatus`, disambiguation `getCandidates`/`resolve(id, candidateIds)` — persisting `food_id` (opaque food ULID) + `food_resolution_status` (`PENDING`|`UNRESOLVED`|`RESOLVED`|`NOT_FOUND`|`FAILED`); a terminal `NOT_FOUND`/`FAILED` surfaces an error and offers the freeform fallback (removal allowed), plus freeform (FR-007a, user-entered nutrition via the separate `is_user_entered` flag) creation, in `packages/services/recipe-service/src/ingredients/ingredients.service.ts`
-- [ ] T029 [US1] Implement ingredients controller endpoints for `/v1/ingredients/search` and `/v1/ingredients` in `packages/services/recipe-service/src/ingredients/ingredients.controller.ts`
+- [x] T023 [P] [US1] Define create/update/list recipe DTOs in `packages/services/recipe-service/src/recipes/dto/{create-recipe.dto.ts,update-recipe.dto.ts,list-recipes.query.dto.ts}`
+- [x] T024 [P] [US1] Implement recipe DAL queries in `packages/services/recipe-service/src/recipes/dal/recipes.dal.ts`
+- [x] T025 [US1] Implement recipe create/list/get/update/delete service logic in `packages/services/recipe-service/src/recipes/recipes.service.ts`
+- [x] T026 [US1] Implement recipes controller endpoints for `/v1/recipes` and `/v1/recipes/{id}` in `packages/services/recipe-service/src/recipes/recipes.controller.ts`
+- [x] T027 [P] [US1] Implement ingredient search DAL with pg_trgm + tsvector strategy in `packages/services/recipe-service/src/ingredients/dal/ingredients.dal.ts`
+- [x] T028 [US1] Implement ingredient service backed by the source-agnostic food service (003) via `@kitchensink/food-service-client` (`FoodServiceClient`) — typeahead `search`, `addByName` (→ `202 { id, status: PENDING | UNRESOLVED }`, async resolution), poll `getById`/`getStatus`, disambiguation `getCandidates`/`resolve(id, candidateIds)` — persisting `food_id` (opaque food ULID) + `food_resolution_status` (`PENDING`|`UNRESOLVED`|`RESOLVED`|`NOT_FOUND`|`FAILED`); a terminal `NOT_FOUND`/`FAILED` surfaces an error and offers the freeform fallback (removal allowed), plus freeform (FR-007a, user-entered nutrition via the separate `is_user_entered` flag) creation, in `packages/services/recipe-service/src/ingredients/ingredients.service.ts`
+- [x] T029 [US1] Implement ingredients controller endpoints for `/v1/ingredients/search` and `/v1/ingredients` in `packages/services/recipe-service/src/ingredients/ingredients.controller.ts`
 - [ ] T030 [P] [US1] Implement recipe version snapshot DAL in `packages/services/recipe-service/src/versions/dal/versions.dal.ts`
 - [ ] T031 [US1] Implement versioning service for snapshot writes, DB retention (last 10), and S3 archive writes in `packages/services/recipe-service/src/versions/versions.service.ts`
 - [ ] T032 [US1] Implement versions controller endpoints for list/get/restore in `packages/services/recipe-service/src/versions/versions.controller.ts`
-- [ ] T033 [US1] Implement optimistic concurrency conflict handling with HTTP 409 payload in `packages/services/recipe-service/src/recipes/recipes.service.ts`
+- [x] T033 [US1] Implement optimistic concurrency conflict handling with HTTP 409 payload in `packages/services/recipe-service/src/recipes/recipes.service.ts`
 - [ ] T034 [P] [US1] Implement photo metadata DAL with 10-photo limit checks in `packages/services/recipe-service/src/photos/dal/photos.dal.ts`
 - [ ] T035 [US1] Implement photo upload URL and confirmation service logic in `packages/services/recipe-service/src/photos/photos.service.ts`
 - [ ] T036 [US1] Implement photos controller endpoints for upload-url/confirm/list/delete/reorder in `packages/services/recipe-service/src/photos/photos.controller.ts`
@@ -165,12 +165,17 @@ A feature is **not done** until every category its code touches has all the requ
 - [ ] T037b [US1] Implement the Fargate **`photo-processed` SQS consumer** in the recipe API (in-VPC, reaches RDS) that consumes the message and performs the `recipe_photos` completion `UPDATE` (`processing_status = 'complete' | 'failed'`, sets `s3_key_thumb`/`s3_key_card`/`s3_key_full`) in `packages/services/recipe-service/src/photos/photo-processed.consumer.ts` (D1 — the photo-processor Lambda never writes the DB)
 - [ ] T038 [P] [US1] Implement Sharp resize utility for thumb/card/full WebP variants in `packages/services/recipe-workers/src/photo-processor/lib/sharp.lib.ts`
 - [ ] T038b [US1] Add CDK infrastructure for the **`photo-processed` SQS queue + DLQ** (D1): photo-processor Lambda gets send perms, the Fargate recipe service gets consume perms; wire the S3 upload-event → photo-processor Lambda subscription in `packages/services/recipe-workers/infra/`
-- [ ] T039 [P] [US1] Implement collections DAL queries in `packages/services/recipe-service/src/collections/dal/collections.dal.ts`
-- [ ] T040 [US1] Implement collections service for CRUD and recipe membership in `packages/services/recipe-service/src/collections/collections.service.ts`
-- [ ] T041 [US1] Implement collections controller endpoints in `packages/services/recipe-service/src/collections/collections.controller.ts`
-- [ ] T140 [US1] Implement **set-collection-visibility** (FR-010; FR-011 clone-public-collection depends on it): a `PATCH /v1/collections/{id}` (visibility field) controller endpoint + service method that writes the `collections.visibility` column (public/private), ownership-enforced, in `packages/services/recipe-service/src/collections/{collections.controller.ts,collections.service.ts}`. The `collections.visibility` **column** (schema/migration) and the OpenAPI field are added by other agents (T014 schema / T053 OpenAPI); this task consumes them
+- [x] T039 [P] [US1] Implement collections DAL queries in `packages/services/recipe-service/src/collections/dal/collections.dal.ts`
+- [x] T040 [US1] Implement collections service for CRUD and recipe membership in `packages/services/recipe-service/src/collections/collections.service.ts`
+- [x] T041 [US1] Implement collections controller endpoints in `packages/services/recipe-service/src/collections/collections.controller.ts`
+- [x] T140 [US1] Implement **set-collection-visibility** (FR-010; FR-011 clone-public-collection depends on it): a `PATCH /v1/collections/{id}` (visibility field) controller endpoint + service method that writes the `collections.visibility` column (public/private), ownership-enforced, in `packages/services/recipe-service/src/collections/{collections.controller.ts,collections.service.ts}`. The `collections.visibility` **column** (schema/migration) and the OpenAPI field are added by other agents (T014 schema / T053 OpenAPI); this task consumes them
 - [ ] T042 [P] [US1] Implement search DAL with FTS rank sampling CTE and facet aggregation in `packages/services/recipe-service/src/search/dal/search.dal.ts`
 - [ ] T043 [US1] Implement search service/controller for `/v1/search/recipes` in `packages/services/recipe-service/src/search/{search.service.ts,search.controller.ts}`
+
+### Recipe ↔ Ingredient Composition (cross-vertical reconciliation)
+
+- [ ] T043b-test [US1] Write unit + integration tests for recipe↔ingredient composition: recipe create/update persists `recipe_ingredients` link rows (each line resolved to an `ingredients` row — food-backed by `food_id` or freeform by name — via the ingredients DAL), and `GET /v1/recipes/{id}` composes the response `ingredients` array (join `recipe_ingredients` → `ingredients`). In `src/recipes/__tests__/recipe-ingredients.composition.test.ts` + `__tests__/integration/recipes/ingredients-composition.integration.spec.ts`
+- [ ] T043b [US1] **[cross-vertical reconciliation — closes the parallel-agent seam]** Persist `recipe_ingredients` on recipe create/update and compose them on read. The recipes vertical (T024/T025) currently persists only `recipes` + `recipe_steps` + the denormalized `ingredient_names_text` and emits an **empty `ingredients` array**; the ingredients vertical (T027/T028) owns the `ingredients` table but not the recipe link. Add a `RecipeIngredientsDal` (owns the `recipe_ingredients` junction) wired into `RecipesService`, collaborating with the ingredients DAL to resolve/create each line, so `POST/PATCH /v1/recipes` and `GET /v1/recipes/{id}` handle ingredients end-to-end. Also add `FOOD_SERVICE_URL` / `FOOD_SERVICE_TOKEN` to the recipe-service config schema (`src/config/config.types.ts`) so the ingredients food-client env is validated (currently read from raw `process.env`)
 
 ### Integration Tests (TDD — against real DB + LocalStack)
 

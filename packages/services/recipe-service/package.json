@@ -37,7 +37,8 @@
         "@aws-sdk/rds-signer": "^3.1079.0",
         "@aws-sdk/client-ssm": "^3.1079.0",
         "@kitchensink/clerk-verify": "*",
-        "@kitchensink/recipe-core": "*"
+        "@kitchensink/recipe-core": "*",
+        "@kitchensink/food-service-client": "*"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",

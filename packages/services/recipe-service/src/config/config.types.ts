@@ -325,24 +325,6 @@ export const apiConfigSchema = baseConfigSchema
 export type ApiConfig = z.infer<typeof apiConfigSchema>;
 
 // ---------------------------------------------------------------------------
-// Composite: Photo Processor Lambda Config
-// ---------------------------------------------------------------------------
-
-/**
- * Configuration schema for the photo processor Lambda.
- *
- * S3-only: no database, no Clerk, no rate limits. The processor is **not** VPC-attached and never
- * touches RDS (preserves ADR-0004 minimize-NAT/VPC). It resizes, writes to S3, and emits an SQS
- * `photo-processed` message; the in-VPC Fargate recipe API consumes that message and performs the
- * `recipe_photos` completion `UPDATE`. Hence the deliberate absence of the database connection/pool
- * schemas here.
- */
-export const photoProcessorConfigSchema = baseConfigSchema.merge(storageConfigSchema);
-
-/** Typed photo processor configuration. */
-export type PhotoProcessorConfig = z.infer<typeof photoProcessorConfigSchema>;
-
-// ---------------------------------------------------------------------------
 // Config Loader Interface
 // ---------------------------------------------------------------------------
 
@@ -406,10 +388,10 @@ export interface LoadConfigOptions {
  *
  * @example
  * ```typescript
- * // In the photo-processor Lambda handler (its own config/ module)
- * import { loadConfig, photoProcessorConfigSchema } from './config/index.js';
+ * // In a worker Lambda handler (its own config/ module)
+ * import { loadConfig, workerConfigSchema } from './config/index.js';
  *
- * const config = await loadConfig(photoProcessorConfigSchema, {
+ * const config = await loadConfig(workerConfigSchema, {
  *   ssmFallback: true,
  *   ssm: { prefix: '/commise' },
  * });

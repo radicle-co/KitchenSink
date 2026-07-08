@@ -7,8 +7,7 @@
     "dependencies": {
         "@aws-lambda-powertools/logger": "^2.33.1",
         "aws-cdk-lib": "^2.0.0",
-        "constructs": "^10.0.0",
-        "sharp": "^0.34.2"
+        "constructs": "^10.0.0"
     },
     "engines": {
         "node": "24.x"

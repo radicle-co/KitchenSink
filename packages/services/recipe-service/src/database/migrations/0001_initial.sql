@@ -104,20 +104,18 @@ CREATE TABLE "recipe_ingredients" (
     CONSTRAINT "recipe_ingredients_quantity_positive" CHECK ("quantity" > 0)
 );
 
--- ── recipe_photos: S3-backed images (completion UPDATE done by the in-VPC API, not the Lambda) ─────
+-- ── recipe_photos: S3-backed images validated by magic bytes + size, served as-is via CloudFront ───
+-- No resizing/variants/processing state: a single stored object key per photo (the object served
+-- unmodified). The recipe API inserts the row synchronously on confirm; there is no photo-processor.
 CREATE TABLE "recipe_photos" (
-    "id"                uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "recipe_id"         uuid NOT NULL REFERENCES "recipes"("id") ON DELETE CASCADE,
-    "s3_key_orig"       text NOT NULL,
-    "s3_key_thumb"      text,
-    "s3_key_card"       text,
-    "s3_key_full"       text,
-    "cdn_url_base"      text NOT NULL,
-    "processing_status" text DEFAULT 'pending' NOT NULL,
-    "sort_order"        integer DEFAULT 0 NOT NULL,
-    "created_at"        timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT "recipe_photos_processing_status_check"
-        CHECK ("processing_status" IN ('pending', 'processing', 'complete', 'failed')),
+    "id"           uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "recipe_id"    uuid NOT NULL REFERENCES "recipes"("id") ON DELETE CASCADE,
+    "s3_key"       text NOT NULL,
+    "content_type" text NOT NULL,
+    "size_bytes"   integer,
+    "sort_order"   integer DEFAULT 0 NOT NULL,
+    "created_at"   timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at"   timestamp with time zone DEFAULT now() NOT NULL,
     -- Advisory only — the real 10-per-recipe cap is enforced in the service layer (COUNT + advisory lock).
     CONSTRAINT "max_photos_per_recipe" CHECK (true)
 );

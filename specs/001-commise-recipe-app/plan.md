@@ -7,7 +7,7 @@
 
 ## Summary
 
-Core recipe management application — CRUD operations, full-text search (PostgreSQL FTS with tsvector/tsquery + GIN indexes), recipe versioning (snapshot pattern with optimistic concurrency), sharing/cloning with visibility controls (private/public), collection cloning with opt-in source-pull, and photo management (S3 presigned uploads + Lambda Sharp processing + CloudFront CDN). NestJS 11 on AWS Fargate (ECS) backend, RDS PostgreSQL 16, Drizzle ORM, Turborepo monorepo with npm workspaces.
+Core recipe management application — CRUD operations, full-text search (PostgreSQL FTS with tsvector/tsquery + GIN indexes), recipe versioning (snapshot pattern with optimistic concurrency), sharing/cloning with visibility controls (private/public), collection cloning with opt-in source-pull, and photo management (S3 presigned uploads + magic-byte/size validation, served as-is via CloudFront CDN — no resizing or async processing). NestJS 11 on AWS Fargate (ECS) backend, RDS PostgreSQL 16, Drizzle ORM, Turborepo monorepo with npm workspaces.
 
 Cross-cutting reliability behaviors driven by the 2026-04-30 spec clarifications:
 
@@ -19,13 +19,13 @@ Cross-cutting reliability behaviors driven by the 2026-04-30 spec clarifications
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x, Node.js 24.x (per `.nvmrc` + `package.json` engines)
-**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg` (node-postgres), `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs` (version-archive, photo-processed, account-erasure queues), Sharp (Lambda photo processor), `class-validator` + `class-transformer` (DTO validation), `@nestjs/config` (Zod env), `@clerk/nextjs` (web), `@clerk/expo` (mobile), `@clerk/backend` (API session-token verification), `@kitchensink/food-service-client` (ingredient data via the source-agnostic food service 003 — async resolution), `ditox` + `@ditox/react` (frontend DI container / `appShell` for the Home widget surface)
-**Storage**: the **shared** RDS PostgreSQL 16 instance — recipe tables in their own logical database `kitchensink_recipes` on that shared instance (mirrors `kitchensink_food`; no new RDS instance) — pg_trgm, JSONB, tsvector FTS; S3 (photo objects + version archives) + CloudFront (CDN); SQS (version-archive, photo-processed, account-erasure queues + DLQs)
+**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg` (node-postgres), `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs` (version-archive, account-erasure queues), `class-validator` + `class-transformer` (DTO validation), `@nestjs/config` (Zod env), `@clerk/nextjs` (web), `@clerk/expo` (mobile), `@clerk/backend` (API session-token verification), `@kitchensink/food-service-client` (ingredient data via the source-agnostic food service 003 — async resolution), `ditox` + `@ditox/react` (frontend DI container / `appShell` for the Home widget surface)
+**Storage**: the **shared** RDS PostgreSQL 16 instance — recipe tables in their own logical database `kitchensink_recipes` on that shared instance (mirrors `kitchensink_food`; no new RDS instance) — pg_trgm, JSONB, tsvector FTS; S3 (photo objects + version archives) + CloudFront (CDN); SQS (version-archive, account-erasure queues + DLQs)
 **Testing**: Vitest (unit + integration), Playwright (web E2E), Maestro (mobile E2E); TDD red-green-refactor; LocalStack for AWS emulation (S3 + SQS); pyramid target ≥70% unit / ≤20% integration / ≤10% E2E
-**Target Platform**: AWS Fargate (ECS) for NestJS API, Lambda for photo processor (S3-only, not VPC-attached), Lambda for version-archive worker (SQS-triggered, VPC-attached), Lambda for GDPR erasure worker (SQS-triggered, VPC-attached), CloudFront CDN, RDS PostgreSQL
-**Project Type**: web-service (NestJS REST API) + serverless functions (photo processor + version-archive worker + erasure worker) + web app (Next.js) + mobile app (Expo/React Native)
+**Target Platform**: AWS Fargate (ECS) for NestJS API, Lambda for version-archive worker (SQS-triggered, VPC-attached), Lambda for GDPR erasure worker (SQS-triggered, VPC-attached), CloudFront CDN, RDS PostgreSQL
+**Project Type**: web-service (NestJS REST API) + serverless functions (version-archive worker + erasure worker) + web app (Next.js) + mobile app (Expo/React Native)
 **Performance Goals**: p95 ≤ 500 ms API response for 10k concurrent users; search latency < 2 s (PostgreSQL FTS at launch, Typesense fallback if p95 > 400 ms); recipe save p95 must remain ≤ 500 ms even when S3 version archive is queued (FR-007b-i)
-**Constraints**: 5 MB max photo upload, 10 photos per recipe, < 200 ms cold start (Fargate eliminates Lambda cold start for API; Lambda photo processor and version-archive worker are async so cold start is non-blocking); recipe save MUST NOT block on S3 archive (FR-007b-i); photo uploads MUST NOT block recipe metadata save (FR-001a); soft-deleted recipes MUST be filtered from every read path
+**Constraints**: 5 MB max photo upload, 10 photos per recipe, < 200 ms cold start (Fargate eliminates Lambda cold start for API; the version-archive worker Lambda is async so cold start is non-blocking); recipe save MUST NOT block on S3 archive (FR-007b-i); photo uploads MUST NOT block recipe metadata save (FR-001a); soft-deleted recipes MUST be filtered from every read path
 **Scale/Scope**: 10k concurrent users, < 5M recipes initially; connection pool 50–100 (the shared RDS); pending-archive backlog target ≤ 100 rows steady state with operator alert above threshold
 
 ## Constitution Check
@@ -108,7 +108,7 @@ packages/
 │   │   │   ├── versions/                # Version module (snapshots, retention)
 │   │   │   │   ├── versions.service.ts  # DB write + SQS enqueue (FR-007b-i)
 │   │   │   │   └── archive/             # Pending-archive read/replay/delete logic
-│   │   │   ├── photos/                  # Photo module (presigned URLs, per-file confirm/retry); consumes SQS photo-processed → writes recipe_photos completion (Fargate is the only DB writer)
+│   │   │   ├── photos/                  # Photo module (presigned URLs, per-file confirm with magic-byte + size validation, list/delete/reorder); object served as-is via CloudFront (no resizing, no async processing)
 │   │   │   ├── collections/             # Collection module (CRUD, membership, clone, pull-from-source)
 │   │   │   ├── search/                  # Search module (PostgreSQL FTS, deleted_at filter)
 │   │   │   ├── users/                   # User module
@@ -126,8 +126,6 @@ packages/
 │   │       └── integration/             # Vitest + Docker PostgreSQL + LocalStack S3/SQS
 │   └── recipe-workers/                 # @kitchensink/recipe-workers — worker Lambdas (pattern of identity-webhooks)
 │       ├── src/
-│       │   ├── photo-processor/        # Lambda (Sharp image resize) — S3 only, NOT VPC-attached; emits SQS photo-processed (the Fargate API, not this Lambda, writes recipe_photos)
-│       │   │   └── handler.ts
 │       │   ├── version-archive-worker/ # Lambda (SQS-triggered, FR-007b-i) — reads shared RDS (`kitchensink_recipes`) → VPC-attached (t4g.nano NAT consumer)
 │       │   │   └── handler.ts           # Reads the version row's snapshot (via the pending row's recipe_version_id FK), PUTs to S3, deletes pending row on success
 │       │   └── erasure-worker/         # Lambda (SQS account-erasure-triggered, C-007 GDPR hard purge) — reads RDS + deletes S3 → VPC-attached; a cron sweeper re-drives stuck jobs
@@ -148,7 +146,7 @@ packages/
     └── prettier/
 ```
 
-**Structure Decision**: Monorepo split along a platform/product boundary (CODING_STANDARDS §5.1, Option B): KitchenSink **platform** packages (backend services, workers, clients, shared libs, tools, infra) are `@kitchensink/*` at `packages/{services,clients,shared,tools,infra}/<name>` and keep the existing role-suffix style (`-service`, `-workers`, `-service-client`); the Commise **product** (apps + feature/UI packages) is `@commise/*` under `packages/apps/commise/{web,mobile,features/*,ui}`. The recipe backend (`@kitchensink/recipe-service`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@kitchensink/recipe-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance), while the **photo-processor is S3-only and NOT VPC-attached** — it resizes to S3 and emits an SQS `photo-processed` message that the in-VPC Fargate API consumes to perform the `recipe_photos` completion write (the Lambda never touches the DB, preserving ADR-0004). The typed recipe API client is `@kitchensink/recipe-service-client` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@kitchensink/recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
+**Structure Decision**: Monorepo split along a platform/product boundary (CODING_STANDARDS §5.1, Option B): KitchenSink **platform** packages (backend services, workers, clients, shared libs, tools, infra) are `@kitchensink/*` at `packages/{services,clients,shared,tools,infra}/<name>` and keep the existing role-suffix style (`-service`, `-workers`, `-service-client`); the Commise **product** (apps + feature/UI packages) is `@commise/*` under `packages/apps/commise/{web,mobile,features/*,ui}`. The recipe backend (`@kitchensink/recipe-service`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@kitchensink/recipe-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance). Photos are stored and served as-is (no resizing/async processing), so there is no photo-processor Lambda. The typed recipe API client is `@kitchensink/recipe-service-client` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@kitchensink/recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
 
 ## Reliability Architecture (FR-001a, FR-007b-i, C-007, FR-011)
 
@@ -171,23 +169,17 @@ Client                       NestJS RecipesService                   PostgreSQL
   │  POST /photos/upload-url    │  ContentLengthRange [1, 5MB]         │
   │ ◄─── { uploadUrl, key }     │                                      │
   │  PUT (direct to S3) ────────────────────────────────────► S3       │
-  │  POST /photos/confirm       │  validate size+MIME server-side      │
-  │ ───────────────────────────►│  INSERT recipe_photos (status=pending)│
-  │ ◄─── 201 { photo }          │                                      │
-  │                             │  S3 event → photo-processor Lambda   │
-  │                             │  (resize → S3; NO DB)                 │
-  │                             │  → SQS photo-processed               │
-  │                             │  → Fargate API consumer              │
-  │                             │  → UPDATE recipe_photos SET ...      │
-  │                             │           processing_status='complete'│
+  │  POST /photos/confirm       │  validate magic-bytes + S3 HEAD size │
+  │ ───────────────────────────►│  INSERT recipe_photos { s3_key, ... } │
+  │ ◄─── 201 { photo }          │  (object served as-is via CloudFront) │
 ```
 
 - Recipe metadata commit is one DB transaction. Photos are never part of that transaction.
-- Per-photo client-side validation (size ≤ 5 MB, MIME image/\*) before requesting the presigned URL.
-- Per-photo server-side re-validation on `/photos/confirm` (presigned URL `ContentLengthRange` is the hard cap; confirm checks MIME + S3 HEAD size).
+- Per-photo client-side validation (size ≤ 5 MB, MIME in `image/jpeg | image/png | image/webp`) before requesting the presigned URL.
+- Per-photo server-side re-validation on `/photos/confirm`: the presigned URL `ContentLengthRange` + allowlisted `ContentType` are the upload-time caps; confirm re-checks by **magic bytes** (JPEG/PNG/WebP signature, NOT the client Content-Type) + an S3 HEAD size ≤ 5 MB, then INSERTs the `recipe_photos` row.
 - Failed photo uploads return a per-file error to the client with a `retryable: true` flag. The client may re-request a presigned URL and retry without re-saving the recipe.
-- Photos that never reach `processing_status='complete'` are surfaced to the user but never linked as broken references on the recipe (the `recipe_photos` row exists in `pending` or `failed` state and is filterable/discardable; the `recipes` row never holds a direct image foreign key beyond `recipe_photos`).
-- The **photo-processor Lambda is S3-only and NOT VPC-attached** (preserves ADR-0004 minimize-NAT/VPC): it resizes and writes derivatives to S3, then emits an SQS `photo-processed` message. The **in-VPC Fargate recipe API** consumes `photo-processed` and performs the `recipe_photos` completion `UPDATE` (`processing_status='complete'|'failed'`, S3 keys). The Lambda never touches the DB.
+- A photo that fails confirm validation is never inserted, so it is never linked as a broken reference on the recipe (the `recipes` row never holds a direct image foreign key beyond `recipe_photos`).
+- The stored object is served **unmodified** via CloudFront — there are no derived variants, no resizing, no processing state machine, and no photo-processor Lambda / `photo-processed` SQS queue.
 
 ### Resilient Version Archive to S3 (FR-007b-i)
 
@@ -327,7 +319,7 @@ Every implementation task in `tasks.md` is paired with a corresponding test task
 ### LocalStack in Tests (NFR-007)
 
 - **Local dev**: Docker Compose (`docker-compose.yml`) runs PostgreSQL 16 + LocalStack (S3 + SQS).
-- **CI**: GitHub Actions service containers mirror the same setup. LocalStack provisions S3 buckets **and** the version-archive, photo-processed, and account-erasure SQS queues + DLQs in a `globalSetup.ts` before integration/E2E test suites run.
+- **CI**: GitHub Actions service containers mirror the same setup. LocalStack provisions S3 buckets **and** the version-archive and account-erasure SQS queues + DLQs in a `globalSetup.ts` before integration/E2E test suites run.
 - **Test isolation**: Each integration test suite gets a fresh database schema (Drizzle migrations applied in `globalSetup`). S3 buckets and SQS queues are purged between test suites.
 
 ### Maestro Mobile E2E (NFR-006)
@@ -399,7 +391,7 @@ new_jobs: # ADD these
         services: [postgres, localstack] # localstack runs s3 + sqs
         steps:
             - run migrations + seed
-            - provision SQS queues (commise-version-archive, commise-photo-processed, commise-account-erasure) + DLQs
+            - provision SQS queues (commise-version-archive, commise-account-erasure) + DLQs
             - turbo run test:integration
     test-e2e-web:
         needs: [test]
@@ -417,7 +409,7 @@ new_jobs: # ADD these
 ### CI Service Containers
 
 - **PostgreSQL 16**: `postgres:16-alpine` with `pg_trgm` extension, health check.
-- **LocalStack 3**: `localstack/localstack:3` with `SERVICES=s3,sqs`, provisions buckets and the `commise-version-archive`, `commise-photo-processed`, and `commise-account-erasure` queues + DLQs in job setup step.
+- **LocalStack 3**: `localstack/localstack:3` with `SERVICES=s3,sqs`, provisions buckets and the `commise-version-archive` and `commise-account-erasure` queues + DLQs in job setup step.
 - **Playwright**: Browser binaries cached by `playwright-version + runner-os` key. Traces/reports uploaded on failure only.
 - **Maestro**: Installed via `maestro-cli` action; flows run against Expo dev build on emulator/simulator.
 
@@ -507,4 +499,4 @@ T060 (Phase 6 parity audit) remains in place as a final gate. It now checks that
 
 | Violation                                            | Why Needed                                                                                                                                                               | Simpler Alternative Rejected Because                                                                                                                                     |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| New workspace `packages/services/recipe-workers/` (photo-processor + version-archive-worker + erasure-worker) | FR-007b-i (archive) and C-007 (GDPR erasure) require async work that must not block the user request. SQS-triggered Lambdas are the standard AWS pattern for at-least-once async processing with DLQ + retry; the photo-processor stays S3-only/non-VPC per ADR-0004. | Inlining the archive/erasure writes in the Fargate API process would violate "save/erase MUST succeed independently of S3" and would couple recipe-save p95 to S3 latency/availability. |
+| New workspace `packages/services/recipe-workers/` (version-archive-worker + erasure-worker) | FR-007b-i (archive) and C-007 (GDPR erasure) require async work that must not block the user request. SQS-triggered Lambdas are the standard AWS pattern for at-least-once async processing with DLQ + retry. | Inlining the archive/erasure writes in the Fargate API process would violate "save/erase MUST succeed independently of S3" and would couple recipe-save p95 to S3 latency/availability. |

@@ -256,15 +256,12 @@ CREATE INDEX idx_recipe_ingredients_ingredient_id ON recipe_ingredients (ingredi
 CREATE TABLE recipe_photos (
     id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     recipe_id     UUID    NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-    s3_key_orig   TEXT    NOT NULL,          -- original upload key (may be deleted post-processing)
-    s3_key_thumb  TEXT,                      -- 150×150 WebP
-    s3_key_card   TEXT,                      -- 400×400 WebP
-    s3_key_full   TEXT,                      -- 1200×1200 WebP
-    cdn_url_base  TEXT    NOT NULL,          -- CloudFront base URL (without size suffix)
-    processing_status TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (processing_status IN ('pending', 'processing', 'complete', 'failed')),
+    s3_key        TEXT    NOT NULL,          -- the single stored object key (served as-is via CloudFront)
+    content_type  TEXT    NOT NULL,          -- validated MIME (image/jpeg | image/png | image/webp)
+    size_bytes    INTEGER,                   -- object size from the S3 HEAD (≤ 5 MB)
     sort_order    INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT max_photos_per_recipe CHECK (
         -- enforced at application layer; this constraint is advisory
@@ -417,41 +414,38 @@ HAVING count(DISTINCT ingredient_id) = array_length($1::uuid[], 1);
 
 ---
 
-## Image Processing Pipeline
+## Photo Upload Flow
+
+Photos are stored and served **as-is** — no resizing, no derived variants, no async processing. The
+flow is fully synchronous within the Fargate recipe API; there is no photo-processor Lambda and no
+`photo-processed` SQS queue.
 
 ```
 POST /v1/recipes/{id}/photos/upload-url
-  → Fargate recipe API generates S3 presigned PUT URL
+  → Fargate recipe API generates an S3 presigned PUT URL
+    (ContentLengthRange ≤ 5 MB; ContentType restricted to the allowlist)
   → Returns { uploadUrl, key, expiresIn: 900 }
 
-Client PUT → s3://bucket/uploads/{uuid}/original.{ext}
-  → S3 event → photo-processor Lambda (Sharp) — S3-ONLY, NOT VPC-attached, touches NO DB (ADR-0004)
-     ├── Resize to 150×150 → s3://bucket/photos/{uuid}/thumb.webp
-     ├── Resize to 400×400 → s3://bucket/photos/{uuid}/card.webp
-     └── Resize to 1200×1200 → s3://bucket/photos/{uuid}/full.webp
-  → emits SQS `photo-processed` { recipePhotoId, s3_key_thumb, s3_key_card, s3_key_full, status }
-  → (Optional) DELETE original from S3 after successful processing
+Client PUT → s3://bucket/photos/{uuid}.{ext}
 
-  → Fargate recipe API (in-VPC, reaches RDS) CONSUMES `photo-processed` and performs the
-    completion UPDATE — the Lambda never writes the DB:
-      UPDATE recipe_photos SET
-          s3_key_thumb = ..., s3_key_card = ..., s3_key_full = ...,
-          processing_status = 'complete'   -- or 'failed'
-      WHERE id = {recipePhotoId}
+POST /v1/recipes/{id}/photos/confirm { key, contentType }
+  → Fargate recipe API validates the uploaded object:
+     ├── reads the file's leading bytes and checks the magic-byte signature
+     │   (JPEG / PNG / WebP — NOT the client-supplied Content-Type); reject others
+     └── S3 HEAD → size_bytes ≤ 5 MB; reject otherwise
+  → INSERT recipe_photos { s3_key, content_type, size_bytes, sort_order }
 
 Serving:
-  https://cdn.commise.app/photos/{uuid}/thumb.webp   (CloudFront, immutable cache)
-  https://cdn.commise.app/photos/{uuid}/card.webp
-  https://cdn.commise.app/photos/{uuid}/full.webp
+  https://cdn.commise.app/{s3_key}   (CloudFront, immutable cache — the object served unmodified)
 ```
 
-Presigned URL constraint (5 MB limit):
+Presigned URL constraint (5 MB limit + allowlisted content type):
 
 ```typescript
 const command = new PutObjectCommand({
     Bucket: process.env.UPLOAD_BUCKET,
     Key: key,
-    ContentType: contentType,
+    ContentType: contentType, // one of image/jpeg | image/png | image/webp
     ContentLengthRange: [1, 5 * 1024 * 1024], // 1 byte – 5 MB
 });
 ```

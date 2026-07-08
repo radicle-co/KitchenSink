@@ -3,24 +3,18 @@ import { writeFileSync } from 'node:fs';
 
 /**
  * Bundle each Lambda handler into a self-contained ESM file under dist/, mirroring the src/ layout
- * (outbase: src) so the CDK `handler:` strings (e.g. `handlers/photo-processor.handler`) resolve.
+ * (outbase: src) so the CDK `handler:` strings (e.g. `handlers/version-archive-worker.handler`) resolve.
  * The CDK ships `dist/` via `Code.fromAsset`, which carries no node_modules, so every JS dependency
  * (drizzle, pg, powertools, …) is inlined here.
  *
  * `external`:
- *  - `sharp` is a native (.node) module esbuild cannot bundle; the deploy supplies it via a
- *    Lambda layer / platform-matched install (infra's responsibility).
  *  - `@aws-sdk/*` is provided by the Node Lambda runtime.
  *  - `pg-native` is an optional peer pg only requires when `Client.native` is accessed; leaving it
  *    external avoids a build-time resolve error since it isn't installed.
  *
  * The `dist/package.json` `{"type":"module"}` marker makes Node load the emitted `.js` as ESM.
  */
-const entryPoints = [
-    'src/handlers/photo-processor.ts',
-    'src/handlers/version-archive-worker.ts',
-    'src/handlers/account-erasure-worker.ts',
-];
+const entryPoints = ['src/handlers/version-archive-worker.ts', 'src/handlers/account-erasure-worker.ts'];
 
 await build({
     entryPoints,
@@ -31,7 +25,7 @@ await build({
     target: 'node24',
     format: 'esm',
     sourcemap: true,
-    external: ['sharp', '@aws-sdk/*', 'pg-native'],
+    external: ['@aws-sdk/*', 'pg-native'],
     // CJS dependencies bundled into an ESM output may reference `require`/`__dirname`; provide shims
     // so esbuild's "Dynamic require of … is not supported" path resolves at runtime.
     banner: {

@@ -17,7 +17,6 @@ import {
     RECIPE_VISIBILITIES,
     RECIPE_SOURCE_TYPES,
     FOOD_RESOLUTION_STATUSES,
-    PHOTO_PROCESSING_STATUSES,
     COLLECTION_VISIBILITIES,
     RECIPE_COLLECTION_ADDED_VIA,
     PENDING_ARCHIVE_STATUSES,
@@ -157,14 +156,12 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         expectColumns(recipePhotos, {
             id: { type: 'uuid', notNull: true },
             recipe_id: { type: 'uuid', notNull: true },
-            s3_key_orig: { type: 'text', notNull: true },
-            s3_key_thumb: { type: 'text', notNull: false },
-            s3_key_card: { type: 'text', notNull: false },
-            s3_key_full: { type: 'text', notNull: false },
-            cdn_url_base: { type: 'text', notNull: true },
-            processing_status: { type: 'text', notNull: true },
+            s3_key: { type: 'text', notNull: true },
+            content_type: { type: 'text', notNull: true },
+            size_bytes: { type: 'integer', notNull: false },
             sort_order: { type: 'integer', notNull: true },
             created_at: { type: 'timestamp with time zone', notNull: true },
+            updated_at: { type: 'timestamp with time zone', notNull: true },
         });
     });
 
@@ -248,9 +245,6 @@ describe('recipe-service schema — controlled value sets (CHECK enums)', () => 
     });
     it('food_resolution_status mirrors the food client FoodStatus (UPPER_SNAKE, incl. terminals)', () => {
         expect(FOOD_RESOLUTION_STATUSES).toEqual(['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED']);
-    });
-    it('photo processing_status', () => {
-        expect(PHOTO_PROCESSING_STATUSES).toEqual(['pending', 'processing', 'complete', 'failed']);
     });
     it('collection visibility (private by default)', () => {
         expect(COLLECTION_VISIBILITIES).toEqual(['public', 'private']);

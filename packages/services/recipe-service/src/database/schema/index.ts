@@ -38,8 +38,8 @@ export type {
 } from './versions.js';
 
 // ── recipe_photos (T013) ──────────────────────────────────────────────────────────────────────────
-export { recipePhotos, PHOTO_PROCESSING_STATUSES } from './photos.js';
-export type { RecipePhotoRow, NewRecipePhotoRow, PhotoProcessingStatus } from './photos.js';
+export { recipePhotos } from './photos.js';
+export type { RecipePhotoRow, NewRecipePhotoRow } from './photos.js';
 
 // ── collections + recipe_collections (T014, T119) ─────────────────────────────────────────────────
 export { collections, recipeCollections, COLLECTION_VISIBILITIES, RECIPE_COLLECTION_ADDED_VIA } from './collections.js';

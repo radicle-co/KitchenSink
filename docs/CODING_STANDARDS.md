@@ -344,6 +344,29 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 - Every test file opens with a block comment mapping requirement IDs to test descriptions.
 - Global registries MUST be cleared in `beforeEach`.
 
+### 7.1 Test Mandate — ABSOLUTE, NON-NEGOTIABLE (every phase, every feature, every contributor)
+
+**This is the single highest-priority rule in this document. It is NOT a guideline, NOT a "best effort", and NOT subject to judgment calls.** Tests are written **BEFORE** the code they cover — TDD red → green — with **ZERO EXCEPTIONS**. Code that lacks the tests its category requires below is, by definition, **INCOMPLETE**: it **MUST NOT** be merged, **MUST NOT** be marked "done", and **MUST NOT** be called shippable — regardless of deadline, scope, or author (human **or** AI agent). The following are all **VIOLATIONS**, not acceptable trade-offs: "I'll add tests later", "the happy path is enough", "it's just a small change", "the test can't run in my environment so I skipped it", and thinning, deferring, downgrading, or omitting **any** required test tier.
+
+This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this repository — permanently.
+
+| Work under test | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE. |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| **UI code** (components, screens, hooks) | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story. |
+| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**. |
+| **Services** (deployable HTTP APIs) | everything above **PLUS end-to-end tests** (boot the service against real Postgres + LocalStack and drive it over HTTP) **AND k6 load/performance tests** (assert the service's latency/throughput SLOs). Unit + integration alone is **NOT SUFFICIENT** for a deployable API. |
+
+**Absolute rules — no interpretation, no exceptions:**
+
+- **EVERY UI path/state gets a vitest component test.** Every branch, every state. Not a sample, not the happy path only — every one.
+- **EVERY happy-path / user story gets a Playwright (web) AND a Maestro (mobile) test.**
+- **EVERY non-UI unit gets BOTH a unit test AND an integration test.** Never one without the other.
+- **EVERY service additionally gets e2e AND k6 tests**, on top of unit + integration.
+- A feature is **NOT DONE** — not "done pending tests", not "done except CI", not "done, tests to follow" — until **every** category it touches has **passing** tests of **every** required kind.
+- This is a **HARD MERGE GATE.** A change that adds or modifies code without its required tests is incomplete by definition and **MUST be rejected in review**.
+- **"It can't run in this environment" is NEVER an excuse to omit a test.** If a required test cannot execute locally (e.g. no Docker), it is still **written** and **run in CI** — a missing test file is a violation; a written-but-CI-only test is fine.
+- The `>= 70% unit / <= 20% integration / <= 10% E2E` pyramid still holds; **k6 is a separate, additional performance gate**, not part of the pyramid.
+
 ### Test File Location
 
 - **Unit tests**: `__tests__/` directories co-located with source, named `*.test.ts`

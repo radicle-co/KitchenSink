@@ -13,6 +13,7 @@
  *   (`NEXT_PUBLIC_API_BASE_URL` on web, `EXPO_PUBLIC_API_URL` on mobile) and injects it, exactly like
  *   `FoodServiceClient`.
  */
+import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type {
     Collection,
     CreateRecipeInput,
@@ -54,8 +55,13 @@ import type {
     UploadUrlResponse,
 } from './types.js';
 
-/** A bearer token supplied either as a literal or a (sync/async) per-request callback. */
-export type TokenSource = string | (() => string | Promise<string>);
+/**
+ * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
+ * receives `{ forceRefresh }` — `true` when the client is retrying the first-token sync race and needs a
+ * freshly-minted token (the app wires this to Clerk's `getToken({ skipCache: true })`). A callback that
+ * ignores the argument still works — it simply returns its (possibly cached) token.
+ */
+export type TokenSource = string | ((options?: { readonly forceRefresh?: boolean }) => string | Promise<string>);
 
 /** Construction options. */
 export interface RecipeServiceClientOptions {
@@ -65,6 +71,20 @@ export interface RecipeServiceClientOptions {
     readonly token?: TokenSource;
     /** Injectable `fetch` (defaults to the global `fetch`) — enables test doubles. */
     readonly fetch?: typeof fetch;
+    /**
+     * Max automatic retries when the API returns `401` with `code: IDENTITY_SYNC_PENDING` (the
+     * first-token sync race). Each retry re-reads the token with `{ forceRefresh: true }` after a backoff.
+     * Default `3`; `0` disables.
+     */
+    readonly maxIdentitySyncRetries?: number;
+    /**
+     * Backoff (ms) before the Nth identity-sync retry (1-based); the last entry repeats when there are more
+     * retries than entries. Default `[250, 500, 1000]` — gives identity's webhook time to backfill
+     * `external_id` before the token is re-minted.
+     */
+    readonly identitySyncBackoffMs?: readonly number[];
+    /** Injectable sleep (defaults to `setTimeout`) — enables instant retries in tests. */
+    readonly sleep?: (ms: number) => Promise<void>;
 }
 
 /** A normalized response: status and parsed JSON body (or `undefined` for empty/`204`). */
@@ -106,12 +126,18 @@ export class RecipeServiceClient {
     private readonly baseUrl: string;
     private readonly token: TokenSource | undefined;
     private readonly fetchImpl: typeof fetch;
+    private readonly maxIdentitySyncRetries: number;
+    private readonly identitySyncBackoffMs: readonly number[];
+    private readonly sleep: (ms: number) => Promise<void>;
 
-    /** @param options - Base URL, optional token (user or M2M), and an optional `fetch` double. */
+    /** @param options - Base URL, optional token, an optional `fetch` double, and identity-sync retry config. */
     public constructor(options: RecipeServiceClientOptions) {
         this.baseUrl = options.baseUrl.replace(/\/+$/, '');
         this.token = options.token;
         this.fetchImpl = options.fetch ?? fetch;
+        this.maxIdentitySyncRetries = options.maxIdentitySyncRetries ?? 3;
+        this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];
+        this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     }
 
     // ─── Recipes ────────────────────────────────────────────────────────────────────────────────
@@ -677,8 +703,26 @@ export class RecipeServiceClient {
      * @sideEffect Performs a network request via the injected `fetch`.
      */
     private async send(method: string, path: string, body?: unknown): Promise<RawResponse> {
+        let res = await this.sendOnce(method, path, body, false);
+
+        for (let attempt = 1; attempt <= this.maxIdentitySyncRetries && isIdentitySyncPending(res); attempt += 1) {
+            const backoff = this.identitySyncBackoffMs[Math.min(attempt, this.identitySyncBackoffMs.length) - 1] ?? 0;
+            await this.sleep(backoff);
+            res = await this.sendOnce(method, path, body, true);
+        }
+
+        return res;
+    }
+
+    /**
+     * Perform a single authenticated request and normalize the response (status + parsed body).
+     *
+     * @param forceRefresh - Forwarded to a callback token source so a retry re-mints (skips the cache).
+     * @sideEffect Performs a network request via the injected `fetch`.
+     */
+    private async sendOnce(method: string, path: string, body: unknown, forceRefresh: boolean): Promise<RawResponse> {
         const headers: Record<string, string> = { accept: 'application/json' };
-        const token = await this.resolveToken();
+        const token = await this.resolveToken(forceRefresh);
 
         if (token) {
             headers['authorization'] = `Bearer ${token}`;
@@ -697,13 +741,17 @@ export class RecipeServiceClient {
         return { status: response.status, body: text.length > 0 ? JSON.parse(text) : undefined };
     }
 
-    /** Resolve the configured token (literal or callback), or `undefined` for an unauthenticated call. */
-    private async resolveToken(): Promise<string | undefined> {
+    /**
+     * Resolve the configured token (literal or callback), or `undefined` for an unauthenticated call.
+     *
+     * @param forceRefresh - Passed to a callback token source so it can re-mint (skip cache) on a retry.
+     */
+    private async resolveToken(forceRefresh: boolean): Promise<string | undefined> {
         if (this.token === undefined) {
             return undefined;
         }
 
-        return typeof this.token === 'function' ? this.token() : this.token;
+        return typeof this.token === 'function' ? this.token({ forceRefresh }) : this.token;
     }
 
     /** Map a non-success response to the typed error for its status (per the OpenAPI contract). */
@@ -727,6 +775,17 @@ export class RecipeServiceClient {
                 return new UnexpectedResponseError(res.status);
         }
     }
+}
+
+/** True when a normalized response is the first-token sync-race `401` (`code: IDENTITY_SYNC_PENDING`). */
+function isIdentitySyncPending(res: RawResponse): boolean {
+    if (res.status !== 401) {
+        return false;
+    }
+
+    const body = res.body as { code?: unknown } | undefined;
+
+    return body?.code === IDENTITY_SYNC_PENDING_CODE;
 }
 
 /** Build a {@link VersionConflictError} from an `ErrorResponse` body, extracting the version `details`. */

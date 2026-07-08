@@ -4,6 +4,7 @@
  * mapping (`201`/`200`/`204`/`202` → typed results; `400`/`401`/`403`/`404`/`409`/`410` → typed errors).
  */
 import { describe, expect, it, vi } from 'vitest';
+import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 
 import {
     BadRequestError,
@@ -35,6 +36,78 @@ function callsOf(
         { method: string; headers: Record<string, string>; body?: string },
     ][];
 }
+
+/** A `fetch` double that returns a queued sequence of responses (one per call); the last repeats. */
+function sequenceFetch(responses: readonly { status: number; body?: unknown }[]): typeof fetch {
+    let i = 0;
+
+    return vi.fn(async () => {
+        const r = responses[Math.min(i, responses.length - 1)]!;
+        i += 1;
+
+        return new Response(r.body === undefined ? undefined : JSON.stringify(r.body), { status: r.status });
+    }) as unknown as typeof fetch;
+}
+
+describe('RecipeServiceClient — first-token sync-race retry', () => {
+    const instantSleep = (): Promise<void> => Promise.resolve();
+    const SYNC_PENDING = { code: IDENTITY_SYNC_PENDING_CODE, message: 'identity not yet available' };
+
+    it('retries a 401 IDENTITY_SYNC_PENDING with a force-refreshed token, then succeeds', async () => {
+        const recipe = { id: 'rec_1', ownerId: 'usr_1', title: 'Soup' };
+        const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }, { status: 200, body: recipe }]);
+        const forceRefreshFlags: (boolean | undefined)[] = [];
+        const getToken = vi.fn((opts?: { forceRefresh?: boolean }) => {
+            forceRefreshFlags.push(opts?.forceRefresh);
+
+            return 'tok';
+        });
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: getToken, fetch: fetchMock, sleep: instantSleep });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result).toEqual(recipe);
+        expect(callsOf(fetchMock)).toHaveLength(2);
+        // First attempt uses the cached token; the retry forces a fresh mint.
+        expect(forceRefreshFlags).toEqual([false, true]);
+    });
+
+    it('exhausts retries on persistent IDENTITY_SYNC_PENDING and throws UnauthorizedError', async () => {
+        const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: fetchMock,
+            maxIdentitySyncRetries: 2,
+            sleep: instantSleep,
+        });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(3); // 1 initial + 2 retries
+    });
+
+    it('does NOT retry a plain 401 (no IDENTITY_SYNC_PENDING code)', async () => {
+        const fetchMock = sequenceFetch([{ status: 401, body: { code: 'UNAUTHORIZED', message: 'nope' } }]);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(1);
+    });
+
+    it('honors maxIdentitySyncRetries: 0 (never retries)', async () => {
+        const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: fetchMock,
+            maxIdentitySyncRetries: 0,
+            sleep: instantSleep,
+        });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(1);
+    });
+});
 
 describe('RecipeServiceClient — request build + token attach', () => {
     it('POSTs create-recipe to the right URL with a JSON body and a literal bearer token', async () => {

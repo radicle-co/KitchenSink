@@ -733,6 +733,17 @@ export const RecipeErrorCode = {
 export type RecipeErrorCode = (typeof RecipeErrorCode)[keyof typeof RecipeErrorCode];
 
 /**
+ * Machine-readable `code` the recipe API returns on a `401` when the session token verified but carried
+ * **no `external_id`** (app-user ULID) claim — the *first-token sync race* (a just-created user whose
+ * ULID identity (002) has not yet backfilled to Clerk). Deliberately distinct from a hard auth failure:
+ * clients detect this specific code to **refresh the token and retry with backoff** (giving the identity
+ * webhook time to sync) rather than surfacing an error. The server `AuthMiddleware` sets it; the
+ * `RecipeServiceClient` retries on it. Not a {@link RecipeErrorCode} — it is an auth/transport signal,
+ * never a recipe-domain error, and the owner key still NEVER falls back to the Clerk `sub`.
+ */
+export const IDENTITY_SYNC_PENDING_CODE = 'IDENTITY_SYNC_PENDING';
+
+/**
  * Runtime validator for {@link RecipeErrorCode}.
  */
 export const recipeErrorCodeSchema = z.enum([

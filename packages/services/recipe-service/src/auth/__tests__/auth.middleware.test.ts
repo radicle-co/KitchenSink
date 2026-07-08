@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
+import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type { NextFunction, Request, Response } from 'express';
 import type { VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
@@ -134,7 +135,15 @@ describe('AuthMiddleware', () => {
         verifySpy.mockResolvedValue(claims);
         const { req, res, next } = makeContext({ authorization: 'Bearer no.external.id' });
 
-        await expect(middleware.use(req, res, next)).rejects.toBeInstanceOf(UnauthorizedException);
+        const error = await middleware.use(req, res, next).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).toBeInstanceOf(UnauthorizedException);
+        // Distinguishable 401: carries `code: IDENTITY_SYNC_PENDING` (the first-token sync race) so the
+        // client can refresh the token + retry rather than treat it as a hard auth failure.
+        expect((error as UnauthorizedException).getResponse()).toMatchObject({ code: IDENTITY_SYNC_PENDING_CODE });
         // No Principal is produced at all — the Clerk `sub` is NEVER promoted to an owner key.
         expect(req.principal).toBeUndefined();
         expect(next).not.toHaveBeenCalled();

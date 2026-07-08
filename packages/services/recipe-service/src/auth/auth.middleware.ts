@@ -23,6 +23,7 @@
  * @implements REQ-IF-007 FR-038
  */
 import { Injectable, UnauthorizedException, type NestMiddleware } from '@nestjs/common';
+import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type { NextFunction, Response } from 'express';
 
 import { ClerkAuthService } from './clerk-auth.service.js';
@@ -120,7 +121,14 @@ export class AuthMiddleware implements NestMiddleware {
         // `external_id`. When it is absent the shared verifier leaves `userId` undefined; we reject
         // rather than fall back to the Clerk `sub`, which is trace/audit only and never an owner key.
         if (!claims.userId) {
-            throw new UnauthorizedException('Missing app-user identity (external_id) claim');
+            // Distinguishable from a hard auth failure: the token verified but carries no `external_id`
+            // (the app-user ULID) yet — the first-token sync race (identity has not backfilled the ULID
+            // to Clerk). The client keys on this `code` to refresh the token and retry with backoff. We
+            // still NEVER fall back to `sub` as an owner key — an absent ULID is a rejection, not a guess.
+            throw new UnauthorizedException({
+                code: IDENTITY_SYNC_PENDING_CODE,
+                message: 'App-user identity (external_id) not yet available; retry with a refreshed token.',
+            });
         }
 
         req.principal = {

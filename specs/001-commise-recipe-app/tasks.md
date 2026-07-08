@@ -9,19 +9,19 @@
 
 ---
 
-## Test Coverage Policy (TDD)
+## Test Coverage Policy (TDD — binds to CODING_STANDARDS §7.1)
 
-This plan is **test-first**: for every category below the test is authored and failing (TDD red) **before** its implementation (TDD green). This section DEFINES which kind of test covers which kind of work, so nothing is silently untested. `T117` enforces the resulting pyramid (≥70% unit / ≤20% integration / ≤10% E2E), and `T059` gates the whole tree green.
+**Binding authority: `docs/CODING_STANDARDS.md §7.1` + the Testing policy in `CLAUDE.md`.** Test-first: every test below is authored and failing (TDD red) **before** its implementation (TDD green). `T117` enforces the pyramid (≥70% unit / ≤20% integration / ≤10% E2E; **k6 is a separate performance gate**) and `T059` gates the tree green.
 
-| Work | Test kind (written test-first) | Location |
-| ---- | ------------------------------ | -------- |
-| Pure functions, domain evaluators, services, DALs, workers, type guards, config/env loaders | **Unit** (mocks + fixtures) | the paired `T…-test` task, authored before its impl |
-| REST controllers, DTO validation, Nest module / DI wiring, the Drizzle DB provider | **Integration** vs real PostgreSQL + LocalStack (thin delegation/wiring layers — their logic lives in the unit-tested services/DALs) | `__tests__/integration/**/*.integration.spec.ts` |
-| Drizzle schema + migrations | Schema **type-inference unit test** (`T011-test`) + exercised by every DB-hitting integration test | — |
+| Work | Required tests (test-first — ALL of them) | Location |
+| ---- | ----------------------------------------- | -------- |
+| Non-UI code — services, DALs, domain evaluators, **controllers**, workers, type guards, config/env loaders, DTO validation, libraries | **Unit** (mocks + fixtures) **AND Integration** (real PostgreSQL + LocalStack) | `src/**/__tests__/*.test.ts` + `__tests__/integration/**/*.integration.spec.ts` |
+| The recipe **service** as a deployable HTTP API | additionally **Service e2e** (boot the Nest app vs real Postgres + LocalStack, drive over HTTP) **AND k6** load/performance (SLOs) | `tests/e2e/` + `tests/load/*.load.ts` |
+| Drizzle schema + migrations | Schema **type-inference unit test** (`T011-test`) + exercised by every DB-hitting integration/e2e test | `src/database/__tests__/` |
 | CDK infra (Fargate, ALB rule, SQS/DLQ, `RecipeDbBootstrap`, alarms) | **`cdk synth`** assertions + LocalStack integration for runtime behavior | `infra/**/__tests__` / integration |
-| Frontend logic-bearing screens & the Home widget surface | **Component test** (RTL, mocks + fixtures) for state logic + **E2E** (Playwright web / Maestro mobile) for the flow | `src/**/__tests__` + `tests/e2e/` |
+| UI — components, screens, hooks, the Home widget surface | a **vitest component test for EVERY path/state** (loading / empty / populated / error / gated / disabled) **AND a Playwright test for EVERY happy-path/user story** (web; **Maestro** flow for mobile parity) | `src/**/__tests__/*.test.tsx` + `tests/e2e/` |
 
-**Deliberately covered by integration/E2E, NOT a standalone unit task** (thin layers with no independent logic): every `*.controller.ts`, every `dto/*.ts`, `database.module.ts` (T018), the schema barrel/client + migration wiring (T015/T016), and all `infra/` CDK. This is an explicit decision — the logic they wrap is unit-tested at the service/DAL layer and exercised end-to-end by the integration + E2E suites — not an omission.
+A feature is **not done** until every category its code touches has all the required tests passing. Where an implementation task builds code lacking a paired `-test` task, that test task is authored (test-first) **before** the code — it is never skipped. (This supersedes the earlier "thin layers are integration-only" carve-out: per §7.1, controllers/DTOs get unit **and** integration tests.)
 
 ---
 

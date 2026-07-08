@@ -12,6 +12,8 @@
         "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

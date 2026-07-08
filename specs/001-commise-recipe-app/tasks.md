@@ -44,8 +44,8 @@ A feature is **not done** until every category its code touches has all the requ
 - [x] T005 Scaffold frontend feature UI workspace via bootstrap skill: `--name features-recipes --location packages/apps/commise/features/recipes --type library --scope commise` — package name MUST be `@commise/features-recipes`; exports `.`, `./widget/web`, `./widget/mobile` + building-block components (NO page exports); platform files use the `.native.ts(x)` suffix
 - [x] T005-core Scaffold the Commise home-surface contract workspace via bootstrap skill: `--name features-core --location packages/apps/commise/features/core --type library --scope commise` — package name MUST be `@commise/features-core`; holds the Home **widget contract** (`HomeWidgetId`, `HomeWidgetDescriptor`, `curateHomeWidgets`) + the `appShell` ditox DI-token types. Imported by both apps and every `@commise/features-*` package. This is **Commise product** infra — NOT the platform `@kitchensink/recipe-core` (which holds the shared recipe DTO/types)
 - [x] T006 [P] Register new workspaces in root `package.json` by adding `"packages/clients/*"` (covers `recipe-service-client`) and `"packages/apps/commise/features/*"` to the `workspaces` array (existing entries: `packages/{tools,services,shared,utils,infra}/*`, `packages/apps/commise/web`, `packages/apps/commise/mobile`, `packages/apps/commise/ui`, `packages/clients/usda`, `packages/clients/food-service` — `packages/services/*` is already present, so no need to re-add it; the `packages/clients/*` glob subsumes the existing per-client entries). Add `test:integration` task to `turbo.json` (`{ "outputs": [] }`) alongside existing `test` task. Verify all workspaces resolve with `npm ls --workspaces`
-- [ ] T006a [P] Create `infra/docker/postgres-init.sql` with `CREATE EXTENSION IF NOT EXISTS pg_trgm;` and `CREATE EXTENSION IF NOT EXISTS pgcrypto;` — referenced by `docker-compose.yml` init volume mount
-- [ ] T006b [P] Create local dev `docker-compose.yml` at monorepo root (PostgreSQL 16 + LocalStack S3) per quickstart.md specification — distinct from `docker-compose.test.yml` (T088) which is CI-specific
+- [x] T006a [P] Create `infra/docker/postgres-init.sql` with `CREATE EXTENSION IF NOT EXISTS pg_trgm;` and `CREATE EXTENSION IF NOT EXISTS pgcrypto;` — referenced by `docker-compose.yml` init volume mount
+- [x] T006b [P] Create local dev `docker-compose.yml` at monorepo root (PostgreSQL 16 + LocalStack S3) per quickstart.md specification — distinct from `docker-compose.test.yml` (T088) which is CI-specific
 - [x] T007 [P] Add NestJS API module skeleton files in `packages/services/recipe-service/src/app.module.ts` and `packages/services/recipe-service/src/{auth,recipes,ingredients,versions,photos,collections,search,account,config,database,health,common}/` — use plural module directory names per NestJS convention. No `users` module: the recipe service owns no users table (D2); GDPR erasure lives under `account/` (T134–T137)
 - [x] T008 [P] Copy the shared **recipe DTO/types** into the shared package and create barrel exports in `packages/shared/recipe-core/src/recipe.types.ts` and `packages/shared/recipe-core/src/index.ts` — source from `specs/001-commise-recipe-app/contracts/recipe.types.ts`. `recipe.types.ts` holds **ONLY the recipe / ingredient / step / collection / version DTOs** (plus visibility + audience). **`config.types.ts` is NOT shared** — the recipe service's env-config schema is service-internal and lives in its own `config/` module (T010), like identity/food; do **not** copy or export it from `recipe-core`. The **Home-widget contract is NOT here either** — it lives in `@commise/features-core` (`contracts/home-widget.contract.ts`, T104-shared), not `@kitchensink/recipe-core`
 - [x] T009 Remove `@ts-expect-error` on zod import in `packages/shared/recipe-core/src/recipe.types.ts` (depends on T008 — file does not exist until contracts are copied)
@@ -56,19 +56,19 @@ A feature is **not done** until every category its code touches has all the requ
 - [ ] T082 [P] Create backend fixture factories (`makeRecipe`, `makeIngredient`, `makeCollection`, `makeUser`, `makeVersion`, `makePhoto`) in `packages/services/recipe-service/src/__fixtures__/index.ts` — typed, overridable defaults, `make*` naming per constitution
 - [ ] T083 [P] Create web frontend fixture factories (`makeRecipeViewModel`, `makeCollectionViewModel`) in `packages/apps/commise/web/src/__fixtures__/index.ts`
 - [ ] T084 [P] Create mobile frontend fixture factories in `packages/apps/commise/mobile/src/__fixtures__/index.ts`
-- [ ] T085 [P] Configure Vitest base config for API workspace with unit/integration/e2e splits in `packages/services/recipe-service/vitest.config.ts`, `packages/services/recipe-service/vitest.integration.config.ts`
+- [x] T085 [P] Configure Vitest base config for API workspace with unit/integration/e2e splits in `packages/services/recipe-service/vitest.config.ts`, `packages/services/recipe-service/vitest.integration.config.ts`
 - [ ] T086 [P] Configure Playwright project with `globalSetup.ts` (run migrations + seed, start API server) in `packages/apps/commise/web/playwright.config.ts` and `packages/apps/commise/web/tests/e2e/global-setup.ts`
 - [ ] T087 [P] Create Maestro E2E flow directory structure and base config in `packages/apps/commise/mobile/tests/e2e/.maestro/config.yaml`
-- [ ] T088 [P] Create `docker-compose.test.yml` for CI test infrastructure (PostgreSQL 16 + LocalStack S3 with bucket auto-provisioning) at monorepo root
-- [ ] T089 [P] Implement test `globalSetup.ts` for integration tests: start LocalStack, provision S3 buckets, run Drizzle migrations, seed test data in `packages/services/recipe-service/tests/global-setup.ts`
+- [x] T088 [P] Create `docker-compose.test.yml` for CI test infrastructure (PostgreSQL 16 + LocalStack S3 with bucket auto-provisioning) at monorepo root
+- [x] T089 [P] Implement test `globalSetup.ts` for integration tests: start LocalStack, provision S3 buckets, run Drizzle migrations, seed test data in `packages/services/recipe-service/tests/global-setup.ts`
 
 ### CI Pipeline
 
 > **Note**: `.github/workflows/ci.yml` already exists with install, lint, format, typecheck, and test jobs using npm cache. Tasks below extend it — do NOT recreate from scratch. Preserve existing job structure and cache strategy.
 
-- [ ] T090 [P] Extend existing `.github/workflows/ci.yml` with new jobs: `test-integration` (postgres:16-alpine + localstack/localstack:3 service containers, run migrations + seed, `turbo run test:integration`), `test-e2e-web` (Playwright), `test-e2e-mobile` (Maestro). Fix cache path globs to include deeply nested workspaces (`packages/*/*/*/node_modules`, `packages/*/*/*/*/node_modules`). Preserve existing install/lint/format/typecheck/test jobs
-- [ ] T091 [P] Add Playwright browser binary caching (version + OS key) and failure-only trace/report artifact upload to `test-e2e-web` job in `.github/workflows/ci.yml`
-- [ ] T092 [P] Add Maestro CLI installation and mobile E2E job (`test-e2e-mobile`) with Maestro Cloud or self-hosted emulator in `.github/workflows/ci.yml`
+- [x] T090 [P] Extend existing `.github/workflows/ci.yml` with new jobs: `test-integration` (postgres:16-alpine + localstack/localstack:3 service containers, run migrations + seed, `turbo run test:integration`), `test-e2e-web` (Playwright), `test-e2e-mobile` (Maestro). Fix cache path globs to include deeply nested workspaces (`packages/*/*/*/node_modules`, `packages/*/*/*/*/node_modules`). Preserve existing install/lint/format/typecheck/test jobs
+- [x] T091 [P] Add Playwright browser binary caching (version + OS key) and failure-only trace/report artifact upload to `test-e2e-web` job in `.github/workflows/ci.yml`
+- [x] T092 [P] Add Maestro CLI installation and mobile E2E job (`test-e2e-mobile`) with Maestro Cloud or self-hosted emulator in `.github/workflows/ci.yml`
 
 ### Frontend API Configuration
 
@@ -363,7 +363,7 @@ This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks 
 
 ### Success Criteria Validation
 
-- [ ] T081 Add **k6** load test script (`*.load.ts`) targeting p95 ≤ 500ms under 10k concurrent users (SC-009) in `packages/services/recipe-service/tests/load/` — k6 is the chosen tool (not Artillery); also cover search latency (< 2s) and the recipe-save-under-S3-archive path (FR-007b-i)
+- [x] T081 Add **k6** load test script (`*.load.ts`) targeting p95 ≤ 500ms under 10k concurrent users (SC-009) in `packages/services/recipe-service/tests/load/` — k6 is the chosen tool (not Artillery); also cover search latency (< 2s) and the recipe-save-under-S3-archive path (FR-007b-i)
 - SC-001 (recipe creation < 5 min) — validated via manual QA / usability testing (no buildable task)
 - SC-005 (80% engagement in first week) — validated post-launch via analytics (no buildable task)
 

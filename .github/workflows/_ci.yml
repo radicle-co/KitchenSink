@@ -15,6 +15,21 @@ on:
                 description: Deployment stage — 'sandbox' (PRs) or 'prod' (main)
                 required: true
                 type: string
+            run_load_test:
+                description: >-
+                    Run the recipe-service k6 load-test job. Off by default so the heavy load run never
+                    fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`.
+                required: false
+                type: boolean
+                default: false
+            run_mobile_maestro:
+                description: >-
+                    Run the mobile Maestro e2e job (boots an Android emulator + installs the app). Off by
+                    default until the Expo dev-build + emulator app-install wiring lands; opt in with
+                    `run_mobile_maestro: true`.
+                required: false
+                type: boolean
+                default: false
 
 permissions:
     contents: read
@@ -40,6 +55,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
     build-ui:
@@ -59,6 +76,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npm run build --workspace=@commise/ui
             - name: Cache UI build artifacts
@@ -84,6 +103,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run lint
 
@@ -104,6 +125,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run format:check
 
@@ -124,6 +147,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run typecheck
 
@@ -144,6 +169,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run test
 
@@ -178,6 +205,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Self-contained: the integration suite bootstraps the schema from migrations against the
             # Postgres service and proves create-user idempotency. No AWS/Clerk secrets required.
@@ -217,6 +246,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Self-contained: the integration suite bootstraps the kitchensink_food schema from the
             # ordered migration SQL against the Postgres service and validates the FR-028 CHECK,
@@ -225,6 +256,69 @@ jobs:
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_test
               run: npm run test:integration --workspace=packages/services/food-service
+
+    integration-recipe:
+        name: Integration (recipe — Postgres + LocalStack)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # Feature 001 recipe-service. Postgres backs the relational data; LocalStack provides the AWS
+        # services recipe-service uses (S3 photo/version archive, SQS archive queue) so the integration
+        # suite can exercise them without real AWS. recipe-service is still a skeleton (only /health is
+        # wired), so `--if-present` keeps this green until the `test:integration` script + suite land;
+        # the job shape is ready so the suite plugs straight in. Mirrors `integration-food`.
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: recipe_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0
+                env:
+                    # Community tier — no auth token. recipe-service's AWS surface (S3 archive, SQS,
+                    # EventBridge=`events`, Secrets Manager, SSM) is all free/Community.
+                    SERVICES: s3,sqs,sns,events,secretsmanager,sts,iam,logs,cloudwatch,ssm
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # The suite bootstraps the schema from src/database/migrations against the Postgres service
+            # and seeds its own fixtures (same pattern as identity/food). No AWS/Clerk secrets required.
+            - name: Run recipe integration tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_test
+                  AWS_ENDPOINT_URL: http://localhost:4566
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_REGION: us-east-1
+              run: npm run test:integration --workspace=@kitchensink/recipe-service --if-present
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)
@@ -278,6 +372,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Boots the real food-service Nest app against the Postgres service, applies the
             # kitchensink_food migration, and asserts GET /health + DB reachability end to end.
@@ -311,6 +407,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Restore UI build artifacts
               uses: actions/cache/restore@v5
@@ -358,6 +456,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Load ${{ inputs.stage }} secrets
               id: secrets
@@ -391,6 +491,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # The Playwright dev server imports @commise/ui/theme.css, so the built UI dist must
             # be present (mirrors the build job).
@@ -418,12 +520,37 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            - name: Install Playwright browsers
+            # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
+            # the Chromium download only happens when the Playwright version changes.
+            - name: Cache Playwright browsers
+              id: playwright-cache
               if: steps.secrets.outcome == 'success'
-              run: npx playwright install chromium
+              uses: actions/cache@v5
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+            # Cache miss: download the browser + OS deps. Cache hit: browsers are restored, so only the
+            # OS-level system dependencies still need installing.
+            - name: Install Playwright browsers (cache miss)
+              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true'
+              run: npx playwright install --with-deps chromium
+            - name: Install Playwright system deps (cache hit)
+              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
+              run: npx playwright install-deps chromium
             - name: Run web e2e tests
               if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@commise/web
+            # Failure-only: upload the Playwright HTML report + traces so a red run is debuggable.
+            - name: Upload Playwright report + traces
+              if: failure() && steps.secrets.outcome == 'success'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-report-${{ inputs.stage }}
+                  path: |
+                      packages/apps/commise/web/playwright-report
+                      packages/apps/commise/web/test-results
+                  retention-days: 7
+                  if-no-files-found: ignore
 
     e2e-mobile:
         name: E2E (mobile — Vitest)
@@ -442,6 +569,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Load ${{ inputs.stage }} secrets
               id: secrets
@@ -455,3 +584,135 @@ jobs:
             - name: Run mobile e2e tests
               if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@commise/mobile
+
+    e2e-mobile-maestro:
+        name: E2E (mobile — Maestro)
+        runs-on: ubuntu-latest
+        needs: build
+        # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
+        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. Gated behind
+        # `run_mobile_maestro` (default false) until the Expo dev-build + emulator app-install lands — so
+        # this is structurally wired and validated, but does not run (and cannot falsely fail) on every
+        # PR. A caller opts in with `run_mobile_maestro: true`.
+        if: ${{ inputs.run_mobile_maestro }}
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # T092: install the Maestro CLI and expose it on PATH.
+            - name: Install Maestro CLI
+              run: |
+                  curl -Ls https://get.maestro.mobile.dev | bash
+                  echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+            - name: Maestro version
+              run: maestro --version
+            # Boot an Android emulator and run the .maestro flows against the installed app. The app
+            # build/install (Expo dev build → APK → `adb install`) is added with the mobile build wiring;
+            # until then the enclosing `run_mobile_maestro` gate keeps this from running unbuilt.
+            - name: Run Maestro flows
+              uses: reactivecircus/android-emulator-runner@v2
+              with:
+                  api-level: 34
+                  arch: x86_64
+                  profile: pixel_6
+                  script: maestro test packages/apps/commise/mobile/.maestro
+            - name: Upload Maestro artifacts
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: maestro-report-${{ inputs.stage }}
+                  path: ~/.maestro/tests
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+    load-test:
+        name: Load test (recipe — k6)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # T081/SC-009 performance gate. Gated behind `run_load_test` (default false) so the heavy k6 run
+        # never fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`. Boots
+        # the recipe-service against a Postgres service and runs the tests/load k6 scripts; a threshold
+        # breach exits k6 non-zero and fails the job.
+        if: ${{ inputs.run_load_test }}
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: recipe_load
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install k6
+              run: |
+                  sudo gpg -k
+                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+                      | sudo tee /etc/apt/sources.list.d/k6.list
+                  sudo apt-get update
+                  sudo apt-get install -y k6
+            - name: Build recipe-service
+              run: npm run build --workspace=@kitchensink/recipe-service
+            - name: Boot recipe-service
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
+                  PORT: '3000'
+              run: |
+                  npm run start --workspace=@kitchensink/recipe-service &
+                  echo "SERVICE_PID=$!" >> "$GITHUB_ENV"
+                  # Wait for /health before generating load.
+                  for i in $(seq 1 30); do
+                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
+                      sleep 2
+                  done
+            - name: Run k6 load scripts
+              working-directory: packages/services/recipe-service
+              env:
+                  RECIPE_API_BASE_URL: http://localhost:3000
+                  RECIPE_LOAD_TEST_TOKEN: ${{ secrets.RECIPE_LOAD_TEST_TOKEN }}
+              run: |
+                  k6 run --summary-export=k6-sc009-summary.json tests/load/sc009-read-write.load.js
+                  k6 run --summary-export=k6-search-summary.json tests/load/search-latency.load.js
+                  k6 run --summary-export=k6-save-summary.json tests/load/save-under-archive.load.js
+            - name: Upload k6 summaries
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: recipe-k6-summaries-${{ inputs.stage }}
+                  path: packages/services/recipe-service/k6-*-summary.json
+                  retention-days: 7
+                  if-no-files-found: warn

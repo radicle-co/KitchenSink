@@ -20,6 +20,7 @@ import pg from 'pg';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
+import { SEED_INGREDIENTS } from '../../../tests/global-setup.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -39,6 +40,21 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     afterAll(async () => {
+        // This suite wipes the whole `ingredients` table per test for isolation, which destroys the
+        // baseline catalog rows the global setup seeds. Since T043b, recipe create/update validates each
+        // line's `ingredientId` against that catalog, so other integration specs (crud/conflict/
+        // composition) depend on the baseline existing. Serial file execution (fileParallelism: false)
+        // means restoring the seed here guarantees it's present for any spec that runs after this one,
+        // regardless of file order.
+        for (const ingredient of SEED_INGREDIENTS) {
+            await pool.query(
+                `INSERT INTO ingredients (id, name, is_user_entered, search_vector)
+                 VALUES ($1, $2, true, to_tsvector('english', $2))
+                 ON CONFLICT (id) DO NOTHING`,
+                [ingredient.id, ingredient.name],
+            );
+        }
+
         await pool.end();
     });
 

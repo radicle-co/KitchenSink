@@ -103,7 +103,8 @@ describe('RecipesDal.create', () => {
             makeRecipeStepRow({ recipeId: 'r-1', stepNumber: 1, instruction: 'Chop' }),
             makeRecipeStepRow({ recipeId: 'r-1', stepNumber: 2, instruction: 'Cook' }),
         ];
-        control.enqueue([recipeRow], stepRows);
+        // create: insert recipe → insert steps → (junction) delete existing links (empty set → no insert).
+        control.enqueue([recipeRow], stepRows, undefined);
 
         const result = await dal.create({
             ownerId: 'owner-1',
@@ -116,10 +117,11 @@ describe('RecipesDal.create', () => {
             tags: ['dinner'],
             dietaryFlags: [],
             ingredientNamesText: 'onion carrot',
+            ingredients: [],
             steps: [{ instruction: 'Chop' }, { instruction: 'Cook', timerSeconds: 600 }],
         });
 
-        expect(result).toEqual({ recipe: recipeRow, steps: stepRows });
+        expect(result).toEqual({ recipe: recipeRow, steps: stepRows, ingredients: [] });
 
         const payloads = valuesPayloads(control);
         expect(payloads[0]).toMatchObject({ ownerId: 'owner-1', title: 'Soup', ingredientNamesText: 'onion carrot' });
@@ -138,11 +140,12 @@ describe('RecipesDal.findById', () => {
         const dal = new RecipesDal(control.db);
         const recipeRow = makeRecipeRow({ id: 'r-9' });
         const stepRows = [makeRecipeStepRow({ recipeId: 'r-9' })];
-        control.enqueue([recipeRow], stepRows);
+        // findById: select recipe → load steps → load ingredient links (empty here).
+        control.enqueue([recipeRow], stepRows, []);
 
         const result = await dal.findById('r-9');
 
-        expect(result).toEqual({ recipe: recipeRow, steps: stepRows });
+        expect(result).toEqual({ recipe: recipeRow, steps: stepRows, ingredients: [] });
     });
 
     it('returns undefined when no active recipe matches', async () => {
@@ -165,7 +168,8 @@ describe('RecipesDal.findAll', () => {
             makeRecipeStepRow({ recipeId: 'b', stepNumber: 1 }),
             makeRecipeStepRow({ recipeId: 'b', stepNumber: 2 }),
         ];
-        control.enqueue([rowA, rowB], [{ count: 7 }], steps);
+        // findAll: select page → count → load steps → load ingredient links (empty set).
+        control.enqueue([rowA, rowB], [{ count: 7 }], steps, []);
 
         const result = await dal.findAll({ ownerId: 'owner-1', page: 2, pageSize: 2, sortBy: 'updatedAt' });
 
@@ -173,6 +177,7 @@ describe('RecipesDal.findAll', () => {
         expect(result.rows).toHaveLength(2);
         expect(result.rows[0]?.steps).toHaveLength(1);
         expect(result.rows[1]?.steps).toHaveLength(2);
+        expect(result.rows[0]?.ingredients).toEqual([]);
 
         const offsetCall = control.calls.find((call) => call.method === 'offset');
         expect(offsetCall?.args[0]).toBe(2); // (page 2 - 1) * pageSize 2
@@ -185,12 +190,12 @@ describe('RecipesDal.update', () => {
         const dal = new RecipesDal(control.db);
         const updatedRow = makeRecipeRow({ id: 'r-1', currentVersion: 2 });
         const newSteps = [makeRecipeStepRow({ recipeId: 'r-1', stepNumber: 1, instruction: 'New' })];
-        // update.returning → deleteSteps → insertSteps.returning
-        control.enqueue([updatedRow], undefined, newSteps);
+        // update.returning → deleteSteps → insertSteps.returning → (no ingredients patch) load links.
+        control.enqueue([updatedRow], undefined, newSteps, []);
 
         const result = await dal.update('r-1', { title: 'Renamed', steps: [{ instruction: 'New' }] });
 
-        expect(result).toEqual({ recipe: updatedRow, steps: newSteps });
+        expect(result).toEqual({ recipe: updatedRow, steps: newSteps, ingredients: [] });
 
         const setCall = control.calls.find((call) => call.method === 'set');
         const setArg = setCall?.args[0] as Record<string, unknown>;

@@ -6,13 +6,15 @@
  * `RECIPE_NOT_FOUND`, pagination `hasMore`, and the T033 optimistic-concurrency check
  * (`VERSION_CONFLICT` with `details.currentVersion`). No database is involved.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
+import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 
@@ -22,7 +24,11 @@ const OTHER = '01J00000000000000000OTHER0';
 function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
     const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, ...overrides });
 
-    return { recipe, steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })] };
+    return {
+        recipe,
+        steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
+        ingredients: [],
+    };
 }
 
 function fakeDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
@@ -34,6 +40,20 @@ function fakeDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
         softDelete: vi.fn(),
         ...overrides,
     } as unknown as RecipesDal;
+}
+
+/** A catalog DAL whose `findById` resolves every line to a freeform ingredient (composition off-path). */
+function fakeIngredientsDal(): IngredientsDal {
+    return {
+        findById: vi
+            .fn()
+            .mockResolvedValue(makeIngredient({ id: '00000000-0000-4000-8000-0000000000ff', name: 'Onion' })),
+    } as unknown as IngredientsDal;
+}
+
+/** Construct the service with a permissive catalog DAL (overridable per test via the DAL arg). */
+function newService(dal: RecipesDal): RecipesService {
+    return new RecipesService(dal, fakeIngredientsDal());
 }
 
 /** Capture the error a rejected promise throws, or fail if it resolves. */
@@ -61,7 +81,7 @@ describe('RecipesService.create', () => {
     it('delegates to the DAL with the derived ingredientNamesText and maps the wire response', async () => {
         const created = aggregate();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
-        const service = new RecipesService(dal);
+        const service = newService(dal);
 
         const response = await service.create(OWNER, CREATE_DTO);
 
@@ -87,14 +107,14 @@ describe('RecipesService.create', () => {
 describe('RecipesService.getById', () => {
     it('throws RECIPE_NOT_FOUND when the recipe does not exist', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(new RecipesService(dal).getById(OWNER, 'r-1'));
+        const error = await catchError(newService(dal).getById(OWNER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER when a non-owner reads a private recipe', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
-        const error = await catchError(new RecipesService(dal).getById(OTHER, 'r-1'));
+        const error = await catchError(newService(dal).getById(OTHER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
@@ -102,7 +122,7 @@ describe('RecipesService.getById', () => {
     it('allows a non-owner to read a public recipe', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
 
-        const response = await new RecipesService(dal).getById(OTHER, 'r-1');
+        const response = await newService(dal).getById(OTHER, 'r-1');
 
         expect(response.id).toBe('r-1');
     });
@@ -112,7 +132,7 @@ describe('RecipesService.list', () => {
     it('maps rows and computes hasMore from page/pageSize/total', async () => {
         const dal = fakeDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 5 }) });
 
-        const response = await new RecipesService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
+        const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
 
         expect(response.total).toBe(5);
         expect(response.hasMore).toBe(true); // 1*2 < 5
@@ -122,7 +142,7 @@ describe('RecipesService.list', () => {
     it('reports hasMore=false on the last page', async () => {
         const dal = fakeDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 2 }) });
 
-        const response = await new RecipesService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
+        const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
 
         expect(response.hasMore).toBe(false);
     });
@@ -133,23 +153,21 @@ describe('RecipesService.update', () => {
 
     it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(new RecipesService(dal).update(OWNER, 'r-1', patch));
+        const error = await catchError(newService(dal).update(OWNER, 'r-1', patch));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER when the caller does not own the recipe', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
-        const error = await catchError(new RecipesService(dal).update(OTHER, 'r-1', patch));
+        const error = await catchError(newService(dal).update(OTHER, 'r-1', patch));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
 
     it('throws VERSION_CONFLICT with the current version when expectedVersion is stale (T033)', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 5 })) });
-        const error = await catchError(
-            new RecipesService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }),
-        );
+        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error)).toBe(true);
         if (isRecipeDomainError(error)) {
@@ -164,7 +182,7 @@ describe('RecipesService.update', () => {
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(updated),
         });
-        const service = new RecipesService(dal);
+        const service = newService(dal);
 
         const response = await service.update(OWNER, 'r-1', patch);
 
@@ -176,14 +194,14 @@ describe('RecipesService.update', () => {
 describe('RecipesService.delete', () => {
     it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(new RecipesService(dal).delete(OWNER, 'r-1'));
+        const error = await catchError(newService(dal).delete(OWNER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER for a non-owner', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
-        const error = await catchError(new RecipesService(dal).delete(OTHER, 'r-1'));
+        const error = await catchError(newService(dal).delete(OTHER, 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
@@ -192,7 +210,7 @@ describe('RecipesService.delete', () => {
         const softDelete = vi.fn().mockResolvedValue(true);
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()), softDelete });
 
-        await new RecipesService(dal).delete(OWNER, 'r-1');
+        await newService(dal).delete(OWNER, 'r-1');
 
         expect(softDelete).toHaveBeenCalledWith('r-1');
     });

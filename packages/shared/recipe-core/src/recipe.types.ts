@@ -725,6 +725,7 @@ export const RecipeErrorCode = {
     ARCHIVE_DLQ: 'ARCHIVE_DLQ',
     COLLECTION_NOT_CLONED: 'COLLECTION_NOT_CLONED',
     ERASURE_IN_PROGRESS: 'ERASURE_IN_PROGRESS',
+    UNKNOWN_INGREDIENT: 'UNKNOWN_INGREDIENT',
 } as const;
 
 /**
@@ -758,6 +759,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.ARCHIVE_DLQ,
     RecipeErrorCode.COLLECTION_NOT_CLONED,
     RecipeErrorCode.ERASURE_IN_PROGRESS,
+    RecipeErrorCode.UNKNOWN_INGREDIENT,
 ]);
 
 /**

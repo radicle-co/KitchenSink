@@ -46,6 +46,19 @@ export function notOwner(id: string): RecipeDomainError {
 }
 
 /**
+ * `UNKNOWN_INGREDIENT` — a recipe ingredient line references an `ingredientId` that has no row in the
+ * shared ingredients catalog. The client must resolve ingredients (via `/v1/ingredients`) before
+ * attaching them to a recipe; this fails the write fast with a 400 instead of a raw FK 500.
+ */
+export function unknownIngredient(ingredientId: string): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.UNKNOWN_INGREDIENT,
+        `Ingredient ${ingredientId} does not exist in the catalog.`,
+        { ingredientId },
+    );
+}
+
+/**
  * `VERSION_CONFLICT` — the client's `expectedVersion` no longer matches the stored `currentVersion`
  * (optimistic-concurrency loss, T033). `details` carries both versions for the 409 payload.
  */

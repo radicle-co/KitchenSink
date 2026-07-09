@@ -14,13 +14,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
-import { notOwner, recipeNotFound, versionConflict } from './recipe.error.js';
+import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
+import { notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
 import type { CreateRecipeDto, RecipeIngredientInputDto } from './dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
-import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipe-response.dto.js';
+import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
+import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
-import type { RecipeRow } from '../database/schema/index.js';
+import type { RecipeIngredientRow, RecipeRow } from '../database/schema/index.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
@@ -40,9 +42,21 @@ function toStepInput(step: { instruction: string; timerSeconds?: number }): Step
         : { instruction: step.instruction, timerSeconds: step.timerSeconds };
 }
 
+/** Map a persisted `recipe_ingredients` link row to the wire `RecipeIngredient` shape. Pure. */
+function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientResponse {
+    return {
+        ingredientId: row.ingredientId,
+        name: row.ingredientName,
+        // `quantity` is a `numeric` column — Drizzle/pg surface it as a string; the contract is a number.
+        quantity: Number(row.quantity),
+        ...(row.unit.length > 0 ? { unit: row.unit } : {}),
+        ...(row.displayText !== null ? { notes: row.displayText } : {}),
+    };
+}
+
 /** Map a persisted recipe aggregate to the `Recipe` wire contract. Pure. */
 function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
-    const { recipe, steps } = aggregate;
+    const { recipe, steps, ingredients } = aggregate;
 
     return {
         id: recipe.id,
@@ -51,9 +65,9 @@ function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
         ...(recipe.description !== null ? { description: recipe.description } : {}),
         ...(recipe.cuisine !== null ? { cuisine: recipe.cuisine } : {}),
         visibility: recipe.visibility as RecipeVisibility,
-        // The relational ingredient rows are owned by the ingredients vertical; this vertical persists
-        // only the denormalized `ingredient_names_text`, so the composed array is empty here.
-        ingredients: [],
+        // Composed from the `recipe_ingredients` junction (persisted atomically with the recipe), in
+        // author order (`sortOrder`). Empty only when the recipe genuinely has no ingredient lines.
+        ingredients: ingredients.map(toIngredientResponse),
         steps: steps.map((step) => ({
             stepNumber: step.stepNumber,
             instruction: step.instruction,
@@ -74,10 +88,15 @@ function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
 
 @Injectable()
 export class RecipesService {
-    public constructor(@Inject(RECIPES_DAL) private readonly dal: RecipesDal) {}
+    public constructor(
+        @Inject(RECIPES_DAL) private readonly dal: RecipesDal,
+        private readonly ingredientsDal: IngredientsDal,
+    ) {}
 
     /** Create a recipe owned by `ownerId`. */
     public async create(ownerId: string, dto: CreateRecipeDto): Promise<RecipeResponse> {
+        const ingredients = await this.resolveIngredientLines(dto.ingredients);
+
         const aggregate = await this.dal.create({
             ownerId,
             title: dto.title,
@@ -91,10 +110,42 @@ export class RecipesService {
             tags: dto.tags ?? [],
             dietaryFlags: dto.dietaryFlags ?? [],
             ingredientNamesText: buildIngredientNamesText(dto.ingredients),
+            ingredients,
             steps: dto.steps.map(toStepInput),
         });
 
         return toRecipeResponse(aggregate);
+    }
+
+    /**
+     * Resolve each DTO ingredient line against the shared catalog, yielding the denormalized link rows
+     * the DAL persists. Each line's `ingredientId` MUST already exist (the client resolves ingredients
+     * via `/v1/ingredients` first); an unknown id fails fast with `UNKNOWN_INGREDIENT`. The catalog is
+     * the source of truth for the persisted `ingredientName` / `isUserEntered`, and array order becomes
+     * `sortOrder`.
+     */
+    private async resolveIngredientLines(lines: RecipeIngredientInputDto[]): Promise<ResolvedIngredientLine[]> {
+        const resolved: ResolvedIngredientLine[] = [];
+
+        for (const [index, line] of lines.entries()) {
+            const ingredient = await this.ingredientsDal.findById(line.ingredientId);
+
+            if (!ingredient) {
+                throw unknownIngredient(line.ingredientId);
+            }
+
+            resolved.push({
+                ingredientId: ingredient.id,
+                ingredientName: ingredient.name,
+                quantity: line.quantity,
+                unit: line.unit ?? '',
+                ...(line.notes !== undefined ? { displayText: line.notes } : {}),
+                sortOrder: index,
+                isUserEntered: ingredient.isUserEntered,
+            });
+        }
+
+        return resolved;
     }
 
     /** Fetch one recipe. Allowed for the owner, or for any `public` recipe. */
@@ -140,6 +191,10 @@ export class RecipesService {
             throw versionConflict(existing.recipe.currentVersion, dto.expectedVersion);
         }
 
+        // Resolve replacement ingredient links only when the patch carries them (absent → links untouched).
+        const ingredients =
+            dto.ingredients !== undefined ? await this.resolveIngredientLines(dto.ingredients) : undefined;
+
         const updated = await this.dal.update(id, {
             title: dto.title,
             description: dto.description,
@@ -153,6 +208,7 @@ export class RecipesService {
             ...(dto.ingredients !== undefined
                 ? { ingredientNamesText: buildIngredientNamesText(dto.ingredients) }
                 : {}),
+            ...(ingredients !== undefined ? { ingredients } : {}),
             ...(dto.steps !== undefined ? { steps: dto.steps.map(toStepInput) } : {}),
         });
 

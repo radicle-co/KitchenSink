@@ -1,0 +1,245 @@
+/**
+ * T102 — recipe search integration test (tsvector FTS + facet aggregation + pagination).
+ *
+ * Exercises {@link SearchDal.search} against REAL Docker Postgres (migrated + seeded by
+ * `tests/global-setup.ts`, which creates the `recipes` GIN indexes and the `search_vector` maintenance
+ * trigger). It proves the behaviors the discovery surface depends on and which a mocked `db.execute`
+ * cannot: the trigger-maintained weighted `search_vector` actually ranks matches, visibility scoping
+ * (public + owner-owned, tombstones excluded) really filters, facet counts aggregate over the matched
+ * set, and pagination slices the ranked page while reporting the unpaged total.
+ *
+ * Guarded with `describe.skipIf(!hasDatabaseUrl)` so a machine without the harness up simply skips
+ * (matching the service's e2e ethos and the sibling `ingredients/search.integration.spec.ts`).
+ */
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import pg from 'pg';
+
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
+import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
+import { SearchDal, type RecipeSearchFilters } from '../../../src/search/dal/search.dal.js';
+
+/** The harness Postgres connection string. Unset → the suite skips entirely. */
+const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+
+/** Whether a test database is configured. */
+const hasDatabaseUrl = Boolean(DATABASE_URL);
+
+const OWNER = '01JSEARCH0OWNER0000000000A';
+const OTHER = '01JSEARCH0OTHER0000000000B';
+
+/** A recipe row to seed. */
+interface SeedRecipe {
+    ownerId: string;
+    title: string;
+    description: string;
+    visibility: 'public' | 'private';
+    dietaryFlags: string[];
+    tags: string[];
+    prepTimeMinutes: number;
+    totalTimeMinutes: number;
+    ingredientNamesText: string;
+    deleted?: boolean;
+}
+
+describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + pagination)', () => {
+    let pool: pg.Pool;
+    let db: RecipeDrizzle;
+    let dal: SearchDal;
+
+    /** Insert a recipe; the DB trigger builds its weighted `search_vector`. Returns the new id. */
+    async function seed(recipe: SeedRecipe): Promise<string> {
+        const result = await pool.query<{ id: string }>(
+            `INSERT INTO recipes
+                (owner_id, title, description, visibility, dietary_flags, tags,
+                 prep_time_minutes, cook_time_minutes, total_time_minutes, servings,
+                 ingredient_names_text, deleted_at)
+             VALUES ($1, $2, $3, $4, $5::text[], $6::text[], $7, $8, $9, $10, $11, $12)
+             RETURNING id`,
+            [
+                recipe.ownerId,
+                recipe.title,
+                recipe.description,
+                recipe.visibility,
+                recipe.dietaryFlags,
+                recipe.tags,
+                recipe.prepTimeMinutes,
+                recipe.prepTimeMinutes,
+                recipe.totalTimeMinutes,
+                4,
+                recipe.ingredientNamesText,
+                recipe.deleted === true ? new Date() : null,
+            ],
+        );
+
+        return result.rows[0]!.id;
+    }
+
+    /** Base search filters for OWNER (relevance, first page) with per-test overrides. */
+    function filters(overrides: Partial<RecipeSearchFilters> = {}): RecipeSearchFilters {
+        return {
+            ownerId: OWNER,
+            page: 1,
+            pageSize: 20,
+            sortBy: RecipeSearchSortBy.RELEVANCE,
+            ...overrides,
+        };
+    }
+
+    beforeAll(() => {
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        db = createRecipeDrizzle(pool);
+        dal = new SearchDal(db);
+    });
+
+    afterAll(async () => {
+        await pool.end();
+    });
+
+    beforeEach(async () => {
+        // recipe_ingredients / steps / collections / versions / photos cascade from recipes.
+        await pool.query('DELETE FROM recipes');
+    });
+
+    /** Seed a small corpus shared by several assertions. */
+    async function seedCorpus(): Promise<void> {
+        await seed({
+            ownerId: OWNER,
+            title: 'Weeknight Pasta',
+            description: 'A quick tomato pasta.',
+            visibility: 'public',
+            dietaryFlags: ['vegetarian'],
+            tags: ['dinner', 'quick'],
+            prepTimeMinutes: 10,
+            totalTimeMinutes: 20,
+            ingredientNamesText: 'pasta tomato garlic',
+        });
+        await seed({
+            ownerId: OWNER,
+            title: 'Pasta Carbonara',
+            description: 'Creamy egg pasta.',
+            visibility: 'private',
+            dietaryFlags: [],
+            tags: ['dinner'],
+            prepTimeMinutes: 15,
+            totalTimeMinutes: 30,
+            ingredientNamesText: 'pasta egg pancetta',
+        });
+        await seed({
+            ownerId: OTHER,
+            title: 'Pasta Salad',
+            description: 'Cold summer pasta.',
+            visibility: 'public',
+            dietaryFlags: ['vegan'],
+            tags: ['lunch'],
+            prepTimeMinutes: 20,
+            totalTimeMinutes: 20,
+            ingredientNamesText: 'pasta cucumber olive',
+        });
+        await seed({
+            ownerId: OTHER,
+            title: 'Secret Pasta',
+            description: "Someone else's private pasta.",
+            visibility: 'private',
+            dietaryFlags: [],
+            tags: ['dinner'],
+            prepTimeMinutes: 5,
+            totalTimeMinutes: 10,
+            ingredientNamesText: 'pasta secret sauce',
+        });
+        await seed({
+            ownerId: OWNER,
+            title: 'Grilled Chicken',
+            description: 'No noodles here.',
+            visibility: 'public',
+            dietaryFlags: [],
+            tags: ['dinner'],
+            prepTimeMinutes: 10,
+            totalTimeMinutes: 25,
+            ingredientNamesText: 'chicken salt pepper',
+        });
+    }
+
+    it('full-text matches ranked recipes and scopes visibility (public + own, not others private)', async () => {
+        await seedCorpus();
+
+        const { results } = await dal.search(filters({ query: 'pasta' }));
+        const titles = results.map((r) => r.recipe.title);
+
+        expect(titles).toContain('Weeknight Pasta'); // owner public
+        expect(titles).toContain('Pasta Carbonara'); // owner private (visible to owner)
+        expect(titles).toContain('Pasta Salad'); // other's public
+        expect(titles).not.toContain('Secret Pasta'); // other's private — excluded
+        expect(titles).not.toContain('Grilled Chicken'); // no lexeme match
+        // Every hit carries a numeric relevance rank.
+        expect(results.every((r) => typeof r.rank === 'number')).toBe(true);
+    });
+
+    it('excludes tombstoned (soft-deleted) recipes from results', async () => {
+        await seed({
+            ownerId: OWNER,
+            title: 'Deleted Pasta',
+            description: 'Tombstoned.',
+            visibility: 'public',
+            dietaryFlags: [],
+            tags: ['dinner'],
+            prepTimeMinutes: 10,
+            totalTimeMinutes: 20,
+            ingredientNamesText: 'pasta',
+            deleted: true,
+        });
+
+        const { results, total } = await dal.search(filters({ query: 'pasta' }));
+
+        expect(results).toHaveLength(0);
+        expect(total).toBe(0);
+    });
+
+    it('aggregates facet counts (dietary flags + tags) over the matched set', async () => {
+        await seedCorpus();
+
+        const { facets } = await dal.search(filters({ query: 'pasta' }));
+
+        const dietaryByValue = Object.fromEntries(facets.dietaryFlags.map((f) => [f.value, f.count]));
+        const tagsByValue = Object.fromEntries(facets.tags.map((f) => [f.value, f.count]));
+
+        // Matched set = {Weeknight Pasta, Pasta Carbonara, Pasta Salad}.
+        expect(dietaryByValue['vegetarian']).toBe(1);
+        expect(dietaryByValue['vegan']).toBe(1);
+        expect(tagsByValue['dinner']).toBe(2);
+        expect(tagsByValue['quick']).toBe(1);
+        expect(tagsByValue['lunch']).toBe(1);
+    });
+
+    it('applies a dietary-flag filter alongside the text query', async () => {
+        await seedCorpus();
+
+        const { results } = await dal.search(filters({ query: 'pasta', dietaryFlags: ['vegetarian'] }));
+
+        expect(results.map((r) => r.recipe.title)).toEqual(['Weeknight Pasta']);
+    });
+
+    it('paginates the ranked page while reporting the unpaged total', async () => {
+        await seedCorpus();
+
+        const firstPage = await dal.search(filters({ query: 'pasta', pageSize: 2 }));
+
+        expect(firstPage.results).toHaveLength(2);
+        expect(firstPage.total).toBe(3); // three visible pasta matches
+
+        const secondPage = await dal.search(filters({ query: 'pasta', page: 2, pageSize: 2 }));
+
+        expect(secondPage.results).toHaveLength(1);
+        expect(secondPage.total).toBe(3);
+    });
+
+    it('browses visible recipes (no query) sorted by recency', async () => {
+        await seedCorpus();
+
+        const { results, total } = await dal.search(filters({ sortBy: RecipeSearchSortBy.RECENT }));
+
+        // OWNER sees: 3 own (2 public + 1 private) + 2 of OTHER's? No — only OTHER's public one.
+        // OWNER public: Weeknight Pasta, Grilled Chicken; OWNER private: Pasta Carbonara; OTHER public: Pasta Salad.
+        expect(total).toBe(4);
+        expect(results.map((r) => r.recipe.title)).not.toContain('Secret Pasta');
+    });
+});

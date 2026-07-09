@@ -28,6 +28,7 @@ export const RECIPE_ERROR_STATUS: Record<RecipeErrorCodeType, number> = {
     [RecipeErrorCode.ARCHIVE_DLQ]: HttpStatus.INTERNAL_SERVER_ERROR,
     [RecipeErrorCode.COLLECTION_NOT_CLONED]: HttpStatus.BAD_REQUEST,
     [RecipeErrorCode.ERASURE_IN_PROGRESS]: HTTP_STATUS_LOCKED,
+    [RecipeErrorCode.UNKNOWN_INGREDIENT]: HttpStatus.BAD_REQUEST,
 };
 
 /**

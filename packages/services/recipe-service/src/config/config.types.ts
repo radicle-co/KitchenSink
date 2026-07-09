@@ -302,6 +302,34 @@ export const rateLimitConfigSchema = z.object({
 export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
 
 // ---------------------------------------------------------------------------
+// Food Service Integration Config
+// ---------------------------------------------------------------------------
+
+/**
+ * Config for the outbound call to the food service (003) that the ingredients vertical resolves
+ * nutrition through (`@kitchensink/food-service-client`). Both are optional: `FOOD_SERVICE_URL` falls
+ * back to a local-dev default in `IngredientsModule` when unset, and `FOOD_SERVICE_TOKEN` is only
+ * present where the food service requires an M2M bearer. Declaring them here means the env is validated
+ * at boot instead of being read as unchecked raw `process.env` (T043b).
+ */
+export const foodServiceConfigSchema = z.object({
+    /** Food-service origin the ingredients vertical resolves against. Local-dev default applied downstream. */
+    FOOD_SERVICE_URL: z.string().url().optional(),
+
+    /** Optional service/M2M bearer token for the food service. */
+    FOOD_SERVICE_TOKEN: z.string().min(1).optional(),
+});
+
+/** Typed food-service integration configuration. */
+export type FoodServiceConfig = z.infer<typeof foodServiceConfigSchema>;
+
+/** Secret/non-secret metadata for food-service config fields. */
+export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldMeta> = {
+    FOOD_SERVICE_URL: { secret: false, description: 'Food service (003) origin' },
+    FOOD_SERVICE_TOKEN: { secret: true, description: 'Food service M2M bearer token' },
+};
+
+// ---------------------------------------------------------------------------
 // Composite: Full API Config
 // ---------------------------------------------------------------------------
 
@@ -320,6 +348,7 @@ export const apiConfigSchema = baseConfigSchema
     .merge(clerkConfigSchema)
     .merge(storageConfigSchema)
     .merge(rateLimitConfigSchema)
+    .merge(foodServiceConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
     .and(databaseConnectionSchema);

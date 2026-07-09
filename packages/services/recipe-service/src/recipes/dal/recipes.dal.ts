@@ -12,9 +12,16 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
-import { recipeSteps, recipes, type RecipeRow, type RecipeStepRow } from '../../database/schema/index.js';
+import {
+    recipeSteps,
+    recipes,
+    type RecipeIngredientRow,
+    type RecipeRow,
+    type RecipeStepRow,
+} from '../../database/schema/index.js';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
+import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipe-ingredients.dal.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
 export interface StepInput {
@@ -37,10 +44,12 @@ export interface CreateRecipeInput {
     dietaryFlags: string[];
     /** Denormalized, space-joined ingredient names — the recipe-owned column that feeds search. */
     ingredientNamesText: string;
+    /** Resolved `recipe_ingredients` link rows, persisted in the same transaction as the recipe. */
+    ingredients: ResolvedIngredientLine[];
     steps: StepInput[];
 }
 
-/** A partial content update. When `steps` is present the DAL replaces the full step list. */
+/** A partial content update. When `steps`/`ingredients` are present the DAL replaces that full list. */
 export interface UpdateRecipeInput {
     title?: string;
     description?: string;
@@ -52,13 +61,16 @@ export interface UpdateRecipeInput {
     tags?: string[];
     dietaryFlags?: string[];
     ingredientNamesText?: string;
+    /** When present, the entire ingredient link set is replaced; when absent, links are left untouched. */
+    ingredients?: ResolvedIngredientLine[];
     steps?: StepInput[];
 }
 
-/** The golden recipe row bundled with its ordered steps — the DAL's return unit. */
+/** The golden recipe row bundled with its ordered steps + ingredient links — the DAL's return unit. */
 export interface RecipeAggregate {
     recipe: RecipeRow;
     steps: RecipeStepRow[];
+    ingredients: RecipeIngredientRow[];
 }
 
 /** Pagination + sort inputs for {@link RecipesDal.findAll}. */
@@ -92,6 +104,9 @@ function toStepRows(
 }
 
 export class RecipesDal {
+    /** Owns the `recipe_ingredients` junction; driven inside this DAL's transactions for atomicity. */
+    private readonly linkDal = new RecipeIngredientsDal();
+
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
@@ -124,8 +139,9 @@ export class RecipesDal {
             }
 
             const steps = await this.insertSteps(tx, recipe.id, input.steps);
+            const ingredients = await this.linkDal.replaceForRecipe(tx, recipe.id, input.ingredients);
 
-            return { recipe, steps };
+            return { recipe, steps, ingredients };
         });
     }
 
@@ -147,8 +163,9 @@ export class RecipesDal {
         }
 
         const steps = await this.loadSteps(this.db, [recipe.id]);
+        const ingredients = await this.linkDal.loadByRecipeIds(this.db, [recipe.id]);
 
-        return { recipe, steps };
+        return { recipe, steps, ingredients };
     }
 
     /**
@@ -185,9 +202,15 @@ export class RecipesDal {
         const ids = pageRows.map((row) => row.id);
         const steps = ids.length > 0 ? await this.loadSteps(this.db, ids) : [];
         const byRecipe = groupSteps(steps);
+        const ingredientRows = ids.length > 0 ? await this.linkDal.loadByRecipeIds(this.db, ids) : [];
+        const ingredientsByRecipe = groupIngredients(ingredientRows);
 
         return {
-            rows: pageRows.map((recipe) => ({ recipe, steps: byRecipe.get(recipe.id) ?? [] })),
+            rows: pageRows.map((recipe) => ({
+                recipe,
+                steps: byRecipe.get(recipe.id) ?? [],
+                ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
+            })),
             total,
         };
     }
@@ -235,7 +258,14 @@ export class RecipesDal {
                 steps = await this.loadSteps(tx, [id]);
             }
 
-            return { recipe, steps };
+            // Replace the whole ingredient link set when the patch carries `ingredients`; otherwise leave
+            // the existing links untouched and return them as-is.
+            const ingredients =
+                input.ingredients !== undefined
+                    ? await this.linkDal.replaceForRecipe(tx, id, input.ingredients)
+                    : await this.linkDal.loadByRecipeIds(tx, [id]);
+
+            return { recipe, steps, ingredients };
         });
     }
 
@@ -286,6 +316,23 @@ function groupSteps(steps: RecipeStepRow[]): Map<string, RecipeStepRow[]> {
             bucket.push(step);
         } else {
             byRecipe.set(step.recipeId, [step]);
+        }
+    }
+
+    return byRecipe;
+}
+
+/** Group ingredient link rows by their `recipeId` (input already ordered by `sortOrder`). Pure. */
+function groupIngredients(rows: RecipeIngredientRow[]): Map<string, RecipeIngredientRow[]> {
+    const byRecipe = new Map<string, RecipeIngredientRow[]>();
+
+    for (const row of rows) {
+        const bucket = byRecipe.get(row.recipeId);
+
+        if (bucket) {
+            bucket.push(row);
+        } else {
+            byRecipe.set(row.recipeId, [row]);
         }
     }
 

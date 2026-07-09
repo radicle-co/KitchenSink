@@ -55,6 +55,17 @@ export const SEED_RECIPE_PRIVATE_ID = '00000000-0000-4000-8000-000000000002';
 /** Stable collection id (owned by the pro owner) plus its single membership. */
 export const SEED_COLLECTION_ID = '00000000-0000-4000-8000-0000000000c1';
 
+/**
+ * Stable freeform ingredient ids (catalog rows). Integration/e2e specs attach these to recipes by id;
+ * since T043b, recipe create/update validates every line's `ingredientId` against this catalog, so the
+ * baseline seed MUST provide the rows the specs reference.
+ */
+export const SEED_INGREDIENTS = [
+    { id: '00000000-0000-4000-8000-0000000000aa', name: 'Flour' },
+    { id: '00000000-0000-4000-8000-0000000000bb', name: 'Sugar' },
+    { id: '00000000-0000-4000-8000-0000000000cc', name: 'Butter' },
+] as const;
+
 /** Poll `predicate` until it resolves truthy or the deadline passes. */
 async function waitFor(label: string, timeoutMs: number, predicate: () => Promise<boolean>): Promise<void> {
     const deadline = Date.now() + timeoutMs;
@@ -125,6 +136,16 @@ async function applyMigrations(pool: pg.Pool): Promise<void> {
  * @sideEffect Writes baseline rows to the recipe tables.
  */
 async function seedBaseline(pool: pg.Pool): Promise<void> {
+    // Freeform catalog ingredients the recipe specs attach by id (search_vector populated like the DAL).
+    for (const ingredient of SEED_INGREDIENTS) {
+        await pool.query(
+            `INSERT INTO ingredients (id, name, is_user_entered, search_vector)
+             VALUES ($1, $2, true, to_tsvector('english', $2))
+             ON CONFLICT (id) DO NOTHING`,
+            [ingredient.id, ingredient.name],
+        );
+    }
+
     await pool.query(
         `INSERT INTO recipes (id, owner_id, title, description, visibility, ingredient_names_text)
          VALUES

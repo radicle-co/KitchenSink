@@ -285,6 +285,9 @@ export class RecipesService {
         const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, dto);
 
         const updated = await this.dal.update(id, {
+            // The version predicate makes the write an atomic compare-and-swap (closes the lost-update
+            // race the read-then-check above cannot). The pre-check stays for the fast, clear-error path.
+            expectedVersion: dto.expectedVersion,
             title: dto.title,
             description: dto.description,
             cuisine: dto.cuisine,
@@ -303,7 +306,15 @@ export class RecipesService {
         });
 
         if (!updated) {
-            // The active row vanished between the read and the write (a concurrent tombstone).
+            // The CAS matched 0 rows: either the row was tombstoned, or a concurrent update advanced the
+            // version between our read and our write (the lost-update race). Re-read to tell them apart so
+            // the loser of a concurrent edit gets a truthful 409 VERSION_CONFLICT, not a misleading 404.
+            const current = await this.dal.findById(id);
+
+            if (current) {
+                throw versionConflict(current.recipe.currentVersion, dto.expectedVersion);
+            }
+
             throw recipeNotFound(id);
         }
 

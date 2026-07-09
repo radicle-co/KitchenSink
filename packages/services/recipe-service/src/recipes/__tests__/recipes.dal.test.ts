@@ -193,7 +193,11 @@ describe('RecipesDal.update', () => {
         // update.returning → deleteSteps → insertSteps.returning → (no ingredients patch) load links.
         control.enqueue([updatedRow], undefined, newSteps, []);
 
-        const result = await dal.update('r-1', { title: 'Renamed', steps: [{ instruction: 'New' }] });
+        const result = await dal.update('r-1', {
+            expectedVersion: 1,
+            title: 'Renamed',
+            steps: [{ instruction: 'New' }],
+        });
 
         expect(result).toEqual({ recipe: updatedRow, steps: newSteps, ingredients: [] });
 
@@ -209,7 +213,7 @@ describe('RecipesDal.update', () => {
         const dal = new RecipesDal(control.db);
         control.enqueue([]);
 
-        expect(await dal.update('missing', { title: 'x' })).toBeUndefined();
+        expect(await dal.update('missing', { expectedVersion: 1, title: 'x' })).toBeUndefined();
     });
 });
 

@@ -63,6 +63,14 @@ export interface CreateRecipeInput {
 
 /** A partial content update. When `steps`/`ingredients` are present the DAL replaces that full list. */
 export interface UpdateRecipeInput {
+    /**
+     * The version the caller based this edit on. The DAL folds it into the UPDATE's WHERE as an ATOMIC
+     * compare-and-swap (`current_version = expectedVersion`), so two concurrent updates from the same base
+     * cannot both win — the loser matches 0 rows and the service raises `VERSION_CONFLICT` (T033). A
+     * service-layer read-then-check is NOT sufficient: under READ COMMITTED both requests read the same
+     * version, both pass the check, and the row lock merely serializes the writes → a silent lost update.
+     */
+    expectedVersion: number;
     title?: string;
     description?: string;
     cuisine?: string;
@@ -266,7 +274,17 @@ export class RecipesDal {
                     currentVersion: sql`${recipes.currentVersion} + 1`,
                     updatedAt: new Date(),
                 })
-                .where(and(eq(recipes.id, id), isNull(recipes.deletedAt)))
+                // Atomic compare-and-swap on the version: the row advances ONLY if it is still at
+                // `expectedVersion`. A concurrent update that already bumped it makes this match 0 rows,
+                // which the service turns into VERSION_CONFLICT — closing the lost-update race a separate
+                // read-then-check leaves open.
+                .where(
+                    and(
+                        eq(recipes.id, id),
+                        isNull(recipes.deletedAt),
+                        eq(recipes.currentVersion, input.expectedVersion),
+                    ),
+                )
                 .returning();
 
             if (!recipe) {

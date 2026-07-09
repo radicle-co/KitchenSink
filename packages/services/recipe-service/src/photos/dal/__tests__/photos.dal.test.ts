@@ -73,6 +73,12 @@ function createFakeDb(): FakeControl {
 
             return makeChain();
         },
+        // The advisory-lock guard in create() issues `tx.execute(SELECT pg_advisory_xact_lock(...))`.
+        execute: (...args: unknown[]): Promise<unknown> => {
+            calls.push({ method: 'execute', args });
+
+            return Promise.resolve({ rows: [] });
+        },
         transaction: (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> => callback(db),
     };
 

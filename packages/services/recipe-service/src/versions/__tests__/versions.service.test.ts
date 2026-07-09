@@ -166,6 +166,102 @@ describe('VersionsService.createSnapshot', () => {
     });
 });
 
+describe('VersionsService.restore', () => {
+    const OWNER = '01J000000000000000000FREE0';
+    const RECIPE_ID = 'r-1';
+
+    const TARGET_SNAPSHOT: RecipeSnapshot = {
+        version: 3,
+        title: 'Old Title',
+        description: 'old',
+        steps: [{ instruction: 'Old step' }],
+        ingredients: [
+            {
+                id: 'ri-1',
+                recipeId: RECIPE_ID,
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                quantity: 2,
+                unit: 'cup',
+                displayText: 'sifted',
+                sortOrder: 0,
+                ingredientName: 'Flour',
+                isUserEntered: false,
+            },
+        ],
+        servings: 4,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 10,
+    };
+
+    function fakeRecipes(overrides: Record<string, unknown> = {}): RecipesService {
+        return {
+            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, version: 5 }),
+            update: vi.fn().mockResolvedValue({ version: 6 }),
+            ...overrides,
+        } as unknown as RecipesService;
+    }
+
+    it('applies the snapshot INCLUDING its ingredients as a new recipe version, then records it', async () => {
+        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(target),
+            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
+        });
+        const recipes = fakeRecipes();
+        const service = new VersionsService(dal, recipes, fakeS3(), BUCKET);
+
+        await service.restore(OWNER, RECIPE_ID, 'v-3');
+
+        // The restore reverts ingredients too — not just title/steps/times (the previously-dropped case).
+        expect(recipes.update).toHaveBeenCalledWith(
+            OWNER,
+            RECIPE_ID,
+            expect.objectContaining({
+                title: 'Old Title',
+                ingredients: [
+                    expect.objectContaining({
+                        ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                        name: 'Flour',
+                        quantity: 2,
+                        unit: 'cup',
+                        notes: 'sifted',
+                    }),
+                ],
+            }),
+        );
+        expect(dal.createSnapshot).toHaveBeenCalledOnce();
+    });
+
+    it('rejects a non-owner with NOT_OWNER and never mutates the recipe', async () => {
+        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(target) });
+        const recipes = fakeRecipes({ getById: vi.fn().mockResolvedValue({ ownerId: 'someone-else', version: 5 }) });
+        const service = new VersionsService(dal, recipes, fakeS3(), BUCKET);
+
+        await expect(service.restore(OWNER, RECIPE_ID, 'v-3')).rejects.toBeDefined();
+        expect(recipes.update).not.toHaveBeenCalled();
+    });
+});
+
+describe('VersionsService retention S3 failure (best-effort)', () => {
+    it('does NOT delete an un-archived version and does not throw when the archive PUT fails', async () => {
+        const overflow = [makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 })];
+        const dal = fakeDal({
+            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: 'r-1', versionNumber: 11 })),
+            findVersionsBeyondRetention: vi.fn().mockResolvedValue(overflow),
+        });
+        const s3 = { send: vi.fn().mockRejectedValue(new Error('S3 down')) };
+        const service = makeService(dal, s3);
+
+        // The recipe save (which triggers retention) must succeed even though archiving failed...
+        await expect(
+            service.createSnapshot({ recipeId: 'r-1', versionNumber: 11, snapshot: SNAPSHOT, createdBy: 'owner-1' }),
+        ).resolves.toBeDefined();
+        // ...and the un-archived row must NOT be deleted (archive-before-delete invariant preserved).
+        expect(dal.deleteById).not.toHaveBeenCalled();
+    });
+});
+
 describe('versionArchiveKey', () => {
     it('builds a deterministic per-recipe, per-version key', () => {
         const row = makeVersionRow({ recipeId: 'r-1', versionNumber: 7 });

@@ -47,6 +47,12 @@ export class PhotosDal {
      */
     public async create(input: CreatePhotoInput): Promise<RecipePhotoRow> {
         return this.db.transaction(async (tx) => {
+            // Serialize concurrent confirms for the SAME recipe: without this, two transactions can both
+            // COUNT 9 and both INSERT, exceeding the cap (and colliding on `sortOrder`). A transaction-
+            // scoped advisory lock keyed on the recipe id makes the COUNT + INSERT atomic per recipe
+            // (released automatically at commit/rollback); different recipes never contend.
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.recipeId})::bigint)`);
+
             const count = await this.countByRecipe(tx, input.recipeId);
 
             if (count >= MAX_PHOTOS_PER_RECIPE) {

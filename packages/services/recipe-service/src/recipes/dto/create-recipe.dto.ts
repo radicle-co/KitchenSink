@@ -17,6 +17,7 @@ import {
     IsOptional,
     IsString,
     IsUUID,
+    Max,
     MaxLength,
     Min,
     ValidateNested,
@@ -35,8 +36,13 @@ export class RecipeIngredientInputDto {
     @MaxLength(120)
     name!: string;
 
+    // Bounded to the `recipe_ingredients.quantity numeric(10,3)` column + its `CHECK (quantity > 0)`:
+    // the minimum is one representable step at scale 3 (values below round to 0.000 and violate the
+    // check), and the maximum stays well under the 7-integer-digit precision (values at/above overflow
+    // with SQLSTATE 22003). Both previously surfaced as an uncaught 500 that aborted the whole recipe tx.
     @IsNumber()
-    @Min(Number.MIN_VALUE)
+    @Min(0.001)
+    @Max(1_000_000)
     quantity!: number;
 
     @IsOptional()

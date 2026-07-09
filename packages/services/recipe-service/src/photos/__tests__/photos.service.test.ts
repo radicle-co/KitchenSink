@@ -16,11 +16,23 @@ import { PayloadTooLargeException, UnprocessableEntityException, UnsupportedMedi
 
 import { MAX_UPLOAD_BYTES, PhotosService, type PhotoStoragePort, type PhotosConfig } from '../photos.service.js';
 import type { PhotosDal } from '../dal/photos.dal.js';
+import type { RecipesService } from '../../recipes/recipes.service.js';
+import { isRecipeDomainError, notOwner, recipeNotFound } from '../../recipes/recipe.error.js';
 import { makeRecipePhotoRow } from '../../__fixtures__/index.js';
 
 const OWNER = '01J000000000000000000FREE0';
+const OTHER = '01J00000000000000000OTHER0';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 const CONFIG: PhotosConfig = { cloudfrontUrl: 'https://cdn.example.com' };
+
+/**
+ * A recipes service whose `getById` resolves to a recipe owned by the caller (default happy path).
+ * Override `getById` to simulate a public-but-not-owned recipe (resolves with a different `ownerId`),
+ * another owner's private recipe (throws NOT_OWNER), or a missing one (throws RECIPE_NOT_FOUND).
+ */
+function fakeRecipes(getById = vi.fn().mockResolvedValue({ ownerId: OWNER })): RecipesService {
+    return { getById } as unknown as RecipesService;
+}
 
 // Magic-byte signatures (only the leading bytes matter to the detector).
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
@@ -72,7 +84,7 @@ describe('PhotosService.createUploadUrl', () => {
 
     beforeEach(() => {
         storage = fakeStorage();
-        service = new PhotosService(fakeDal(), storage, CONFIG);
+        service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes());
     });
 
     it.each(['image/jpeg', 'image/png', 'image/webp'])('presigns a PUT for the allowlisted type %s', async (type) => {
@@ -115,7 +127,7 @@ describe('PhotosService.confirm', () => {
             readMagicBytes: vi.fn().mockResolvedValue(bytes),
             headSize: vi.fn().mockResolvedValue(2048),
         });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG);
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         const response = await service.confirm(OWNER, RECIPE_ID, keyFor());
 
@@ -131,7 +143,7 @@ describe('PhotosService.confirm', () => {
     it('rejects an object whose magic bytes are not a supported image (no insert)', async () => {
         const create = vi.fn();
         const storage = fakeStorage({ readMagicBytes: vi.fn().mockResolvedValue(GARBAGE) });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG);
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -142,7 +154,7 @@ describe('PhotosService.confirm', () => {
     it('rejects HEIC/HEIF by magic bytes even though the wrapper resembles an image (no insert)', async () => {
         const create = vi.fn();
         const storage = fakeStorage({ readMagicBytes: vi.fn().mockResolvedValue(HEIC) });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG);
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -156,7 +168,7 @@ describe('PhotosService.confirm', () => {
             readMagicBytes: vi.fn().mockResolvedValue(JPEG),
             headSize: vi.fn().mockResolvedValue(MAX_UPLOAD_BYTES + 1),
         });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG);
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -168,7 +180,7 @@ describe('PhotosService.confirm', () => {
         const row = makeRecipePhotoRow({ recipeId: RECIPE_ID, sizeBytes: MAX_UPLOAD_BYTES });
         const create = vi.fn().mockResolvedValue(row);
         const storage = fakeStorage({ headSize: vi.fn().mockResolvedValue(MAX_UPLOAD_BYTES) });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG);
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         await expect(service.confirm(OWNER, RECIPE_ID, keyFor())).resolves.toBeDefined();
         expect(create).toHaveBeenCalledOnce();
@@ -177,7 +189,7 @@ describe('PhotosService.confirm', () => {
     it('rejects a key that is not scoped to the owner+recipe prefix (no reads, no insert)', async () => {
         const create = vi.fn();
         const storage = fakeStorage();
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG);
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, 'recipes/someone-else/r/photos/x'));
 
@@ -194,9 +206,9 @@ describe('PhotosService.list', () => {
             makeRecipePhotoRow({ id: 'p-2', recipeId: RECIPE_ID, sortOrder: 1 }),
         ];
         const dal = fakeDal({ findByRecipe: vi.fn().mockResolvedValue(rows) });
-        const service = new PhotosService(dal, fakeStorage(), CONFIG);
+        const service = new PhotosService(dal, fakeStorage(), CONFIG, fakeRecipes());
 
-        const response = await service.list(RECIPE_ID);
+        const response = await service.list(OWNER, RECIPE_ID);
 
         expect(dal.findByRecipe).toHaveBeenCalledWith(RECIPE_ID);
         expect(response).toHaveLength(2);
@@ -208,17 +220,17 @@ describe('PhotosService.list', () => {
 describe('PhotosService.delete', () => {
     it('delegates to the DAL and resolves when a row was removed', async () => {
         const del = vi.fn().mockResolvedValue(true);
-        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG);
+        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, fakeRecipes());
 
-        await expect(service.delete(RECIPE_ID, 'p-1')).resolves.toBeUndefined();
+        await expect(service.delete(OWNER, RECIPE_ID, 'p-1')).resolves.toBeUndefined();
         expect(del).toHaveBeenCalledWith(RECIPE_ID, 'p-1');
     });
 
     it('throws NotFound when nothing matched', async () => {
         const del = vi.fn().mockResolvedValue(false);
-        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG);
+        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, fakeRecipes());
 
-        await expect(service.delete(RECIPE_ID, 'missing')).rejects.toBeDefined();
+        await expect(service.delete(OWNER, RECIPE_ID, 'missing')).rejects.toBeDefined();
     });
 });
 
@@ -226,12 +238,105 @@ describe('PhotosService.reorder', () => {
     it('delegates the ordered ids to the DAL and shapes the reordered rows', async () => {
         const rows = [makeRecipePhotoRow({ id: 'p-2', sortOrder: 0 }), makeRecipePhotoRow({ id: 'p-1', sortOrder: 1 })];
         const reorder = vi.fn().mockResolvedValue(rows);
-        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG);
+        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, fakeRecipes());
 
-        const response = await service.reorder(RECIPE_ID, ['p-2', 'p-1']);
+        const response = await service.reorder(OWNER, RECIPE_ID, ['p-2', 'p-1']);
 
         expect(reorder).toHaveBeenCalledWith(RECIPE_ID, ['p-2', 'p-1']);
         expect(response.map((photo) => photo.id)).toEqual(['p-2', 'p-1']);
         expect(response.every((photo) => recipePhotoSchema.safeParse(photo).success)).toBe(true);
+    });
+});
+
+describe('PhotosService recipe-ownership authorization', () => {
+    // A PUBLIC recipe owned by OWNER; getById resolves (read allowed for anyone) with ownerId=OWNER, so a
+    // caller of OTHER is a non-owner. Drives the mutation-rejection + public-read-allowed cases.
+    const publicOwnedByOwner = (): RecipesService => fakeRecipes(vi.fn().mockResolvedValue({ ownerId: OWNER }));
+    // A private recipe of another owner: getById itself throws NOT_OWNER (read denied).
+    const privateOtherOwner = (): RecipesService => fakeRecipes(vi.fn().mockRejectedValue(notOwner(RECIPE_ID)));
+    // A missing recipe: getById throws RECIPE_NOT_FOUND.
+    const missingRecipe = (): RecipesService => fakeRecipes(vi.fn().mockRejectedValue(recipeNotFound(RECIPE_ID)));
+
+    it('createUploadUrl rejects a non-owner before presigning', async () => {
+        const storage = fakeStorage();
+        const service = new PhotosService(fakeDal(), storage, CONFIG, publicOwnedByOwner());
+
+        const error = await catchError(service.createUploadUrl(OTHER, RECIPE_ID, 'image/jpeg'));
+
+        expect(isRecipeDomainError(error)).toBe(true);
+        expect(storage.presignUpload).not.toHaveBeenCalled();
+    });
+
+    it('confirm rejects a non-owner before reading the object or inserting', async () => {
+        const create = vi.fn();
+        const storage = fakeStorage();
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, publicOwnedByOwner());
+
+        await catchError(service.confirm(OTHER, RECIPE_ID, `recipes/${OTHER}/${RECIPE_ID}/photos/x`));
+
+        expect(storage.readMagicBytes).not.toHaveBeenCalled();
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('delete rejects a non-owner without touching the DAL', async () => {
+        const del = vi.fn();
+        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, publicOwnedByOwner());
+
+        await catchError(service.delete(OTHER, RECIPE_ID, 'p-1'));
+
+        expect(del).not.toHaveBeenCalled();
+    });
+
+    it('reorder rejects a non-owner without touching the DAL', async () => {
+        const reorder = vi.fn();
+        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, publicOwnedByOwner());
+
+        await catchError(service.reorder(OTHER, RECIPE_ID, ['p-1']));
+
+        expect(reorder).not.toHaveBeenCalled();
+    });
+
+    it('propagates NOT_OWNER when the recipe is private and owned by someone else', async () => {
+        const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, privateOtherOwner());
+
+        const error = await catchError(service.list(OTHER, RECIPE_ID));
+
+        expect(isRecipeDomainError(error) && error.code).toBe('NOT_OWNER');
+    });
+
+    it('propagates RECIPE_NOT_FOUND for a missing recipe', async () => {
+        const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, missingRecipe());
+
+        const error = await catchError(service.list(OWNER, RECIPE_ID));
+
+        expect(isRecipeDomainError(error) && error.code).toBe('RECIPE_NOT_FOUND');
+    });
+
+    it('allows listing a PUBLIC recipe owned by someone else (read is owner-or-public)', async () => {
+        const rows = [makeRecipePhotoRow({ recipeId: RECIPE_ID })];
+        const dal = fakeDal({ findByRecipe: vi.fn().mockResolvedValue(rows) });
+        const service = new PhotosService(dal, fakeStorage(), CONFIG, publicOwnedByOwner());
+
+        await expect(service.list(OTHER, RECIPE_ID)).resolves.toHaveLength(1);
+    });
+});
+
+describe('PhotosService.confirm S3 error handling', () => {
+    it('translates a thrown readMagicBytes (missing object) into 422, not a 500', async () => {
+        const storage = fakeStorage({ readMagicBytes: vi.fn().mockRejectedValue(new Error('NoSuchKey')) });
+        const service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes());
+
+        const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
+
+        expect(error).toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('translates a thrown headSize into 422, not a 500', async () => {
+        const storage = fakeStorage({ headSize: vi.fn().mockRejectedValue(new Error('NotFound')) });
+        const service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes());
+
+        const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
+
+        expect(error).toBeInstanceOf(UnprocessableEntityException);
     });
 });

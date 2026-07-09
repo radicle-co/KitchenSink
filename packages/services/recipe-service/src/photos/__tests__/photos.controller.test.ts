@@ -66,7 +66,7 @@ describe('PhotosController', () => {
 
         const result = await controller.list(reqWith(OWNER), RECIPE_ID);
 
-        expect(list).toHaveBeenCalledWith(RECIPE_ID);
+        expect(list).toHaveBeenCalledWith(OWNER, RECIPE_ID);
         expect(result).toEqual([PHOTO]);
     });
 
@@ -75,7 +75,7 @@ describe('PhotosController', () => {
         const controller = new PhotosController(fakeService({ delete: deleteFn }));
 
         await expect(controller.remove(reqWith(OWNER), RECIPE_ID, 'p-1')).resolves.toBeUndefined();
-        expect(deleteFn).toHaveBeenCalledWith(RECIPE_ID, 'p-1');
+        expect(deleteFn).toHaveBeenCalledWith(OWNER, RECIPE_ID, 'p-1');
     });
 
     it('reorder delegates recipeId + photoIds and returns the reordered photos', async () => {
@@ -85,7 +85,7 @@ describe('PhotosController', () => {
 
         const result = await controller.reorder(reqWith(OWNER), RECIPE_ID, body);
 
-        expect(reorder).toHaveBeenCalledWith(RECIPE_ID, ['p-2', 'p-1']);
+        expect(reorder).toHaveBeenCalledWith(OWNER, RECIPE_ID, ['p-2', 'p-1']);
         expect(result).toEqual([PHOTO]);
     });
 

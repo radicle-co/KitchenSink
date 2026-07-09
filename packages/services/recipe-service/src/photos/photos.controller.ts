@@ -74,9 +74,7 @@ export class PhotosController {
         @Req() req: AuthenticatedRequest,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
     ): Promise<RecipePhoto[]> {
-        ownerIdOf(req);
-
-        return this.photosService.list(recipeId);
+        return this.photosService.list(ownerIdOf(req), recipeId);
     }
 
     /** `PATCH …/photos/reorder` — set the recipe's photo display order. */
@@ -86,9 +84,7 @@ export class PhotosController {
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
         @Body() body: ReorderPhotosDto,
     ): Promise<RecipePhoto[]> {
-        ownerIdOf(req);
-
-        return this.photosService.reorder(recipeId, body.photoIds);
+        return this.photosService.reorder(ownerIdOf(req), recipeId, body.photoIds);
     }
 
     /** `DELETE …/photos/{photoId}` — remove a photo from the recipe. */
@@ -99,8 +95,6 @@ export class PhotosController {
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
         @Param('photoId', ParseUUIDPipe) photoId: string,
     ): Promise<void> {
-        ownerIdOf(req);
-
-        await this.photosService.delete(recipeId, photoId);
+        await this.photosService.delete(ownerIdOf(req), recipeId, photoId);
     }
 }

@@ -132,6 +132,16 @@ export class VersionsService {
             servings: snapshot.servings,
             prepTimeMinutes: snapshot.prepTimeMinutes,
             cookTimeMinutes: snapshot.cookTimeMinutes,
+            // Restore the snapshot's ingredient set too — otherwise the recipe reverts everything EXCEPT
+            // ingredients, leaving the live recipe's current ingredients while the restore's own recorded
+            // snapshot claims the old ones (recorded state diverging from actual state).
+            ingredients: snapshot.ingredients.map((ingredient) => ({
+                ingredientId: ingredient.ingredientId,
+                name: ingredient.ingredientName,
+                quantity: ingredient.quantity,
+                unit: ingredient.unit,
+                ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+            })),
             steps: snapshot.steps.map((step) => ({
                 instruction: step.instruction,
                 ...(step.timerSeconds !== undefined ? { timerSeconds: step.timerSeconds } : {}),
@@ -158,8 +168,23 @@ export class VersionsService {
         const overflow = await this.dal.findVersionsBeyondRetention(recipeId);
 
         for (const version of overflow) {
-            await this.archive(version);
-            await this.dal.deleteById(version.id);
+            // Archive-before-delete is the safety invariant: only prune a row once its snapshot is safely
+            // in S3. If the archive PUT fails, LEAVE the row in Postgres and stop — never delete an
+            // un-archived version, and never let a transient S3 error 500 the recipe save that already
+            // committed. The row is simply re-attempted on the next write (and the durable retry path is
+            // the pending-archive queue, T131). A `deleteById` failure is likewise swallowed to keep the
+            // save succeeding; the row just remains for the next pass.
+            try {
+                await this.archive(version);
+            } catch {
+                return;
+            }
+
+            try {
+                await this.dal.deleteById(version.id);
+            } catch {
+                // Row stays; a later retention pass prunes it. The snapshot is already archived, so safe.
+            }
         }
     }
 

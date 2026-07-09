@@ -30,6 +30,8 @@ import {
 import { PhotoProcessingStatus, type RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
+import { RecipesService } from '../recipes/recipes.service.js';
+import { notOwner } from '../recipes/recipe.error.js';
 import type { RecipePhotoRow } from '../database/schema/index.js';
 
 /** DI token for the photo DAL — provided by `PhotosModule` via `useFactory` over the Drizzle client. */
@@ -126,7 +128,30 @@ export class PhotosService {
         @Inject(PHOTOS_DAL) private readonly dal: PhotosDal,
         @Inject(PHOTOS_STORAGE) private readonly storage: PhotoStoragePort,
         @Inject(PHOTOS_CONFIG) private readonly config: PhotosConfig,
+        private readonly recipes: RecipesService,
     ) {}
+
+    /**
+     * Read-authorize access to a recipe's photos: allowed for the owner OR any `public` recipe. Delegates
+     * to {@link RecipesService.getById}, which throws `RECIPE_NOT_FOUND` (404) for a missing/tombstoned
+     * recipe and `NOT_OWNER` (403) for another owner's private recipe. Mirrors the versions vertical.
+     */
+    private async assertCanRead(ownerId: string, recipeId: string): Promise<void> {
+        await this.recipes.getById(ownerId, recipeId);
+    }
+
+    /**
+     * Owner-only authorize a mutation on a recipe's photos. A public recipe owned by someone else passes
+     * the read check but is rejected here with `NOT_OWNER` — only the recipe owner may attach, reorder,
+     * or delete photos.
+     */
+    private async assertOwner(ownerId: string, recipeId: string): Promise<void> {
+        const recipe = await this.recipes.getById(ownerId, recipeId);
+
+        if (recipe.ownerId !== ownerId) {
+            throw notOwner(recipeId);
+        }
+    }
 
     /**
      * Presign an S3 PUT for a new photo. Rejects any content type outside the allowlist BEFORE
@@ -135,6 +160,8 @@ export class PhotosService {
      * @throws `UnsupportedMediaTypeException` (415) when `contentType` is not jpeg/png/webp.
      */
     public async createUploadUrl(ownerId: string, recipeId: string, contentType: string): Promise<UploadUrlResponse> {
+        await this.assertOwner(ownerId, recipeId);
+
         if (!isAllowedContentType(contentType)) {
             throw new UnsupportedMediaTypeException(
                 `Unsupported photo content type '${contentType}'. Allowed: ${ALLOWED_UPLOAD_CONTENT_TYPES.join(', ')}.`,
@@ -156,11 +183,16 @@ export class PhotosService {
      * @throws `PayloadTooLargeException` (413) when the object exceeds 5 MB.
      */
     public async confirm(ownerId: string, recipeId: string, s3Key: string): Promise<RecipePhoto> {
+        await this.assertOwner(ownerId, recipeId);
+
         if (!s3Key.startsWith(photoKeyPrefix(ownerId, recipeId))) {
             throw new BadRequestException('The upload key is not scoped to this recipe.');
         }
 
-        const bytes = await this.storage.readMagicBytes(s3Key, MAGIC_BYTE_READ_LENGTH);
+        // A missing object (never uploaded, or deleted between PUT and confirm) makes the S3 SDK throw a
+        // raw `NoSuchKey`/`NotFound` the global filter can't classify — it would surface as a 500. Treat
+        // an unreadable/unsizable object as an unprocessable upload (422) instead.
+        const bytes = await this.readMagicBytesOrThrow(s3Key);
         const detected = detectImageContentType(bytes);
 
         if (detected === undefined) {
@@ -169,7 +201,7 @@ export class PhotosService {
             );
         }
 
-        const size = await this.storage.headSize(s3Key);
+        const size = await this.headSizeOrThrow(s3Key);
 
         if (size === undefined) {
             throw new UnprocessableEntityException('The uploaded object could not be sized.');
@@ -185,19 +217,23 @@ export class PhotosService {
         return this.toPhotoResponse(row);
     }
 
-    /** List a recipe's photos, ordered, shaped into the `RecipePhoto` contract. */
-    public async list(recipeId: string): Promise<RecipePhoto[]> {
+    /** List a recipe's photos, ordered, shaped into the `RecipePhoto` contract. Read-authorized. */
+    public async list(ownerId: string, recipeId: string): Promise<RecipePhoto[]> {
+        await this.assertCanRead(ownerId, recipeId);
+
         const rows = await this.dal.findByRecipe(recipeId);
 
         return rows.map((row) => this.toPhotoResponse(row));
     }
 
     /**
-     * Delete a recipe's photo.
+     * Delete a recipe's photo. Owner-only.
      *
      * @throws `NotFoundException` when no such photo exists on the recipe.
      */
-    public async delete(recipeId: string, photoId: string): Promise<void> {
+    public async delete(ownerId: string, recipeId: string, photoId: string): Promise<void> {
+        await this.assertOwner(ownerId, recipeId);
+
         const removed = await this.dal.delete(recipeId, photoId);
 
         if (!removed) {
@@ -205,11 +241,40 @@ export class PhotosService {
         }
     }
 
-    /** Reorder a recipe's photos to the given id order and return the reordered contract objects. */
-    public async reorder(recipeId: string, photoIds: string[]): Promise<RecipePhoto[]> {
+    /** Reorder a recipe's photos to the given id order and return the reordered objects. Owner-only. */
+    public async reorder(ownerId: string, recipeId: string, photoIds: string[]): Promise<RecipePhoto[]> {
+        await this.assertOwner(ownerId, recipeId);
+
         const rows = await this.dal.reorder(recipeId, photoIds);
 
         return rows.map((row) => this.toPhotoResponse(row));
+    }
+
+    /**
+     * Read the object's leading bytes, translating a missing/unreadable object into a 422 rather than
+     * letting the raw S3 error escape as a 500.
+     *
+     * @sideEffect Reads from S3.
+     */
+    private async readMagicBytesOrThrow(s3Key: string): Promise<Uint8Array> {
+        try {
+            return await this.storage.readMagicBytes(s3Key, MAGIC_BYTE_READ_LENGTH);
+        } catch {
+            throw new UnprocessableEntityException('The uploaded object could not be read for validation.');
+        }
+    }
+
+    /**
+     * HEAD the object for its size, translating a missing/unreadable object into a 422 rather than a 500.
+     *
+     * @sideEffect Reads from S3.
+     */
+    private async headSizeOrThrow(s3Key: string): Promise<number | undefined> {
+        try {
+            return await this.storage.headSize(s3Key);
+        } catch {
+            throw new UnprocessableEntityException('The uploaded object could not be sized.');
+        }
     }
 
     /**

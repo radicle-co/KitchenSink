@@ -10,6 +10,7 @@
  * vars, exactly like the other cross-service integration points.
  */
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
@@ -30,11 +31,16 @@ const DEFAULT_FOOD_SERVICE_URL = 'http://localhost:3002';
         },
         {
             provide: FoodServiceClient,
-            useFactory: (): FoodServiceClient => {
-                const token = process.env['FOOD_SERVICE_TOKEN'];
+            inject: [ConfigService],
+            useFactory: (config: ConfigService): FoodServiceClient => {
+                // Read the base URL from the Zod-validated config (foodServiceConfigSchema) rather than raw
+                // process.env, so the boot-time validation actually governs the value the client uses. The
+                // token is still read live per request via the callback so a rotated secret takes effect
+                // without a redeploy.
+                const token = config.get<string>('FOOD_SERVICE_TOKEN');
 
                 return new FoodServiceClient({
-                    baseUrl: process.env['FOOD_SERVICE_URL'] ?? DEFAULT_FOOD_SERVICE_URL,
+                    baseUrl: config.get<string>('FOOD_SERVICE_URL') ?? DEFAULT_FOOD_SERVICE_URL,
                     token: token !== undefined ? (): string => process.env['FOOD_SERVICE_TOKEN'] ?? token : undefined,
                 });
             },

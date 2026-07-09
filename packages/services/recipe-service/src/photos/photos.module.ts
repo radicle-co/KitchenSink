@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
+import { RecipesModule } from '../recipes/recipes.module.js';
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
 import { PhotosController } from './photos.controller.js';
 import { PhotosService, PHOTOS_CONFIG, PHOTOS_DAL, PHOTOS_STORAGE, type PhotosConfig } from './photos.service.js';
@@ -18,6 +19,7 @@ import { createS3PhotoStorage } from './photos.storage.js';
  * `req.principal`; the global `ApiExceptionFilter` maps thrown errors to HTTP.
  */
 @Module({
+    imports: [RecipesModule],
     controllers: [PhotosController],
     providers: [
         {

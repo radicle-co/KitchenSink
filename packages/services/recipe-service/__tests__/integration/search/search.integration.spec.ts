@@ -242,4 +242,40 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
         expect(total).toBe(4);
         expect(results.map((r) => r.recipe.title)).not.toContain('Secret Pasta');
     });
+
+    // verticals-3: the facet CTE samples the top-N matches. In browse mode EVERY row has rank 0, so
+    // without a total-order tiebreak the N-row sample is arbitrary and facet counts flicker. With the
+    // (rank DESC, created_at DESC, id) tiebreak the sample is the deterministic newest-N. Proven by
+    // driving the sample boundary with an injected size of 2 over 3 rows whose created_at we control:
+    // the two NEWEST (tagged 'keep') must be sampled and the oldest ('drop') excluded — every time.
+    it('samples facets deterministically by (created_at DESC, id), not arbitrarily', async () => {
+        // Explicit, distinct created_at so recency order is unambiguous (oldest → newest).
+        const insertAt = async (title: string, tag: string, createdAt: string): Promise<void> => {
+            await pool.query(
+                `INSERT INTO recipes
+                    (owner_id, title, description, visibility, dietary_flags, tags,
+                     prep_time_minutes, cook_time_minutes, total_time_minutes, servings,
+                     ingredient_names_text, created_at, updated_at)
+                 VALUES ($1,$2,'',$3,'{}'::text[],$4::text[],5,5,10,4,$5,$6,$6)`,
+                [OWNER, title, 'public', [tag], title.toLowerCase(), createdAt],
+            );
+        };
+        await insertAt('Oldest', 'drop', '2026-01-01T00:00:00.000Z');
+        await insertAt('Middle', 'keep', '2026-02-01T00:00:00.000Z');
+        await insertAt('Newest', 'keep', '2026-03-01T00:00:00.000Z');
+
+        // Sample size 2 → only the two newest rows feed the facets.
+        const sampledDal = new SearchDal(db, 2);
+        const first = await sampledDal.search(filters({ sortBy: RecipeSearchSortBy.RECENT }));
+        const second = await sampledDal.search(filters({ sortBy: RecipeSearchSortBy.RECENT }));
+
+        const tagCounts = (facets: typeof first.facets): Record<string, number> =>
+            Object.fromEntries(facets.tags.map((bucket) => [bucket.value, bucket.count]));
+
+        // The two newest are both 'keep'; the oldest 'drop' is beyond the sample and must not appear.
+        expect(tagCounts(first.facets)).toEqual({ keep: 2 });
+        expect(tagCounts(first.facets)['drop']).toBeUndefined();
+        // Identical requests yield identical facet counts (the flicker is gone).
+        expect(tagCounts(second.facets)).toEqual(tagCounts(first.facets));
+    });
 });

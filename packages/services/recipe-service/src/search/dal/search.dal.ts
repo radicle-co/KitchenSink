@@ -243,7 +243,16 @@ function groupFacets(rows: RawFacetRow[]): RecipeSearchFacets {
 }
 
 export class SearchDal {
-    public constructor(private readonly db: RecipeDrizzle) {}
+    /**
+     * @param db The Drizzle client.
+     * @param facetSampleSize How many top-ordered matches the facet CTE samples (default
+     *   {@link FACET_SAMPLE_SIZE}). Injectable so a test can drive the sampling boundary with a handful
+     *   of rows instead of hundreds, and so it stays a single tunable knob.
+     */
+    public constructor(
+        private readonly db: RecipeDrizzle,
+        private readonly facetSampleSize: number = FACET_SAMPLE_SIZE,
+    ) {}
 
     /**
      * Run one ranked, filtered, paginated search and aggregate its facets.
@@ -281,8 +290,13 @@ export class SearchDal {
                 SELECT dietary_flags, tags, ${rank} AS rank
                 FROM recipes
                 WHERE ${where}
-                ORDER BY rank DESC
-                LIMIT ${sql.raw(String(FACET_SAMPLE_SIZE))}
+                -- Total-order tiebreak (created_at DESC, then the id PK): without it the sample is an
+                -- ARBITRARY set of rows whenever rank ties — and in browse mode rank is a constant 0, so
+                -- EVERY row ties and the facet counts flicker between identical requests. Ordering by
+                -- created_at (newest-first, matching the page) then the unique id makes the sample
+                -- deterministic and stable.
+                ORDER BY rank DESC, created_at DESC, id
+                LIMIT ${sql.raw(String(this.facetSampleSize))}
             )
             SELECT 'dietary_flags' AS facet, flag AS value, count(*)::int AS count
             FROM matched, unnest(matched.dietary_flags) AS flag

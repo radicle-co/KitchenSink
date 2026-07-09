@@ -128,12 +128,11 @@ export class IdentityServiceStack extends Stack {
             ],
         });
 
-        taskExecutionRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['secretsmanager:GetSecretValue'],
-                resources: ['*'],
-            }),
-        );
+        // ARCH-IT-4: no manual `secretsmanager:GetSecretValue` on `*` here. The execution role only
+        // needs to read the secrets referenced by the container `secrets:` block (the DB creds and the
+        // auth publishable key), and `ecs.Secret.fromSecretsManager` already grants the execution role
+        // `GetSecretValue` scoped to those exact secret ARNs. A wildcard statement would let this task
+        // read EVERY secret in the account, so it is omitted (verified against the synthesized policy).
 
         const taskRole = new iam.Role(this, 'IdentityTaskRole', {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),

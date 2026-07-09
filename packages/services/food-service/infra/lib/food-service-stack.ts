@@ -306,12 +306,12 @@ export class FoodServiceStack extends Stack {
                 iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
             ],
         });
-        taskExecutionRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['secretsmanager:GetSecretValue'],
-                resources: ['*'],
-            }),
-        );
+        // ARCH-IT-4: no manual `secretsmanager:GetSecretValue` on `*` here. The only secret the
+        // execution role must fetch is the USDA API key referenced by every container's `secrets:`
+        // block, and `ecs.Secret.fromSecretsManager(usdaApiKeySecret)` already grants the execution
+        // role `GetSecretValue` scoped to that exact secret ARN. (Food connects to RDS via IAM auth, so
+        // there is no DB secret.) A wildcard statement would let these tasks read EVERY secret in the
+        // account, so it is omitted (verified against the synthesized policy).
 
         // EventBridge bus the worker uses to signal fetch lifecycle (no SQS). The completion event
         // (`FoodFetchCompleted`) is still emitted as part of the event contract for future consumers;

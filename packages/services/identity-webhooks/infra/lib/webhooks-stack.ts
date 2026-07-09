@@ -153,27 +153,79 @@ export class WebhooksStack extends Stack {
             retention: logs.RetentionDays.ONE_MONTH,
         });
 
-        const webhooksRole = new iam.Role(this, 'WebhooksLambdaRole', {
-            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-            description: 'Least-privilege execution role for identity-webhooks Lambda',
-            managedPolicies: [
-                iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-            ],
-        });
-        webhooksLogGroup.grantWrite(webhooksRole);
-        dbCredentialsSecret.grantRead(webhooksRole);
-        authSecretKey.grantRead(webhooksRole);
-        deletionQueue.grantSendMessages(webhooksRole);
-        deletionQueue.grantConsumeMessages(webhooksRole);
-        mediaBucket.grantReadWrite(webhooksRole);
-        archiveBucket.grantReadWrite(webhooksRole);
+        // ARCH-IT-7: one least-privilege role PER function instead of a single union role shared by all
+        // four Lambdas. The old shared role granted the UNION of every permission (DB-secret read,
+        // auth-secret read, SQS send AND consume, media + archive bucket read/write) to functionally
+        // distinct handlers, so e.g. the migration runner could send/consume SQS and read/write both
+        // buckets it never touches. Each role below grants ONLY what that handler's code actually calls
+        // (verified against the handler sources): every Lambda is VPC-attached (to reach the private
+        // RDS) and writes to the shared webhooks log group, so `makeLambdaRole` factors out just that
+        // common base; the resource grants are added per function.
+        //
+        // NOTE: none of these handlers touch S3 — the only S3 caller in the identity codebase is the
+        // avatar-upload controller, which runs in the ECS service, not any Lambda — so no bucket grant
+        // is issued here (the media/archive bucket NAMES are still passed as env vars, above).
+        const vpcAccessManagedPolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
+            'service-role/AWSLambdaVPCAccessExecutionRole',
+        );
+        const makeLambdaRole = (id: string, description: string): iam.Role => {
+            const role = new iam.Role(this, id, {
+                assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+                description,
+                managedPolicies: [vpcAccessManagedPolicy],
+            });
+            webhooksLogGroup.grantWrite(role);
+
+            return role;
+        };
+
+        // webhook (handlers/identityWebhook.ts): reads the DB creds (getDb) and enqueues deletion jobs
+        // to SQS (SendMessage). It calls the Clerk backend SDK (setExternalId), which prefers the
+        // deploy-embedded IDP_SECRET_KEY but can fall back to a runtime GetSecretValue on the auth
+        // secret — so the auth-secret read grant is retained (removing it reintroduces the user.created
+        // 502 the embed fixed). No SQS consume, no buckets.
+        const webhookRole = makeLambdaRole('WebhookLambdaRole', 'Least-privilege role for the Clerk webhook Lambda');
+        dbCredentialsSecret.grantRead(webhookRole);
+        authSecretKey.grantRead(webhookRole);
+        deletionQueue.grantSendMessages(webhookRole);
+
+        // deletion-worker (handlers/deletion-worker.ts): reads the DB creds (getDb) and drains the SQS
+        // deletion queue. It does NOT import identityClient, so it never reads the auth secret; it does
+        // not send to SQS. (The SqsEventSource below also grants consume; the explicit grant states the
+        // intent.) No auth secret, no SQS send, no buckets.
+        const deletionWorkerRole = makeLambdaRole(
+            'DeletionWorkerLambdaRole',
+            'Least-privilege role for the SQS deletion-worker Lambda',
+        );
+        dbCredentialsSecret.grantRead(deletionWorkerRole);
+        deletionQueue.grantConsumeMessages(deletionWorkerRole);
+
+        // reconciliation (handlers/reconciliation.ts): reads the DB creds and lists Clerk users via the
+        // backend SDK, which (like the webhook) may fall back to a runtime GetSecretValue on the auth
+        // secret — so the auth-secret read grant is retained. It runs on a schedule, not off SQS, and
+        // touches no queue or bucket.
+        const reconciliationRole = makeLambdaRole(
+            'ReconciliationLambdaRole',
+            'Least-privilege role for the scheduled reconciliation Lambda',
+        );
+        dbCredentialsSecret.grantRead(reconciliationRole);
+        authSecretKey.grantRead(reconciliationRole);
+
+        // migration (handlers/migrate.ts): SLIM. It only reads the DB creds (DB_SECRET_ARN) to apply the
+        // bundled ordered SQL — no SQS, no bucket, no auth secret, and no migration-plan secret (that
+        // prop is unused by this handler; the runner discovers .sql files, it does not read a plan).
+        const migrationRole = makeLambdaRole(
+            'MigrationLambdaRole',
+            'Slim least-privilege role for the schema-migration Lambda (DB-secret read only)',
+        );
+        dbCredentialsSecret.grantRead(migrationRole);
 
         const webhookFn = new lambda.Function(this, 'WebhookFunction', {
             runtime,
             architecture,
             handler: 'handlers/identityWebhook.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: webhookRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],
@@ -205,7 +257,7 @@ export class WebhooksStack extends Stack {
             architecture,
             handler: 'handlers/deletion-worker.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: deletionWorkerRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],
@@ -230,7 +282,7 @@ export class WebhooksStack extends Stack {
             architecture,
             handler: 'handlers/reconciliation.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: reconciliationRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],
@@ -256,7 +308,7 @@ export class WebhooksStack extends Stack {
             architecture,
             handler: 'handlers/migrate.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: migrationRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],

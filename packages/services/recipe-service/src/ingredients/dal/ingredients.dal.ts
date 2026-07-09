@@ -128,9 +128,12 @@ export class IngredientsDal {
     /**
      * Ranked fuzzy + full-text search over the shared ingredient catalog. A row matches when EITHER the
      * tsvector FTS path hits (`search_vector @@ plainto_tsquery`, word-order-independent) OR the
-     * `pg_trgm` fuzzy fallback hits (trigram-similar name `%`, or a substring `ILIKE`). Ranked by
-     * `GREATEST(ts_rank, similarity(name))` so both strong lexeme relevance and strong typo tolerance
-     * float a row up; ties break on name.
+     * `pg_trgm` fuzzy fallback hits (`query <% name` word-similarity, or a substring `ILIKE`). Word
+     * similarity (not full-string `similarity`/`%`) is used so a short typo query still matches a long
+     * multi-word name — e.g. `'flor'` vs `'All-purpose flour'` scores 0.60 by word similarity but only
+     * 0.15 full-string, which would fall below the 0.3 `%` threshold. Ranked by
+     * `GREATEST(ts_rank, word_similarity(query, name))` so both strong lexeme relevance and strong typo
+     * tolerance float a row up; ties break on name.
      *
      * @param query - The (already trimmed) user query. An empty query returns no rows.
      * @param limit - Max hits (clamped to `[1, MAX_SEARCH_LIMIT]`; defaults to `DEFAULT_SEARCH_LIMIT`).
@@ -147,11 +150,11 @@ export class IngredientsDal {
             SELECT ${RETURNING}
             FROM ingredients
             WHERE search_vector @@ plainto_tsquery('english', ${query})
-               OR name % ${query}
+               OR ${query} <% name
                OR name ILIKE ${pattern}
             ORDER BY GREATEST(
                          ts_rank(search_vector, plainto_tsquery('english', ${query})),
-                         similarity(name, ${query})
+                         word_similarity(${query}, name)
                      ) DESC,
                      name ASC
             LIMIT ${clampLimit(limit)}

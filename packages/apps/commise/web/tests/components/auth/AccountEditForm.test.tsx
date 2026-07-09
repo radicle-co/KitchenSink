@@ -79,6 +79,25 @@ describe('AccountEditForm', () => {
         expect(await screen.findByRole('alert')).toBeInTheDocument();
     });
 
+    it('submits the update to PATCH /v1/users/me via the shared client', async () => {
+        const user = userEvent.setup();
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(mockProfile),
+        } as Response);
+        global.fetch = fetchMock;
+
+        render(<AccountEditForm accessToken="test-token" initialProfile={mockProfile} />);
+        await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain('/v1/users/me');
+        expect(url).not.toContain('/v1/profiles/me');
+        expect(init.method).toBe('PATCH');
+        expect(init.body).toBe(JSON.stringify({ displayName: 'Test User', avatarUrl: null }));
+    });
+
     it('has accessible form labels', () => {
         render(<AccountEditForm accessToken="test-token" initialProfile={mockProfile} />);
 

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { buildApiClient } from '@/lib/api-client';
 import type { UserProfile } from '@kitchensink/identity-service';
+import { AccountStateGate } from '@/components/auth/AccountStateGate';
 import { AccountEditForm } from '@/components/auth/AccountEditForm';
 import { AccountDeleteForm } from '@/components/auth/AccountDeleteForm';
 
@@ -22,17 +23,19 @@ async function AccountContent({ accessToken, userId }: { accessToken: string; us
     const profile = await getUserProfile(accessToken);
 
     return (
-        <main>
-            <h1>Account Settings</h1>
-            <section aria-labelledby="edit-heading">
-                <h2 id="edit-heading">Edit Profile</h2>
-                <AccountEditForm accessToken={accessToken} initialProfile={profile} />
-            </section>
-            <section aria-labelledby="delete-heading">
-                <h2 id="delete-heading">Danger Zone</h2>
-                <AccountDeleteForm accessToken={accessToken} userId={userId} />
-            </section>
-        </main>
+        <AccountStateGate>
+            <main>
+                <h1>Account Settings</h1>
+                <section aria-labelledby="edit-heading">
+                    <h2 id="edit-heading">Edit Profile</h2>
+                    <AccountEditForm accessToken={accessToken} initialProfile={profile} />
+                </section>
+                <section aria-labelledby="delete-heading">
+                    <h2 id="delete-heading">Danger Zone</h2>
+                    <AccountDeleteForm accessToken={accessToken} userId={userId} />
+                </section>
+            </main>
+        </AccountStateGate>
     );
 }
 

@@ -1,22 +1,27 @@
+import { palette } from '@commise/ui/tokens/colors';
 import { createTamagui, createTokens, createFont } from 'tamagui';
 
+// Colour hex values have ONE authoritative source: the @commise/ui palette (shared with the web
+// design tokens + Clerk theme). Tamagui keeps its camelCase token keys — required by the theme
+// references below and by `$token` accessors in components — but the values are derived, never
+// re-declared, so web and mobile cannot drift on a colour.
 const tokens = createTokens({
     color: {
-        seafoam: '#3D8B85',
-        seafoamLight: '#5BA8A0',
-        coral: '#E8917A',
-        sky: '#8ECAE6',
-        sand: '#FAF6F0',
-        oceanDark: '#2A6B65',
-        charcoal: '#2D3436',
-        slate: '#636E72',
-        mist: '#B2BEC3',
-        pearl: '#F5F5F5',
-        white: '#FFFFFF',
-        success: '#4CAF7C',
-        warning: '#F5B041',
-        error: '#E17055',
-        premium: '#D4A574',
+        seafoam: palette.seafoam,
+        seafoamLight: palette['seafoam-light'],
+        coral: palette.coral,
+        sky: palette.sky,
+        sand: palette.sand,
+        oceanDark: palette['ocean-dark'],
+        charcoal: palette.charcoal,
+        slate: palette.slate,
+        mist: palette.mist,
+        pearl: palette.pearl,
+        white: palette.white,
+        success: palette.success,
+        warning: palette.warning,
+        error: palette.error,
+        premium: palette.premium,
     },
     space: {
         0: 0,

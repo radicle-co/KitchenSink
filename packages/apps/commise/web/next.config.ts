@@ -16,6 +16,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     typedRoutes: true,
+    // @commise/features-account ships TypeScript source (like the other @commise/features-* packages),
+    // so Next must transpile it rather than treating it as pre-built node_modules JS.
+    transpilePackages: ['@commise/features-account'],
     // Standalone server output so the app can run off Vercel (ECS) later; traces the monorepo root.
     output: 'standalone',
     outputFileTracingRoot: repoRoot,

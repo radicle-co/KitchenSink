@@ -21,6 +21,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': srcPath,
+            '@commise/features-account': fileURLToPath(new URL('../features/account/src/index.ts', import.meta.url)),
         },
     },
 });

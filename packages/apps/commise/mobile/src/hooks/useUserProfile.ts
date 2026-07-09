@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth as useIdpAuth } from '@clerk/expo';
-import type { UpdateProfileDto, UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile, UserUpdateInput } from '@kitchensink/identity-service';
 import { deleteUserMe, getUserMe, patchUserMe } from '../services/api';
 
 const PROFILE_KEY = ['user', 'me'] as const;
@@ -25,7 +25,7 @@ export function useUpdateProfile() {
     const qc = useQueryClient();
 
     return useMutation({
-        mutationFn: (body: UpdateProfileDto) => patchUserMe(getToken, body),
+        mutationFn: (body: UserUpdateInput) => patchUserMe(getToken, body),
         onSuccess: () => qc.invalidateQueries({ queryKey: PROFILE_KEY }),
     });
 }

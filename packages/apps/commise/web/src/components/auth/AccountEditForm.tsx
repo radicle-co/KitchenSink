@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { buildApiClient } from '@/lib/api-client';
+import { updateProfile } from '@commise/features-account';
 import type { UserUpdateInput, UserProfile } from '@kitchensink/identity-service';
+
+import { buildApiClient } from '@/lib/api-client';
 
 interface AccountEditFormProps {
     accessToken: string;
@@ -32,8 +34,7 @@ export function AccountEditForm({ accessToken, initialProfile }: AccountEditForm
 
         startTransition(async () => {
             try {
-                const api = buildApiClient(accessToken);
-                await api.patch<UserProfile>('/v1/users/me', formData);
+                await updateProfile(buildApiClient(accessToken), formData);
 
                 router.refresh();
             } catch (err) {

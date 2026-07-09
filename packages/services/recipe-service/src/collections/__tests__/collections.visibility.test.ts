@@ -10,7 +10,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
-import { isCollectionError } from '../collections.errors.js';
+import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import { makeCollectionRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = { [K in keyof CollectionsDal]: ReturnType<typeof vi.fn> };
@@ -52,7 +52,7 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
         const service = new CollectionsService(dal as unknown as CollectionsDal);
 
         await expect(service.setVisibility(OWNER, 'c1', 'unlisted')).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
         );
         expect(dal.update).not.toHaveBeenCalled();
     });
@@ -63,7 +63,7 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
         const service = new CollectionsService(dal as unknown as CollectionsDal);
 
         await expect(service.setVisibility(OWNER, 'c1', 'public')).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.NOT_OWNER,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.NOT_OWNER,
         );
         expect(dal.update).not.toHaveBeenCalled();
     });
@@ -76,7 +76,7 @@ describe('CollectionsService.updateCollection with a visibility patch', () => {
         const service = new CollectionsService(dal as unknown as CollectionsDal);
 
         await expect(service.updateCollection(OWNER, 'c1', { visibility: 'bogus' })).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
         );
         expect(dal.update).not.toHaveBeenCalled();
     });

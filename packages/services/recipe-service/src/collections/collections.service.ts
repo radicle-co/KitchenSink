@@ -4,7 +4,7 @@
  *
  * Ownership is THE authorization boundary: every read/mutation of a specific collection first resolves
  * it and asserts `collection.ownerId === principal.userId`. A missing collection is a
- * `NotFoundException` (→ 404); a collection owned by someone else is a `CollectionError` NOT_OWNER
+ * `NotFoundException` (→ 404); a collection owned by someone else is a `RecipeDomainError` NOT_OWNER
  * (→ 403) — matching the OpenAPI 403/404 split so existence is only revealed to the owner.
  *
  * `deleteCollection` is **no-cascade**: it removes the collection (and, via FK, its junction rows) but

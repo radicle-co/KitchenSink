@@ -12,7 +12,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
-import { isCollectionError } from '../collections.errors.js';
+import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
@@ -144,7 +144,7 @@ describe('CollectionsService.getCollection', () => {
         const service = makeService(dal);
 
         await expect(service.getCollection(OWNER, 'c1')).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.NOT_OWNER,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.NOT_OWNER,
         );
     });
 });
@@ -171,7 +171,7 @@ describe('CollectionsService.deleteCollection (no-cascade)', () => {
         const service = makeService(dal);
 
         await expect(service.deleteCollection(OWNER, 'c1')).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.NOT_OWNER,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.NOT_OWNER,
         );
         expect(dal.deleteById).not.toHaveBeenCalled();
     });
@@ -203,7 +203,7 @@ describe('CollectionsService.addRecipe', () => {
         const service = makeService(dal);
 
         await expect(service.addRecipe(OWNER, 'c1', 'gone')).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(dal.addRecipe).not.toHaveBeenCalled();
     });
@@ -221,7 +221,7 @@ describe('CollectionsService.addRecipe', () => {
         const service = makeService(dal);
 
         await expect(service.addRecipe(OWNER, 'c1', 'r1')).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(dal.addRecipe).not.toHaveBeenCalled();
     });

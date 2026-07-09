@@ -1,17 +1,18 @@
 /**
  * T026-test — unit tests for {@link RecipesController} over a fake {@link RecipesService}.
  *
- * Asserts the thin controller's only responsibilities: it reads the owner key from
- * `req.principal.userId`, delegates to the service with the right arguments, returns the service's
- * result verbatim, and rejects (401) when no principal is present. HTTP status codes (`201`/`204`) are
- * declared with framework decorators and verified by the controller integration/e2e specs.
+ * Asserts the thin controller's only responsibilities: it receives the owner key / principal already
+ * resolved by the `@OwnerId()` / `@CurrentPrincipal()` decorators, delegates to the service with the
+ * right arguments, and returns the service's result verbatim. The "missing principal → 401" path now
+ * lives on the decorators and is covered by `auth/__tests__/current-principal.decorator.test.ts`. HTTP
+ * status codes (`201`/`204`) are declared with framework decorators and verified by the integration/e2e
+ * specs.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
 
 import { RecipesController } from '../recipes.controller.js';
 import type { RecipesService } from '../recipes.service.js';
-import type { AuthenticatedRequest } from '../../auth/principal.js';
+import type { Principal } from '../../auth/principal.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from '../dto/list-recipes.query.dto.js';
@@ -20,12 +21,7 @@ import type { CloneRecipeDto } from '../dto/clone-recipe.dto.js';
 import type { SetVisibilityDto } from '../dto/set-visibility.dto.js';
 
 const OWNER = '01J000000000000000000FREE0';
-
-function reqWith(userId?: string): AuthenticatedRequest {
-    return {
-        principal: userId ? { userId, permissions: ['premium'] } : undefined,
-    } as unknown as AuthenticatedRequest;
-}
+const PRINCIPAL = { userId: OWNER, sub: 'clerk_sub', scopes: [], permissions: ['premium'] } as Principal;
 
 function fakeService(overrides: Partial<RecipesService> = {}): RecipesService {
     return {
@@ -50,9 +46,9 @@ describe('RecipesController', () => {
 
         // Create needs the whole principal (not just the owner key) so the service can derive premium
         // for the C-004 visibility gate — assert the verified principal is forwarded verbatim.
-        const result = await controller.create(reqWith(OWNER), body);
+        const result = await controller.create(PRINCIPAL, body);
 
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ userId: OWNER }), body);
+        expect(create).toHaveBeenCalledWith(PRINCIPAL, body);
         expect(result).toBe(RESPONSE);
     });
 
@@ -61,7 +57,7 @@ describe('RecipesController', () => {
         const controller = new RecipesController(fakeService({ list }));
         const query = { page: 1, pageSize: 20, sortBy: 'updatedAt' } as ListRecipesQueryDto;
 
-        await controller.list(reqWith(OWNER), query);
+        await controller.list(OWNER, query);
 
         expect(list).toHaveBeenCalledWith(OWNER, query);
     });
@@ -70,7 +66,7 @@ describe('RecipesController', () => {
         const getById = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ getById }));
 
-        const result = await controller.getById(reqWith(OWNER), 'r-1');
+        const result = await controller.getById(OWNER, 'r-1');
 
         expect(getById).toHaveBeenCalledWith(OWNER, 'r-1');
         expect(result).toBe(RESPONSE);
@@ -81,7 +77,7 @@ describe('RecipesController', () => {
         const controller = new RecipesController(fakeService({ update }));
         const body = { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto;
 
-        await controller.update(reqWith(OWNER), 'r-1', body);
+        await controller.update(OWNER, 'r-1', body);
 
         expect(update).toHaveBeenCalledWith(OWNER, 'r-1', body);
     });
@@ -90,7 +86,7 @@ describe('RecipesController', () => {
         const deleteFn = vi.fn().mockResolvedValue(undefined);
         const controller = new RecipesController(fakeService({ delete: deleteFn }));
 
-        await expect(controller.remove(reqWith(OWNER), 'r-1')).resolves.toBeUndefined();
+        await expect(controller.remove(OWNER, 'r-1')).resolves.toBeUndefined();
         expect(deleteFn).toHaveBeenCalledWith(OWNER, 'r-1');
     });
 
@@ -98,7 +94,7 @@ describe('RecipesController', () => {
         const clone = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ clone }));
 
-        const result = await controller.clone(reqWith(OWNER), 'r-1', {} as CloneRecipeDto);
+        const result = await controller.clone(OWNER, 'r-1', {} as CloneRecipeDto);
 
         expect(clone).toHaveBeenCalledWith(OWNER, 'r-1');
         expect(result).toBe(RESPONSE);
@@ -107,31 +103,10 @@ describe('RecipesController', () => {
     it('setVisibility delegates the principal, id, and requested visibility', async () => {
         const setVisibility = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ setVisibility }));
-        const req = reqWith(OWNER);
 
-        const result = await controller.setVisibility(req, 'r-1', { visibility: 'private' } as SetVisibilityDto);
+        const result = await controller.setVisibility(PRINCIPAL, 'r-1', { visibility: 'private' } as SetVisibilityDto);
 
-        expect(setVisibility).toHaveBeenCalledWith(req.principal, 'r-1', 'private');
+        expect(setVisibility).toHaveBeenCalledWith(PRINCIPAL, 'r-1', 'private');
         expect(result).toBe(RESPONSE);
-    });
-
-    it('setVisibility rejects with 401 when no principal is present', async () => {
-        const setVisibility = vi.fn();
-        const controller = new RecipesController(fakeService({ setVisibility }));
-
-        await expect(
-            controller.setVisibility(reqWith(undefined), 'r-1', { visibility: 'private' } as SetVisibilityDto),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
-        expect(setVisibility).not.toHaveBeenCalled();
-    });
-
-    it('rejects with 401 when no principal is present', async () => {
-        const create = vi.fn();
-        const controller = new RecipesController(fakeService({ create }));
-
-        await expect(controller.create(reqWith(undefined), {} as CreateRecipeDto)).rejects.toBeInstanceOf(
-            UnauthorizedException,
-        );
-        expect(create).not.toHaveBeenCalled();
     });
 });

@@ -40,6 +40,14 @@ export function recipeNotFound(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.RECIPE_NOT_FOUND, `Recipe ${id} not found.`);
 }
 
+/**
+ * `RECIPE_NOT_FOUND` (→ 404) reused for a missing catalog ingredient — the ingredient picker surfaces
+ * "not found" through the same code the filter already maps, rather than a bare error object.
+ */
+export function ingredientNotFound(id: string): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.RECIPE_NOT_FOUND, `Ingredient '${id}' not found`);
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);

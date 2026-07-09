@@ -225,11 +225,13 @@ describe('IngredientsService', () => {
             expect(clientMocks['getStatus']).not.toHaveBeenCalled();
         });
 
-        it('throws RECIPE_NOT_FOUND for an unknown ingredient id', async () => {
+        it('throws RECIPE_NOT_FOUND (as a real Error) for an unknown ingredient id', async () => {
             dalMocks['findById']!.mockResolvedValue(undefined);
 
+            // Must be a real stack-bearing Error carrying the domain code (not a bare object literal),
+            // so it egresses the shared `{ code, message, details }` envelope with a usable stack.
             await expect(service.refreshStatus('missing')).rejects.toSatisfy(
-                (e: unknown) => isRecipeError(e) && e.code === RecipeErrorCode.RECIPE_NOT_FOUND,
+                (e: unknown) => e instanceof Error && isRecipeError(e) && e.code === RecipeErrorCode.RECIPE_NOT_FOUND,
             );
         });
     });

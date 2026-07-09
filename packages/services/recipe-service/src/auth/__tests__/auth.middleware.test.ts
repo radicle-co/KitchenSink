@@ -159,6 +159,16 @@ describe('AuthMiddleware', () => {
         expect(next).toHaveBeenCalledOnce();
     });
 
+    it('skips authentication for the public /health/ready readiness probe', async () => {
+        const { req, res, next } = makeContext({ path: '/health/ready' });
+
+        await middleware.use(req, res, next);
+
+        expect(verifySpy).not.toHaveBeenCalled();
+        expect(req.principal).toBeUndefined();
+        expect(next).toHaveBeenCalledOnce();
+    });
+
     describe('dev bypass', () => {
         it('injects a dev Principal from RECIPE_DEV_AUTH_USER_ID outside production (no token, no verify)', async () => {
             process.env['NODE_ENV'] = 'development';

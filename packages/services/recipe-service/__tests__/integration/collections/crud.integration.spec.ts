@@ -18,7 +18,7 @@ import { collections, recipeCollections } from '../../../src/database/schema/col
 import { recipes } from '../../../src/database/schema/recipes.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import { CollectionsService } from '../../../src/collections/collections.service.js';
-import { isCollectionError } from '../../../src/collections/collections.errors.js';
+import { isRecipeDomainError } from '../../../src/recipes/recipe.error.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const hasDatabaseUrl = Boolean(DATABASE_URL);
@@ -158,12 +158,12 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         const collection = await service.createCollection(OWNER, { name: 'Private' });
 
         await expect(service.getCollection(OTHER_OWNER, collection.id)).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === 'NOT_OWNER',
+            (err: unknown) => isRecipeDomainError(err) && err.code === 'NOT_OWNER',
         );
 
         const recipeId = await insertRecipe(db, OWNER, 'Locked');
         await expect(service.addRecipe(OTHER_OWNER, collection.id, recipeId)).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === 'NOT_OWNER',
+            (err: unknown) => isRecipeDomainError(err) && err.code === 'NOT_OWNER',
         );
     });
 
@@ -175,7 +175,7 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         const othersPrivate = await insertRecipe(db, OTHER_OWNER, "Someone Else's Secret", 'private');
 
         await expect(service.addRecipe(OWNER, myCollection.id, othersPrivate)).rejects.toSatisfy(
-            (err: unknown) => isCollectionError(err) && err.code === 'RECIPE_NOT_FOUND',
+            (err: unknown) => isRecipeDomainError(err) && err.code === 'RECIPE_NOT_FOUND',
         );
 
         // No membership was written, and the collection stays empty.

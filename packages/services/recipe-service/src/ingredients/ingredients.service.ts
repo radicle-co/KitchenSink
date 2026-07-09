@@ -20,12 +20,12 @@
  * @implements FR-007 FR-007a
  */
 import { Injectable } from '@nestjs/common';
-import { RecipeErrorCode } from '@kitchensink/recipe-core';
-import type { Ingredient, RecipeError } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import { FoodServiceClient, isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, FoodStatus, FoodView, SearchResultView } from '@kitchensink/food-service-client';
 
 import { IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
+import { ingredientNotFound } from '../recipes/recipe.error.js';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 /**
@@ -215,17 +215,12 @@ export class IngredientsService {
         return this.dal.createFreeform(name.trim());
     }
 
-    /** Load an ingredient or throw the domain `RECIPE_NOT_FOUND` error (mapped to 404 by the filter). */
+    /** Load an ingredient or throw the shared `RECIPE_NOT_FOUND` domain error (mapped to 404 by the filter). */
     private async requireIngredient(id: string): Promise<Ingredient> {
         const ingredient = await this.dal.findById(id);
 
         if (ingredient === undefined) {
-            const error: RecipeError = {
-                code: RecipeErrorCode.RECIPE_NOT_FOUND,
-                message: `Ingredient '${id}' not found`,
-            };
-
-            throw error;
+            throw ingredientNotFound(id);
         }
 
         return ingredient;

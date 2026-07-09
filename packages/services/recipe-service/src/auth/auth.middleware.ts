@@ -29,8 +29,8 @@ import type { NextFunction, Response } from 'express';
 import { ClerkAuthService } from './clerk-auth.service.js';
 import type { AuthenticatedRequest, Principal } from './principal.js';
 
-/** Routes served without authentication. */
-const PUBLIC_PATHS = new Set(['/health']);
+/** Routes served without authentication (liveness + readiness probes hit by the ALB / ECS, no token). */
+const PUBLIC_PATHS = new Set(['/health', '/health/ready']);
 
 /** Normalize a request path: strip the query string and any trailing slash, defaulting to `/`. Pure. */
 function getPath(req: AuthenticatedRequest): string {

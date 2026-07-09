@@ -1,17 +1,16 @@
 /**
  * T036-test — unit tests for {@link PhotosController} over a fake {@link PhotosService}.
  *
- * Mirrors the recipes controller suite: the thin controller reads the owner key from
- * `req.principal.userId`, delegates to the service with the path `recipeId` + body, returns the
- * service result verbatim, and rejects (401) when no principal is present. HTTP status codes are
- * declared with framework decorators and verified by the integration/e2e specs.
+ * Mirrors the recipes controller suite: the thin controller receives the owner key already resolved by
+ * the `@OwnerId()` decorator, delegates to the service with the path `recipeId` + body, and returns the
+ * service result verbatim. The "missing principal → 401" path lives on the decorator and is covered by
+ * `auth/__tests__/current-principal.decorator.test.ts`. HTTP status codes are declared with framework
+ * decorators and verified by the integration/e2e specs.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
 
 import { PhotosController } from '../photos.controller.js';
 import type { PhotosService } from '../photos.service.js';
-import type { AuthenticatedRequest } from '../../auth/principal.js';
 import type { CreatePhotoUploadDto } from '../dto/create-photo-upload.dto.js';
 import type { ConfirmPhotoDto } from '../dto/confirm-photo.dto.js';
 import type { ReorderPhotosDto } from '../dto/reorder-photos.dto.js';
@@ -19,10 +18,6 @@ import type { RecipePhoto } from '@kitchensink/recipe-core';
 
 const OWNER = '01J000000000000000000FREE0';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
-
-function reqWith(userId?: string): AuthenticatedRequest {
-    return { principal: userId ? { userId } : undefined } as unknown as AuthenticatedRequest;
-}
 
 function fakeService(overrides: Partial<PhotosService> = {}): PhotosService {
     return {
@@ -43,7 +38,7 @@ describe('PhotosController', () => {
         const controller = new PhotosController(fakeService({ createUploadUrl }));
         const body = { contentType: 'image/jpeg' } as CreatePhotoUploadDto;
 
-        const result = await controller.createUploadUrl(reqWith(OWNER), RECIPE_ID, body);
+        const result = await controller.createUploadUrl(OWNER, RECIPE_ID, body);
 
         expect(createUploadUrl).toHaveBeenCalledWith(OWNER, RECIPE_ID, 'image/jpeg');
         expect(result).toEqual({ uploadUrl: 'u', s3Key: 'k', maxBytes: 1 });
@@ -54,7 +49,7 @@ describe('PhotosController', () => {
         const controller = new PhotosController(fakeService({ confirm }));
         const body = { s3Key: 'recipes/o/r/photos/x' } as ConfirmPhotoDto;
 
-        const result = await controller.confirm(reqWith(OWNER), RECIPE_ID, body);
+        const result = await controller.confirm(OWNER, RECIPE_ID, body);
 
         expect(confirm).toHaveBeenCalledWith(OWNER, RECIPE_ID, 'recipes/o/r/photos/x');
         expect(result).toBe(PHOTO);
@@ -64,7 +59,7 @@ describe('PhotosController', () => {
         const list = vi.fn().mockResolvedValue([PHOTO]);
         const controller = new PhotosController(fakeService({ list }));
 
-        const result = await controller.list(reqWith(OWNER), RECIPE_ID);
+        const result = await controller.list(OWNER, RECIPE_ID);
 
         expect(list).toHaveBeenCalledWith(OWNER, RECIPE_ID);
         expect(result).toEqual([PHOTO]);
@@ -74,7 +69,7 @@ describe('PhotosController', () => {
         const deleteFn = vi.fn().mockResolvedValue(undefined);
         const controller = new PhotosController(fakeService({ delete: deleteFn }));
 
-        await expect(controller.remove(reqWith(OWNER), RECIPE_ID, 'p-1')).resolves.toBeUndefined();
+        await expect(controller.remove(OWNER, RECIPE_ID, 'p-1')).resolves.toBeUndefined();
         expect(deleteFn).toHaveBeenCalledWith(OWNER, RECIPE_ID, 'p-1');
     });
 
@@ -83,19 +78,9 @@ describe('PhotosController', () => {
         const controller = new PhotosController(fakeService({ reorder }));
         const body = { photoIds: ['p-2', 'p-1'] } as ReorderPhotosDto;
 
-        const result = await controller.reorder(reqWith(OWNER), RECIPE_ID, body);
+        const result = await controller.reorder(OWNER, RECIPE_ID, body);
 
         expect(reorder).toHaveBeenCalledWith(OWNER, RECIPE_ID, ['p-2', 'p-1']);
         expect(result).toEqual([PHOTO]);
-    });
-
-    it('rejects with 401 when no principal is present', async () => {
-        const createUploadUrl = vi.fn();
-        const controller = new PhotosController(fakeService({ createUploadUrl }));
-
-        await expect(
-            controller.createUploadUrl(reqWith(undefined), RECIPE_ID, {} as CreatePhotoUploadDto),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
-        expect(createUploadUrl).not.toHaveBeenCalled();
     });
 });

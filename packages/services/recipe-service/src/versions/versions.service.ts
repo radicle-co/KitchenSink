@@ -36,9 +36,18 @@ export interface VersionArchiveS3 {
     send(command: PutObjectCommand): Promise<unknown>;
 }
 
-/** Deterministic S3 object key for a version archive: one immutable object per recipe/version. Pure. */
+/**
+ * Deterministic S3 object key for a version archive: one immutable object per recipe/version.
+ *
+ * The key MUST be under the owner prefix `recipes/{ownerId}/…` (ownerId = the version's `createdBy`, the
+ * app-user ULID — mutations are owner-only, so it equals the recipe owner). GDPR account erasure sweeps
+ * exactly `recipes/{ownerId}/` (the erasure worker's `ownerMediaPrefix`); a key WITHOUT the owner segment
+ * (the old `recipes/{recipeId}/versions/…`) escaped that sweep and survived erasure — a compliance defect
+ * (verticals-8). This is the single in-service scheme; the shared `recipeObjectKeys` unification with the
+ * archive worker (ARCH-BE-3, still on versionId vs versionNumber) is the follow-up. Pure.
+ */
 export function versionArchiveKey(row: RecipeVersionRow): string {
-    return `recipes/${row.recipeId}/versions/${row.versionNumber}.json`;
+    return `recipes/${row.createdBy}/${row.recipeId}/versions/${row.versionNumber}.json`;
 }
 
 /** Map a persisted `recipe_versions` row to the `RecipeVersion` wire contract. Pure. */

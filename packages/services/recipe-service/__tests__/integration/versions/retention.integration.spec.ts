@@ -104,12 +104,15 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
         const remainingVersions = remaining.map((row) => row.versionNumber).sort((a, b) => a - b);
         expect(remainingVersions).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 
-        // The pruned versions (1 and 2) were archived to the versions bucket in LocalStack.
+        // The pruned versions (1 and 2) were archived to the versions bucket in LocalStack, under the
+        // owner prefix (createdBy = OWNER) so GDPR erasure can sweep them (verticals-8).
         for (const prunedVersion of [1, 2]) {
             const key = versionArchiveKey({
+                createdBy: OWNER,
                 recipeId: recipe.id,
                 versionNumber: prunedVersion,
             } as unknown as RecipeVersionRow);
+            expect(key.startsWith(`recipes/${OWNER}/`)).toBe(true);
             const archiveRes = await fetch(`${S3_ENDPOINT}/${VERSIONS_BUCKET}/${key}`);
             expect(archiveRes.status).toBe(200);
             const archived = (await archiveRes.json()) as { recipeId: string; versionNumber: number };

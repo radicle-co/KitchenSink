@@ -267,8 +267,16 @@ describe('VersionsService retention S3 failure (best-effort)', () => {
 });
 
 describe('versionArchiveKey', () => {
-    it('builds a deterministic per-recipe, per-version key', () => {
-        const row = makeVersionRow({ recipeId: 'r-1', versionNumber: 7 });
-        expect(versionArchiveKey(row)).toBe('recipes/r-1/versions/7.json');
+    it('builds a deterministic per-owner, per-recipe, per-version key', () => {
+        const row = makeVersionRow({ createdBy: 'owner-9', recipeId: 'r-1', versionNumber: 7 });
+        expect(versionArchiveKey(row)).toBe('recipes/owner-9/r-1/versions/7.json');
+    });
+
+    // GDPR (verticals-8): the archive MUST live under the owner prefix `recipes/{ownerId}/` that account
+    // erasure sweeps — otherwise version archives survive a user's deletion. Dropping the owner segment
+    // (the old key) fails this invariant.
+    it('is under the owner prefix that GDPR erasure deletes', () => {
+        const row = makeVersionRow({ createdBy: 'owner-9', recipeId: 'r-1', versionNumber: 7 });
+        expect(versionArchiveKey(row).startsWith('recipes/owner-9/')).toBe(true);
     });
 });

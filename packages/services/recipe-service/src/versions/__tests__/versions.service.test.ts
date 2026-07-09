@@ -228,7 +228,11 @@ describe('VersionsService.restore', () => {
                     }),
                 ],
             }),
+            // The update must OPT OUT of auto-snapshotting so the restore records exactly one version
+            // (its own, below) rather than two at the same number.
+            { recordSnapshot: false },
         );
+        // Exactly one snapshot: the restore's own (the update was told not to record).
         expect(dal.createSnapshot).toHaveBeenCalledOnce();
     });
 

@@ -15,6 +15,7 @@ import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
+import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
@@ -70,7 +71,7 @@ function fakeIngredientsDal(): IngredientsDal {
 
 /** Construct the service with a permissive catalog DAL (overridable per test via the DAL arg). */
 function newService(dal: RecipesDal): RecipesService {
-    return new RecipesService(dal, fakeIngredientsDal());
+    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService());
 }
 
 /** Capture the error a rejected promise throws, or fail if it resolves. */
@@ -127,6 +128,27 @@ describe('RecipesService.create', () => {
         await newService(dal).create(principal(), CREATE_DTO);
 
         expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'public' }));
+    });
+
+    it('records a version snapshot of the created recipe (FR-007b history populates)', async () => {
+        const created = aggregate({ currentVersion: 1 });
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+        const service = new RecipesService(dal, fakeIngredientsDal(), versions);
+
+        await service.create(principal(), CREATE_DTO);
+
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({
+                recipeId: created.recipe.id,
+                versionNumber: created.recipe.currentVersion,
+                createdBy: OWNER,
+                snapshot: expect.objectContaining({
+                    version: created.recipe.currentVersion,
+                    title: created.recipe.title,
+                }),
+            }),
+        );
     });
 
     // C-004 / FR-003 (ADV-3): a create is a `user_created` recipe with no substantive edit, so the
@@ -256,6 +278,34 @@ describe('RecipesService.update', () => {
 
         expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ title: 'Renamed' }));
         expect(response.version).toBe(2);
+    });
+
+    it('records a version snapshot after a successful update', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+        const service = new RecipesService(dal, fakeIngredientsDal(), versions);
+
+        await service.update(OWNER, 'r-1', patch);
+
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ recipeId: 'r-1', versionNumber: 2, createdBy: OWNER }),
+        );
+    });
+
+    it('does NOT record a snapshot when the caller opts out (restore path avoids a double version)', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+        const service = new RecipesService(dal, fakeIngredientsDal(), versions);
+
+        await service.update(OWNER, 'r-1', patch, { recordSnapshot: false });
+
+        expect(versions.createSnapshot).not.toHaveBeenCalled();
     });
 });
 

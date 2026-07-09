@@ -13,7 +13,7 @@
  * The S3 client is injected (a provider token), so unit tests pass a `{ send }` mock and never touch AWS.
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2).
  */
-import { Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
@@ -60,7 +60,9 @@ function toRecipeVersion(row: RecipeVersionRow): RecipeVersion {
 export class VersionsService {
     public constructor(
         @Inject(VERSIONS_DAL) private readonly dal: VersionsDal,
-        private readonly recipes: RecipesService,
+        // forwardRef: RecipesService records versions on write and VersionsService drives a recipe write
+        // on restore — a deliberate two-way dependency (see RecipesService's matching forwardRef).
+        @Inject(forwardRef(() => RecipesService)) private readonly recipes: RecipesService,
         @Inject(VERSIONS_S3_CLIENT) private readonly s3: VersionArchiveS3,
         @Inject(VERSIONS_S3_BUCKET) private readonly bucket: string,
     ) {}
@@ -125,28 +127,36 @@ export class VersionsService {
 
         const snapshot = target.snapshot as RecipeSnapshot;
 
-        const updated = await this.recipes.update(ownerId, recipeId, {
-            expectedVersion: current.version,
-            title: snapshot.title,
-            description: snapshot.description,
-            servings: snapshot.servings,
-            prepTimeMinutes: snapshot.prepTimeMinutes,
-            cookTimeMinutes: snapshot.cookTimeMinutes,
-            // Restore the snapshot's ingredient set too — otherwise the recipe reverts everything EXCEPT
-            // ingredients, leaving the live recipe's current ingredients while the restore's own recorded
-            // snapshot claims the old ones (recorded state diverging from actual state).
-            ingredients: snapshot.ingredients.map((ingredient) => ({
-                ingredientId: ingredient.ingredientId,
-                name: ingredient.ingredientName,
-                quantity: ingredient.quantity,
-                unit: ingredient.unit,
-                ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
-            })),
-            steps: snapshot.steps.map((step) => ({
-                instruction: step.instruction,
-                ...(step.timerSeconds !== undefined ? { timerSeconds: step.timerSeconds } : {}),
-            })),
-        });
+        // recordSnapshot:false — the restore records its OWN version below (with baseVersion + a restore
+        // summary), so the update must not also auto-snapshot, or the restore would write two versions at
+        // the same number.
+        const updated = await this.recipes.update(
+            ownerId,
+            recipeId,
+            {
+                expectedVersion: current.version,
+                title: snapshot.title,
+                description: snapshot.description,
+                servings: snapshot.servings,
+                prepTimeMinutes: snapshot.prepTimeMinutes,
+                cookTimeMinutes: snapshot.cookTimeMinutes,
+                // Restore the snapshot's ingredient set too — otherwise the recipe reverts everything
+                // EXCEPT ingredients, leaving the live recipe's current ingredients while the restore's
+                // own recorded snapshot claims the old ones (recorded state diverging from actual state).
+                ingredients: snapshot.ingredients.map((ingredient) => ({
+                    ingredientId: ingredient.ingredientId,
+                    name: ingredient.ingredientName,
+                    quantity: ingredient.quantity,
+                    unit: ingredient.unit,
+                    ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                })),
+                steps: snapshot.steps.map((step) => ({
+                    instruction: step.instruction,
+                    ...(step.timerSeconds !== undefined ? { timerSeconds: step.timerSeconds } : {}),
+                })),
+            },
+            { recordSnapshot: false },
+        );
 
         return this.createSnapshot({
             recipeId,

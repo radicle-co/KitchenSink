@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
@@ -6,6 +6,7 @@ import { RecipesController } from './recipes.controller.js';
 import { RecipesService, RECIPES_DAL } from './recipes.service.js';
 import { RecipesDal } from './dal/recipes.dal.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
+import { VersionsModule } from '../versions/versions.module.js';
 
 /**
  * Recipes module (US1). Owns recipe CRUD and ownership (`owner_id` = app-user ULID). Wires the
@@ -15,6 +16,9 @@ import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
  * `RecipeDomainError`s to HTTP.
  */
 @Module({
+    // forwardRef: RecipesService records versions on every write; VersionsService drives a recipe write
+    // on restore. The two modules depend on each other by design (see VersionsModule's matching ref).
+    imports: [forwardRef(() => VersionsModule)],
     controllers: [RecipesController],
     providers: [
         {

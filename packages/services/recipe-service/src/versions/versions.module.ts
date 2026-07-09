@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 
 import { DrizzleProvider } from '../database/database.module.js';
@@ -39,7 +39,7 @@ function createVersionsS3Client(): S3Client {
  * `req.principal`; the global `ApiExceptionFilter` maps thrown `RecipeDomainError`s to HTTP.
  */
 @Module({
-    imports: [RecipesModule],
+    imports: [forwardRef(() => RecipesModule)],
     controllers: [VersionsController],
     providers: [
         {

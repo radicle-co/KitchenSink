@@ -80,6 +80,13 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
         const service = booted.app.get(VersionsService);
         const dal = booted.app.get<VersionsDal>(VERSIONS_DAL);
 
+        // `create` now records an initial version automatically (verticals-1). Clear it so THIS suite
+        // controls the exact version set it seeds below (it tests retention, not create's snapshotting)
+        // — otherwise the auto v1 collides with the loop's v1 on the (recipe_id, version_number) unique.
+        for (const existing of await dal.listByRecipe(recipe.id)) {
+            await dal.deleteById(existing.id);
+        }
+
         // Write 12 versions. Retention runs after each write, so versions 1 and 2 are pruned.
         const total = 12;
         for (let versionNumber = 1; versionNumber <= total; versionNumber += 1) {

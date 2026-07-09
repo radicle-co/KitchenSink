@@ -11,8 +11,10 @@
  *
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
-import { Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
+import { VersionsService } from '../versions/versions.service.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
@@ -124,6 +126,50 @@ function toStepInputFromRow(row: RecipeStepRow): StepInput {
         : { instruction: row.instruction, timerSeconds: row.timerSeconds };
 }
 
+/**
+ * Capture a persisted recipe aggregate as an immutable {@link RecipeSnapshot} for version history
+ * (FR-007b). The snapshot must be faithful enough to RESTORE the recipe, so it carries the full content
+ * (title/description/servings/times + ordered steps + composed ingredient lines with their catalog name
+ * and any user-nutrition override), keyed at the recipe's current version. Pure.
+ */
+function aggregateToSnapshot(aggregate: RecipeAggregate): RecipeSnapshot {
+    const { recipe, steps, ingredients } = aggregate;
+
+    return {
+        version: recipe.currentVersion,
+        title: recipe.title,
+        description: recipe.description ?? '',
+        // servings is required-positive by the create contract; the nullable column never holds null for
+        // an API-created recipe (see verticals-9). Fall back to 1 (valid) rather than 0 (schema-invalid).
+        servings: recipe.servings ?? 1,
+        prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
+        cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
+        steps: steps.map((step) => ({
+            id: step.id,
+            recipeId: step.recipeId,
+            stepNumber: step.stepNumber,
+            instruction: step.instruction,
+            ...(step.timerSeconds !== null ? { timerSeconds: step.timerSeconds } : {}),
+        })),
+        ingredients: ingredients.map((line) => ({
+            id: line.id,
+            recipeId: line.recipeId,
+            ingredientId: line.ingredientId,
+            // `quantity` is a numeric column surfaced as a string by pg — the snapshot contract is a number.
+            quantity: Number(line.quantity),
+            unit: line.unit,
+            ...(line.displayText !== null ? { displayText: line.displayText } : {}),
+            sortOrder: line.sortOrder,
+            ingredientName: line.ingredientName,
+            isUserEntered: line.isUserEntered,
+            ...(line.userCalories !== null ? { userCalories: Number(line.userCalories) } : {}),
+            ...(line.userProteinG !== null ? { userProteinG: Number(line.userProteinG) } : {}),
+            ...(line.userCarbsG !== null ? { userCarbsG: Number(line.userCarbsG) } : {}),
+            ...(line.userFatG !== null ? { userFatG: Number(line.userFatG) } : {}),
+        })),
+    };
+}
+
 /** Whether an incoming step patch differs from the persisted steps (order-sensitive). Pure. */
 function stepsChanged(existing: RecipeStepRow[], incoming: CreateRecipeStepInputDto[]): boolean {
     if (existing.length !== incoming.length) {
@@ -182,7 +228,34 @@ export class RecipesService {
     public constructor(
         @Inject(RECIPES_DAL) private readonly dal: RecipesDal,
         private readonly ingredientsDal: IngredientsDal,
+        // Circular by nature: recipe writes record a version, and version restore drives a recipe write.
+        // forwardRef lets Nest resolve the two-way dependency (see VersionsService's matching forwardRef).
+        @Inject(forwardRef(() => VersionsService)) private readonly versions: VersionsService,
     ) {}
+
+    /**
+     * Record an immutable version snapshot of a just-written recipe aggregate (FR-007b). Best-effort:
+     * the recipe has already committed, so a snapshot/retention failure must NOT fail the user's save —
+     * it is logged and swallowed (the reconciliation/worker path backstops a missed row). This is the
+     * ONE place create/update/clone converge to populate version history.
+     *
+     * @sideEffect Inserts a `recipe_versions` row and runs retention (archive + prune) via VersionsService.
+     */
+    private async recordSnapshot(aggregate: RecipeAggregate, ownerId: string, changeSummary: string): Promise<void> {
+        try {
+            await this.versions.createSnapshot({
+                recipeId: aggregate.recipe.id,
+                versionNumber: aggregate.recipe.currentVersion,
+                snapshot: aggregateToSnapshot(aggregate),
+                createdBy: ownerId,
+                changeSummary,
+            });
+        } catch (error) {
+            // The recipe is saved; a version-history hiccup is non-fatal to the write. Surface it for
+            // observability (logs route to Sentry) without propagating.
+            console.error(`Failed to record version snapshot for recipe ${aggregate.recipe.id}:`, error);
+        }
+    }
 
     /**
      * Create a recipe owned by `principal.userId`. A create is always a `user_created` recipe with no
@@ -223,6 +296,8 @@ export class RecipesService {
             ingredients,
             steps: dto.steps.map(toStepInput),
         });
+
+        await this.recordSnapshot(aggregate, principal.userId, 'Created');
 
         return toRecipeResponse(aggregate);
     }
@@ -287,8 +362,18 @@ export class RecipesService {
         };
     }
 
-    /** Update a recipe the caller owns, enforcing optimistic concurrency (T033). */
-    public async update(ownerId: string, id: string, dto: UpdateRecipeDto): Promise<RecipeResponse> {
+    /**
+     * Update a recipe the caller owns, enforcing optimistic concurrency (T033), and record a version
+     * snapshot of the result. `options.recordSnapshot = false` suppresses the snapshot for the RESTORE
+     * path (which records its own snapshot with restore-specific provenance) so a restore writes exactly
+     * one version, not two at the same number. `options.changeSummary` labels the recorded version.
+     */
+    public async update(
+        ownerId: string,
+        id: string,
+        dto: UpdateRecipeDto,
+        options: { recordSnapshot?: boolean; changeSummary?: string } = {},
+    ): Promise<RecipeResponse> {
         const existing = await this.dal.findById(id);
 
         if (!existing) {
@@ -343,6 +428,10 @@ export class RecipesService {
             }
 
             throw recipeNotFound(id);
+        }
+
+        if (options.recordSnapshot !== false) {
+            await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated');
         }
 
         return toRecipeResponse(updated);
@@ -409,6 +498,8 @@ export class RecipesService {
             ingredients: source.ingredients.map(toResolvedIngredientLine),
             steps: source.steps.map(toStepInputFromRow),
         });
+
+        await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`);
 
         return toRecipeResponse(created);
     }

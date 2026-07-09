@@ -227,13 +227,29 @@ export class IngredientsDal {
             return existing;
         }
 
+        // ON CONFLICT DO NOTHING closes the read-then-insert race: if a concurrent call inserted the
+        // same freeform name between our SELECT and INSERT, the unique index (0006) rejects our row and
+        // RETURNING is empty — we then re-read the winner's row instead of creating a duplicate.
         const result = await this.db.execute<RawIngredientRow>(sql`
             INSERT INTO ingredients (name, is_user_entered, search_vector)
             VALUES (${name}, true, to_tsvector('english', ${name}))
+            ON CONFLICT DO NOTHING
             RETURNING ${RETURNING}
         `);
 
-        return rowToIngredient(result.rows[0]!);
+        const inserted = result.rows[0];
+
+        if (inserted) {
+            return rowToIngredient(inserted);
+        }
+
+        const winner = await this.findFreeformByName(name);
+
+        if (!winner) {
+            throw new Error(`Freeform ingredient "${name}" conflicted on insert but no existing row was found.`);
+        }
+
+        return winner;
     }
 
     /**
@@ -251,14 +267,30 @@ export class IngredientsDal {
             return existing;
         }
 
+        // ON CONFLICT DO NOTHING closes the read-then-insert race: if a concurrent call inserted the same
+        // food_id between our SELECT and INSERT, the unique index (0006) rejects our row and RETURNING is
+        // empty — we then re-read the winner's row instead of creating a duplicate catalog entry.
         const result = await this.db.execute<RawIngredientRow>(sql`
             INSERT INTO ingredients (name, food_id, food_resolution_status, is_user_entered, search_vector)
             VALUES (${input.name}, ${input.foodId}, ${input.foodResolutionStatus}, false,
                     to_tsvector('english', ${input.name}))
+            ON CONFLICT DO NOTHING
             RETURNING ${RETURNING}
         `);
 
-        return rowToIngredient(result.rows[0]!);
+        const inserted = result.rows[0];
+
+        if (inserted) {
+            return rowToIngredient(inserted);
+        }
+
+        const winner = await this.findByFoodId(input.foodId);
+
+        if (!winner) {
+            throw new Error(`Food-backed ingredient (food_id ${input.foodId}) conflicted on insert but no row was found.`);
+        }
+
+        return winner;
     }
 
     /**

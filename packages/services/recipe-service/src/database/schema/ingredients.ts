@@ -7,7 +7,18 @@
  * UPPER_SNAKE) and a SEPARATE `is_user_entered` boolean (freeform/user-supplied nutrition, FR-007a).
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
-import { boolean, check, index, integer, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+    boolean,
+    check,
+    index,
+    integer,
+    numeric,
+    pgTable,
+    text,
+    timestamp,
+    uniqueIndex,
+    uuid,
+} from 'drizzle-orm/pg-core';
 
 import { recipes, tsvector } from './recipes.js';
 
@@ -47,9 +58,16 @@ export const ingredients = pgTable(
             sql`${table.foodResolutionStatus} IN ('PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED')`,
         ),
         index('idx_ingredients_search_vector').using('gin', table.searchVector),
-        index('idx_ingredients_food_id')
+        // UNIQUE (0006): one catalog row per food-service golden record — the DB-side dedup key that
+        // makes `createFoodBacked` race-proof. Also serves as the food_id lookup index.
+        uniqueIndex('idx_ingredients_food_id')
             .on(table.foodId)
             .where(sql`${table.foodId} IS NOT NULL`),
+        // UNIQUE (0006): case-insensitive freeform dedup — one user-entered row per name. Makes
+        // `createFreeform` race-proof; scoped to user-entered rows so food-backed rows may share a name.
+        uniqueIndex('idx_ingredients_freeform_name')
+            .on(sql`lower(${table.name})`)
+            .where(sql`${table.isUserEntered} = true`),
         // pg_trgm GIN index for fuzzy autocomplete (typo-tolerant ingredient search).
         index('idx_ingredients_name_trgm').using('gin', sql`${table.name} gin_trgm_ops`),
     ],

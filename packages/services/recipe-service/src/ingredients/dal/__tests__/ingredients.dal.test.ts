@@ -175,6 +175,18 @@ describe('IngredientsDal', () => {
             expect(result.id).toBe('new');
             expect(result.isUserEntered).toBe(true);
         });
+
+        it('lost the insert race (ON CONFLICT no-op) → re-reads and returns the winner row', async () => {
+            execute
+                .mockResolvedValueOnce({ rows: [] }) // dedup lookup: miss (a concurrent txn inserts here)
+                .mockResolvedValueOnce({ rows: [] }) // INSERT … ON CONFLICT DO NOTHING → conflicted, no row
+                .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'winner', is_user_entered: true })] });
+
+            const result = await dal.createFreeform('Contested name');
+
+            expect(execute).toHaveBeenCalledTimes(3); // dedup miss → insert no-op → re-read winner
+            expect(result.id).toBe('winner');
+        });
     });
 
     describe('createFoodBacked', () => {
@@ -206,6 +218,23 @@ describe('IngredientsDal', () => {
             expect(result.foodId).toBe('F9');
             expect(result.foodResolutionStatus).toBe(FoodResolutionStatus.PENDING);
             expect(result.isUserEntered).toBe(false);
+        });
+
+        it('lost the food_id insert race (ON CONFLICT no-op) → re-reads and returns the winner row', async () => {
+            execute
+                .mockResolvedValueOnce({ rows: [] }) // dedup lookup on food_id: miss
+                .mockResolvedValueOnce({ rows: [] }) // INSERT … ON CONFLICT DO NOTHING → conflicted, no row
+                .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'winner', food_id: 'F9' })] });
+
+            const result = await dal.createFoodBacked({
+                name: 'Flour',
+                foodId: 'F9',
+                foodResolutionStatus: FoodResolutionStatus.PENDING,
+            });
+
+            expect(execute).toHaveBeenCalledTimes(3);
+            expect(result.id).toBe('winner');
+            expect(result.foodId).toBe('F9');
         });
     });
 

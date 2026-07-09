@@ -134,7 +134,12 @@ export class PhotosDal {
                 .where(eq(recipePhotos.recipeId, recipeId))
                 .for('update');
 
-            if (!isExactReorder(current.map((row) => row.id), orderedIds)) {
+            if (
+                !isExactReorder(
+                    current.map((row) => row.id),
+                    orderedIds,
+                )
+            ) {
                 return null;
             }
 

@@ -215,7 +215,9 @@ describe('CollectionsService.addRecipe', () => {
     it("refuses to add another user's PRIVATE recipe (RECIPE_NOT_FOUND, no membership written)", async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
-        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'private' }));
+        dal.findActiveRecipe.mockResolvedValue(
+            makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'private' }),
+        );
         const service = makeService(dal);
 
         await expect(service.addRecipe(OWNER, 'c1', 'r1')).rejects.toSatisfy(
@@ -227,7 +229,9 @@ describe('CollectionsService.addRecipe', () => {
     it("adds another user's PUBLIC recipe (viewable → allowed)", async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
-        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'public' }));
+        dal.findActiveRecipe.mockResolvedValue(
+            makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'public' }),
+        );
         dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
         const service = makeService(dal);
 
@@ -236,7 +240,7 @@ describe('CollectionsService.addRecipe', () => {
         expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
     });
 
-    it('adds the caller\'s OWN private recipe (owner always views their own)', async () => {
+    it("adds the caller's OWN private recipe (owner always views their own)", async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: OWNER, visibility: 'private' }));

@@ -195,7 +195,9 @@ describe('RecipesService.create', () => {
             servings: 4,
             prepTimeMinutes: 7,
             cookTimeMinutes: 11,
-            steps: [{ id: created.steps[0]!.id, recipeId: 'r-9', stepNumber: 1, instruction: 'Chop', timerSeconds: 30 }],
+            steps: [
+                { id: created.steps[0]!.id, recipeId: 'r-9', stepNumber: 1, instruction: 'Chop', timerSeconds: 30 },
+            ],
             ingredients: [
                 {
                     id: created.ingredients[0]!.id,
@@ -234,9 +236,7 @@ describe('RecipesService.create', () => {
     it('rejects a free-tier caller requesting private with INVALID_VISIBILITY and never touches the DAL', async () => {
         const dal = fakeDal({ create: vi.fn() });
 
-        const error = await catchError(
-            newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }),
-        );
+        const error = await catchError(newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
         // The gate runs BEFORE any persistence — no private row is ever written.

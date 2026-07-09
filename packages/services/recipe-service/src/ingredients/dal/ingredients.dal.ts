@@ -287,7 +287,9 @@ export class IngredientsDal {
         const winner = await this.findByFoodId(input.foodId);
 
         if (!winner) {
-            throw new Error(`Food-backed ingredient (food_id ${input.foodId}) conflicted on insert but no row was found.`);
+            throw new Error(
+                `Food-backed ingredient (food_id ${input.foodId}) conflicted on insert but no row was found.`,
+            );
         }
 
         return winner;

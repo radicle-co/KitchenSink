@@ -190,7 +190,7 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
     // ADV-4 authoritative (read-side) half — the case add-time validation CANNOT catch: a member that
     // was PUBLIC when added but is later made PRIVATE by its owner must drop out of the listing. If the
     // read filter is missing, the now-private foreign recipe leaks through getCollection.
-    it("hides a member that goes PRIVATE after being added (stale-visibility read filter)", async () => {
+    it('hides a member that goes PRIVATE after being added (stale-visibility read filter)', async () => {
         const myCollection = await service.createCollection(OWNER, { name: 'Curated' });
         const othersRecipe = await insertRecipe(db, OTHER_OWNER, 'Was Public', 'public');
 

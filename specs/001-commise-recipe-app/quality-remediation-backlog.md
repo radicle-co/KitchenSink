@@ -57,6 +57,48 @@ claims "many bugs" and "tests only scratch the surface" **did** hold, decisively
 - [ ] **(F23, F25) DTO/`ParseUUIDPipe` validation unexercised; controllers are delegation theater** — send non-UUID ids, empty `photoIds` (`@ArrayMinSize(1)`), missing required fields; controllers assert `toHaveBeenCalledWith` only.
 - [ ] **(F24) Photo `headSize()===undefined → 422` branch untested.**
 
+## Tier 4 — Architecture / cross-package (four-front adversarial architecture audit, 2026-07-09)
+
+Product of four parallel architecture auditors (frontend, recipe-backend, platform-services, infra/tools),
+each asked to challenge every decision against DRY/KISS/YAGNI and `ENGINEERING_EXCELLENCE.md` and to name a
+*present* cost (no speculative rework). The through-line: **one design decision re-encoded in N places that
+have already drifted**, plus a few genuine YAGNI over-builds and missing current-requirement robustness. Ranked
+by concrete cost. Each carries the auditor tag `(ARCH-FE/BE/PS/IT-#)`.
+
+### 4a — Duplication that has ALREADY diverged (highest leverage; each is a live or latent bug, not a style nit)
+
+- [ ] **(P1, ARCH-BE-3/ARCH-IT-1) S3 version-archive key scheme forked 4 ways → GDPR erasure misses in-service archives.** `versions.service.ts:40` writes `recipes/{recipeId}/versions/{versionNumber}.json` (no owner segment); `version-archive-worker.ts:39` writes `recipes/{ownerId}/{recipeId}/versions/{versionId}.json`; photos use `recipes/{ownerId}/{recipeId}/photos/…`; erasure sweeps `recipes/{ownerId}/`. In-service archives are **not** under any owner prefix → survive erasure (dupes Tier-1 verticals-8, now confirmed by two independent auditors). *Fix:* one `recipeObjectKeys` module in `recipe-core` owning the single `recipes/{ownerId}/{recipeId}/…` scheme; every writer + the erasure prefix import it; one test binds all call sites to the oracle.
+- [ ] **(P1, ARCH-PS-1) Identity never adopted `@kitchensink/clerk-verify` — the security-sensitive drift it exists to prevent has occurred.** `identity/auth/clerk-auth.service.ts:66-116` is a verbatim copy of the shared verifier and has already diverged (shared surfaces `userId`/`azp`, identity's copy doesn't). *Fix:* delete identity's inline verification, delegate to `verifyClerkToken` exactly as recipe does; keep `resolveOrCreateFromClaims` in identity.
+- [ ] **(P1, ARCH-PS-2) Three different HTTP error envelopes across the three sibling services.** recipe = `{code,message,details}` (matches the doc); food = Nest default `{statusCode,message,error}` (inline `mapWriteError`, no global filter); identity = Nest default (Sentry filter only). A client can't write one error handler; this is a wire contract clients depend on. *Fix:* promote recipe's `ApiExceptionFilter` into a shared `@kitchensink/nest-error-envelope` and register in food + identity.
+- [ ] **(P2, ARCH-BE-1/ARCH-PS) OpenAPI wire contract is hand-transcribed in 3 places and the server copy has drifted on ≥3 endpoints (photos confirm `s3Key` vs `key`; versions UUID vs integer; search `{recipe,rank}` vs `Recipe[]`) — broken end-to-end with the real client.** (Overlaps Tier-1 verticals-2/6/7.) *Fix:* make one artifact authoritative — generate client types + server DTOs from `api.openapi.yaml` (or derive both from the recipe-core zod) + one contract test per endpoint driving the real `RecipeServiceClient` against the booted app.
+- [ ] **(P2, ARCH-PS-6/ARCH-BE-8) DB `pool-config.ts` copied verbatim food↔recipe (IAM signer, TLS posture, local branch); identity is a third, non-IAM approach; S3-client construction duplicated 3 ways.** *Fix:* shared `@kitchensink/rds-iam-pool` helper parameterized by role/db-name; one config-driven S3-client factory. (Identity's password→IAM migration is tracked separately — don't force it here.)
+- [ ] **(P2, ARCH-FE-2) Two divergent hand-written API clients (web PATCHes `/v1/users/me`, mobile PATCHes `/v1/profiles/me`) — already drifted, breaks the cross-platform-parity rule.** *Fix:* one shared typed client in a `@commise/*` package consumed by both apps.
+- [ ] **(P2, ARCH-IT-2) `@kitchensink/esbuild` is an unused shell while 4 bundlers hand-roll `esbuild.build` — and the target has drifted (recipe-workers `node24` vs three others `node22`, a runtime-reject risk).** *Fix:* route the four `esbuild.mjs` through the shared tool (extended for the dist-package.json + migrations-copy + banner they need), or delete the shell and extract the one helper they actually share.
+- [ ] **(P3, ARCH-BE-5/ARCH-PS-11) `ownerIdOf(req)` duplicated across 4 recipe controllers; `extractBearer`/`parseCommaList` re-defined in 4 auth files.** *Fix:* one `@OwnerId()` param decorator; co-locate the bearer/comma-list parsers with `clerk-verify`. Standardize the request key (`req.principal` vs `req.user`).
+- [ ] **(P3, ARCH-BE-6) Domain-error raising non-uniform: `CollectionError` is a straight duplicate of `RecipeDomainError`; `ingredients.service.ts:223` throws a plain object literal (no stack); collections/photos throw framework `NotFoundException` → escapes the `{code,…}` envelope.** *Fix:* collapse to one throwable; route "not found" through a domain code. (Feeds ARCH-PS-2.)
+- [ ] **(P3, ARCH-FE-1, ARCH-BE-7) Design tokens duplicated `ui/src/tokens/colors.ts` ↔ `mobile/tamagui.config.ts`; visibility/added-via value sets defined 3+ ways (recipe-core zod vs `COLLECTION_VISIBILITIES` vs DB CHECK string).** *Fix:* single source imported by the consumers; DB CHECK asserted against the constant in a schema test.
+
+### 4b — YAGNI over-build (delete or wire; carrying cost with no caller)
+
+- [ ] **(P1, ARCH-FE-4/5/8/11) The ditox Home-widget architecture in `features/core`/`features/recipes` is fully built and wired into NOTHING** — grep for `ditox|appShell|homeWidget|curateHomeWidgets` in web/mobile is empty; the apps don't even depend on the feature packages and render hardcoded content. Byte-identical `.native` widget shells; a not-type-safe loader seam (`() => Promise<{default: unknown}>`); a dead unreachable `AuthState.error` variant. Textbook "framework for zero callers." *Decision:* wire the apps to the widget surface (make it real) **or** delete the speculative framework until a second caller exists; either way remove the `unknown` loader and dead variant.
+- [ ] **(P2, ARCH-PS-5) Recipe's config subsystem is a 610-line framework with dead machinery while identity/food use a 5-line `EnvironmentSchema.parse`.** The SSM async path is unreachable (module calls the sync overload); `ConfigFieldMeta.secret`/`ssmKey`, `CONFIG_SOURCES`, `cacheTtlSeconds` are read nowhere; `DATABASE_POOL_SIZE`/`DATABASE_IDLE_TIMEOUT_MS` are validated but ignored (pool hardcodes `max:20`) → creates the *illusion* of a 50-conn pool. *Fix:* collapse to the identity/food shape; delete the dead SSM/meta/source machinery; either wire the pool knobs or drop them.
+- [ ] **(P2, ARCH-BE-2/4/10) Versions vertical inert (dupes Tier-1 verticals-1); two competing version-archive mechanisms (durable outbox types + worker exist only as types, the wired path is best-effort inline that swallows S3 errors); `AccountModule` is `@Module({})` while its `POST /v1/account/erasure` client method + worker ship unreachable.** *Fix:* pick one archive mechanism and delete the other; implement the erasure controller or remove the half-vertical's client surface.
+
+### 4c — Missing current-requirement robustness (not speculative — required now)
+
+- [ ] **(P1, ARCH-PS-3) No readiness/dependency health check in ANY service — `/health` returns static `{status:'ok'}`, so the ALB routes traffic into DB-dead instances** (same silent-failure class as the sandbox crash-loop). *Fix:* split liveness (static) from readiness (cheap `SELECT 1` + timeout → 503); one shared `HealthModule` factory across the three services.
+- [ ] **(P1, ARCH-PS-4) `FoodServiceClient.send()` has no timeout/AbortController — and recipe's ingredient path calls it, so a hung food-service hangs recipe's request handling unbounded.** The USDA client 200 lines away does this correctly. *Fix:* add `timeoutMs` + `AbortController`, map abort → `FetchUnavailableError`. (Retries/breaker are a fair defer; the timeout is not.)
+- [ ] **(P2, ARCH-IT-4/7) IAM over-grant: both service task roles grant `secretsmanager:GetSecretValue` on `resources:['*']`; one `webhooksRole` grants the union of all perms to 4 distinct lambdas.** `sandbox-scheduler-stack.ts` is the correct least-privilege template. *Fix:* scope secret ARNs (likely delete the manual `['*']` stmt — `taskDefinition.secrets` already emits a scoped grant); split a slim migration-lambda role.
+- [ ] **(P2, ARCH-PS-8) Reconciliation backstop loads the entire Clerk directory into memory and processes O(n) sequentially** — latent scaling cliff on the exact component whose non-execution already caused a prod user-create gap. *Fix:* paginate `listUsers()` + bounded batches; confirm the schedule/alarm exists.
+- [ ] **(P3, ARCH-FE-3) Cross-platform parity break: suspended/blocked/impersonation auth UX is mobile-only** — a security-relevant state the web app silently omits. *Fix:* lift the state handling into shared logic; render on both.
+
+### 4d — Lower-cost consistency / dead code (mechanical)
+
+- [ ] **(P3, ARCH-IT-3) `@kitchensink/vitest` preset adopted only by the 3 placeholder packages; 6 real suites hand-roll config; preset sets `globals:true`, contradicting the "always import from vitest" house rule.** *Fix:* make `baseConfig` the real base (include-override + CI-timeout headroom + integration/e2e excludes), adopt in the 6, drop `globals:true`.
+- [ ] **(P3, ARCH-IT-6) Lambda asset-probe ("2-vs-3-levels-up dist-lambda" + placeholder) duplicated in 3 stacks with inconsistent missing-asset semantics (scheduler throws — correct; data/food return a silent no-op that can ship a broken deploy).** *Fix:* one `resolveLambdaAsset(url,{onMissing})` helper; default to throw.
+- [ ] **(P3, ARCH-IT-8) Dead imported constructs in `webhooks-stack.ts:71-81` (instantiated, discarded); `tools/typescript/package.json` exports `./test.json` which doesn't exist (hard-fails any workspace that extends it).** *Fix:* delete the imports; add or remove the export.
+- [ ] **(P3, ARCH-IT-9/ARCH-PS-9/10) `process.env` dot-notation in `infra/global/bin/app.ts` + identity DB/queue modules (house rule = bracket-only); `FOOD_MAX_BATCH_NAMES` default `100` duplicated in service + schema, service copy skips Zod (→ `NaN` on bad input).** *Fix:* bracket-notation; source the cap from validated `Environment`; route identity DB config through its own `EnvironmentSchema`.
+
 ## Tier 3 — CI / harness integrity
 
 - [ ] **No `e2e-recipe` CI job** — `vitest.e2e.config.ts` + `health.e2e.spec.ts` never run in CI (no `test:e2e --workspace=@kitchensink/recipe-service` in `_ci.yml`); the CLAUDE.md "services require e2e" mandate is unmet for recipe. Add the job.
@@ -73,8 +115,43 @@ claims "many bugs" and "tests only scratch the surface" **did** hold, decisively
 
 ---
 
+## Stryker mutation baseline (objective test-rigor measure — 2026-07-09, commit c7a99e2)
+
+`npm run test:mutation --workspace=@kitchensink/recipe-service` (vitest runner, unit config → no Docker),
+scoped to `recipes/domain/**`, `recipes.service.ts`, `photos.service.ts`. **Baseline: 63.4% mutation score,
+135 surviving mutants** — objective proof of the "tests only scratch the surface" finding (a surviving mutant =
+a bug the current tests cannot see):
+
+| File | Score | Survived | Read |
+| --- | --- | --- | --- |
+| `recipes.service.ts` | 60.7% | 77 | mapping/branch logic barely asserted |
+| `photos.service.ts` | 63.8% | 49 | ownership/cap/error branches under-tested |
+| `recipes/domain/visibility-policy.ts` | 78.6% | 9 | the one deep module — still not airtight |
+
+Target **≥80%** overall (a rigorous suite). The surviving-mutant list is the *concrete* worklist backing
+Tier 2 — each Tier-2 hardening should kill a named cluster of these mutants. Re-run after each batch and record
+the delta; do not mark Tier 2 done until the score clears 80% and no *correctness* mutant survives.
+
+## What is genuinely well-built (per the honesty standard — do NOT "fix" these into churn)
+
+All four auditors independently flagged real strengths; recording them so the loop doesn't rewrite sound code:
+the **C-004 `visibility-policy.ts`** pure evaluator (one genuinely deep domain module, reused by create/clone/
+set-visibility); the **optimistic-concurrency CAS** + re-read to distinguish 409-vs-404 (Tier-0 #1, now proven);
+the **`PhotoStoragePort` hexagonal seam** and the **exhaustive `RECIPE_ERROR_STATUS` record** that fails
+compilation on an unmapped code; the **webhook dedup-race redesign** (confirm-after-process on the `svix-id` PK,
+idempotent handlers, no pre-claim so poison payloads retry visibly); the **USDA client** (timeout + body-read
+inside the deadline + schema-vs-transport error split — the reference the food client should copy); and the food
+stack's **pure, tested routing/priority/DB-name functions**. The findings above are about consistency,
+dependency direction, and un-generated contracts — not the core logic.
+
 ## How to run the loop to completion
 
-1. Work Tier 0 → Tier 1 → Tier 2 → Tier 3, each fix with a test that **fails if the bug is present**.
-2. After a batch, **stand up Stryker mutation testing** on the pure domain logic (`recipes/domain`, DAL query builders, services) and drive surviving mutants to zero — that is the objective proof the tests exercise the code, not just cover it.
-3. Re-run the adversarial audit; the loop is done when a genuinely adversarial reviewer, trying hard to break it, finds nothing substantive.
+1. Work Tier 0 → Tier 1 → Tier 2 → Tier 3 → Tier 4, each fix with a test that **fails if the bug is present**.
+   Tier 4's cross-package consolidations (shared error envelope, `clerk-verify` adoption, health/readiness,
+   `rds-iam-pool`) are the highest-leverage because each kills an entire *class* of future drift.
+2. Stryker is **stood up** (baseline above). Drive surviving mutants to zero on the domain logic; extend `mutate`
+   globs to the DAL query builders and the other services as their tests harden. Re-run per batch, record delta.
+3. Re-run the adversarial audit; the loop is done when a genuinely adversarial reviewer, trying hard to break it,
+   finds nothing substantive. **This is a multi-iteration loop, not a one-pass sweep** — iteration 1 (2026-07-09)
+   built the objective instrumentation (ENGINEERING_EXCELLENCE bar, DRY/KISS/YAGNI directives, Stryker, this
+   backlog) and fixed the P1 lost-update exemplarily; ~42 findings remain queued here.

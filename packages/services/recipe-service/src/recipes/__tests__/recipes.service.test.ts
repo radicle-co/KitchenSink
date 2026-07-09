@@ -13,7 +13,7 @@ import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
-import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import { makeRecipeIngredientRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
@@ -149,6 +149,83 @@ describe('RecipesService.create', () => {
                 }),
             }),
         );
+    });
+
+    it('captures the FULL recipe content in the snapshot (faithful for restore)', async () => {
+        const recipe = makeRecipeRow({
+            id: 'r-9',
+            ownerId: OWNER,
+            currentVersion: 3,
+            title: 'Full Recipe',
+            description: 'A complete one',
+            servings: 4,
+            prepTimeMinutes: 7,
+            cookTimeMinutes: 11,
+        });
+        const created: RecipeAggregate = {
+            recipe,
+            steps: [makeRecipeStepRow({ recipeId: 'r-9', stepNumber: 1, instruction: 'Chop', timerSeconds: 30 })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: 'r-9',
+                    ingredientId: 'ing-1',
+                    ingredientName: 'Onion',
+                    quantity: '2.5',
+                    unit: 'cup',
+                    displayText: 'diced',
+                    sortOrder: 0,
+                    isUserEntered: true,
+                    userCalories: '40',
+                }),
+            ],
+        };
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+
+        await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
+
+        // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
+        // and the conditional inclusion of displayText/timerSeconds/userCalories with null siblings
+        // OMITTED). A mutation to any single mapping breaks this equality.
+        const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
+        expect(snapshot).toEqual({
+            version: 3,
+            title: 'Full Recipe',
+            description: 'A complete one',
+            servings: 4,
+            prepTimeMinutes: 7,
+            cookTimeMinutes: 11,
+            steps: [{ id: created.steps[0]!.id, recipeId: 'r-9', stepNumber: 1, instruction: 'Chop', timerSeconds: 30 }],
+            ingredients: [
+                {
+                    id: created.ingredients[0]!.id,
+                    recipeId: 'r-9',
+                    ingredientId: 'ing-1',
+                    quantity: 2.5,
+                    unit: 'cup',
+                    displayText: 'diced',
+                    sortOrder: 0,
+                    ingredientName: 'Onion',
+                    isUserEntered: true,
+                    userCalories: 40,
+                },
+            ],
+        });
+    });
+
+    it('does NOT fail the create when snapshot recording throws (best-effort, logged not fatal)', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const versions = makeFakeVersionsService();
+        (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('snapshot boom'));
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        // The recipe committed; a version hiccup must be swallowed (logged), not propagated.
+        await expect(
+            new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO),
+        ).resolves.toMatchObject({ id: 'r-1' });
+        expect(consoleError).toHaveBeenCalled();
+
+        consoleError.mockRestore();
     });
 
     // C-004 / FR-003 (ADV-3): a create is a `user_created` recipe with no substantive edit, so the

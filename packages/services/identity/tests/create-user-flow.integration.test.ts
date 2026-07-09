@@ -44,6 +44,8 @@ const claimsFor = (sub: string): VerifiedClerkClaims => ({
     email: `${sub}@example.com`,
     firstName: 'Con',
     lastName: 'Current',
+    scopes: [],
+    permissions: [],
 });
 
 describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurrency (integration)', () => {
@@ -149,7 +151,7 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
         // A read-through with NO email/name claim would synthesize a placeholder email + empty name.
         // It must NOT overwrite the real values the webhook wrote (the cold-start race this feature
         // exists to handle).
-        await usersService.resolveOrCreateFromClaims({ sub });
+        await usersService.resolveOrCreateFromClaims({ sub, scopes: [], permissions: [] });
 
         const [row] = await db.select().from(users).where(eq(users.identityId, sub));
         expect(row?.email).toBe(`${sub}@example.com`); // real email preserved, not the placeholder
@@ -161,12 +163,22 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
         const subB = 'user_collide_b';
 
         // A owns the email.
-        await usersService.resolveOrCreateFromClaims({ sub: subA, email: 'shared@example.com' });
+        await usersService.resolveOrCreateFromClaims({
+            sub: subA,
+            email: 'shared@example.com',
+            scopes: [],
+            permissions: [],
+        });
 
         // B presents the SAME email (Clerk permits shared emails — delete+recreate, social link). This
         // must not raise an uncaught unique-violation (which would 500 the auth middleware on every
         // request); B is provisioned with a per-identity placeholder instead.
-        await usersService.resolveOrCreateFromClaims({ sub: subB, email: 'shared@example.com' });
+        await usersService.resolveOrCreateFromClaims({
+            sub: subB,
+            email: 'shared@example.com',
+            scopes: [],
+            permissions: [],
+        });
 
         const [rowB] = await db.select().from(users).where(eq(users.identityId, subB));
         expect(rowB?.email).toBe(`${subB}@no-email.invalid`);
@@ -180,8 +192,20 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
     it('creates two distinct users with no email claim without colliding on users_email_unique', async () => {
         // email is NOT NULL UNIQUE; a fabricated empty email would make the second emailless user
         // collide and 500. The per-identity placeholder keeps both inserts distinct.
-        await usersService.resolveOrCreateFromClaims({ sub: 'user_noemail_a', firstName: 'A', lastName: 'One' });
-        await usersService.resolveOrCreateFromClaims({ sub: 'user_noemail_b', firstName: 'B', lastName: 'Two' });
+        await usersService.resolveOrCreateFromClaims({
+            sub: 'user_noemail_a',
+            firstName: 'A',
+            lastName: 'One',
+            scopes: [],
+            permissions: [],
+        });
+        await usersService.resolveOrCreateFromClaims({
+            sub: 'user_noemail_b',
+            firstName: 'B',
+            lastName: 'Two',
+            scopes: [],
+            permissions: [],
+        });
 
         expect(await countsFor('user_noemail_a')).toEqual({ users: 1, accounts: 1, profiles: 1 });
         expect(await countsFor('user_noemail_b')).toEqual({ users: 1, accounts: 1, profiles: 1 });

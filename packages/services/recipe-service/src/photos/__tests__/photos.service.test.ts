@@ -12,7 +12,12 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { recipePhotoSchema } from '@kitchensink/recipe-core';
-import { PayloadTooLargeException, UnprocessableEntityException, UnsupportedMediaTypeException } from '@nestjs/common';
+import {
+    BadRequestException,
+    PayloadTooLargeException,
+    UnprocessableEntityException,
+    UnsupportedMediaTypeException,
+} from '@nestjs/common';
 
 import { MAX_UPLOAD_BYTES, PhotosService, type PhotoStoragePort, type PhotosConfig } from '../photos.service.js';
 import type { PhotosDal } from '../dal/photos.dal.js';
@@ -245,6 +250,15 @@ describe('PhotosService.reorder', () => {
         expect(reorder).toHaveBeenCalledWith(RECIPE_ID, ['p-2', 'p-1']);
         expect(response.map((photo) => photo.id)).toEqual(['p-2', 'p-1']);
         expect(response.every((photo) => recipePhotoSchema.safeParse(photo).success)).toBe(true);
+    });
+
+    // The DAL returns null when the request is not an exact permutation of the current photos (validated
+    // atomically in-tx); the service must surface that as a 400, not pass null through to row shaping.
+    it('rejects a non-permutation reorder (DAL null) with 400 BadRequest', async () => {
+        const reorder = vi.fn().mockResolvedValue(null);
+        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, fakeRecipes());
+
+        await expect(service.reorder(OWNER, RECIPE_ID, ['p-1'])).rejects.toBeInstanceOf(BadRequestException);
     });
 });
 

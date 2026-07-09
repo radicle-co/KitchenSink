@@ -241,11 +241,21 @@ export class PhotosService {
         }
     }
 
-    /** Reorder a recipe's photos to the given id order and return the reordered objects. Owner-only. */
+    /**
+     * Reorder a recipe's photos to the given id order and return the reordered objects. Owner-only.
+     * `photoIds` must be an exact reordering of the recipe's current photos — a partial, duplicate, or
+     * foreign-id list is rejected (400) rather than silently corrupting `sortOrder`.
+     */
     public async reorder(ownerId: string, recipeId: string, photoIds: string[]): Promise<RecipePhoto[]> {
         await this.assertOwner(ownerId, recipeId);
 
         const rows = await this.dal.reorder(recipeId, photoIds);
+
+        if (rows === null) {
+            throw new BadRequestException(
+                "photoIds must be an exact reordering of the recipe's current photos (no missing, extra, or duplicate ids).",
+            );
+        }
 
         return rows.map((row) => this.toPhotoResponse(row));
     }

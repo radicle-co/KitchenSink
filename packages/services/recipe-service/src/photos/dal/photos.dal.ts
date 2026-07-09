@@ -16,6 +16,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipePhotos, type RecipePhotoRow } from '../../database/schema/index.js';
 import { maxPhotosExceeded } from '../photo.error.js';
+import { isExactReorder } from '../photo-reorder.js';
 
 /** The hard cap on photos per recipe, enforced by {@link PhotosDal.create}. */
 export const MAX_PHOTOS_PER_RECIPE = 10;
@@ -117,12 +118,26 @@ export class PhotosDal {
 
     /**
      * Rewrite the `sortOrder` of a recipe's photos to the given id order (index 0..n-1) in one
-     * transaction, then return the reordered rows. Ids not belonging to the recipe simply match nothing.
+     * transaction, then return the reordered rows. `orderedIds` MUST be an exact reordering of the
+     * recipe's current photos; otherwise no row is touched and `null` is returned (the caller maps it to
+     * a 400). The current ids are read `FOR UPDATE` so the permutation check and the rewrite are atomic —
+     * a concurrent add/delete cannot slip in a gap or duplicate `sortOrder` between validate and write.
+     * Returning `null` (rather than throwing) keeps the DAL free of HTTP/domain-error coupling.
      *
-     * @sideEffect Updates `sortOrder` on the listed `recipe_photos` rows.
+     * @sideEffect Updates `sortOrder` on the recipe's `recipe_photos` rows when the request is valid.
      */
-    public async reorder(recipeId: string, orderedIds: string[]): Promise<RecipePhotoRow[]> {
+    public async reorder(recipeId: string, orderedIds: string[]): Promise<RecipePhotoRow[] | null> {
         return this.db.transaction(async (tx) => {
+            const current = await tx
+                .select({ id: recipePhotos.id })
+                .from(recipePhotos)
+                .where(eq(recipePhotos.recipeId, recipeId))
+                .for('update');
+
+            if (!isExactReorder(current.map((row) => row.id), orderedIds)) {
+                return null;
+            }
+
             for (let index = 0; index < orderedIds.length; index += 1) {
                 await tx
                     .update(recipePhotos)

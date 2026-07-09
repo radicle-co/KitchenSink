@@ -29,7 +29,7 @@ interface FakeControl {
     enqueue: (...results: unknown[]) => void;
 }
 
-const CHAIN_METHODS = ['values', 'returning', 'from', 'where', 'orderBy', 'limit', 'offset', 'set'] as const;
+const CHAIN_METHODS = ['values', 'returning', 'from', 'where', 'orderBy', 'limit', 'offset', 'set', 'for'] as const;
 
 function createFakeDb(): FakeControl {
     const calls: RecordedCall[] = [];
@@ -217,8 +217,9 @@ describe('PhotosDal.reorder', () => {
             makeRecipePhotoRow({ id: 'p-2', sortOrder: 0 }),
             makeRecipePhotoRow({ id: 'p-1', sortOrder: 1 }),
         ];
-        // two per-id UPDATEs (no result read) → final ordered SELECT
-        control.enqueue(undefined, undefined, reordered);
+        // FOR UPDATE current-ids SELECT (a permutation of the request) → two per-id UPDATEs (no result
+        // read) → final ordered SELECT.
+        control.enqueue([{ id: 'p-1' }, { id: 'p-2' }], undefined, undefined, reordered);
 
         const result = await dal.reorder(RECIPE_ID, ['p-2', 'p-1']);
 
@@ -227,5 +228,18 @@ describe('PhotosDal.reorder', () => {
         const sets = setPayloads(control);
         expect(sets[0]).toMatchObject({ sortOrder: 0 });
         expect(sets[1]).toMatchObject({ sortOrder: 1 });
+    });
+
+    it('returns null and writes NOTHING when the request is not an exact permutation', async () => {
+        const control = createFakeDb();
+        const dal = new PhotosDal(control.db);
+        // Current photos are {p-1, p-2} but the request only lists p-1 (a partial reorder).
+        control.enqueue([{ id: 'p-1' }, { id: 'p-2' }]);
+
+        const result = await dal.reorder(RECIPE_ID, ['p-1']);
+
+        expect(result).toBeNull();
+        // No sort_order was rewritten — the corruption path is closed at the DAL.
+        expect(setPayloads(control)).toHaveLength(0);
     });
 });

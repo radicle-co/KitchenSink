@@ -9,57 +9,68 @@
 import { describe, it, expect } from 'vitest';
 import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 
-import { defaultCloneVisibility, evaluateVisibility } from '../visibility-policy.js';
+import { defaultCloneVisibility, evaluateVisibility, type VisibilityDecision } from '../visibility-policy.js';
 
 const PUBLIC = RecipeVisibility.PUBLIC;
 const PRIVATE = RecipeVisibility.PRIVATE;
 
+/**
+ * Assert a decision's `allowed` value AND that it carries a non-empty reason. The reason check kills the
+ * "reason → ''" mutants: every allow/deny MUST explain itself (the reason is surfaced as the user-facing
+ * error message on denial), without coupling the test to exact wording.
+ */
+function expectDecision(decision: VisibilityDecision, allowed: boolean): void {
+    expect(decision.allowed).toBe(allowed);
+    expect(decision.reason.length).toBeGreaterThan(0);
+}
+
 describe('evaluateVisibility — requested public', () => {
     it('ALLOWS public for user_created (free or premium)', () => {
         for (const isPremium of [false, true]) {
-            const decision = evaluateVisibility({
-                sourceType: RecipeSourceType.USER_CREATED,
-                isPremium,
-                hasSubstantiveEdit: false,
-                requested: PUBLIC,
-            });
-
-            expect(decision.allowed).toBe(true);
+            expectDecision(
+                evaluateVisibility({
+                    sourceType: RecipeSourceType.USER_CREATED,
+                    isPremium,
+                    hasSubstantiveEdit: false,
+                    requested: PUBLIC,
+                }),
+                true,
+            );
         }
     });
 
     it('ALLOWS public for imported_public', () => {
-        const decision = evaluateVisibility({
-            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-            isPremium: false,
-            hasSubstantiveEdit: false,
-            requested: PUBLIC,
-        });
-
-        expect(decision.allowed).toBe(true);
+        expectDecision(
+            evaluateVisibility({
+                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                isPremium: false,
+                hasSubstantiveEdit: false,
+                requested: PUBLIC,
+            }),
+            true,
+        );
     });
 
-    it('DENIES public for imported_physical (private-only)', () => {
-        const decision = evaluateVisibility({
+    it('DENIES public for imported_physical AND imported_paid, with DISTINCT reasons', () => {
+        const physical = evaluateVisibility({
             sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
             isPremium: true,
             hasSubstantiveEdit: true,
             requested: PUBLIC,
         });
-
-        expect(decision.allowed).toBe(false);
-        expect(decision.reason.length).toBeGreaterThan(0);
-    });
-
-    it('DENIES public for imported_paid (private-only, permanent — may NEVER be public)', () => {
-        const decision = evaluateVisibility({
+        const paid = evaluateVisibility({
             sourceType: RecipeSourceType.IMPORTED_PAID,
             isPremium: true,
             hasSubstantiveEdit: true,
             requested: PUBLIC,
         });
 
-        expect(decision.allowed).toBe(false);
+        expectDecision(physical, false);
+        expectDecision(paid, false);
+        // Each provenance denies with its OWN message. If the physical case fell through to paid's
+        // branch (the surviving switch-case mutation), both reasons would be identical — this kills it
+        // without asserting exact wording.
+        expect(physical.reason).not.toBe(paid.reason);
     });
 });
 
@@ -78,8 +89,8 @@ describe('evaluateVisibility — requested private', () => {
             requested: PRIVATE,
         });
 
-        expect(premium.allowed).toBe(true);
-        expect(free.allowed).toBe(false);
+        expectDecision(premium, true);
+        expectDecision(free, false);
     });
 
     it('imported_public: ALLOWS private only when premium AND hasSubstantiveEdit', () => {
@@ -102,31 +113,33 @@ describe('evaluateVisibility — requested private', () => {
             requested: PRIVATE,
         });
 
-        expect(both.allowed).toBe(true);
-        expect(premiumNoEdit.allowed).toBe(false);
-        expect(editNoPremium.allowed).toBe(false);
+        expectDecision(both, true);
+        expectDecision(premiumNoEdit, false);
+        expectDecision(editNoPremium, false);
     });
 
     it('imported_physical: ALLOWS private (private-only anyway), regardless of tier/edit', () => {
-        const decision = evaluateVisibility({
-            sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
-            isPremium: false,
-            hasSubstantiveEdit: false,
-            requested: PRIVATE,
-        });
-
-        expect(decision.allowed).toBe(true);
+        expectDecision(
+            evaluateVisibility({
+                sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
+                isPremium: false,
+                hasSubstantiveEdit: false,
+                requested: PRIVATE,
+            }),
+            true,
+        );
     });
 
     it('imported_paid: ALLOWS private (private-only, permanent), regardless of tier/edit', () => {
-        const decision = evaluateVisibility({
-            sourceType: RecipeSourceType.IMPORTED_PAID,
-            isPremium: false,
-            hasSubstantiveEdit: false,
-            requested: PRIVATE,
-        });
-
-        expect(decision.allowed).toBe(true);
+        expectDecision(
+            evaluateVisibility({
+                sourceType: RecipeSourceType.IMPORTED_PAID,
+                isPremium: false,
+                hasSubstantiveEdit: false,
+                requested: PRIVATE,
+            }),
+            true,
+        );
     });
 });
 

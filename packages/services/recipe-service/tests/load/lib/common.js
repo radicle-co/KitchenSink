@@ -58,6 +58,13 @@ export function uuidv4() {
     });
 }
 
+// Seeded baseline ingredient ids (must match tests/global-setup.ts SEED_INGREDIENTS + the k6 CI job's
+// seed step). Since T043b, recipe create validates every line's `ingredientId` against the catalog, so a
+// random uuid would 400 (UNKNOWN_INGREDIENT) and trip the failure-rate threshold. Load payloads must
+// reference ids that actually exist.
+export const SEED_INGREDIENT_FLOUR = '00000000-0000-4000-8000-0000000000aa';
+export const SEED_INGREDIENT_SUGAR = '00000000-0000-4000-8000-0000000000bb';
+
 // A valid CreateRecipeRequest body (matches specs/001-commise-recipe-app/contracts/api.openapi.yaml).
 export function makeRecipePayload(label) {
     return {
@@ -66,8 +73,8 @@ export function makeRecipePayload(label) {
         cuisine: 'italian',
         visibility: 'private',
         ingredients: [
-            { ingredientId: uuidv4(), name: 'flour', quantity: 2, unit: 'cups' },
-            { ingredientId: uuidv4(), name: 'water', quantity: 1, unit: 'cup' },
+            { ingredientId: SEED_INGREDIENT_FLOUR, name: 'flour', quantity: 2, unit: 'cups' },
+            { ingredientId: SEED_INGREDIENT_SUGAR, name: 'sugar', quantity: 1, unit: 'cup' },
         ],
         steps: [
             { instruction: 'Mix the dry ingredients.' },

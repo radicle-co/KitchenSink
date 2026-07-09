@@ -7,7 +7,7 @@
     "scripts": {
         "dev": "tsx watch src/main.ts",
         "build": "tsc -p tsconfig.build.json",
-        "start": "node dist/main.js",
+        "start": "node dist/src/main.js",
         "infra:build": "tsc -p infra/tsconfig.json",
         "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",

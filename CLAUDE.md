@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⛔ MANDATORY — Engineering quality bar (read BEFORE writing any code)
+
+**Before you write or modify a single line of code, you MUST read the relevant section(s) of [`docs/engineering/ENGINEERING_EXCELLENCE.md`](docs/engineering/ENGINEERING_EXCELLENCE.md).** That document is the repository's NORMATIVE quality bar for what _engineered_, production-grade software is — across correctness, robustness, security, design, frontend, backend, and testing — grounded in primary sources (Ousterhout, Fowler, the Google SWE book, OWASP, DDIA, Release It!, Kent C. Dodds, and more).
+
+This is **not optional background reading**. It is progressive disclosure by design: CLAUDE.md stays lean; the deep standards live in that file and MUST be pulled in on demand:
+
+- **Backend/service code** → read _Backend Engineering Excellence_ + _Design Patterns, Principles & Code Quality_.
+- **Frontend (web or mobile)** → read _Frontend Engineering Excellence_ + _Design Patterns, Principles & Code Quality_.
+- **Any test, or any review of a test** → read _Quality Systems Engineering & Test Excellence_, **every time**. A test that would still pass if the code were subtly broken is coverage theater, not a test, and MUST NOT be counted toward the test mandate below.
+
+"I didn't read it" is **never** an acceptable reason for a defect that document would have prevented. Where it and a narrower doc (`docs/CODING_STANDARDS.md`, an ADR) both apply, the **stricter** rule wins. Re-read the relevant section before claiming a change is "done."
+
 ## Commands
 
 ```bash

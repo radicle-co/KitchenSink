@@ -127,6 +127,23 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
         ]);
     });
 
+    // ADV-2 search-text poisoning: the search-feeding `ingredient_names_text` MUST be built from the
+    // resolved CATALOG name, never the client DTO `name`. Here the client sends a poison string for the
+    // onion id; the persisted search text must still be the catalog 'Onion'. Building it from dto.name
+    // (the mutation) would index the recipe under 'zzz-not-a-real-name' and fails this test.
+    it('builds ingredient_names_text from the catalog name, ignoring a poisoned client name', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregateWithOnion()) });
+        const service = new RecipesService(dal, fakeIngredientsDal());
+
+        const poisoned: CreateRecipeDto = {
+            ...CREATE_DTO,
+            ingredients: [{ ingredientId: ONION_ID, name: 'zzz-not-a-real-name', quantity: 2, unit: 'cup' }],
+        };
+        await service.create(OWNER_PRINCIPAL, poisoned);
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ ingredientNamesText: 'Onion' }));
+    });
+
     it('rejects an unresolved ingredientId with UNKNOWN_INGREDIENT (not a raw FK error)', async () => {
         const dal = fakeRecipesDal();
         const ingredientsDal = fakeIngredientsDal({ findById: vi.fn().mockResolvedValue(undefined) });

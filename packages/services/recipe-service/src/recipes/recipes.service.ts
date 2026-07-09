@@ -38,10 +38,16 @@ export const RECIPES_DAL = 'RECIPES_DAL';
  */
 export const PREMIUM_PERMISSION = 'premium';
 
-/** Space-join ingredient display names into the denormalized, search-feeding text column. Pure. */
-function buildIngredientNamesText(ingredients: RecipeIngredientInputDto[]): string {
-    return ingredients
-        .map((ingredient) => ingredient.name.trim())
+/**
+ * Space-join ingredient names into the denormalized, search-feeding `ingredient_names_text` column.
+ * Built from the RESOLVED catalog lines (`ingredientName`), NOT the client DTO `name`: the junction
+ * persists the catalog name, so the search vector must index the same canonical string. Building it from
+ * `dto.name` would let a client index a recipe under arbitrary text (search poisoning) and diverge the
+ * index from the displayed name (a recipe shown as "All-purpose flour" but unfindable by it). Pure.
+ */
+function buildIngredientNamesText(lines: ResolvedIngredientLine[]): string {
+    return lines
+        .map((line) => line.ingredientName.trim())
         .filter((name) => name.length > 0)
         .join(' ');
 }
@@ -213,7 +219,7 @@ export class RecipesService {
             totalTimeMinutes: dto.totalTimeMinutes,
             tags: dto.tags ?? [],
             dietaryFlags: dto.dietaryFlags ?? [],
-            ingredientNamesText: buildIngredientNamesText(dto.ingredients),
+            ingredientNamesText: buildIngredientNamesText(ingredients),
             ingredients,
             steps: dto.steps.map(toStepInput),
         });
@@ -317,10 +323,11 @@ export class RecipesService {
             totalTimeMinutes: dto.totalTimeMinutes,
             tags: dto.tags,
             dietaryFlags: dto.dietaryFlags,
-            ...(dto.ingredients !== undefined
-                ? { ingredientNamesText: buildIngredientNamesText(dto.ingredients) }
+            // Rebuild the search text from the RESOLVED catalog lines (not dto.ingredients) so the index
+            // tracks the persisted junction names — only when the patch actually replaces ingredients.
+            ...(ingredients !== undefined
+                ? { ingredientNamesText: buildIngredientNamesText(ingredients), ingredients }
                 : {}),
-            ...(ingredients !== undefined ? { ingredients } : {}),
             ...(dto.steps !== undefined ? { steps: dto.steps.map(toStepInput) } : {}),
             ...(newlySubstantive ? { hasSubstantiveEdit: true } : {}),
         });

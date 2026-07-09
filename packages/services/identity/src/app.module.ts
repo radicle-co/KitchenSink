@@ -10,7 +10,7 @@ import { QueueModule } from './queue/queue.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuthMiddleware } from './auth/middleware/auth.middleware.js';
-import { SentryExceptionFilter } from './observability/sentry.filter.js';
+import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { SentryContextMiddleware } from './observability/sentry-context.middleware.js';
 
 @Module({
@@ -28,7 +28,7 @@ import { SentryContextMiddleware } from './observability/sentry-context.middlewa
     providers: [
         {
             provide: APP_FILTER,
-            useClass: SentryExceptionFilter,
+            useClass: ApiExceptionFilter,
         },
         {
             provide: ValidationPipe,

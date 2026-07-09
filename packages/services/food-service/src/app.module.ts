@@ -1,5 +1,7 @@
 import { Module, ValidationPipe } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 
+import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { AppConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { FoodsModule } from './foods/foods.module.js';
@@ -15,6 +17,10 @@ import { HealthModule } from './health/health.module.js';
     imports: [AppConfigModule, DatabaseModule, FoodsModule, HealthModule],
     controllers: [],
     providers: [
+        {
+            provide: APP_FILTER,
+            useClass: ApiExceptionFilter,
+        },
         {
             provide: ValidationPipe,
             useValue: new ValidationPipe({

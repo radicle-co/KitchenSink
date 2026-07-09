@@ -9,7 +9,9 @@ import { createServiceLogger } from '../../observability/sentry-logging.js';
 import { scrubText } from '../../observability/sentry-scrubbers.js';
 import { traceAuth } from '../../observability/auth-trace.js';
 
-const PUBLIC_PATHS = new Set(['/health']);
+// `/health` (liveness) and `/health/ready` (readiness) are the only unauthenticated routes — the ALB
+// and ECS probe them with no bearer token, so both must bypass auth (ARCH-PS-3).
+const PUBLIC_PATHS = new Set(['/health', '/health/ready']);
 
 const logger = createServiceLogger('AuthMiddleware');
 

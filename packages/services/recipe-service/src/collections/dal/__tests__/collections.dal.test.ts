@@ -231,14 +231,16 @@ describe('CollectionsDal.removeRecipe', () => {
 });
 
 describe('CollectionsDal.listRecipes', () => {
-    it('inner-joins recipes (excluding tombstoned) and returns the rows', async () => {
+    it('inner-joins recipes (excluding tombstoned + non-viewable) and returns the rows', async () => {
         const fake = createFakeDb();
         const rows = [makeRecipeRow()];
         fake.queue(rows);
         const dal = new CollectionsDal(fake.db);
 
-        expect(await dal.listRecipes('c1')).toBe(rows);
-        // The INNER JOIN + WHERE is the tombstone-exclusion mechanism (behaviour verified in integration).
+        expect(await dal.listRecipes('c1', 'viewer-1')).toBe(rows);
+        // INNER JOIN + WHERE carry both the tombstone exclusion and the viewability filter
+        // (`public OR owner=viewer`); the predicate CONTENT is verified behaviourally in the integration
+        // spec (the fake DB records call shape, not WHERE args — see Tier-2 F4/F19 in the backlog).
         expect(methodsOf(fake)).toContain('innerJoin');
         expect(methodsOf(fake)).toContain('where');
     });

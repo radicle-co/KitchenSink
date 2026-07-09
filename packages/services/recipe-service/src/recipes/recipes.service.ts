@@ -17,6 +17,7 @@ import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
 import { defaultCloneVisibility, evaluateVisibility } from './domain/visibility-policy.js';
+import { isRecipeViewableBy } from './domain/recipe-visibility.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
@@ -259,7 +260,7 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        if (aggregate.recipe.ownerId !== ownerId && aggregate.recipe.visibility !== 'public') {
+        if (!isRecipeViewableBy(aggregate.recipe, ownerId)) {
             throw notOwner(id);
         }
 

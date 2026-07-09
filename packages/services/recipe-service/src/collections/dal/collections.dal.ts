@@ -15,7 +15,7 @@
  * only to its `recipe_collections` junction rows (FK `ON DELETE CASCADE`), never to the `recipes`.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, getTableColumns, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, isNull, or } from 'drizzle-orm';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../../database/database.module.js';
 import {
@@ -195,16 +195,26 @@ export class CollectionsDal {
     }
 
     /**
-     * List the recipes in a collection, oldest membership first, EXCLUDING tombstoned recipes (C-007):
-     * the `INNER JOIN` + `deleted_at IS NULL` filter drops soft-deleted recipes even though their
-     * junction rows remain.
+     * List the recipes in a collection VIEWABLE BY `viewerId`, oldest membership first. Two filters:
+     *  - EXCLUDING tombstoned recipes (C-007): the `INNER JOIN` + `deleted_at IS NULL` drops soft-deleted
+     *    recipes even though their junction rows remain.
+     *  - EXCLUDING recipes the viewer may not see: `visibility = 'public' OR owner_id = viewerId`. This
+     *    is the authoritative half of the membership-IDOR guard — a recipe that was public when added but
+     *    later went private (which add-time validation cannot catch) is filtered out here at read time.
+     *    Keep this predicate in lockstep with `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
      */
-    public async listRecipes(collectionId: string): Promise<RecipeRow[]> {
+    public async listRecipes(collectionId: string, viewerId: string): Promise<RecipeRow[]> {
         return this.db
             .select(getTableColumns(recipes))
             .from(recipeCollections)
             .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
-            .where(and(eq(recipeCollections.collectionId, collectionId), isNull(recipes.deletedAt)))
+            .where(
+                and(
+                    eq(recipeCollections.collectionId, collectionId),
+                    isNull(recipes.deletedAt),
+                    or(eq(recipes.visibility, 'public'), eq(recipes.ownerId, viewerId)),
+                ),
+            )
             .orderBy(recipeCollections.addedAt);
     }
 }

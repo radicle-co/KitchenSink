@@ -125,6 +125,9 @@ describe('CollectionsService.getCollection', () => {
         expect(result.recipes).toHaveLength(2);
         expect(result.recipes[0]?.id).toBe('r1');
         expect(result.recipes[0]?.createdAt).toBe('2026-01-01T00:00:00.000Z');
+        // The caller is passed as the VIEWER so the DAL can filter out other users' private recipes
+        // (membership-IDOR guard). Dropping the viewer arg would list every member regardless of owner.
+        expect(dal.listRecipes).toHaveBeenCalledWith('c1', OWNER);
     });
 
     it('throws NotFoundException when the collection is missing', async () => {
@@ -203,6 +206,46 @@ describe('CollectionsService.addRecipe', () => {
             (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(dal.addRecipe).not.toHaveBeenCalled();
+    });
+
+    // Membership-IDOR guard (ADV-4): a caller must not add another user's PRIVATE recipe to their own
+    // collection — doing so and then reading the collection back would exfiltrate the private body.
+    // Reported as RECIPE_NOT_FOUND (not 403) so the private recipe's existence is never disclosed.
+    // Removing the `isRecipeViewableBy` check lets the add through and fails this test.
+    it("refuses to add another user's PRIVATE recipe (RECIPE_NOT_FOUND, no membership written)", async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'private' }));
+        const service = makeService(dal);
+
+        await expect(service.addRecipe(OWNER, 'c1', 'r1')).rejects.toSatisfy(
+            (err: unknown) => isCollectionError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
+        );
+        expect(dal.addRecipe).not.toHaveBeenCalled();
+    });
+
+    it("adds another user's PUBLIC recipe (viewable → allowed)", async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'public' }));
+        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        const service = makeService(dal);
+
+        await service.addRecipe(OWNER, 'c1', 'r1');
+
+        expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
+    });
+
+    it('adds the caller\'s OWN private recipe (owner always views their own)', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: OWNER, visibility: 'private' }));
+        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        const service = makeService(dal);
+
+        await service.addRecipe(OWNER, 'c1', 'r1');
+
+        expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
     });
 });
 

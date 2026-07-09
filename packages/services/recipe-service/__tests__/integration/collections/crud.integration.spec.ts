@@ -26,11 +26,16 @@ const hasDatabaseUrl = Boolean(DATABASE_URL);
 const OWNER = '01JCOLLECTIONOWNERAAAAAAAAA';
 const OTHER_OWNER = '01JCOLLECTIONOWNERBBBBBBBBB';
 
-/** Insert a minimal recipe directly and return its id. */
-async function insertRecipe(db: RecipeDrizzle, ownerId: string, title: string): Promise<string> {
+/** Insert a minimal recipe directly and return its id. Visibility defaults to public (the schema default). */
+async function insertRecipe(
+    db: RecipeDrizzle,
+    ownerId: string,
+    title: string,
+    visibility: 'public' | 'private' = 'public',
+): Promise<string> {
     const [row] = await db
         .insert(recipes)
-        .values({ ownerId, title, ingredientNamesText: title.toLowerCase() })
+        .values({ ownerId, title, ingredientNamesText: title.toLowerCase(), visibility })
         .returning({ id: recipes.id });
 
     if (!row) {
@@ -160,5 +165,51 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         await expect(service.addRecipe(OTHER_OWNER, collection.id, recipeId)).rejects.toSatisfy(
             (err: unknown) => isCollectionError(err) && err.code === 'NOT_OWNER',
         );
+    });
+
+    // ADV-4 membership-IDOR: a user must not be able to pull another user's PRIVATE recipe into their
+    // own collection and read its body back. Fail-fast half — the add itself is refused as
+    // RECIPE_NOT_FOUND (existence not disclosed), and no membership row is written.
+    it("refuses to add another user's PRIVATE recipe to your own collection (RECIPE_NOT_FOUND, no membership)", async () => {
+        const myCollection = await service.createCollection(OWNER, { name: 'Mine' });
+        const othersPrivate = await insertRecipe(db, OTHER_OWNER, "Someone Else's Secret", 'private');
+
+        await expect(service.addRecipe(OWNER, myCollection.id, othersPrivate)).rejects.toSatisfy(
+            (err: unknown) => isCollectionError(err) && err.code === 'RECIPE_NOT_FOUND',
+        );
+
+        // No membership was written, and the collection stays empty.
+        const rows = await db
+            .select()
+            .from(recipeCollections)
+            .where(eq(recipeCollections.collectionId, myCollection.id));
+        expect(rows).toHaveLength(0);
+        expect((await service.getCollection(OWNER, myCollection.id)).recipes).toHaveLength(0);
+    });
+
+    // ADV-4 authoritative (read-side) half — the case add-time validation CANNOT catch: a member that
+    // was PUBLIC when added but is later made PRIVATE by its owner must drop out of the listing. If the
+    // read filter is missing, the now-private foreign recipe leaks through getCollection.
+    it("hides a member that goes PRIVATE after being added (stale-visibility read filter)", async () => {
+        const myCollection = await service.createCollection(OWNER, { name: 'Curated' });
+        const othersRecipe = await insertRecipe(db, OTHER_OWNER, 'Was Public', 'public');
+
+        // Legitimately add it while public.
+        await service.addRecipe(OWNER, myCollection.id, othersRecipe);
+        const whilePublic = await service.getCollection(OWNER, myCollection.id);
+        expect(whilePublic.recipes.map((recipe) => recipe.id)).toContain(othersRecipe);
+
+        // The owner flips it to private — the membership row still exists, but it must no longer be seen.
+        await db.update(recipes).set({ visibility: 'private' }).where(eq(recipes.id, othersRecipe));
+        const afterPrivate = await service.getCollection(OWNER, myCollection.id);
+        expect(afterPrivate.recipes).toHaveLength(0);
+        expect(afterPrivate.recipeCount).toBe(0);
+
+        // The junction row is untouched — the recipe is hidden by visibility, not removed.
+        const junction = await db
+            .select()
+            .from(recipeCollections)
+            .where(eq(recipeCollections.collectionId, myCollection.id));
+        expect(junction).toHaveLength(1);
     });
 });

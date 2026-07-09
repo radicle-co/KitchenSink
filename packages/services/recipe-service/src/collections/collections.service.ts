@@ -26,6 +26,7 @@ import {
 } from '../database/schema/collections.js';
 import type { RecipeRow } from '../database/schema/recipes.js';
 import { CollectionsDal } from './dal/collections.dal.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
 import { collectionNotOwnedError, invalidVisibilityError, recipeNotFoundError } from './collections.errors.js';
 import type {
     CollectionRecipeMembershipResponse,
@@ -118,10 +119,12 @@ export class CollectionsService {
         };
     }
 
-    /** Get one owned collection with its (non-tombstoned) recipes. */
+    /** Get one owned collection with its recipes (non-tombstoned AND viewable by the caller). */
     public async getCollection(ownerId: string, id: string): Promise<CollectionWithRecipesResponse> {
         const collection = await this.requireOwned(ownerId, id);
-        const recipeRows = await this.dal.listRecipes(id);
+        // The caller (collection owner) is the viewer: they see public members + their own private ones,
+        // never another user's private recipe that was added to (or left in) this collection.
+        const recipeRows = await this.dal.listRecipes(id, ownerId);
         const recipes = recipeRows.map(toRecipe);
 
         return { ...toCollectionResponse(collection, recipes.length), recipes };
@@ -179,7 +182,12 @@ export class CollectionsService {
 
         const recipe = await this.dal.findActiveRecipe(recipeId);
 
-        if (!recipe) {
+        // A recipe the caller cannot VIEW must not be addable — otherwise a user could add anyone's
+        // private recipe to their own collection and read its body back through `getCollection` (IDOR).
+        // Report it as not-found (not 403) so a private recipe's existence is never disclosed to a
+        // non-owner. Read-side `listRecipes` re-checks viewability too, so a recipe that goes private
+        // AFTER being added is also hidden — this is the fail-fast half of that defense in depth.
+        if (!recipe || !isRecipeViewableBy(recipe, ownerId)) {
             throw recipeNotFoundError(recipeId);
         }
 

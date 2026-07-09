@@ -43,14 +43,16 @@ function fakeService(overrides: Partial<RecipesService> = {}): RecipesService {
 const RESPONSE = { id: 'r-1', ownerId: OWNER } as unknown as RecipeResponse;
 
 describe('RecipesController', () => {
-    it('create delegates the owner key + body and returns the service result', async () => {
+    it('create delegates the full principal + body and returns the service result', async () => {
         const create = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ create }));
         const body = { title: 'Soup' } as CreateRecipeDto;
 
+        // Create needs the whole principal (not just the owner key) so the service can derive premium
+        // for the C-004 visibility gate — assert the verified principal is forwarded verbatim.
         const result = await controller.create(reqWith(OWNER), body);
 
-        expect(create).toHaveBeenCalledWith(OWNER, body);
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ userId: OWNER }), body);
         expect(result).toBe(RESPONSE);
     });
 

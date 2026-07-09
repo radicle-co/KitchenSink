@@ -27,9 +27,13 @@ import { makeRecipeIngredientRow, makeRecipeRow, makeRecipeStepRow } from '../..
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
+import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J000000000000000000FREE0';
 const ONION_ID = '00000000-0000-4000-8000-0000000000ff';
+
+/** The verified owner principal for these composition tests (free-tier — visibility defaults to public). */
+const OWNER_PRINCIPAL: Principal = { userId: OWNER, sub: 'user_clerk', scopes: [], permissions: [] };
 
 /** A recipe aggregate whose junction carries a single composed onion line. */
 function aggregateWithOnion(): RecipeAggregate {
@@ -96,7 +100,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
         const ingredientsDal = fakeIngredientsDal();
         const service = new RecipesService(dal, ingredientsDal);
 
-        const response = await service.create(OWNER, CREATE_DTO);
+        const response = await service.create(OWNER_PRINCIPAL, CREATE_DTO);
 
         // The catalog was consulted for the line's canonical identity.
         expect(ingredientsDal.findById).toHaveBeenCalledWith(ONION_ID);
@@ -128,7 +132,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
         const ingredientsDal = fakeIngredientsDal({ findById: vi.fn().mockResolvedValue(undefined) });
         const service = new RecipesService(dal, ingredientsDal);
 
-        const error = await catchError(service.create(OWNER, CREATE_DTO));
+        const error = await catchError(service.create(OWNER_PRINCIPAL, CREATE_DTO));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.UNKNOWN_INGREDIENT);
         expect(dal.create).not.toHaveBeenCalled();

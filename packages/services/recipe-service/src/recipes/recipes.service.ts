@@ -22,7 +22,7 @@ import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
-import type { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeIngredientRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 
@@ -177,16 +177,35 @@ export class RecipesService {
         private readonly ingredientsDal: IngredientsDal,
     ) {}
 
-    /** Create a recipe owned by `ownerId`. */
-    public async create(ownerId: string, dto: CreateRecipeDto): Promise<RecipeResponse> {
+    /**
+     * Create a recipe owned by `principal.userId`. A create is always a `user_created` recipe with no
+     * substantive edit yet, so the requested visibility is gated by the same pure C-004
+     * {@link evaluateVisibility} policy the set-visibility endpoint uses: a free-tier caller requesting
+     * `private` is rejected with `INVALID_VISIBILITY` (FR-003 — free-tier user_created recipes are
+     * public-only), rather than silently persisting a `private` row the policy forbids. Premium is
+     * derived from the signed token's `permissions` (see {@link PREMIUM_PERMISSION}).
+     */
+    public async create(principal: Principal, dto: CreateRecipeDto): Promise<RecipeResponse> {
+        const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
+        const decision = evaluateVisibility({
+            sourceType: RecipeSourceType.USER_CREATED,
+            isPremium: principal.permissions.includes(PREMIUM_PERMISSION),
+            hasSubstantiveEdit: false,
+            requested,
+        });
+
+        if (!decision.allowed) {
+            throw invalidVisibility(decision.reason, { visibility: requested, sourceType: 'user_created' });
+        }
+
         const ingredients = await this.resolveIngredientLines(dto.ingredients);
 
         const aggregate = await this.dal.create({
-            ownerId,
+            ownerId: principal.userId,
             title: dto.title,
             description: dto.description,
             cuisine: dto.cuisine,
-            visibility: dto.visibility ?? 'public',
+            visibility: requested,
             servings: dto.servings,
             prepTimeMinutes: dto.prepTimeMinutes,
             cookTimeMinutes: dto.cookTimeMinutes,

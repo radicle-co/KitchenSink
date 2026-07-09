@@ -9,7 +9,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
-import { RecipesService } from '../recipes.service.js';
+import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -17,9 +17,26 @@ import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
+import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J000000000000000000FREE0';
 const OTHER = '01J00000000000000000OTHER0';
+
+/** A verified principal keyed on `userId` (the owner key). `permissions: ['premium']` marks premium-tier. */
+function principal(overrides: Partial<Principal> = {}): Principal {
+    return {
+        userId: OWNER,
+        sub: 'user_clerk_free',
+        scopes: [],
+        permissions: [],
+        ...overrides,
+    };
+}
+
+/** A premium principal — carries the `premium` permission the C-004 policy keys on. */
+function premiumPrincipal(overrides: Partial<Principal> = {}): Principal {
+    return principal({ permissions: [PREMIUM_PERMISSION], ...overrides });
+}
 
 function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
     const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, ...overrides });
@@ -83,7 +100,7 @@ describe('RecipesService.create', () => {
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
         const service = newService(dal);
 
-        const response = await service.create(OWNER, CREATE_DTO);
+        const response = await service.create(principal(), CREATE_DTO);
 
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -101,6 +118,57 @@ describe('RecipesService.create', () => {
             steps: [{ stepNumber: 1, instruction: 'Mix' }],
         });
         expect(typeof response.createdAt).toBe('string');
+    });
+
+    it('defaults visibility to public when the DTO omits it (free-tier)', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        // CREATE_DTO carries no `visibility`.
+        await newService(dal).create(principal(), CREATE_DTO);
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'public' }));
+    });
+
+    // C-004 / FR-003 (ADV-3): a create is a `user_created` recipe with no substantive edit, so the
+    // requested visibility MUST pass evaluateVisibility. Removing that gate (the mutation) lets a
+    // free-tier caller persist `private`, which these two tests forbid.
+    it('rejects a free-tier caller requesting private with INVALID_VISIBILITY and never touches the DAL', async () => {
+        const dal = fakeDal({ create: vi.fn() });
+
+        const error = await catchError(
+            newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }),
+        );
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        // The gate runs BEFORE any persistence — no private row is ever written.
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('lets a premium caller create a private recipe', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
+
+        const response = await newService(dal).create(premiumPrincipal(), {
+            ...CREATE_DTO,
+            visibility: 'private',
+        });
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }));
+        expect(response.visibility).toBe('private');
+    });
+
+    it('marks premium off the permissions claim, not scopes (a premium scope must not unlock private)', async () => {
+        const dal = fakeDal({ create: vi.fn() });
+
+        // `premium` sits in scopes, not permissions — the policy keys on permissions, so this is free-tier.
+        const error = await catchError(
+            newService(dal).create(principal({ scopes: [PREMIUM_PERMISSION] }), {
+                ...CREATE_DTO,
+                visibility: 'private',
+            }),
+        );
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(dal.create).not.toHaveBeenCalled();
     });
 });
 

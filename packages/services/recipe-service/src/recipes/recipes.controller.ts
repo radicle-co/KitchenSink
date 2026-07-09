@@ -57,7 +57,7 @@ export class RecipesController {
     @Post()
     @HttpCode(HttpStatus.CREATED)
     public async create(@Req() req: AuthenticatedRequest, @Body() body: CreateRecipeDto): Promise<RecipeResponse> {
-        return this.recipesService.create(ownerIdOf(req), body);
+        return this.recipesService.create(principalOf(req), body);
     }
 
     /** `GET /v1/recipes` — list the caller's recipes with pagination. */

@@ -255,4 +255,43 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         expect(allowed.status).toBe(200);
         expect((await allowed.json()).visibility).toBe('public');
     });
+
+    // ADV-3 / FR-003: the C-004 gate must fire on CREATE too (not only set-visibility) — otherwise a
+    // free-tier caller can POST a `private` recipe and bypass the policy. If the create gate is removed,
+    // the first request 201s with a private row and this test fails.
+    it('free-tier CREATE with visibility:private is DENIED (400 INVALID_VISIBILITY); no row is written', async () => {
+        const createBody = {
+            title: 'Sneaky Private Create',
+            servings: 1,
+            prepTimeMinutes: 1,
+            cookTimeMinutes: 1,
+            totalTimeMinutes: 2,
+            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 1, unit: 'cup' }],
+            steps: [{ instruction: 'Mix' }],
+        };
+
+        const denied = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...createBody, visibility: 'private' }),
+        });
+        expect(denied.status).toBe(400);
+        expect((await denied.json()).code).toBe('INVALID_VISIBILITY');
+
+        // The gate runs before persistence — the free-tier caller (CLONER) owns no such private row.
+        const [{ count }] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(recipes)
+            .where(sql`${recipes.ownerId} = ${CLONER} AND ${recipes.title} = 'Sneaky Private Create'`);
+        expect(count).toBe(0);
+
+        // The same create with public (the free-tier-allowed value) succeeds.
+        const allowed = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...createBody, visibility: 'public' }),
+        });
+        expect(allowed.status).toBe(201);
+        expect((await allowed.json()).visibility).toBe('public');
+    });
 });

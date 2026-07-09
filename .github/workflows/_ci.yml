@@ -318,6 +318,14 @@ jobs:
                   AWS_ACCESS_KEY_ID: test
                   AWS_SECRET_ACCESS_KEY: test
                   AWS_REGION: us-east-1
+                  # recipe-service reads S3 config via its own env keys (config/config.types.ts), not the
+                  # generic AWS_* ones — LocalStack needs path-style addressing, so both are required or
+                  # the photos/versions S3 clients emit virtual-host URLs that don't resolve.
+                  S3_ENDPOINT: http://localhost:4566
+                  S3_FORCE_PATH_STYLE: 'true'
+                  S3_BUCKET_PHOTOS: commise-photos
+                  S3_BUCKET_VERSIONS: commise-versions
+                  CLOUDFRONT_URL: http://localhost:4566/commise-photos
               run: npm run test:integration --workspace=@kitchensink/recipe-service --if-present
 
     e2e-food:

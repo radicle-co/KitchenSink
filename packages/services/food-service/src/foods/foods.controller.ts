@@ -32,9 +32,11 @@ import {
     Res,
     ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 
 import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../auth/authenticated-principal.js';
+import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import {
     isCandidateMismatchError,
@@ -43,7 +45,7 @@ import {
     isFoodPendingError,
     isNotResolvableError,
 } from './foods.errors.js';
-import { FoodsService, MAX_BATCH_NAMES } from './foods.service.js';
+import { FoodsService } from './foods.service.js';
 import type {
     AddResponse,
     BatchResponse,
@@ -57,7 +59,10 @@ import type {
 
 @Controller('v1/foods')
 export class FoodsController {
-    public constructor(private readonly foodsService: FoodsService) {}
+    public constructor(
+        private readonly foodsService: FoodsService,
+        private readonly config: ConfigService<Environment, true>,
+    ) {}
 
     /** `GET /v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
     @Get('search')
@@ -225,9 +230,10 @@ export class FoodsController {
         }
 
         const cleaned = (names as string[]).map((name) => name.trim()).filter((name) => name.length > 0);
+        const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
-        if (cleaned.length > MAX_BATCH_NAMES) {
-            throw new BadRequestException({ error: 'Batch too large', maxNames: MAX_BATCH_NAMES });
+        if (cleaned.length > maxNames) {
+            throw new BadRequestException({ error: 'Batch too large', maxNames });
         }
 
         return cleaned;

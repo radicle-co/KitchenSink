@@ -14,10 +14,10 @@ const app = new App();
 // The cleanup workflow only touches resources tagged Environment=pr-{N} or named with a pr-{N} prefix;
 // this tag (and the kitchensink-* names) keep the global tier out of that match. See ADR-0005.
 Tags.of(app).add('Environment', 'global');
-const stage = app.node.tryGetContext('stage') ?? process.env.STAGE ?? 'dev';
-const region = process.env.CDK_DEFAULT_REGION ?? process.env.DEFAULT_AWS_REGION ?? 'us-east-1';
-const account = process.env.CDK_DEFAULT_ACCOUNT ?? process.env.AWS_ACCOUNT_ID;
-const domainName = process.env.DOMAIN_NAME;
+const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
+const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
+const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
+const domainName = process.env['DOMAIN_NAME'];
 
 if (!domainName) {
     throw new Error('DOMAIN_NAME env var is required');

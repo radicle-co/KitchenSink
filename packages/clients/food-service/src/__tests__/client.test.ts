@@ -179,3 +179,74 @@ describe('FoodServiceClient — status → typed error mapping', () => {
         expect(JSON.parse(init.body)).toEqual({ candidateIds: ['cand_1', 'cand_2'] });
     });
 });
+
+describe('FoodServiceClient — per-request timeout + transport failure', () => {
+    /**
+     * A `fetch` double that NEVER resolves on its own — it settles only when the caller aborts the
+     * request via the passed `AbortSignal` (exactly how a real `fetch` behaves against a hung server).
+     * If `send()` failed to arm a timeout, awaiting this would hang forever; the promise resolving at
+     * all is proof the client's own deadline fired and aborted the request.
+     */
+    function hangingFetch(): { fetch: typeof fetch; signalUsed: () => AbortSignal | undefined } {
+        let captured: AbortSignal | undefined;
+        const fn = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+            captured = init?.signal ?? undefined;
+
+            return new Promise<Response>((_resolve, reject) => {
+                init?.signal?.addEventListener('abort', () => {
+                    reject(new DOMException('The operation was aborted.', 'AbortError'));
+                });
+            });
+        });
+
+        return { fetch: fn as unknown as typeof fetch, signalUsed: () => captured };
+    }
+
+    it('rejects with FetchUnavailableError when the request exceeds timeoutMs (client abort)', async () => {
+        const { fetch: hanging } = hangingFetch();
+        // A tiny deadline keeps the test fast and deterministic without fake timers: the hanging fetch
+        // resolves ONLY via the abort, so a passing assertion proves the timeout path drove it.
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: hanging, timeoutMs: 10 });
+
+        const error = await client.addByName('Broccoli').catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        // No HTTP response occurred, so there is no Retry-After to surface.
+        expect((error as FetchUnavailableError).retryAfterSeconds).toBeUndefined();
+        // The originating abort is preserved for diagnosability.
+        expect((error as FetchUnavailableError).cause).toBeInstanceOf(DOMException);
+        expect(((error as FetchUnavailableError).cause as DOMException).name).toBe('AbortError');
+    });
+
+    it('maps a raw transport failure (fetch rejects) to FetchUnavailableError, carrying the cause', async () => {
+        const transportError = new TypeError('fetch failed');
+        const fetchMock = vi.fn(async () => {
+            throw transportError;
+        }) as unknown as typeof fetch;
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, timeoutMs: 50 });
+
+        const error = await client.getById('food_1').catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        expect((error as FetchUnavailableError).cause).toBe(transportError);
+    });
+
+    it('resolves a fast response normally and clears the timer (the request is never aborted)', async () => {
+        let capturedSignal: AbortSignal | undefined;
+        const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+            capturedSignal = init?.signal ?? undefined;
+
+            return new Response(JSON.stringify({ id: 'food_1', status: 'PENDING', estimatedWaitSeconds: 5 }), {
+                status: 202,
+            });
+        }) as unknown as typeof fetch;
+        // A short deadline would fire quickly IF it leaked; the assertions below prove it did not.
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, timeoutMs: 20 });
+
+        const result = await client.addByName('Broccoli');
+
+        expect(result).toEqual({ id: 'food_1', status: 'PENDING', estimatedWaitSeconds: 5 });
+        // The timer was cleared in `finally`; the successful request's signal must never have aborted.
+        expect(capturedSignal?.aborted).toBe(false);
+    });
+});

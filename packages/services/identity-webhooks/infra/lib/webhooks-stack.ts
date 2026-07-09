@@ -15,7 +15,6 @@ import {
     aws_lambda_event_sources as lambda_event_sources,
     aws_logs as logs,
     aws_logs_destinations as logsDestinations,
-    aws_rds as rds,
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
@@ -67,17 +66,6 @@ export class WebhooksStack extends Stack {
         });
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
             secretCompleteArn: props.authSecretArn,
-        });
-        secretsmanager.Secret.fromSecretAttributes(this, 'ImportedMigrationSecret', {
-            secretCompleteArn: props.migrationPlanSecretArn,
-        });
-        rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
-            instanceIdentifier: props.dbInstanceIdentifier,
-            instanceEndpointAddress: props.dbEndpoint,
-            port: props.dbPort,
-            securityGroups: [
-                ec2.SecurityGroup.fromSecurityGroupId(this, 'ImportedDbSg', props.databaseSecurityGroupId),
-            ],
         });
         const deletionQueue = sqs.Queue.fromQueueArn(this, 'ImportedDeletionQueue', props.deletionQueueArn);
         const mediaBucket = s3.Bucket.fromBucketName(this, 'ImportedMediaBucket', props.mediaBucketName);

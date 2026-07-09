@@ -18,10 +18,12 @@ import {
     NotFoundException,
     ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedRequest } from '../../auth/authenticated-principal.js';
+import type { Environment } from '../../config/env.schema.js';
 import { FoodsController } from '../foods.controller.js';
 import {
     CandidateMismatchError,
@@ -58,7 +60,10 @@ function makeController(): { controller: FoodsController; service: Record<string
         refetch: vi.fn(),
     };
 
-    return { controller: new FoodsController(service as unknown as FoodsService), service };
+    // Mirror the boot-validated ConfigModule: the batch cap comes from the coerced Environment.
+    const config = new ConfigService<Environment, true>({ FOOD_MAX_BATCH_NAMES: 100 } as Environment);
+
+    return { controller: new FoodsController(service as unknown as FoodsService, config), service };
 }
 
 describe('FoodsController.getFood', () => {

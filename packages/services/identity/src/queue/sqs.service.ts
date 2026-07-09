@@ -12,7 +12,7 @@ export class SqsService {
     constructor(@Inject(SQS_CLIENT) private readonly sqs: SQSClient) {}
 
     async enqueueDeletion(identityId: string, userId: string, failureReason: string): Promise<void> {
-        const queueUrl = process.env.DELETION_QUEUE_URL;
+        const queueUrl = process.env['DELETION_QUEUE_URL'];
 
         if (!queueUrl) {
             this.logger.warn('DELETION_QUEUE_URL not configured, skipping enqueue');

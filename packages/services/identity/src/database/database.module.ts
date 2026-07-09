@@ -8,15 +8,15 @@ const { Pool } = pg;
 export const DrizzleProvider = 'DRIZZLE_CONNECTION';
 
 function buildConnectionString(): string {
-    if (process.env.DATABASE_URL) {
-        return process.env.DATABASE_URL;
+    if (process.env['DATABASE_URL']) {
+        return process.env['DATABASE_URL'];
     }
 
-    const host = process.env.DB_HOST;
-    const port = process.env.DB_PORT;
-    const database = process.env.DB_NAME;
-    const user = process.env.DB_USERNAME;
-    const password = process.env.DB_PASSWORD;
+    const host = process.env['DB_HOST'];
+    const port = process.env['DB_PORT'];
+    const database = process.env['DB_NAME'];
+    const user = process.env['DB_USERNAME'];
+    const password = process.env['DB_PASSWORD'];
 
     if (!host || !port || !database || !user || !password) {
         throw new Error(

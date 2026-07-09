@@ -48,9 +48,6 @@ import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
 /** Estimated wait reported on a fresh enqueue (plan §3). */
 const ESTIMATED_WAIT_SECONDS = 30;
 
-/** Max names accepted in one batch (FR-045); over → 400 (handled in the controller). */
-export const MAX_BATCH_NAMES = Number(process.env['FOOD_MAX_BATCH_NAMES'] ?? 100);
-
 /** Retry-After (seconds) when a `PATCH`-resolve cannot draw from the rolling-window budget (DSN-6). */
 const RESOLVE_RETRY_AFTER_SECONDS = 30;
 

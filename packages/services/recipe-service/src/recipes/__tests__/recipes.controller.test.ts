@@ -16,11 +16,15 @@ import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from '../dto/list-recipes.query.dto.js';
 import type { RecipeResponse } from '../dto/recipe-response.dto.js';
+import type { CloneRecipeDto } from '../dto/clone-recipe.dto.js';
+import type { SetVisibilityDto } from '../dto/set-visibility.dto.js';
 
 const OWNER = '01J000000000000000000FREE0';
 
 function reqWith(userId?: string): AuthenticatedRequest {
-    return { principal: userId ? { userId } : undefined } as unknown as AuthenticatedRequest;
+    return {
+        principal: userId ? { userId, permissions: ['premium'] } : undefined,
+    } as unknown as AuthenticatedRequest;
 }
 
 function fakeService(overrides: Partial<RecipesService> = {}): RecipesService {
@@ -30,6 +34,8 @@ function fakeService(overrides: Partial<RecipesService> = {}): RecipesService {
         list: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+        clone: vi.fn(),
+        setVisibility: vi.fn(),
         ...overrides,
     } as unknown as RecipesService;
 }
@@ -84,6 +90,37 @@ describe('RecipesController', () => {
 
         await expect(controller.remove(reqWith(OWNER), 'r-1')).resolves.toBeUndefined();
         expect(deleteFn).toHaveBeenCalledWith(OWNER, 'r-1');
+    });
+
+    it('clone delegates the owner key + id and returns the service result', async () => {
+        const clone = vi.fn().mockResolvedValue(RESPONSE);
+        const controller = new RecipesController(fakeService({ clone }));
+
+        const result = await controller.clone(reqWith(OWNER), 'r-1', {} as CloneRecipeDto);
+
+        expect(clone).toHaveBeenCalledWith(OWNER, 'r-1');
+        expect(result).toBe(RESPONSE);
+    });
+
+    it('setVisibility delegates the principal, id, and requested visibility', async () => {
+        const setVisibility = vi.fn().mockResolvedValue(RESPONSE);
+        const controller = new RecipesController(fakeService({ setVisibility }));
+        const req = reqWith(OWNER);
+
+        const result = await controller.setVisibility(req, 'r-1', { visibility: 'private' } as SetVisibilityDto);
+
+        expect(setVisibility).toHaveBeenCalledWith(req.principal, 'r-1', 'private');
+        expect(result).toBe(RESPONSE);
+    });
+
+    it('setVisibility rejects with 401 when no principal is present', async () => {
+        const setVisibility = vi.fn();
+        const controller = new RecipesController(fakeService({ setVisibility }));
+
+        await expect(
+            controller.setVisibility(reqWith(undefined), 'r-1', { visibility: 'private' } as SetVisibilityDto),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(setVisibility).not.toHaveBeenCalled();
     });
 
     it('rejects with 401 when no principal is present', async () => {

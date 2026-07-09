@@ -19,7 +19,7 @@ import {
     type RecipeRow,
     type RecipeStepRow,
 } from '../../database/schema/index.js';
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
 import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipe-ingredients.dal.js';
 
@@ -36,12 +36,24 @@ export interface CreateRecipeInput {
     description?: string;
     cuisine?: string;
     visibility: RecipeVisibility;
-    servings: number;
-    prepTimeMinutes: number;
-    cookTimeMinutes: number;
-    totalTimeMinutes: number;
+    // Nullable to support cloning: a source recipe may legitimately carry a NULL servings/time.
+    servings: number | null;
+    prepTimeMinutes: number | null;
+    cookTimeMinutes: number | null;
+    totalTimeMinutes: number | null;
     tags: string[];
     dietaryFlags: string[];
+    // ── Provenance (C-004) — omitted on a plain create (DB defaults apply); set when cloning. ──
+    /** Recipe provenance classification (defaults to `user_created` when omitted). */
+    sourceType?: RecipeSourceType;
+    /** Original source URL (imported/cloned recipes), or `null`. */
+    sourceUrl?: string | null;
+    /** Human-readable attribution string (imported/cloned recipes), or `null`. */
+    sourceAttribution?: string | null;
+    /** The source recipe id when this row is a clone (FR-011). */
+    clonedFromId?: string | null;
+    /** Whether the recipe already carries a substantive edit (a clone resets this to `false`). */
+    hasSubstantiveEdit?: boolean;
     /** Denormalized, space-joined ingredient names — the recipe-owned column that feeds search. */
     ingredientNamesText: string;
     /** Resolved `recipe_ingredients` link rows, persisted in the same transaction as the recipe. */
@@ -61,6 +73,11 @@ export interface UpdateRecipeInput {
     tags?: string[];
     dietaryFlags?: string[];
     ingredientNamesText?: string;
+    /**
+     * Flip the substantive-edit flag (C-004 / FR-005). The service sets this to `true` on a
+     * content (ingredients/steps) change; it is monotonic (never reset to `false` on update).
+     */
+    hasSubstantiveEdit?: boolean;
     /** When present, the entire ingredient link set is replaced; when absent, links are left untouched. */
     ingredients?: ResolvedIngredientLine[];
     steps?: StepInput[];
@@ -131,6 +148,12 @@ export class RecipesDal {
                     tags: input.tags,
                     dietaryFlags: input.dietaryFlags,
                     ingredientNamesText: input.ingredientNamesText,
+                    // Provenance is only present when cloning; omit otherwise so the column defaults apply.
+                    ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
+                    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
+                    ...(input.sourceAttribution !== undefined ? { sourceAttribution: input.sourceAttribution } : {}),
+                    ...(input.clonedFromId !== undefined ? { clonedFromId: input.clonedFromId } : {}),
+                    ...(input.hasSubstantiveEdit !== undefined ? { hasSubstantiveEdit: input.hasSubstantiveEdit } : {}),
                 })
                 .returning();
 
@@ -239,6 +262,7 @@ export class RecipesDal {
                     ...(input.ingredientNamesText !== undefined
                         ? { ingredientNamesText: input.ingredientNamesText }
                         : {}),
+                    ...(input.hasSubstantiveEdit !== undefined ? { hasSubstantiveEdit: input.hasSubstantiveEdit } : {}),
                     currentVersion: sql`${recipes.currentVersion} + 1`,
                     updatedAt: new Date(),
                 })
@@ -284,6 +308,31 @@ export class RecipesDal {
             .returning({ id: recipes.id });
 
         return deleted.length > 0;
+    }
+
+    /**
+     * Set an active recipe's visibility WITHOUT bumping `current_version` or touching content — a
+     * visibility toggle is a metadata change, not a content revision (C-004 / T050). Authorization and
+     * the C-004 policy decision live in {@link RecipesService}.
+     *
+     * @returns The updated aggregate, or `undefined` when no active recipe has that id.
+     * @sideEffect Updates the `recipes` row's `visibility` + `updated_at`.
+     */
+    public async setVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeAggregate | undefined> {
+        const [recipe] = await this.db
+            .update(recipes)
+            .set({ visibility, updatedAt: new Date() })
+            .where(and(eq(recipes.id, id), isNull(recipes.deletedAt)))
+            .returning();
+
+        if (!recipe) {
+            return undefined;
+        }
+
+        const steps = await this.loadSteps(this.db, [recipe.id]);
+        const ingredients = await this.linkDal.loadByRecipeIds(this.db, [recipe.id]);
+
+        return { recipe, steps, ingredients };
     }
 
     /** Insert step rows for a recipe and return them ordered. */

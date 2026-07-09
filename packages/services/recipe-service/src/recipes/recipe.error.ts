@@ -68,3 +68,13 @@ export function versionConflict(currentVersion: number, conflictingVersion: numb
         conflictingVersion,
     });
 }
+
+/**
+ * `INVALID_VISIBILITY` — the requested visibility transition is denied by the C-004 policy (T048 / T050),
+ * e.g. a free-tier user making a recipe private, or making an imported physical/paid recipe public. The
+ * evaluator's deny-`reason` becomes the message; `details` carries the attempted visibility + source type.
+ * Reuses the shared code already mapped to 400 by `ApiExceptionFilter`.
+ */
+export function invalidVisibility(reason: string, details?: Record<string, unknown>): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, reason, details);
+}

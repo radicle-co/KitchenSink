@@ -29,18 +29,23 @@ import { RecipesService } from './recipes.service.js';
 import { CreateRecipeDto } from './dto/create-recipe.dto.js';
 import { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
+import { CloneRecipeDto } from './dto/clone-recipe.dto.js';
+import { SetVisibilityDto } from './dto/set-visibility.dto.js';
 import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipe-response.dto.js';
-import type { AuthenticatedRequest } from '../auth/principal.js';
+import type { AuthenticatedRequest, Principal } from '../auth/principal.js';
 
 /** Read the verified owner key (app-user ULID) or reject — the middleware guarantees it on this route. */
 function ownerIdOf(req: AuthenticatedRequest): string {
-    const userId = req.principal?.userId;
+    return principalOf(req).userId;
+}
 
-    if (!userId) {
+/** Read the full verified principal or reject — needed where premium (permissions) gates behavior. */
+function principalOf(req: AuthenticatedRequest): Principal {
+    if (!req.principal) {
         throw new UnauthorizedException('Missing authenticated principal');
     }
 
-    return userId;
+    return req.principal;
 }
 
 @Controller('v1/recipes')
@@ -88,5 +93,26 @@ export class RecipesController {
     @HttpCode(HttpStatus.NO_CONTENT)
     public async remove(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
         await this.recipesService.delete(ownerIdOf(req), id);
+    }
+
+    /** `POST /v1/recipes/{id}/clone` — clone a recipe (public, or the caller's own) into a new owned recipe. */
+    @Post(':id/clone')
+    @HttpCode(HttpStatus.CREATED)
+    public async clone(
+        @Req() req: AuthenticatedRequest,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() _body: CloneRecipeDto,
+    ): Promise<RecipeResponse> {
+        return this.recipesService.clone(ownerIdOf(req), id);
+    }
+
+    /** `PATCH /v1/recipes/{id}/visibility` — set visibility (C-004 policy, gated on premium + provenance). */
+    @Patch(':id/visibility')
+    public async setVisibility(
+        @Req() req: AuthenticatedRequest,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: SetVisibilityDto,
+    ): Promise<RecipeResponse> {
+        return this.recipesService.setVisibility(principalOf(req), id, body.visibility);
     }
 }

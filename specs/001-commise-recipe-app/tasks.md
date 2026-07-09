@@ -192,23 +192,23 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Tests First (TDD Red)
 
-- [ ] T048-test Write unit tests for visibility policy evaluator (all C-004 scenarios: user-created, imported-public, imported-physical, paid-source, tier transitions, substantive edit unlock) in `packages/services/recipe-service/src/recipes/domain/__tests__/visibility-policy.test.ts`
-- [ ] T047-test Write unit tests for clone service (attribution copy, owner reassignment, visibility inheritance) in `packages/services/recipe-service/src/recipes/__tests__/clone.service.test.ts`
-- [ ] T049-test Write unit tests for substantive edit detection (ingredient change = substantive, title change = not substantive) in `packages/services/recipe-service/src/recipes/__tests__/substantive-edit.service.test.ts`
-- [ ] T139-test Write unit tests for substantive-edit detection on **imported** recipes (FR-005 + C-004): editing ingredients/steps on an imported recipe MUST set `hasSubstantiveEdit=true` and unlock private-visibility transition for premium users per C-004; editing only metadata (title, description, tags, photos) MUST NOT in `packages/services/recipe-service/src/recipes/__tests__/substantive-edit-imported.test.ts`
+- [x] T048-test Write unit tests for visibility policy evaluator (all C-004 scenarios: user-created, imported-public, imported-physical, paid-source, tier transitions, substantive edit unlock) in `packages/services/recipe-service/src/recipes/domain/__tests__/visibility-policy.test.ts`
+- [x] T047-test Write unit tests for clone service (attribution copy, owner reassignment, visibility inheritance) in `packages/services/recipe-service/src/recipes/__tests__/clone.service.test.ts`
+- [x] T049-test Write unit tests for substantive edit detection (ingredient change = substantive, title change = not substantive) in `packages/services/recipe-service/src/recipes/__tests__/substantive-edit.service.test.ts`
+- [x] T139-test Write unit tests for substantive-edit detection on **imported** recipes (FR-005 + C-004): editing ingredients/steps on an imported recipe MUST set `hasSubstantiveEdit=true` and unlock private-visibility transition for premium users per C-004; editing only metadata (title, description, tags, photos) MUST NOT in `packages/services/recipe-service/src/recipes/__tests__/substantive-edit-imported.test.ts`
 
 ### Implementation (TDD Green)
 
-- [ ] T046 [P] [US2] Add clone and visibility DTOs in `packages/services/recipe-service/src/recipes/dto/{clone-recipe.dto.ts,set-visibility.dto.ts}`
-- [ ] T047 [US2] Implement clone workflow with attribution copy and owner reassignment in `packages/services/recipe-service/src/recipes/recipes.service.ts`
-- [ ] T048 [US2] Implement C-004 visibility policy evaluator for source type, tier, and substantive edit state in `packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`
-- [ ] T049 [US2] Implement substantive edit detection for ingredient/step mutations updating `hasSubstantiveEdit` in `packages/services/recipe-service/src/recipes/recipes.service.ts`
-- [ ] T139 [US2] Extend substantive-edit detector to handle imported-recipe lineage per FR-005 + C-004 (preserve source-import flag through versioning so premium users can unlock private visibility only after a substantive edit) in `packages/services/recipe-service/src/recipes/recipes.service.ts`
-- [ ] T050 [US2] Implement `/v1/recipes/{id}/clone` and `/v1/recipes/{id}/visibility` endpoints in `packages/services/recipe-service/src/recipes/recipes.controller.ts`
+- [x] T046 [P] [US2] Add clone and visibility DTOs in `packages/services/recipe-service/src/recipes/dto/{clone-recipe.dto.ts,set-visibility.dto.ts}`
+- [x] T047 [US2] Implement clone workflow with attribution copy and owner reassignment in `packages/services/recipe-service/src/recipes/recipes.service.ts`
+- [x] T048 [US2] Implement C-004 visibility policy evaluator for source type, tier, and substantive edit state in `packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`
+- [x] T049 [US2] Implement substantive edit detection for ingredient/step mutations updating `hasSubstantiveEdit` in `packages/services/recipe-service/src/recipes/recipes.service.ts`
+- [x] T139 [US2] Extend substantive-edit detector to handle imported-recipe lineage per FR-005 + C-004 (preserve source-import flag through versioning so premium users can unlock private visibility only after a substantive edit) in `packages/services/recipe-service/src/recipes/recipes.service.ts`
+- [x] T050 [US2] Implement `/v1/recipes/{id}/clone` and `/v1/recipes/{id}/visibility` endpoints in `packages/services/recipe-service/src/recipes/recipes.controller.ts`
 
 ### Integration Tests
 
-- [ ] T051 [US2] Add integration test for clone visibility + attribution + substantive-edit unlock rules in `packages/services/recipe-service/__tests__/integration/recipes/clone-visibility.integration.spec.ts`
+- [x] T051 [US2] Add integration test for clone visibility + attribution + substantive-edit unlock rules in `packages/services/recipe-service/__tests__/integration/recipes/clone-visibility.integration.spec.ts`
 - [ ] T103 [US2] Add integration test for collection cloning (public collection clone excludes private recipes) in `packages/services/recipe-service/__tests__/integration/collections/clone-collection.integration.spec.ts`
 
 **Checkpoint**: US2 sharing and cloning behavior is independently functional and policy-compliant.

@@ -15,17 +15,27 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
-import { notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
-import type { CreateRecipeDto, RecipeIngredientInputDto } from './dto/create-recipe.dto.js';
+import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
+import { defaultCloneVisibility, evaluateVisibility } from './domain/visibility-policy.js';
+import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
-import type { RecipeIngredientRow, RecipeRow } from '../database/schema/index.js';
+import type { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipeIngredientRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
+import type { Principal } from '../auth/principal.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
+
+/**
+ * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on
+ * the {@link Principal} (subscriptions are a future feature, 010), so premium is derived from the signed
+ * session token's `permissions` claim: `isPremium = principal.permissions.includes(PREMIUM_PERMISSION)`.
+ * Centralized here so the C-004 policy has a single tier source until 010 introduces real subscriptions.
+ */
+export const PREMIUM_PERMISSION = 'premium';
 
 /** Space-join ingredient display names into the denormalized, search-feeding text column. Pure. */
 function buildIngredientNamesText(ingredients: RecipeIngredientInputDto[]): string {
@@ -84,6 +94,80 @@ function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
         updatedAt: recipe.updatedAt.toISOString(),
         deletedAt: recipe.deletedAt !== null ? recipe.deletedAt.toISOString() : null,
     };
+}
+
+/** Map a persisted `recipe_ingredients` row back to a resolvable link (for cloning). Pure. */
+function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientLine {
+    return {
+        ingredientId: row.ingredientId,
+        ingredientName: row.ingredientName,
+        // `quantity` is a `numeric` column surfaced as a string; the DAL re-serializes it on insert.
+        quantity: Number(row.quantity),
+        unit: row.unit,
+        ...(row.displayText !== null ? { displayText: row.displayText } : {}),
+        sortOrder: row.sortOrder,
+        isUserEntered: row.isUserEntered,
+    };
+}
+
+/** Map a persisted step row to the DAL's step input shape (for cloning). Pure. */
+function toStepInputFromRow(row: RecipeStepRow): StepInput {
+    return row.timerSeconds === null
+        ? { instruction: row.instruction }
+        : { instruction: row.instruction, timerSeconds: row.timerSeconds };
+}
+
+/** Whether an incoming step patch differs from the persisted steps (order-sensitive). Pure. */
+function stepsChanged(existing: RecipeStepRow[], incoming: CreateRecipeStepInputDto[]): boolean {
+    if (existing.length !== incoming.length) {
+        return true;
+    }
+
+    return existing.some((step, index) => {
+        const next = incoming[index];
+
+        return (
+            next === undefined ||
+            step.instruction !== next.instruction ||
+            (step.timerSeconds ?? null) !== (next.timerSeconds ?? null)
+        );
+    });
+}
+
+/** Whether an incoming ingredient patch differs from the persisted links (order-sensitive). Pure. */
+function ingredientsChanged(existing: RecipeIngredientRow[], incoming: RecipeIngredientInputDto[]): boolean {
+    if (existing.length !== incoming.length) {
+        return true;
+    }
+
+    return existing.some((row, index) => {
+        const next = incoming[index];
+
+        return (
+            next === undefined ||
+            row.ingredientId !== next.ingredientId ||
+            Number(row.quantity) !== next.quantity ||
+            (row.unit.length > 0 ? row.unit : '') !== (next.unit ?? '') ||
+            (row.displayText ?? null) !== (next.notes ?? null)
+        );
+    });
+}
+
+/**
+ * Whether an update is a *substantive* edit (C-004 / FR-005): a change to INGREDIENTS or STEPS. A patch
+ * touching only metadata (title/description/tags/cuisine/times/servings/dietaryFlags) is NOT substantive.
+ * Pure — compares the incoming patch against the existing aggregate.
+ */
+function detectSubstantiveEdit(existing: RecipeAggregate, dto: UpdateRecipeDto): boolean {
+    if (dto.steps !== undefined && stepsChanged(existing.steps, dto.steps)) {
+        return true;
+    }
+
+    if (dto.ingredients !== undefined && ingredientsChanged(existing.ingredients, dto.ingredients)) {
+        return true;
+    }
+
+    return false;
 }
 
 @Injectable()
@@ -195,6 +279,11 @@ export class RecipesService {
         const ingredients =
             dto.ingredients !== undefined ? await this.resolveIngredientLines(dto.ingredients) : undefined;
 
+        // C-004 / FR-005: a change to ingredients/steps flips `hasSubstantiveEdit` to true (once true, it
+        // stays true — never reset). Only newly-substantive edits are persisted; the import provenance
+        // columns are never touched here, so imported lineage survives the version bump (T139).
+        const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, dto);
+
         const updated = await this.dal.update(id, {
             title: dto.title,
             description: dto.description,
@@ -210,6 +299,7 @@ export class RecipesService {
                 : {}),
             ...(ingredients !== undefined ? { ingredients } : {}),
             ...(dto.steps !== undefined ? { steps: dto.steps.map(toStepInput) } : {}),
+            ...(newlySubstantive ? { hasSubstantiveEdit: true } : {}),
         });
 
         if (!updated) {
@@ -235,6 +325,96 @@ export class RecipesService {
         if (!removed) {
             throw recipeNotFound(id);
         }
+    }
+
+    /**
+     * Clone a recipe (FR-011). Only a `public` recipe is cloneable by a non-owner; an owner may clone
+     * their own (even private). The clone is a NEW recipe owned by the caller with
+     * `clonedFromId = source.id`, the source's attribution RETAINED
+     * (`sourceType`/`sourceUrl`/`sourceAttribution`), content copied, `hasSubstantiveEdit = false`, and
+     * `visibility` set to the C-004 clone default for the source type. The ORIGINAL is never mutated.
+     */
+    public async clone(ownerId: string, id: string): Promise<RecipeResponse> {
+        const source = await this.dal.findById(id);
+
+        if (!source) {
+            throw recipeNotFound(id);
+        }
+
+        if (source.recipe.ownerId !== ownerId && source.recipe.visibility !== 'public') {
+            throw notOwner(id);
+        }
+
+        const sourceType = source.recipe.sourceType as RecipeSourceType;
+        // A user_created original carries no attribution — record it to the original author so the clone
+        // still credits provenance. An imported source already carries its attribution; keep it verbatim.
+        const attribution = source.recipe.sourceAttribution ?? `Cloned from ${source.recipe.ownerId}`;
+
+        const created = await this.dal.create({
+            ownerId,
+            title: source.recipe.title,
+            ...(source.recipe.description !== null ? { description: source.recipe.description } : {}),
+            ...(source.recipe.cuisine !== null ? { cuisine: source.recipe.cuisine } : {}),
+            visibility: defaultCloneVisibility(sourceType),
+            servings: source.recipe.servings,
+            prepTimeMinutes: source.recipe.prepTimeMinutes,
+            cookTimeMinutes: source.recipe.cookTimeMinutes,
+            totalTimeMinutes: source.recipe.totalTimeMinutes,
+            tags: source.recipe.tags,
+            dietaryFlags: source.recipe.dietaryFlags,
+            sourceType,
+            sourceUrl: source.recipe.sourceUrl,
+            sourceAttribution: attribution,
+            clonedFromId: source.recipe.id,
+            hasSubstantiveEdit: false,
+            ingredientNamesText: source.recipe.ingredientNamesText,
+            ingredients: source.ingredients.map(toResolvedIngredientLine),
+            steps: source.steps.map(toStepInputFromRow),
+        });
+
+        return toRecipeResponse(created);
+    }
+
+    /**
+     * Set a recipe's visibility (C-004 / T050), owner-only, gated by the pure {@link evaluateVisibility}
+     * policy over `(sourceType, isPremium, hasSubstantiveEdit, requested)`. Premium is derived from the
+     * principal's `permissions` (see {@link PREMIUM_PERMISSION}) — there is no tier field until 010. A
+     * denied transition throws `INVALID_VISIBILITY` (→ 400); an allowed one persists without bumping the
+     * content version.
+     */
+    public async setVisibility(
+        principal: Principal,
+        id: string,
+        visibility: RecipeVisibility,
+    ): Promise<RecipeResponse> {
+        const existing = await this.dal.findById(id);
+
+        if (!existing) {
+            throw recipeNotFound(id);
+        }
+
+        this.assertOwner(principal.userId, existing.recipe);
+
+        const isPremium = principal.permissions.includes(PREMIUM_PERMISSION);
+        const decision = evaluateVisibility({
+            sourceType: existing.recipe.sourceType as RecipeSourceType,
+            isPremium,
+            hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit,
+            requested: visibility,
+        });
+
+        if (!decision.allowed) {
+            throw invalidVisibility(decision.reason, { visibility, sourceType: existing.recipe.sourceType });
+        }
+
+        const updated = await this.dal.setVisibility(id, visibility);
+
+        if (!updated) {
+            // The active row vanished between the read and the write (a concurrent tombstone).
+            throw recipeNotFound(id);
+        }
+
+        return toRecipeResponse(updated);
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

@@ -14,6 +14,24 @@ This is **not optional background reading**. It is progressive disclosure by des
 
 "I didn't read it" is **never** an acceptable reason for a defect that document would have prevented. Where it and a narrower doc (`docs/CODING_STANDARDS.md`, an ADR) both apply, the **stricter** rule wins. Re-read the relevant section before claiming a change is "done."
 
+## ⛔ MANDATORY — Apply DRY, KISS & YAGNI correctly (and NEVER as an excuse for bad code)
+
+You **MUST** default to the simplest design that _fully and correctly_ solves the **current, known** requirement — no more, and no less.
+
+- **KISS** — Build the simplest thing that _completely_ solves the problem in front of you. Cleverness, indirection, and abstraction you can't justify from a present need are a loan against every future reader. Simple ≠ incomplete.
+- **DRY** — Every piece of **knowledge** (a business rule, a constant, a contract) has ONE authoritative representation. DRY governs _knowledge, not keystrokes_: two fragments that merely look alike but change for **different reasons are NOT duplication** — do not merge them. Over-DRYing into a flag-riddled shared helper is the _wrong abstraction_, and "duplication is far cheaper than the wrong abstraction" (Metz). Prefer DAMP in tests; when unsure, wait for the **third** occurrence and a proven shared reason-to-change before extracting.
+- **YAGNI — read this precisely; it is the single most misapplied principle, and agents fall into its trap constantly.** YAGNI means: **do NOT build capability now for a _presumed future_ need** — speculative features, configuration knobs nobody asked for, generic frameworks for a single caller, "flexible" extension points for variation you're only guessing at. Per Fowler: _"Yagni only applies to capabilities built into the software to support a presumptive feature; it does not apply to effort to make the software easier to modify."_ Its cost model is real (cost of **build** + **delay** + **carry** + **repair** of the speculative thing), which is _why_ you don't build it.
+
+### YAGNI is NOT a license to under-build. You **MUST NOT** invoke YAGNI or KISS to justify:
+
+1. **Skipping correctness or robustness of the CURRENT requirement.** Error paths, edge/empty/null/boundary cases, input validation, authorization checks, concurrency safety, and dependency-failure handling are **NOT speculative features** — they are part of doing _today's_ job correctly. Omitting them is a **bug**, not simplicity.
+2. **Skipping tests.** Self-testing code is an _enabler_ of YAGNI, never a violation of it — YAGNI is only safe _because_ you can change code later, and tests are what make that true. A weak/absent test is corner-cutting, full stop.
+3. **Writing sloppy, tightly-coupled, un-refactorable code.** _"Yagni is not a justification for neglecting the health of your code base. Yagni requires (and enables) malleable code"_ (Fowler). Good modularity, clear names, and separation of concerns are YAGNI's **precondition**, not its casualty.
+4. **Ignoring a KNOWN or near-certain requirement.** YAGNI is about _uncertain, presumed_ futures. A requirement you already know is coming is not a "maybe" — account for it now.
+5. **Refusing a cheap seam where the cost of changing later is HIGH.** YAGNI's arithmetic assumes change is cheap. Where reversing a decision later is expensive — a public/wire API, a persisted schema or migration, a security/authorization boundary, a cross-service contract, anything clients depend on — that asymmetry **weakens** YAGNI: design the boundary right the first time instead of "simplest thing now."
+
+**The test before you cite YAGNI/KISS:** _"Am I declining to build a speculative feature or abstraction for a future I'm only guessing at (correct), or am I using it to justify skipping correctness, tests, structure, a known requirement, or an expensive-to-reverse decision (misuse)?"_ If the latter, it is **not** YAGNI — it is corner-cutting, and it is forbidden. Full treatment (with DAMP-over-DRY, deep modules, and the pattern catalog) in `docs/engineering/ENGINEERING_EXCELLENCE.md` → _Design Patterns, Principles & Code Quality_.
+
 ## Commands
 
 ```bash

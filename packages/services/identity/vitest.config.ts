@@ -7,5 +7,10 @@ export default defineConfig({
         typecheck: {
             enabled: false,
         },
+        // The DB-mocked setup hooks and CDK infra synth tests run fast locally but intermittently exceed
+        // the 5s test / 10s hook defaults under the parallel turbo test load on CI runners. Give realistic
+        // headroom so a slow-but-correct run is never a false timeout failure.
+        testTimeout: 30_000,
+        hookTimeout: 30_000,
     },
 });

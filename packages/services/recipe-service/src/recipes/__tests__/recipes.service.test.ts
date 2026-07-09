@@ -7,7 +7,7 @@
  * (`VERSION_CONFLICT` with `details.currentVersion`). No database is involved.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { RecipeErrorCode } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
@@ -408,5 +408,430 @@ describe('RecipesService.delete', () => {
         await newService(dal).delete(OWNER, 'r-1');
 
         expect(softDelete).toHaveBeenCalledWith('r-1');
+    });
+});
+
+// ── Tier-2 hardening: pure mapping + change-detection fidelity ────────────────────────────────────
+// These pin the conditional field-mapping and the C-004 substantive-edit branches that the happy-path
+// tests left mutable (optional-field inclusion/omission, per-field diff detection, snapshot fallbacks).
+
+/** An aggregate whose single ingredient + step carry every optional field populated. */
+function richAggregate(recipeOverrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
+    const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, ...recipeOverrides });
+
+    return {
+        recipe,
+        steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix', timerSeconds: 45 })],
+        ingredients: [
+            makeRecipeIngredientRow({
+                recipeId: recipe.id,
+                ingredientId: 'ing-A',
+                ingredientName: 'Onion',
+                quantity: '2',
+                unit: 'cup',
+                displayText: 'diced',
+                sortOrder: 0,
+            }),
+        ],
+    };
+}
+
+describe('RecipesService — response mapping fidelity (Tier-2)', () => {
+    it('getById INCLUDES optional fields (description, cuisine, unit, notes, timerSeconds) when present', async () => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(richAggregate({ description: 'D', cuisine: 'Thai', deletedAt: null })),
+        });
+
+        const res = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(res.description).toBe('D');
+        expect(res.cuisine).toBe('Thai');
+        expect(res.deletedAt).toBeNull();
+        expect(res.steps[0]).toEqual({ stepNumber: 1, instruction: 'Mix', timerSeconds: 45 });
+        expect(res.ingredients[0]).toEqual({
+            ingredientId: 'ing-A',
+            name: 'Onion',
+            quantity: 2,
+            unit: 'cup',
+            notes: 'diced',
+        });
+    });
+
+    it('getById OMITS optional fields when their columns are null/empty', async () => {
+        const bare: RecipeAggregate = {
+            recipe: makeRecipeRow({ id: 'r-2', ownerId: OWNER, description: null, cuisine: null, deletedAt: null }),
+            steps: [makeRecipeStepRow({ recipeId: 'r-2', stepNumber: 1, instruction: 'Mix', timerSeconds: null })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: 'r-2',
+                    ingredientId: 'ing-A',
+                    ingredientName: 'Salt',
+                    quantity: '1',
+                    unit: '',
+                    displayText: null,
+                }),
+            ],
+        };
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(bare) });
+
+        const res = await newService(dal).getById(OWNER, 'r-2');
+
+        expect(res).not.toHaveProperty('description');
+        expect(res).not.toHaveProperty('cuisine');
+        expect(res.steps[0]).not.toHaveProperty('timerSeconds'); // null timer → omitted
+        expect(res.ingredients[0]).not.toHaveProperty('unit'); // empty unit → omitted
+        expect(res.ingredients[0]).not.toHaveProperty('notes'); // null displayText → omitted
+    });
+
+    it('reflects a tombstone deletedAt as an ISO string (not null) when set', async () => {
+        const tombstoned = richAggregate({ deletedAt: new Date('2026-05-01T00:00:00.000Z') });
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(tombstoned) });
+
+        // getById allows the owner to read their own (even tombstoned) recipe.
+        const res = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(res.deletedAt).toBe('2026-05-01T00:00:00.000Z');
+    });
+});
+
+describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
+    it('captures ALL user-nutrition overrides and coerces numeric strings', async () => {
+        const created: RecipeAggregate = {
+            recipe: makeRecipeRow({ id: 'r-1', ownerId: OWNER, currentVersion: 1 }),
+            steps: [makeRecipeStepRow({ recipeId: 'r-1', stepNumber: 1, instruction: 'Mix', timerSeconds: null })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: 'r-1',
+                    ingredientId: 'ing-A',
+                    ingredientName: 'Beef',
+                    quantity: '3',
+                    unit: 'g',
+                    displayText: null,
+                    userCalories: '250',
+                    userProteinG: '26',
+                    userCarbsG: '0',
+                    userFatG: '15',
+                }),
+            ],
+        };
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+
+        await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
+
+        const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
+        // Every user-nutrition field is present and coerced to a number; the null displayText is omitted.
+        expect(snapshot.ingredients[0]).toEqual({
+            id: created.ingredients[0]!.id,
+            recipeId: 'r-1',
+            ingredientId: 'ing-A',
+            quantity: 3,
+            unit: 'g',
+            sortOrder: 0,
+            ingredientName: 'Beef',
+            isUserEntered: false,
+            userCalories: 250,
+            userProteinG: 26,
+            userCarbsG: 0,
+            userFatG: 15,
+        });
+        // A null step timer is omitted from the snapshot.
+        expect(snapshot.steps[0]).not.toHaveProperty('timerSeconds');
+    });
+
+    it('falls back to servings=1 and times=0 when the columns are null (never a schema-invalid 0 servings)', async () => {
+        const created: RecipeAggregate = {
+            recipe: makeRecipeRow({
+                id: 'r-1',
+                ownerId: OWNER,
+                currentVersion: 1,
+                servings: null,
+                prepTimeMinutes: null,
+                cookTimeMinutes: null,
+            }),
+            steps: [],
+            ingredients: [],
+        };
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
+
+        await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
+
+        const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
+        expect(snapshot.servings).toBe(1);
+        expect(snapshot.prepTimeMinutes).toBe(0);
+        expect(snapshot.cookTimeMinutes).toBe(0);
+    });
+});
+
+describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2)', () => {
+    /** Run an update against a rich existing aggregate and report whether it was flagged substantive. */
+    async function isSubstantive(patch: Partial<UpdateRecipeDto>): Promise<boolean> {
+        const existing = richAggregate({ hasSubstantiveEdit: false, currentVersion: 1 });
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(existing),
+            update: vi.fn().mockResolvedValue(existing),
+        });
+
+        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, ...patch });
+
+        const updateArgs = (dal.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
+        return updateArgs.hasSubstantiveEdit === true;
+    }
+
+    // The existing rich aggregate: 1 step (instruction 'Mix', timer 45) + 1 ingredient
+    // (ing-A, qty 2, unit 'cup', notes 'diced').
+    const SAME_INGREDIENT = { ingredientId: 'ing-A', name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' };
+    const SAME_STEP = { instruction: 'Mix', timerSeconds: 45 };
+
+    it('metadata-only change (title) is NOT substantive', async () => {
+        expect(await isSubstantive({ title: 'Renamed' })).toBe(false);
+    });
+
+    it('an identical ingredients+steps patch is NOT substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT], steps: [SAME_STEP] })).toBe(false);
+    });
+
+    it('an ingredient QUANTITY-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: 3 }] })).toBe(true);
+    });
+
+    it('an ingredient UNIT-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, unit: 'tbsp' }] })).toBe(true);
+    });
+
+    it('an ingredient NOTES-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, notes: 'minced' }] })).toBe(true);
+    });
+
+    it('an ingredientId SWAP is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, ingredientId: 'ing-B' }] })).toBe(true);
+    });
+
+    it('adding an ingredient (length change) is substantive', async () => {
+        expect(
+            await isSubstantive({ ingredients: [SAME_INGREDIENT, { ...SAME_INGREDIENT, ingredientId: 'ing-B' }] }),
+        ).toBe(true);
+    });
+
+    it('a step INSTRUCTION-only change is substantive', async () => {
+        expect(await isSubstantive({ steps: [{ instruction: 'Chop', timerSeconds: 45 }] })).toBe(true);
+    });
+
+    it('a step TIMER-only change is substantive', async () => {
+        expect(await isSubstantive({ steps: [{ instruction: 'Mix', timerSeconds: 99 }] })).toBe(true);
+    });
+
+    it('adding a step (length change) is substantive', async () => {
+        expect(await isSubstantive({ steps: [SAME_STEP, { instruction: 'Rest' }] })).toBe(true);
+    });
+});
+
+describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
+    it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const error = await catchError(newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+
+    it('throws NOT_OWNER when the caller does not own the recipe', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+        const error = await catchError(
+            newService(dal).setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE),
+        );
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
+    });
+
+    it('DENIES free-tier user_created → private (INVALID_VISIBILITY) and never touches the DAL', async () => {
+        const setVisibility = vi.fn();
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            setVisibility,
+        });
+
+        const error = await catchError(newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('ALLOWS premium user_created → private and persists it', async () => {
+        const updated = aggregate({ sourceType: 'user_created', visibility: 'private' });
+        const setVisibility = vi.fn().mockResolvedValue(updated);
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            setVisibility,
+        });
+
+        const res = await newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PRIVATE);
+
+        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private');
+        expect(res.visibility).toBe('private');
+    });
+
+    it('derives premium from permissions, not scopes (a premium SCOPE must not unlock private)', async () => {
+        const setVisibility = vi.fn();
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            setVisibility,
+        });
+
+        // `premium` in scopes, not permissions → still free-tier → denied.
+        const error = await catchError(
+            newService(dal).setVisibility(principal({ scopes: [PREMIUM_PERMISSION] }), 'r-1', RecipeVisibility.PRIVATE),
+        );
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('re-throws RECIPE_NOT_FOUND when the row vanished before the write (concurrent tombstone)', async () => {
+        const setVisibility = vi.fn().mockResolvedValue(undefined);
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ sourceType: 'user_created' })),
+            setVisibility,
+        });
+
+        const error = await catchError(
+            newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PUBLIC),
+        );
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+});
+
+describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () => {
+    it('copies content (ingredient displayText, step timer) + retains provenance, and never mutates the source', async () => {
+        const source: RecipeAggregate = {
+            recipe: makeRecipeRow({
+                id: 'src',
+                ownerId: OTHER,
+                visibility: 'public',
+                sourceType: 'imported_public',
+                sourceUrl: 'https://example.com/r',
+                sourceAttribution: 'Chef Ada',
+                title: 'Original',
+            }),
+            steps: [makeRecipeStepRow({ recipeId: 'src', stepNumber: 1, instruction: 'Bake', timerSeconds: 600 })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: 'src',
+                    ingredientId: 'ing-A',
+                    ingredientName: 'Flour',
+                    quantity: '2',
+                    unit: 'cup',
+                    displayText: 'sifted',
+                    sortOrder: 0,
+                }),
+            ],
+        };
+        const create = vi.fn().mockResolvedValue({ ...source, recipe: makeRecipeRow({ id: 'clone', ownerId: OWNER }) });
+        const update = vi.fn();
+        const setVisibility = vi.fn();
+        const softDelete = vi.fn();
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create, update, setVisibility, softDelete });
+
+        await newService(dal).clone(OWNER, 'src');
+
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ownerId: OWNER,
+                title: 'Original',
+                sourceType: 'imported_public',
+                sourceUrl: 'https://example.com/r',
+                sourceAttribution: 'Chef Ada', // retained verbatim for an imported source
+                clonedFromId: 'src',
+                hasSubstantiveEdit: false,
+                visibility: 'public', // defaultCloneVisibility(imported_public)
+                ingredients: [
+                    expect.objectContaining({
+                        ingredientId: 'ing-A',
+                        ingredientName: 'Flour',
+                        quantity: 2,
+                        unit: 'cup',
+                        displayText: 'sifted',
+                        sortOrder: 0,
+                    }),
+                ],
+                steps: [{ instruction: 'Bake', timerSeconds: 600 }],
+            }),
+        );
+        // The ORIGINAL is never touched.
+        expect(update).not.toHaveBeenCalled();
+        expect(setVisibility).not.toHaveBeenCalled();
+        expect(softDelete).not.toHaveBeenCalled();
+    });
+
+    it('clones an imported_paid source (owner clones own) to the PRIVATE default', async () => {
+        const source: RecipeAggregate = {
+            recipe: makeRecipeRow({
+                id: 'src',
+                ownerId: OWNER,
+                visibility: 'private',
+                sourceType: 'imported_paid',
+                sourceAttribution: 'Book',
+            }),
+            steps: [],
+            ingredients: [],
+        };
+        const create = vi
+            .fn()
+            .mockResolvedValue({
+                ...source,
+                recipe: makeRecipeRow({ id: 'c', ownerId: OWNER, visibility: 'private' }),
+            });
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
+
+        await newService(dal).clone(OWNER, 'src');
+
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ visibility: 'private', sourceType: 'imported_paid' }),
+        );
+    });
+
+    it('records attribution to the original author when a user_created source carries none', async () => {
+        const source: RecipeAggregate = {
+            recipe: makeRecipeRow({
+                id: 'src',
+                ownerId: OTHER,
+                visibility: 'public',
+                sourceType: 'user_created',
+                sourceAttribution: null,
+            }),
+            steps: [],
+            ingredients: [],
+        };
+        const create = vi.fn().mockResolvedValue({ ...source, recipe: makeRecipeRow({ id: 'c', ownerId: OWNER }) });
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
+
+        await newService(dal).clone(OWNER, 'src');
+
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceAttribution: expect.stringContaining(OTHER) }),
+        );
+    });
+
+    it('rejects a non-owner cloning a PRIVATE recipe (NOT_OWNER), never creating', async () => {
+        const source: RecipeAggregate = {
+            recipe: makeRecipeRow({ id: 'src', ownerId: OTHER, visibility: 'private', sourceType: 'user_created' }),
+            steps: [],
+            ingredients: [],
+        };
+        const create = vi.fn();
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
+
+        const error = await catchError(newService(dal).clone(OWNER, 'src'));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('throws RECIPE_NOT_FOUND when the clone source does not exist', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const error = await catchError(newService(dal).clone(OWNER, 'missing'));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 });

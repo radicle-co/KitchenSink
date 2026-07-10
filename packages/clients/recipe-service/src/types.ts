@@ -6,7 +6,7 @@
  * only the endpoint-specific envelopes/requests (photos, collections, search, versions, erasure) are
  * declared here, mirroring `contracts/api.openapi.yaml`. Dates are ISO-8601 strings (CODING_STANDARDS).
  */
-import type { Collection, Recipe, RecipeSearchParams, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { Collection, Recipe, RecipeSearchResult, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** Sort key for `listRecipes` (`GET /v1/recipes`). */
 export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
@@ -105,21 +105,18 @@ export interface ErasureRequestAcceptedResponse {
 /** Facet count map (`{ facetValue: count }`) for a single search facet. */
 export type RecipeSearchFacetCounts = Readonly<Record<string, number>>;
 
-/** Facet counts returned alongside recipe search results. */
+/** Facet counts returned alongside recipe search results (the server aggregates dietary flags + tags). */
 export interface RecipeSearchFacets {
-    readonly cuisine?: RecipeSearchFacetCounts;
     readonly dietaryFlags?: RecipeSearchFacetCounts;
     readonly tags?: RecipeSearchFacetCounts;
 }
 
-/** Response from `searchRecipes` (`GET /v1/search/recipes`). */
+/** Response from `searchRecipes` (`GET /v1/search/recipes`). Results are an object-per-hit envelope. */
 export interface RecipeSearchResponse {
-    readonly results: readonly Recipe[];
+    readonly results: readonly RecipeSearchResult[];
     readonly total: number;
     readonly page: number;
     readonly pageSize: number;
     readonly hasMore: boolean;
     readonly facets: RecipeSearchFacets;
-    /** Echo of the filters the server actually applied. */
-    readonly appliedFilters?: RecipeSearchParams;
 }

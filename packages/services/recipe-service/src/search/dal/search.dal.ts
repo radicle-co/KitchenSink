@@ -210,18 +210,25 @@ function rankExpr(query: string | undefined): SQL {
     return query === undefined ? sql`0` : sql`ts_rank(search_vector, plainto_tsquery('english', ${query}))`;
 }
 
+/**
+ * The page-ordering SQL for each supported sort key, as a key → order-expression map (each builder gets
+ * the text query, which relevance needs to reference the `rank` alias). Adding a new sort — `newest`,
+ * `prepTimeAsc`, `totalTimeAsc`, `updatedAt` — is a one-line addition here plus the `RecipeSearchSortBy`
+ * enum, with no branching to touch. Every order includes a total-order tiebreak so paging is stable.
+ */
+const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined) => SQL> = {
+    [RecipeSearchSortBy.TITLE]: () => sql`title ASC, created_at DESC`,
+    [RecipeSearchSortBy.RECENT]: () => sql`created_at DESC`,
+    // Relevance (default): rank-first when a query is present, otherwise newest-first.
+    [RecipeSearchSortBy.RELEVANCE]: (query) =>
+        query === undefined ? sql`created_at DESC` : sql`rank DESC, created_at DESC`,
+};
+
 /** The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure. */
 function orderByExpr(sortBy: RecipeSearchSortBy, query: string | undefined): SQL {
-    if (sortBy === RecipeSearchSortBy.TITLE) {
-        return sql`title ASC, created_at DESC`;
-    }
+    const builder = SORT_ORDER_BUILDERS[sortBy] ?? SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
 
-    if (sortBy === RecipeSearchSortBy.RECENT) {
-        return sql`created_at DESC`;
-    }
-
-    // Relevance (default): rank-first when a query is present, otherwise newest-first.
-    return query === undefined ? sql`created_at DESC` : sql`rank DESC, created_at DESC`;
+    return builder(query);
 }
 
 /** Fold raw facet rows into the two grouped buckets. Pure. */

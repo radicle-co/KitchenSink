@@ -665,12 +665,13 @@ export const recipeSearchParamsSchema = z.object({
 });
 
 /**
- * Single ranked hit in a recipe search response.
+ * Single ranked hit in a recipe search response. An object-per-hit envelope (not a bare `Recipe`) so
+ * future per-result metadata is an ADDITIVE field, never a breaking reshape. `rank` is the relevance
+ * score, present only for a text query (omitted in browse mode).
  */
 export interface RecipeSearchResult {
     recipe: Recipe;
     rank?: number;
-    highlights?: string[];
 }
 
 /**
@@ -679,7 +680,6 @@ export interface RecipeSearchResult {
 export const recipeSearchResultSchema = z.object({
     recipe: recipeSchema,
     rank: z.number().finite().optional(),
-    highlights: z.array(z.string().min(1)).optional(),
 });
 
 /**

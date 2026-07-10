@@ -773,7 +773,7 @@ paths:
                   required: false
                   schema:
                       type: string
-                      enum: [relevance, newest, updatedAt, prepTimeAsc, totalTimeAsc]
+                      enum: [relevance, recent, title]
                       default: relevance
             responses:
                 '200':
@@ -1443,7 +1443,7 @@ components:
                     maximum: 100
                 sortBy:
                     type: string
-                    enum: [relevance, newest, updatedAt, prepTimeAsc, totalTimeAsc]
+                    enum: [relevance, recent, title]
 
         RecipeSearchFacetCounts:
             type: object
@@ -1454,12 +1454,23 @@ components:
         RecipeSearchFacets:
             type: object
             properties:
-                cuisine:
-                    $ref: '#/components/schemas/RecipeSearchFacetCounts'
                 dietaryFlags:
                     $ref: '#/components/schemas/RecipeSearchFacetCounts'
                 tags:
                     $ref: '#/components/schemas/RecipeSearchFacetCounts'
+
+        RecipeSearchResult:
+            type: object
+            required: [recipe]
+            description: >-
+                A single ranked hit. An object-per-hit envelope (not a bare Recipe) so future per-result
+                metadata is an additive field, never a breaking reshape.
+            properties:
+                recipe:
+                    $ref: '#/components/schemas/Recipe'
+                rank:
+                    type: number
+                    description: Relevance score; present only for a text query (omitted in browse mode).
 
         RecipeSearchResponse:
             type: object
@@ -1468,7 +1479,7 @@ components:
                 results:
                     type: array
                     items:
-                        $ref: '#/components/schemas/Recipe'
+                        $ref: '#/components/schemas/RecipeSearchResult'
                 total:
                     type: integer
                     minimum: 0
@@ -1482,8 +1493,6 @@ components:
                     type: boolean
                 facets:
                     $ref: '#/components/schemas/RecipeSearchFacets'
-                appliedFilters:
-                    $ref: '#/components/schemas/RecipeSearchParams'
 
         UploadUrlResponse:
             type: object

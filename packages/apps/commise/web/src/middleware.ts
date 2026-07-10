@@ -1,6 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-import { withBasePath } from '@/lib/base-path';
+import { withBasePath } from '@/lib/basePath';
 
 // ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
 // Under sandbox path routing the app is served at /pr-{N}. Next.js STRIPS basePath from

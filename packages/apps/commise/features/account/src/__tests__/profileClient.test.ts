@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { PROFILE_ME_PATH, updateProfile } from '../profile-client.js';
+import { PROFILE_ME_PATH, updateProfile } from '../profileClient.js';
 
 describe('profile-client', () => {
     it('targets PATCH /v1/users/me — the route the identity service actually exposes', () => {

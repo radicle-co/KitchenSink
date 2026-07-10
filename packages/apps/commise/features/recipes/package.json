@@ -7,8 +7,8 @@
     "types": "./src/index.ts",
     "exports": {
         ".": "./src/index.ts",
-        "./widget/web": "./src/widget/recipe-home-widget.tsx",
-        "./widget/mobile": "./src/widget/recipe-home-widget.native.tsx"
+        "./widget/web": "./src/widget/RecipeHomeWidget.tsx",
+        "./widget/mobile": "./src/widget/RecipeHomeWidget.native.tsx"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",

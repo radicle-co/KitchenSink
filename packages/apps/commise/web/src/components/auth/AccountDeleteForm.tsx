@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useClerk } from '@clerk/nextjs';
-import { buildApiClient } from '@/lib/api-client';
+import { buildApiClient } from '@/lib/apiClient';
 
 interface AccountDeleteFormProps {
     accessToken: string;

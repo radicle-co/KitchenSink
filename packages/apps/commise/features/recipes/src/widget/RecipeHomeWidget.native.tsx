@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/widget/mobile — React Native entry for the recipe Home widget.
  *
  * The `./widget/mobile` package export resolves here, and Metro resolves the
- * loader seam's `import('../widget/recipe-home-widget.js')` to this `.native.tsx`
+ * loader seam's `import('../widget/RecipeHomeWidget.js')` to this `.native.tsx`
  * file. It mirrors the web entry but composes the native (`*.native.tsx`)
  * building-block leaves via the same platform-neutral barrel.
  */

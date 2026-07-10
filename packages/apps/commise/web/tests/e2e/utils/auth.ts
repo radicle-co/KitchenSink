@@ -2,8 +2,8 @@ import { createClerkClient } from '@clerk/backend';
 import { setupClerkTestingToken } from '@clerk/testing/playwright';
 import { expect, type Page } from '@playwright/test';
 
-import { isHome, pathnameOf, route } from './base-path';
-import { TEST_USER_EMAIL } from './test-user';
+import { isHome, pathnameOf, route } from './basePath';
+import { TEST_USER_EMAIL } from './testUser';
 
 function client() {
     const secretKey = process.env['CLERK_SECRET_KEY'];

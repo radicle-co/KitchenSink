@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { updateProfile } from '@commise/features-account';
 import type { UserUpdateInput, UserProfile } from '@kitchensink/identity-service';
 
-import { buildApiClient } from '@/lib/api-client';
+import { buildApiClient } from '@/lib/apiClient';
 
 interface AccountEditFormProps {
     accessToken: string;

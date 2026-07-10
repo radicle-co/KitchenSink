@@ -107,7 +107,7 @@ jobs:
               env:
                   ACTION: deregister
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}
-              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts
+              run: npx tsx packages/apps/commise/web/scripts/registerPreview.ts
 
             # PR open/updated → wait for the Vercel preview, capture its host, register the route.
             - name: Wait for the Vercel preview to be READY
@@ -125,4 +125,4 @@ jobs:
                   ACTION: register
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}
                   PREVIEW_HOST: ${{ steps.preview.outputs.preview_url }}
-              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts
+              run: npx tsx packages/apps/commise/web/scripts/registerPreview.ts

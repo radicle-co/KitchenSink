@@ -2,7 +2,7 @@ import type { Route } from 'next';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
-import { buildApiClient } from '@/lib/api-client';
+import { buildApiClient } from '@/lib/apiClient';
 import type { UserProfile } from '@kitchensink/identity-service';
 import { AccountStateGate } from '@/components/auth/AccountStateGate';
 import { LogoutButton } from '@/components/auth/LogoutButton';

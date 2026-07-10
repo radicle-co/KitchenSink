@@ -1,4 +1,4 @@
-import { deleteAllE2EUsers } from './utils/test-user';
+import { deleteAllE2EUsers } from './utils/testUser';
 
 export default async function globalTeardown() {
     // Remove the e2e users from Clerk after the run — this cascades to a DB purge via the

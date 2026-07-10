@@ -5,7 +5,7 @@
  * only has to `.use(addFeature)` / `registerHomeWidget(container, descriptor)` —
  * no central registry is edited. The `load` seam is a literal, statically
  * analyzable dynamic `import()` that the app bundler resolves per platform (web →
- * `recipe-home-widget.tsx`; Metro → `recipe-home-widget.native.tsx`), keeping the
+ * `RecipeHomeWidget.tsx`; Metro → `RecipeHomeWidget.native.tsx`), keeping the
  * component code split out of the initial bundle.
  */
 
@@ -36,7 +36,7 @@ export const RECIPE_HOME_WIDGET_DEFAULT_WEIGHT = 1000;
  */
 export const recipeHomeWidgetDescriptor: HomeWidgetDescriptor = {
     id: RECIPE_HOME_WIDGET_ID,
-    load: () => import('./widget/recipe-home-widget.js'),
+    load: () => import('./widget/RecipeHomeWidget.js'),
     defaultWeight: RECIPE_HOME_WIDGET_DEFAULT_WEIGHT,
     capability: RECIPE_HOME_WIDGET_CAPABILITY,
 };

@@ -6,5 +6,5 @@
  * Pure TypeScript only (no React/React Native) — presentation stays in each app.
  */
 
-export * from './profile-client.js';
-export * from './auth-state.js';
+export * from './profileClient.js';
+export * from './authState.js';

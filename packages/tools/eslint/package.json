@@ -18,5 +18,8 @@
     },
     "engines": {
         "node": "24.x"
+    },
+    "dependencies": {
+        "eslint-plugin-check-file": "^3.3.1"
     }
 }

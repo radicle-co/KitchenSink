@@ -5,10 +5,10 @@
  * picks `.native.tsx`), so this barrel — and every consumer — is written once.
  */
 
-export { RecipeWidgetCard } from './recipe-widget-card.js';
-export { RecentRecipeItem } from './recent-recipe-item.js';
-export { RecipeWidgetSkeleton } from './recipe-widget-skeleton.js';
-export { RecipeWidgetEmptyState } from './recipe-widget-empty-state.js';
+export { RecipeWidgetCard } from './RecipeWidgetCard.js';
+export { RecentRecipeItem } from './RecentRecipeItem.js';
+export { RecipeWidgetSkeleton } from './RecipeWidgetSkeleton.js';
+export { RecipeWidgetEmptyState } from './RecipeWidgetEmptyState.js';
 
 export { MAX_RECENT_RECIPES, toRecipeSummary } from './props.js';
 export type {

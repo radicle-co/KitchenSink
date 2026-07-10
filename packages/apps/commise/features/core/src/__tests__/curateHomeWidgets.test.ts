@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import type { HomeWidgetCurationContext, HomeWidgetDescriptor } from '../contract.js';
-import { curateHomeWidgets } from '../curate-home-widgets.js';
+import { curateHomeWidgets } from '../curateHomeWidgets.js';
 
 /**
  * A no-op loader seam; the descriptor's data fields carry the meaningful

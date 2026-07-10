@@ -1,7 +1,7 @@
 import { SignUp } from '@clerk/nextjs';
 import { clerkAppearance } from '@commise/ui';
 
-import { withBasePath } from '@/lib/base-path';
+import { withBasePath } from '@/lib/basePath';
 
 export default function SignUpPage() {
     return (

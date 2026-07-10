@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
-import { withBasePath } from '@/lib/base-path';
+import { withBasePath } from '@/lib/basePath';
 
 export const metadata: Metadata = {
     title: 'Commise',

@@ -7,5 +7,5 @@
  */
 
 export * from './contract.js';
-export * from './curate-home-widgets.js';
-export * from './app-shell.js';
+export * from './curateHomeWidgets.js';
+export * from './appShell.js';

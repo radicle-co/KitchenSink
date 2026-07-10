@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useClerk } from '@clerk/nextjs';
 
-import { withBasePath } from '@/lib/base-path';
+import { withBasePath } from '@/lib/basePath';
 
 interface LogoutButtonProps {
     children?: React.ReactNode;

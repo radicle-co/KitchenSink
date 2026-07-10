@@ -1,6 +1,6 @@
 import { App } from 'aws-cdk-lib';
 
-import { SandboxRouterStack } from '../lib/sandbox-router-stack.js';
+import { SandboxRouterStack } from '../lib/SandboxRouterStack.js';
 
 const app = new App();
 

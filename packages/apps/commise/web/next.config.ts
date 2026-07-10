@@ -3,7 +3,7 @@ import type { NextConfig } from 'next';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { derivePreviewBasePath } from './src/lib/base-path';
+import { derivePreviewBasePath } from './src/lib/basePath';
 
 // ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
 // Per-PR sandbox previews are served under /pr-{N} at one origin (single Clerk azp). basePath is

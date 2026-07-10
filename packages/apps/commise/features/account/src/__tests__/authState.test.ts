@@ -8,7 +8,7 @@ import {
     isAccountSuspendedError,
     isImpersonationBlockedError,
     SUSPENDED_BLOCK,
-} from '../auth-state.js';
+} from '../authState.js';
 
 const base = {
     isLoaded: true,

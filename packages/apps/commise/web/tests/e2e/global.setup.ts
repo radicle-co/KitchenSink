@@ -1,6 +1,6 @@
 import { clerkSetup } from '@clerk/testing/playwright';
 
-import { ensureSignInTestUser } from './utils/test-user';
+import { ensureSignInTestUser } from './utils/testUser';
 
 export default async function globalSetup() {
     // Issues a Clerk testing token so the e2e browser bypasses bot detection on the auth widgets.

@@ -84,7 +84,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             prep_time_minutes: { type: 'integer', notNull: false },
             cook_time_minutes: { type: 'integer', notNull: false },
             total_time_minutes: { type: 'integer', notNull: false },
-            servings: { type: 'integer', notNull: false },
+            servings: { type: 'integer', notNull: true },
             visibility: { type: 'text', notNull: true },
             source_type: { type: 'text', notNull: true },
             source_url: { type: 'text', notNull: false },

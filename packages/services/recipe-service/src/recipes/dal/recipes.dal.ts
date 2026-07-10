@@ -36,8 +36,8 @@ export interface CreateRecipeInput {
     description?: string;
     cuisine?: string;
     visibility: RecipeVisibility;
-    // Nullable to support cloning: a source recipe may legitimately carry a NULL servings/time.
-    servings: number | null;
+    // servings is REQUIRED (contract #4: NOT NULL) — every recipe has a serving amount.
+    servings: number;
     prepTimeMinutes: number | null;
     cookTimeMinutes: number | null;
     totalTimeMinutes: number | null;

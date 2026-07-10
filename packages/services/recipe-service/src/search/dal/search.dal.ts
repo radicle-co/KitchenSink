@@ -106,7 +106,7 @@ interface RawRecipeSearchRow {
     prep_time_minutes: number | null;
     cook_time_minutes: number | null;
     total_time_minutes: number | null;
-    servings: number | null;
+    servings: number;
     visibility: string;
     source_type: string;
     source_url: string | null;
@@ -153,7 +153,7 @@ export function rowToRecipe(row: RawRecipeSearchRow): Recipe {
         prepTimeMinutes: row.prep_time_minutes ?? 0,
         cookTimeMinutes: row.cook_time_minutes ?? 0,
         totalTimeMinutes: row.total_time_minutes ?? 0,
-        servings: row.servings ?? 0,
+        servings: row.servings,
         visibility: row.visibility as RecipeVisibility,
         sourceType: row.source_type as RecipeSourceType,
         ...(row.source_url !== null ? { sourceUrl: row.source_url } : {}),

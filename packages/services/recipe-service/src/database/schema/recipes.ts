@@ -60,7 +60,7 @@ export const recipes = pgTable(
         prepTimeMinutes: integer('prep_time_minutes'),
         cookTimeMinutes: integer('cook_time_minutes'),
         totalTimeMinutes: integer('total_time_minutes'),
-        servings: integer('servings'),
+        servings: integer('servings').notNull(),
 
         visibility: text('visibility').notNull().default('public'),
         sourceType: text('source_type').notNull().default('user_created'),

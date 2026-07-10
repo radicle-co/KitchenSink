@@ -36,7 +36,7 @@ export interface RecipeResponse {
     visibility: RecipeVisibility;
     ingredients: RecipeIngredientResponse[];
     steps: RecipeStepResponse[];
-    servings: number | null;
+    servings: number;
     prepTimeMinutes: number | null;
     cookTimeMinutes: number | null;
     totalTimeMinutes: number | null;

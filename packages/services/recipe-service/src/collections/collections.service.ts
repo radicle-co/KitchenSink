@@ -66,7 +66,7 @@ function toRecipe(row: RecipeRow): Recipe {
         prepTimeMinutes: row.prepTimeMinutes ?? 0,
         cookTimeMinutes: row.cookTimeMinutes ?? 0,
         totalTimeMinutes: row.totalTimeMinutes ?? 0,
-        servings: row.servings ?? 1,
+        servings: row.servings,
         visibility: row.visibility as RecipeVisibility,
         sourceType: row.sourceType as RecipeSourceType,
         hasSubstantiveEdit: row.hasSubstantiveEdit,

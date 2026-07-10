@@ -139,9 +139,7 @@ function aggregateToSnapshot(aggregate: RecipeAggregate): RecipeSnapshot {
         version: recipe.currentVersion,
         title: recipe.title,
         description: recipe.description ?? '',
-        // servings is required-positive by the create contract; the nullable column never holds null for
-        // an API-created recipe (see verticals-9). Fall back to 1 (valid) rather than 0 (schema-invalid).
-        servings: recipe.servings ?? 1,
+        servings: recipe.servings,
         prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
         cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
         steps: steps.map((step) => ({

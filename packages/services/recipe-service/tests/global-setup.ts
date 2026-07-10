@@ -147,10 +147,10 @@ async function seedBaseline(pool: pg.Pool): Promise<void> {
     }
 
     await pool.query(
-        `INSERT INTO recipes (id, owner_id, title, description, visibility, ingredient_names_text)
+        `INSERT INTO recipes (id, owner_id, title, description, visibility, ingredient_names_text, servings)
          VALUES
-             ($1, $2, 'Baseline Public Recipe', 'Seeded public recipe for integration/e2e fixtures.', 'public', 'flour water salt'),
-             ($3, $4, 'Baseline Private Recipe', 'Seeded private recipe for integration/e2e fixtures.', 'private', 'eggs butter sugar')
+             ($1, $2, 'Baseline Public Recipe', 'Seeded public recipe for integration/e2e fixtures.', 'public', 'flour water salt', 1),
+             ($3, $4, 'Baseline Private Recipe', 'Seeded private recipe for integration/e2e fixtures.', 'private', 'eggs butter sugar', 1)
          ON CONFLICT (id) DO NOTHING`,
         [SEED_RECIPE_PUBLIC_ID, SEED_OWNER_FREE, SEED_RECIPE_PRIVATE_ID, SEED_OWNER_PRO],
     );

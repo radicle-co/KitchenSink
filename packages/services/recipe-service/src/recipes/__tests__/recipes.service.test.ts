@@ -539,13 +539,14 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         expect(snapshot.steps[0]).not.toHaveProperty('timerSeconds');
     });
 
-    it('falls back to servings=1 and times=0 when the columns are null (never a schema-invalid 0 servings)', async () => {
+    it('falls back to times=0 when the (nullable) time columns are null', async () => {
+        // servings is NON-NULL by schema (contract #4) — only the time columns are nullable and default to 0.
         const created: RecipeAggregate = {
             recipe: makeRecipeRow({
                 id: 'r-1',
                 ownerId: OWNER,
                 currentVersion: 1,
-                servings: null,
+                servings: 2,
                 prepTimeMinutes: null,
                 cookTimeMinutes: null,
             }),
@@ -558,7 +559,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
-        expect(snapshot.servings).toBe(1);
+        expect(snapshot.servings).toBe(2);
         expect(snapshot.prepTimeMinutes).toBe(0);
         expect(snapshot.cookTimeMinutes).toBe(0);
     });
@@ -776,12 +777,10 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
             steps: [],
             ingredients: [],
         };
-        const create = vi
-            .fn()
-            .mockResolvedValue({
-                ...source,
-                recipe: makeRecipeRow({ id: 'c', ownerId: OWNER, visibility: 'private' }),
-            });
+        const create = vi.fn().mockResolvedValue({
+            ...source,
+            recipe: makeRecipeRow({ id: 'c', ownerId: OWNER, visibility: 'private' }),
+        });
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
 
         await newService(dal).clone(OWNER, 'src');

@@ -55,7 +55,7 @@ async function seedRecipe(
 ): Promise<string> {
     const [row] = await db
         .insert(recipes)
-        .values({ ingredientNamesText: values.title.toLowerCase(), ...values })
+        .values({ servings: 1, ingredientNamesText: values.title.toLowerCase(), ...values })
         .returning({ id: recipes.id });
 
     if (!row) {

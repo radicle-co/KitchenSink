@@ -17,7 +17,7 @@ interface RecipeBody {
     id: string;
     ownerId: string;
     title: string;
-    version: number;
+    currentVersion: number;
     steps: { stepNumber: number; instruction: string; timerSeconds?: number }[];
     deletedAt?: string | null;
 }
@@ -66,7 +66,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         expect(createRes.status).toBe(201);
         const created = (await createRes.json()) as RecipeBody;
         expect(created.ownerId).toBe(OWNER);
-        expect(created.version).toBe(1);
+        expect(created.currentVersion).toBe(1);
         expect(created.steps).toHaveLength(2);
         expect(created.steps[0]?.stepNumber).toBe(1);
 
@@ -91,7 +91,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         expect(patchRes.status).toBe(200);
         const updated = (await patchRes.json()) as RecipeBody;
         expect(updated.title).toBe('Integration CRUD Recipe (edited)');
-        expect(updated.version).toBe(2);
+        expect(updated.currentVersion).toBe(2);
 
         // Soft-delete
         const deleteRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`, { method: 'DELETE' });

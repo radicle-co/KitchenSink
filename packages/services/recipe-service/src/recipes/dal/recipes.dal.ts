@@ -36,11 +36,12 @@ export interface CreateRecipeInput {
     description?: string;
     cuisine?: string;
     visibility: RecipeVisibility;
-    // servings is REQUIRED (contract #4: NOT NULL) — every recipe has a serving amount.
+    // servings + times are REQUIRED (contract #4/#6: NOT NULL) — every recipe has a serving amount and
+    // prep/cook/total time (total is independent, not derived — inactive rest/marinate time counts).
     servings: number;
-    prepTimeMinutes: number | null;
-    cookTimeMinutes: number | null;
-    totalTimeMinutes: number | null;
+    prepTimeMinutes: number;
+    cookTimeMinutes: number;
+    totalTimeMinutes: number;
     tags: string[];
     dietaryFlags: string[];
     // ── Provenance (C-004) — omitted on a plain create (DB defaults apply); set when cloning. ──

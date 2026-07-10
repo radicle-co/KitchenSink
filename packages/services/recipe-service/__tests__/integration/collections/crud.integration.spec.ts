@@ -35,7 +35,16 @@ async function insertRecipe(
 ): Promise<string> {
     const [row] = await db
         .insert(recipes)
-        .values({ ownerId, title, ingredientNamesText: title.toLowerCase(), visibility, servings: 1 })
+        .values({
+            ownerId,
+            title,
+            ingredientNamesText: title.toLowerCase(),
+            visibility,
+            servings: 1,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+        })
         .returning({ id: recipes.id });
 
     if (!row) {

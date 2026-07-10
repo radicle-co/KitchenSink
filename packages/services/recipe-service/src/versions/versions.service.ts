@@ -160,7 +160,7 @@ export class VersionsService {
             ownerId,
             recipeId,
             {
-                expectedVersion: current.version,
+                expectedVersion: current.currentVersion,
                 title: snapshot.title,
                 description: snapshot.description,
                 servings: snapshot.servings,
@@ -188,8 +188,8 @@ export class VersionsService {
         // retention. The RESPONSE is the restored recipe + version metadata, not this snapshot row.
         await this.createSnapshot({
             recipeId,
-            versionNumber: updated.version,
-            snapshot: { ...snapshot, version: updated.version },
+            versionNumber: updated.currentVersion,
+            snapshot: { ...snapshot, version: updated.currentVersion },
             createdBy: ownerId,
             baseVersion: target.versionNumber,
             changeSummary: `Restored from version ${target.versionNumber}`,
@@ -198,7 +198,7 @@ export class VersionsService {
         return {
             recipe: updated,
             restoredFromVersion: target.versionNumber,
-            currentVersion: updated.version,
+            currentVersion: updated.currentVersion,
         };
     }
 

@@ -14,7 +14,7 @@ const OWNER = '01JCONFLICT0OWNER0000000BB';
 
 interface RecipeBody {
     id: string;
-    version: number;
+    currentVersion: number;
 }
 
 interface ErrorBody {
@@ -54,7 +54,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe update version conflict (integration)',
         });
         expect(createRes.status).toBe(201);
         const created = (await createRes.json()) as RecipeBody;
-        expect(created.version).toBe(1);
+        expect(created.currentVersion).toBe(1);
 
         // First update succeeds and bumps the version to 2.
         const firstPatch = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {

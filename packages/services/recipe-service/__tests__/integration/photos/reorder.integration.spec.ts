@@ -28,7 +28,15 @@ const OWNER = '01JPHOTOREORDEROWNERAAAAAAA';
 async function seedRecipe(db: RecipeDrizzle): Promise<string> {
     const [row] = await db
         .insert(recipes)
-        .values({ ownerId: OWNER, title: 'Photo Subject', ingredientNamesText: 'photo subject', servings: 1 })
+        .values({
+            ownerId: OWNER,
+            title: 'Photo Subject',
+            ingredientNamesText: 'photo subject',
+            servings: 1,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+        })
         .returning({ id: recipes.id });
 
     if (!row) {

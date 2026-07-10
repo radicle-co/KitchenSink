@@ -114,7 +114,7 @@ describe('RecipesService.create', () => {
         expect(response).toMatchObject({
             id: 'r-1',
             ownerId: OWNER,
-            version: created.recipe.currentVersion,
+            currentVersion: created.recipe.currentVersion,
             ingredients: [],
             steps: [{ stepNumber: 1, instruction: 'Mix' }],
         });
@@ -354,7 +354,7 @@ describe('RecipesService.update', () => {
         const response = await service.update(OWNER, 'r-1', patch);
 
         expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ title: 'Renamed' }));
-        expect(response.version).toBe(2);
+        expect(response.currentVersion).toBe(2);
     });
 
     it('records a version snapshot after a successful update', async () => {
@@ -446,7 +446,8 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
 
         expect(res.description).toBe('D');
         expect(res.cuisine).toBe('Thai');
-        expect(res.deletedAt).toBeNull();
+        // An active recipe OMITS deletedAt (absent, not null) to match the optional Recipe.deletedAt contract.
+        expect(res.deletedAt).toBeUndefined();
         expect(res.steps[0]).toEqual({ stepNumber: 1, instruction: 'Mix', timerSeconds: 45 });
         expect(res.ingredients[0]).toEqual({
             ingredientId: 'ing-A',
@@ -539,16 +540,18 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         expect(snapshot.steps[0]).not.toHaveProperty('timerSeconds');
     });
 
-    it('falls back to times=0 when the (nullable) time columns are null', async () => {
-        // servings is NON-NULL by schema (contract #4) — only the time columns are nullable and default to 0.
+    it('carries servings + times through to the snapshot faithfully (never fabricated)', async () => {
+        // servings + all three times are NON-NULL by schema (contracts #4/#6): the snapshot must copy the
+        // persisted values exactly, with no `?? 0` fabrication (which the NOT NULL columns made dead).
         const created: RecipeAggregate = {
             recipe: makeRecipeRow({
                 id: 'r-1',
                 ownerId: OWNER,
                 currentVersion: 1,
                 servings: 2,
-                prepTimeMinutes: null,
-                cookTimeMinutes: null,
+                prepTimeMinutes: 7,
+                cookTimeMinutes: 23,
+                totalTimeMinutes: 45,
             }),
             steps: [],
             ingredients: [],
@@ -560,8 +563,8 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         expect(snapshot.servings).toBe(2);
-        expect(snapshot.prepTimeMinutes).toBe(0);
-        expect(snapshot.cookTimeMinutes).toBe(0);
+        expect(snapshot.prepTimeMinutes).toBe(7);
+        expect(snapshot.cookTimeMinutes).toBe(23);
     });
 });
 

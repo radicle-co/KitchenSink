@@ -30,7 +30,7 @@ const CREATE_PAYLOAD = {
 interface RecipeBody {
     id: string;
     title: string;
-    version: number;
+    currentVersion: number;
 }
 
 describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', () => {
@@ -54,7 +54,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', 
                 body: JSON.stringify(CREATE_PAYLOAD),
             })
         ).json()) as RecipeBody;
-        expect(created.version).toBe(1);
+        expect(created.currentVersion).toBe(1);
 
         // Two edits racing from version 1, each renaming to a distinguishable title.
         const patch = (title: string): Promise<Response> =>
@@ -74,7 +74,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', 
         const conflictResponse = a.status === 200 ? b : a;
 
         const winner = (await okResponse.json()) as RecipeBody;
-        expect(winner.version).toBe(2);
+        expect(winner.currentVersion).toBe(2);
 
         const conflictBody = (await conflictResponse.json()) as { code: string; details?: { currentVersion?: number } };
         expect(conflictBody.code).toBe('VERSION_CONFLICT');
@@ -84,6 +84,6 @@ describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', 
         // exactly 2 (a single successful bump), proving no second write slipped through.
         const finalState = (await (await fetch(`${baseUrl}/v1/recipes/${created.id}`)).json()) as RecipeBody;
         expect(finalState.title).toBe(winner.title);
-        expect(finalState.version).toBe(2);
+        expect(finalState.currentVersion).toBe(2);
     });
 });

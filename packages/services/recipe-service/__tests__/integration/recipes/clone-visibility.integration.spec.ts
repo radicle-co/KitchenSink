@@ -43,7 +43,7 @@ interface RecipeBody {
     ownerId: string;
     title: string;
     visibility: string;
-    version: number;
+    currentVersion: number;
     steps: { stepNumber: number; instruction: string }[];
     ingredients: { ingredientId: string }[];
 }
@@ -55,7 +55,14 @@ async function seedRecipe(
 ): Promise<string> {
     const [row] = await db
         .insert(recipes)
-        .values({ servings: 1, ingredientNamesText: values.title.toLowerCase(), ...values })
+        .values({
+            servings: 1,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+            ingredientNamesText: values.title.toLowerCase(),
+            ...values,
+        })
         .returning({ id: recipes.id });
 
     if (!row) {

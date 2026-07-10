@@ -8,7 +8,7 @@
  * an empty `ingredients` array (the denormalized `ingredient_names_text` still drives search). Dates are
  * ISO 8601 strings, and `version` is the row's `currentVersion`.
  */
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** A serialized instruction step (`RecipeStep` in the contract). */
 export interface RecipeStepResponse {
@@ -26,7 +26,11 @@ export interface RecipeIngredientResponse {
     notes?: string;
 }
 
-/** The `Recipe` response envelope. */
+/**
+ * The recipe response envelope. A superset of the shared `recipe-core` `Recipe` (all of its metadata
+ * fields, matching names + non-null times) PLUS the composed `ingredients` + `steps` content — i.e. the
+ * `RecipeDetail` shape. Every field name mirrors `recipe-core` so a `Recipe`/`RecipeDetail` parses it.
+ */
 export interface RecipeResponse {
     id: string;
     ownerId: string;
@@ -34,18 +38,25 @@ export interface RecipeResponse {
     description?: string;
     cuisine?: string;
     visibility: RecipeVisibility;
+    sourceType: RecipeSourceType;
+    sourceUrl?: string;
+    sourceAttribution?: string;
+    clonedFromId?: string;
+    hasSubstantiveEdit: boolean;
+    hasPartialNutrition: boolean;
     ingredients: RecipeIngredientResponse[];
     steps: RecipeStepResponse[];
     servings: number;
-    prepTimeMinutes: number | null;
-    cookTimeMinutes: number | null;
-    totalTimeMinutes: number | null;
+    prepTimeMinutes: number;
+    cookTimeMinutes: number;
+    totalTimeMinutes: number;
     tags: string[];
     dietaryFlags: string[];
-    version: number;
+    currentVersion: number;
     createdAt: string;
     updatedAt: string;
-    deletedAt?: string | null;
+    /** Soft-delete tombstone (C-007); present only when deleted, absent otherwise (never `null`). */
+    deletedAt?: string;
 }
 
 /** A paginated list of recipes (`PaginatedResponse<Recipe>` in the contract). */

@@ -84,6 +84,12 @@ function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
         ...(recipe.description !== null ? { description: recipe.description } : {}),
         ...(recipe.cuisine !== null ? { cuisine: recipe.cuisine } : {}),
         visibility: recipe.visibility as RecipeVisibility,
+        sourceType: recipe.sourceType as RecipeSourceType,
+        ...(recipe.sourceUrl !== null ? { sourceUrl: recipe.sourceUrl } : {}),
+        ...(recipe.sourceAttribution !== null ? { sourceAttribution: recipe.sourceAttribution } : {}),
+        ...(recipe.clonedFromId !== null ? { clonedFromId: recipe.clonedFromId } : {}),
+        hasSubstantiveEdit: recipe.hasSubstantiveEdit,
+        hasPartialNutrition: recipe.hasPartialNutrition,
         // Composed from the `recipe_ingredients` junction (persisted atomically with the recipe), in
         // author order (`sortOrder`). Empty only when the recipe genuinely has no ingredient lines.
         ingredients: ingredients.map(toIngredientResponse),
@@ -98,10 +104,12 @@ function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
         totalTimeMinutes: recipe.totalTimeMinutes,
         tags: recipe.tags,
         dietaryFlags: recipe.dietaryFlags,
-        version: recipe.currentVersion,
+        currentVersion: recipe.currentVersion,
         createdAt: recipe.createdAt.toISOString(),
         updatedAt: recipe.updatedAt.toISOString(),
-        deletedAt: recipe.deletedAt !== null ? recipe.deletedAt.toISOString() : null,
+        // Tombstone: present only when the recipe is soft-deleted; OMITTED (not `null`) otherwise, to match
+        // the optional `Recipe.deletedAt` contract (a `null` would fail `recipeSchema`).
+        ...(recipe.deletedAt !== null ? { deletedAt: recipe.deletedAt.toISOString() } : {}),
     };
 }
 
@@ -140,8 +148,8 @@ function aggregateToSnapshot(aggregate: RecipeAggregate): RecipeSnapshot {
         title: recipe.title,
         description: recipe.description ?? '',
         servings: recipe.servings,
-        prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
-        cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
+        prepTimeMinutes: recipe.prepTimeMinutes,
+        cookTimeMinutes: recipe.cookTimeMinutes,
         steps: steps.map((step) => ({
             id: step.id,
             recipeId: step.recipeId,

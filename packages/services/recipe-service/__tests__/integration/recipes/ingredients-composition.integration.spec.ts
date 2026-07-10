@@ -27,7 +27,7 @@ interface IngredientLine {
 
 interface RecipeBody {
     id: string;
-    version: number;
+    currentVersion: number;
     ingredients: IngredientLine[];
 }
 
@@ -99,7 +99,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-                expectedVersion: created.version,
+                expectedVersion: created.currentVersion,
                 ingredients: [{ ingredientId: SUGAR.id, name: SUGAR.name, quantity: 3, unit: 'tsp' }],
             }),
         });

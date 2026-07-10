@@ -57,9 +57,9 @@ export const recipes = pgTable(
         ownerId: varchar('owner_id', { length: 255 }).notNull(),
         title: text('title').notNull(),
         description: text('description'),
-        prepTimeMinutes: integer('prep_time_minutes'),
-        cookTimeMinutes: integer('cook_time_minutes'),
-        totalTimeMinutes: integer('total_time_minutes'),
+        prepTimeMinutes: integer('prep_time_minutes').notNull(),
+        cookTimeMinutes: integer('cook_time_minutes').notNull(),
+        totalTimeMinutes: integer('total_time_minutes').notNull(),
         servings: integer('servings').notNull(),
 
         visibility: text('visibility').notNull().default('public'),

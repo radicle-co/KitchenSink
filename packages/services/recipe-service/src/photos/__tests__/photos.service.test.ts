@@ -41,7 +41,14 @@ function fakeRecipes(getById = vi.fn().mockResolvedValue({ ownerId: OWNER })): R
 
 // Magic-byte signatures (only the leading bytes matter to the detector).
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// A REAL minimal 1×1 PNG (base64). file-type parses the IHDR chunk, so the bare 8-byte signature is not
+// enough — a legitimate, complete image is the honest fixture (and not hand-crafted bytes).
+const PNG = new Uint8Array(
+    Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64',
+    ),
+);
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]);
 const HEIC = new Uint8Array([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]);
 const GARBAGE = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]);

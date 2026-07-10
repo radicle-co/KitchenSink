@@ -27,6 +27,7 @@ import {
     UnprocessableEntityException,
     UnsupportedMediaTypeException,
 } from '@nestjs/common';
+import { fileTypeFromBuffer } from 'file-type';
 import { PhotoProcessingStatus, type RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
@@ -50,7 +51,10 @@ export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const ALLOWED_UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 /** How many leading bytes to read from S3 for magic-byte sniffing (enough for the WebP `RIFF….WEBP`). */
-const MAGIC_BYTE_READ_LENGTH = 16;
+// file-type parses structure beyond the bare magic signature (e.g. PNG's IHDR chunk), so give it a
+// comfortable sniff window — its recommended read size — rather than the ~12 bytes of the raw signature.
+// A single small range-read per confirm; keeps a legitimately-formatted upload from being sniffed short.
+const MAGIC_BYTE_READ_LENGTH = 4100;
 
 /** Runtime configuration the photos vertical needs (the CloudFront base for the `RecipePhoto` cdn url). */
 export interface PhotosConfig {
@@ -94,32 +98,34 @@ export interface UploadUrlResponse {
 }
 
 /**
- * Detect a supported image content type from an object's leading bytes. Accepts ONLY JPEG, PNG, and
- * WebP (the served-as-is formats); every other wrapper — notably HEIC/HEIF (`ftyp` box) — returns
- * `undefined`. Pure.
+ * Detect the upload's content type from its leading bytes and accept it ONLY if it is a served-as-is
+ * format (JPEG/PNG/WebP). Detection is delegated to the maintained `file-type` library — it recognizes
+ * these three (and hundreds of other formats, with the edge cases a hand-rolled signature check gets
+ * wrong); this function's job is the SECURITY allowlist gate: a format `file-type` recognizes but that
+ * is NOT served — notably HEIC/HEIF — returns `undefined` so the caller rejects it.
+ *
+ * @sideEffect None — reads the in-memory buffer only. Async because `file-type` parses the buffer.
  */
-export function detectImageContentType(bytes: Uint8Array): (typeof ALLOWED_UPLOAD_CONTENT_TYPES)[number] | undefined {
-    // JPEG: FF D8 FF
-    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-        return 'image/jpeg';
+export async function detectImageContentType(
+    bytes: Uint8Array,
+): Promise<(typeof ALLOWED_UPLOAD_CONTENT_TYPES)[number] | undefined> {
+    let detected: Awaited<ReturnType<typeof fileTypeFromBuffer>>;
+
+    try {
+        detected = await fileTypeFromBuffer(bytes);
+    } catch {
+        // file-type throws (EndOfStream) on a truncated/malformed buffer — treat that as "not a
+        // determinable valid image", i.e. reject (→ 422), never let it escape as a 500.
+        return undefined;
     }
 
-    // PNG: 89 50 4E 47 0D 0A 1A 0A
-    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-
-    if (bytes.length >= png.length && png.every((byte, index) => bytes[index] === byte)) {
-        return 'image/png';
+    if (detected === undefined) {
+        return undefined;
     }
 
-    // WebP: 'RIFF' (52 49 46 46) …4 size bytes… 'WEBP' (57 45 42 50)
-    const isRiff = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
-    const isWebp = bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-
-    if (bytes.length >= 12 && isRiff && isWebp) {
-        return 'image/webp';
-    }
-
-    return undefined;
+    return (ALLOWED_UPLOAD_CONTENT_TYPES as readonly string[]).includes(detected.mime)
+        ? (detected.mime as (typeof ALLOWED_UPLOAD_CONTENT_TYPES)[number])
+        : undefined;
 }
 
 @Injectable()
@@ -193,7 +199,7 @@ export class PhotosService {
         // raw `NoSuchKey`/`NotFound` the global filter can't classify — it would surface as a 500. Treat
         // an unreadable/unsizable object as an unprocessable upload (422) instead.
         const bytes = await this.readMagicBytesOrThrow(s3Key);
-        const detected = detectImageContentType(bytes);
+        const detected = await detectImageContentType(bytes);
 
         if (detected === undefined) {
             throw new UnprocessableEntityException(

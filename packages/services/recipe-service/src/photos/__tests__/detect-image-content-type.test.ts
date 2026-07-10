@@ -1,11 +1,12 @@
 /**
- * Unit tests for the pure {@link detectImageContentType} magic-byte validator — the security control
- * that accepts ONLY JPEG/PNG/WebP by leading bytes and rejects everything else (notably HEIC and
- * arbitrary content masquerading behind an image content-type).
+ * Unit tests for {@link detectImageContentType} — the upload validator.
  *
- * Exhaustive by design: each signature's happy path, every discriminating byte, the exact minimum
- * length boundary, and the reject paths are pinned — so a mutation to any byte check, length guard, or
- * the PNG `every` quantifier is caught. (Integration only exercises the happy PNG path.)
+ * Detection is delegated to the maintained `file-type` library; what THIS module owns — and what these
+ * tests pin — is (1) the SECURITY allowlist gate (a format file-type recognizes but that is not served,
+ * notably HEIC, is rejected) and (2) ROBUSTNESS: file-type THROWS (EndOfStream) on a truncated/malformed
+ * buffer, and the validator must turn that into a clean reject, never let it escape as a 500. Full
+ * end-to-end acceptance of all three served formats (real JPEG/PNG/WebP uploads) lives in the upload
+ * integration spec.
  */
 import { describe, it, expect } from 'vitest';
 
@@ -13,75 +14,25 @@ import { detectImageContentType } from '../photos.service.js';
 
 const bytesOf = (...values: number[]): Uint8Array => Uint8Array.from(values);
 
-// Canonical valid signatures (with a trailing payload byte to prove length > minimum still works).
-const JPEG = bytesOf(0xff, 0xd8, 0xff, 0x00);
-const PNG = bytesOf(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00);
-const WEBP = bytesOf(0x52, 0x49, 0x46, 0x46, 0x01, 0x02, 0x03, 0x04, 0x57, 0x45, 0x42, 0x50);
+const JPEG = bytesOf(0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01);
+// A valid HEIC 'ftyp…heic' box — recognized by file-type, deliberately NOT served.
+const HEIC = bytesOf(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63, 0x00, 0x00, 0x00, 0x00);
 
-describe('detectImageContentType — accepts valid signatures', () => {
-    it('detects JPEG (FF D8 FF)', () => {
-        expect(detectImageContentType(JPEG)).toBe('image/jpeg');
-        // Exactly the 3-byte minimum still detects (kills a `>= 3` -> `> 3` length mutation).
-        expect(detectImageContentType(bytesOf(0xff, 0xd8, 0xff))).toBe('image/jpeg');
+describe('detectImageContentType — file-type detection + upload allowlist', () => {
+    it('accepts a served format (JPEG) by its magic bytes', async () => {
+        expect(await detectImageContentType(JPEG)).toBe('image/jpeg');
     });
 
-    it('detects PNG (89 50 4E 47 0D 0A 1A 0A)', () => {
-        expect(detectImageContentType(PNG)).toBe('image/png');
-        // Exactly the 8-byte minimum.
-        expect(detectImageContentType(bytesOf(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))).toBe('image/png');
+    it('REJECTS HEIC — recognized by file-type but not on the upload allowlist (the security gate)', async () => {
+        expect(await detectImageContentType(HEIC)).toBeUndefined();
     });
 
-    it('detects WebP (RIFF …size… WEBP)', () => {
-        expect(detectImageContentType(WEBP)).toBe('image/webp');
-    });
-});
-
-describe('detectImageContentType — rejects on a single wrong signature byte', () => {
-    it('rejects JPEG with any of its 3 bytes altered', () => {
-        for (const index of [0, 1, 2]) {
-            const corrupted = Uint8Array.from(JPEG);
-            corrupted[index] = 0x00;
-            expect(detectImageContentType(corrupted)).toBeUndefined();
-        }
-    });
-
-    it('rejects PNG with a single interior byte altered (kills `every` -> `some`)', () => {
-        // First byte matches PNG but the rest do not: `every` => false (reject); `some` => true (wrong).
-        expect(detectImageContentType(bytesOf(0x89, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))).toBeUndefined();
-        for (const index of [1, 4, 7]) {
-            const corrupted = Uint8Array.from(PNG);
-            corrupted[index] = 0x00;
-            expect(detectImageContentType(corrupted)).toBeUndefined();
-        }
-    });
-
-    it('rejects WebP when the RIFF prefix is wrong', () => {
-        const corrupted = Uint8Array.from(WEBP);
-        corrupted[0] = 0x00; // not 'R'
-        expect(detectImageContentType(corrupted)).toBeUndefined();
-    });
-
-    it('rejects WebP when the WEBP marker at offset 8 is wrong', () => {
-        const corrupted = Uint8Array.from(WEBP);
-        corrupted[8] = 0x00; // not 'W'
-        expect(detectImageContentType(corrupted)).toBeUndefined();
-    });
-});
-
-describe('detectImageContentType — rejects short and foreign inputs', () => {
-    it('rejects an input shorter than a signature (below each length guard)', () => {
-        expect(detectImageContentType(bytesOf(0xff, 0xd8))).toBeUndefined(); // 2 < JPEG's 3
-        expect(detectImageContentType(bytesOf(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a))).toBeUndefined(); // 7 < 8
-        expect(detectImageContentType(bytesOf(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42))).toBeUndefined(); // 11 < 12
-    });
-
-    it('rejects an empty buffer', () => {
-        expect(detectImageContentType(bytesOf())).toBeUndefined();
-    });
-
-    it('rejects HEIC/HEIF (ftyp box) — the format we deliberately do NOT serve', () => {
-        // 00 00 00 20 'ftyp' 'heic' …
-        const heic = bytesOf(0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63);
-        expect(detectImageContentType(heic)).toBeUndefined();
+    it('returns undefined (never throws) on a truncated/malformed buffer', async () => {
+        // A valid PNG signature followed by a cut-off chunk header makes file-type throw EndOfStream —
+        // the validator must swallow that into a clean reject (→ 422), not a 500.
+        const truncatedPng = bytesOf(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d);
+        await expect(detectImageContentType(truncatedPng)).resolves.toBeUndefined();
+        await expect(detectImageContentType(bytesOf(0x00, 0x01, 0x02, 0x03))).resolves.toBeUndefined();
+        await expect(detectImageContentType(bytesOf())).resolves.toBeUndefined();
     });
 });

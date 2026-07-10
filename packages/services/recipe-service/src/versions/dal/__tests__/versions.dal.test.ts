@@ -169,22 +169,24 @@ describe('VersionsDal.listByRecipe', () => {
     });
 });
 
-describe('VersionsDal.findById', () => {
-    it('returns the row when present', async () => {
+describe('VersionsDal.findByRecipeAndVersion', () => {
+    it('returns the row when the recipe has a version with that number', async () => {
         const control = createFakeDb();
         const dal = new VersionsDal(control.db);
-        const row = makeVersionRow({ id: 'v-9' });
+        const row = makeVersionRow({ recipeId: 'r-1', versionNumber: 2 });
         control.enqueue([row]);
 
-        expect(await dal.findById('v-9')).toEqual(row);
+        expect(await dal.findByRecipeAndVersion('r-1', 2)).toEqual(row);
+        // A scoped read: the query filters (single `where` with the recipeId + versionNumber predicate).
+        expect(control.calls.some((call) => call.method === 'where')).toBe(true);
     });
 
-    it('returns undefined when no version matches', async () => {
+    it('returns undefined when the recipe has no version with that number', async () => {
         const control = createFakeDb();
         const dal = new VersionsDal(control.db);
         control.enqueue([]);
 
-        expect(await dal.findById('missing')).toBeUndefined();
+        expect(await dal.findByRecipeAndVersion('r-1', 99)).toBeUndefined();
     });
 });
 

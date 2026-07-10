@@ -393,6 +393,25 @@ export const recipeVersionSchema = z.object({
 });
 
 /**
+ * Response to a version restore (`POST /v1/recipes/{id}/versions/{versionNumber}/restore`): the recipe
+ * after the restore, the version it was restored FROM, and the recipe's new current version number.
+ */
+export interface RestoreVersionResponse {
+    recipe: Recipe;
+    restoredFromVersion: number;
+    currentVersion: number;
+}
+
+/**
+ * Runtime validator for {@link RestoreVersionResponse}.
+ */
+export const restoreVersionResponseSchema = z.object({
+    recipe: recipeSchema,
+    restoredFromVersion: positiveIntSchema,
+    currentVersion: positiveIntSchema,
+});
+
+/**
  * User-owned collection used to organize recipes.
  */
 export interface Collection {

@@ -20,7 +20,20 @@ import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner, recipeNotFound } from '../recipes/recipe.error.js';
+import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
 import type { RecipeVersionRow } from '../database/schema/index.js';
+
+/**
+ * Result of a version restore: the recipe after the restore, the version restored FROM, and the recipe's
+ * new current version number. Mirrors the `RestoreVersionResponse` wire contract (`recipe-core`); the
+ * `recipe` is this service's `RecipeResponse` (the recipe-detail serialization the whole recipes vertical
+ * emits — its own reconciliation to the `recipe-core` `Recipe` shape is tracked separately).
+ */
+export interface RestoreVersionResult {
+    recipe: RecipeResponse;
+    restoredFromVersion: number;
+    currentVersion: number;
+}
 
 /** DI token for the version DAL — provided by `VersionsModule` via `useFactory` over the Drizzle client. */
 export const VERSIONS_DAL = 'VERSIONS_DAL';
@@ -101,37 +114,41 @@ export class VersionsService {
         return rows.map(toRecipeVersion);
     }
 
-    /** Fetch one version of a recipe (read-authorized — owner, or any public recipe). */
-    public async get(ownerId: string, recipeId: string, versionId: string): Promise<RecipeVersion> {
+    /**
+     * Fetch one version of a recipe by its 1-based `versionNumber` (read-authorized — owner, or any
+     * public recipe). Versions are addressed by number, not the internal row id.
+     */
+    public async get(ownerId: string, recipeId: string, versionNumber: number): Promise<RecipeVersion> {
         await this.recipes.getById(ownerId, recipeId);
 
-        const row = await this.dal.findById(versionId);
+        const row = await this.dal.findByRecipeAndVersion(recipeId, versionNumber);
 
-        if (!row || row.recipeId !== recipeId) {
-            throw recipeNotFound(versionId);
+        if (!row) {
+            throw recipeNotFound(recipeId);
         }
 
         return toRecipeVersion(row);
     }
 
     /**
-     * Restore an old version's snapshot as the recipe's new current version (owner-only). Applies the
-     * snapshot content to the golden recipe (bumping its `currentVersion`) and records the restore as a
-     * new immutable version snapshot (which itself triggers retention).
+     * Restore an old version's snapshot as the recipe's new current version (owner-only), addressing the
+     * source by its 1-based `versionNumber`. Applies the snapshot content to the golden recipe (bumping
+     * its `currentVersion`) and records the restore as a new immutable version snapshot (which itself
+     * triggers retention).
      *
-     * @returns The new version created by the restore.
+     * @returns The restored recipe, the version it was restored FROM, and the new current version number.
      */
-    public async restore(ownerId: string, recipeId: string, versionId: string): Promise<RecipeVersion> {
+    public async restore(ownerId: string, recipeId: string, versionNumber: number): Promise<RestoreVersionResult> {
         const current = await this.recipes.getById(ownerId, recipeId);
 
         if (current.ownerId !== ownerId) {
             throw notOwner(recipeId);
         }
 
-        const target = await this.dal.findById(versionId);
+        const target = await this.dal.findByRecipeAndVersion(recipeId, versionNumber);
 
-        if (!target || target.recipeId !== recipeId) {
-            throw recipeNotFound(versionId);
+        if (!target) {
+            throw recipeNotFound(recipeId);
         }
 
         const snapshot = target.snapshot as RecipeSnapshot;
@@ -167,7 +184,9 @@ export class VersionsService {
             { recordSnapshot: false },
         );
 
-        return this.createSnapshot({
+        // Record the restore as its own immutable version (with restore provenance) — this also drives
+        // retention. The RESPONSE is the restored recipe + version metadata, not this snapshot row.
+        await this.createSnapshot({
             recipeId,
             versionNumber: updated.version,
             snapshot: { ...snapshot, version: updated.version },
@@ -175,6 +194,12 @@ export class VersionsService {
             baseVersion: target.versionNumber,
             changeSummary: `Restored from version ${target.versionNumber}`,
         });
+
+        return {
+            recipe: updated,
+            restoredFromVersion: target.versionNumber,
+            currentVersion: updated.version,
+        };
     }
 
     /**

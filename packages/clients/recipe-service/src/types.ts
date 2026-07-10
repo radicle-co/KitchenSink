@@ -102,13 +102,6 @@ export interface ErasureRequestAcceptedResponse {
     readonly status: 'queued' | 'running';
 }
 
-/** Response from `restoreRecipeVersion` (`POST /v1/recipes/{id}/versions/{versionNumber}/restore`). */
-export interface RestoreVersionResponse {
-    readonly recipe: Recipe;
-    readonly restoredFromVersion: number;
-    readonly currentVersion: number;
-}
-
 /** Facet count map (`{ facetValue: count }`) for a single search facet. */
 export type RecipeSearchFacetCounts = Readonly<Record<string, number>>;
 

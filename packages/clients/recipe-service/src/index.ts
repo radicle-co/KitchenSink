@@ -47,7 +47,10 @@ export type {
     RecipeSearchFacetCounts,
     RecipeSearchFacets,
     RecipeSearchResponse,
-    RestoreVersionResponse,
     UpdateCollectionRequest,
     UploadUrlResponse,
 } from './types.js';
+
+// `RestoreVersionResponse` is a canonical domain contract owned by `@kitchensink/recipe-core`; re-exported
+// here so the client's public surface is unchanged for consumers that import it from this barrel.
+export type { RestoreVersionResponse } from '@kitchensink/recipe-core';

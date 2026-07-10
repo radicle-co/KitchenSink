@@ -24,6 +24,7 @@ import type {
     RecipeSearchParams,
     RecipeVersion,
     RecipeVisibility,
+    RestoreVersionResponse,
     UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
 import ky, { HTTPError } from 'ky';
@@ -52,7 +53,6 @@ import type {
     PhotoUploadUrlRequest,
     PullFromSourceResponse,
     RecipeSearchResponse,
-    RestoreVersionResponse,
     UpdateCollectionRequest,
     UploadUrlResponse,
 } from './types.js';

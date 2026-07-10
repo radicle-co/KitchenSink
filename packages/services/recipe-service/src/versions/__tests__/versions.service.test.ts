@@ -47,7 +47,7 @@ function fakeDal(overrides: Partial<VersionsDal> = {}): VersionsDal {
     return {
         createSnapshot: vi.fn(),
         listByRecipe: vi.fn(),
-        findById: vi.fn(),
+        findByRecipeAndVersion: vi.fn(),
         findVersionsBeyondRetention: vi.fn().mockResolvedValue([]),
         deleteById: vi.fn().mockResolvedValue(undefined),
         ...overrides,
@@ -193,25 +193,31 @@ describe('VersionsService.restore', () => {
         cookTimeMinutes: 10,
     };
 
+    /** The restored recipe the fake `update` returns — stands in for the RecipeResponse in the envelope. */
+    const RESTORED_RECIPE = { id: RECIPE_ID, ownerId: OWNER, title: 'Old Title', version: 6 };
+
     function fakeRecipes(overrides: Record<string, unknown> = {}): RecipesService {
         return {
             getById: vi.fn().mockResolvedValue({ ownerId: OWNER, version: 5 }),
-            update: vi.fn().mockResolvedValue({ version: 6 }),
+            update: vi.fn().mockResolvedValue(RESTORED_RECIPE),
             ...overrides,
         } as unknown as RecipesService;
     }
 
-    it('applies the snapshot INCLUDING its ingredients as a new recipe version, then records it', async () => {
+    it('restores by versionNumber, applying the snapshot (incl. ingredients) and returning the envelope', async () => {
         const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
+        const findByRecipeAndVersion = vi.fn().mockResolvedValue(target);
         const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(target),
+            findByRecipeAndVersion,
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
         });
         const recipes = fakeRecipes();
         const service = new VersionsService(dal, recipes, fakeS3(), BUCKET);
 
-        await service.restore(OWNER, RECIPE_ID, 'v-3');
+        const result = await service.restore(OWNER, RECIPE_ID, 3);
 
+        // The version is addressed by its integer number, scoped to the recipe (not a row UUID).
+        expect(findByRecipeAndVersion).toHaveBeenCalledWith(RECIPE_ID, 3);
         // The restore reverts ingredients too — not just title/steps/times (the previously-dropped case).
         expect(recipes.update).toHaveBeenCalledWith(
             OWNER,
@@ -234,16 +240,59 @@ describe('VersionsService.restore', () => {
         );
         // Exactly one snapshot: the restore's own (the update was told not to record).
         expect(dal.createSnapshot).toHaveBeenCalledOnce();
+        // The response is the { recipe, restoredFromVersion, currentVersion } envelope, not the version row.
+        expect(result).toEqual({ recipe: RESTORED_RECIPE, restoredFromVersion: 3, currentVersion: 6 });
     });
 
     it('rejects a non-owner with NOT_OWNER and never mutates the recipe', async () => {
         const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(target) });
+        const dal = fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(target) });
         const recipes = fakeRecipes({ getById: vi.fn().mockResolvedValue({ ownerId: 'someone-else', version: 5 }) });
         const service = new VersionsService(dal, recipes, fakeS3(), BUCKET);
 
-        await expect(service.restore(OWNER, RECIPE_ID, 'v-3')).rejects.toBeDefined();
+        await expect(service.restore(OWNER, RECIPE_ID, 3)).rejects.toBeDefined();
         expect(recipes.update).not.toHaveBeenCalled();
+    });
+
+    it('throws RECIPE_NOT_FOUND (404) when the recipe has no version with that number', async () => {
+        const dal = fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) });
+        const service = new VersionsService(dal, fakeRecipes(), fakeS3(), BUCKET);
+
+        await expect(service.restore(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
+        expect(dal.createSnapshot).not.toHaveBeenCalled();
+    });
+});
+
+describe('VersionsService.get', () => {
+    const OWNER = '01J000000000000000000FREE0';
+    const RECIPE_ID = 'r-1';
+
+    it('fetches a version by its integer versionNumber, scoped to the recipe', async () => {
+        const row = makeVersionRow({ id: 'v-2', recipeId: RECIPE_ID, versionNumber: 2 });
+        const findByRecipeAndVersion = vi.fn().mockResolvedValue(row);
+        const recipes = {
+            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, version: 2 }),
+        } as unknown as RecipesService;
+        const service = new VersionsService(fakeDal({ findByRecipeAndVersion }), recipes, fakeS3(), BUCKET);
+
+        const result = await service.get(OWNER, RECIPE_ID, 2);
+
+        expect(findByRecipeAndVersion).toHaveBeenCalledWith(RECIPE_ID, 2);
+        expect(result).toMatchObject({ id: 'v-2', versionNumber: 2 });
+    });
+
+    it('throws RECIPE_NOT_FOUND (404) when the recipe has no version with that number', async () => {
+        const recipes = {
+            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, version: 2 }),
+        } as unknown as RecipesService;
+        const service = new VersionsService(
+            fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) }),
+            recipes,
+            fakeS3(),
+            BUCKET,
+        );
+
+        await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
     });
 });
 

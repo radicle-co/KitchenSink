@@ -84,15 +84,26 @@ describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)
         const afterEdit = await listVersions(created.id);
         expect(afterEdit.map((version) => version.versionNumber)).toEqual([2, 1]);
 
-        // Restore version 1 → content reverts, and EXACTLY ONE new version is recorded (no double).
+        // Restore version 1 (addressed by its integer versionNumber) → content reverts, and EXACTLY ONE
+        // new version is recorded (no double).
         const v1 = afterEdit.find((version) => version.versionNumber === 1);
         expect(v1).toBeDefined();
-        const restoreRes = await fetch(`${baseUrl}/v1/recipes/${created.id}/versions/${v1!.id}/restore`, {
+        const restoreRes = await fetch(`${baseUrl}/v1/recipes/${created.id}/versions/${v1!.versionNumber}/restore`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({}),
         });
         expect(restoreRes.status).toBe(200);
+
+        // The restore returns the { recipe, restoredFromVersion, currentVersion } envelope.
+        const restored = (await restoreRes.json()) as {
+            recipe: RecipeBody;
+            restoredFromVersion: number;
+            currentVersion: number;
+        };
+        expect(restored.restoredFromVersion).toBe(1);
+        expect(restored.currentVersion).toBe(3);
+        expect(restored.recipe.title).toBe('Original Title'); // content reverted to version 1
 
         // The recipe's title reverted to version 1's content.
         const getRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);

@@ -14,6 +14,7 @@ import {
     HttpCode,
     HttpStatus,
     Param,
+    ParseIntPipe,
     ParseUUIDPipe,
     Post,
     UsePipes,
@@ -21,7 +22,7 @@ import {
 } from '@nestjs/common';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 
-import { VersionsService } from './versions.service.js';
+import { VersionsService, type RestoreVersionResult } from './versions.service.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 
 @Controller('v1/recipes/:recipeId/versions')
@@ -38,24 +39,24 @@ export class VersionsController {
         return this.versionsService.list(ownerId, recipeId);
     }
 
-    /** `GET /v1/recipes/{recipeId}/versions/{versionId}` — fetch one version. */
-    @Get(':versionId')
-    public async getById(
+    /** `GET /v1/recipes/{recipeId}/versions/{versionNumber}` — fetch one version by its 1-based number. */
+    @Get(':versionNumber')
+    public async getByVersionNumber(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
-        @Param('versionId', ParseUUIDPipe) versionId: string,
+        @Param('versionNumber', ParseIntPipe) versionNumber: number,
     ): Promise<RecipeVersion> {
-        return this.versionsService.get(ownerId, recipeId, versionId);
+        return this.versionsService.get(ownerId, recipeId, versionNumber);
     }
 
-    /** `POST /v1/recipes/{recipeId}/versions/{versionId}/restore` — restore a version as the new current. */
-    @Post(':versionId/restore')
+    /** `POST /v1/recipes/{recipeId}/versions/{versionNumber}/restore` — restore a version as the new current. */
+    @Post(':versionNumber/restore')
     @HttpCode(HttpStatus.OK)
     public async restore(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
-        @Param('versionId', ParseUUIDPipe) versionId: string,
-    ): Promise<RecipeVersion> {
-        return this.versionsService.restore(ownerId, recipeId, versionId);
+        @Param('versionNumber', ParseIntPipe) versionNumber: number,
+    ): Promise<RestoreVersionResult> {
+        return this.versionsService.restore(ownerId, recipeId, versionNumber);
     }
 }

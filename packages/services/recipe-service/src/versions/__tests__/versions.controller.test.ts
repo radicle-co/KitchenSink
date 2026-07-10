@@ -15,7 +15,7 @@ import type { RecipeVersion } from '@kitchensink/recipe-core';
 
 const OWNER = '01J000000000000000000FREE0';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
-const VERSION_ID = '00000000-0000-4000-8000-00000000c001';
+const VERSION_NUMBER = 1;
 
 function fakeService(overrides: Partial<VersionsService> = {}): VersionsService {
     return {
@@ -27,7 +27,7 @@ function fakeService(overrides: Partial<VersionsService> = {}): VersionsService 
     } as unknown as VersionsService;
 }
 
-const VERSION = { id: VERSION_ID, recipeId: RECIPE_ID, versionNumber: 1 } as unknown as RecipeVersion;
+const VERSION = { id: 'v-1', recipeId: RECIPE_ID, versionNumber: 1 } as unknown as RecipeVersion;
 
 describe('VersionsController', () => {
     it('list delegates the owner key + recipe id and returns the service result', async () => {
@@ -40,23 +40,24 @@ describe('VersionsController', () => {
         expect(result).toEqual([VERSION]);
     });
 
-    it('getById delegates the owner key + recipe id + version id', async () => {
+    it('getByVersionNumber delegates the owner key + recipe id + integer versionNumber', async () => {
         const get = vi.fn().mockResolvedValue(VERSION);
         const controller = new VersionsController(fakeService({ get }));
 
-        const result = await controller.getById(OWNER, RECIPE_ID, VERSION_ID);
+        const result = await controller.getByVersionNumber(OWNER, RECIPE_ID, VERSION_NUMBER);
 
-        expect(get).toHaveBeenCalledWith(OWNER, RECIPE_ID, VERSION_ID);
+        expect(get).toHaveBeenCalledWith(OWNER, RECIPE_ID, VERSION_NUMBER);
         expect(result).toBe(VERSION);
     });
 
-    it('restore delegates the owner key + recipe id + version id', async () => {
-        const restore = vi.fn().mockResolvedValue(VERSION);
+    it('restore delegates the owner key + recipe id + integer versionNumber and returns the envelope', async () => {
+        const envelope = { recipe: { id: RECIPE_ID }, restoredFromVersion: 1, currentVersion: 3 };
+        const restore = vi.fn().mockResolvedValue(envelope);
         const controller = new VersionsController(fakeService({ restore }));
 
-        const result = await controller.restore(OWNER, RECIPE_ID, VERSION_ID);
+        const result = await controller.restore(OWNER, RECIPE_ID, VERSION_NUMBER);
 
-        expect(restore).toHaveBeenCalledWith(OWNER, RECIPE_ID, VERSION_ID);
-        expect(result).toBe(VERSION);
+        expect(restore).toHaveBeenCalledWith(OWNER, RECIPE_ID, VERSION_NUMBER);
+        expect(result).toBe(envelope);
     });
 });

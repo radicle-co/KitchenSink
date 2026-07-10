@@ -11,7 +11,7 @@
  *
  * @sideEffect Every method reads and/or writes Postgres via the injected Drizzle client.
  */
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
@@ -79,13 +79,22 @@ export class VersionsDal {
     }
 
     /**
-     * Load one version by id.
+     * Load one version of a recipe by its 1-based `versionNumber` (the client-facing address — versions
+     * are addressed by number, not the internal row id). Scoped by `recipeId` so a number is only ever
+     * resolved within its own recipe; uses the `(recipe_id, version_number)` unique index.
      *
-     * @returns The row, or `undefined` when no version has that id.
+     * @returns The row, or `undefined` when the recipe has no version with that number.
      * @sideEffect Reads `recipe_versions`.
      */
-    public async findById(id: string): Promise<RecipeVersionRow | undefined> {
-        const [row] = await this.db.select().from(recipeVersions).where(eq(recipeVersions.id, id)).limit(1);
+    public async findByRecipeAndVersion(
+        recipeId: string,
+        versionNumber: number,
+    ): Promise<RecipeVersionRow | undefined> {
+        const [row] = await this.db
+            .select()
+            .from(recipeVersions)
+            .where(and(eq(recipeVersions.recipeId, recipeId), eq(recipeVersions.versionNumber, versionNumber)))
+            .limit(1);
 
         return row;
     }

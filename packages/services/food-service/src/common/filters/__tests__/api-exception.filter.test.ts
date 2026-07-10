@@ -9,7 +9,7 @@
  */
 import { BadRequestException, HttpException, HttpStatus, type ArgumentsHost } from '@nestjs/common';
 import type { Response } from 'express';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
     CandidateMismatchError,

@@ -179,6 +179,29 @@ export class IngredientsDal {
     }
 
     /**
+     * Batch-load ingredients by id (e.g. to gather a recipe's catalog nutrition in one query for the
+     * per-serving aggregation). Returns only the rows that exist, in no guaranteed order.
+     *
+     * @param ids - The ingredient ids to load (deduplicated by the caller if desired).
+     * @returns The matching ingredients (per-100g nutrition included when resolved).
+     * @sideEffect Reads `ingredients`.
+     */
+    public async findByIds(ids: readonly string[]): Promise<Ingredient[]> {
+        if (ids.length === 0) {
+            return [];
+        }
+
+        const result = await this.db.execute<RawIngredientRow>(
+            sql`SELECT ${RETURNING} FROM ingredients WHERE id IN (${sql.join(
+                ids.map((id) => sql`${id}`),
+                sql`, `,
+            )})`,
+        );
+
+        return result.rows.map(rowToIngredient);
+    }
+
+    /**
      * Look up an existing food-backed ingredient by its opaque `food_id` (dedup key).
      *
      * @param foodId - The food-service internal id.

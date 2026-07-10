@@ -40,7 +40,20 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
             totalTimeMinutes: 45,
             tags: ['contract'],
             dietaryFlags: [],
-            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+            // A user-entered nutrition override (FR-007a) so the per-serving aggregation (#9) is exercised
+            // end to end — 4 servings → the totals below divide by 4.
+            ingredients: [
+                {
+                    ingredientId: FLOUR_ID,
+                    name: 'Flour',
+                    quantity: 2,
+                    unit: 'cup',
+                    userCalories: 200,
+                    userProteinG: 8,
+                    userCarbsG: 40,
+                    userFatG: 2,
+                },
+            ],
             steps: [{ instruction: 'Mix.' }],
         });
         recipeId = recipe.id;
@@ -86,5 +99,14 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
         // Photos are embedded (empty for a fresh recipe) — the detail is one round-trip (#10).
         expect(Array.isArray(recipe.photos)).toBe(true);
         expect(recipe.photos).toHaveLength(0);
+
+        // Per-serving nutrition (#9): the single user-entered line's macros ÷ 4 servings, fully accounted.
+        expect(recipe.nutrition).toEqual({
+            calories: 50,
+            proteinG: 2,
+            carbsG: 10,
+            fatG: 0.5,
+            isComplete: true,
+        });
     });
 });

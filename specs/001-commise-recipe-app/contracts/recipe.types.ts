@@ -366,16 +366,35 @@ export const recipeIngredientViewSchema = z.object({
  * and `photos`. Returned by the single-recipe reads (get/create/update/clone/restore); list/search return
  * the lighter {@link Recipe} metadata.
  */
+/** Estimated PER-SERVING nutrition (FR-007), with `isComplete=false` when any line is unaccounted. */
+export interface RecipeNutrition {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    isComplete: boolean;
+}
+
+export const recipeNutritionSchema = z.object({
+    calories: nonNegativeNumberSchema,
+    proteinG: nonNegativeNumberSchema,
+    carbsG: nonNegativeNumberSchema,
+    fatG: nonNegativeNumberSchema,
+    isComplete: z.boolean(),
+});
+
 export interface RecipeDetail extends Recipe {
     ingredients: RecipeIngredientView[];
     steps: RecipeStepView[];
     photos: RecipePhoto[];
+    nutrition: RecipeNutrition;
 }
 
 export const recipeDetailSchema = recipeSchema.extend({
     ingredients: z.array(recipeIngredientViewSchema),
     steps: z.array(recipeStepViewSchema),
     photos: z.array(recipePhotoSchema),
+    nutrition: recipeNutritionSchema,
 });
 
 /**

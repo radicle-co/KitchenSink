@@ -1038,6 +1038,31 @@ components:
                     type: string
                     format: date-time
 
+        RecipeNutrition:
+            type: object
+            required: [calories, proteinG, carbsG, fatG, isComplete]
+            description: >-
+                Estimated PER-SERVING nutrition (FR-007), summed from each ingredient line (user-entered
+                override, else food-database per-100g scaled by mass) and divided by servings.
+            properties:
+                calories:
+                    type: number
+                    minimum: 0
+                proteinG:
+                    type: number
+                    minimum: 0
+                carbsG:
+                    type: number
+                    minimum: 0
+                fatG:
+                    type: number
+                    minimum: 0
+                isComplete:
+                    type: boolean
+                    description: >-
+                        False when any line could not be fully accounted (a food still resolving, a freeform
+                        line with no nutrition, or a non-mass unit with no known gram weight) — a partial estimate.
+
         RecipeStep:
             type: object
             required: [stepNumber, instruction]
@@ -1253,6 +1278,8 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/RecipePhoto'
+                nutrition:
+                    $ref: '#/components/schemas/RecipeNutrition'
                 servings:
                     type: integer
                     minimum: 1

@@ -59,6 +59,7 @@ function service(existing: RecipeAggregate): { svc: RecipesService; update: Retu
     } as unknown as RecipesDal;
     const ingredientsDal = {
         findById: vi.fn().mockResolvedValue(makeIngredient({ id: INGREDIENT_ID, name: 'Rice' })),
+        findByIds: vi.fn().mockResolvedValue([]),
     } as unknown as IngredientsDal;
 
     return {

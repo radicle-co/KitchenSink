@@ -200,11 +200,39 @@ export const recipeIngredientViewSchema = z.object({
  * clone, restore) — everything a cook needs to follow the recipe. List/search/collection endpoints
  * return the lighter {@link Recipe} metadata (no per-item content).
  */
+/**
+ * Estimated PER-SERVING nutrition for a recipe (FR-007). Summed from each ingredient line — a line's
+ * user-entered override (FR-007a) when present, otherwise the food-database per-100g values scaled by the
+ * line's mass — then divided by servings. `isComplete` is `false` when any line could not be fully
+ * accounted (a food still resolving, a freeform line with no nutrition, or a non-mass unit whose gram
+ * weight is not known); the UI shows the estimate with a "partial" caveat rather than a false-precise total.
+ */
+export interface RecipeNutrition {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    isComplete: boolean;
+}
+
+/**
+ * Runtime validator for {@link RecipeNutrition}.
+ */
+export const recipeNutritionSchema = z.object({
+    calories: nonNegativeNumberSchema,
+    proteinG: nonNegativeNumberSchema,
+    carbsG: nonNegativeNumberSchema,
+    fatG: nonNegativeNumberSchema,
+    isComplete: z.boolean(),
+});
+
 export interface RecipeDetail extends Recipe {
     ingredients: RecipeIngredientView[];
     steps: RecipeStepView[];
     /** The recipe's photos in display order (empty until any are uploaded), embedded for a one-round-trip detail. */
     photos: RecipePhoto[];
+    /** Estimated per-serving nutrition (FR-007), with an `isComplete` flag when any line is unaccounted. */
+    nutrition: RecipeNutrition;
 }
 
 // NB: `recipeDetailSchema` is defined AFTER `recipePhotoSchema` (below) — it references it, and a `const`
@@ -404,6 +432,7 @@ export const recipeDetailSchema = recipeSchema.extend({
     ingredients: z.array(recipeIngredientViewSchema),
     steps: z.array(recipeStepViewSchema),
     photos: z.array(recipePhotoSchema),
+    nutrition: recipeNutritionSchema,
 });
 
 /**

@@ -91,6 +91,7 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
 function fakeIngredientsDal(): IngredientsDal {
     return {
         findById: vi.fn().mockResolvedValue(makeIngredient({ id: INGREDIENT_ID, name: 'Onion' })),
+        findByIds: vi.fn().mockResolvedValue([]),
     } as unknown as IngredientsDal;
 }
 

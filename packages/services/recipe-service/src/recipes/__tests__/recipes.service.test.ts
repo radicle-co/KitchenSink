@@ -68,6 +68,7 @@ function fakeIngredientsDal(): IngredientsDal {
         findById: vi
             .fn()
             .mockResolvedValue(makeIngredient({ id: '00000000-0000-4000-8000-0000000000ff', name: 'Onion' })),
+        findByIds: vi.fn().mockResolvedValue([]),
     } as unknown as IngredientsDal;
 }
 

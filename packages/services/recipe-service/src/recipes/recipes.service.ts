@@ -12,11 +12,12 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import type { RecipePhoto, RecipeSnapshot } from '@kitchensink/recipe-core';
+import type { RecipeNutrition, RecipePhoto, RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { VersionsService } from '../versions/versions.service.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolvePhotoView } from '../photos/photo-view.js';
+import { computeRecipeNutrition, type NutritionLine } from './domain/nutrition.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
@@ -83,11 +84,15 @@ function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientRespons
 }
 
 /**
- * Map a persisted recipe aggregate to the wire response. Pure. When `photos` is provided (the
- * single-recipe DETAIL reads), they are embedded so the client renders the recipe in one round-trip;
- * when omitted (list/search metadata reads), the `photos` key is absent.
+ * Map a persisted recipe aggregate to the wire response. Pure. On the single-recipe DETAIL reads the
+ * caller passes the embedded `photos` + per-serving `nutrition` so the client renders the whole recipe in
+ * one round-trip; on list/search metadata reads both are omitted (their keys are absent).
  */
-function toRecipeResponse(aggregate: RecipeAggregate, photos?: RecipePhoto[]): RecipeResponse {
+function toRecipeResponse(
+    aggregate: RecipeAggregate,
+    photos?: RecipePhoto[],
+    nutrition?: RecipeNutrition,
+): RecipeResponse {
     const { recipe, steps, ingredients } = aggregate;
 
     return {
@@ -123,8 +128,9 @@ function toRecipeResponse(aggregate: RecipeAggregate, photos?: RecipePhoto[]): R
         // Tombstone: present only when the recipe is soft-deleted; OMITTED (not `null`) otherwise, to match
         // the optional `Recipe.deletedAt` contract (a `null` would fail `recipeSchema`).
         ...(recipe.deletedAt !== null ? { deletedAt: recipe.deletedAt.toISOString() } : {}),
-        // Embedded photos for the detail read (absent on list/search metadata reads).
+        // Embedded photos + per-serving nutrition for the detail read (absent on list/search metadata).
         ...(photos !== undefined ? { photos } : {}),
+        ...(nutrition !== undefined ? { nutrition } : {}),
     };
 }
 
@@ -271,6 +277,44 @@ export class RecipesService {
     }
 
     /**
+     * Compute a recipe's estimated per-serving nutrition (FR-007) from its ingredient lines: each line's
+     * user-entered override (FR-007a) when present, else the catalog per-100g nutrition scaled by mass.
+     * The catalog nutrition is batch-loaded for the recipe's ingredient ids in one query.
+     */
+    private async computeDetailNutrition(aggregate: RecipeAggregate): Promise<RecipeNutrition> {
+        const ids = [...new Set(aggregate.ingredients.map((row) => row.ingredientId))];
+        const catalog = new Map((await this.ingredientsDal.findByIds(ids)).map((ing) => [ing.id, ing]));
+
+        const lines: NutritionLine[] = aggregate.ingredients.map((row) => {
+            const ingredient = catalog.get(row.ingredientId);
+
+            return {
+                quantity: Number(row.quantity),
+                unit: row.unit,
+                ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
+                ...(row.userProteinG !== null ? { userProteinG: Number(row.userProteinG) } : {}),
+                ...(row.userCarbsG !== null ? { userCarbsG: Number(row.userCarbsG) } : {}),
+                ...(row.userFatG !== null ? { userFatG: Number(row.userFatG) } : {}),
+                ...(ingredient?.caloriesPer100g !== undefined ? { caloriesPer100g: ingredient.caloriesPer100g } : {}),
+                ...(ingredient?.proteinGPer100g !== undefined ? { proteinGPer100g: ingredient.proteinGPer100g } : {}),
+                ...(ingredient?.carbsGPer100g !== undefined ? { carbsGPer100g: ingredient.carbsGPer100g } : {}),
+                ...(ingredient?.fatGPer100g !== undefined ? { fatGPer100g: ingredient.fatGPer100g } : {}),
+            };
+        });
+
+        return computeRecipeNutrition(lines, aggregate.recipe.servings);
+    }
+
+    /**
+     * Shape a recipe aggregate into the full `RecipeDetail` response: the metadata + composed ingredients
+     * and steps, PLUS the embedded `photos` and computed per-serving `nutrition`. Used by every
+     * single-recipe read (get/create/update/clone/set-visibility).
+     */
+    private async toDetailResponse(aggregate: RecipeAggregate, photos: RecipePhoto[]): Promise<RecipeResponse> {
+        return toRecipeResponse(aggregate, photos, await this.computeDetailNutrition(aggregate));
+    }
+
+    /**
      * Record an immutable version snapshot of a just-written recipe aggregate (FR-007b). Best-effort:
      * the recipe has already committed, so a snapshot/retention failure must NOT fail the user's save —
      * it is logged and swallowed (the reconciliation/worker path backstops a missed row). This is the
@@ -336,8 +380,8 @@ export class RecipesService {
 
         await this.recordSnapshot(aggregate, principal.userId, 'Created');
 
-        // A freshly-created recipe has no photos yet (they are uploaded afterward) → empty detail photos.
-        return toRecipeResponse(aggregate, []);
+        // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
+        return this.toDetailResponse(aggregate, []);
     }
 
     /**
@@ -388,7 +432,7 @@ export class RecipesService {
             throw notOwner(id);
         }
 
-        return toRecipeResponse(aggregate, await this.loadPhotos(id));
+        return this.toDetailResponse(aggregate, await this.loadPhotos(id));
     }
 
     /** List the caller's own recipes (owner-scoped, tombstones excluded), paginated. */
@@ -479,7 +523,7 @@ export class RecipesService {
             await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated');
         }
 
-        return toRecipeResponse(updated, await this.loadPhotos(id));
+        return this.toDetailResponse(updated, await this.loadPhotos(id));
     }
 
     /** Soft-delete (tombstone) a recipe the caller owns. */
@@ -546,8 +590,8 @@ export class RecipesService {
 
         await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`);
 
-        // A fresh clone starts with no photos (photos are not copied from the source) → empty detail photos.
-        return toRecipeResponse(created, []);
+        // A fresh clone starts with no photos (not copied from the source); nutrition is computed from its lines.
+        return this.toDetailResponse(created, []);
     }
 
     /**
@@ -589,7 +633,7 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        return toRecipeResponse(updated, await this.loadPhotos(id));
+        return this.toDetailResponse(updated, await this.loadPhotos(id));
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

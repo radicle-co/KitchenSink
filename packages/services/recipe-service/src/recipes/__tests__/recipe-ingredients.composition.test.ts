@@ -74,6 +74,7 @@ function fakeIngredientsDal(overrides: Partial<IngredientsDal> = {}): Ingredient
     return {
         findById: vi.fn().mockResolvedValue(makeIngredient({ id: ONION_ID, name: 'Onion', isUserEntered: false })),
         ...overrides,
+        findByIds: vi.fn().mockResolvedValue([]),
     } as unknown as IngredientsDal;
 }
 

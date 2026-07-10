@@ -29,6 +29,9 @@ const TITLE_A = 'Zeppole Contract Alpha';
 const TITLE_B = 'Zeppole Contract Beta';
 
 async function seedRecipe(baseUrl: string, title: string): Promise<void> {
+    // Seeded via raw fetch (test setup). Create-recipe now requires servings + timings (divergence #5,
+    // done), but the ingredient-LINE shape still diverges (`name` vs `ingredientName`, etc.), so
+    // `client.createRecipe` cannot yet build an accepted body — tracked as divergence #8.
     const res = await fetch(`${baseUrl}/v1/recipes`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

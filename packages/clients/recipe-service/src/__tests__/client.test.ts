@@ -148,7 +148,16 @@ describe('RecipeServiceClient — request build + token attach', () => {
         const fetchMock = stubFetch(201, created);
         const client = new RecipeServiceClient({ baseUrl: `${BASE}/`, token: 'tok-123', fetch: fetchMock });
 
-        const result = await client.createRecipe({ title: 'Soup', ingredients: [], steps: [] });
+        const input = {
+            title: 'Soup',
+            ingredients: [],
+            steps: [],
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+        };
+        const result = await client.createRecipe(input);
 
         expect(result).toEqual(created);
         const req = requestAt(fetchMock);
@@ -156,7 +165,7 @@ describe('RecipeServiceClient — request build + token attach', () => {
         expect(req.method).toBe('POST');
         expect(req.headers.get('authorization')).toBe('Bearer tok-123');
         expect(req.headers.get('content-type')).toBe('application/json');
-        expect(JSON.parse(req.body as string)).toEqual({ title: 'Soup', ingredients: [], steps: [] });
+        expect(JSON.parse(req.body as string)).toEqual(input);
     });
 
     it('re-reads a token callback per request (rotated session token)', async () => {

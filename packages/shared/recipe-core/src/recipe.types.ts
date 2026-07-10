@@ -586,15 +586,21 @@ export const createRecipeStepInputSchema = z.object({
 
 /**
  * Input payload to create a new recipe.
+ *
+ * `servings` and all three timings are REQUIRED — the server's create contract requires them, and
+ * `totalTimeMinutes` is an independent value (not derived from prep + cook: a recipe may have inactive
+ * time — rest, marinate, chill — that belongs in the total but in neither prep nor cook). Making them
+ * required here means the typed client can only build an accepted create body (resolves divergence #5).
  */
 export interface CreateRecipeInput {
     title: string;
     description?: string;
     ingredients: CreateRecipeIngredientInput[];
     steps: CreateRecipeStepInput[];
-    prepTimeMinutes?: number;
-    cookTimeMinutes?: number;
-    servings?: number;
+    servings: number;
+    prepTimeMinutes: number;
+    cookTimeMinutes: number;
+    totalTimeMinutes: number;
     cuisine?: string;
     dietaryFlags?: string[];
     tags?: string[];
@@ -609,9 +615,10 @@ export const createRecipeInputSchema = z.object({
     description: z.string().optional(),
     ingredients: z.array(createRecipeIngredientInputSchema),
     steps: z.array(createRecipeStepInputSchema),
-    prepTimeMinutes: nonNegativeIntSchema.optional(),
-    cookTimeMinutes: nonNegativeIntSchema.optional(),
-    servings: positiveIntSchema.optional(),
+    servings: positiveIntSchema,
+    prepTimeMinutes: nonNegativeIntSchema,
+    cookTimeMinutes: nonNegativeIntSchema,
+    totalTimeMinutes: nonNegativeIntSchema,
     cuisine: z.string().min(1).optional(),
     dietaryFlags: z.array(z.string().min(1)).optional(),
     tags: z.array(z.string().min(1)).optional(),

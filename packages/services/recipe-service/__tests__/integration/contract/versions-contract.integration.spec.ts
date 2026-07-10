@@ -35,7 +35,9 @@ describe.skipIf(!hasDatabaseUrl)('versions vertical — client ↔ server contra
         booted = await bootRecipeApp({ devAuthUserId: OWNER });
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
-        // Seed + edit the recipe via raw fetch (create-recipe times contract is a separate divergence #5).
+        // Seed + edit via raw fetch (test setup). Create-recipe now requires servings + timings
+        // (divergence #5, done), but the ingredient-LINE shape still diverges (`name` vs `ingredientName`,
+        // etc.), so `client.createRecipe` cannot yet build an accepted body — tracked as divergence #8.
         const createRes = await fetch(`${booted.baseUrl}/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

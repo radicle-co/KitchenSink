@@ -42,12 +42,11 @@ describe.skipIf(!hasDatabaseUrl)('photos vertical — client ↔ server contract
         booted = await bootRecipeApp({ devAuthUserId: OWNER });
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
-        // Seed the parent recipe via raw fetch (test setup, not the behaviour under test). NB: the
-        // create-recipe wire contract itself diverges — the server's CreateRecipeDto requires
-        // prep/cook/totalTimeMinutes while `recipe-core`'s `CreateRecipeInput` marks prep/cook optional
-        // and omits `totalTimeMinutes` entirely, so `client.createRecipe` cannot construct an accepted
-        // body. That is a SEPARATE divergence (tracked in quality-remediation-backlog.md), out of scope
-        // for the photos reconciliation this suite covers.
+        // Seed the parent recipe via raw fetch (test setup, not the behaviour under test). Create-recipe
+        // now requires servings + prep/cook/total timings (divergence #5, done), but the ingredient-LINE
+        // shape still diverges (server `RecipeIngredientInputDto` uses `name`/`notes`/optional `unit`;
+        // recipe-core `CreateRecipeIngredientInput` uses `ingredientName`/`displayText`/required `unit`),
+        // so `client.createRecipe` still cannot build an accepted body — tracked as divergence #8.
         const createRes = await fetch(`${booted.baseUrl}/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

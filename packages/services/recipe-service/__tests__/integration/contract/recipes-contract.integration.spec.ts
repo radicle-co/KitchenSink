@@ -8,8 +8,8 @@
  * recipe body and a consumer reading `recipe.currentVersion` got `undefined`. This suite parses the GET
  * body against the canonical `recipeSchema` (the check that was missing), which now passes.
  *
- * The recipe is seeded via raw `fetch` (the create INGREDIENT-line shape still diverges — #8 — so
- * `client.createRecipe` cannot yet build an accepted body). Runs only when the harness DB is configured.
+ * The recipe is seeded through the typed client end to end (create fully conforms after #5 + #8). Runs
+ * only when the harness DB is configured.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
@@ -32,23 +32,18 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
         booted = await bootRecipeApp({ devAuthUserId: OWNER });
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
-        const createRes = await fetch(`${booted.baseUrl}/v1/recipes`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                title: 'Recipe Contract Dish',
-                servings: 4,
-                prepTimeMinutes: 15,
-                cookTimeMinutes: 30,
-                totalTimeMinutes: 45,
-                tags: ['contract'],
-                dietaryFlags: [],
-                ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
-                steps: [{ instruction: 'Mix.' }],
-            }),
+        const recipe = await client.createRecipe({
+            title: 'Recipe Contract Dish',
+            servings: 4,
+            prepTimeMinutes: 15,
+            cookTimeMinutes: 30,
+            totalTimeMinutes: 45,
+            tags: ['contract'],
+            dietaryFlags: [],
+            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+            steps: [{ instruction: 'Mix.' }],
         });
-        expect(createRes.status).toBe(201);
-        recipeId = ((await createRes.json()) as { id: string }).id;
+        recipeId = recipe.id;
     });
 
     afterAll(async () => {

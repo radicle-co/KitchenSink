@@ -108,6 +108,29 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
             displayText: 'diced',
             sortOrder: 0,
             isUserEntered: false,
+            // No per-line nutrition override supplied → the numeric columns are null.
+            userCalories: null,
+            userProteinG: null,
+            userCarbsG: null,
+            userFatG: null,
+        });
+    });
+
+    it('serializes per-line user-entered nutrition overrides to the numeric columns (FR-007a)', async () => {
+        const control = createFakeDb();
+        const dal = new RecipeIngredientsDal();
+        control.enqueue(undefined, [makeRecipeIngredientRow({ recipeId: 'r-1' })]);
+
+        await dal.replaceForRecipe(control.db, 'r-1', [
+            { ...LINE, userCalories: 120, userProteinG: 4.5, userCarbsG: 20, userFatG: 2 },
+        ]);
+
+        const rows = control.calls.find((call) => call.method === 'values')?.args[0] as Record<string, unknown>[];
+        expect(rows[0]).toMatchObject({
+            userCalories: '120',
+            userProteinG: '4.5',
+            userCarbsG: '20',
+            userFatG: '2',
         });
     });
 

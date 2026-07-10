@@ -28,26 +28,19 @@ const FLOUR_ID = '00000000-0000-4000-8000-0000000000aa';
 const TITLE_A = 'Zeppole Contract Alpha';
 const TITLE_B = 'Zeppole Contract Beta';
 
-async function seedRecipe(baseUrl: string, title: string): Promise<void> {
-    // Seeded via raw fetch (test setup). Create-recipe now requires servings + timings (divergence #5,
-    // done), but the ingredient-LINE shape still diverges (`name` vs `ingredientName`, etc.), so
-    // `client.createRecipe` cannot yet build an accepted body — tracked as divergence #8.
-    const res = await fetch(`${baseUrl}/v1/recipes`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-            title,
-            servings: 2,
-            prepTimeMinutes: 5,
-            cookTimeMinutes: 10,
-            totalTimeMinutes: 15,
-            tags: ['contract'],
-            dietaryFlags: ['vegetarian'],
-            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 1 }],
-            steps: [{ instruction: 'Mix.' }],
-        }),
+async function seedRecipe(client: RecipeServiceClient, title: string): Promise<void> {
+    // Seeded through the typed client end to end (create now fully conforms — #5 + #8).
+    await client.createRecipe({
+        title,
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 10,
+        totalTimeMinutes: 15,
+        tags: ['contract'],
+        dietaryFlags: ['vegetarian'],
+        ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 1 }],
+        steps: [{ instruction: 'Mix.' }],
     });
-    expect(res.status).toBe(201);
 }
 
 describe.skipIf(!hasDatabaseUrl)('search vertical — client ↔ server contract conformance', () => {
@@ -59,8 +52,8 @@ describe.skipIf(!hasDatabaseUrl)('search vertical — client ↔ server contract
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
         // Seed B before A so a title sort (A before B) proves ordering, not insertion order.
-        await seedRecipe(booted.baseUrl, TITLE_B);
-        await seedRecipe(booted.baseUrl, TITLE_A);
+        await seedRecipe(client, TITLE_B);
+        await seedRecipe(client, TITLE_A);
     });
 
     afterAll(async () => {

@@ -175,6 +175,11 @@ export class VersionsService {
                     quantity: ingredient.quantity,
                     unit: ingredient.unit,
                     ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                    // Preserve per-line user-entered nutrition (FR-007a) across a restore.
+                    ...(ingredient.userCalories !== undefined ? { userCalories: ingredient.userCalories } : {}),
+                    ...(ingredient.userProteinG !== undefined ? { userProteinG: ingredient.userProteinG } : {}),
+                    ...(ingredient.userCarbsG !== undefined ? { userCarbsG: ingredient.userCarbsG } : {}),
+                    ...(ingredient.userFatG !== undefined ? { userFatG: ingredient.userFatG } : {}),
                 })),
                 steps: snapshot.steps.map((step) => ({
                     instruction: step.instruction,

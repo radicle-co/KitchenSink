@@ -125,6 +125,11 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
         ...(row.displayText !== null ? { displayText: row.displayText } : {}),
         sortOrder: row.sortOrder,
         isUserEntered: row.isUserEntered,
+        // Preserve any per-line user-entered nutrition (FR-007a) across a clone (numeric → number).
+        ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
+        ...(row.userProteinG !== null ? { userProteinG: Number(row.userProteinG) } : {}),
+        ...(row.userCarbsG !== null ? { userCarbsG: Number(row.userCarbsG) } : {}),
+        ...(row.userFatG !== null ? { userFatG: Number(row.userFatG) } : {}),
     };
 }
 
@@ -334,6 +339,11 @@ export class RecipesService {
                 ...(line.notes !== undefined ? { displayText: line.notes } : {}),
                 sortOrder: index,
                 isUserEntered: ingredient.isUserEntered,
+                // Per-line user-entered nutrition override (FR-007a) — carried through to persistence.
+                ...(line.userCalories !== undefined ? { userCalories: line.userCalories } : {}),
+                ...(line.userProteinG !== undefined ? { userProteinG: line.userProteinG } : {}),
+                ...(line.userCarbsG !== undefined ? { userCarbsG: line.userCarbsG } : {}),
+                ...(line.userFatG !== undefined ? { userFatG: line.userFatG } : {}),
             });
         }
 

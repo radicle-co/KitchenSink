@@ -35,34 +35,22 @@ describe.skipIf(!hasDatabaseUrl)('versions vertical — client ↔ server contra
         booted = await bootRecipeApp({ devAuthUserId: OWNER });
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
-        // Seed + edit via raw fetch (test setup). Create-recipe now requires servings + timings
-        // (divergence #5, done), but the ingredient-LINE shape still diverges (`name` vs `ingredientName`,
-        // etc.), so `client.createRecipe` cannot yet build an accepted body — tracked as divergence #8.
-        const createRes = await fetch(`${booted.baseUrl}/v1/recipes`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                title: 'Original Title',
-                servings: 2,
-                prepTimeMinutes: 5,
-                cookTimeMinutes: 10,
-                totalTimeMinutes: 15,
-                tags: [],
-                dietaryFlags: [],
-                ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
-                steps: [{ instruction: 'Mix.' }],
-            }),
+        // Seed + edit through the typed client end to end (create now fully conforms — #5 + #8).
+        const recipe = await client.createRecipe({
+            title: 'Original Title',
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+            tags: [],
+            dietaryFlags: [],
+            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+            steps: [{ instruction: 'Mix.' }],
         });
-        expect(createRes.status).toBe(201);
-        recipeId = ((await createRes.json()) as { id: string }).id;
+        recipeId = recipe.id;
 
         // Edit → version 2 exists, so there is a prior version 1 to address + restore.
-        const patchRes = await fetch(`${booted.baseUrl}/v1/recipes/${recipeId}`, {
-            method: 'PATCH',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ expectedVersion: 1, title: 'Edited Title' }),
-        });
-        expect(patchRes.status).toBe(200);
+        await client.updateRecipe(recipeId, { expectedVersion: 1, title: 'Edited Title' });
     });
 
     afterAll(async () => {

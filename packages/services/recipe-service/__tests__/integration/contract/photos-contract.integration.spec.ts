@@ -42,28 +42,19 @@ describe.skipIf(!hasDatabaseUrl)('photos vertical — client ↔ server contract
         booted = await bootRecipeApp({ devAuthUserId: OWNER });
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
-        // Seed the parent recipe via raw fetch (test setup, not the behaviour under test). Create-recipe
-        // now requires servings + prep/cook/total timings (divergence #5, done), but the ingredient-LINE
-        // shape still diverges (server `RecipeIngredientInputDto` uses `name`/`notes`/optional `unit`;
-        // recipe-core `CreateRecipeIngredientInput` uses `ingredientName`/`displayText`/required `unit`),
-        // so `client.createRecipe` still cannot build an accepted body — tracked as divergence #8.
-        const createRes = await fetch(`${booted.baseUrl}/v1/recipes`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                title: 'Photo Contract Recipe',
-                servings: 2,
-                prepTimeMinutes: 5,
-                cookTimeMinutes: 10,
-                totalTimeMinutes: 15,
-                tags: ['contract'],
-                dietaryFlags: [],
-                ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: 1 }],
-                steps: [{ instruction: 'Mix.' }],
-            }),
+        // Seed the parent recipe through the typed client end to end (create now fully conforms — #5 + #8).
+        const recipe = await client.createRecipe({
+            title: 'Photo Contract Recipe',
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+            tags: ['contract'],
+            dietaryFlags: [],
+            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: 1 }],
+            steps: [{ instruction: 'Mix.' }],
         });
-        expect(createRes.status).toBe(201);
-        recipeId = ((await createRes.json()) as { id: string }).id;
+        recipeId = recipe.id;
     });
 
     afterAll(async () => {

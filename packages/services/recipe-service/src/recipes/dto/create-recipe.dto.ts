@@ -52,6 +52,28 @@ export class RecipeIngredientInputDto {
     @IsOptional()
     @IsString()
     notes?: string;
+
+    // Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. Optional,
+    // and typically set only for freeform/user-entered ingredients whose food resolution has no data.
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    userCalories?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    userProteinG?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    userCarbsG?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    userFatG?: number;
 }
 
 /** A single instruction step; the server assigns `stepNumber` from array order (`CreateRecipeStepInput`). */

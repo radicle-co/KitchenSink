@@ -516,11 +516,14 @@ export const recipeVersionPendingArchiveSchema = z.object({
  * Input payload for a single ingredient when creating or updating a recipe draft.
  */
 export interface CreateRecipeIngredientInput {
-    ingredientId?: string;
-    ingredientName: string;
+    /** REQUIRED — the catalog `ingredients` row this line references (food-backed OR freeform). */
+    ingredientId: string;
+    /** Client display label; the server re-resolves the canonical catalog name (ADV-2). */
+    name: string;
     quantity: number;
-    unit: string;
-    displayText?: string;
+    unit?: string;
+    /** Free-form display override (wire field `notes`; persisted as `displayText`). */
+    notes?: string;
     userCalories?: number;
     userProteinG?: number;
     userCarbsG?: number;
@@ -531,11 +534,11 @@ export interface CreateRecipeIngredientInput {
  * Runtime validator for {@link CreateRecipeIngredientInput}.
  */
 export const createRecipeIngredientInputSchema = z.object({
-    ingredientId: idSchema.optional(),
-    ingredientName: z.string().min(1),
+    ingredientId: idSchema,
+    name: z.string().min(1),
     quantity: positiveNumberSchema,
-    unit: z.string().min(1),
-    displayText: z.string().min(1).optional(),
+    unit: z.string().min(1).optional(),
+    notes: z.string().min(1).optional(),
     userCalories: nonNegativeNumberSchema.optional(),
     userProteinG: nonNegativeNumberSchema.optional(),
     userCarbsG: nonNegativeNumberSchema.optional(),

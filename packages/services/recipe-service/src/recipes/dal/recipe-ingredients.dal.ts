@@ -28,6 +28,11 @@ export interface ResolvedIngredientLine {
     displayText?: string;
     sortOrder: number;
     isUserEntered: boolean;
+    /** Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. */
+    userCalories?: number;
+    userProteinG?: number;
+    userCarbsG?: number;
+    userFatG?: number;
 }
 
 /** A writer surface satisfied by both the Drizzle client and a transaction handle. */
@@ -68,6 +73,11 @@ export class RecipeIngredientsDal {
                     displayText: line.displayText ?? null,
                     sortOrder: line.sortOrder,
                     isUserEntered: line.isUserEntered,
+                    // Numeric columns take a string; null when the client supplied no per-line override.
+                    userCalories: line.userCalories !== undefined ? line.userCalories.toString() : null,
+                    userProteinG: line.userProteinG !== undefined ? line.userProteinG.toString() : null,
+                    userCarbsG: line.userCarbsG !== undefined ? line.userCarbsG.toString() : null,
+                    userFatG: line.userFatG !== undefined ? line.userFatG.toString() : null,
                 })),
             )
             .returning();

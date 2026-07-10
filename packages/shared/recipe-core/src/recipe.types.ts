@@ -690,6 +690,24 @@ export const recipeSearchResultSchema = z.object({
 });
 
 /**
+ * One facet bucket in a search response: a facet value and how many sampled matches carry it. An
+ * object-per-bucket (not a `{ value: count }` map) so a bucket can grow additional metadata — a display
+ * label, a selected flag, an explicit order — without a breaking reshape.
+ */
+export interface RecipeFacetCount {
+    value: string;
+    count: number;
+}
+
+/**
+ * Runtime validator for {@link RecipeFacetCount}.
+ */
+export const recipeFacetCountSchema = z.object({
+    value: z.string().min(1),
+    count: nonNegativeIntSchema,
+});
+
+/**
  * Generic paginated API envelope shared by web, mobile, and API consumers.
  */
 export interface PaginatedResponse<T> {

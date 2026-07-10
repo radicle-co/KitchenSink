@@ -1445,11 +1445,23 @@ components:
                     type: string
                     enum: [relevance, recent, title]
 
-        RecipeSearchFacetCounts:
+        RecipeFacetCount:
             type: object
-            additionalProperties:
-                type: integer
-                minimum: 0
+            required: [value, count]
+            description: >-
+                One facet bucket: a value and how many sampled matches carry it. An object-per-bucket (not
+                a { value: count } map) so a bucket can grow metadata (label, selected, order) additively.
+            properties:
+                value:
+                    type: string
+                count:
+                    type: integer
+                    minimum: 0
+
+        RecipeSearchFacetCounts:
+            type: array
+            items:
+                $ref: '#/components/schemas/RecipeFacetCount'
 
         RecipeSearchFacets:
             type: object

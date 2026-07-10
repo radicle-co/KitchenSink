@@ -79,7 +79,14 @@ describe.skipIf(!hasDatabaseUrl)('search vertical — client ↔ server contract
         expect(response.total).toBeGreaterThanOrEqual(2);
         expect(typeof response.page).toBe('number');
         expect(typeof response.hasMore).toBe('boolean');
-        expect(response.facets).toBeDefined();
+
+        // Facets are the object-per-bucket array `{ value, count }[]` (NOT a { value: count } map) — the
+        // extensible shape (#7). Both seeds carry the `vegetarian` dietary flag.
+        expect(Array.isArray(response.facets.dietaryFlags)).toBe(true);
+        const vegetarian = response.facets.dietaryFlags?.find((bucket) => bucket.value === 'vegetarian');
+        expect(vegetarian).toBeDefined();
+        expect(typeof vegetarian?.count).toBe('number');
+        expect(vegetarian?.count).toBeGreaterThanOrEqual(2);
     });
 
     it('honours sortBy=title (the reconciled enum value) — A orders before B', async () => {

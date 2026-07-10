@@ -6,7 +6,13 @@
  * only the endpoint-specific envelopes/requests (photos, collections, search, versions, erasure) are
  * declared here, mirroring `contracts/api.openapi.yaml`. Dates are ISO-8601 strings (CODING_STANDARDS).
  */
-import type { Collection, Recipe, RecipeSearchResult, RecipeVisibility } from '@kitchensink/recipe-core';
+import type {
+    Collection,
+    Recipe,
+    RecipeFacetCount,
+    RecipeSearchResult,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 /** Sort key for `listRecipes` (`GET /v1/recipes`). */
 export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
@@ -102,8 +108,8 @@ export interface ErasureRequestAcceptedResponse {
     readonly status: 'queued' | 'running';
 }
 
-/** Facet count map (`{ facetValue: count }`) for a single search facet. */
-export type RecipeSearchFacetCounts = Readonly<Record<string, number>>;
+/** Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry). */
+export type RecipeSearchFacetCounts = readonly RecipeFacetCount[];
 
 /** Facet counts returned alongside recipe search results (the server aggregates dietary flags + tags). */
 export interface RecipeSearchFacets {

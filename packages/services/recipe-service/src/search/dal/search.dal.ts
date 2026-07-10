@@ -22,7 +22,13 @@
  */
 import { sql, type SQL } from 'drizzle-orm';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import type { Recipe, RecipeSearchResult, RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import type {
+    Recipe,
+    RecipeFacetCount,
+    RecipeSearchResult,
+    RecipeSourceType,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 
@@ -73,16 +79,10 @@ export interface RecipeSearchFilters {
     readonly sortBy: RecipeSearchSortBy;
 }
 
-/** A single facet bucket: a value and how many sampled matches carry it. */
-export interface FacetCount {
-    readonly value: string;
-    readonly count: number;
-}
-
-/** Facet aggregations returned alongside a page of results. */
+/** Facet aggregations returned alongside a page of results. Buckets are the canonical `RecipeFacetCount`. */
 export interface RecipeSearchFacets {
-    readonly dietaryFlags: FacetCount[];
-    readonly tags: FacetCount[];
+    readonly dietaryFlags: RecipeFacetCount[];
+    readonly tags: RecipeFacetCount[];
 }
 
 /** What {@link SearchDal.search} returns: the ranked page, its facets, and the unpaged total. */
@@ -233,11 +233,11 @@ function orderByExpr(sortBy: RecipeSearchSortBy, query: string | undefined): SQL
 
 /** Fold raw facet rows into the two grouped buckets. Pure. */
 function groupFacets(rows: RawFacetRow[]): RecipeSearchFacets {
-    const dietaryFlags: FacetCount[] = [];
-    const tags: FacetCount[] = [];
+    const dietaryFlags: RecipeFacetCount[] = [];
+    const tags: RecipeFacetCount[] = [];
 
     for (const row of rows) {
-        const bucket: FacetCount = { value: row.value, count: Number(row.count) };
+        const bucket: RecipeFacetCount = { value: row.value, count: Number(row.count) };
 
         if (row.facet === 'dietary_flags') {
             dietaryFlags.push(bucket);

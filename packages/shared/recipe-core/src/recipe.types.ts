@@ -65,31 +65,6 @@ export const recipeSourceTypeSchema = z.enum([
 ]);
 
 /**
- * Allowed photo processing status values.
- */
-export const PhotoProcessingStatus = {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETE: 'complete',
-    FAILED: 'failed',
-} as const;
-
-/**
- * Processing lifecycle status for a recipe photo.
- */
-export type PhotoProcessingStatus = (typeof PhotoProcessingStatus)[keyof typeof PhotoProcessingStatus];
-
-/**
- * Runtime validator for {@link PhotoProcessingStatus}.
- */
-export const photoProcessingStatusSchema = z.enum([
-    PhotoProcessingStatus.PENDING,
-    PhotoProcessingStatus.PROCESSING,
-    PhotoProcessingStatus.COMPLETE,
-    PhotoProcessingStatus.FAILED,
-]);
-
-/**
  * Sort options supported by recipe search.
  */
 export const RecipeSearchSortBy = {
@@ -327,18 +302,22 @@ export const recipeIngredientSchema = z.object({
 });
 
 /**
- * Image asset metadata for a recipe photo and its generated variants.
+ * Image asset metadata for a recipe photo. A photo is a SINGLE stored object served as-is via the CDN —
+ * there are no derived variants and no processing lifecycle (data-model.md / T035). The server resolves
+ * the full CDN `url` for the object (clients never concatenate a base + key), and `order` is the 1-based
+ * display position within the recipe's photos (1…{@link MAX_PHOTOS_PER_RECIPE}).
  */
 export interface RecipePhoto {
     id: string;
     recipeId: string;
-    s3KeyOrig: string;
-    s3KeyThumb?: string;
-    s3KeyCard?: string;
-    s3KeyFull?: string;
-    cdnUrlBase: string;
-    processingStatus: PhotoProcessingStatus;
-    sortOrder: number;
+    /** The object key in S3. */
+    key: string;
+    /** The fully-resolved CDN URL the client renders. */
+    url: string;
+    /** The stored (magic-byte-detected) content type, e.g. `image/jpeg`. */
+    contentType: string;
+    /** 1-based display order within the recipe's photos. */
+    order: number;
     createdAt: IsoDateTimeString;
 }
 
@@ -348,13 +327,10 @@ export interface RecipePhoto {
 export const recipePhotoSchema = z.object({
     id: idSchema,
     recipeId: idSchema,
-    s3KeyOrig: z.string().min(1),
-    s3KeyThumb: z.string().min(1).optional(),
-    s3KeyCard: z.string().min(1).optional(),
-    s3KeyFull: z.string().min(1).optional(),
-    cdnUrlBase: z.string().url(),
-    processingStatus: photoProcessingStatusSchema,
-    sortOrder: nonNegativeIntSchema,
+    key: z.string().min(1),
+    url: z.string().url(),
+    contentType: z.string().min(1),
+    order: positiveIntSchema,
     createdAt: isoDateTimeStringSchema,
 });
 

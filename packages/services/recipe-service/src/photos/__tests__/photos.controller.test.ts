@@ -33,21 +33,22 @@ function fakeService(overrides: Partial<PhotosService> = {}): PhotosService {
 const PHOTO = { id: 'p-1', recipeId: RECIPE_ID } as unknown as RecipePhoto;
 
 describe('PhotosController', () => {
-    it('createUploadUrl delegates owner + recipeId + contentType and returns the result', async () => {
-        const createUploadUrl = vi.fn().mockResolvedValue({ uploadUrl: 'u', s3Key: 'k', maxBytes: 1 });
+    it('createUploadUrl delegates owner + recipeId + the request body and returns the result', async () => {
+        const response = { uploadUrl: 'u', key: 'k', expiresIn: 900, maxBytes: 1 };
+        const createUploadUrl = vi.fn().mockResolvedValue(response);
         const controller = new PhotosController(fakeService({ createUploadUrl }));
-        const body = { contentType: 'image/jpeg' } as CreatePhotoUploadDto;
+        const body = { contentType: 'image/jpeg', fileName: 'dish.jpg', fileSize: 1024 } as CreatePhotoUploadDto;
 
         const result = await controller.createUploadUrl(OWNER, RECIPE_ID, body);
 
-        expect(createUploadUrl).toHaveBeenCalledWith(OWNER, RECIPE_ID, 'image/jpeg');
-        expect(result).toEqual({ uploadUrl: 'u', s3Key: 'k', maxBytes: 1 });
+        expect(createUploadUrl).toHaveBeenCalledWith(OWNER, RECIPE_ID, body);
+        expect(result).toEqual(response);
     });
 
-    it('confirm delegates owner + recipeId + s3Key and returns the created photo', async () => {
+    it('confirm delegates owner + recipeId + the object key and returns the created photo', async () => {
         const confirm = vi.fn().mockResolvedValue(PHOTO);
         const controller = new PhotosController(fakeService({ confirm }));
-        const body = { s3Key: 'recipes/o/r/photos/x' } as ConfirmPhotoDto;
+        const body = { key: 'recipes/o/r/photos/x', contentType: 'image/jpeg' } as ConfirmPhotoDto;
 
         const result = await controller.confirm(OWNER, RECIPE_ID, body);
 

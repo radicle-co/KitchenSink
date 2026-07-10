@@ -10,8 +10,9 @@
  *   ONLY, NOT the client-sent Content-Type — HEIC/HEIF and everything else are rejected) AND an S3 HEAD
  *   size ≤ 5 MB, then inserts the row with the DETECTED content type. The object is served as-is via
  *   CloudFront — there is no resizing, no variants, and no processing state.
- * - **response shaping** — persistence rows → the shared `RecipePhoto` wire contract (single stored
- *   `s3KeyOrig`, `cdnUrlBase`, `processingStatus: 'complete'`).
+ * - **response shaping** — persistence rows → the shared `RecipePhoto` wire contract
+ *   (`{ id, recipeId, key, url, contentType, order, createdAt }`): the object is served as-is, the server
+ *   resolves the full CDN `url`, and `order` is the 1-based display position.
  *
  * Input-validation failures surface as framework `HttpException`s (415/422/413/404); the 10-photo cap
  * is a domain `MAX_PHOTOS_EXCEEDED` thrown by the DAL.
@@ -28,7 +29,7 @@ import {
     UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
-import { PhotoProcessingStatus, type RecipePhoto } from '@kitchensink/recipe-core';
+import type { RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
 import { RecipesService } from '../recipes/recipes.service.js';
@@ -72,27 +73,45 @@ export interface PresignUploadInput {
     readonly maxBytes: number;
 }
 
+/** A presigned upload: the URL the client PUTs to and the TTL (seconds) the signature is valid for. */
+export interface PresignedUpload {
+    /** The presigned S3 PUT URL. */
+    readonly uploadUrl: string;
+    /** The signature's validity window, in seconds. */
+    readonly expiresIn: number;
+}
+
 /**
  * The narrow S3 surface the service depends on — the real adapter wraps `S3Client` + `getSignedUrl`
  * (`s3-request-presigner`); unit tests inject a mock. This is the "S3 + presigner" seam.
  */
 export interface PhotoStoragePort {
-    /** Presign an S3 PUT for a new photo object and return the upload URL. */
-    presignUpload(input: PresignUploadInput): Promise<string>;
+    /** Presign an S3 PUT for a new photo object and return the upload URL + its expiry. */
+    presignUpload(input: PresignUploadInput): Promise<PresignedUpload>;
     /** Read the first `byteCount` bytes of an object (for magic-byte sniffing). */
     readMagicBytes(s3Key: string, byteCount: number): Promise<Uint8Array>;
     /** HEAD an object → its `ContentLength` in bytes (`undefined` when S3 omits it). */
     headSize(s3Key: string): Promise<number | undefined>;
 }
 
-/** The `upload-url` response: the presigned target the client uploads to, plus the size bound. */
+/** The client's `upload-url` request: the file it intends to upload (for the allowlist + size pre-check). */
+export interface CreatePhotoUploadInput {
+    /** The client's intended content type (allowlist-gated to jpeg/png/webp). */
+    readonly contentType: string;
+    /** The original file name (carried for the contract; the server assigns its own opaque object key). */
+    readonly fileName: string;
+    /** The intended object size in bytes — pre-checked against {@link MAX_UPLOAD_BYTES} before presigning. */
+    readonly fileSize: number;
+}
+
+/** The `upload-url` response: the presigned target the client uploads to, its key, expiry, and size bound. */
 export interface UploadUrlResponse {
     /** The presigned S3 PUT URL. */
     readonly uploadUrl: string;
     /** The object key the client MUST echo back on confirm. */
-    readonly s3Key: string;
-    /** The content type signed into the URL. */
-    readonly contentType: string;
+    readonly key: string;
+    /** The presigned URL's validity window, in seconds. */
+    readonly expiresIn: number;
     /** The maximum object size (bytes) the client must respect. */
     readonly maxBytes: number;
 }
@@ -161,23 +180,41 @@ export class PhotosService {
 
     /**
      * Presign an S3 PUT for a new photo. Rejects any content type outside the allowlist BEFORE
-     * presigning, and scopes the generated object key to the owner + recipe.
+     * presigning, pre-checks the declared file size against the 5 MB bound (the object is re-checked
+     * authoritatively at confirm via an S3 HEAD), and scopes the generated object key to the owner +
+     * recipe. The server assigns its own opaque object key — the client-supplied `fileName` is never used
+     * to construct the key (a client-controlled key would let a caller write outside its prefix).
      *
      * @throws `UnsupportedMediaTypeException` (415) when `contentType` is not jpeg/png/webp.
+     * @throws `PayloadTooLargeException` (413) when the declared `fileSize` exceeds {@link MAX_UPLOAD_BYTES}.
      */
-    public async createUploadUrl(ownerId: string, recipeId: string, contentType: string): Promise<UploadUrlResponse> {
+    public async createUploadUrl(
+        ownerId: string,
+        recipeId: string,
+        input: CreatePhotoUploadInput,
+    ): Promise<UploadUrlResponse> {
         await this.assertOwner(ownerId, recipeId);
 
-        if (!isAllowedContentType(contentType)) {
+        if (!isAllowedContentType(input.contentType)) {
             throw new UnsupportedMediaTypeException(
-                `Unsupported photo content type '${contentType}'. Allowed: ${ALLOWED_UPLOAD_CONTENT_TYPES.join(', ')}.`,
+                `Unsupported photo content type '${input.contentType}'. Allowed: ${ALLOWED_UPLOAD_CONTENT_TYPES.join(', ')}.`,
             );
         }
 
-        const s3Key = `${photoKeyPrefix(ownerId, recipeId)}${randomUUID()}`;
-        const uploadUrl = await this.storage.presignUpload({ s3Key, contentType, maxBytes: MAX_UPLOAD_BYTES });
+        if (input.fileSize > MAX_UPLOAD_BYTES) {
+            throw new PayloadTooLargeException(
+                `The declared file size ${input.fileSize} exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`,
+            );
+        }
 
-        return { uploadUrl, s3Key, contentType, maxBytes: MAX_UPLOAD_BYTES };
+        const key = `${photoKeyPrefix(ownerId, recipeId)}${randomUUID()}`;
+        const { uploadUrl, expiresIn } = await this.storage.presignUpload({
+            s3Key: key,
+            contentType: input.contentType,
+            maxBytes: MAX_UPLOAD_BYTES,
+        });
+
+        return { uploadUrl, key, expiresIn, maxBytes: MAX_UPLOAD_BYTES };
     }
 
     /**
@@ -188,17 +225,17 @@ export class PhotosService {
      * @throws `UnprocessableEntityException` (422) when the bytes are not a supported image (incl. HEIC).
      * @throws `PayloadTooLargeException` (413) when the object exceeds 5 MB.
      */
-    public async confirm(ownerId: string, recipeId: string, s3Key: string): Promise<RecipePhoto> {
+    public async confirm(ownerId: string, recipeId: string, key: string): Promise<RecipePhoto> {
         await this.assertOwner(ownerId, recipeId);
 
-        if (!s3Key.startsWith(photoKeyPrefix(ownerId, recipeId))) {
+        if (!key.startsWith(photoKeyPrefix(ownerId, recipeId))) {
             throw new BadRequestException('The upload key is not scoped to this recipe.');
         }
 
         // A missing object (never uploaded, or deleted between PUT and confirm) makes the S3 SDK throw a
         // raw `NoSuchKey`/`NotFound` the global filter can't classify — it would surface as a 500. Treat
         // an unreadable/unsizable object as an unprocessable upload (422) instead.
-        const bytes = await this.readMagicBytesOrThrow(s3Key);
+        const bytes = await this.readMagicBytesOrThrow(key);
         const detected = await detectImageContentType(bytes);
 
         if (detected === undefined) {
@@ -207,7 +244,7 @@ export class PhotosService {
             );
         }
 
-        const size = await this.headSizeOrThrow(s3Key);
+        const size = await this.headSizeOrThrow(key);
 
         if (size === undefined) {
             throw new UnprocessableEntityException('The uploaded object could not be sized.');
@@ -217,7 +254,7 @@ export class PhotosService {
             throw new PayloadTooLargeException(`The uploaded object exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`);
         }
 
-        const input: CreatePhotoInput = { recipeId, s3Key, contentType: detected, sizeBytes: size };
+        const input: CreatePhotoInput = { recipeId, s3Key: key, contentType: detected, sizeBytes: size };
         const row = await this.dal.create(input);
 
         return this.toPhotoResponse(row);
@@ -295,16 +332,17 @@ export class PhotosService {
 
     /**
      * Map a persisted `recipe_photos` row to the shared `RecipePhoto` contract. The single stored object
-     * is `s3KeyOrig`; there are no variants; `processingStatus` is always `complete` (served as-is).
+     * is served as-is (no variants); the server resolves the full CDN `url` (clients never concatenate),
+     * and `order` is presented 1-based (the stored `sort_order` is 0-based) to match the wire contract.
      */
     private toPhotoResponse(row: RecipePhotoRow): RecipePhoto {
         return {
             id: row.id,
             recipeId: row.recipeId,
-            s3KeyOrig: row.s3Key,
-            cdnUrlBase: this.config.cloudfrontUrl,
-            processingStatus: PhotoProcessingStatus.COMPLETE,
-            sortOrder: row.sortOrder,
+            key: row.s3Key,
+            url: resolveCdnUrl(this.config.cloudfrontUrl, row.s3Key),
+            contentType: row.contentType,
+            order: row.sortOrder + 1,
             createdAt: row.createdAt.toISOString(),
         };
     }
@@ -313,6 +351,11 @@ export class PhotosService {
 /** The owner+recipe-scoped object-key prefix all of a recipe's photos live under. */
 function photoKeyPrefix(ownerId: string, recipeId: string): string {
     return `recipes/${ownerId}/${recipeId}/photos/`;
+}
+
+/** Join a CDN base URL and an object key into a single URL, tolerating a trailing slash on the base. Pure. */
+function resolveCdnUrl(cloudfrontUrl: string, key: string): string {
+    return `${cloudfrontUrl.replace(/\/+$/, '')}/${key}`;
 }
 
 /** Narrowing allowlist check for the upload content type. Pure. */

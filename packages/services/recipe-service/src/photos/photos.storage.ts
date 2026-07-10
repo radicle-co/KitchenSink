@@ -10,7 +10,7 @@
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import type { PhotoStoragePort, PresignUploadInput } from './photos.service.js';
+import type { PhotoStoragePort, PresignedUpload, PresignUploadInput } from './photos.service.js';
 
 /** Config the S3 adapter needs (sourced from the service's storage config). */
 export interface S3PhotoStorageConfig {
@@ -48,7 +48,7 @@ export function createS3PhotoStorage(config: S3PhotoStorageConfig): PhotoStorage
     });
 
     return {
-        async presignUpload(input: PresignUploadInput): Promise<string> {
+        async presignUpload(input: PresignUploadInput): Promise<PresignedUpload> {
             // A presigned PUT signs the object key + content type; the 5 MB bound is enforced
             // authoritatively at `confirm` (S3 HEAD), since a presigned PUT cannot carry a size range.
             const command = new PutObjectCommand({
@@ -57,7 +57,9 @@ export function createS3PhotoStorage(config: S3PhotoStorageConfig): PhotoStorage
                 ContentType: input.contentType,
             });
 
-            return getSignedUrl(client, command, { expiresIn: config.presignExpirySeconds });
+            const uploadUrl = await getSignedUrl(client, command, { expiresIn: config.presignExpirySeconds });
+
+            return { uploadUrl, expiresIn: config.presignExpirySeconds };
         },
 
         async readMagicBytes(s3Key: string, byteCount: number): Promise<Uint8Array> {

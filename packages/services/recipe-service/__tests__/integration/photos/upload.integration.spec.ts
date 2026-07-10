@@ -4,10 +4,10 @@
  * Drives the full presign → upload → confirm flow end to end against the harness (booted by
  * `bootRecipeApp`, migrated + seeded — including the `commise-photos` bucket — by `tests/global-setup.ts`):
  *   1. create a recipe (photos FK-reference `recipes.id`),
- *   2. `POST …/photos/upload-url` → presigned S3 PUT,
+ *   2. `POST …/photos/upload-url` → presigned S3 PUT (returns `200` + `{ uploadUrl, key, expiresIn, maxBytes }`),
  *   3. PUT real PNG bytes to LocalStack via that URL,
  *   4. `POST …/photos/confirm` → the service sniffs magic bytes (PNG) + HEADs size (≤ 5 MB) and inserts
- *      the `recipe_photos` row, returning the `RecipePhoto` (served as-is: `processingStatus: complete`),
+ *      the `recipe_photos` row, returning the `RecipePhoto` `{ id, recipeId, key, url, contentType, order }`,
  *   5. the photo appears in `GET …/photos`.
  * A second pass uploads NON-image bytes and asserts `confirm` rejects them (422) with no row inserted.
  *
@@ -45,17 +45,23 @@ interface RecipeBody {
 
 interface UploadUrlBody {
     uploadUrl: string;
-    s3Key: string;
-    contentType: string;
+    key: string;
+    expiresIn: number;
     maxBytes: number;
 }
 
 interface PhotoBody {
     id: string;
     recipeId: string;
-    s3KeyOrig: string;
-    processingStatus: string;
-    sortOrder: number;
+    key: string;
+    url: string;
+    contentType: string;
+    order: number;
+}
+
+/** A valid `upload-url` request body for a PNG of the given size. */
+function pngUploadRequest(fileSize: number): { fileName: string; contentType: string; fileSize: number } {
+    return { fileName: 'dish.png', contentType: 'image/png', fileSize };
 }
 
 describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', () => {
@@ -81,16 +87,17 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
     });
 
     it('presigns, uploads a PNG, confirms by magic bytes + HEAD size, and lists it', async () => {
-        // 1. Presign an S3 PUT for a PNG.
+        // 1. Presign an S3 PUT for a PNG (200 — no resource created yet).
         const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ contentType: 'image/png' }),
+            body: JSON.stringify(pngUploadRequest(PNG_BYTES.byteLength)),
         });
-        expect(presignRes.status).toBe(201);
+        expect(presignRes.status).toBe(200);
         const presigned = (await presignRes.json()) as UploadUrlBody;
         expect(presigned.uploadUrl).toContain('http');
-        expect(presigned.s3Key).toContain(recipeId);
+        expect(presigned.key).toContain(recipeId);
+        expect(presigned.expiresIn).toBeGreaterThan(0);
         expect(presigned.maxBytes).toBe(5 * 1024 * 1024);
 
         // 2. Upload the PNG bytes straight to S3 (LocalStack) via the presigned URL.
@@ -105,14 +112,15 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         const confirmRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/confirm`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ s3Key: presigned.s3Key }),
+            body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),
         });
         expect(confirmRes.status).toBe(201);
         const photo = (await confirmRes.json()) as PhotoBody;
         expect(photo.recipeId).toBe(recipeId);
-        expect(photo.s3KeyOrig).toBe(presigned.s3Key);
-        expect(photo.processingStatus).toBe('complete'); // served as-is — no processing pipeline
-        expect(photo.sortOrder).toBe(0);
+        expect(photo.key).toBe(presigned.key);
+        expect(photo.contentType).toBe('image/png'); // sniffed + surfaced
+        expect(photo.url.endsWith(presigned.key)).toBe(true); // server-resolved CDN url
+        expect(photo.order).toBe(1); // 1-based display position
 
         // 4. It appears in the recipe's photo list.
         const listRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos`);
@@ -125,7 +133,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ contentType: 'image/png' }),
+            body: JSON.stringify(pngUploadRequest(GARBAGE_BYTES.byteLength)),
         });
         const presigned = (await presignRes.json()) as UploadUrlBody;
 
@@ -138,7 +146,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         const confirmRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/confirm`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ s3Key: presigned.s3Key }),
+            body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),
         });
         expect(confirmRes.status).toBe(422);
     });
@@ -147,7 +155,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         const res = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ contentType: 'image/heic' }),
+            body: JSON.stringify({ fileName: 'dish.heic', contentType: 'image/heic', fileSize: 1024 }),
         });
         expect(res.status).toBe(415);
     });

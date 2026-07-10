@@ -34,14 +34,19 @@ import { OwnerId } from '../auth/current-principal.decorator.js';
 export class PhotosController {
     public constructor(private readonly photosService: PhotosService) {}
 
-    /** `POST …/photos/upload-url` — presign an S3 PUT for a new photo (allowlisted content type). */
+    /**
+     * `POST …/photos/upload-url` — presign an S3 PUT for a new photo (allowlisted content type + size
+     * pre-check). Returns `200` (not the POST default `201`) per the OpenAPI contract — no resource is
+     * created here; the row is created at `confirm`.
+     */
     @Post('upload-url')
+    @HttpCode(HttpStatus.OK)
     public async createUploadUrl(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
         @Body() body: CreatePhotoUploadDto,
     ): Promise<UploadUrlResponse> {
-        return this.photosService.createUploadUrl(ownerId, recipeId, body.contentType);
+        return this.photosService.createUploadUrl(ownerId, recipeId, body);
     }
 
     /** `POST …/photos/confirm` — validate the uploaded object (magic bytes + size) and persist it. */
@@ -52,7 +57,7 @@ export class PhotosController {
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
         @Body() body: ConfirmPhotoDto,
     ): Promise<RecipePhoto> {
-        return this.photosService.confirm(ownerId, recipeId, body.s3Key);
+        return this.photosService.confirm(ownerId, recipeId, body.key);
     }
 
     /** `GET …/photos` — list the recipe's photos in display order. */

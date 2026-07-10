@@ -1097,7 +1097,7 @@ components:
 
         RecipePhoto:
             type: object
-            required: [id, recipeId, key, url, order, createdAt]
+            required: [id, recipeId, key, url, contentType, order, createdAt]
             properties:
                 id:
                     type: string
@@ -1111,7 +1111,7 @@ components:
                 url:
                     type: string
                     format: uri
-                    description: CDN URL used by clients
+                    description: Fully-resolved CDN URL, rendered by clients as-is (the server resolves it).
                 contentType:
                     type: string
                     example: image/jpeg
@@ -1119,12 +1119,7 @@ components:
                     type: integer
                     minimum: 1
                     maximum: 10
-                width:
-                    type: integer
-                    minimum: 1
-                height:
-                    type: integer
-                    minimum: 1
+                    description: 1-based display position within the recipe's photos.
                 createdAt:
                     type: string
                     format: date-time
@@ -1492,7 +1487,7 @@ components:
 
         UploadUrlResponse:
             type: object
-            required: [uploadUrl, key, expiresIn]
+            required: [uploadUrl, key, expiresIn, maxBytes]
             properties:
                 uploadUrl:
                     type: string
@@ -1502,6 +1497,10 @@ components:
                 expiresIn:
                     type: integer
                     description: Expiry in seconds
+                    minimum: 1
+                maxBytes:
+                    type: integer
+                    description: Maximum object size (bytes) the client must respect for this upload.
                     minimum: 1
 
         PhotoUploadUrlRequest:

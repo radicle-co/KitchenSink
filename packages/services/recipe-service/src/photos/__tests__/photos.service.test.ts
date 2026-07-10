@@ -65,13 +65,26 @@ function fakeDal(overrides: Partial<PhotosDal> = {}): PhotosDal {
     } as unknown as PhotosDal;
 }
 
+/** A presigned-URL TTL the fake storage reports back so the service can echo `expiresIn`. */
+const PRESIGN_TTL_SECONDS = 900;
+
 function fakeStorage(overrides: Partial<PhotoStoragePort> = {}): PhotoStoragePort {
     return {
-        presignUpload: vi.fn().mockResolvedValue('https://s3.example.com/put?sig=abc'),
+        presignUpload: vi
+            .fn()
+            .mockResolvedValue({ uploadUrl: 'https://s3.example.com/put?sig=abc', expiresIn: PRESIGN_TTL_SECONDS }),
         readMagicBytes: vi.fn().mockResolvedValue(JPEG),
         headSize: vi.fn().mockResolvedValue(1024),
         ...overrides,
     } as unknown as PhotoStoragePort;
+}
+
+/** A valid `upload-url` request body for a small image of the given content type. */
+function uploadRequest(
+    contentType: string,
+    fileSize = 1024,
+): { contentType: string; fileName: string; fileSize: number } {
+    return { contentType, fileName: 'dish.jpg', fileSize };
 }
 
 /** Capture the error a rejected promise throws, or fail if it resolves. */
@@ -100,31 +113,53 @@ describe('PhotosService.createUploadUrl', () => {
     });
 
     it.each(['image/jpeg', 'image/png', 'image/webp'])('presigns a PUT for the allowlisted type %s', async (type) => {
-        const result = await service.createUploadUrl(OWNER, RECIPE_ID, type);
+        const result = await service.createUploadUrl(OWNER, RECIPE_ID, uploadRequest(type));
 
         expect(result.uploadUrl).toBe('https://s3.example.com/put?sig=abc');
         expect(result.maxBytes).toBe(MAX_UPLOAD_BYTES); // 5 MB ContentLengthRange bound
-        expect(result.s3Key).toContain(RECIPE_ID);
+        expect(result.expiresIn).toBe(PRESIGN_TTL_SECONDS); // echoed from the presigner's TTL
+        expect(result.key).toContain(RECIPE_ID);
         expect(storage.presignUpload).toHaveBeenCalledWith(
-            expect.objectContaining({ contentType: type, maxBytes: MAX_UPLOAD_BYTES, s3Key: result.s3Key }),
+            expect.objectContaining({ contentType: type, maxBytes: MAX_UPLOAD_BYTES, s3Key: result.key }),
         );
     });
 
-    it('scopes the generated object key to the owner and recipe', async () => {
-        const result = await service.createUploadUrl(OWNER, RECIPE_ID, 'image/jpeg');
+    it('scopes the generated object key to the owner and recipe (never the client fileName)', async () => {
+        const result = await service.createUploadUrl(OWNER, RECIPE_ID, {
+            contentType: 'image/jpeg',
+            fileName: '../../etc/passwd',
+            fileSize: 1024,
+        });
 
-        expect(result.s3Key.startsWith(`recipes/${OWNER}/${RECIPE_ID}/photos/`)).toBe(true);
+        expect(result.key.startsWith(`recipes/${OWNER}/${RECIPE_ID}/photos/`)).toBe(true);
+        expect(result.key).not.toContain('passwd'); // the client-supplied name never shapes the key
     });
 
     it.each(['image/heic', 'image/heif', 'image/gif', 'application/pdf', 'text/plain'])(
         'rejects the disallowed content type %s without presigning',
         async (type) => {
-            const error = await catchError(service.createUploadUrl(OWNER, RECIPE_ID, type));
+            const error = await catchError(service.createUploadUrl(OWNER, RECIPE_ID, uploadRequest(type)));
 
             expect(error).toBeInstanceOf(UnsupportedMediaTypeException);
             expect(storage.presignUpload).not.toHaveBeenCalled();
         },
     );
+
+    it('rejects a declared fileSize over the 5 MB limit BEFORE presigning (413)', async () => {
+        const error = await catchError(
+            service.createUploadUrl(OWNER, RECIPE_ID, uploadRequest('image/jpeg', MAX_UPLOAD_BYTES + 1)),
+        );
+
+        expect(error).toBeInstanceOf(PayloadTooLargeException);
+        expect(storage.presignUpload).not.toHaveBeenCalled();
+    });
+
+    it('presigns a declared fileSize exactly at the 5 MB boundary', async () => {
+        const result = await service.createUploadUrl(OWNER, RECIPE_ID, uploadRequest('image/jpeg', MAX_UPLOAD_BYTES));
+
+        expect(result.uploadUrl).toBe('https://s3.example.com/put?sig=abc');
+        expect(storage.presignUpload).toHaveBeenCalledOnce();
+    });
 });
 
 describe('PhotosService.confirm', () => {
@@ -148,8 +183,10 @@ describe('PhotosService.confirm', () => {
             expect.objectContaining({ recipeId: RECIPE_ID, s3Key: keyFor(), contentType: detected, sizeBytes: 2048 }),
         );
         expect(recipePhotoSchema.safeParse(response).success).toBe(true);
-        expect(response.processingStatus).toBe('complete'); // served as-is, no processing pipeline
-        expect(response.s3KeyOrig).toBe(row.s3Key);
+        expect(response.key).toBe(row.s3Key);
+        expect(response.contentType).toBe(detected); // the sniffed type, surfaced on the wire
+        expect(response.order).toBe(row.sortOrder + 1); // 1-based display position
+        expect(response.url).toBe(`${CONFIG.cloudfrontUrl}/${row.s3Key}`); // server-resolved CDN url
     });
 
     it('rejects an object whose magic bytes are not a supported image (no insert)', async () => {
@@ -225,7 +262,8 @@ describe('PhotosService.list', () => {
         expect(dal.findByRecipe).toHaveBeenCalledWith(RECIPE_ID);
         expect(response).toHaveLength(2);
         expect(response.every((photo) => recipePhotoSchema.safeParse(photo).success)).toBe(true);
-        expect(response[0]?.cdnUrlBase).toBe(CONFIG.cloudfrontUrl);
+        expect(response[0]?.url.startsWith(CONFIG.cloudfrontUrl)).toBe(true);
+        expect(response.map((photo) => photo.order)).toEqual([1, 2]); // 1-based, in stored order
     });
 });
 
@@ -282,7 +320,7 @@ describe('PhotosService recipe-ownership authorization', () => {
         const storage = fakeStorage();
         const service = new PhotosService(fakeDal(), storage, CONFIG, publicOwnedByOwner());
 
-        const error = await catchError(service.createUploadUrl(OTHER, RECIPE_ID, 'image/jpeg'));
+        const error = await catchError(service.createUploadUrl(OTHER, RECIPE_ID, uploadRequest('image/jpeg')));
 
         expect(isRecipeDomainError(error)).toBe(true);
         expect(storage.presignUpload).not.toHaveBeenCalled();

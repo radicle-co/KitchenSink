@@ -38,6 +38,8 @@ export interface UploadUrlResponse {
     readonly key: string;
     /** Presigned-URL expiry, in seconds. */
     readonly expiresIn: number;
+    /** The maximum object size (bytes) the client must respect for this upload. */
+    readonly maxBytes: number;
 }
 
 /** Request body for `confirmPhotoUpload` (`POST /v1/recipes/{id}/photos/confirm`). */

@@ -19,6 +19,18 @@ const nextConfig: NextConfig = {
     // @commise/features-account ships TypeScript source (like the other @commise/features-* packages),
     // so Next must transpile it rather than treating it as pre-built node_modules JS.
     transpilePackages: ['@commise/features-account'],
+    // Those TS-source packages use NodeNext-style `.js` extensions on relative imports (e.g.
+    // `export * from './profileClient.js'`), so webpack must resolve a `.js` specifier to its `.ts`/`.tsx`
+    // source. Without this, `next build` fails with "Can't resolve './profileClient.js'".
+    webpack: (config) => {
+        config.resolve.extensionAlias = {
+            ...(config.resolve.extensionAlias as Record<string, string[]> | undefined),
+            '.js': ['.ts', '.tsx', '.js'],
+            '.jsx': ['.tsx', '.jsx'],
+        };
+
+        return config;
+    },
     // Standalone server output so the app can run off Vercel (ECS) later; traces the monorepo root.
     output: 'standalone',
     outputFileTracingRoot: repoRoot,

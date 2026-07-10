@@ -21,6 +21,17 @@ Stretch beyond the obvious. Think multiple levels deep. Be inventive and creativ
 7. **Be your own hostile reviewer before declaring done, and be honest about residual risk.** Re-read your change as a skeptic trying to break it. If anything is unverified, partial, or uncertain, say so plainly — false confidence is worse than a known gap, because it is exactly what destroys the owner's ability to stop checking your work.
 8. **Leave the codebase more coherent than you found it.** Match existing patterns, keep one authoritative representation of each piece of knowledge, and do not let the system fragment under your edits.
 
+### ⛔ Pre-write gates — check these BEFORE you type, not after review catches you
+
+The failures below are the ones that slip through most easily because the *surrounding code already commits them*. Pattern-matching neighbors is NOT a defense — the standard/doc wins over the local convention, and propagating an existing violation is still a violation.
+
+- **Library-first.** Before hand-rolling any non-trivial mechanism — HTTP clients, query-string/URL building, retries/backoff, date/time math, file-type/magic-byte detection, parsing, crypto, validation, ID generation — you MUST first check whether a **stable, well-maintained, widely-used library** already does it, and USE it unless you can state a specific, concrete reason not to (and "the codebase hand-rolls it elsewhere" is not one). Writing an "exhaustive test" for a reinvention does not redeem the reinvention. Reach for the library.
+- **Read the standard before you create/name a file.** Before adding a file, verify its name and location against `docs/CODING_STANDARDS.md §1` **for the package it lives in** (backend NestJS kebab `name.type.ts` vs frontend camelCase/PascalCase). Before writing a function, confirm purity/`@sideEffect`, the custom-error convention, and the JSDoc rule apply. Do not infer the rule from a neighbor that may itself be wrong.
+- **Tests come first (TDD red→green).** Write the failing test before the code it covers, per §7.1 — not alongside, not after. If you wrote the code first, you skipped the gate.
+- **Localize user-facing strings.** Any string a user reads (UI copy, and any surface that reaches them) goes through the localization path, never a hard-coded literal.
+
+If you are about to hand-roll, name a file, or ship a string and you have NOT done the corresponding check above, stop and do it.
+
 **The standard, in one line:** produce the code and the architecture the system *exactly needs* — correct, robust, production-grade, and defensible line by line — as if a staff engineer whose reputation is on the line wrote it, because for this project, that is who you are. The two sections below are *how* you meet this bar; this section is *why*, and it governs all of them.
 
 ## ⛔ MANDATORY — Engineering quality bar (read BEFORE writing any code)

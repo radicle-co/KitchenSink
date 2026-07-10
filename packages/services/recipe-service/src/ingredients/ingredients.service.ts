@@ -20,11 +20,12 @@
  * @implements FR-007 FR-007a
  */
 import { Injectable } from '@nestjs/common';
-import type { Ingredient } from '@kitchensink/recipe-core';
+import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
 import { FoodServiceClient, isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, FoodStatus, FoodView, SearchResultView } from '@kitchensink/food-service-client';
 
 import { IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
+import { normalizeUnit } from '../common/units.js';
 import { ingredientNotFound } from '../recipes/recipe.error.js';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
@@ -45,6 +46,62 @@ function nutrientPer100g(
     const hit = nutrients.find((n) => n.basis === 'per_100g' && matches(n.nutrient.toLowerCase()));
 
     return hit?.amount;
+}
+
+/** Parse a portion label's leading amount (integer, decimal, or `a/b` fraction), or `null`. Pure. */
+function parsePortionAmount(raw: string): number | null {
+    const fraction = /^(\d+)\/(\d+)$/.exec(raw);
+
+    if (fraction !== null) {
+        const denominator = Number(fraction[2]);
+
+        return denominator !== 0 ? Number(fraction[1]) / denominator : null;
+    }
+
+    const value = Number(raw);
+
+    return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Parse a food-service portion label + gram weight into a normalized grams-PER-UNIT portion, or `null`
+ * when the label has no leading amount + unit (e.g. `"1 cup chopped"` → `{ unit: 'cup', gramsPerUnit: g }`;
+ * `"1 tablespoon"` → tablespoon). Trailing modifiers ("chopped", "sliced") are ignored. Pure.
+ */
+export function parsePortion(label: string, gramWeight: number): IngredientPortion | null {
+    const tokens = label.trim().split(/\s+/);
+
+    if (tokens.length < 2 || gramWeight <= 0) {
+        return null;
+    }
+
+    const amount = parsePortionAmount(tokens[0]!);
+
+    if (amount === null || amount <= 0) {
+        return null;
+    }
+
+    const unit = normalizeUnit(tokens[1]!);
+
+    return unit.length > 0 ? { unit, gramsPerUnit: gramWeight / amount } : null;
+}
+
+/**
+ * Extract a resolved food's household-measure portions as normalized grams-per-unit, de-duplicated by unit
+ * (the first parseable portion for a unit wins). Labels with no parseable amount+unit are skipped. Pure.
+ */
+export function extractPortions(food: FoodView): IngredientPortion[] {
+    const byUnit = new Map<string, IngredientPortion>();
+
+    for (const portion of food.portions) {
+        const parsed = parsePortion(portion.label, portion.gramWeight);
+
+        if (parsed !== null && !byUnit.has(parsed.unit)) {
+            byUnit.set(parsed.unit, parsed);
+        }
+    }
+
+    return [...byUnit.values()];
 }
 
 /** Project a `RESOLVED` golden record's nutrients into the ingredient's per-100g nutrition columns. Pure. */
@@ -138,11 +195,12 @@ export class IngredientsService {
 
         try {
             const status = await this.foodClient.getStatus(ingredient.foodId);
-            const nutrition =
-                status.status === 'RESOLVED' && status.food !== undefined ? extractNutrition(status.food) : undefined;
+            const resolved = status.status === 'RESOLVED' && status.food !== undefined ? status.food : undefined;
             const updated = await this.dal.updateResolution(id, {
                 foodResolutionStatus: toResolutionStatus(status.status),
-                nutrition,
+                ...(resolved !== undefined
+                    ? { nutrition: extractNutrition(resolved), portions: extractPortions(resolved) }
+                    : {}),
             });
 
             return updated ?? ingredient;

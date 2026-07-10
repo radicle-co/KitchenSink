@@ -61,7 +61,7 @@ describe('computeRecipeNutrition', () => {
         expect(computeRecipeNutrition(oz, 1).calories).toBe(28.3);
     });
 
-    it('cannot account a CATALOG line in a non-mass unit (no gram weight) → excluded + isComplete false', () => {
+    it('cannot account a CATALOG line in a non-mass unit with NO matching portion → excluded + isComplete false', () => {
         const lines: NutritionLine[] = [{ quantity: 2, unit: 'cup', caloriesPer100g: 350 }];
 
         expect(computeRecipeNutrition(lines, 1)).toEqual({
@@ -70,6 +70,21 @@ describe('computeRecipeNutrition', () => {
             carbsG: 0,
             fatG: 0,
             isComplete: false,
+        });
+    });
+
+    it('accounts a CATALOG line in a volumetric unit via a matching portion (#11)', () => {
+        // 2 cups × 125 g/cup = 250 g at 350 cal/100g → 875 cal; /1 serving.
+        const lines: NutritionLine[] = [
+            { quantity: 2, unit: 'cups', caloriesPer100g: 350, portions: [{ unit: 'cup', gramsPerUnit: 125 }] },
+        ];
+
+        expect(computeRecipeNutrition(lines, 1)).toEqual({
+            calories: 875,
+            proteinG: 0,
+            carbsG: 0,
+            fatG: 0,
+            isComplete: true,
         });
     });
 

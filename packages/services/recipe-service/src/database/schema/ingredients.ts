@@ -12,6 +12,7 @@ import {
     check,
     index,
     integer,
+    jsonb,
     numeric,
     pgTable,
     text,
@@ -19,6 +20,7 @@ import {
     uniqueIndex,
     uuid,
 } from 'drizzle-orm/pg-core';
+import type { IngredientPortion } from '@kitchensink/recipe-core';
 
 import { recipes, tsvector } from './recipes.js';
 
@@ -49,6 +51,9 @@ export const ingredients = pgTable(
         proteinGPer100g: numeric('protein_g_per_100g', { precision: 8, scale: 2 }),
         carbsGPer100g: numeric('carbs_g_per_100g', { precision: 8, scale: 2 }),
         fatGPer100g: numeric('fat_g_per_100g', { precision: 8, scale: 2 }),
+        // Household-measure portions (`[{ unit, gramsPerUnit }]`), normalized from the food golden record's
+        // portions once RESOLVED; used to convert a recipe line's volumetric/count unit to grams (#11).
+        portions: jsonb('portions').$type<IngredientPortion[]>(),
         searchVector: tsvector('search_vector'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },

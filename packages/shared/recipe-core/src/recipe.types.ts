@@ -305,6 +305,26 @@ export const foodResolutionStatusSchema = z.enum([
  * service's internal id ({@link foodId}), and resolution is asynchronous. The
  * food↔ingredient link is owned by 001.
  */
+/**
+ * A household-measure portion for an ingredient, normalized to grams PER ONE unit (e.g. `{ unit: 'cup',
+ * gramsPerUnit: 125 }`). Derived from the food service's portions when a food resolves; used to convert a
+ * recipe line measured in a volumetric/count unit (cup/tbsp/clove) into grams for nutrition scaling.
+ */
+export interface IngredientPortion {
+    /** The normalized measure unit (lower-case, singular, abbreviations expanded — e.g. `tablespoon`). */
+    unit: string;
+    /** Grams for ONE of `unit`. */
+    gramsPerUnit: number;
+}
+
+/**
+ * Runtime validator for {@link IngredientPortion}.
+ */
+export const ingredientPortionSchema = z.object({
+    unit: z.string().min(1),
+    gramsPerUnit: positiveNumberSchema,
+});
+
 export interface Ingredient {
     id: string;
     name: string;
@@ -327,6 +347,8 @@ export interface Ingredient {
     proteinGPer100g?: number;
     carbsGPer100g?: number;
     fatGPer100g?: number;
+    /** Household-measure portions (normalized to grams-per-unit) — populated when the food resolves. */
+    portions?: IngredientPortion[];
     createdAt: IsoDateTimeString;
 }
 
@@ -343,6 +365,7 @@ export const ingredientSchema = z.object({
     proteinGPer100g: nonNegativeNumberSchema.optional(),
     carbsGPer100g: nonNegativeNumberSchema.optional(),
     fatGPer100g: nonNegativeNumberSchema.optional(),
+    portions: z.array(ingredientPortionSchema).optional(),
     createdAt: isoDateTimeStringSchema,
 });
 

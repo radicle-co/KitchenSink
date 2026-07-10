@@ -10,15 +10,16 @@
  *      count unit (cup/tbsp/clove/…) has no known gram weight here and so cannot be scaled.
  *
  * A line the aggregator cannot account for — a food still resolving (no per-100g yet), a freeform line
- * with no user nutrition, or a catalog line in a non-mass unit — is EXCLUDED from the sum and flips
- * `isComplete` to `false`, so the UI presents the total as a partial estimate rather than a false-precise
- * number. (Full coverage of volumetric/count units needs household-measure gram weights persisted per
- * ingredient — the food service exposes them (`PortionView.gramWeight`) but 001 does not yet store them;
- * see the nutrition follow-up.)
+ * with no user nutrition, or a catalog line whose unit has neither a mass conversion nor a matching stored
+ * portion — is EXCLUDED from the sum and flips `isComplete` to `false`, so the UI presents the total as a
+ * partial estimate rather than a false-precise number. Volumetric/count units (cup/tbsp/clove) are
+ * converted via the ingredient's household-measure `portions` when the food service supplied one (#11).
  */
-import type { RecipeNutrition } from '@kitchensink/recipe-core';
+import type { IngredientPortion, RecipeNutrition } from '@kitchensink/recipe-core';
 
-/** One ingredient line's nutrition inputs: its measure, any user override, and the catalog per-100g values. */
+import { unitToGrams } from '../../common/units.js';
+
+/** One ingredient line's nutrition inputs: its measure, any user override, the catalog per-100g, + portions. */
 export interface NutritionLine {
     readonly quantity: number;
     readonly unit: string;
@@ -30,25 +31,9 @@ export interface NutritionLine {
     readonly proteinGPer100g?: number;
     readonly carbsGPer100g?: number;
     readonly fatGPer100g?: number;
+    /** The catalog ingredient's household-measure portions (for converting a volumetric/count unit). */
+    readonly portions?: readonly IngredientPortion[];
 }
-
-/** Grams per one unit, for the mass units whose conversion is exact and ingredient-independent. */
-const MASS_UNIT_TO_GRAMS: Readonly<Record<string, number>> = {
-    g: 1,
-    gram: 1,
-    grams: 1,
-    kg: 1000,
-    kilogram: 1000,
-    kilograms: 1000,
-    mg: 0.001,
-    oz: 28.3495,
-    ounce: 28.3495,
-    ounces: 28.3495,
-    lb: 453.592,
-    lbs: 453.592,
-    pound: 453.592,
-    pounds: 453.592,
-};
 
 /** The absolute macro contribution of one line, or `null` when it cannot be accounted for. */
 interface Macros {
@@ -56,13 +41,6 @@ interface Macros {
     readonly proteinG: number;
     readonly carbsG: number;
     readonly fatG: number;
-}
-
-/** Convert a quantity in `unit` to grams, or `null` when `unit` is not a known mass unit. Pure. */
-function massInGrams(quantity: number, unit: string): number | null {
-    const factor = MASS_UNIT_TO_GRAMS[unit.trim().toLowerCase()];
-
-    return factor === undefined ? null : quantity * factor;
 }
 
 /** The macro contribution of a single line (user override first, else scaled per-100g), or `null`. Pure. */
@@ -77,10 +55,10 @@ function lineMacros(line: NutritionLine): Macros | null {
     }
 
     if (line.caloriesPer100g !== undefined) {
-        const grams = massInGrams(line.quantity, line.unit);
+        const grams = unitToGrams(line.quantity, line.unit, line.portions);
 
         if (grams === null) {
-            return null; // catalog nutrition, but a non-mass unit we can't convert to grams
+            return null; // catalog nutrition, but a unit we can't convert (no mass factor, no portion)
         }
 
         const factor = grams / 100;

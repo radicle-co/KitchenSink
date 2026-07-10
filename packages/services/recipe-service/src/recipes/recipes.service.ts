@@ -299,6 +299,7 @@ export class RecipesService {
                 ...(ingredient?.proteinGPer100g !== undefined ? { proteinGPer100g: ingredient.proteinGPer100g } : {}),
                 ...(ingredient?.carbsGPer100g !== undefined ? { carbsGPer100g: ingredient.carbsGPer100g } : {}),
                 ...(ingredient?.fatGPer100g !== undefined ? { fatGPer100g: ingredient.fatGPer100g } : {}),
+                ...(ingredient?.portions !== undefined ? { portions: ingredient.portions } : {}),
             };
         });
 

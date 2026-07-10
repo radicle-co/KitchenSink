@@ -238,8 +238,21 @@ export interface Ingredient {
     proteinGPer100g?: number;
     carbsGPer100g?: number;
     fatGPer100g?: number;
+    /** Household-measure portions (grams-per-unit), populated when the food resolves (#11). */
+    portions?: IngredientPortion[];
     createdAt: IsoDateTimeString;
 }
+
+/** A household-measure portion normalized to grams per one unit (e.g. `{ unit: 'cup', gramsPerUnit: 125 }`). */
+export interface IngredientPortion {
+    unit: string;
+    gramsPerUnit: number;
+}
+
+export const ingredientPortionSchema = z.object({
+    unit: z.string().min(1),
+    gramsPerUnit: positiveNumberSchema,
+});
 
 /**
  * Runtime validator for {@link Ingredient}.
@@ -254,6 +267,7 @@ export const ingredientSchema = z.object({
     proteinGPer100g: nonNegativeNumberSchema.optional(),
     carbsGPer100g: nonNegativeNumberSchema.optional(),
     fatGPer100g: nonNegativeNumberSchema.optional(),
+    portions: z.array(ingredientPortionSchema).optional(),
     createdAt: isoDateTimeStringSchema,
 });
 

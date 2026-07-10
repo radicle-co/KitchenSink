@@ -127,6 +127,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             protein_g_per_100g: { type: 'numeric(8,2)', notNull: false },
             carbs_g_per_100g: { type: 'numeric(8,2)', notNull: false },
             fat_g_per_100g: { type: 'numeric(8,2)', notNull: false },
+            portions: { type: 'jsonb', notNull: false },
             search_vector: { type: 'tsvector', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });

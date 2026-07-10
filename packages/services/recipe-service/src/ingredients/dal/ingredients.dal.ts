@@ -23,7 +23,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { Ingredient } from '@kitchensink/recipe-core';
+import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/database.module.js';
 
@@ -35,7 +35,7 @@ export const MAX_SEARCH_LIMIT = 50;
 
 /** The explicit column projection returned by every DAL read/write (never the `search_vector`). */
 const RETURNING = sql`id, name, food_id, food_resolution_status, is_user_entered,
-    calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, created_at`;
+    calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, portions, created_at`;
 
 /** Nutrition-per-100g overrides applied when a food resolves to its golden record. */
 export interface IngredientNutrition {
@@ -65,6 +65,8 @@ export interface UpdateResolutionInput {
     readonly foodResolutionStatus: FoodResolutionStatus;
     /** Golden-record nutrition to persist (only when `RESOLVED`); omitted values are left untouched. */
     readonly nutrition?: IngredientNutrition;
+    /** Household-measure portions to persist (only when `RESOLVED`); omitted leaves the column untouched. */
+    readonly portions?: IngredientPortion[];
 }
 
 /**
@@ -83,6 +85,8 @@ interface RawIngredientRow {
     protein_g_per_100g: string | null;
     carbs_g_per_100g: string | null;
     fat_g_per_100g: string | null;
+    // `jsonb` — the pg driver already parses it into JS (an array of portions), or null.
+    portions: IngredientPortion[] | null;
     created_at: Date | string;
 }
 
@@ -109,6 +113,8 @@ export function rowToIngredient(row: RawIngredientRow): Ingredient {
         proteinGPer100g: numberOrUndefined(row.protein_g_per_100g),
         carbsGPer100g: numberOrUndefined(row.carbs_g_per_100g),
         fatGPer100g: numberOrUndefined(row.fat_g_per_100g),
+        // Only surface portions when present + non-empty (a resolved food with usable household measures).
+        ...(Array.isArray(row.portions) && row.portions.length > 0 ? { portions: row.portions } : {}),
         createdAt: toIsoString(row.created_at),
     };
 }
@@ -333,6 +339,8 @@ export class IngredientsDal {
         const protein = n.proteinGPer100g ?? null;
         const carbs = n.carbsGPer100g ?? null;
         const fat = n.fatGPer100g ?? null;
+        // Serialize portions to a jsonb string; null → COALESCE leaves the existing column untouched.
+        const portions = input.portions !== undefined ? JSON.stringify(input.portions) : null;
 
         const result = await this.db.execute<RawIngredientRow>(sql`
             UPDATE ingredients SET
@@ -340,7 +348,8 @@ export class IngredientsDal {
                 calories_per_100g  = COALESCE(${calories}, calories_per_100g),
                 protein_g_per_100g = COALESCE(${protein}, protein_g_per_100g),
                 carbs_g_per_100g   = COALESCE(${carbs}, carbs_g_per_100g),
-                fat_g_per_100g     = COALESCE(${fat}, fat_g_per_100g)
+                fat_g_per_100g     = COALESCE(${fat}, fat_g_per_100g),
+                portions           = COALESCE(${portions}::jsonb, portions)
             WHERE id = ${id}
             RETURNING ${RETURNING}
         `);

@@ -4,7 +4,7 @@ import { NotFoundError } from '@kitchensink/food-service-client';
 import type { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import type { IngredientsDal } from '../dal/ingredients.dal.js';
-import { IngredientsService, extractNutrition } from '../ingredients.service.js';
+import { IngredientsService, extractNutrition, extractPortions, parsePortion } from '../ingredients.service.js';
 import {
     makeAddResult,
     makeCandidateView,
@@ -68,6 +68,44 @@ describe('extractNutrition', () => {
 
         expect(nutrition.caloriesPer100g).toBe(200);
         expect(nutrition.proteinGPer100g).toBeUndefined();
+    });
+});
+
+describe('parsePortion', () => {
+    it('parses a label into a normalized grams-per-unit portion', () => {
+        expect(parsePortion('1 cup chopped', 125)).toEqual({ unit: 'cup', gramsPerUnit: 125 });
+        expect(parsePortion('1 tablespoon', 8)).toEqual({ unit: 'tablespoon', gramsPerUnit: 8 });
+    });
+
+    it('divides the gram weight by a multi-unit or fractional amount to get grams-per-unit', () => {
+        expect(parsePortion('2 tbsp', 16)).toEqual({ unit: 'tablespoon', gramsPerUnit: 8 });
+        expect(parsePortion('1/2 cup', 60)).toEqual({ unit: 'cup', gramsPerUnit: 120 });
+    });
+
+    it('returns null for a label with no leading amount, no unit, or a non-positive gram weight', () => {
+        expect(parsePortion('cup', 100)).toBeNull(); // no amount
+        expect(parsePortion('1', 100)).toBeNull(); // no unit
+        expect(parsePortion('1 cup', 0)).toBeNull(); // non-positive weight
+    });
+});
+
+describe('extractPortions', () => {
+    it('normalizes a food record’s portions and de-duplicates by unit (first wins)', () => {
+        const portions = extractPortions(
+            makeFoodView({
+                portions: [
+                    { label: '1 cup', gramWeight: 125, source: 'usda' },
+                    { label: '2 tbsp', gramWeight: 16, source: 'usda' },
+                    { label: '1 cup packed', gramWeight: 200, source: 'usda' }, // dup unit → ignored
+                    { label: 'a handful', gramWeight: 30, source: 'usda' }, // unparseable → skipped
+                ],
+            }),
+        );
+
+        expect(portions).toEqual([
+            { unit: 'cup', gramsPerUnit: 125 },
+            { unit: 'tablespoon', gramsPerUnit: 8 },
+        ]);
     });
 });
 
@@ -179,6 +217,7 @@ describe('IngredientsService', () => {
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 nutrition: { caloriesPer100g: 364, proteinGPer100g: 10.3, carbsGPer100g: 76.3, fatGPer100g: 0.98 },
+                portions: [], // makeFoodView supplies no portions → empty (extractPortions still runs)
             });
             expect(result).toBe(resolved);
         });

@@ -17,13 +17,15 @@ export interface RecipeStepResponse {
     timerSeconds?: number;
 }
 
-/** A serialized recipe ingredient line (`RecipeIngredient` in the contract). */
+/** A serialized recipe ingredient line (`RecipeIngredientView` in the contract). */
 export interface RecipeIngredientResponse {
     ingredientId: string;
     name: string;
     quantity: number;
     unit?: string;
     notes?: string;
+    /** True for a freeform, user-entered line not backed by the food database (the UI "user-entered" badge). */
+    isUserEntered: boolean;
 }
 
 /**

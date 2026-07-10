@@ -70,6 +70,7 @@ function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientRespons
         quantity: Number(row.quantity),
         ...(row.unit.length > 0 ? { unit: row.unit } : {}),
         ...(row.displayText !== null ? { notes: row.displayText } : {}),
+        isUserEntered: row.isUserEntered,
     };
 }
 

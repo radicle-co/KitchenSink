@@ -13,7 +13,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { recipeSchema } from '@kitchensink/recipe-core';
+import { recipeDetailSchema, recipeSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
 
@@ -69,5 +69,23 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
         expect(recipe.sourceType).toBe('user_created'); // was omitted
         expect(recipe.hasSubstantiveEdit).toBe(false); // was omitted
         expect(typeof recipe.hasPartialNutrition).toBe('boolean'); // was omitted
+    });
+
+    it('returns the cookable content (ingredients + steps) as a typed RecipeDetail (#6b)', async () => {
+        const recipe = await client.getRecipeById(recipeId);
+
+        // The full detail — everything a cook needs — parses against `recipeDetailSchema`.
+        expect(recipeDetailSchema.safeParse(recipe).success).toBe(true);
+
+        // Ingredients are the typed view: catalog name, quantity/unit, and the user-entered badge flag.
+        expect(recipe.ingredients).toHaveLength(1);
+        expect(recipe.ingredients[0]?.name).toBe('Flour');
+        expect(recipe.ingredients[0]?.quantity).toBe(2);
+        expect(recipe.ingredients[0]?.isUserEntered).toBe(true);
+
+        // Steps are the typed view: 1-based number + instruction.
+        expect(recipe.steps).toHaveLength(1);
+        expect(recipe.steps[0]?.stepNumber).toBe(1);
+        expect(recipe.steps[0]?.instruction).toBe('Mix.');
     });
 });

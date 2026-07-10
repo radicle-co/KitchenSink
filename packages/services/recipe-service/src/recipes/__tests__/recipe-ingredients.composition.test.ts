@@ -124,7 +124,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
         );
         // The response is composed from the persisted junction (no longer an empty array).
         expect(response.ingredients).toEqual([
-            { ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' },
+            { ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced', isUserEntered: false },
         ]);
     });
 
@@ -165,7 +165,7 @@ describe('RecipesService.getById — ingredient composition (T043b)', () => {
         const response = await service.getById(OWNER, 'r-1');
 
         expect(response.ingredients).toEqual([
-            { ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' },
+            { ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced', isUserEntered: false },
         ]);
     });
 });

@@ -455,6 +455,7 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
             quantity: 2,
             unit: 'cup',
             notes: 'diced',
+            isUserEntered: false,
         });
     });
 

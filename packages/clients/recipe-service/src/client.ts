@@ -20,6 +20,7 @@ import type {
     Ingredient,
     PaginatedResponse,
     Recipe,
+    RecipeDetail,
     RecipePhoto,
     RecipeSearchParams,
     RecipeVersion,
@@ -193,11 +194,11 @@ export class RecipeServiceClient {
      * @throws {BadRequestError} on validation failure; {@link UnauthorizedError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async createRecipe(input: CreateRecipeInput): Promise<Recipe> {
+    public async createRecipe(input: CreateRecipeInput): Promise<RecipeDetail> {
         const res = await this.send('POST', '/v1/recipes', input);
 
         if (res.status === 201) {
-            return res.body as Recipe;
+            return res.body as RecipeDetail;
         }
 
         throw this.toError(res);
@@ -233,11 +234,11 @@ export class RecipeServiceClient {
      * @throws {NotFoundError} when absent/tombstoned; {@link ForbiddenError} when not the owner.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async getRecipeById(id: string): Promise<Recipe> {
+    public async getRecipeById(id: string): Promise<RecipeDetail> {
         const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}`);
 
         if (res.status === 200) {
-            return res.body as Recipe;
+            return res.body as RecipeDetail;
         }
 
         throw this.toError(res);
@@ -252,11 +253,11 @@ export class RecipeServiceClient {
      * @throws {VersionConflictError} on a stale `expectedVersion`; {@link ForbiddenError} when not owner.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async updateRecipe(id: string, input: UpdateRecipeInput): Promise<Recipe> {
+    public async updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDetail> {
         const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}`, input);
 
         if (res.status === 200) {
-            return res.body as Recipe;
+            return res.body as RecipeDetail;
         }
 
         throw this.toError(res);
@@ -287,11 +288,11 @@ export class RecipeServiceClient {
      * @throws {ForbiddenError} when the source is not clonable; {@link NotFoundError} when absent.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async cloneRecipe(id: string): Promise<Recipe> {
+    public async cloneRecipe(id: string): Promise<RecipeDetail> {
         const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/clone`);
 
         if (res.status === 201) {
-            return res.body as Recipe;
+            return res.body as RecipeDetail;
         }
 
         throw this.toError(res);
@@ -306,11 +307,11 @@ export class RecipeServiceClient {
      * @throws {ForbiddenError} when not the owner; {@link BadRequestError} on an invalid value.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<Recipe> {
+    public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeDetail> {
         const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}/visibility`, { visibility });
 
         if (res.status === 200) {
-            return res.body as Recipe;
+            return res.body as RecipeDetail;
         }
 
         throw this.toError(res);

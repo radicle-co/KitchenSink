@@ -72,8 +72,8 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
 
         // Composed straight off the create response (persisted atomically with the recipe).
         expect(created.ingredients).toEqual([
-            { ingredientId: FLOUR.id, name: 'Flour', quantity: 2, unit: 'cup', notes: 'sifted' },
-            { ingredientId: SUGAR.id, name: 'Sugar', quantity: 1, unit: 'tbsp' },
+            { ingredientId: FLOUR.id, name: 'Flour', quantity: 2, unit: 'cup', notes: 'sifted', isUserEntered: true },
+            { ingredientId: SUGAR.id, name: 'Sugar', quantity: 1, unit: 'tbsp', isUserEntered: true },
         ]);
 
         // ...and again on a fresh read (JOIN recipe_ingredients → ingredients).
@@ -106,7 +106,9 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
         expect(patchResponse.status).toBe(200);
 
         const fetched = (await (await fetch(`${baseUrl}/v1/recipes/${created.id}`)).json()) as RecipeBody;
-        expect(fetched.ingredients).toEqual([{ ingredientId: SUGAR.id, name: 'Sugar', quantity: 3, unit: 'tsp' }]);
+        expect(fetched.ingredients).toEqual([
+            { ingredientId: SUGAR.id, name: 'Sugar', quantity: 3, unit: 'tsp', isUserEntered: true },
+        ]);
     });
 
     it('rejects an unknown ingredientId with 400 UNKNOWN_INGREDIENT', async () => {

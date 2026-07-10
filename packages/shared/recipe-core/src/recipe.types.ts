@@ -149,6 +149,71 @@ export const recipeSchema = z.object({
 });
 
 /**
+ * A recipe instruction step as returned on the wire (the read projection of {@link RecipeStep} — no
+ * persistence ids). `stepNumber` is the 1-based display order; `timerSeconds` is an optional inline timer.
+ */
+export interface RecipeStepView {
+    stepNumber: number;
+    instruction: string;
+    timerSeconds?: number;
+}
+
+/**
+ * Runtime validator for {@link RecipeStepView}.
+ */
+export const recipeStepViewSchema = z.object({
+    stepNumber: positiveIntSchema,
+    instruction: z.string().min(1),
+    timerSeconds: nonNegativeIntSchema.optional(),
+});
+
+/**
+ * A recipe ingredient line as returned on the wire (the read projection of {@link RecipeIngredient}). It
+ * carries exactly what the recipe-detail UI renders: the resolved catalog `name`, the `quantity`/`unit`,
+ * an optional free-form `notes` override, and `isUserEntered` (the "user-entered" badge — a freeform line
+ * not backed by the food database). Per-line nutrition and persistence ids stay server-side.
+ */
+export interface RecipeIngredientView {
+    ingredientId: string;
+    name: string;
+    quantity: number;
+    unit?: string;
+    notes?: string;
+    isUserEntered: boolean;
+}
+
+/**
+ * Runtime validator for {@link RecipeIngredientView}.
+ */
+export const recipeIngredientViewSchema = z.object({
+    ingredientId: idSchema,
+    name: z.string().min(1),
+    quantity: z.number().positive(),
+    unit: z.string().min(1).optional(),
+    notes: z.string().min(1).optional(),
+    isUserEntered: z.boolean(),
+});
+
+/**
+ * A recipe WITH its cookable content: the {@link Recipe} metadata PLUS the composed `ingredients` and
+ * `steps`. This is what the single-recipe read paths return (`GET /v1/recipes/{id}`, create, update,
+ * clone, restore) — everything a cook needs to follow the recipe. List/search/collection endpoints
+ * return the lighter {@link Recipe} metadata (no per-item content).
+ */
+export interface RecipeDetail extends Recipe {
+    ingredients: RecipeIngredientView[];
+    steps: RecipeStepView[];
+}
+
+/**
+ * Runtime validator for {@link RecipeDetail}.
+ */
+export const recipeDetailSchema = recipeSchema.extend({
+    ingredients: z.array(recipeIngredientViewSchema),
+    steps: z.array(recipeStepViewSchema),
+});
+
+/**
  * A numbered instruction line within a recipe. `stepNumber` is server-assigned
  * (1-based ordering); `timerSeconds` is an optional inline timer for the step.
  */
@@ -397,7 +462,7 @@ export const recipeVersionSchema = z.object({
  * after the restore, the version it was restored FROM, and the recipe's new current version number.
  */
 export interface RestoreVersionResponse {
-    recipe: Recipe;
+    recipe: RecipeDetail;
     restoredFromVersion: number;
     currentVersion: number;
 }
@@ -406,7 +471,7 @@ export interface RestoreVersionResponse {
  * Runtime validator for {@link RestoreVersionResponse}.
  */
 export const restoreVersionResponseSchema = z.object({
-    recipe: recipeSchema,
+    recipe: recipeDetailSchema,
     restoredFromVersion: positiveIntSchema,
     currentVersion: positiveIntSchema,
 });

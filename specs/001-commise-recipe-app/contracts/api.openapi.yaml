@@ -1075,7 +1075,7 @@ components:
                 `recipe.types.ts`): wire `name` ↔ domain `ingredientName`, and wire
                 `notes` ↔ domain `displayText`. `ingredientId`/`quantity`/`unit` are
                 shared. Server serialization is responsible for this mapping.
-            required: [ingredientId, name, quantity]
+            required: [ingredientId, name, quantity, isUserEntered]
             properties:
                 ingredientId:
                     type: string
@@ -1094,6 +1094,11 @@ components:
                 notes:
                     type: string
                     description: Free-form display override (domain `displayText`).
+                isUserEntered:
+                    type: boolean
+                    description: >-
+                        True for a freeform, user-entered line not backed by the food database
+                        (drives the recipe-detail "user-entered" badge).
 
         RecipePhoto:
             type: object

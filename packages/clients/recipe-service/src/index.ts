@@ -54,4 +54,11 @@ export type {
 // Canonical domain contracts owned by `@kitchensink/recipe-core`, re-exported so the client's public
 // surface stays complete for consumers that import them from this barrel (`RecipeSearchResult` is the
 // object-per-hit envelope in `RecipeSearchResponse.results`).
-export type { RecipeFacetCount, RecipeSearchResult, RestoreVersionResponse } from '@kitchensink/recipe-core';
+export type {
+    RecipeDetail,
+    RecipeFacetCount,
+    RecipeIngredientView,
+    RecipeSearchResult,
+    RecipeStepView,
+    RestoreVersionResponse,
+} from '@kitchensink/recipe-core';

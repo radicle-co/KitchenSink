@@ -26,6 +26,8 @@ import type {
     RecipeVisibility,
     UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
+import ky, { HTTPError } from 'ky';
+import type { KyInstance, Options } from 'ky';
 
 import {
     BadRequestError,
@@ -97,11 +99,13 @@ interface RawResponse {
 type QueryParams = Record<string, string | number | boolean | readonly string[] | undefined>;
 
 /**
- * Serialize a query-parameter bag to a `?a=1&b=x&b=y` string (arrays → repeated params, matching the
- * OpenAPI `style=form, explode=true`). `undefined`/`null` entries are dropped. Returns `''` when empty.
+ * Expand a query-parameter bag into `[key, value]` entries for ky's `searchParams` option. Arrays become
+ * repeated entries (matching the OpenAPI `style=form, explode=true`) and `undefined` entries are dropped;
+ * ky serializes the entries with `URLSearchParams`, so the wire output is identical to a hand-rolled
+ * `?a=1&b=x&b=y`. Returns `[]` when the bag has no defined values (ky then appends no query string).
  */
-function toQueryString(params: QueryParams): string {
-    const search = new URLSearchParams();
+function toSearchParamsEntries(params: QueryParams): [string, string][] {
+    const entries: [string, string][] = [];
 
     for (const [key, value] of Object.entries(params)) {
         if (value === undefined) {
@@ -110,34 +114,73 @@ function toQueryString(params: QueryParams): string {
 
         if (Array.isArray(value)) {
             for (const item of value) {
-                search.append(key, String(item));
+                entries.push([key, String(item)]);
             }
         } else {
-            search.append(key, String(value as string | number | boolean));
+            entries.push([key, String(value as string | number | boolean)]);
         }
     }
 
-    const query = search.toString();
+    return entries;
+}
 
-    return query.length > 0 ? `?${query}` : '';
+/** Strip a leading `/` from a path so it joins onto ky's `prefixUrl` (which forbids a leading slash). */
+function stripLeadingSlash(path: string): string {
+    return path.replace(/^\/+/, '');
+}
+
+/**
+ * Normalize a `fetch`/ky {@link Response} (a success response, or the one carried by a thrown
+ * {@link HTTPError}) into a {@link RawResponse}: its status plus the parsed JSON body, or an `undefined`
+ * body for an empty/`204` response.
+ *
+ * @sideEffect Reads (consumes) the response body stream.
+ */
+async function normalizeResponse(response: Response): Promise<RawResponse> {
+    const text = await response.text();
+
+    return { status: response.status, body: text.length > 0 ? JSON.parse(text) : undefined };
 }
 
 export class RecipeServiceClient {
     private readonly baseUrl: string;
     private readonly token: TokenSource | undefined;
-    private readonly fetchImpl: typeof fetch;
     private readonly maxIdentitySyncRetries: number;
     private readonly identitySyncBackoffMs: readonly number[];
     private readonly sleep: (ms: number) => Promise<void>;
+    /** The configured ky transport: base URL, token attach, JSON body/parse, and typed error throwing. */
+    private readonly http: KyInstance;
 
     /** @param options - Base URL, optional token, an optional `fetch` double, and identity-sync retry config. */
     public constructor(options: RecipeServiceClientOptions) {
         this.baseUrl = options.baseUrl.replace(/\/+$/, '');
         this.token = options.token;
-        this.fetchImpl = options.fetch ?? fetch;
         this.maxIdentitySyncRetries = options.maxIdentitySyncRetries ?? 3;
         this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];
         this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+        this.http = ky.create({
+            // ky appends the single joining slash; input paths are passed without a leading slash.
+            prefixUrl: this.baseUrl,
+            // The injected `fetch` (a test double, or the platform global) flows straight through ky.
+            fetch: options.fetch ?? fetch,
+            // Identity-sync retries are owned by `send()` (they inspect the body + re-mint the token), and
+            // no other status is retried — so ky's own retry/timeout are disabled to preserve behavior.
+            retry: 0,
+            timeout: false,
+            headers: { accept: 'application/json' },
+            hooks: {
+                beforeRequest: [
+                    async (request, hookOptions) => {
+                        const forceRefresh = hookOptions.context['forceRefresh'] === true;
+                        const token = await this.resolveToken(forceRefresh);
+
+                        if (token !== undefined) {
+                            request.headers.set('authorization', `Bearer ${token}`);
+                        }
+                    },
+                ],
+            },
+        });
     }
 
     // ─── Recipes ────────────────────────────────────────────────────────────────────────────────
@@ -169,8 +212,11 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async listRecipes(params: ListRecipesParams = {}): Promise<PaginatedResponse<Recipe>> {
-        const query = toQueryString({ page: params.page, pageSize: params.pageSize, sortBy: params.sortBy });
-        const res = await this.send('GET', `/v1/recipes${query}`);
+        const res = await this.send('GET', '/v1/recipes', undefined, {
+            page: params.page,
+            pageSize: params.pageSize,
+            sortBy: params.sortBy,
+        });
 
         if (res.status === 200) {
             return res.body as PaginatedResponse<Recipe>;
@@ -282,7 +328,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async searchIngredients(query: string, limit?: number): Promise<readonly Ingredient[]> {
-        const res = await this.send('GET', `/v1/ingredients/search${toQueryString({ q: query, limit })}`);
+        const res = await this.send('GET', '/v1/ingredients/search', undefined, { q: query, limit });
 
         if (res.status === 200) {
             return res.body as readonly Ingredient[];
@@ -500,8 +546,10 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async listCollections(params: ListCollectionsParams = {}): Promise<PaginatedResponse<Collection>> {
-        const query = toQueryString({ page: params.page, pageSize: params.pageSize });
-        const res = await this.send('GET', `/v1/collections${query}`);
+        const res = await this.send('GET', '/v1/collections', undefined, {
+            page: params.page,
+            pageSize: params.pageSize,
+        });
 
         if (res.status === 200) {
             return res.body as PaginatedResponse<Collection>;
@@ -652,7 +700,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async searchRecipes(params: RecipeSearchParams = {}): Promise<RecipeSearchResponse> {
-        const query = toQueryString({
+        const res = await this.send('GET', '/v1/search/recipes', undefined, {
             query: params.query,
             cuisine: params.cuisine,
             dietaryFlags: params.dietaryFlags,
@@ -664,7 +712,6 @@ export class RecipeServiceClient {
             pageSize: params.pageSize,
             sortBy: params.sortBy,
         });
-        const res = await this.send('GET', `/v1/search/recipes${query}`);
 
         if (res.status === 200) {
             return res.body as RecipeSearchResponse;
@@ -694,51 +741,67 @@ export class RecipeServiceClient {
     // ─── Transport ──────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Issue an authenticated request and normalize the response (status + parsed body).
+     * Issue an authenticated request and normalize the response (status + parsed body), retrying the
+     * first-token sync race (`401` `IDENTITY_SYNC_PENDING`) with a force-refreshed token per the configured
+     * backoff. No other status is retried.
      *
      * @param method - HTTP method.
      * @param path - Path beginning with `/`.
      * @param body - Optional JSON body.
+     * @param query - Optional query-parameter bag (serialized by ky's `searchParams`).
      * @returns The normalized response.
      * @sideEffect Performs a network request via the injected `fetch`.
      */
-    private async send(method: string, path: string, body?: unknown): Promise<RawResponse> {
-        let res = await this.sendOnce(method, path, body, false);
+    private async send(method: string, path: string, body?: unknown, query?: QueryParams): Promise<RawResponse> {
+        let res = await this.sendOnce(method, path, body, query, false);
 
         for (let attempt = 1; attempt <= this.maxIdentitySyncRetries && isIdentitySyncPending(res); attempt += 1) {
             const backoff = this.identitySyncBackoffMs[Math.min(attempt, this.identitySyncBackoffMs.length) - 1] ?? 0;
             await this.sleep(backoff);
-            res = await this.sendOnce(method, path, body, true);
+            res = await this.sendOnce(method, path, body, query, true);
         }
 
         return res;
     }
 
     /**
-     * Perform a single authenticated request and normalize the response (status + parsed body).
+     * Perform a single authenticated request via ky and normalize the response (status + parsed body). ky
+     * attaches the bearer token (its `beforeRequest` hook), serializes the JSON body, and throws an
+     * {@link HTTPError} on a non-2xx status; both the success response and the error's response are folded
+     * back into a {@link RawResponse} so `toError` maps the status to a typed error exactly as before.
      *
-     * @param forceRefresh - Forwarded to a callback token source so a retry re-mints (skips the cache).
+     * @param forceRefresh - Forwarded (via ky's request `context`) to a callback token source so a retry
+     *   re-mints (skips the cache).
      * @sideEffect Performs a network request via the injected `fetch`.
      */
-    private async sendOnce(method: string, path: string, body: unknown, forceRefresh: boolean): Promise<RawResponse> {
-        const headers: Record<string, string> = { accept: 'application/json' };
-        const token = await this.resolveToken(forceRefresh);
-
-        if (token) {
-            headers['authorization'] = `Bearer ${token}`;
-        }
-
-        let payload: string | undefined;
+    private async sendOnce(
+        method: string,
+        path: string,
+        body: unknown,
+        query: QueryParams | undefined,
+        forceRefresh: boolean,
+    ): Promise<RawResponse> {
+        const options: Options = { method, context: { forceRefresh } };
 
         if (body !== undefined) {
-            headers['content-type'] = 'application/json';
-            payload = JSON.stringify(body);
+            options.json = body;
         }
 
-        const response = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: payload });
-        const text = await response.text();
+        const searchParams = query ? toSearchParamsEntries(query) : [];
 
-        return { status: response.status, body: text.length > 0 ? JSON.parse(text) : undefined };
+        if (searchParams.length > 0) {
+            options.searchParams = searchParams;
+        }
+
+        try {
+            return await normalizeResponse(await this.http(stripLeadingSlash(path), options));
+        } catch (error) {
+            if (error instanceof HTTPError) {
+                return normalizeResponse(error.response);
+            }
+
+            throw error;
+        }
     }
 
     /**

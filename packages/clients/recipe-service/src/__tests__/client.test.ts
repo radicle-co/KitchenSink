@@ -2,6 +2,11 @@
  * Unit tests for {@link RecipeServiceClient} (T-004 / T-095) with a mocked `fetch`: request build (URL,
  * method, body, bearer-token attach from a literal and a callback, query-string serialization) + status
  * mapping (`201`/`200`/`204`/`202` → typed results; `400`/`401`/`403`/`404`/`409`/`410` → typed errors).
+ *
+ * The client drives HTTP through `ky`, which invokes the injected `fetch` with a `Request` object (not a
+ * `(url, init)` pair). These tests therefore assert the *observable* request a fake fetch receives — the
+ * `Request`'s URL, method, headers, and body — via {@link requestAt}. The request body is captured at
+ * call time because ky cancels the request body stream once the call settles.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
@@ -20,28 +25,48 @@ import {
 
 const BASE = 'https://recipes.example.test';
 
+/** Request bodies captured at fetch-call time (ky cancels the request body once the call settles). */
+const capturedBodies = new WeakMap<Request, string>();
+
+/** Record a request's body text at call time so assertions can read it after the call has settled. */
+async function captureBody(request: Request): Promise<void> {
+    if (request.body) {
+        capturedBodies.set(request, await request.clone().text());
+    }
+}
+
 /** A `fetch` double that returns a single canned response and records the call. */
 function stubFetch(status: number, body?: unknown, headers: Record<string, string> = {}): typeof fetch {
     const init = body === undefined ? undefined : JSON.stringify(body);
 
-    return vi.fn(async () => new Response(init, { status, headers })) as unknown as typeof fetch;
+    return vi.fn(async (request: Request) => {
+        await captureBody(request);
+
+        return new Response(init, { status, headers });
+    }) as unknown as typeof fetch;
 }
 
-/** Read the recorded `fetch` calls (url + init) off a stub. */
-function callsOf(
+/** The recorded `fetch` calls; ky invokes the injected fetch with a `Request` as the first argument. */
+function callsOf(fetchMock: typeof fetch): [Request, ...unknown[]][] {
+    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls as [Request, ...unknown[]][];
+}
+
+/** The observable request (URL, method, headers, body) the fake fetch received on its Nth call (0-based). */
+function requestAt(
     fetchMock: typeof fetch,
-): [string, { method: string; headers: Record<string, string>; body?: string }][] {
-    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls as [
-        string,
-        { method: string; headers: Record<string, string>; body?: string },
-    ][];
+    index = 0,
+): { url: string; method: string; headers: Headers; body: string | undefined } {
+    const request = callsOf(fetchMock)[index]![0];
+
+    return { url: request.url, method: request.method, headers: request.headers, body: capturedBodies.get(request) };
 }
 
 /** A `fetch` double that returns a queued sequence of responses (one per call); the last repeats. */
 function sequenceFetch(responses: readonly { status: number; body?: unknown }[]): typeof fetch {
     let i = 0;
 
-    return vi.fn(async () => {
+    return vi.fn(async (request: Request) => {
+        await captureBody(request);
         const r = responses[Math.min(i, responses.length - 1)]!;
         i += 1;
 
@@ -126,12 +151,12 @@ describe('RecipeServiceClient — request build + token attach', () => {
         const result = await client.createRecipe({ title: 'Soup', ingredients: [], steps: [] });
 
         expect(result).toEqual(created);
-        const [url, init] = callsOf(fetchMock)[0]!;
-        expect(url).toBe(`${BASE}/v1/recipes`); // trailing slash on baseUrl normalized
-        expect(init.method).toBe('POST');
-        expect(init.headers['authorization']).toBe('Bearer tok-123');
-        expect(init.headers['content-type']).toBe('application/json');
-        expect(JSON.parse(init.body as string)).toEqual({ title: 'Soup', ingredients: [], steps: [] });
+        const req = requestAt(fetchMock);
+        expect(req.url).toBe(`${BASE}/v1/recipes`); // trailing slash on baseUrl normalized
+        expect(req.method).toBe('POST');
+        expect(req.headers.get('authorization')).toBe('Bearer tok-123');
+        expect(req.headers.get('content-type')).toBe('application/json');
+        expect(JSON.parse(req.body as string)).toEqual({ title: 'Soup', ingredients: [], steps: [] });
     });
 
     it('re-reads a token callback per request (rotated session token)', async () => {
@@ -143,9 +168,8 @@ describe('RecipeServiceClient — request build + token attach', () => {
         await client.listRecipes();
         await client.listRecipes();
 
-        const calls = callsOf(fetchMock);
-        expect(calls[0]![1].headers['authorization']).toBe('Bearer tok-A');
-        expect(calls[1]![1].headers['authorization']).toBe('Bearer tok-B');
+        expect(requestAt(fetchMock, 0).headers.get('authorization')).toBe('Bearer tok-A');
+        expect(requestAt(fetchMock, 1).headers.get('authorization')).toBe('Bearer tok-B');
         expect(getToken).toHaveBeenCalledTimes(2);
     });
 
@@ -155,9 +179,9 @@ describe('RecipeServiceClient — request build + token attach', () => {
 
         await client.searchIngredients('kale');
 
-        const [url, init] = callsOf(fetchMock)[0]!;
-        expect(url).toBe(`${BASE}/v1/ingredients/search?q=kale`);
-        expect(init.headers['authorization']).toBeUndefined();
+        const req = requestAt(fetchMock);
+        expect(req.url).toBe(`${BASE}/v1/ingredients/search?q=kale`);
+        expect(req.headers.get('authorization')).toBeNull();
     });
 
     it('serializes list params and repeats array query params (search facets)', async () => {
@@ -173,8 +197,7 @@ describe('RecipeServiceClient — request build + token attach', () => {
 
         await client.searchRecipes({ query: 'chicken pie', dietaryFlags: ['vegan', 'gluten_free'], page: 2 });
 
-        const [url] = callsOf(fetchMock)[0]!;
-        expect(url).toBe(
+        expect(requestAt(fetchMock).url).toBe(
             `${BASE}/v1/search/recipes?query=chicken+pie&dietaryFlags=vegan&dietaryFlags=gluten_free&page=2`,
         );
     });
@@ -185,9 +208,9 @@ describe('RecipeServiceClient — request build + token attach', () => {
 
         await expect(client.deleteRecipe('rec/1')).resolves.toBeUndefined();
 
-        const [url, init] = callsOf(fetchMock)[0]!;
-        expect(url).toBe(`${BASE}/v1/recipes/rec%2F1`);
-        expect(init.method).toBe('DELETE');
+        const req = requestAt(fetchMock);
+        expect(req.url).toBe(`${BASE}/v1/recipes/rec%2F1`);
+        expect(req.method).toBe('DELETE');
     });
 });
 
@@ -258,9 +281,9 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
         const result = await client.updateRecipe('rec_1', { expectedVersion: 5, title: 'New' });
 
         expect(result).toEqual(updated);
-        const [url, init] = callsOf(fetchMock)[0]!;
-        expect(url).toBe(`${BASE}/v1/recipes/rec_1`);
-        expect(init.method).toBe('PATCH');
-        expect(JSON.parse(init.body as string)).toEqual({ expectedVersion: 5, title: 'New' });
+        const req = requestAt(fetchMock);
+        expect(req.url).toBe(`${BASE}/v1/recipes/rec_1`);
+        expect(req.method).toBe('PATCH');
+        expect(JSON.parse(req.body as string)).toEqual({ expectedVersion: 5, title: 'New' });
     });
 });

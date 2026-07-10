@@ -1,10 +1,12 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
 import { RecipesController } from './recipes.controller.js';
-import { RecipesService, RECIPES_DAL } from './recipes.service.js';
+import { RecipesService, RECIPES_DAL, RECIPE_PHOTOS_DAL, RECIPE_PHOTOS_CDN_URL } from './recipes.service.js';
 import { RecipesDal } from './dal/recipes.dal.js';
+import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { VersionsModule } from '../versions/versions.module.js';
 
@@ -32,6 +34,18 @@ import { VersionsModule } from '../versions/versions.module.js';
             provide: IngredientsDal,
             inject: [DrizzleProvider],
             useFactory: (db: RecipeDrizzle): IngredientsDal => new IngredientsDal(db),
+        },
+        {
+            // Its OWN PhotosDal instance over the shared Drizzle client, to embed a recipe's photos in the
+            // detail read WITHOUT importing PhotosModule (which imports RecipesService → would be a cycle).
+            provide: RECIPE_PHOTOS_DAL,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): PhotosDal => new PhotosDal(db),
+        },
+        {
+            provide: RECIPE_PHOTOS_CDN_URL,
+            inject: [ConfigService],
+            useFactory: (config: ConfigService): string => config.getOrThrow<string>('CLOUDFRONT_URL'),
         },
         RecipesService,
     ],

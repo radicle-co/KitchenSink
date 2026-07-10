@@ -82,5 +82,9 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
         expect(recipe.steps).toHaveLength(1);
         expect(recipe.steps[0]?.stepNumber).toBe(1);
         expect(recipe.steps[0]?.instruction).toBe('Mix.');
+
+        // Photos are embedded (empty for a fresh recipe) — the detail is one round-trip (#10).
+        expect(Array.isArray(recipe.photos)).toBe(true);
+        expect(recipe.photos).toHaveLength(0);
     });
 });

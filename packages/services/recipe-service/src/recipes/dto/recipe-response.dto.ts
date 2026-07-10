@@ -8,7 +8,7 @@
  * an empty `ingredients` array (the denormalized `ingredient_names_text` still drives search). Dates are
  * ISO 8601 strings, and `version` is the row's `currentVersion`.
  */
-import type { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipePhoto, RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** A serialized instruction step (`RecipeStep` in the contract). */
 export interface RecipeStepResponse {
@@ -59,6 +59,11 @@ export interface RecipeResponse {
     updatedAt: string;
     /** Soft-delete tombstone (C-007); present only when deleted, absent otherwise (never `null`). */
     deletedAt?: string;
+    /**
+     * The recipe's photos, embedded on the single-recipe DETAIL reads (get/create/update/clone/restore)
+     * so the client renders the recipe in one round-trip. ABSENT on list/search (metadata) reads.
+     */
+    photos?: RecipePhoto[];
 }
 
 /** A paginated list of recipes (`PaginatedResponse<Recipe>` in the contract). */

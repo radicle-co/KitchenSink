@@ -203,15 +203,12 @@ export const recipeIngredientViewSchema = z.object({
 export interface RecipeDetail extends Recipe {
     ingredients: RecipeIngredientView[];
     steps: RecipeStepView[];
+    /** The recipe's photos in display order (empty until any are uploaded), embedded for a one-round-trip detail. */
+    photos: RecipePhoto[];
 }
 
-/**
- * Runtime validator for {@link RecipeDetail}.
- */
-export const recipeDetailSchema = recipeSchema.extend({
-    ingredients: z.array(recipeIngredientViewSchema),
-    steps: z.array(recipeStepViewSchema),
-});
+// NB: `recipeDetailSchema` is defined AFTER `recipePhotoSchema` (below) — it references it, and a `const`
+// is not hoisted, so defining it here would hit the temporal dead zone at module load.
 
 /**
  * A numbered instruction line within a recipe. `stepNumber` is server-assigned
@@ -397,6 +394,16 @@ export const recipePhotoSchema = z.object({
     contentType: z.string().min(1),
     order: positiveIntSchema,
     createdAt: isoDateTimeStringSchema,
+});
+
+/**
+ * Runtime validator for {@link RecipeDetail}. Defined here (after {@link recipePhotoSchema}) so its
+ * `photos` reference resolves — a `const` is not hoisted, so it cannot sit next to the interface above.
+ */
+export const recipeDetailSchema = recipeSchema.extend({
+    ingredients: z.array(recipeIngredientViewSchema),
+    steps: z.array(recipeStepViewSchema),
+    photos: z.array(recipePhotoSchema),
 });
 
 /**

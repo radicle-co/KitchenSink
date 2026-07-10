@@ -12,9 +12,11 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+import type { RecipePhoto, RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { VersionsService } from '../versions/versions.service.js';
+import { PhotosDal } from '../photos/dal/photos.dal.js';
+import { resolvePhotoView } from '../photos/photo-view.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
@@ -31,6 +33,12 @@ import type { Principal } from '../auth/principal.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
+
+/** DI token for the recipes vertical's own `PhotosDal` instance (embeds a recipe's photos in the detail). */
+export const RECIPE_PHOTOS_DAL = 'RECIPE_PHOTOS_DAL';
+
+/** DI token for the CloudFront base URL used to resolve embedded photo URLs. */
+export const RECIPE_PHOTOS_CDN_URL = 'RECIPE_PHOTOS_CDN_URL';
 
 /**
  * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on
@@ -74,8 +82,12 @@ function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientRespons
     };
 }
 
-/** Map a persisted recipe aggregate to the `Recipe` wire contract. Pure. */
-function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
+/**
+ * Map a persisted recipe aggregate to the wire response. Pure. When `photos` is provided (the
+ * single-recipe DETAIL reads), they are embedded so the client renders the recipe in one round-trip;
+ * when omitted (list/search metadata reads), the `photos` key is absent.
+ */
+function toRecipeResponse(aggregate: RecipeAggregate, photos?: RecipePhoto[]): RecipeResponse {
     const { recipe, steps, ingredients } = aggregate;
 
     return {
@@ -111,6 +123,8 @@ function toRecipeResponse(aggregate: RecipeAggregate): RecipeResponse {
         // Tombstone: present only when the recipe is soft-deleted; OMITTED (not `null`) otherwise, to match
         // the optional `Recipe.deletedAt` contract (a `null` would fail `recipeSchema`).
         ...(recipe.deletedAt !== null ? { deletedAt: recipe.deletedAt.toISOString() } : {}),
+        // Embedded photos for the detail read (absent on list/search metadata reads).
+        ...(photos !== undefined ? { photos } : {}),
     };
 }
 
@@ -243,7 +257,18 @@ export class RecipesService {
         // Circular by nature: recipe writes record a version, and version restore drives a recipe write.
         // forwardRef lets Nest resolve the two-way dependency (see VersionsService's matching forwardRef).
         @Inject(forwardRef(() => VersionsService)) private readonly versions: VersionsService,
+        // The recipes vertical embeds a recipe's photos in the `RecipeDetail` read via its OWN PhotosDal
+        // instance over the shared Drizzle client (no PhotosModule import → no module cycle).
+        @Inject(RECIPE_PHOTOS_DAL) private readonly photosDal: PhotosDal,
+        @Inject(RECIPE_PHOTOS_CDN_URL) private readonly photosCdnUrl: string,
     ) {}
+
+    /** Load a recipe's photos, resolved to the shared `RecipePhoto` wire shape (display order). */
+    private async loadPhotos(recipeId: string): Promise<RecipePhoto[]> {
+        const rows = await this.photosDal.findByRecipe(recipeId);
+
+        return rows.map((row) => resolvePhotoView(row, this.photosCdnUrl));
+    }
 
     /**
      * Record an immutable version snapshot of a just-written recipe aggregate (FR-007b). Best-effort:
@@ -311,7 +336,8 @@ export class RecipesService {
 
         await this.recordSnapshot(aggregate, principal.userId, 'Created');
 
-        return toRecipeResponse(aggregate);
+        // A freshly-created recipe has no photos yet (they are uploaded afterward) → empty detail photos.
+        return toRecipeResponse(aggregate, []);
     }
 
     /**
@@ -362,7 +388,7 @@ export class RecipesService {
             throw notOwner(id);
         }
 
-        return toRecipeResponse(aggregate);
+        return toRecipeResponse(aggregate, await this.loadPhotos(id));
     }
 
     /** List the caller's own recipes (owner-scoped, tombstones excluded), paginated. */
@@ -371,7 +397,9 @@ export class RecipesService {
         const { rows, total } = await this.dal.findAll({ ownerId, page, pageSize, sortBy });
 
         return {
-            data: rows.map(toRecipeResponse),
+            // Metadata list — NO embedded photos (also: `.map(toRecipeResponse)` would pass the index as
+            // the `photos` arg, so the explicit arrow is required, not just an optimization).
+            data: rows.map((row) => toRecipeResponse(row)),
             total,
             page,
             pageSize,
@@ -451,7 +479,7 @@ export class RecipesService {
             await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated');
         }
 
-        return toRecipeResponse(updated);
+        return toRecipeResponse(updated, await this.loadPhotos(id));
     }
 
     /** Soft-delete (tombstone) a recipe the caller owns. */
@@ -518,7 +546,8 @@ export class RecipesService {
 
         await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`);
 
-        return toRecipeResponse(created);
+        // A fresh clone starts with no photos (photos are not copied from the source) → empty detail photos.
+        return toRecipeResponse(created, []);
     }
 
     /**
@@ -560,7 +589,7 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        return toRecipeResponse(updated);
+        return toRecipeResponse(updated, await this.loadPhotos(id));
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

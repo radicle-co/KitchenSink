@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
+import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
@@ -60,7 +61,10 @@ function service(existing: RecipeAggregate): { svc: RecipesService; update: Retu
         findById: vi.fn().mockResolvedValue(makeIngredient({ id: INGREDIENT_ID, name: 'Rice' })),
     } as unknown as IngredientsDal;
 
-    return { svc: new RecipesService(dal, ingredientsDal, makeFakeVersionsService()), update };
+    return {
+        svc: new RecipesService(dal, ingredientsDal, makeFakeVersionsService(), fakePhotosDal(), RECIPE_PHOTOS_CDN),
+        update,
+    };
 }
 
 describe('RecipesService.update — imported lineage preserved through a substantive edit', () => {

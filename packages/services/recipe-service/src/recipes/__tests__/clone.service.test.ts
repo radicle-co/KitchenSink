@@ -9,10 +9,12 @@
  * create input.
  */
 import { describe, it, expect, vi } from 'vitest';
+
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
+import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -93,7 +95,7 @@ function fakeIngredientsDal(): IngredientsDal {
 }
 
 function service(dal: RecipesDal): RecipesService {
-    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService());
+    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService(), fakePhotosDal(), RECIPE_PHOTOS_CDN);
 }
 
 async function catchError(promise: Promise<unknown>): Promise<unknown> {

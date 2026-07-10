@@ -32,6 +32,7 @@ import { fileTypeFromBuffer } from 'file-type';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
+import { resolvePhotoView } from './photo-view.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner } from '../recipes/recipe.error.js';
 import type { RecipePhotoRow } from '../database/schema/index.js';
@@ -330,32 +331,15 @@ export class PhotosService {
         }
     }
 
-    /**
-     * Map a persisted `recipe_photos` row to the shared `RecipePhoto` contract. The single stored object
-     * is served as-is (no variants); the server resolves the full CDN `url` (clients never concatenate),
-     * and `order` is presented 1-based (the stored `sort_order` is 0-based) to match the wire contract.
-     */
+    /** Map a persisted `recipe_photos` row to the shared `RecipePhoto` contract (shared pure mapping). */
     private toPhotoResponse(row: RecipePhotoRow): RecipePhoto {
-        return {
-            id: row.id,
-            recipeId: row.recipeId,
-            key: row.s3Key,
-            url: resolveCdnUrl(this.config.cloudfrontUrl, row.s3Key),
-            contentType: row.contentType,
-            order: row.sortOrder + 1,
-            createdAt: row.createdAt.toISOString(),
-        };
+        return resolvePhotoView(row, this.config.cloudfrontUrl);
     }
 }
 
 /** The owner+recipe-scoped object-key prefix all of a recipe's photos live under. */
 function photoKeyPrefix(ownerId: string, recipeId: string): string {
     return `recipes/${ownerId}/${recipeId}/photos/`;
-}
-
-/** Join a CDN base URL and an object key into a single URL, tolerating a trailing slash on the base. Pure. */
-function resolveCdnUrl(cloudfrontUrl: string, key: string): string {
-    return `${cloudfrontUrl.replace(/\/+$/, '')}/${key}`;
 }
 
 /** Narrowing allowlist check for the upload content type. Pure. */

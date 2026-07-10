@@ -329,6 +329,55 @@ export const recipePhotoSchema = z.object({
     createdAt: isoDateTimeStringSchema,
 });
 
+/** A recipe instruction step as returned on the wire (the read projection of {@link RecipeStep}). */
+export interface RecipeStepView {
+    stepNumber: number;
+    instruction: string;
+    timerSeconds?: number;
+}
+
+export const recipeStepViewSchema = z.object({
+    stepNumber: positiveIntSchema,
+    instruction: z.string().min(1),
+    timerSeconds: nonNegativeIntSchema.optional(),
+});
+
+/** A recipe ingredient line as returned on the wire (the read projection of {@link RecipeIngredient}). */
+export interface RecipeIngredientView {
+    ingredientId: string;
+    name: string;
+    quantity: number;
+    unit?: string;
+    notes?: string;
+    isUserEntered: boolean;
+}
+
+export const recipeIngredientViewSchema = z.object({
+    ingredientId: idSchema,
+    name: z.string().min(1),
+    quantity: z.number().positive(),
+    unit: z.string().min(1).optional(),
+    notes: z.string().min(1).optional(),
+    isUserEntered: z.boolean(),
+});
+
+/**
+ * A recipe WITH its cookable content: the {@link Recipe} metadata PLUS the composed `ingredients`, `steps`,
+ * and `photos`. Returned by the single-recipe reads (get/create/update/clone/restore); list/search return
+ * the lighter {@link Recipe} metadata.
+ */
+export interface RecipeDetail extends Recipe {
+    ingredients: RecipeIngredientView[];
+    steps: RecipeStepView[];
+    photos: RecipePhoto[];
+}
+
+export const recipeDetailSchema = recipeSchema.extend({
+    ingredients: z.array(recipeIngredientViewSchema),
+    steps: z.array(recipeStepViewSchema),
+    photos: z.array(recipePhotoSchema),
+});
+
 /**
  * Immutable content snapshot stored for each recipe version.
  */

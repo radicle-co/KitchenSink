@@ -7,6 +7,7 @@
  * (`VERSION_CONFLICT` with `details.currentVersion`). No database is involved.
  */
 import { describe, it, expect, vi } from 'vitest';
+
 import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
@@ -16,6 +17,7 @@ import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeIngredientRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
+import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
@@ -71,7 +73,7 @@ function fakeIngredientsDal(): IngredientsDal {
 
 /** Construct the service with a permissive catalog DAL (overridable per test via the DAL arg). */
 function newService(dal: RecipesDal): RecipesService {
-    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService());
+    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService(), fakePhotosDal(), RECIPE_PHOTOS_CDN);
 }
 
 /** Capture the error a rejected promise throws, or fail if it resolves. */
@@ -134,7 +136,7 @@ describe('RecipesService.create', () => {
         const created = aggregate({ currentVersion: 1 });
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
-        const service = new RecipesService(dal, fakeIngredientsDal(), versions);
+        const service = new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN);
 
         await service.create(principal(), CREATE_DTO);
 
@@ -182,7 +184,10 @@ describe('RecipesService.create', () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
+        await new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
+            principal(),
+            CREATE_DTO,
+        );
 
         // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
         // and the conditional inclusion of displayText/timerSeconds/userCalories with null siblings
@@ -223,7 +228,10 @@ describe('RecipesService.create', () => {
 
         // The recipe committed; a version hiccup must be swallowed (logged), not propagated.
         await expect(
-            new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO),
+            new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
+                principal(),
+                CREATE_DTO,
+            ),
         ).resolves.toMatchObject({ id: 'r-1' });
         expect(consoleError).toHaveBeenCalled();
 
@@ -363,7 +371,7 @@ describe('RecipesService.update', () => {
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(dal, fakeIngredientsDal(), versions);
+        const service = new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN);
 
         await service.update(OWNER, 'r-1', patch);
 
@@ -378,7 +386,7 @@ describe('RecipesService.update', () => {
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(dal, fakeIngredientsDal(), versions);
+        const service = new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN);
 
         await service.update(OWNER, 'r-1', patch, { recordSnapshot: false });
 
@@ -519,7 +527,10 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
+        await new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
+            principal(),
+            CREATE_DTO,
+        );
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         // Every user-nutrition field is present and coerced to a number; the null displayText is omitted.
@@ -560,7 +571,10 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(dal, fakeIngredientsDal(), versions).create(principal(), CREATE_DTO);
+        await new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
+            principal(),
+            CREATE_DTO,
+        );
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         expect(snapshot.servings).toBe(2);

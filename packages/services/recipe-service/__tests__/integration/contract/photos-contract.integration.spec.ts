@@ -101,5 +101,9 @@ describe.skipIf(!hasDatabaseUrl)('photos vertical — client ↔ server contract
         const listed = list.find((entry) => entry.id === photo.id);
         expect(listed).toBeDefined();
         expect(recipePhotoSchema.safeParse(listed).success).toBe(true);
+
+        // 5. And it is EMBEDDED in the recipe detail (#10) — one round-trip renders the recipe + its photos.
+        const detail = await client.getRecipeById(recipeId);
+        expect(detail.photos.some((entry) => entry.id === photo.id)).toBe(true);
     });
 });

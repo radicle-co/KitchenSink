@@ -17,10 +17,12 @@
  * No database is involved.
  */
 import { describe, it, expect, vi } from 'vitest';
+
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
+import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -99,7 +101,13 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
     it('resolves each line, persists the junction, and composes the response ingredients', async () => {
         const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregateWithOnion()) });
         const ingredientsDal = fakeIngredientsDal();
-        const service = new RecipesService(dal, ingredientsDal, makeFakeVersionsService());
+        const service = new RecipesService(
+            dal,
+            ingredientsDal,
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+        );
 
         const response = await service.create(OWNER_PRINCIPAL, CREATE_DTO);
 
@@ -134,7 +142,13 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
     // (the mutation) would index the recipe under 'zzz-not-a-real-name' and fails this test.
     it('builds ingredient_names_text from the catalog name, ignoring a poisoned client name', async () => {
         const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregateWithOnion()) });
-        const service = new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService());
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+        );
 
         const poisoned: CreateRecipeDto = {
             ...CREATE_DTO,
@@ -148,7 +162,13 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
     it('rejects an unresolved ingredientId with UNKNOWN_INGREDIENT (not a raw FK error)', async () => {
         const dal = fakeRecipesDal();
         const ingredientsDal = fakeIngredientsDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const service = new RecipesService(dal, ingredientsDal, makeFakeVersionsService());
+        const service = new RecipesService(
+            dal,
+            ingredientsDal,
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+        );
 
         const error = await catchError(service.create(OWNER_PRINCIPAL, CREATE_DTO));
 
@@ -160,7 +180,13 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
 describe('RecipesService.getById — ingredient composition (T043b)', () => {
     it('composes ingredients from the aggregate junction rows', async () => {
         const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(aggregateWithOnion()) });
-        const service = new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService());
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+        );
 
         const response = await service.getById(OWNER, 'r-1');
 
@@ -177,7 +203,13 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             update: vi.fn().mockResolvedValue(aggregateWithOnion()),
         });
         const ingredientsDal = fakeIngredientsDal();
-        const service = new RecipesService(dal, ingredientsDal, makeFakeVersionsService());
+        const service = new RecipesService(
+            dal,
+            ingredientsDal,
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+        );
 
         const patch: UpdateRecipeDto = {
             expectedVersion: 1,
@@ -198,7 +230,13 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             update: vi.fn().mockResolvedValue(aggregateWithOnion()),
         });
         const ingredientsDal = fakeIngredientsDal();
-        const service = new RecipesService(dal, ingredientsDal, makeFakeVersionsService());
+        const service = new RecipesService(
+            dal,
+            ingredientsDal,
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+        );
 
         await service.update(OWNER, 'r-1', { expectedVersion: 1, title: 'Renamed' });
 

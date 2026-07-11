@@ -145,6 +145,36 @@ describe('EnvironmentSchema — auth + DoS-shedder config (FR-039/FR-042/FR-052)
     });
 });
 
+describe('EnvironmentSchema — azp enforcement mode', () => {
+    it('rejects setting BOTH the azp list and the preview pattern (ambiguous)', () => {
+        const result = EnvironmentSchema.safeParse({
+            ...VALID_ENV,
+            CLERK_AUTHORIZED_PARTIES: 'https://app.commise.app',
+            CLERK_AZP_PATTERN: 'sandbox.commise.app',
+        });
+
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects CLERK_AZP_PATTERN on the 'prod' stage (prod uses exact-match)", () => {
+        const result = EnvironmentSchema.safeParse({
+            ...VALID_ENV,
+            STAGE: 'prod',
+            CLERK_AZP_PATTERN: 'sandbox.commise.app',
+        });
+
+        expect(result.success).toBe(false);
+    });
+
+    it('accepts pattern-only on a non-prod stage, and neither (azp is optional by design)', () => {
+        expect(EnvironmentSchema.safeParse({ ...VALID_ENV, CLERK_AZP_PATTERN: 'sandbox.commise.app' }).success).toBe(
+            true,
+        );
+        // Food keeps azp optional — neither set is allowed (the guard fails closed at runtime).
+        expect(EnvironmentSchema.safeParse({ ...VALID_ENV }).success).toBe(true);
+    });
+});
+
 describe('resolveEnvironment', () => {
     it('parses process.env (smoke: returns the validated env when the required vars are present)', () => {
         const saved = { ...process.env };

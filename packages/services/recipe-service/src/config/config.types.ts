@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { hasExactlyOneAzpMode } from '@kitchensink/clerk-verify';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -231,8 +232,15 @@ export const clerkConfigSchema = z.object({
     /** Clerk instance public JWT key (PEM). Used by `verifyToken` for offline verification. */
     CLERK_JWT_KEY: z.string().min(1),
 
-    /** Comma-separated `azp` allowlist of authorized parties (web/mobile origins). */
-    CLERK_AUTHORIZED_PARTIES: z.string().min(1),
+    /** Comma-separated `azp` allowlist (exact-match mode). Exactly one of this or `CLERK_AZP_PATTERN`. */
+    CLERK_AUTHORIZED_PARTIES: z.string().min(1).optional(),
+
+    /**
+     * Preview-subdomain base domain (pattern mode, e.g. `sandbox.commise.app`). When set, `azp` is
+     * validated against an anchored per-PR pattern instead of the exact-match list. Mutually exclusive
+     * with the list and forbidden in `production` — enforced by {@link apiConfigSchema}'s `superRefine`.
+     */
+    CLERK_AZP_PATTERN: z.string().min(1).optional(),
 });
 
 /** Typed Clerk configuration. */
@@ -242,6 +250,7 @@ export type ClerkConfig = z.infer<typeof clerkConfigSchema>;
 export const clerkConfigMeta: Record<keyof ClerkConfig, ConfigFieldMeta> = {
     CLERK_JWT_KEY: { secret: false, description: 'Clerk instance public JWT key (PEM)' },
     CLERK_AUTHORIZED_PARTIES: { secret: false, description: 'Authorized parties (azp) allowlist' },
+    CLERK_AZP_PATTERN: { secret: false, description: 'Preview-subdomain base domain (azp pattern mode)' },
 };
 
 // ---------------------------------------------------------------------------
@@ -351,7 +360,31 @@ export const apiConfigSchema = baseConfigSchema
     .merge(foodServiceConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
-    .and(databaseConnectionSchema);
+    .and(databaseConnectionSchema)
+    // Exactly one azp mode: both is ambiguous, neither skips the azp check (fail-open). Pattern mode is
+    // non-prod only. (A `.superRefine` here — not on `clerkConfigSchema` — because a refined schema is a
+    // ZodEffects and could not be `.merge()`d into this composite.)
+    .superRefine((config, ctx) => {
+        const hasList = (config.CLERK_AUTHORIZED_PARTIES ?? '').trim().length > 0;
+        const hasPattern = (config.CLERK_AZP_PATTERN ?? '').trim().length > 0;
+
+        if (config.NODE_ENV === 'production' && hasPattern) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                    'CLERK_AZP_PATTERN is not allowed in production — production uses exact-match CLERK_AUTHORIZED_PARTIES',
+                path: ['CLERK_AZP_PATTERN'],
+            });
+        }
+
+        if (!hasExactlyOneAzpMode(hasList, hasPattern)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'exactly one of CLERK_AUTHORIZED_PARTIES or CLERK_AZP_PATTERN must be set',
+                path: ['CLERK_AUTHORIZED_PARTIES'],
+            });
+        }
+    });
 
 /** Typed full API configuration. */
 export type ApiConfig = z.infer<typeof apiConfigSchema>;

@@ -91,7 +91,7 @@ describe('loadConfig', () => {
         const env = validEnv();
         delete env['CLERK_JWT_KEY'];
         delete env['S3_BUCKET_PHOTOS'];
-        delete env['CLERK_AUTHORIZED_PARTIES'];
+        delete env['CLOUDFRONT_URL'];
 
         try {
             loadConfig(apiConfigSchema, env);
@@ -103,13 +103,45 @@ describe('loadConfig', () => {
             const offendingKeys = configError.issues.map((issue) => String(issue.path[0]));
             expect(offendingKeys).toContain('CLERK_JWT_KEY');
             expect(offendingKeys).toContain('S3_BUCKET_PHOTOS');
-            expect(offendingKeys).toContain('CLERK_AUTHORIZED_PARTIES');
+            expect(offendingKeys).toContain('CLOUDFRONT_URL');
             expect(configError.issues.length).toBeGreaterThanOrEqual(3);
 
             expect(configError.message).toContain('CLERK_JWT_KEY');
             expect(configError.message).toContain('S3_BUCKET_PHOTOS');
-            expect(configError.message).toContain('CLERK_AUTHORIZED_PARTIES');
+            expect(configError.message).toContain('CLOUDFRONT_URL');
         }
+    });
+
+    describe('azp enforcement mode', () => {
+        it('loads in pattern mode when CLERK_AZP_PATTERN replaces the list (non-prod)', () => {
+            const env = { ...validEnv(), NODE_ENV: 'staging', CLERK_AZP_PATTERN: 'sandbox.commise.app' };
+            delete env['CLERK_AUTHORIZED_PARTIES'];
+
+            const config = loadConfig(apiConfigSchema, env);
+
+            expect(config.CLERK_AZP_PATTERN).toBe('sandbox.commise.app');
+            expect(config.CLERK_AUTHORIZED_PARTIES).toBeUndefined();
+        });
+
+        it('rejects setting BOTH the azp list and the pattern (ambiguous)', () => {
+            const env = { ...validEnv(), NODE_ENV: 'staging', CLERK_AZP_PATTERN: 'sandbox.commise.app' };
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow();
+        });
+
+        it('rejects setting NEITHER the azp list nor the pattern (fail-open guard)', () => {
+            const env = { ...validEnv(), NODE_ENV: 'staging' };
+            delete env['CLERK_AUTHORIZED_PARTIES'];
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow();
+        });
+
+        it('rejects CLERK_AZP_PATTERN in production (prod uses exact-match)', () => {
+            const env = { ...validEnv(), CLERK_AZP_PATTERN: 'sandbox.commise.app' };
+            delete env['CLERK_AUTHORIZED_PARTIES'];
+
+            expect(() => loadConfig(apiConfigSchema, env)).toThrow();
+        });
     });
 });
 

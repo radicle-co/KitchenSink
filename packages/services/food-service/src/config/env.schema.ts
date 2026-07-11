@@ -94,6 +94,9 @@ const FoodOperationalConfigSchema = z.object({
 const AuthConfigSchema = z.object({
     CLERK_JWT_KEY: z.string().min(1).optional(),
     CLERK_AUTHORIZED_PARTIES: z.string().optional(),
+    // Preview-subdomain base domain (pattern mode). Mutually exclusive with the list; forbidden on prod.
+    // Like the list, optional at the schema level — the guard fails closed at runtime when the key is absent.
+    CLERK_AZP_PATTERN: z.string().optional(),
     FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS: z.coerce.number().int().positive().optional(),
     FOOD_AUTH_SHED_THRESHOLD: z.coerce.number().int().positive().optional(),
     FOOD_AUTH_SHED_WINDOW_MS: z.coerce.number().int().positive().optional(),
@@ -124,7 +127,31 @@ export const EnvironmentSchema = z
         ...FoodOperationalConfigSchema.shape,
         ...AuthConfigSchema.shape,
     })
-    .and(DatabaseConfigSchema);
+    .and(DatabaseConfigSchema)
+    // azp coherence: the list and the preview pattern are mutually exclusive, and pattern mode is
+    // non-prod only. Food keeps azp OPTIONAL by design (the guard fails closed at runtime), so this does
+    // NOT require one — it only rejects the ambiguous "both" and a prod pattern.
+    .superRefine((env, ctx) => {
+        const hasList = (env.CLERK_AUTHORIZED_PARTIES ?? '').trim().length > 0;
+        const hasPattern = (env.CLERK_AZP_PATTERN ?? '').trim().length > 0;
+
+        if (hasList && hasPattern) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'CLERK_AUTHORIZED_PARTIES and CLERK_AZP_PATTERN are mutually exclusive — set only one',
+                path: ['CLERK_AZP_PATTERN'],
+            });
+        }
+
+        if (env.STAGE === 'prod' && hasPattern) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                    "CLERK_AZP_PATTERN is not allowed on the 'prod' stage — prod uses exact-match CLERK_AUTHORIZED_PARTIES",
+                path: ['CLERK_AZP_PATTERN'],
+            });
+        }
+    });
 
 /** The validated, fully-typed food-service environment. */
 export type Environment = z.infer<typeof EnvironmentSchema>;

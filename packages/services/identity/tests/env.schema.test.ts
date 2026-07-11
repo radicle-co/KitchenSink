@@ -67,6 +67,41 @@ describe('EnvironmentSchema', () => {
         ).toThrow(/CLERK_AUTHORIZED_PARTIES/);
     });
 
+    it('accepts CLERK_AZP_PATTERN in place of the list on a deployed non-prod stage', () => {
+        const result = EnvironmentSchema.parse({
+            ...base,
+            STAGE: 'sandbox',
+            CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----',
+            CLERK_AZP_PATTERN: 'sandbox.commise.app',
+        });
+
+        expect(result.CLERK_AZP_PATTERN).toBe('sandbox.commise.app');
+        expect(result.CLERK_AUTHORIZED_PARTIES).toEqual([]);
+    });
+
+    it('rejects BOTH the list and the pattern on a deployed stage (ambiguous)', () => {
+        expect(() =>
+            EnvironmentSchema.parse({
+                ...base,
+                STAGE: 'sandbox',
+                CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----',
+                CLERK_AUTHORIZED_PARTIES: 'https://commise.app',
+                CLERK_AZP_PATTERN: 'sandbox.commise.app',
+            }),
+        ).toThrow(/exactly one/);
+    });
+
+    it("rejects CLERK_AZP_PATTERN on the 'prod' stage (prod uses exact-match)", () => {
+        expect(() =>
+            EnvironmentSchema.parse({
+                ...base,
+                STAGE: 'prod',
+                CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----',
+                CLERK_AZP_PATTERN: 'sandbox.commise.app',
+            }),
+        ).toThrow(/not allowed on the 'prod' stage/);
+    });
+
     it('does not require Clerk vars on dev/test stages', () => {
         expect(() => EnvironmentSchema.parse({ ...base, STAGE: 'test' })).not.toThrow();
         expect(() => EnvironmentSchema.parse({ ...base, STAGE: 'dev' })).not.toThrow();

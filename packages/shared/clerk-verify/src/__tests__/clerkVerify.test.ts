@@ -18,7 +18,13 @@ vi.mock('@clerk/backend', () => ({ verifyToken: vi.fn() }));
 
 import { verifyToken } from '@clerk/backend';
 
-import { buildPreviewAzpPattern, isClerkVerificationError, verifyClerkToken } from '../clerkVerify.js';
+import {
+    buildPreviewAzpPattern,
+    hasExactlyOneAzpMode,
+    isClerkVerificationError,
+    resolveAzpEnforcement,
+    verifyClerkToken,
+} from '../clerkVerify.js';
 
 const mockVerify = vi.mocked(verifyToken);
 
@@ -188,6 +194,52 @@ describe('verifyClerkToken — azp predicate mode (U1)', () => {
         await expect(verifyClerkToken('tok', { ...PATTERN_CONFIG, admitAzplessToken: () => true })).rejects.toSatisfy(
             isClerkVerificationError,
         );
+    });
+});
+
+describe('resolveAzpEnforcement', () => {
+    it('selects exact-match list mode from the comma list when no preview base domain is set', () => {
+        const cfg = resolveAzpEnforcement({
+            authorizedPartiesRaw: 'https://a.app, https://b.app',
+            previewBaseDomain: undefined,
+        });
+
+        expect(cfg.authorizedParties).toEqual(['https://a.app', 'https://b.app']);
+        expect(cfg.authorizedPartyPattern).toBeUndefined();
+    });
+
+    it('selects pattern mode when a preview base domain is set', () => {
+        const cfg = resolveAzpEnforcement({ authorizedPartiesRaw: '', previewBaseDomain: 'sandbox.commise.app' });
+
+        expect(cfg.authorizedPartyPattern?.test('https://pr-7.sandbox.commise.app')).toBe(true);
+        expect(cfg.authorizedPartyPattern?.test('https://pr-7.evil.commise.app')).toBe(false);
+    });
+
+    it('treats a whitespace-only base domain as unset (falls back to list mode)', () => {
+        const cfg = resolveAzpEnforcement({ authorizedPartiesRaw: 'https://a.app', previewBaseDomain: '   ' });
+
+        expect(cfg.authorizedPartyPattern).toBeUndefined();
+        expect(cfg.authorizedParties).toEqual(['https://a.app']);
+    });
+
+    it('carries the native-admission gate into pattern mode', () => {
+        const gate = (): boolean => true;
+        const cfg = resolveAzpEnforcement({
+            authorizedPartiesRaw: '',
+            previewBaseDomain: 'sandbox.commise.app',
+            admitAzplessToken: gate,
+        });
+
+        expect(cfg.admitAzplessToken).toBe(gate);
+    });
+});
+
+describe('hasExactlyOneAzpMode', () => {
+    it('is true for exactly one mode, false for both (ambiguous) or neither (fail-open)', () => {
+        expect(hasExactlyOneAzpMode(true, false)).toBe(true); // list only
+        expect(hasExactlyOneAzpMode(false, true)).toBe(true); // pattern only
+        expect(hasExactlyOneAzpMode(true, true)).toBe(false); // both → ambiguous
+        expect(hasExactlyOneAzpMode(false, false)).toBe(false); // neither → fail-open
     });
 });
 

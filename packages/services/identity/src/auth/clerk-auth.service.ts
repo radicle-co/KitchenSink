@@ -1,7 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { verifyClerkToken, type VerifiedClerkClaims } from '@kitchensink/clerk-verify';
-
-import { parseCommaList } from '../config/env.schema.js';
+import { resolveAzpEnforcement, verifyClerkToken, type VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
 /**
  * Re-export the shared verified-claims shape so identity's consumers (notably
@@ -30,12 +28,15 @@ export type { VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 export class ClerkAuthService {
     /** Public PEM verification key (non-secret); absence fails closed. Read once at construction. */
     private readonly jwtKey: string | undefined;
-    /** The `azp` allowlist (non-secret). Read once at construction. */
-    private readonly authorizedParties: string[];
+    /** Resolved `azp` enforcement — exact-match list OR a per-PR preview pattern. Read once. */
+    private readonly azp: ReturnType<typeof resolveAzpEnforcement>;
 
     constructor() {
         this.jwtKey = process.env['CLERK_JWT_KEY'];
-        this.authorizedParties = parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES']);
+        this.azp = resolveAzpEnforcement({
+            authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+            previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+        });
     }
 
     /**
@@ -45,10 +46,7 @@ export class ClerkAuthService {
      */
     async verify(token: string): Promise<VerifiedClerkClaims> {
         try {
-            return await verifyClerkToken(token, {
-                jwtKey: this.jwtKey,
-                authorizedParties: this.authorizedParties,
-            });
+            return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp });
         } catch {
             throw new UnauthorizedException();
         }

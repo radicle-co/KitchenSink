@@ -16,26 +16,21 @@
  * local `users` table — recipe ownership is keyed solely on the verified `userId` ULID.
  */
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { verifyClerkToken, type VerifiedClerkClaims } from '@kitchensink/clerk-verify';
-
-/** Parse a comma-separated allowlist (the `azp` parties) into a trimmed, non-empty list. Pure. */
-function parseCommaList(value: string | undefined): string[] {
-    return (value ?? '')
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-}
+import { resolveAzpEnforcement, verifyClerkToken, type VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
 @Injectable()
 export class ClerkAuthService {
     /** Public PEM verification key (non-secret); absence fails closed. Read once at construction. */
     private readonly jwtKey: string | undefined;
-    /** The `azp` allowlist (non-secret). Read once at construction. */
-    private readonly authorizedParties: string[];
+    /** Resolved `azp` enforcement — exact-match list OR a per-PR preview pattern. Read once. */
+    private readonly azp: ReturnType<typeof resolveAzpEnforcement>;
 
     public constructor() {
         this.jwtKey = process.env['CLERK_JWT_KEY'];
-        this.authorizedParties = parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES']);
+        this.azp = resolveAzpEnforcement({
+            authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+            previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+        });
     }
 
     /**
@@ -49,10 +44,7 @@ export class ClerkAuthService {
      */
     public async verify(token: string): Promise<VerifiedClerkClaims> {
         try {
-            return await verifyClerkToken(token, {
-                jwtKey: this.jwtKey,
-                authorizedParties: this.authorizedParties,
-            });
+            return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp });
         } catch {
             throw new UnauthorizedException();
         }

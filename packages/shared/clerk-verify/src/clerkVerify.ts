@@ -124,6 +124,43 @@ export function buildPreviewAzpPattern(baseDomain: string): RegExp {
 }
 
 /**
+ * Whether exactly one `azp` enforcement mode is selected — an exact-match list XOR a preview pattern.
+ * `false` when BOTH are set (ambiguous) or NEITHER is (fail-open: `verifyToken` would skip the `azp`
+ * check entirely). A service's config validation uses this to fail closed on deployed stages. Pure.
+ */
+export function hasExactlyOneAzpMode(hasList: boolean, hasPattern: boolean): boolean {
+    return hasList !== hasPattern;
+}
+
+/**
+ * Resolve the `azp`-enforcement fields of a {@link ClerkVerifyConfig} from env selectors: an exact-match
+ * comma list OR a preview-subdomain base domain (pattern mode). A non-empty base domain selects pattern
+ * mode and the anchored pattern is built from it; otherwise the exact-match list is used. Callers own the
+ * "exactly one per stage" check (see {@link hasExactlyOneAzpMode}) — this is the runtime resolver. Pure.
+ */
+export function resolveAzpEnforcement(input: {
+    readonly authorizedPartiesRaw: string | undefined;
+    readonly previewBaseDomain: string | undefined;
+    readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
+}): Pick<ClerkVerifyConfig, 'authorizedParties' | 'authorizedPartyPattern' | 'admitAzplessToken'> {
+    const authorizedParties = (input.authorizedPartiesRaw ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    const base = input.previewBaseDomain?.trim();
+
+    if (base !== undefined && base.length > 0) {
+        return {
+            authorizedParties,
+            authorizedPartyPattern: buildPreviewAzpPattern(base),
+            admitAzplessToken: input.admitAzplessToken,
+        };
+    }
+
+    return { authorizedParties };
+}
+
+/**
  * Enforce the self-owned `azp` boundary in pattern mode. A present `azp` must match `pattern`; an absent
  * `azp` is admitted only when `admitAzpless` returns `true` for the payload (a positive native-token
  * signal), never on absence alone. Throws {@link ClerkVerificationError} otherwise.

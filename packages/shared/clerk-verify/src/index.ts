@@ -7,6 +7,8 @@
 export {
     verifyClerkToken,
     buildPreviewAzpPattern,
+    hasExactlyOneAzpMode,
+    resolveAzpEnforcement,
     ClerkVerificationError,
     isClerkVerificationError,
 } from './clerkVerify.js';

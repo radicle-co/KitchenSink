@@ -29,7 +29,7 @@ import {
     UnauthorizedException,
     type NestMiddleware,
 } from '@nestjs/common';
-import { verifyClerkToken } from '@kitchensink/clerk-verify';
+import { resolveAzpEnforcement, verifyClerkToken } from '@kitchensink/clerk-verify';
 import type { NextFunction, Response } from 'express';
 
 import { AuthLoadShedder } from './auth-load-shedder.js';
@@ -53,14 +53,6 @@ function numberFromEnv(key: string): number | undefined {
     return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-/** Parse a comma-separated allowlist (the `azp` parties) into a trimmed, non-empty list. Pure. */
-function parseCommaList(value: string | undefined): string[] {
-    return (value ?? '')
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-}
-
 /** Extract the bearer token from an `Authorization` header, else `undefined`. Pure. */
 function extractBearer(authorization: string | undefined): string | undefined {
     if (typeof authorization !== 'string') {
@@ -76,8 +68,8 @@ function extractBearer(authorization: string | undefined): string | undefined {
 export class FoodAuthGuard implements NestMiddleware {
     /** Public PEM verification key (non-secret); absence fails closed. Read once at construction. */
     private readonly jwtKey: string | undefined;
-    /** The `azp` allowlist (non-secret). Read once at construction. */
-    private readonly authorizedParties: string[];
+    /** Resolved `azp` enforcement — exact-match list OR a per-PR preview pattern. Read once. */
+    private readonly azp: ReturnType<typeof resolveAzpEnforcement>;
     /** Auth-layer DoS shedder (FR-052) — shared process-wide unless overridden for tests. */
     private readonly shedder: AuthLoadShedder;
 
@@ -88,7 +80,10 @@ export class FoodAuthGuard implements NestMiddleware {
      */
     public constructor(@Optional() shedder: AuthLoadShedder = defaultShedder) {
         this.jwtKey = process.env['CLERK_JWT_KEY'];
-        this.authorizedParties = parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES']);
+        this.azp = resolveAzpEnforcement({
+            authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+            previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+        });
         this.shedder = shedder;
     }
 
@@ -130,10 +125,7 @@ export class FoodAuthGuard implements NestMiddleware {
         let claims;
 
         try {
-            claims = await verifyClerkToken(bearer, {
-                jwtKey: this.jwtKey,
-                authorizedParties: this.authorizedParties,
-            });
+            claims = await verifyClerkToken(bearer, { jwtKey: this.jwtKey, ...this.azp });
         } catch {
             // Any failure (bad signature, expiry, wrong azp, missing key) → opaque 401 (never the reason).
             // Feed the per-source 401-rate cap so a sustained flood from this source starts shedding.

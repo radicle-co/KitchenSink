@@ -49,6 +49,21 @@ export interface ClerkVerifyConfig {
     readonly jwtKey: string | undefined;
     /** The allowed `azp` values; empty skips the `azp` check (never passed as `[]` to Clerk). */
     readonly authorizedParties: string[];
+    /**
+     * When set, the verified `azp` is validated against THIS anchored pattern instead of the exact-match
+     * `authorizedParties` list — the SDK `azp` check is skipped and we enforce it ourselves. This lets a
+     * bounded family of origins (per-PR preview subdomains) pass without an unbounded allowlist. Build it
+     * with {@link buildPreviewAzpPattern} so it is anchored and dot-escaped. Callers enforce "exactly one
+     * of pattern or list" per stage; prod stays on the list and leaves this undefined.
+     */
+    readonly authorizedPartyPattern?: RegExp;
+    /**
+     * Optional gate that admits a token whose `azp` is ABSENT (e.g. a native `@clerk/expo` token) under
+     * pattern mode. Receives the raw verified payload and returns `true` to admit. Without it, an absent
+     * `azp` under pattern mode is rejected. It MUST key on a positive native-token signal — never admit on
+     * `azp`-absence alone, or any client able to obtain an `azp`-less token bypasses the origin check.
+     */
+    readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
 }
 
 /**
@@ -90,6 +105,49 @@ function asRecord(value: unknown): Record<string, unknown> {
         : {};
 }
 
+/** Escape regex metacharacters so a literal string matches only itself. Pure. */
+function escapeRegExp(literal: string): string {
+    return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Build the anchored, dot-escaped `azp` pattern for per-PR preview subdomains under `baseDomain`
+ * (e.g. `'sandbox.commise.app'` → `/^https:\/\/pr-\d+\.sandbox\.commise\.app$/`). Anchored at both ends
+ * and ReDoS-safe (one bounded `\d+` followed by a literal — no catastrophic backtracking), so it is safe
+ * to use as the `azp` security boundary. Pure.
+ *
+ * @param baseDomain - The apex the preview subdomains sit under (no scheme, no leading dot).
+ * @returns A RegExp matching exactly `https://pr-<digits>.<baseDomain>`.
+ */
+export function buildPreviewAzpPattern(baseDomain: string): RegExp {
+    return new RegExp(`^https://pr-\\d+\\.${escapeRegExp(baseDomain)}$`);
+}
+
+/**
+ * Enforce the self-owned `azp` boundary in pattern mode. A present `azp` must match `pattern`; an absent
+ * `azp` is admitted only when `admitAzpless` returns `true` for the payload (a positive native-token
+ * signal), never on absence alone. Throws {@link ClerkVerificationError} otherwise.
+ */
+function assertAzpMatchesPattern(
+    payload: Record<string, unknown>,
+    pattern: RegExp,
+    admitAzpless?: (payload: Readonly<Record<string, unknown>>) => boolean,
+): void {
+    const azp = asNonEmptyString(payload['azp']);
+
+    if (azp === undefined) {
+        if (admitAzpless?.(payload) === true) {
+            return;
+        }
+
+        throw new ClerkVerificationError();
+    }
+
+    if (!pattern.test(azp)) {
+        throw new ClerkVerificationError();
+    }
+}
+
 /**
  * Verify a Clerk JWT networklessly and return the claims consumers read.
  *
@@ -107,12 +165,18 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
 
     let result: Awaited<ReturnType<typeof verifyToken>>;
 
+    const usePattern = config.authorizedPartyPattern !== undefined;
+
     try {
         result = await verifyToken(token, {
             jwtKey: config.jwtKey,
-            // Pass undefined (skip the azp check) only when no parties are configured. Never pass []
-            // — Clerk treats an empty array as "reject all".
-            authorizedParties: config.authorizedParties.length > 0 ? config.authorizedParties : undefined,
+            // Pattern mode enforces `azp` ourselves (below), so skip the SDK check. Otherwise pass the
+            // list — undefined when empty; Clerk treats an empty array as "reject all".
+            authorizedParties: usePattern
+                ? undefined
+                : config.authorizedParties.length > 0
+                  ? config.authorizedParties
+                  : undefined,
         });
     } catch {
         throw new ClerkVerificationError();
@@ -133,6 +197,11 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
 
     if (!sub) {
         throw new ClerkVerificationError();
+    }
+
+    // Self-owned `azp` boundary: in pattern mode we validated nothing at the SDK layer, so enforce it here.
+    if (config.authorizedPartyPattern !== undefined) {
+        assertAzpMatchesPattern(payload, config.authorizedPartyPattern, config.admitAzplessToken);
     }
 
     const publicMetadata = asRecord(payload['public_metadata']);

@@ -18,7 +18,7 @@ vi.mock('@clerk/backend', () => ({ verifyToken: vi.fn() }));
 
 import { verifyToken } from '@clerk/backend';
 
-import { isClerkVerificationError, verifyClerkToken } from '../clerkVerify.js';
+import { buildPreviewAzpPattern, isClerkVerificationError, verifyClerkToken } from '../clerkVerify.js';
 
 const mockVerify = vi.mocked(verifyToken);
 
@@ -129,5 +129,79 @@ describe('verifyClerkToken', () => {
         await verifyClerkToken('tok', { jwtKey: 'PEM', authorizedParties: [] });
 
         expect(mockVerify).toHaveBeenCalledWith('tok', { jwtKey: 'PEM', authorizedParties: undefined });
+    });
+});
+
+const PATTERN = buildPreviewAzpPattern('sandbox.commise.app');
+const PATTERN_CONFIG = { jwtKey: 'PEM', authorizedParties: [], authorizedPartyPattern: PATTERN };
+
+describe('verifyClerkToken — azp predicate mode (U1)', () => {
+    it('accepts a token whose azp matches the anchored preview pattern, and validates azp itself (SDK check skipped)', async () => {
+        mockVerify.mockResolvedValue({ sub: 'u1', azp: 'https://pr-42.sandbox.commise.app' } as never);
+
+        const claims = await verifyClerkToken('tok', PATTERN_CONFIG);
+
+        expect(claims.azp).toBe('https://pr-42.sandbox.commise.app');
+        // Pattern mode validates azp itself, so the SDK azp check must be skipped (authorizedParties undefined).
+        expect(mockVerify).toHaveBeenCalledWith('tok', { jwtKey: 'PEM', authorizedParties: undefined });
+    });
+
+    it.each([
+        ['sibling look-alike domain', 'https://pr-42.evil.commise.app'],
+        ['different base subdomain', 'https://pr-42.prod.commise.app'],
+        ['trailing content after the host', 'https://pr-42.sandbox.commise.app.evil.com'],
+        ['non-digit label near-miss', 'https://pr-4x.sandbox.commise.app'],
+        ['missing pr- prefix', 'https://42.sandbox.commise.app'],
+        ['http scheme, not https', 'http://pr-42.sandbox.commise.app'],
+        ['leading junk before the scheme', ' https://pr-42.sandbox.commise.app'],
+    ])('rejects a mismatched azp (%s)', async (_label, azp) => {
+        mockVerify.mockResolvedValue({ sub: 'u1', azp } as never);
+
+        await expect(verifyClerkToken('tok', PATTERN_CONFIG)).rejects.toSatisfy(isClerkVerificationError);
+    });
+
+    it('rejects an azp-less token under pattern mode when no native-admission gate is configured', async () => {
+        mockVerify.mockResolvedValue({ sub: 'u1' } as never);
+
+        await expect(verifyClerkToken('tok', PATTERN_CONFIG)).rejects.toSatisfy(isClerkVerificationError);
+    });
+
+    it('admits an azp-less token ONLY via a positive native-admission gate, never azp-absence alone', async () => {
+        mockVerify.mockResolvedValue({ sub: 'u1', client_type: 'native' } as never);
+
+        const claims = await verifyClerkToken('tok', {
+            ...PATTERN_CONFIG,
+            admitAzplessToken: (payload) => payload['client_type'] === 'native',
+        });
+
+        expect(claims.sub).toBe('u1');
+    });
+
+    it('does NOT consult the native-admission gate when azp IS present — the pattern still governs', async () => {
+        mockVerify.mockResolvedValue({
+            sub: 'u1',
+            azp: 'https://pr-42.evil.commise.app',
+            client_type: 'native',
+        } as never);
+
+        // azp present but mismatched → rejected even though the native gate would admit an azp-less token.
+        await expect(verifyClerkToken('tok', { ...PATTERN_CONFIG, admitAzplessToken: () => true })).rejects.toSatisfy(
+            isClerkVerificationError,
+        );
+    });
+});
+
+describe('buildPreviewAzpPattern', () => {
+    it('anchors both ends and escapes dots in the base domain', () => {
+        const re = buildPreviewAzpPattern('sandbox.commise.app');
+
+        expect(re.test('https://pr-1.sandbox.commise.app')).toBe(true);
+        // Dots are escaped → a literal dot is required, not an arbitrary character.
+        expect(re.test('https://pr-1xsandboxxcommisexapp')).toBe(false);
+        // Anchored → no leading/trailing slop.
+        expect(re.test(' https://pr-1.sandbox.commise.app')).toBe(false);
+        expect(re.test('https://pr-1.sandbox.commise.app/')).toBe(false);
+        expect(re.source.startsWith('^')).toBe(true);
+        expect(re.source.endsWith('$')).toBe(true);
     });
 });

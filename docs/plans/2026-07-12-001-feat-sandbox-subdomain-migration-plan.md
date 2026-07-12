@@ -91,8 +91,8 @@ in which BOTH addressing modes work. See origin brainstorm for decisions and sco
   `sandbox-web-preview.yml`). A mistyped value fails safe to path routing.
 - **Verification:** subdomain mode → `''` even with a PR id / explicit `PREVIEW_BASE_PATH`; `path`/unknown
   → unchanged `/pr-{N}`. basePath 10/10.
-- **Open (researching):** whether to instead let **Vercel** serve/link the subdomain natively (custom
-  preview domain) and retire the CloudFront router for web — see "Alternative: Vercel-native domains".
+- **Resolved:** the Vercel-native alternative (retire the router, let Vercel serve the subdomain) was
+  researched and rejected — see "Alternative considered: Vercel-native subdomains".
 
 ### U7 — Retire path routing + basePath (post-cutover) — ⏳ DEFERRED
 
@@ -120,6 +120,46 @@ Each step is independently deployable and revertible; do them in order, validati
 5. **Drain, then tighten (U7).** Once every active preview serves on a subdomain: unset
    `CLERK_AZP_PREVIEW_MODE` (back to strict, apex rejected), remove the path branch + basePath, update
    ADR-0001. Rollback before this step is trivial; after it, path routing is gone (intended).
+
+## Vercel integration (seamlessness)
+
+We front Vercel with the CloudFront router (host-swap + edge bypass-token injection), so the **friendly**
+preview URL is ours, not Vercel's. To avoid the PR showing a second, broken link:
+
+- **Codified:** `vercel.json` sets `github.silent: true` — suppresses Vercel's bot PR/commit **comment**
+  (which links to the bare `*.vercel.app` host that 404s/401s under our router + azp). It does NOT stop
+  builds, and route registration reads the Vercel **API** (`zentered/vercel-preview-url`), not the
+  comment, so nothing breaks. The only preview link on the PR is our `sandbox-preview/pr-{N}` GitHub
+  deployment, which points at the friendly URL and follows `SANDBOX_PREVIEW_MODE`.
+- **Manual (dashboard, one-time) for full seamlessness:**
+    - Vercel → Project → Settings → Git → **disable the `deployment_status` (Deployment) GitHub events** so
+      Vercel stops publishing its OWN GitHub Deployment (bare host) in the PR's Environments sidebar, leaving
+      only ours. Do **NOT** disable deployments themselves (`git.deploymentEnabled`) — we need Vercel to build.
+    - At cutover, set **`SANDBOX_PREVIEW_MODE=subdomain`** as a Vercel **Preview**-scoped env var (drives the
+      build's basePath → root) AND as a **GitHub repo variable** (drives the PR link). Both default to path.
+- **Deployment Protection:** unchanged — the router injects `x-vercel-protection-bypass`
+  (`VERCEL_AUTOMATION_BYPASS_SECRET`, host-agnostic), so both path and subdomain previews stay reachable.
+
+## Alternative considered: Vercel-native subdomains (rejected 2026-07-12)
+
+Researched whether Vercel could serve/link `pr-{N}.sandbox.commise.app` natively instead of via the
+router (full findings from official docs, July 2026). **Rejected** — even given "one branch == one PR":
+
+- **No per-PR primitive.** Vercel is branch-keyed; its auto host is the branch _slug_
+  (`…-git-<branch>-<scope>.vercel.app`), not `pr-{N}`. Getting our `pr-{N}` host still requires per-PR CI
+  (a `PATCH /projects/{id}/domains` bind **plus** a per-PR Route53 CNAME) — MORE per-PR ops than the
+  router's single `*.sandbox` wildcard record (zero per-PR DNS).
+- **Wildcard needs Vercel nameservers.** A `*.sandbox.commise.app` custom domain on Vercel requires the
+  nameserver method (or ACME-challenge delegation) — handing our Route53-managed subzone to Vercel and
+  colliding with the CloudFront wildcard. Per-PR individual CNAMEs avoid that but reintroduce per-PR DNS.
+- **Protection still applies.** A custom _preview_ domain is NOT exempt from Deployment Protection (only
+  _production_ domains are), so the bypass token is still required either way — no savings.
+- **Native comment still points to `*.vercel.app`.** Only the Enterprise/paid **Preview Deployment
+  Suffix** rewrites the comment host, and it's branch-slug-based + needs nameserver handover — uglier host,
+  worse DNS posture, for a link we already control ourselves.
+
+Net: the router gives per-PR subdomains with one wildcard DNS record + edge bypass, in code that's built
+and tested. Vercel-native is more moving parts for less control. Keep the router.
 
 ## Scope Boundaries
 

@@ -3,8 +3,10 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
+import RecipeHomeWidget from '@commise/features-recipes/widget/web';
 
 import { LogoutButton } from '@/components/auth/LogoutButton';
+import { fetchRecentRecipes } from '@/lib/recipes';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +26,10 @@ export default async function HomePage() {
 
     // Signed-in users land HERE — the post sign-up/in forceRedirectUrl is `/`, and the home page now
     // RENDERS instead of bouncing on to /profile, so a freshly-signed-up user stays on the root page.
+    // The Home surface starts the recipes fetch without awaiting it and streams the promise across the
+    // RSC boundary into the recipe widget, which `use()`s it under its own Suspense boundary.
+    const recipesPromise = fetchRecentRecipes();
+
     return (
         <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[var(--color-background)] px-4 py-12 text-center">
             <h1 className="text-2xl font-semibold">Welcome to Commise</h1>
@@ -33,6 +39,9 @@ export default async function HomePage() {
                 <Link href="/settings">Settings</Link>
                 <Link href="/account">Account</Link>
             </nav>
+            <section aria-label="Recipes" className="w-full max-w-md text-left">
+                <RecipeHomeWidget recipesPromise={recipesPromise} />
+            </section>
             <LogoutButton />
         </main>
     );

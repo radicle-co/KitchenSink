@@ -76,14 +76,23 @@ in which BOTH addressing modes work. See origin brainstorm for decisions and sco
   `.github/workflows/sandbox-web-preview.yml` / `sandbox-router-deploy.yml` at cutover.
 - **Verification:** a `pr-{N}` KVS key exists for an open preview; `resolveRoute` by host resolves it.
 
-### U6 — Preview build serves at subdomain root (drop basePath conditionally) — ⏳ REMAINING
+### U6 — Preview build serves at subdomain root (gated basePath flip) — ✅ DONE (gated, OFF by default)
 
 - **Goal:** when a preview is built for subdomain serving, omit `basePath` (subdomain previews live at
   root); retain path-mode builds behind a build-time signal.
-- **Files (planned):** `packages/apps/commise/web/next.config.ts`, `src/lib/base-path.ts`,
-  `src/middleware.ts` (prefix matcher becomes root-anchored only in subdomain mode).
-- **Execution note:** test-first; add a base-path resolver unit test for the subdomain branch. Gate on the
-  same signal the deploy passes. Do NOT remove path-mode until U7.
+- **Design (elegant):** the whole basePath machinery is already conditional on a non-empty
+  `previewBasePath`. So `derivePreviewBasePath` returns `''` when `SANDBOX_PREVIEW_MODE=subdomain` —
+  which makes `basePath`, the SSO-callback redirect, the middleware `withBasePath(…)` calls, and the
+  root-anchored `config.matcher` all degrade to their PRODUCTION behavior automatically. **No middleware
+  change** was needed: a subdomain preview is topologically identical to production (served at root).
+- **Files:** `packages/apps/commise/web/src/lib/basePath.ts` + `tests/lib/basePath.test.ts`.
+- **Two config surfaces (both default to path):** the Vercel build reads `SANDBOX_PREVIEW_MODE` (drives
+  basePath); the GitHub deployment link reads repo var `SANDBOX_PREVIEW_MODE` (drives `environment_url` in
+  `sandbox-web-preview.yml`). A mistyped value fails safe to path routing.
+- **Verification:** subdomain mode → `''` even with a PR id / explicit `PREVIEW_BASE_PATH`; `path`/unknown
+  → unchanged `/pr-{N}`. basePath 10/10.
+- **Open (researching):** whether to instead let **Vercel** serve/link the subdomain natively (custom
+  preview domain) and retire the CloudFront router for web — see "Alternative: Vercel-native domains".
 
 ### U7 — Retire path routing + basePath (post-cutover) — ⏳ DEFERRED
 
@@ -103,8 +112,11 @@ Each step is independently deployable and revertible; do them in order, validati
 3. **Flip services to transition (U2).** Set `CLERK_AZP_PREVIEW_MODE=transition` on the sandbox identity
    (and recipe/food if deployed) with `CLERK_AZP_PATTERN=sandbox.commise.app`. Now the backend accepts
    BOTH apex and subdomain tokens. Path-routed previews keep working. Rollback = unset the env + redeploy.
-4. **Serve new previews at their subdomain (U6).** Build previews without basePath; validate a real
-   preview end-to-end (sign in, authenticated navigation) on `pr-N.sandbox.commise.app`.
+4. **Serve new previews at their subdomain (U6).** Set `SANDBOX_PREVIEW_MODE=subdomain` in **both** the
+   Vercel project env (drives the build's basePath → root) and the GitHub repo variables (drives the PR
+   "View deployment" link → `pr-N.sandbox.commise.app`). Trigger a rebuild; validate a real preview
+   end-to-end (sign in, authenticated navigation) on `pr-N.sandbox.commise.app`. Rollback = set it back to
+   `path` (or unset).
 5. **Drain, then tighten (U7).** Once every active preview serves on a subdomain: unset
    `CLERK_AZP_PREVIEW_MODE` (back to strict, apex rejected), remove the path branch + basePath, update
    ADR-0001. Rollback before this step is trivial; after it, path routing is gone (intended).

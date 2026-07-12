@@ -8,8 +8,18 @@
  * Build-time derivation of the per-PR base path. On Vercel the PR id comes from
  * `VERCEL_GIT_PULL_REQUEST_ID`; off-Vercel an explicit `PREVIEW_BASE_PATH` wins. Production
  * (neither set) gets an empty string → no basePath. Consumed by `next.config.ts`.
+ *
+ * ADR-0001 subdomain cutover: when `SANDBOX_PREVIEW_MODE` is exactly `subdomain`, previews are served at
+ * the ROOT of `pr-{N}.sandbox.commise.app` (topologically identical to production), so this returns `''`
+ * regardless of the PR id — which makes basePath, the SSO-callback redirect, and every `withBasePath(…)`
+ * call degrade to a no-op automatically. Any other value (unset, `path`, a typo) is fail-safe and keeps
+ * the current path-routing posture. The default MUST stay path routing until the human-gated cutover.
  */
 export function derivePreviewBasePath(env: Record<string, string | undefined> = process.env): string {
+    if (env['SANDBOX_PREVIEW_MODE'] === 'subdomain') {
+        return '';
+    }
+
     const explicit = env['PREVIEW_BASE_PATH'];
 
     if (explicit) {

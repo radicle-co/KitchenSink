@@ -14,6 +14,29 @@ describe('derivePreviewBasePath', () => {
     it('returns empty string in production (neither set)', () => {
         expect(derivePreviewBasePath({})).toBe('');
     });
+
+    // ── ADR-0001 subdomain cutover: SANDBOX_PREVIEW_MODE=subdomain serves each preview at ROOT ──
+    it('returns empty string in subdomain mode even with a PR id (previews serve at root)', () => {
+        expect(derivePreviewBasePath({ SANDBOX_PREVIEW_MODE: 'subdomain', VERCEL_GIT_PULL_REQUEST_ID: '123' })).toBe(
+            '',
+        );
+    });
+
+    it('subdomain mode also overrides an explicit PREVIEW_BASE_PATH (mode is the authoritative cutover switch)', () => {
+        expect(derivePreviewBasePath({ SANDBOX_PREVIEW_MODE: 'subdomain', PREVIEW_BASE_PATH: '/pr-7' })).toBe('');
+    });
+
+    it('still derives /pr-{N} when the mode is explicitly path (default posture, unchanged)', () => {
+        expect(derivePreviewBasePath({ SANDBOX_PREVIEW_MODE: 'path', VERCEL_GIT_PULL_REQUEST_ID: '123' })).toBe(
+            '/pr-123',
+        );
+    });
+
+    it('treats an unknown/mistyped mode as path (fail-safe to the current posture)', () => {
+        expect(derivePreviewBasePath({ SANDBOX_PREVIEW_MODE: 'subdomainn', VERCEL_GIT_PULL_REQUEST_ID: '123' })).toBe(
+            '/pr-123',
+        );
+    });
 });
 
 describe('withBasePath', () => {

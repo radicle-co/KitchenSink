@@ -19,6 +19,7 @@ import { Suspense, use, type FC } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
 
+import { recipeMessages } from '../messages.js';
 import {
     MAX_RECENT_RECIPES,
     RecentRecipeItem,
@@ -28,7 +29,7 @@ import {
     toRecipeSummary,
 } from '../components/index.js';
 
-const WIDGET_TITLE = 'Recent recipes';
+const WIDGET_TITLE = recipeMessages.widgetTitle;
 
 /**
  * Props for the recipe Home widget (web). `recipesPromise` is the viewer's recent recipes as a PROMISE

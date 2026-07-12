@@ -64,8 +64,13 @@ export class WebhooksStack extends Stack {
         const dbCredentialsSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
             secretCompleteArn: props.dbSecretArn,
         });
+        // `authSecretArn` is the data stack's name-based, suffix-LESS `SecretArn` export (the secret is
+        // imported there via `fromSecretNameV2`). Import it as a PARTIAL ARN so `grantRead` appends the
+        // `-??????` wildcard that matches the secret's real ARN — a `secretCompleteArn` grants the exact
+        // suffix-less resource, which the runtime GetSecretValue fallback (below) would be denied on.
+        // (The DB and migration secrets are CDK-created and export full ARNs, so they stay complete.)
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
-            secretCompleteArn: props.authSecretArn,
+            secretPartialArn: props.authSecretArn,
         });
         const deletionQueue = sqs.Queue.fromQueueArn(this, 'ImportedDeletionQueue', props.deletionQueueArn);
         const mediaBucket = s3.Bucket.fromBucketName(this, 'ImportedMediaBucket', props.mediaBucketName);

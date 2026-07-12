@@ -115,4 +115,25 @@ describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolid
         const mapping = Object.values(mappings)[0]!;
         expect(mapping.Properties.FunctionName).toEqual({ Ref: deletionWorkerLogicalId });
     });
+
+    it('grants the webhook role GetSecretValue on the auth secret WITH the -?????? wildcard (regression)', () => {
+        // Same bug class as the identity service stack: the auth secret is imported from the data stack's
+        // suffix-LESS `SecretArn` export, so the grant must append the `-??????` wildcard to match the
+        // secret's real ARN — otherwise the lambda's runtime GetSecretValue fallback is denied. Reverting
+        // to `secretCompleteArn` drops the wildcard and fails this test.
+        const authBase = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:auth-AbCdEf';
+        const policies = template.findResources('AWS::IAM::Policy');
+        const secretGrantResources = Object.values(policies).flatMap((policy) =>
+            ((policy.Properties?.PolicyDocument?.Statement ?? []) as Array<Record<string, unknown>>)
+                .filter((statement) =>
+                    ([] as string[])
+                        .concat(statement['Action'] as string | string[])
+                        .includes('secretsmanager:GetSecretValue'),
+                )
+                .flatMap((statement) => ([] as unknown[]).concat(statement['Resource'] as unknown)),
+        );
+
+        expect(secretGrantResources).toContain(`${authBase}-??????`);
+        expect(secretGrantResources).not.toContain(authBase);
+    });
 });

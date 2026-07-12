@@ -18,6 +18,25 @@ describe('NetworkStack per-stage CIDRs', () => {
     it('sandbox VPC uses a distinct 10.1.0.0/16 so the VPCs can be peered', () => {
         networkTemplate('sandbox').hasResourceProperties('AWS::EC2::VPC', { CidrBlock: '10.1.0.0/16' });
     });
+
+    it('an unknown/dev stage falls back to the throwaway 10.2.0.0/16 (synth/test never throws)', () => {
+        // The fallback keeps local synth + the test harness working; it must be a THIRD range so a dev
+        // synth can never overlap-collide with prod (10.0) or sandbox (10.1).
+        networkTemplate('dev').hasResourceProperties('AWS::EC2::VPC', { CidrBlock: '10.2.0.0/16' });
+    });
+
+    it('prod and sandbox are fully independent synths — deriving one never mutates the other', () => {
+        // Guards against a shared/mutable CIDR map: read prod AFTER sandbox and confirm it is untouched.
+        const sandboxCidr = Object.values(networkTemplate('sandbox').findResources('AWS::EC2::VPC')).map(
+            (r: any) => r.Properties.CidrBlock,
+        );
+        const prodCidr = Object.values(networkTemplate('prod').findResources('AWS::EC2::VPC')).map(
+            (r: any) => r.Properties.CidrBlock,
+        );
+
+        expect(sandboxCidr).toEqual(['10.1.0.0/16']);
+        expect(prodCidr).toEqual(['10.0.0.0/16']);
+    });
 });
 
 describe('NetworkStack VPC naming', () => {
@@ -71,6 +90,41 @@ describe('NetworkStack NAT (cost: instance, not Gateway)', () => {
         // edit does not silently reintroduce the Gateway.
         t.resourceCountIs('AWS::EC2::NatGateway', 0);
         t.hasResourceProperties('AWS::EC2::Instance', { InstanceType: 't4g.nano' });
+    });
+
+    it('provisions exactly one NAT instance and no Gateway on prod too (both stages minimize NAT)', () => {
+        const t = networkTemplate('prod');
+        t.resourceCountIs('AWS::EC2::NatGateway', 0);
+        t.resourceCountIs('AWS::EC2::Instance', 1);
+        t.hasResourceProperties('AWS::EC2::Instance', { InstanceType: 't4g.nano' });
+    });
+
+    it('scopes the NAT instance SG ingress to the VPC CIDR — never 0.0.0.0/0 (ADR-0004)', () => {
+        const template = networkTemplate('sandbox');
+
+        // Identify the VPC and the NAT SG by their synthesized identity (description), not by a
+        // brittle logical-id, so a construct-id rename does not break the guard.
+        const vpcLogicalId = Object.keys(template.findResources('AWS::EC2::VPC'))[0];
+
+        const natSgs = Object.values(template.findResources('AWS::EC2::SecurityGroup')).filter(
+            (sg: any) => sg.Properties.GroupDescription === 'Security Group for NAT instances',
+        );
+        expect(natSgs.length).toBe(1);
+
+        const ingress = ((natSgs[0] as any).Properties.SecurityGroupIngress ?? []) as any[];
+        expect(ingress.length).toBe(1);
+
+        // The single ingress rule must reference the VPC's OWN CidrBlock (private subnets route egress
+        // through the NAT), allowing all protocols — and must NOT be a public 0.0.0.0/0 opening, which
+        // would turn the NAT instance into an open relay.
+        const rule = ingress[0];
+        expect(rule.IpProtocol).toBe('-1');
+        expect(rule.CidrIp).toEqual({ 'Fn::GetAtt': [vpcLogicalId, 'CidrBlock'] });
+
+        // Belt-and-suspenders: no ingress rule on the NAT SG opens to the public internet.
+        for (const r of ingress) {
+            expect(r.CidrIp).not.toBe('0.0.0.0/0');
+        }
     });
 });
 

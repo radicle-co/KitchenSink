@@ -78,6 +78,83 @@ describe('DataStack per-stage RDS storage type (ADR-0008)', () => {
     });
 });
 
+describe('DataStack RDS teardown policy (ADR-0002: DESTROY, no snapshot)', () => {
+    // The instance is `removalPolicy: DESTROY` on purpose (per-stage ephemeral RDS, no orphaned prod
+    // snapshot). A regression to RETAIN/SNAPSHOT would silently leave paid resources behind on cleanup.
+    it.each(['prod', 'sandbox'])('deletes the RDS instance on stack removal (no snapshot) — %s', (stage) => {
+        dataTemplate(stage).hasResource('AWS::RDS::DBInstance', {
+            DeletionPolicy: 'Delete',
+            UpdateReplacePolicy: 'Delete',
+        });
+    });
+});
+
+/**
+ * Cross-stack contract: identity-service, identity-webhooks and food-service all
+ * `Fn.importValue('kitchensink-data-${stage}:<suffix>')`. Dropping/renaming any of these exports breaks
+ * a downstream synth at deploy time, not here — so this stack must be the guard. (In test the stack id
+ * is `Data-${stage}`, not `kitchensink-data-${stage}`, so assert on the export-name SUFFIX, exactly as
+ * the pre-existing DatabaseResourceId test does.)
+ */
+const CONSUMED_DATA_EXPORT_SUFFIXES = [
+    'DatabaseEndpoint',
+    'DatabasePort',
+    'DatabaseName',
+    'DatabaseSecretArn',
+    'SecretArn',
+    'MigrationPlanSecretArn',
+    'FoodDatabaseName',
+    'DatabaseResourceId',
+    'DeletionQueueArn',
+    'MediaBucketName',
+    'ArchiveBucketName',
+] as const;
+
+const outputByExportSuffix = (template: Template, suffix: string): { Value: any; Export?: { Name?: string } } => {
+    const match = Object.values(template.findOutputs('*')).find((output: any) =>
+        String(output.Export?.Name ?? '').endsWith(`:${suffix}`),
+    ) as any;
+
+    return match;
+};
+
+describe('DataStack cross-stack CfnOutput exports (consumer contract)', () => {
+    it.each(CONSUMED_DATA_EXPORT_SUFFIXES)('produces the %s export consumers import', (suffix) => {
+        expect(outputByExportSuffix(dataTemplate('prod'), suffix)).toBeDefined();
+    });
+
+    // A recent bug came from a consumer mis-handling the suffix-LESS Clerk auth-secret ARN. These two
+    // groups MUST resolve differently and the test must fail if either flips:
+    //   • DatabaseSecretArn / MigrationPlanSecretArn are CDK-CREATED secrets → export is a Ref to the
+    //     secret resource, i.e. the FULL ARN including the random 6-char suffix (secretCompleteArn).
+    //   • SecretArn is imported by NAME (fromSecretNameV2) → export is a by-name Fn::Join ARN with NO
+    //     suffix (secretPartialArn). Consumers must NOT treat it as a complete ARN.
+    it.each(['DatabaseSecretArn', 'MigrationPlanSecretArn'])(
+        '%s exports the full ARN of a CDK-created secret (Ref, suffix-ful)',
+        (suffix) => {
+            const template = dataTemplate('prod');
+            const output = outputByExportSuffix(template, suffix);
+            const refTarget = output.Value?.Ref;
+
+            expect(refTarget).toBeDefined();
+            expect(output.Value['Fn::Join']).toBeUndefined();
+            // The Ref must point at a Secret resource this stack owns (a real complete ARN with suffix).
+            expect(Object.keys(template.findResources('AWS::SecretsManager::Secret'))).toContain(refTarget);
+        },
+    );
+
+    it('SecretArn exports the suffix-LESS by-name ARN of the imported Clerk auth secret (not a Ref)', () => {
+        const output = outputByExportSuffix(dataTemplate('sandbox'), 'SecretArn');
+
+        // by-name (fromSecretNameV2) form: an Fn::Join, never a Ref to an owned Secret resource.
+        expect(output.Value.Ref).toBeUndefined();
+        expect(output.Value['Fn::Join']).toBeDefined();
+        // Ends at the plain secret NAME — no `-<6char>` Secrets Manager suffix appended.
+        expect(JSON.stringify(output.Value)).toContain(':secret:kitchensink/sandbox/identity/keys');
+        expect(JSON.stringify(output.Value)).not.toMatch(/kitchensink\/sandbox\/identity\/keys-[A-Za-z0-9]{6}/);
+    });
+});
+
 describe('Food DB IAM auth + role/database bootstrap (feature 003, ADR-0006)', () => {
     it('enables RDS IAM database authentication on the shared instance', () => {
         const instance = Object.values(dataTemplate('sandbox').findResources('AWS::RDS::DBInstance'))[0] as any;

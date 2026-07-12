@@ -41,6 +41,20 @@ describe('SharedAlbStack', () => {
         });
     });
 
+    it('provisions exactly the two listeners (443 + 80) and no others', () => {
+        // A third listener (or a second per port) would mean an accidental extra ingress path.
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::Listener', 2);
+    });
+
+    it('terminates TLS on the HTTPS listener with an attached ACM certificate', () => {
+        // Guards against the listener silently reverting to plaintext (certificate dropped).
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
+            Port: 443,
+            Protocol: 'HTTPS',
+            Certificates: Match.arrayWith([Match.objectLike({ CertificateArn: Match.anyValue() })]),
+        });
+    });
+
     it('has an HTTPS listener whose default action is a 404 fixed-response', () => {
         template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
             Port: 443,

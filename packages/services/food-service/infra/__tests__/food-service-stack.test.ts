@@ -242,6 +242,81 @@ describe('Food worker + service wiring', () => {
     });
 });
 
+describe('USDA API-key secret grant (regression: suffix-less GetSecretValue never matches the real ARN)', () => {
+    // The USDA key is imported by NAME via `fromSecretNameV2`, and injected via
+    // `ecs.Secret.fromSecretsManager`, which grants the task EXECUTION role `GetSecretValue` scoped to
+    // that secret. Because the import is name-based (no complete ARN at synth), CDK MUST append the
+    // `-??????` wildcard so the grant matches the secret's real ARN (`...usda-api-key-XXXXXX`, the 6
+    // random chars Secrets Manager suffixes). A regression to a suffix-LESS / exact-ARN grant (e.g.
+    // `fromSecretCompleteArn`, or hand-building the bare ARN) never matches the live secret: the
+    // execution role gets AccessDenied on GetSecretValue, the container never launches, and every deploy
+    // hangs on ECS "NotStabilized" then rolls back — the exact bug that bit identity/webhooks. These
+    // assertions document that food does it RIGHT and fail loudly if the wildcard is ever dropped.
+    const usdaSecretResource = {
+        'Fn::Join': [
+            '',
+            [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':secretsmanager:us-east-1:123456789012:secret:kitchensink/test/food/usda-api-key-??????',
+            ],
+        ],
+    };
+
+    it('grants GetSecretValue on the USDA secret via a name-based ARN WITH the -?????? wildcard suffix', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['secretsmanager:GetSecretValue']),
+                        Resource: usdaSecretResource,
+                    }),
+                ]),
+            },
+        });
+    });
+
+    it('lands that grant on the shared task EXECUTION role (the principal that pulls the secret at task start)', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            Roles: Match.arrayWith([Match.objectLike({ Ref: Match.stringLikeRegexp('FoodTaskExecutionRole') })]),
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['secretsmanager:GetSecretValue']),
+                        Resource: usdaSecretResource,
+                    }),
+                ]),
+            },
+        });
+    });
+
+    it('never grants the USDA secret on a bare/exact ARN missing the -?????? wildcard (the AccessDenied bug shape)', () => {
+        const policies = serviceTemplate.findResources('AWS::IAM::Policy');
+        const usdaGrants = Object.values(policies).flatMap((policy: any) =>
+            ((policy.Properties?.PolicyDocument?.Statement ?? []) as Array<Record<string, unknown>>).filter(
+                (statement) => {
+                    const actions = ([] as string[]).concat(statement['Action'] as string | string[]);
+
+                    return (
+                        actions.includes('secretsmanager:GetSecretValue') &&
+                        JSON.stringify(statement['Resource']).includes('usda-api-key')
+                    );
+                },
+            ),
+        );
+
+        // The grant must exist (otherwise the tasks could never read the key) ...
+        expect(usdaGrants.length).toBeGreaterThan(0);
+        // ... and EVERY USDA GetSecretValue grant must carry the wildcard suffix — a `usda-api-key` not
+        // immediately followed by `-??????` is the suffix-less regression that produces AccessDenied.
+        for (const grant of usdaGrants) {
+            const resource = JSON.stringify(grant['Resource']);
+            expect(resource).toContain('usda-api-key-??????');
+            expect(resource).not.toMatch(/usda-api-key(?!-\?{6})/);
+        }
+    });
+});
+
 describe('Vestigial lambdas removed (Decisions B/C/D)', () => {
     it('keeps ONLY the migration-runner Lambda (bulk-sync / stale-refresh / search-indexer are gone)', () => {
         serviceTemplate.resourceCountIs('AWS::Lambda::Function', 1);

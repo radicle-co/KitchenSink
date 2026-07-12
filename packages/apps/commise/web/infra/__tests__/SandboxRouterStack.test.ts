@@ -54,10 +54,28 @@ describe('SandboxRouterStack', () => {
         expect(config.DefaultCacheBehavior.FunctionAssociations[0].EventType).toBe('viewer-request');
     });
 
+    it('ALSO serves *.sandbox.commise.app so per-PR SUBDOMAINS reach the singleton router (ADR-0001 GO)', () => {
+        // The subdomain migration adds a wildcard alias to the SAME distribution (not a new one). The
+        // deployed cert already carries `*.sandbox.commise.app` (domain-stack SAN), so this is covered.
+        // The CFF resolves the PR from the Host's `pr-{N}` label; both apex (path) and subdomain requests
+        // land here. Fails if the wildcard alias is dropped — subdomain previews would then 502 on cert.
+        const dists = template.findResources('AWS::CloudFront::Distribution');
+        const config = Object.values(dists)[0]!.Properties.DistributionConfig;
+
+        expect(config.Aliases).toContain('*.sandbox.commise.app');
+    });
+
     it('creates a Route53 alias record for the sandbox subdomain', () => {
         template.hasResourceProperties('AWS::Route53::RecordSet', {
             Type: 'A',
             Name: 'sandbox.commise.app.',
+        });
+    });
+
+    it('creates a WILDCARD Route53 alias record so pr-{N}.sandbox.commise.app resolves to the router', () => {
+        template.hasResourceProperties('AWS::Route53::RecordSet', {
+            Type: 'A',
+            Name: '*.sandbox.commise.app.',
         });
     });
 

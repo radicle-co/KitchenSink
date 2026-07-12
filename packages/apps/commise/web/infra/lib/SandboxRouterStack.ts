@@ -65,9 +65,15 @@ export class SandboxRouterStack extends Stack {
             keyValueStore,
         });
 
+        // Apex serves path-routed previews (`sandbox.commise.app/pr-{N}`); the wildcard serves the
+        // subdomain form (`pr-{N}.sandbox.commise.app`) the migration moves to. BOTH hit this ONE
+        // distribution — the CFF resolves the PR from the Host label first, then the path. The imported
+        // cert already carries `*.sandbox.commise.app` (domain-stack SAN), so the wildcard alias is covered.
+        const wildcardDomain = `*.${serviceDomain}`;
+
         const distribution = new cloudfront.Distribution(this, 'RouterDistribution', {
-            comment: `sandbox PR path router (${serviceDomain})`,
-            domainNames: [serviceDomain],
+            comment: `sandbox PR router — path + subdomain (${serviceDomain})`,
+            domainNames: [serviceDomain, wildcardDomain],
             certificate,
             defaultBehavior: {
                 // Placeholder origin — the function overrides it per request via updateRequestOrigin.
@@ -92,6 +98,15 @@ export class SandboxRouterStack extends Stack {
         new route53.ARecord(this, 'RouterAliasRecord', {
             zone: hostedZone,
             recordName: 'sandbox',
+            target: route53.RecordTarget.fromAlias(new route53Targets.CloudFrontTarget(distribution)),
+        });
+
+        // Wildcard record: `pr-{N}.sandbox.commise.app` → the same router distribution. One record covers
+        // every current and future PR, so a new preview needs no per-PR DNS write — the CFF selects the app
+        // from the `pr-{N}` Host label via the existing KVS lookup.
+        new route53.ARecord(this, 'RouterWildcardAliasRecord', {
+            zone: hostedZone,
+            recordName: '*.sandbox',
             target: route53.RecordTarget.fromAlias(new route53Targets.CloudFrontTarget(distribution)),
         });
 

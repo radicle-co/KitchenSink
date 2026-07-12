@@ -124,6 +124,23 @@ export function buildPreviewAzpPattern(baseDomain: string): RegExp {
 }
 
 /**
+ * Build the **cutover** `azp` pattern: like {@link buildPreviewAzpPattern} but the `pr-<digits>.` label is
+ * OPTIONAL, so it also matches the bare apex origin `https://<baseDomain>`. This is the transition-safe
+ * boundary used ONLY while the shared sandbox is migrating from path routing to per-PR subdomains — during
+ * that window path-routed previews still mint `azp = https://sandbox.commise.app` while new subdomain
+ * previews mint `azp = https://pr-<N>.sandbox.commise.app`, and both must pass so no in-flight preview 401s.
+ * Every other constraint is identical to the strict pattern (anchored, dot-escaped, single bounded `\d+`,
+ * ReDoS-safe). Once every preview serves on a subdomain, callers revert to {@link buildPreviewAzpPattern} to
+ * drop base-apex acceptance. Pure.
+ *
+ * @param baseDomain - The apex the preview subdomains sit under (no scheme, no leading dot).
+ * @returns A RegExp matching `https://<baseDomain>` OR `https://pr-<digits>.<baseDomain>`.
+ */
+export function buildTransitionAzpPattern(baseDomain: string): RegExp {
+    return new RegExp(`^https://(?:pr-\\d+\\.)?${escapeRegExp(baseDomain)}$`);
+}
+
+/**
  * Whether exactly one `azp` enforcement mode is selected — an exact-match list XOR a preview pattern.
  * `false` when BOTH are set (ambiguous) or NEITHER is (fail-open: `verifyToken` would skip the `azp`
  * check entirely). A service's config validation uses this to fail closed on deployed stages. Pure.
@@ -141,6 +158,13 @@ export function hasExactlyOneAzpMode(hasList: boolean, hasPattern: boolean): boo
 export function resolveAzpEnforcement(input: {
     readonly authorizedPartiesRaw: string | undefined;
     readonly previewBaseDomain: string | undefined;
+    /**
+     * Selects which preview pattern to build when `previewBaseDomain` is set. The raw env value
+     * `'transition'` (exactly, trimmed) builds the cutover pattern that ALSO accepts the base apex
+     * ({@link buildTransitionAzpPattern}); ANY other value (unset, `'strict'`, a typo) is fail-safe and
+     * builds the strict subdomain-only pattern ({@link buildPreviewAzpPattern}). Ignored in list mode.
+     */
+    readonly previewMode?: string;
     readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
 }): Pick<ClerkVerifyConfig, 'authorizedParties' | 'authorizedPartyPattern' | 'admitAzplessToken'> {
     const authorizedParties = (input.authorizedPartiesRaw ?? '')
@@ -150,9 +174,14 @@ export function resolveAzpEnforcement(input: {
     const base = input.previewBaseDomain?.trim();
 
     if (base !== undefined && base.length > 0) {
+        // Fail safe: only the exact `'transition'` value relaxes to the apex-accepting pattern; anything
+        // else stays strict, so a mistyped env can never silently widen the azp boundary.
+        const authorizedPartyPattern =
+            input.previewMode?.trim() === 'transition' ? buildTransitionAzpPattern(base) : buildPreviewAzpPattern(base);
+
         return {
             authorizedParties,
-            authorizedPartyPattern: buildPreviewAzpPattern(base),
+            authorizedPartyPattern,
             admitAzplessToken: input.admitAzplessToken,
         };
     }

@@ -20,6 +20,7 @@ import { verifyToken } from '@clerk/backend';
 
 import {
     buildPreviewAzpPattern,
+    buildTransitionAzpPattern,
     hasExactlyOneAzpMode,
     isClerkVerificationError,
     resolveAzpEnforcement,
@@ -195,6 +196,21 @@ describe('verifyClerkToken — azp predicate mode (U1)', () => {
             isClerkVerificationError,
         );
     });
+
+    it.each([
+        ['path-routed apex origin (pre-cutover previews)', 'https://sandbox.commise.app'],
+        ['per-PR subdomain (post-cutover previews)', 'https://pr-42.sandbox.commise.app'],
+    ])('under a TRANSITION pattern, accepts %s so no in-flight preview 401s during cutover', async (_label, azp) => {
+        mockVerify.mockResolvedValue({ sub: 'u1', azp } as never);
+
+        const claims = await verifyClerkToken('tok', {
+            jwtKey: 'PEM',
+            authorizedParties: [],
+            authorizedPartyPattern: buildTransitionAzpPattern('sandbox.commise.app'),
+        });
+
+        expect(claims.azp).toBe(azp);
+    });
 });
 
 describe('resolveAzpEnforcement', () => {
@@ -232,6 +248,42 @@ describe('resolveAzpEnforcement', () => {
 
         expect(cfg.admitAzplessToken).toBe(gate);
     });
+
+    it('builds a STRICT (subdomain-only) pattern by default', () => {
+        const cfg = resolveAzpEnforcement({ authorizedPartiesRaw: '', previewBaseDomain: 'sandbox.commise.app' });
+
+        expect(cfg.authorizedPartyPattern?.test('https://pr-7.sandbox.commise.app')).toBe(true);
+        // Default (strict) rejects the base apex — only subdomains are admitted.
+        expect(cfg.authorizedPartyPattern?.test('https://sandbox.commise.app')).toBe(false);
+    });
+
+    it("builds a TRANSITION pattern (base apex + subdomains) when previewMode is 'transition'", () => {
+        const cfg = resolveAzpEnforcement({
+            authorizedPartiesRaw: '',
+            previewBaseDomain: 'sandbox.commise.app',
+            previewMode: 'transition',
+        });
+
+        // Cutover window: both the path-routed apex origin and the new subdomains are accepted.
+        expect(cfg.authorizedPartyPattern?.test('https://sandbox.commise.app')).toBe(true);
+        expect(cfg.authorizedPartyPattern?.test('https://pr-7.sandbox.commise.app')).toBe(true);
+        expect(cfg.authorizedPartyPattern?.test('https://pr-7.evil.commise.app')).toBe(false);
+    });
+
+    it.each([['strict'], ['STRICT'], ['transitional'], ['  '], ['true']])(
+        'fails safe to the STRICT pattern for any previewMode value other than exactly "transition" (%j)',
+        (previewMode) => {
+            const cfg = resolveAzpEnforcement({
+                authorizedPartiesRaw: '',
+                previewBaseDomain: 'sandbox.commise.app',
+                previewMode,
+            });
+
+            // A mistyped/unknown mode must NOT widen the boundary — the apex stays rejected.
+            expect(cfg.authorizedPartyPattern?.test('https://sandbox.commise.app')).toBe(false);
+            expect(cfg.authorizedPartyPattern?.test('https://pr-7.sandbox.commise.app')).toBe(true);
+        },
+    );
 });
 
 describe('hasExactlyOneAzpMode', () => {
@@ -255,5 +307,44 @@ describe('buildPreviewAzpPattern', () => {
         expect(re.test('https://pr-1.sandbox.commise.app/')).toBe(false);
         expect(re.source.startsWith('^')).toBe(true);
         expect(re.source.endsWith('$')).toBe(true);
+    });
+
+    it('rejects the bare base origin — strict mode is subdomains ONLY', () => {
+        const re = buildPreviewAzpPattern('sandbox.commise.app');
+
+        // The apex (path-routed) origin is NOT a preview subdomain; strict mode must reject it.
+        expect(re.test('https://sandbox.commise.app')).toBe(false);
+    });
+});
+
+describe('buildTransitionAzpPattern (cutover)', () => {
+    it('accepts BOTH the bare base origin and pr-{N} subdomains', () => {
+        const re = buildTransitionAzpPattern('sandbox.commise.app');
+
+        // During cutover, path-routed previews still mint azp=base while new previews mint azp=subdomain.
+        expect(re.test('https://sandbox.commise.app')).toBe(true);
+        expect(re.test('https://pr-1.sandbox.commise.app')).toBe(true);
+        expect(re.test('https://pr-4242.sandbox.commise.app')).toBe(true);
+    });
+
+    it('rejects the same near-misses strict mode rejects (the optional pr- label is the only relaxation)', () => {
+        const re = buildTransitionAzpPattern('sandbox.commise.app');
+
+        expect(re.test('https://pr-1.evil.commise.app')).toBe(false); // sibling look-alike
+        expect(re.test('https://evil.sandbox.commise.app')).toBe(false); // arbitrary non-pr subdomain
+        expect(re.test('https://pr-4x.sandbox.commise.app')).toBe(false); // non-digit label
+        expect(re.test('https://sandbox.commise.app.evil.com')).toBe(false); // trailing content
+        expect(re.test('http://sandbox.commise.app')).toBe(false); // http scheme
+        expect(re.test(' https://sandbox.commise.app')).toBe(false); // leading junk
+        expect(re.test('https://sandbox.commise.app/')).toBe(false); // trailing slash
+        expect(re.source.startsWith('^')).toBe(true);
+        expect(re.source.endsWith('$')).toBe(true);
+    });
+
+    it('does not admit a bare non-pr subdomain — only the exact apex or a pr-{N} label', () => {
+        const re = buildTransitionAzpPattern('sandbox.commise.app');
+
+        // "staging.sandbox.commise.app" is neither the apex nor a pr-{N} label.
+        expect(re.test('https://staging.sandbox.commise.app')).toBe(false);
     });
 });

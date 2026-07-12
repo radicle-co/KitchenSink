@@ -12,8 +12,8 @@
  * - FR-047        → "an azp-allowlisted M2M token is accepted"
  */
 import { UnauthorizedException } from '@nestjs/common';
-import type { NextFunction, Request, Response } from 'express';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { NextFunction, Response } from 'express';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@kitchensink/clerk-verify', async () => {
     const actual = await vi.importActual<typeof import('@kitchensink/clerk-verify')>('@kitchensink/clerk-verify');
@@ -129,5 +129,47 @@ describe('FoodAuthGuard', () => {
 
         expect(req.user?.sub).toBe('svc_recipe_import');
         expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    // ── ADR-0001 subdomain-cutover: CLERK_AZP_PREVIEW_MODE threads into the shared resolver ──
+    describe('azp preview-mode wiring', () => {
+        afterEach(() => {
+            delete process.env['CLERK_AZP_PATTERN'];
+            delete process.env['CLERK_AZP_PREVIEW_MODE'];
+        });
+
+        /** Capture the `authorizedPartyPattern` the guard forwards to the (mocked) shared verifier. */
+        async function forwardedPattern(): Promise<RegExp | undefined> {
+            let captured: RegExp | undefined;
+            mockVerify.mockImplementation(async (_token, config) => {
+                captured = (config as { authorizedPartyPattern?: RegExp }).authorizedPartyPattern;
+
+                return { sub: 'u', scopes: [], permissions: [] };
+            });
+            await new FoodAuthGuard().use(makeReq({ authorization: 'Bearer good' }), {} as Response, vi.fn() as never);
+
+            return captured;
+        }
+
+        it('forwards a TRANSITION pattern (apex accepted) when CLERK_AZP_PREVIEW_MODE=transition', async () => {
+            delete process.env['CLERK_AUTHORIZED_PARTIES'];
+            process.env['CLERK_AZP_PATTERN'] = 'sandbox.commise.app';
+            process.env['CLERK_AZP_PREVIEW_MODE'] = 'transition';
+
+            const pattern = await forwardedPattern();
+
+            expect(pattern?.test('https://sandbox.commise.app')).toBe(true);
+            expect(pattern?.test('https://pr-9.sandbox.commise.app')).toBe(true);
+        });
+
+        it('forwards a STRICT pattern (apex rejected) when CLERK_AZP_PREVIEW_MODE is unset', async () => {
+            delete process.env['CLERK_AUTHORIZED_PARTIES'];
+            process.env['CLERK_AZP_PATTERN'] = 'sandbox.commise.app';
+
+            const pattern = await forwardedPattern();
+
+            expect(pattern?.test('https://sandbox.commise.app')).toBe(false);
+            expect(pattern?.test('https://pr-9.sandbox.commise.app')).toBe(true);
+        });
     });
 });

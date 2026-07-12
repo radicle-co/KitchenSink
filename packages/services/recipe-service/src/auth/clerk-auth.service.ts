@@ -30,6 +30,9 @@ export class ClerkAuthService {
         this.azp = resolveAzpEnforcement({
             authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
             previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+            // Cutover selector (ADR-0001): `transition` also admits the path-routed apex origin while the
+            // shared sandbox migrates to per-PR subdomains; unset/anything-else stays strict (subdomain-only).
+            previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
         });
     }
 

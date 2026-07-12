@@ -7,6 +7,7 @@
 export {
     verifyClerkToken,
     buildPreviewAzpPattern,
+    buildTransitionAzpPattern,
     hasExactlyOneAzpMode,
     resolveAzpEnforcement,
     ClerkVerificationError,

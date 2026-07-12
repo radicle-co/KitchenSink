@@ -22,57 +22,9 @@ import {
     isGoneError,
     isVersionConflictError,
 } from '../index.js';
+import { callsOf, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
-
-/** Request bodies captured at fetch-call time (ky cancels the request body once the call settles). */
-const capturedBodies = new WeakMap<Request, string>();
-
-/** Record a request's body text at call time so assertions can read it after the call has settled. */
-async function captureBody(request: Request): Promise<void> {
-    if (request.body) {
-        capturedBodies.set(request, await request.clone().text());
-    }
-}
-
-/** A `fetch` double that returns a single canned response and records the call. */
-function stubFetch(status: number, body?: unknown, headers: Record<string, string> = {}): typeof fetch {
-    const init = body === undefined ? undefined : JSON.stringify(body);
-
-    return vi.fn(async (request: Request) => {
-        await captureBody(request);
-
-        return new Response(init, { status, headers });
-    }) as unknown as typeof fetch;
-}
-
-/** The recorded `fetch` calls; ky invokes the injected fetch with a `Request` as the first argument. */
-function callsOf(fetchMock: typeof fetch): [Request, ...unknown[]][] {
-    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls as [Request, ...unknown[]][];
-}
-
-/** The observable request (URL, method, headers, body) the fake fetch received on its Nth call (0-based). */
-function requestAt(
-    fetchMock: typeof fetch,
-    index = 0,
-): { url: string; method: string; headers: Headers; body: string | undefined } {
-    const request = callsOf(fetchMock)[index]![0];
-
-    return { url: request.url, method: request.method, headers: request.headers, body: capturedBodies.get(request) };
-}
-
-/** A `fetch` double that returns a queued sequence of responses (one per call); the last repeats. */
-function sequenceFetch(responses: readonly { status: number; body?: unknown }[]): typeof fetch {
-    let i = 0;
-
-    return vi.fn(async (request: Request) => {
-        await captureBody(request);
-        const r = responses[Math.min(i, responses.length - 1)]!;
-        i += 1;
-
-        return new Response(r.body === undefined ? undefined : JSON.stringify(r.body), { status: r.status });
-    }) as unknown as typeof fetch;
-}
 
 describe('RecipeServiceClient — first-token sync-race retry', () => {
     const instantSleep = (): Promise<void> => Promise.resolve();

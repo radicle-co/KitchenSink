@@ -69,8 +69,15 @@ export class IdentityServiceStack extends Stack {
             secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:DatabaseSecretArn`),
         });
 
+        // The data stack imports this secret by NAME (`fromSecretNameV2`) and exports its name-based,
+        // suffix-LESS ARN — unlike the DB/migration secrets, which are CDK-created and export the full
+        // ARN with the random `-XXXXXX` suffix. Import it as a PARTIAL ARN so `grantRead` (and the ecs
+        // `Secret.fromSecretsManager` execution-role grant) append the `-??????` wildcard. A
+        // `secretCompleteArn` here writes an exact policy for the suffix-less ARN, which never matches
+        // the secret's real ARN — so the task can't fetch it, the container never starts, and every
+        // deploy hangs on ECS "NotStabilized" then rolls back.
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:SecretArn`),
+            secretPartialArn: Fn.importValue(`kitchensink-data-${stage}:SecretArn`),
         });
 
         const migrationPlanSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedMigrationSecret', {

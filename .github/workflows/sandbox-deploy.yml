@@ -11,6 +11,11 @@ on:
                 description: 'Sandbox stage name (e.g. pr-15, team-feature-x)'
                 required: true
                 type: string
+    schedule:
+        # Daily reaper (ADR-0005): sweep pr-{N} previews the on-close cleanup missed — closed PRs whose
+        # teardown failed/hung, and long-abandoned open PRs. Uses the same teardown-sandbox-pr.sh script,
+        # so it can never touch the shared global/identity/data infra (those never match pr-{N}).
+        - cron: '0 6 * * *'
     pull_request:
         types: [opened, synchronize, reopened, closed]
         # Runs for ALL PRs. Per-service path filters are on each job.
@@ -47,105 +52,92 @@ jobs:
             PR: pr-${{ github.event.pull_request.number }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
+            - uses: actions/checkout@v6
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # All teardown logic lives in one script so the on-close cleanup and the scheduled reaper
+            # cannot drift. It is scoped hard to pr-{N} (name or Environment tag), so the shared
+            # global/identity/data infra can never match.
+            - name: Tear down ${{ env.PR }} sandbox resources
+              run: |
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
+                  .github/scripts/teardown-sandbox-pr.sh "$PR" "$REGION"
 
-            # Drop the per-PR food logical database (ADR-0006) BEFORE the stacks are deleted — the
-            # in-VPC migration-runner Lambda is the only thing that can reach the PRIVATE_ISOLATED RDS,
-            # and it is torn down with the food stack in the next step. We invoke THIS PR's food
-            # migration function (which knows FOOD_DB_NAME=kitchensink_food_pr_{N}) with {action:'drop'};
-            # the handler refuses to drop the shared base `kitchensink_food` and DROPs … WITH (FORCE) so
-            # a still-draining preview's connections don't block it. Guarded: if this PR never deployed a
-            # food service (the common case until the deploy job below is switched on), the stack/output
-            # is absent and we skip. $PR is exactly `pr-{N}`, so the stack-name match is delimiter-safe.
-            - name: Drop per-PR food database for ${{ env.PR }}
+    # ── Reaper: daily sweep of pr-{N} previews the on-close cleanup missed (ADR-0005) ──
+    # Reaps resources whose PR is CLOSED (a close-cleanup that failed/hung) or long-abandoned (OPEN but
+    # no activity in STALE_DAYS). Uses the SAME teardown script → scoped to pr-{N}; the shared
+    # global/identity/data infra never matches. Only reaps on a confirmed PR state (skips on API error).
+    reap-abandoned:
+        name: Reap abandoned sandbox previews
+        runs-on: ubuntu-latest
+        if: github.event_name == 'schedule'
+        permissions:
+            contents: read
+            pull-requests: read
+        env:
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            GH_TOKEN: ${{ github.token }}
+            STALE_DAYS: '30'
+        steps:
+            - uses: actions/checkout@v6
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Reap pr-{N} resources whose PR is closed or long-stale
               run: |
                   set -uo pipefail
-                  STACK="kitchensink-food-service-$PR"
-                  FN=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
-                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
-                      --output text 2>/dev/null) || FN=""
-                  if [ -z "$FN" ] || [ "$FN" = "None" ]; then
-                      echo "No food migration function for $PR (stack $STACK absent or no output) — nothing to drop."
-                      exit 0
-                  fi
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
 
-                  echo "[food-db] invoking $FN with {action:drop} to drop kitchensink_food_${PR//-/_}"
-                  if aws lambda invoke --region "$REGION" --function-name "$FN" \
-                      --payload '{"action":"drop"}' --cli-binary-format raw-in-base64-out \
-                      /tmp/food-drop-result.json >/tmp/food-drop-invoke.json 2>/dev/null; then
-                      if grep -q '"FunctionError"' /tmp/food-drop-invoke.json; then
-                          echo "::warning::food DB drop for $PR returned a FunctionError — inspect $FN logs"
+                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, and log groups. The teardown
+                  # script re-applies an anchored belongs() match, so an incidental "pr-5" substring is safe.
+                  tokens=$(
+                      {
+                          aws cloudformation list-stacks --region "$REGION" \
+                              --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
+                              --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws ecr describe-repositories --region "$REGION" \
+                              --query 'repositories[].repositoryName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws logs describe-log-groups --region "$REGION" \
+                              --query 'logGroups[].logGroupName' --output text 2>/dev/null | tr '\t' '\n'
+                      } | grep -oE 'pr-[0-9]+' | sort -u
+                  )
+                  if [ -z "$tokens" ]; then echo "No pr-{N} sandbox resources found."; exit 0; fi
+                  echo "Candidate previews: $(echo "$tokens" | tr '\n' ' ')"
+
+                  now=$(date -u +%s)
+                  for pr in $tokens; do
+                      n="${pr#pr-}"
+                      pr_json=$(gh api "repos/${{ github.repository }}/pulls/$n" 2>/dev/null) || pr_json=""
+                      if [ -z "$pr_json" ]; then
+                          echo "::warning::could not resolve PR #$n for $pr — skipping (verify manually)"
+                          continue
+                      fi
+                      state=$(printf '%s' "$pr_json" | jq -r '.state // "unknown"')
+                      updated=$(printf '%s' "$pr_json" | jq -r '.updated_at // empty')
+                      reason=""
+                      if [ "$state" = "closed" ]; then
+                          reason="PR #$n is closed"
+                      elif [ "$state" = "open" ] && [ -n "$updated" ]; then
+                          upd=$(date -u -d "$updated" +%s 2>/dev/null || echo 0)
+                          if [ "$upd" -gt 0 ] && [ "$(( (now - upd) / 86400 ))" -ge "$STALE_DAYS" ]; then
+                              reason="PR #$n open but stale (no activity since $updated, >${STALE_DAYS}d)"
+                          fi
+                      fi
+                      if [ -n "$reason" ]; then
+                          echo "::notice::reaping $pr — $reason"
+                          .github/scripts/teardown-sandbox-pr.sh "$pr" "$REGION" || echo "::warning::teardown of $pr reported errors"
                       else
-                          echo "[food-db] drop result: $(cat /tmp/food-drop-result.json)"
-                      fi
-                  else
-                      echo "::warning::could not invoke $FN to drop the per-PR food DB — drop it manually"
-                  fi
-
-            - name: Delete ephemeral resources for ${{ env.PR }}
-              run: |
-                  set -uo pipefail
-                  echo "Tearing down ephemeral resources for: $PR (region $REGION)"
-
-                  # belongs <name>: true if <name> is exactly $PR or starts with "$PR-". The trailing
-                  # dash prevents pr-1 from matching pr-15 / pr-100.
-                  belongs() { case "$1" in "$PR" | "$PR"-*) return 0 ;; *) return 1 ;; esac; }
-                  # path_belongs: same, but also matches a "$PR" / "$PR-" segment inside a path (e.g. an
-                  # auto-created /aws/ecs/containerinsights/$PR-cluster.../performance group).
-                  path_belongs() {
-                      belongs "$1" && return 0
-                      case "$1" in *"/$PR" | *"/$PR-"* | *"/$PR/"*) return 0 ;; *) return 1 ;; esac
-                  }
-
-                  ## 1. CloudFormation stacks — tagged Environment=$PR OR name matches $PR.
-                  for s in $(aws cloudformation list-stacks --region "$REGION" \
-                      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED DELETE_FAILED \
-                      --query 'StackSummaries[].StackName' --output text 2>/dev/null); do
-                      envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$s" \
-                          --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
-                      # The feature-stack naming convention is the suffix kitchensink-{service}-pr-{N};
-                      # those are caught by the Environment=$PR tag (belongs() also catches any pr-{N}-prefixed stack).
-                      if belongs "$s" || [ "$envtag" = "$PR" ]; then
-                          echo "[stack] delete $s (Environment=$envtag)"
-                          aws cloudformation delete-stack --region "$REGION" --stack-name "$s"
-                          aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s" 2>/dev/null || \
-                              echo "::warning::stack $s did not finish deleting in time — check it"
+                          echo "keeping $pr (state=$state)"
                       fi
                   done
-
-                  ## 2. Tag sweep — anything else tagged Environment=$PR the stacks did not own.
-                  for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
-                      --tag-filters "Key=Environment,Values=$PR" \
-                      --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
-                      case "$arn" in
-                          *:log-group:*) lg="${arn##*:log-group:}"; lg="${lg%:\*}"
-                              echo "[logs/tag] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true ;;
-                          *:repository/*) repo="${arn##*:repository/}"
-                              echo "[ecr/tag] delete $repo"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true ;;
-                          *) echo "::warning::tagged $PR but not auto-deleted (add a handler for its type): $arn" ;;
-                      esac
-                  done
-
-                  ## 3. Name-prefix sweep — auto-created resources that could not be tagged.
-                  for lg in $(aws logs describe-log-groups --region "$REGION" \
-                      --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
-                      if path_belongs "$lg"; then
-                          echo "[logs/name] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
-                      fi
-                  done
-                  for repo in $(aws ecr describe-repositories --region "$REGION" \
-                      --query 'repositories[].repositoryName' --output text 2>/dev/null); do
-                      if belongs "$repo"; then
-                          echo "[ecr/name] delete $repo (force)"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true
-                      fi
-                  done
-
-                  echo "Cleanup for $PR complete."
+                  echo "Reaper sweep complete."
 
     # ═══════════════════════════════════════════════════════════════════
     # Per-service sandbox deploy jobs.

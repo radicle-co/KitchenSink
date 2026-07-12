@@ -51,6 +51,13 @@ If you are about to "simplify" sandbox previews to **per-PR subdomains** (`pr-12
 
 ## Implementation guards
 
+> **Migration in progress (2026-07-12, commit `330323a`).** The transition-safe subdomain slices have
+> landed and are **OFF by default** — path routing remains the live posture until the human-gated cutover
+> (see `docs/plans/2026-07-12-001-feat-sandbox-subdomain-migration-plan.md`). The router now ALSO serves
+> `*.sandbox.commise.app` and resolves by Host-label first; the backend accepts the apex origin only when
+> `CLERK_AZP_PREVIEW_MODE=transition`. Until cutover, the path-routing guards below still hold; `basePath`
+> is retired last (plan U6/U7).
+
 Path-routing guards are in place (`// ⚠️ DELIBERATE — see docs/architecture/decisions/0001`):
 
 - `packages/apps/commise/web/next.config.ts` + `src/lib/base-path.ts` — the per-PR `basePath` derivation (do not drop it / move to subdomains).

@@ -29,11 +29,17 @@ const FUNCTION_BUNDLE = path.join(here, '../../router/dist/router.cff.js');
 /**
  * ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
  *
- * Singleton single-origin sandbox router: one CloudFront distribution at `sandbox.commise.app` whose
- * viewer-request CloudFront Function (runtime 2.0) host-swaps `/pr-{N}/*` to that PR's app, reading
- * the per-PR host + the Vercel bypass secret from an attached KeyValueStore. Caching is disabled so
- * the origin is re-selected per request. Deployed ONCE (persistent), never via the per-PR teardown.
- * Do not move to per-PR subdomains or a prefix-stripping proxy without reading the ADR.
+ * Singleton sandbox router: ONE CloudFront distribution whose viewer-request CloudFront Function
+ * (runtime 2.0) host-swaps a request to that PR's app, reading the per-PR host + the Vercel bypass
+ * secret from an attached KeyValueStore. Caching is disabled so the origin is re-selected per request.
+ * Deployed ONCE (persistent), never via the per-PR teardown.
+ *
+ * It serves BOTH addressing modes during the ADR-0001 subdomain migration (GO, 2026-07-12): the apex
+ * `sandbox.commise.app/pr-{N}` (legacy path routing) AND `pr-{N}.sandbox.commise.app` (subdomains) — the
+ * CFF resolves the PR from the Host label first, then the path, against the same KVS. Both alias the same
+ * distribution. Load-bearing invariants (do NOT regress without reading the ADR): stay a SINGLE
+ * distribution (never one-per-PR), never switch to a prefix-stripping proxy, and keep the
+ * ALL_VIEWER_EXCEPT_HOST_HEADER origin policy so the host-swapped origin drives Host/SNI.
  */
 export class SandboxRouterStack extends Stack {
     public constructor(scope: Construct, id: string, props: SandboxRouterStackProps) {

@@ -87,6 +87,12 @@ every open preview at once. The design below is dominated by making the cutover 
 
 ## Open Questions / Assumptions to confirm at wake
 
+- **RESOLVED (verified live 2026-07-12).** The imported domain cert
+  (`kitchensink-domain-sandbox:CertificateArn`) already carries the `*.sandbox.commise.app` SAN (SANs:
+  `commise.app`, `*.commise.app`, `*.sandbox.commise.app`; status ISSUED). My earlier note that "the
+  `*.commise.app` wildcard covers it" was imprecise — a single-label wildcard does not cover a two-label
+  host — but the dedicated `*.sandbox` SAN does, so **no cert change is needed** and no ACM replacement is
+  triggered. The router alias slice is therefore safe.
 - **[assumption]** the sandbox web app is served via the CloudFront router in front of Vercel, so a
   `*.sandbox.commise.app` alias + host-based CFF is the right serving change (vs. Vercel-native domains).
 - **[assumption]** `*.sandbox.commise.app` wildcard DNS + KVS host-label lookup is preferred over per-PR

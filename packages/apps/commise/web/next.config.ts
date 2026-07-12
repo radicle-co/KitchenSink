@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     typedRoutes: true,
     // @commise/features-account ships TypeScript source (like the other @commise/features-* packages),
     // so Next must transpile it rather than treating it as pre-built node_modules JS.
-    transpilePackages: ['@commise/features-account', '@commise/features-recipes', '@kitchensink/recipe-core'],
+    transpilePackages: ['@commise/features-account'],
     // Those TS-source packages use NodeNext-style `.js` extensions on relative imports (e.g.
     // `export * from './profileClient.js'`), so webpack must resolve a `.js` specifier to its `.ts`/`.tsx`
     // source. Without this, `next build` fails with "Can't resolve './profileClient.js'".

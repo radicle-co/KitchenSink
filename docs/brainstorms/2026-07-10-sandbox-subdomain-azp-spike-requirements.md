@@ -9,6 +9,15 @@ topic: sandbox-subdomain-azp-spike
 
 Prove, end-to-end on one throwaway subdomain, that sandbox previews can move to per-PR subdomains without weakening `azp` enforcement: sign in on a per-PR-style host, confirm Clerk mints a usable `azp`, and have a backend accept it through our own anchored-regex `azp` check (pass for a genuine token, reject for a spoofed one). The self-owned check lands in the shared `@kitchensink/clerk-verify` verifier so **every** consumer (identity, food-service, recipe-service) inherits it, not recipe-service alone. Settle the mobile-`azp` question in the same sitting. The output is a go/no-go on migrating sandbox previews to subdomains.
 
+## Update (2026-07-12) — partial result: preliminary GO
+
+Two of the three unknowns are now settled without a full live sign-in:
+
+- **U1/U2 (the keeper) shipped** — the self-owned anchored-regex `azp` predicate is built, unit-tested, and wired stage-gated into all three services (prod stays exact-match). This is what makes bounded per-PR patterns enforceable without an unbounded allowlist.
+- **FAPI CORS confirmed live** — the sandbox dev Frontend API (`nice-fowl-6.clerk.accounts.dev`) reflects **any** `Origin` in `Access-Control-Allow-Origin` (including `pr-9001.sandbox.commise.app`), with credentials. So a subdomain sign-in is accepted and mints `azp = that subdomain` — and no "allowed subdomains" toggle is needed (that's prod-only; dev isn't origin-restricted). The regex-`azp` guard is therefore essential, not optional, on the dev sandbox.
+
+**Preliminary recommendation: GO.** Remaining to fully confirm: one real browser sign-in on a live `pr-N.sandbox.commise.app` to decode the token and see `azp` = the subdomain literally (near-certain), and the mobile-`azp` decode (needs a real `@clerk/expo` token). See `docs/architecture/decisions/0001-sandbox-front-end-addressing.md` (Update 2026-07-12) and the migration plan.
+
 ## Problem Frame
 
 Sandbox previews are served from one origin (`sandbox.commise.app`) with the PR in the URL path, because `azp` (the token's authorized-party claim) binds to the browser origin and Clerk's SDK matches it by exact string — per-PR subdomains would each mint a different, unbounded `azp` the shared allowlist can't enumerate, so every preview would 401. That reasoning is recorded in `docs/architecture/decisions/0001-sandbox-front-end-addressing.md`.

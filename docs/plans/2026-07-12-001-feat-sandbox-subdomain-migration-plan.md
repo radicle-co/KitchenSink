@@ -100,7 +100,30 @@ in which BOTH addressing modes work. See origin brainstorm for decisions and sco
   `basePath` machinery, and tighten `azp` back to strict (`CLERK_AZP_PREVIEW_MODE` unset). Update ADR-0001
   status to reflect subdomains as the shipped design.
 
-## Cutover runbook (human-gated, ordered, reversible)
+## Cutover — EXECUTED 2026-07-13 (sandbox is live on subdomains)
+
+The cutover was performed. Live state: `pr-73.sandbox.commise.app/` serves the app at **root**
+(`/sign-in`, no basePath), the sandbox identity runs **transition** mode, and the path form 404s by
+design. What was done, and the surprises fixed along the way:
+
+- **Infra gap closed.** The migration had wired the azp _code_ but not the _infra_ — identity/food ECS
+  tasks never received `CLERK_AZP_PATTERN`/`CLERK_AZP_PREVIEW_MODE`. Stage-gated both stacks (commits
+  `f781d52`, `3ca3cd4`); created SSM params `/kitchensink/sandbox/clerk/{azp-pattern=sandbox.commise.app,
+azp-preview-mode=transition}`; deployed the sandbox identity (task def rev 133 verified in transition).
+- **Build flip.** `SANDBOX_PREVIEW_MODE=subdomain` on the Vercel Preview env + GitHub repo var.
+- **Turbo/Vercel env bug (took three tries).** The subdomain build kept baking `/pr-{N}`: (1) Turbo
+  replayed a _cached_ path-mode build because the cache key omitted the env; (2) after keying it, Turbo
+  strict-env + **Vercel only reads the ROOT `turbo.json`** still stripped the custom var. Fixed by
+  declaring `SANDBOX_PREVIEW_MODE` in root `globalEnv` (`b4a3180`) — the "missing from turbo.json" warning
+  is gone and the build serves at root.
+- **Verified:** `cutoverSmoke.ts 73` → subdomain OK, path 404-by-design; identity `/health` 200.
+
+Remaining (single human step): a real browser sign-in on `pr-N.sandbox.commise.app` to eyeball the minted
+token's `azp` == the subdomain. Everything it depends on is confirmed (app at root, dev-instance CORS
+accepts the origin, deployed identity accepts the `pr-{N}` pattern). Then **drain + tighten** (U7): once
+all previews serve on subdomains, set `azp-preview-mode` SSM param to `strict` and retire path routing.
+
+### Original runbook (for reference / rollback)
 
 Each step is independently deployable and revertible; do them in order, validating between.
 

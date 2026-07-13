@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyReachability, urlsForPr } from '../cutoverSmoke';
+import { classifyReachability, parseExpectedMode, urlsForPr } from '../cutoverSmoke';
 
 describe('classifyReachability', () => {
     it('classifies a DNS failure as nxdomain (router/DNS gone)', () => {
@@ -48,6 +48,21 @@ describe('classifyReachability', () => {
             ok: false,
             kind: 'error',
         });
+    });
+});
+
+describe('parseExpectedMode', () => {
+    it('defaults to subdomain (the live posture post-cutover)', () => {
+        expect(parseExpectedMode(['73'])).toBe('subdomain');
+        expect(parseExpectedMode(['73', '--base', 'x'])).toBe('subdomain');
+    });
+
+    it('honors --expect path (pre-cutover posture)', () => {
+        expect(parseExpectedMode(['73', '--expect', 'path'])).toBe('path');
+    });
+
+    it('treats an unknown --expect value as subdomain', () => {
+        expect(parseExpectedMode(['73', '--expect', 'bogus'])).toBe('subdomain');
     });
 });
 

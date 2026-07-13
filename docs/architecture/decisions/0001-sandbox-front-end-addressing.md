@@ -57,6 +57,13 @@ If you are about to "simplify" sandbox previews to **per-PR subdomains** (`pr-12
 > `*.sandbox.commise.app` and resolves by Host-label first; the backend accepts the apex origin only when
 > `CLERK_AZP_PREVIEW_MODE=transition`. Until cutover, the path-routing guards below still hold; `basePath`
 > is retired last (plan U6/U7).
+>
+> **CUTOVER EXECUTED (2026-07-13).** The sandbox now serves previews on **subdomains**:
+> `pr-{N}.sandbox.commise.app` at root, sandbox identity in **transition** mode (SSM
+> `azp-preview-mode=transition`), Vercel/GitHub `SANDBOX_PREVIEW_MODE=subdomain`. The path form 404s by
+> design. The guards below now describe the _rollback_ posture, not the live one. Remaining: the live
+> `azp`-on-subdomain sign-in confirmation, then drain + tighten (`azp-preview-mode=strict`, retire path
+> routing). See the plan's "Cutover — EXECUTED" section.
 
 Path-routing guards are in place (`// ⚠️ DELIBERATE — see docs/architecture/decisions/0001`):
 

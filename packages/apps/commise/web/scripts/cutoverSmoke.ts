@@ -104,20 +104,33 @@ export function urlsForPr(pr: number, base: string): { path: string; subdomain: 
     };
 }
 
+/** Which addressing form is the LIVE posture that must reach the app. Pure. */
+export type ExpectedMode = 'path' | 'subdomain';
+
+/** Parse `--expect path|subdomain` (default `subdomain`, the live posture post-cutover). Pure. */
+export function parseExpectedMode(argv: readonly string[]): ExpectedMode {
+    const idx = argv.indexOf('--expect');
+    const value = idx >= 0 ? argv[idx + 1] : undefined;
+
+    return value === 'path' ? 'path' : 'subdomain';
+}
+
 /**
- * CLI entrypoint: probe both forms for a PR and print a report. Exit 1 if the PATH form (current posture)
- * does not reach the app; the subdomain form is reported for visibility (it is not yet the live posture).
+ * CLI entrypoint: probe both forms for a PR and print a report. Exit 1 if the EXPECTED form (the live
+ * addressing posture — `--expect subdomain` by default, `path` pre-cutover) does not reach the app. The
+ * other form is reported for visibility; once the cutover lands, the path form 404s by design.
  *
  * @sideEffect Network requests, stdout, and process.exitCode.
  */
 export async function main(argv: readonly string[]): Promise<void> {
-    const positional = argv.filter((a) => !a.startsWith('--'));
+    const positional = argv.filter((a) => !a.startsWith('--') && !Number.isNaN(Number(a)));
     const pr = Number(positional[0]);
     const baseIdx = argv.indexOf('--base');
     const base = baseIdx >= 0 ? argv[baseIdx + 1]! : 'sandbox.commise.app';
+    const expected = parseExpectedMode(argv);
 
     if (!Number.isInteger(pr) || pr <= 0) {
-        console.error('usage: cutoverSmoke.ts <pr-number> [--base sandbox.commise.app]');
+        console.error('usage: cutoverSmoke.ts <pr-number> [--expect path|subdomain] [--base sandbox.commise.app]');
         process.exitCode = 2;
 
         return;
@@ -125,15 +138,19 @@ export async function main(argv: readonly string[]): Promise<void> {
 
     const { path, subdomain } = urlsForPr(pr, base);
     const [pathResult, subResult] = await Promise.all([probe(path), probe(subdomain)]);
+    const label = (mode: ExpectedMode, r: ReachabilityResult): string =>
+        mode === expected ? (r.ok ? 'OK  ' : 'FAIL') : 'INFO';
 
-    console.log(`Cutover smoke — PR #${pr} (base ${base})`);
+    console.log(`Cutover smoke — PR #${pr} (base ${base}, expecting ${expected})`);
     console.log(`  path      ${path}`);
-    console.log(`            ${pathResult.ok ? 'OK  ' : 'FAIL'} [${pathResult.kind}] ${pathResult.detail}`);
+    console.log(`            ${label('path', pathResult)} [${pathResult.kind}] ${pathResult.detail}`);
     console.log(`  subdomain ${subdomain}`);
-    console.log(`            ${subResult.ok ? 'OK  ' : 'INFO'} [${subResult.kind}] ${subResult.detail}`);
+    console.log(`            ${label('subdomain', subResult)} [${subResult.kind}] ${subResult.detail}`);
 
-    if (!pathResult.ok) {
-        console.error('\nFAIL: the path-routed preview does not reach the app (current posture is broken).');
+    const expectedResult = expected === 'path' ? pathResult : subResult;
+
+    if (!expectedResult.ok) {
+        console.error(`\nFAIL: the ${expected} preview does not reach the app (the live posture is broken).`);
         process.exitCode = 1;
     }
 }

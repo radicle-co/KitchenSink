@@ -225,18 +225,34 @@ describe('Food worker + service wiring', () => {
         }
     });
 
-    it('wires Clerk auth env (CLERK_JWT_KEY + CLERK_AUTHORIZED_PARTIES) so the guard can verify tokens', () => {
-        // Without these the FoodAuthGuard fail-closes and every /v1/foods/* request is 401 (regardless of
-        // token). Mirrors the identity service; the values resolve from the shared sandbox Clerk SSM params.
-        const containers = Object.values(serviceTemplate.findResources('AWS::ECS::TaskDefinition')).flatMap(
-            (resource: any) => resource.Properties.ContainerDefinitions as any[],
+    // Every container's env names (across all task definitions in a template).
+    const containerEnvSets = (template: Template): string[][] =>
+        Object.values(template.findResources('AWS::ECS::TaskDefinition'))
+            .flatMap((resource: any) => resource.Properties.ContainerDefinitions as any[])
+            .map((container) => (container.Environment ?? []).map((entry: any) => entry.Name as string));
+
+    it('non-prod wires Clerk auth env with the azp PATTERN + preview mode (not the exact-match list)', () => {
+        // Without CLERK_JWT_KEY the FoodAuthGuard fail-closes and every /v1/foods/* request is 401.
+        // Non-prod (sandbox / pr-{N}) runs the self-owned preview pattern in transition mode (ADR-0001).
+        const withClerk = containerEnvSets(synthFoodTemplate('test', 'sandbox')).filter(
+            (envNames) =>
+                envNames.includes('CLERK_JWT_KEY') &&
+                envNames.includes('CLERK_AZP_PATTERN') &&
+                envNames.includes('CLERK_AZP_PREVIEW_MODE') &&
+                !envNames.includes('CLERK_AUTHORIZED_PARTIES'),
         );
 
-        const withClerk = containers.filter((container) => {
-            const envNames = (container.Environment ?? []).map((entry: any) => entry.Name);
+        expect(withClerk).toHaveLength(3);
+    });
 
-            return envNames.includes('CLERK_JWT_KEY') && envNames.includes('CLERK_AUTHORIZED_PARTIES');
-        });
+    it('prod keeps the exact-match list (CLERK_AUTHORIZED_PARTIES), never the preview pattern', () => {
+        const withClerk = containerEnvSets(synthFoodTemplate('prod', 'prod')).filter(
+            (envNames) =>
+                envNames.includes('CLERK_JWT_KEY') &&
+                envNames.includes('CLERK_AUTHORIZED_PARTIES') &&
+                !envNames.includes('CLERK_AZP_PATTERN') &&
+                !envNames.includes('CLERK_AZP_PREVIEW_MODE'),
+        );
 
         expect(withClerk).toHaveLength(3);
     });

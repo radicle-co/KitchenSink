@@ -345,11 +345,27 @@ export class FoodServiceStack extends Stack {
                 this,
                 `/kitchensink/${baseStage}/clerk/jwt-public-key`,
             ),
-            CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/${baseStage}/clerk/authorized-parties`,
-            ),
         };
+
+        // Stage-gated azp enforcement (ADR-0001), mirroring the identity service. Prod: exact-match list.
+        // Non-prod (sandbox / pr-{N}, baseStage=sandbox): the self-owned preview pattern for per-PR
+        // subdomains, with the preview MODE (strict|transition) from SSM so the cutover + rollback is an
+        // SSM change + task restart, not a code deploy. These are mutually exclusive per the food config.
+        if (baseStage === 'prod') {
+            foodDbEnvironment['CLERK_AUTHORIZED_PARTIES'] = ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/prod/clerk/authorized-parties`,
+            );
+        } else {
+            foodDbEnvironment['CLERK_AZP_PATTERN'] = ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/sandbox/clerk/azp-pattern`,
+            );
+            foodDbEnvironment['CLERK_AZP_PREVIEW_MODE'] = ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/sandbox/clerk/azp-preview-mode`,
+            );
+        }
 
         // Optional load-test overrides (see packages/tools/loadtest): a preview can lower the USDA cap +
         // rolling window via CDK context (`-c foodSourceRateLimitPerHour=15 -c foodSourceWindowSeconds=60`)

@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TamaguiProvider } from 'tamagui';
 import { AuthGate } from './src/components/AuthGate';
+import { LocaleProvider } from './src/i18n/LocaleProvider';
 import { initSentry } from './src/observability/sentry';
 import { ProfileScreen } from './src/screens/profile';
 import { tokenCache } from './src/storage/tokenCache';
@@ -24,16 +25,18 @@ if (!publishableKey) {
 function App(): JSX.Element {
     return (
         <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-            <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-                <QueryClientProvider client={queryClient}>
-                    <SafeAreaProvider>
-                        <StatusBar style="auto" />
-                        <AuthGate>
-                            <ProfileScreen />
-                        </AuthGate>
-                    </SafeAreaProvider>
-                </QueryClientProvider>
-            </ClerkProvider>
+            <LocaleProvider>
+                <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+                    <QueryClientProvider client={queryClient}>
+                        <SafeAreaProvider>
+                            <StatusBar style="auto" />
+                            <AuthGate>
+                                <ProfileScreen />
+                            </AuthGate>
+                        </SafeAreaProvider>
+                    </QueryClientProvider>
+                </ClerkProvider>
+            </LocaleProvider>
         </TamaguiProvider>
     );
 }

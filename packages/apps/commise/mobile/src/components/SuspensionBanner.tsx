@@ -1,22 +1,24 @@
+import { useMessages } from '@commise/i18n/react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { UserStatus } from '@kitchensink/identity-service';
+
+import { mobileMessages } from '../i18n/messages';
 
 interface SuspensionBannerProps {
     status: UserStatus;
 }
 
 export function SuspensionBanner({ status }: SuspensionBannerProps) {
+    const { suspension } = useMessages(mobileMessages);
+
     if (status !== 'suspended') {
         return null;
     }
 
     return (
         <View style={styles.container} accessibilityRole="alert">
-            <Text style={styles.title}>Account Suspended</Text>
-            <Text style={styles.message}>
-                Your account is suspended. Commise access is paused until support restores your account. Please contact
-                support if you believe this is a mistake.
-            </Text>
+            <Text style={styles.title}>{suspension.title}</Text>
+            <Text style={styles.message}>{suspension.message}</Text>
         </View>
     );
 }

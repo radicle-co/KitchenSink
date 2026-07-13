@@ -1,10 +1,13 @@
+import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState, useEffect } from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useUserProfile, useUpdateProfile } from '../hooks/useUserProfile';
 import { SuspensionBanner } from '../components/SuspensionBanner';
+import { mobileMessages } from '../i18n/messages';
 
 export function ProfileScreen(): JSX.Element {
+    const { profile: t } = useMessages(mobileMessages);
     const { data, isLoading, error } = useUserProfile();
     const updateProfile = useUpdateProfile();
     const [displayName, setDisplayName] = useState('');
@@ -28,7 +31,7 @@ export function ProfileScreen(): JSX.Element {
     if (error || !data) {
         return (
             <View style={styles.center}>
-                <Text>Failed to load profile.</Text>
+                <Text>{t.loadError}</Text>
             </View>
         );
     }
@@ -36,12 +39,12 @@ export function ProfileScreen(): JSX.Element {
     return (
         <View style={styles.container}>
             <SuspensionBanner status={data.user.status} />
-            <Text style={styles.label}>Display name</Text>
+            <Text style={styles.label}>{t.displayName}</Text>
             <TextInput style={styles.input} value={displayName} onChangeText={setDisplayName} />
-            <Text style={styles.label}>Avatar URL</Text>
+            <Text style={styles.label}>{t.avatarUrl}</Text>
             <TextInput style={styles.input} value={avatarUrl} onChangeText={setAvatarUrl} autoCapitalize="none" />
             <Button
-                title={updateProfile.isPending ? 'Saving…' : 'Save'}
+                title={updateProfile.isPending ? t.saving : t.save}
                 disabled={updateProfile.isPending}
                 onPress={() => updateProfile.mutate({ displayName, avatarUrl })}
             />

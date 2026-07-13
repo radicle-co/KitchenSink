@@ -12,10 +12,11 @@ import { RecipeWidgetEmptyState } from '../RecipeWidgetEmptyState.js';
 afterEach(cleanup);
 
 describe('RecipeWidgetEmptyState (web)', () => {
-    it('renders the default empty-state copy', () => {
+    it('renders the default (en) localized empty-state copy', () => {
         render(<RecipeWidgetEmptyState />);
 
-        expect(screen.getByText(recipeMessages.emptyState)).toBeTruthy();
+        // No LocaleProvider → the seam resolves the required default (en) set.
+        expect(screen.getByText(recipeMessages.en.emptyState)).toBeTruthy();
     });
 
     it('renders a caller-provided message', () => {

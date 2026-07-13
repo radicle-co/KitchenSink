@@ -15,6 +15,7 @@
  */
 'use client';
 
+import { useMessages } from '@commise/i18n/react';
 import { Suspense, use, type FC } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
@@ -29,8 +30,6 @@ import {
     toRecipeSummary,
 } from '../components/index.js';
 
-const WIDGET_TITLE = recipeMessages.widgetTitle;
-
 /**
  * Props for the recipe Home widget (web). `recipesPromise` is the viewer's recent recipes as a PROMISE
  * the host starts (and does not await), so the widget streams under Suspense instead of branching on a
@@ -41,26 +40,31 @@ export interface RecipeHomeWidgetProps {
 }
 
 /** The card shown while the recipes promise is still pending — the Suspense fallback. */
-const RecipeHomeWidgetFallback: FC = () => (
-    <RecipeWidgetCard title={WIDGET_TITLE}>
-        <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
-    </RecipeWidgetCard>
-);
+const RecipeHomeWidgetFallback: FC = () => {
+    const { widgetTitle } = useMessages(recipeMessages);
+
+    return (
+        <RecipeWidgetCard title={widgetTitle}>
+            <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
+        </RecipeWidgetCard>
+    );
+};
 
 /** Suspends on the recipes promise via `use`, then renders the empty state or the recent-recipes list. */
 const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise }) => {
+    const { widgetTitle } = useMessages(recipeMessages);
     const recent = use(recipesPromise).slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);
 
     if (recent.length === 0) {
         return (
-            <RecipeWidgetCard title={WIDGET_TITLE}>
+            <RecipeWidgetCard title={widgetTitle}>
                 <RecipeWidgetEmptyState />
             </RecipeWidgetCard>
         );
     }
 
     return (
-        <RecipeWidgetCard title={WIDGET_TITLE}>
+        <RecipeWidgetCard title={widgetTitle}>
             {recent.map((recipe) => (
                 <RecentRecipeItem key={recipe.id} recipe={recipe} />
             ))}

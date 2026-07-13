@@ -20,6 +20,7 @@
     },
     "dependencies": {
         "@commise/features-core": "*",
+        "@commise/i18n": "*",
         "@kitchensink/recipe-core": "*"
     },
     "peerDependencies": {

@@ -7,6 +7,7 @@
  * building-block leaves via the same platform-neutral barrel.
  */
 
+import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
@@ -21,8 +22,6 @@ import {
     toRecipeSummary,
 } from '../components/index.js';
 
-const WIDGET_TITLE = recipeMessages.widgetTitle;
-
 /**
  * Props for the recipe Home widget (native). Identical contract to the web entry.
  */
@@ -32,9 +31,11 @@ export interface RecipeHomeWidgetProps {
 }
 
 const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading = false }) => {
+    const { widgetTitle } = useMessages(recipeMessages);
+
     if (isLoading) {
         return (
-            <RecipeWidgetCard title={WIDGET_TITLE}>
+            <RecipeWidgetCard title={widgetTitle}>
                 <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
             </RecipeWidgetCard>
         );
@@ -44,14 +45,14 @@ const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading =
 
     if (recent.length === 0) {
         return (
-            <RecipeWidgetCard title={WIDGET_TITLE}>
+            <RecipeWidgetCard title={widgetTitle}>
                 <RecipeWidgetEmptyState />
             </RecipeWidgetCard>
         );
     }
 
     return (
-        <RecipeWidgetCard title={WIDGET_TITLE}>
+        <RecipeWidgetCard title={widgetTitle}>
             {recent.map((recipe) => (
                 <RecentRecipeItem key={recipe.id} recipe={recipe} />
             ))}

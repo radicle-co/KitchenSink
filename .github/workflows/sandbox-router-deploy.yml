@@ -1,9 +1,15 @@
 name: Sandbox Router Deploy
 
-# Persistent SINGLETON sandbox PR path router (CloudFront + CloudFront Function + KeyValueStore) at
-# sandbox.commise.app. Deployed once / on change — NOT per-PR. The per-PR KVS data is written by the
-# preview workflow (register-preview); this workflow only owns the long-lived infrastructure and
-# seeds the single project-wide Vercel bypass key. See docs/architecture/decisions/0001.
+# Persistent SINGLETON sandbox PR router (CloudFront + CloudFront Function + KeyValueStore) at
+# sandbox.commise.app — serves both path (/pr-{N}) and subdomain (pr-{N}.sandbox…) addressing. Deployed
+# once / on change — NOT per-PR. The per-PR KVS routes are written by the preview workflow
+# (register-preview); this workflow owns the long-lived infrastructure and seeds the single project-wide
+# Vercel bypass key. See docs/architecture/decisions/0001.
+#
+# DRIFT AUTO-HEAL: because this is a global singleton nothing else recreates, an out-of-band delete
+# (as happened 2026-06-21 → ~3 weeks of NXDOMAIN previews with no signal) leaves it dead until a
+# qualifying push. The daily `schedule` below re-runs the idempotent deploy (a no-op when the router
+# already matches, a full recreate when it is gone) and loudly annotates when it had to heal.
 
 on:
     push:
@@ -12,6 +18,10 @@ on:
             - 'packages/apps/commise/web/infra/**'
             - 'packages/apps/commise/web/router/**'
             - '.github/workflows/sandbox-router-deploy.yml'
+    # Daily drift-heal. Scheduled runs execute from the default branch only, so this activates once this
+    # workflow is on main — at which point main also carries the subdomain-capable router it deploys.
+    schedule:
+        - cron: '0 13 * * *'
     workflow_dispatch: {}
 
 concurrency:
@@ -45,12 +55,35 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.AWS_REGION }}
+            # Drift detection BEFORE deploy: if the singleton is gone, something deleted it out-of-band and
+            # sandbox.commise.app has been NXDOMAIN (all web previews broken). Surface that loudly; the
+            # deploy below heals it. On the daily schedule this is the auto-remediation signal.
+            - name: Detect router drift
+              run: |
+                  if aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox >/dev/null 2>&1; then
+                      echo "Router present — deploy is a no-op unless the template changed."
+                  else
+                      echo "::error title=Sandbox router was MISSING::kitchensink-sandbox-router-sandbox did not exist — deleted out-of-band, so sandbox.commise.app was NXDOMAIN and every web preview was broken. Healing now."
+                      {
+                          echo "### ⚠️ Sandbox router was missing — healed";
+                          echo "The singleton router had been deleted out-of-band; this run recreated it.";
+                          echo "Per-PR KVS routes are lost with the old store and re-register on each PR's next sync.";
+                      } >> "$GITHUB_STEP_SUMMARY"
+                  fi
             - name: Deploy router stack (bundles the function, then cdk deploy)
               run: npm run infra:deploy --workspace=@commise/web
             - name: Seed the project-wide Vercel bypass key into KVS
               env:
                   VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
               run: |
+                  # Fail loudly rather than seed an EMPTY bypass key: an empty value makes the router forward
+                  # without the token, so Vercel Deployment Protection 401s every preview — the exact silent
+                  # failure mode from before this secret was set. A missing secret is a real misconfig, not a
+                  # skip.
+                  if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+                    echo "::error title=Bypass secret unset::VERCEL_AUTOMATION_BYPASS_SECRET is empty — refusing to seed an empty vercel-bypass key (every preview would 401 at Vercel). Set the repo secret from the Vercel project's Protection Bypass for Automation." >&2
+                    exit 1
+                  fi
                   KVS_ARN=$(aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox \
                     --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" --output text)
                   if [ -z "$KVS_ARN" ] || [ "$KVS_ARN" = "None" ]; then echo "router KVS ARN not found" >&2; exit 1; fi

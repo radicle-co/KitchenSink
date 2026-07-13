@@ -167,6 +167,25 @@ and tested. Vercel-native is more moving parts for less control. Keep the router
 - **Mobile:** unaffected — `@clerk/expo` tokens have no browser `azp`.
 - **Manifest/static-resource mechanism (ADR-0001):** moot once each PR is its own origin; not built.
 
+## Operational hardening — router drift auto-heal
+
+The router is a global singleton that nothing recreates on deletion. It was deleted out-of-band on
+2026-06-21 and stayed gone ~3 weeks (all sandbox web previews NXDOMAIN'd) because it only redeploys on a
+push-to-main touching `web/infra`/`web/router`, and the preview-route job silently warn-and-skipped.
+Fixed in `sandbox-router-deploy.yml` + `sandbox-web-preview.yml`:
+
+- **Daily `schedule` drift-heal** — the idempotent `cdk deploy` runs daily: a no-op when the router
+  matches, a full recreate when it was deleted. Shrinks the dead window from indefinite to ≤1 day.
+- **Loud on heal** — a drift-detection step emits an `::error::` annotation + job-summary note when the
+  router was missing (so an out-of-band delete is visible, not silent).
+- **Empty-bypass guard** — the seed step fails loudly if `VERCEL_AUTOMATION_BYPASS_SECRET` is empty
+  instead of seeding an empty `vercel-bypass` key (which would 401 every preview at Vercel — the prior
+  silent failure mode). The secret is now set.
+- **Preview-route job** upgrades its missing-router message from `::warning::` to `::error::`.
+
+Note: recreating the router yields a fresh KVS, so per-PR routes must re-register on each PR's next sync
+(inherent to KVS-in-stack); the router + bypass key themselves self-heal.
+
 ## Risks & Dependencies
 
 - **Shared-instance blast radius:** every step touches the one shared sandbox. Mitigated by the

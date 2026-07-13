@@ -107,7 +107,7 @@ jobs:
                     --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" \
                     --output text 2>/dev/null || true)
                   if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
-                    echo "::warning::Router stack 'kitchensink-sandbox-router-sandbox' is not deployed yet — skipping PR route registration. Run sandbox-router-deploy once to enable preview routing."
+                    echo "::error title=Sandbox router missing::kitchensink-sandbox-router-sandbox is not deployed — this PR's preview is unreachable (sandbox.commise.app is NXDOMAIN). The daily 'Sandbox Router Deploy' auto-heals it; to fix now, run that workflow (workflow_dispatch)."
                     echo "found=false" >> "$GITHUB_OUTPUT"
                   else
                     echo "found=true" >> "$GITHUB_OUTPUT"

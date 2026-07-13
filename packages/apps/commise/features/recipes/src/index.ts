@@ -7,3 +7,4 @@
 
 export * from './descriptor.js';
 export * from './components/index.js';
+export * from './list/index.js';

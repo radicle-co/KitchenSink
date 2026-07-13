@@ -36,6 +36,44 @@ export interface RecipeListMessages {
     readonly retry: string;
 }
 
+/** Shared copy for the recipe-detail screen (T066), rendered by both the web and native detail views. */
+export interface RecipeDetailMessages {
+    /** Label for the prep-time meta stat. */
+    readonly prepLabel: string;
+    /** Label for the cook-time meta stat. */
+    readonly cookLabel: string;
+    /** Label for the total-time meta stat. */
+    readonly totalLabel: string;
+    /** Label for the servings meta stat. */
+    readonly servingsLabel: string;
+    /** Accessible name for the photo gallery. */
+    readonly photosLabel: string;
+    /** Photo alt-text template (contains `{title}` and `{index}`). */
+    readonly photoAlt: string;
+    /** Heading for the ingredients section. */
+    readonly ingredientsHeading: string;
+    /** Badge shown on a user-entered (freeform) ingredient. */
+    readonly userEnteredBadge: string;
+    /** Heading for the instructions section. */
+    readonly instructionsHeading: string;
+    /** Timer template for a step (contains `{seconds}`). */
+    readonly stepTimer: string;
+    /** Heading for the nutrition section. */
+    readonly nutritionHeading: string;
+    /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
+    readonly nutritionPartial: string;
+    /** Label for calories. */
+    readonly caloriesLabel: string;
+    /** Label for protein. */
+    readonly proteinLabel: string;
+    /** Label for carbohydrates. */
+    readonly carbsLabel: string;
+    /** Label for fat. */
+    readonly fatLabel: string;
+    /** Grams unit template (contains `{grams}`). */
+    readonly gramsUnit: string;
+}
+
 /** The shape of the recipe feature's shared copy. */
 export interface RecipeMessages {
     /** Title of the recent-recipes Home widget card. */
@@ -44,6 +82,8 @@ export interface RecipeMessages {
     readonly emptyState: string;
     /** Copy for the recipe-list screen. */
     readonly list: RecipeListMessages;
+    /** Copy for the recipe-detail screen. */
+    readonly detail: RecipeDetailMessages;
 }
 
 export const recipeMessages: LocalizedMessages<RecipeMessages> = {
@@ -63,6 +103,25 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             createCta: 'New recipe',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
+        },
+        detail: {
+            prepLabel: 'Prep',
+            cookLabel: 'Cook',
+            totalLabel: 'Total',
+            servingsLabel: 'Serves',
+            photosLabel: 'Recipe photos',
+            photoAlt: '{title} photo {index}',
+            ingredientsHeading: 'Ingredients',
+            userEnteredBadge: 'Custom',
+            instructionsHeading: 'Instructions',
+            stepTimer: '{seconds}s timer',
+            nutritionHeading: 'Nutrition (per serving)',
+            nutritionPartial: 'Estimated — some items aren’t counted yet',
+            caloriesLabel: 'Calories',
+            proteinLabel: 'Protein',
+            carbsLabel: 'Carbs',
+            fatLabel: 'Fat',
+            gramsUnit: '{grams} g',
         },
     },
 };

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 
 import {
     THROTTLE_WINDOW_MS,
@@ -6,8 +6,31 @@ import {
     photoThrottle,
     searchThrottle,
     throttleGroups,
+    throttleLimitFromEnv,
     writeThrottle,
 } from '../throttle.config.js';
+
+describe('throttleLimitFromEnv', () => {
+    afterEach(() => {
+        delete process.env['RATE_LIMIT_TEST'];
+    });
+
+    it('returns the fallback when the env var is unset', () => {
+        expect(throttleLimitFromEnv('RATE_LIMIT_TEST', 30)).toBe(30);
+    });
+
+    it('returns a valid positive-integer override', () => {
+        process.env['RATE_LIMIT_TEST'] = '100000';
+        expect(throttleLimitFromEnv('RATE_LIMIT_TEST', 30)).toBe(100000);
+    });
+
+    it('falls back on blank, non-integer, zero, or negative values (never disables throttling)', () => {
+        for (const bad of ['', '   ', 'abc', '0', '-5', '3.5']) {
+            process.env['RATE_LIMIT_TEST'] = bad;
+            expect(throttleLimitFromEnv('RATE_LIMIT_TEST', 30)).toBe(30);
+        }
+    });
+});
 
 describe('throttle configuration', () => {
     it('uses a one-minute window expressed in milliseconds', () => {

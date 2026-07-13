@@ -33,29 +33,52 @@ export interface ThrottleGroupDefinition {
 }
 
 /**
- * Write endpoints: 30 requests/minute.
+ * Resolve a per-window request limit from an env var, falling back to a default. This keeps the throttle
+ * limits configurable via the same `RATE_LIMIT_*` vars the config schema declares (they were previously
+ * hardcoded here and ignored the env — so a load test or a higher-traffic stage could not raise them).
+ * A missing/blank/non-positive-integer value falls back, so a bad override can never disable throttling.
+ * Pure aside from reading `process.env`.
+ *
+ * @param envVar - The env var name (e.g. `RATE_LIMIT_WRITE`).
+ * @param fallback - The default limit when the env var is unset or invalid.
+ * @returns The resolved positive-integer limit.
+ */
+export function throttleLimitFromEnv(envVar: string, fallback: number): number {
+    const raw = process.env[envVar];
+
+    if (raw === undefined || raw.trim() === '') {
+        return fallback;
+    }
+
+    const parsed = Number(raw);
+
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * Write endpoints: `RATE_LIMIT_WRITE` requests/minute (default 30).
  */
 export const writeThrottle: ThrottleGroupDefinition = {
     name: ThrottleGroup.WRITES,
-    limit: 30,
+    limit: throttleLimitFromEnv('RATE_LIMIT_WRITE', 30),
     ttl: THROTTLE_WINDOW_MS,
 };
 
 /**
- * Photo-upload endpoints: 10 requests/minute.
+ * Photo-upload endpoints: `RATE_LIMIT_PHOTO_UPLOAD` requests/minute (default 10).
  */
 export const photoThrottle: ThrottleGroupDefinition = {
     name: ThrottleGroup.PHOTOS,
-    limit: 10,
+    limit: throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', 10),
     ttl: THROTTLE_WINDOW_MS,
 };
 
 /**
- * Search endpoints: 60 requests/minute.
+ * Search endpoints: `RATE_LIMIT_SEARCH` requests/minute (default 60).
  */
 export const searchThrottle: ThrottleGroupDefinition = {
     name: ThrottleGroup.SEARCH,
-    limit: 60,
+    limit: throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60),
     ttl: THROTTLE_WINDOW_MS,
 };
 

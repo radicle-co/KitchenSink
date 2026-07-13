@@ -8,7 +8,7 @@
 // reach the app too once the router serves it — until the build flips to SANDBOX_PREVIEW_MODE=subdomain
 // it still carries the /pr-{N} basePath, which the report notes rather than fails on.
 //
-// Run: npx tsx packages/apps/commise/web/scripts/cutover-smoke.ts <pr-number> [--base sandbox.commise.app]
+// Run: npx tsx packages/apps/commise/web/scripts/cutoverSmoke.ts <pr-number> [--base sandbox.commise.app]
 
 /** How a probed URL resolves, from a browser's perspective. */
 export type ReachabilityKind = 'app' | 'sso' | 'notfound' | 'nxdomain' | 'error';
@@ -117,7 +117,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     const base = baseIdx >= 0 ? argv[baseIdx + 1]! : 'sandbox.commise.app';
 
     if (!Number.isInteger(pr) || pr <= 0) {
-        console.error('usage: cutover-smoke.ts <pr-number> [--base sandbox.commise.app]');
+        console.error('usage: cutoverSmoke.ts <pr-number> [--base sandbox.commise.app]');
         process.exitCode = 2;
 
         return;

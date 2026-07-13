@@ -73,7 +73,7 @@ are outward-facing.
 
 **Implement:**
 
-- **U-C1** — `packages/apps/commise/web/scripts/cutover-smoke.ts`: a runnable verifier that, given a PR
+- **U-C1** — `packages/apps/commise/web/scripts/cutoverSmoke.ts`: a runnable verifier that, given a PR
   number + mode, checks the sandbox serves correctly — path (`sandbox.commise.app/pr-N/`) and subdomain
   (`pr-N.sandbox.commise.app/`) both resolve (DNS), route through CloudFront (not NXDOMAIN), and reach the
   app past Vercel protection (not a `vercel.com/sso` redirect). Fails loudly on NXDOMAIN / 404 / SSO. This

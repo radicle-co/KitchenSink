@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyReachability, urlsForPr } from '../cutover-smoke';
+import { classifyReachability, urlsForPr } from '../cutoverSmoke';
 
 describe('classifyReachability', () => {
     it('classifies a DNS failure as nxdomain (router/DNS gone)', () => {

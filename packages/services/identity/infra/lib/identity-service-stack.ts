@@ -207,10 +207,28 @@ export class IdentityServiceStack extends Stack {
                     this,
                     `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/jwt-public-key`,
                 ),
-                CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
-                    this,
-                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/authorized-parties`,
-                ),
+                // Stage-gated azp enforcement (ADR-0001). PROD: exact-match list. NON-PROD (sandbox): the
+                // self-owned anchored pattern for per-PR preview subdomains, with the preview MODE
+                // (`strict` | `transition`) resolved from SSM so the cutover + rollback is an SSM change +
+                // task restart, not a code deploy. Exactly one mode per stage (config contract), so prod
+                // gets ONLY the list and non-prod ONLY the pattern pair. Params must exist before deploy.
+                ...(stage === 'prod'
+                    ? {
+                          CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
+                              this,
+                              `/kitchensink/prod/clerk/authorized-parties`,
+                          ),
+                      }
+                    : {
+                          CLERK_AZP_PATTERN: ssm.StringParameter.valueForStringParameter(
+                              this,
+                              `/kitchensink/sandbox/clerk/azp-pattern`,
+                          ),
+                          CLERK_AZP_PREVIEW_MODE: ssm.StringParameter.valueForStringParameter(
+                              this,
+                              `/kitchensink/sandbox/clerk/azp-preview-mode`,
+                          ),
+                      }),
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),

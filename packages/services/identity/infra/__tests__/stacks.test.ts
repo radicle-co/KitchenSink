@@ -9,6 +9,7 @@ import { IdentityServiceStack } from '../lib/identity-service-stack.js';
 // is what this package owns and deploys.
 
 let serviceTemplate: Template;
+let prodTemplate: Template;
 
 const env = { account: '123456789012', region: 'us-east-1' };
 
@@ -63,7 +64,20 @@ beforeAll(() => {
         vpcId: 'vpc-12345678',
     });
 
+    // A prod-stage synth to pin the stage-gated azp env: prod stays exact-match list, non-prod uses the
+    // self-owned preview pattern (ADR-0001). Same App/context (VPC seed is account/region-scoped). Both
+    // stacks must be constructed BEFORE any Template.fromStack() — synth freezes the whole App's tree.
+    const prodService = new IdentityServiceStack(app, 'ProdService', {
+        env,
+        stage: 'prod',
+        domainName: 'example.com',
+        imageTag: 'test',
+        desiredCount: 1,
+        vpcId: 'vpc-12345678',
+    });
+
     serviceTemplate = Template.fromStack(service);
+    prodTemplate = Template.fromStack(prodService);
 });
 
 describe('No Auth0 references', () => {
@@ -84,8 +98,8 @@ describe('No Auth0 references', () => {
 });
 
 describe('Identity env vars present', () => {
-    const taskHasEnvVar = (name: string): boolean => {
-        const tasks = serviceTemplate.findResources('AWS::ECS::TaskDefinition');
+    const templateHasEnvVar = (template: Template, name: string): boolean => {
+        const tasks = template.findResources('AWS::ECS::TaskDefinition');
 
         return Object.values(tasks).some((task: any) =>
             (task.Properties?.ContainerDefinitions ?? []).some((container: any) =>
@@ -93,6 +107,7 @@ describe('Identity env vars present', () => {
             ),
         );
     };
+    const taskHasEnvVar = (name: string): boolean => templateHasEnvVar(serviceTemplate, name);
 
     it('service task has AUTH_SECRET_ARN env var', () => {
         expect(taskHasEnvVar('AUTH_SECRET_ARN')).toBe(true);
@@ -102,8 +117,20 @@ describe('Identity env vars present', () => {
         expect(taskHasEnvVar('CLERK_JWT_KEY')).toBe(true);
     });
 
-    it('service task has CLERK_AUTHORIZED_PARTIES env var (azp enforcement)', () => {
-        expect(taskHasEnvVar('CLERK_AUTHORIZED_PARTIES')).toBe(true);
+    // ── ADR-0001 stage-gated azp enforcement ──
+    // Non-prod (sandbox) runs the self-owned preview pattern in `transition` mode (accepts the apex AND
+    // pr-{N} subdomains during cutover). Prod stays exact-match list. Exactly one mode per stage (the
+    // config contract), so each stage carries one set and NOT the other.
+    it('non-prod task uses the azp PATTERN + preview mode, NOT the exact-match list', () => {
+        expect(taskHasEnvVar('CLERK_AZP_PATTERN')).toBe(true);
+        expect(taskHasEnvVar('CLERK_AZP_PREVIEW_MODE')).toBe(true);
+        expect(taskHasEnvVar('CLERK_AUTHORIZED_PARTIES')).toBe(false);
+    });
+
+    it('prod task keeps the exact-match list, NOT the preview pattern (prod unaffected)', () => {
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_AUTHORIZED_PARTIES')).toBe(true);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PATTERN')).toBe(false);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PREVIEW_MODE')).toBe(false);
     });
 });
 

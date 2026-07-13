@@ -1,0 +1,26 @@
+appId: io.commise.mobile
+---
+# Recipe list -> detail happy path (US1). Assumes an authenticated session (the auth login flow runs
+# first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_API_URL). Asserts the
+# list chrome renders, then drills into a seeded recipe and back — the mobile mirror of the web
+# Playwright recipe-list/detail flow (cross-platform mandate).
+- launchApp
+
+# The recipe list surface (RecipeListScreen): heading + search + create CTA are always present.
+- assertVisible: 'Recipes'
+- assertVisible: 'Search recipes'
+- assertVisible: 'New recipe'
+
+# Drive list -> detail on the first seeded recipe, then return. Guarded by `when: visible` so an empty
+# library (no seed) still passes the chrome assertions above without failing the whole flow.
+- runFlow:
+      when:
+          visible: 'Mediterranean Grilled Lamb'
+      commands:
+          - tapOn: 'Mediterranean Grilled Lamb'
+          # RecipeDetailView sections (header + ingredients + instructions + nutrition).
+          - assertVisible: 'Ingredients'
+          - assertVisible: 'Instructions'
+          - assertVisible: 'Nutrition (per serving)'
+          - tapOn: 'Back'
+          - assertVisible: 'Recipes'

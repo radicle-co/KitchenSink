@@ -598,10 +598,11 @@ jobs:
         runs-on: ubuntu-latest
         needs: build
         # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
-        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. Gated behind
-        # `run_mobile_maestro` (default false) until the Expo dev-build + emulator app-install lands — so
-        # this is structurally wired and validated, but does not run (and cannot falsely fail) on every
-        # PR. A caller opts in with `run_mobile_maestro: true`.
+        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. Now fully wired — builds
+        # the Expo app to a debug APK (prebuild → Gradle), installs it on the booted emulator, and runs
+        # the flows. Still behind `run_mobile_maestro` (default false) purely for COST/DURATION (the
+        # emulator + Gradle build is a heavyweight job), not because it is unbuilt; a caller opts in with
+        # `run_mobile_maestro: true`.
         if: ${{ inputs.run_mobile_maestro }}
         steps:
             - uses: actions/checkout@v6
@@ -626,16 +627,34 @@ jobs:
                   echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
             - name: Maestro version
               run: maestro --version
-            # Boot an Android emulator and run the .maestro flows against the installed app. The app
-            # build/install (Expo dev build → APK → `adb install`) is added with the mobile build wiring;
-            # until then the enclosing `run_mobile_maestro` gate keeps this from running unbuilt.
-            - name: Run Maestro flows
+            # JDK for the Android Gradle build.
+            - name: Set up JDK 17
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: '17'
+            # Build a debug APK from the Expo app: `expo prebuild` generates the native android/ project,
+            # then Gradle assembles the debug APK. EXPO_PUBLIC_API_URL is baked at build time, so it points
+            # at the seeded recipe API for this stage (repo var; falls back to the sandbox recipe host).
+            - name: Build Android debug APK
+              working-directory: packages/apps/commise/mobile
+              env:
+                  EXPO_PUBLIC_API_URL: ${{ vars.RECIPE_API_URL || 'https://recipe.sandbox.commise.app' }}
+                  EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+              run: |
+                  npx expo prebuild --platform android --no-install
+                  cd android && ./gradlew :app:assembleDebug --no-daemon
+            # Boot an Android emulator, install the freshly-built APK, and run the .maestro flows against
+            # it. Install + test run INSIDE the emulator-runner `script` (the emulator is only up there).
+            - name: Run Maestro flows on emulator
               uses: reactivecircus/android-emulator-runner@v2
               with:
                   api-level: 34
                   arch: x86_64
                   profile: pixel_6
-                  script: maestro test packages/apps/commise/mobile/.maestro
+                  script: |
+                      adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+                      maestro test packages/apps/commise/mobile/.maestro
             - name: Upload Maestro artifacts
               if: failure()
               uses: actions/upload-artifact@v4

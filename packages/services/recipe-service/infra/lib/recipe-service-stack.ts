@@ -25,14 +25,23 @@ import type { Construct } from 'constructs';
 /** The single shared base logical database on the persistent platform instance (ADR-0006). */
 export const BASE_RECIPE_DATABASE_NAME = 'kitchensink_recipes';
 
-/** Per-PR listener-rule priority band on the shared sandbox ALB (ADR-0003 + ADR-0006). */
-export const PER_PR_PRIORITY_BASE = 10_000;
+/**
+ * Per-PR listener-rule priority band on the shared sandbox ALB (ADR-0003 + ADR-0006).
+ *
+ * CRITICAL: every per-PR preview of EVERY feature service rides the ONE shared sandbox HTTPS listener, so
+ * a per-PR priority must be unique across services, not just across PR numbers. Each feature service
+ * therefore owns a DISJOINT per-PR band: food uses 10000–19999 (its `PER_PR_PRIORITY_BASE`), so recipe
+ * MUST NOT reuse 10000 — recipe-pr-73 (10073) would collide with the already-deployed food-pr-73 (10073),
+ * which is exactly the "Priority '10073' is currently in use" failure this avoids. Recipe takes
+ * 30000–39999. Do NOT "align" this back to 10000 to match food.
+ */
+export const PER_PR_PRIORITY_BASE = 30_000;
 
 /** Width of each ephemeral priority band; also caps the PR number that fits below the named band. */
 export const EPHEMERAL_PRIORITY_BAND_WIDTH = 10_000;
 
-/** Listener-rule priority band for a NAMED non-PR ephemeral stage (kept strictly above the per-PR band). */
-export const NAMED_STAGE_PRIORITY_BASE = 20_000;
+/** Listener-rule priority band for a NAMED non-PR ephemeral stage (recipe's, disjoint from food's). */
+export const NAMED_STAGE_PRIORITY_BASE = 40_000;
 
 /**
  * The fixed shared-ALB listener-rule priority for the recipe service on a base (prod/sandbox) stage.

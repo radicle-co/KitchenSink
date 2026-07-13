@@ -137,6 +137,30 @@ describe('verifyClerkToken', () => {
 
         expect(mockVerify).toHaveBeenCalledWith('tok', { jwtKey: 'PEM', authorizedParties: undefined });
     });
+
+    // ── R10 regression: a native (@clerk/expo) token has NO azp; list mode must still accept it ──
+    // In list mode we delegate the azp decision to @clerk/backend, whose assertAuthorizedPartiesClaim
+    // RETURNS EARLY when azp is absent (`if (!azp || !authorizedParties...) return`) — so an azp-less
+    // token passes even with a non-empty allowlist. That is why mobile (which mints azp-less native
+    // tokens and calls the list-mode identity service) is NOT affected by the sandbox-web pattern-mode
+    // migration. This test pins that our wrapper adds NO azp rejection of its own in list mode; if it
+    // ever did, every mobile request would 401. Absent-azp is only rejected in self-owned PATTERN mode.
+    it('accepts an azp-less (native) token in list mode — delegates the skip-on-absent-azp to Clerk', async () => {
+        mockVerify.mockResolvedValue({ sub: 'mobile_user', scopes: [], permissions: [] } as never);
+
+        const claims = await verifyClerkToken('tok', {
+            jwtKey: 'PEM',
+            authorizedParties: ['https://commise.app', 'https://app.commise.app'],
+        });
+
+        expect(claims.sub).toBe('mobile_user');
+        expect(claims.azp).toBeUndefined();
+        // We forwarded the allowlist to Clerk (which owns the azp decision) and did NOT add our own check.
+        expect(mockVerify).toHaveBeenCalledWith('tok', {
+            jwtKey: 'PEM',
+            authorizedParties: ['https://commise.app', 'https://app.commise.app'],
+        });
+    });
 });
 
 const PATTERN = buildPreviewAzpPattern('sandbox.commise.app');

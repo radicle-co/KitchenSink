@@ -1,0 +1,36 @@
+# Recipe-service k6 load test (T081/SC-009 performance gate).
+#
+# The recipe k6 job lives in the reusable `_ci.yml`, gated behind `run_load_test` (default false) so the
+# heavy run never fires on ordinary PR/push pipelines. This workflow is the intended opt-in CALLER: it
+# invokes `_ci.yml` with `run_load_test: true` so the `Load test (recipe — k6)` job actually runs — on a
+# weekly schedule and on demand. (Mirrors the per-service load-test trigger pattern of food-loadtest.yml.)
+#
+# Trigger: Actions → "Recipe load test (k6)" → Run workflow, or `gh workflow run recipe-loadtest.yml`.
+#
+# Requires the `RECIPE_LOAD_TEST_TOKEN` repo secret (a Clerk token minted for authenticated load
+# requests); the k6 job reads it to hit protected endpoints. Set it before the first real run — without
+# it the load scripts cannot authenticate.
+name: Recipe load test (k6)
+
+on:
+    workflow_dispatch: {}
+    # Weekly regression run (Monday 05:00 UTC) so the perf gate is exercised regularly, not just on demand.
+    schedule:
+        - cron: '0 5 * * 1'
+
+# One heavy load run at a time — a scheduled and a manual trigger should not stack.
+concurrency:
+    group: recipe-loadtest
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    loadtest:
+        # Reuse the existing pipeline with the load-test job switched on (the flag exists for this caller).
+        uses: ./.github/workflows/_ci.yml
+        with:
+            stage: sandbox
+            run_load_test: true
+        secrets: inherit

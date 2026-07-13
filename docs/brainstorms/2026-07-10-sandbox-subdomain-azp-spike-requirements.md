@@ -16,7 +16,18 @@ Two of the three unknowns are now settled without a full live sign-in:
 - **U1/U2 (the keeper) shipped** — the self-owned anchored-regex `azp` predicate is built, unit-tested, and wired stage-gated into all three services (prod stays exact-match). This is what makes bounded per-PR patterns enforceable without an unbounded allowlist.
 - **FAPI CORS confirmed live** — the sandbox dev Frontend API (`nice-fowl-6.clerk.accounts.dev`) reflects **any** `Origin` in `Access-Control-Allow-Origin` (including `pr-9001.sandbox.commise.app`), with credentials. So a subdomain sign-in is accepted and mints `azp = that subdomain` — and no "allowed subdomains" toggle is needed (that's prod-only; dev isn't origin-restricted). The regex-`azp` guard is therefore essential, not optional, on the dev sandbox.
 
-**Preliminary recommendation: GO.** Remaining to fully confirm: one real browser sign-in on a live `pr-N.sandbox.commise.app` to decode the token and see `azp` = the subdomain literally (near-certain), and the mobile-`azp` decode (needs a real `@clerk/expo` token). See `docs/architecture/decisions/0001-sandbox-front-end-addressing.md` (Update 2026-07-12) and the migration plan.
+**Preliminary recommendation: GO.** Remaining to fully confirm: one real browser sign-in on a live `pr-N.sandbox.commise.app` to decode the token and see `azp` = the subdomain literally (near-certain). See `docs/architecture/decisions/0001-sandbox-front-end-addressing.md` (Update 2026-07-12) and the migration plan.
+
+## Update (2026-07-13) — R10 (mobile `azp`) RESOLVED from the `@clerk/backend` source
+
+The R10 worry below ("`@clerk/expo` tokens omit `azp` so they already 401 against the enforcing services") is **incorrect** — resolved by reading the shipped library rather than a live device. `@clerk/backend`'s `assertAuthorizedPartiesClaim` short-circuits on an absent `azp`:
+
+```js
+if (!azp || !authorizedParties || authorizedParties.length === 0) return;  // azp absent → check SKIPPED
+if (!authorizedParties.includes(azp)) throw ...;
+```
+
+So an **azp-less token passes even in list mode.** Therefore mobile (`@clerk/expo`, azp-less) calling the **list-mode** identity service is accepted — and the identity service already serves mobile today, which confirms it empirically. Our self-owned **pattern** mode (the only place absent-`azp` is rejected, fail-closed) is **sandbox-web-only**; mobile never hits it, so the subdomain migration does **not** affect mobile and **no native-admission gate is required** for the current topology. Encoded as a regression test in `@kitchensink/clerk-verify` (list mode accepts an azp-less token). The `admitAzplessToken` hook stays available only for a hypothetical future pattern-mode-serves-native topology, which would ALSO need a Clerk JWT-template native claim as the positive signal (never admit on absence alone — spike R4).
 
 ## Problem Frame
 

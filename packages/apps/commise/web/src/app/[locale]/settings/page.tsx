@@ -9,11 +9,12 @@ export const metadata: Metadata = {
     description: 'Account security and settings',
 };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale } = await params;
     const { userId } = await auth();
 
     if (!userId) {
-        redirect('/sign-in' as Route);
+        redirect(`/${locale}/sign-in` as Route);
     }
 
     return (

@@ -49,11 +49,12 @@ async function ProfileContent({ accessToken }: { accessToken: string }) {
     );
 }
 
-export default async function ProfilePage() {
+export default async function ProfilePage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale } = await params;
     const { userId, getToken } = await auth();
 
     if (!userId) {
-        redirect('/sign-in' as Route);
+        redirect(`/${locale}/sign-in` as Route);
     }
 
     const token = (await getToken()) ?? '';

@@ -3,7 +3,9 @@ import { clerkAppearance } from '@commise/ui';
 
 import { withBasePath } from '@/lib/basePath';
 
-export default function SignInPage() {
+export default async function SignInPage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale } = await params;
+
     return (
         <main className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12">
             {/* hash routing: Clerk derives its path from usePathname() (basePath-STRIPPED), so under a
@@ -27,8 +29,8 @@ export default function SignInPage() {
             <SignIn
                 routing="hash"
                 appearance={clerkAppearance}
-                signUpUrl={withBasePath('/sign-up')}
-                forceRedirectUrl="/"
+                signUpUrl={withBasePath(`/${locale}/sign-up`)}
+                forceRedirectUrl={`/${locale}`}
             />
         </main>
     );

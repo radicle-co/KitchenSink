@@ -3,7 +3,9 @@ import { clerkAppearance } from '@commise/ui';
 
 import { withBasePath } from '@/lib/basePath';
 
-export default function SignUpPage() {
+export default async function SignUpPage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale } = await params;
+
     return (
         <main className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12">
             {/* hash routing — path routing renders an empty widget under a preview basePath because
@@ -20,8 +22,8 @@ export default function SignUpPage() {
             <SignUp
                 routing="hash"
                 appearance={clerkAppearance}
-                signInUrl={withBasePath('/sign-in')}
-                forceRedirectUrl="/"
+                signInUrl={withBasePath(`/${locale}/sign-in`)}
+                forceRedirectUrl={`/${locale}`}
             />
         </main>
     );

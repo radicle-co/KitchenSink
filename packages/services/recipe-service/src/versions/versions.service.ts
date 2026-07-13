@@ -84,7 +84,18 @@ export class VersionsService {
         @Inject(VERSIONS_DAL) private readonly dal: VersionsDal,
         // forwardRef: RecipesService records versions on write and VersionsService drives a recipe write
         // on restore — a deliberate two-way dependency (see RecipesService's matching forwardRef).
-        @Inject(forwardRef(() => RecipesService)) private readonly recipes: RecipesService,
+        //
+        // The field is typed as a `Pick` of RecipesService, NOT the concrete class, ON PURPOSE — DO NOT
+        // "simplify" it back to `: RecipesService`. With `emitDecoratorMetadata`, the constructor param's
+        // TYPE ANNOTATION is emitted into `design:paramtypes`, which is evaluated at class-definition time.
+        // A concrete-class annotation there emits a VALUE reference to RecipesService; under native ESM the
+        // recipes<->versions import cycle means that binding is still in its temporal dead zone when this
+        // module first evaluates, so the compiled service crashes at boot with `ReferenceError: Cannot
+        // access 'RecipesService' before initialization` (it only surfaces in the COMPILED image — tsx/
+        // vitest transpile the cycle differently, so tests don't catch it). A `Pick<…>` is a structural
+        // type with no runtime value, so `design:paramtypes` emits `Object` and the cycle boots — while
+        // `forwardRef(() => RecipesService)` (lazy arrow, evaluated later) still resolves the real instance.
+        @Inject(forwardRef(() => RecipesService)) private readonly recipes: Pick<RecipesService, 'getById' | 'update'>,
         @Inject(VERSIONS_S3_CLIENT) private readonly s3: VersionArchiveS3,
         @Inject(VERSIONS_S3_BUCKET) private readonly bucket: string,
     ) {}

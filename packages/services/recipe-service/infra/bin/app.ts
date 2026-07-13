@@ -1,0 +1,52 @@
+import { config as dotenvConfig } from 'dotenv';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { App, Tags } from 'aws-cdk-lib';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenvConfig({ path: join(__dirname, '../../.env') });
+
+import { RecipeServiceStack } from '../lib/recipe-service-stack.js';
+
+const app = new App();
+const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
+// ADR-0006: a feature deploy imports the PERSISTENT platform tier, which exists only for `prod` and
+// `sandbox`. Prod rides prod; every other stage (sandbox itself + ephemeral `pr-{N}` previews) rides the
+// shared `sandbox` platform. `stage` still drives naming/tagging/routing/DB-isolation.
+const baseStage = stage === 'prod' ? 'prod' : stage === 'sandbox' ? 'sandbox' : 'sandbox';
+// recipe is a non-global FEATURE service: a per-PR deploy (stage = pr-{N}) is ephemeral and tagged
+// Environment=pr-{N} so the PR-close cleanup deletes it (by tag OR pr-{N} name prefix); a persistent
+// (non-PR) deploy tags 'global'. See ADR-0005.
+Tags.of(app).add('Environment', stage.startsWith('pr-') ? stage : 'global');
+const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
+const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
+const domainName = process.env['DOMAIN_NAME'];
+const vpcId = process.env['RECIPE_VPC_ID'] ?? process.env['IDENTITY_VPC_ID'] ?? process.env['FOOD_VPC_ID'];
+
+if (!domainName) {
+    throw new Error('DOMAIN_NAME env var is required');
+}
+
+if (!vpcId) {
+    throw new Error('RECIPE_VPC_ID (or IDENTITY_VPC_ID) env var is required');
+}
+
+const env = account ? { account, region } : { region };
+
+new RecipeServiceStack(app, `RecipeService-${stage}`, {
+    env,
+    stackName: `kitchensink-recipe-service-${stage}`,
+    stage,
+    baseStage,
+    domainName,
+    vpcId,
+    imageTag: process.env['RECIPE_IMAGE_TAG'] ?? 'latest',
+    desiredCount: Number(process.env['RECIPE_DESIRED_COUNT'] ?? 1),
+    // No CloudFront distribution exists yet — a placeholder keeps the service's storage config valid so it
+    // boots and serves recipe CRUD; photo-via-CDN serving lands with a real distribution later.
+    cloudfrontUrl: process.env['RECIPE_CLOUDFRONT_URL'] ?? `https://recipe-cdn.${domainName}`,
+    // Food service origin is optional (ingredient nutrition resolution degrades gracefully if unset).
+    foodServiceUrl: process.env['RECIPE_FOOD_SERVICE_URL'],
+});
+
+app.synth();

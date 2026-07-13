@@ -262,7 +262,18 @@ export class RecipesService {
         private readonly ingredientsDal: IngredientsDal,
         // Circular by nature: recipe writes record a version, and version restore drives a recipe write.
         // forwardRef lets Nest resolve the two-way dependency (see VersionsService's matching forwardRef).
-        @Inject(forwardRef(() => VersionsService)) private readonly versions: VersionsService,
+        //
+        // The field is typed as a `Pick` of VersionsService, NOT the concrete class, ON PURPOSE — DO NOT
+        // "simplify" it back to `: VersionsService`. With `emitDecoratorMetadata`, the constructor param's
+        // TYPE ANNOTATION is emitted into `design:paramtypes`, which is evaluated at class-definition time.
+        // A concrete-class annotation there emits a VALUE reference to VersionsService; under native ESM the
+        // recipes<->versions import cycle means that binding is still in its temporal dead zone when this
+        // module first evaluates, so the compiled service crashes at boot with `ReferenceError: Cannot
+        // access 'VersionsService' before initialization` (it only surfaces in the COMPILED image — tsx/
+        // vitest transpile the cycle differently, so tests don't catch it). A `Pick<…>` is a structural
+        // type with no runtime value, so `design:paramtypes` emits `Object` and the cycle boots — while
+        // `forwardRef(() => VersionsService)` (lazy arrow, evaluated later) still resolves the real instance.
+        @Inject(forwardRef(() => VersionsService)) private readonly versions: Pick<VersionsService, 'createSnapshot'>,
         // The recipes vertical embeds a recipe's photos in the `RecipeDetail` read via its OWN PhotosDal
         // instance over the shared Drizzle client (no PhotosModule import → no module cycle).
         @Inject(RECIPE_PHOTOS_DAL) private readonly photosDal: PhotosDal,

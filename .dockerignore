@@ -19,3 +19,13 @@
 !packages/shared/clerk-verify/prod.package.json
 !packages/clients/usda/dist
 !packages/clients/usda/prod.package.json
+# Recipe service image (feature 001; mirrors the food allowlist): the service dist + prod manifest, plus
+# the three shared @kitchensink runtime deps (recipe-core, food-service-client, clerk-verify) whose root
+# node_modules symlinks resolve to these dist + dist-pointing prod.package.json paths.
+!packages/services/recipe-service/node_modules
+!packages/services/recipe-service/dist
+!packages/services/recipe-service/prod.package.json
+!packages/shared/recipe-core/dist
+!packages/shared/recipe-core/prod.package.json
+!packages/clients/food-service/dist
+!packages/clients/food-service/prod.package.json

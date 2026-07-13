@@ -9,7 +9,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
     test: {
-        include: ['src/**/*.test.ts'],
+        include: ['src/**/*.test.ts', 'infra/__tests__/**/*.test.ts'],
         exclude: ['**/node_modules/**', '**/dist/**', 'tests/**', 'src/**/__tests__/integration/**'],
     },
 });

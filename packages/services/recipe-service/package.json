@@ -19,7 +19,8 @@
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test:mutation": "stryker run"
+        "test:mutation": "stryker run",
+        "seed": "tsx src/database/seed.ts"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.1083.0",

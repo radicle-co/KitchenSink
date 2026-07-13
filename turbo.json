@@ -1,5 +1,6 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "globalEnv": ["SANDBOX_PREVIEW_MODE"],
     "tasks": {
         "build": {
             "dependsOn": ["^build"],

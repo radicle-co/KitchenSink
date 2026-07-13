@@ -8,7 +8,8 @@ import { TamaguiProvider } from 'tamagui';
 import { AuthGate } from './src/components/AuthGate';
 import { LocaleProvider } from './src/i18n/LocaleProvider';
 import { initSentry } from './src/observability/sentry';
-import { ProfileScreen } from './src/screens/profile';
+import { RecipeServiceGate } from './src/providers/RecipeServiceGate';
+import { RecipesScreen } from './src/screens/RecipesScreen';
 import { tokenCache } from './src/storage/tokenCache';
 import tamaguiConfig from './tamagui.config';
 
@@ -28,12 +29,14 @@ function App(): JSX.Element {
             <LocaleProvider>
                 <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
                     <QueryClientProvider client={queryClient}>
-                        <SafeAreaProvider>
-                            <StatusBar style="auto" />
-                            <AuthGate>
-                                <ProfileScreen />
-                            </AuthGate>
-                        </SafeAreaProvider>
+                        <RecipeServiceGate>
+                            <SafeAreaProvider>
+                                <StatusBar style="auto" />
+                                <AuthGate>
+                                    <RecipesScreen />
+                                </AuthGate>
+                            </SafeAreaProvider>
+                        </RecipeServiceGate>
                     </QueryClientProvider>
                 </ClerkProvider>
             </LocaleProvider>

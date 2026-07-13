@@ -18,6 +18,14 @@ export interface MobileMessages {
         readonly title: string;
         readonly message: string;
     };
+    readonly recipes: {
+        /** Accessible label shown while a single recipe's detail is loading. */
+        readonly detailLoading: string;
+        /** Message shown when a recipe's detail fails to load. */
+        readonly detailError: string;
+        /** Label of the back affordance on the recipe-detail screen. */
+        readonly back: string;
+    };
     readonly common: {
         readonly somethingWentWrong: string;
     };
@@ -37,6 +45,11 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             message:
                 'Your account is suspended. Commise access is paused until support restores your account. ' +
                 'Please contact support if you believe this is a mistake.',
+        },
+        recipes: {
+            detailLoading: 'Loading recipe…',
+            detailError: 'We couldn’t load this recipe.',
+            back: 'Back',
         },
         common: {
             somethingWentWrong: 'Something went wrong',

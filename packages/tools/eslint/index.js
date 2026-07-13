@@ -173,18 +173,21 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                         patterns: [
                             {
                                 // Block reaching into another package's internals, but allow its
-                                // *declared* granular export barrels (database/*, types/*). Consumers
-                                // such as the webhook Lambdas import those directly so they don't pull
-                                // the whole package (e.g. the NestJS service) in via the top barrel.
+                                // *declared* granular export barrels (database/*, types/*, hooks).
+                                // Consumers such as the webhook Lambdas import those directly so they
+                                // don't pull the whole package (e.g. the NestJS service) in via the top
+                                // barrel; the `hooks` subpath likewise keeps React out of non-React
+                                // consumers of a client package (e.g. `recipe-service-client/hooks`).
                                 group: [
                                     '@kitchensink/*/*',
                                     '!@kitchensink/*/database',
                                     '!@kitchensink/*/database/*',
                                     '!@kitchensink/*/types',
                                     '!@kitchensink/*/types/*',
+                                    '!@kitchensink/*/hooks',
                                 ],
                                 message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*) — don't reach into other internals.",
+                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks) — don't reach into other internals.",
                             },
                         ],
                     },

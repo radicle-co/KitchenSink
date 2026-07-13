@@ -3,6 +3,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { RecipeProviders } from '@/components/recipes/RecipeProviders';
 import { getDictionary } from '@/i18n/getDictionary';
 import { withBasePath } from '@/lib/basePath';
 import { SUPPORTED_LOCALES, isSupportedLocale } from '@/lib/i18n';
@@ -59,7 +60,9 @@ export default async function LocaleLayout({
         >
             <html lang={locale}>
                 <body>
-                    <LocaleProvider locale={locale}>{children}</LocaleProvider>
+                    <LocaleProvider locale={locale}>
+                        <RecipeProviders>{children}</RecipeProviders>
+                    </LocaleProvider>
                 </body>
             </html>
         </ClerkProvider>

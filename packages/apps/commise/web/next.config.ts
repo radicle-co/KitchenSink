@@ -16,9 +16,17 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     typedRoutes: true,
-    // @commise/features-account ships TypeScript source (like the other @commise/features-* packages),
-    // so Next must transpile it rather than treating it as pre-built node_modules JS.
-    transpilePackages: ['@commise/features-account'],
+    // These workspace packages ship TypeScript source (not pre-built JS), so Next must transpile them
+    // rather than treating them as opaque node_modules. The recipe list/detail routes pull in the recipe
+    // feature UI + its typed client, which in turn depend on the shared i18n and recipe-core packages.
+    transpilePackages: [
+        '@commise/features-account',
+        '@commise/features-recipes',
+        '@commise/features-core',
+        '@commise/i18n',
+        '@kitchensink/recipe-service-client',
+        '@kitchensink/recipe-core',
+    ],
     // Those TS-source packages use NodeNext-style `.js` extensions on relative imports (e.g.
     // `export * from './profileClient.js'`), so webpack must resolve a `.js` specifier to its `.ts`/`.tsx`
     // source. Without this, `next build` fails with "Can't resolve './profileClient.js'".

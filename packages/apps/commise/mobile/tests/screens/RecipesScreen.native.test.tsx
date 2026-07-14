@@ -1,45 +1,96 @@
 /**
  * Component tests for the mobile RecipesScreen (rendered via react-native-web under jsdom — see
- * `vitest.native.config.ts`). RecipesScreen is the minimal navigator for this slice: it owns the
- * selected-recipe state and composes either the list or the detail screen. Verifies the list → detail →
- * back round trip so selection and back navigation are wired end to end.
+ * `vitest.native.config.ts`). RecipesScreen is the state-machine navigator for the recipe slice: it owns a
+ * navigation stack and composes the per-screen containers, with the three top-level destinations under a
+ * persistent tab bar. These tests exercise the navigation transitions end to end (the per-screen behaviour is
+ * covered by each screen's own test), so the hooks are mocked only enough to render each destination.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { useRecipe, useRecipes } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useCloneRecipe,
+    useCollections,
+    useCreateIngredient,
+    useCreateRecipe,
+    useDeleteRecipe,
+    useRecipe,
+    useRecipes,
+    useSearchIngredients,
+    useSearchRecipes,
+    useSetRecipeVisibility,
+} from '@kitchensink/recipe-service-client/hooks';
 
+import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { RecipesScreen } from '../../src/screens/RecipesScreen.js';
-import { makeRecipe, makeRecipeDetail, makeRecipePage } from '../__fixtures__/recipes.js';
+import {
+    makeCollectionPage,
+    makeRecipe,
+    makeRecipeDetail,
+    makeRecipePage,
+    makeSearchResponse,
+} from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipes: vi.fn(),
     useRecipe: vi.fn(),
+    useDeleteRecipe: vi.fn(),
+    useSetRecipeVisibility: vi.fn(),
+    useCloneRecipe: vi.fn(),
+    useCreateRecipe: vi.fn(),
+    useSearchIngredients: vi.fn(),
+    useCreateIngredient: vi.fn(),
+    useSearchRecipes: vi.fn(),
+    useCollections: vi.fn(),
+}));
+
+vi.mock('../../src/hooks/useUserProfile.js', () => ({
+    useUserProfile: vi.fn(),
 }));
 
 const useRecipesMock = vi.mocked(useRecipes);
 const useRecipeMock = vi.mocked(useRecipe);
 
+/** A query-result double (only the fields the screens read); cast to the concrete hook's result type. */
+function query<T>(overrides: Record<string, unknown> = {}): T {
+    return { isLoading: false, isError: false, data: undefined, refetch: vi.fn(), ...overrides } as unknown as T;
+}
+
+/** A mutation-result double; cast to the concrete hook's result type. */
+function mutation<T>(overrides: Record<string, unknown> = {}): T {
+    return { mutate: vi.fn(), isPending: false, variables: undefined, ...overrides } as unknown as T;
+}
+
 afterEach(cleanup);
 
 beforeEach(() => {
-    useRecipesMock.mockReset();
-    useRecipeMock.mockReset();
-    useRecipesMock.mockReturnValue({
-        isLoading: false,
-        isError: false,
-        data: makeRecipePage([makeRecipe({ id: 'rec_2', title: 'Fish Tacos' })]),
-        refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useRecipes>);
-    useRecipeMock.mockReturnValue({
-        isLoading: false,
-        isError: false,
-        data: makeRecipeDetail({ id: 'rec_2', title: 'Fish Tacos', description: 'Bright and zesty.' }),
-    } as unknown as ReturnType<typeof useRecipe>);
+    vi.mocked(useRecipes).mockReturnValue(
+        query<ReturnType<typeof useRecipes>>({
+            data: makeRecipePage([makeRecipe({ id: 'rec_2', title: 'Fish Tacos' })]),
+        }),
+    );
+    vi.mocked(useRecipe).mockReturnValue(
+        query<ReturnType<typeof useRecipe>>({
+            data: makeRecipeDetail({ id: 'rec_2', title: 'Fish Tacos', description: 'Bright and zesty.' }),
+        }),
+    );
+    vi.mocked(useDeleteRecipe).mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>());
+    vi.mocked(useSetRecipeVisibility).mockReturnValue(mutation<ReturnType<typeof useSetRecipeVisibility>>());
+    vi.mocked(useCloneRecipe).mockReturnValue(mutation<ReturnType<typeof useCloneRecipe>>());
+    vi.mocked(useCreateRecipe).mockReturnValue(mutation<ReturnType<typeof useCreateRecipe>>());
+    vi.mocked(useSearchIngredients).mockReturnValue(query<ReturnType<typeof useSearchIngredients>>({ data: [] }));
+    vi.mocked(useCreateIngredient).mockReturnValue(mutation<ReturnType<typeof useCreateIngredient>>());
+    vi.mocked(useSearchRecipes).mockReturnValue(
+        query<ReturnType<typeof useSearchRecipes>>({ data: makeSearchResponse([]) }),
+    );
+    vi.mocked(useCollections).mockReturnValue(
+        query<ReturnType<typeof useCollections>>({ data: makeCollectionPage([]) }),
+    );
+    vi.mocked(useUserProfile).mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useUserProfile>);
 });
 
 describe('RecipesScreen — navigation', () => {
-    it('starts on the list', () => {
+    it('starts on the my-recipes list', () => {
         render(<RecipesScreen />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
@@ -50,7 +101,6 @@ describe('RecipesScreen — navigation', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Fish Tacos' }));
 
-        // Detail is now shown for the selected recipe, addressed by its id.
         expect(useRecipeMock).toHaveBeenCalledWith('rec_2');
         expect(screen.getByText('Bright and zesty.')).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Recipes' })).toBeNull();
@@ -58,5 +108,35 @@ describe('RecipesScreen — navigation', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+    });
+
+    it('opens the create screen from the list create action', () => {
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(screen.getByRole('heading', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    it('switches to the discover tab', () => {
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Discover' }));
+
+        expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
+    });
+
+    it('switches to the collections tab', () => {
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
+
+        expect(screen.getByRole('heading', { name: 'Collections' })).toBeTruthy();
+    });
+
+    it('keeps the list query bound to the source of truth', () => {
+        render(<RecipesScreen />);
+
+        expect(useRecipesMock).toHaveBeenCalled();
     });
 });

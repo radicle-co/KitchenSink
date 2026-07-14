@@ -1,16 +1,37 @@
 /**
  * Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block
  * from the typed `useRecipe` query, rendering localized loading and error states until the recipe resolves.
- * The read model (`RecipeDetail`) is handed straight to the view; this screen owns only the fetch state and
- * the optional back affordance.
+ * On top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,
+ * T075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:
+ *
+ * - Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. The
+ *   private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.
+ * - The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.
+ *
+ * Ownership and tier come from `useUserProfile` (the viewer's app id + subscription tier); every mutation is
+ * owned here and reported upward so the navigator can route (back to the list after delete, to the new
+ * recipe after clone). Remote state stays in the query cache — this screen derives its view state from it.
  */
-import { RecipeDetailView } from '@commise/features-recipes';
+import {
+    RecipeCloneAction,
+    RecipeDeleteDialog,
+    RecipeDetailView,
+    RecipeVisibilityToggle,
+} from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
-import { useRecipe } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useCloneRecipe,
+    useDeleteRecipe,
+    useRecipe,
+    useSetRecipeVisibility,
+} from '@kitchensink/recipe-service-client/hooks';
+import { RecipeVisibility, type RecipeVisibility as RecipeVisibilityType } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
+import { useUserProfile } from '../hooks/useUserProfile.js';
 
 /** Props for {@link RecipeDetailScreen}. */
 export interface RecipeDetailScreenProps {
@@ -18,17 +39,37 @@ export interface RecipeDetailScreenProps {
     readonly recipeId: string;
     /** Invoked when the back affordance is activated; the affordance is hidden when omitted. */
     readonly onBack?: () => void;
+    /** Invoked with the recipe id when the owner opens the editor. */
+    readonly onEdit?: (recipeId: string) => void;
+    /** Invoked with the recipe id when the owner opens the version history. */
+    readonly onViewVersions?: (recipeId: string) => void;
+    /** Invoked after the recipe is successfully deleted. */
+    readonly onDeleted?: () => void;
+    /** Invoked with the new recipe's id after a successful clone. */
+    readonly onCloned?: (recipeId: string) => void;
 }
 
 /**
  * The recipe-detail screen.
  *
- * @param props - The recipe id and optional back callback.
- * @returns The loading, error, or populated detail view.
+ * @param props - The recipe id plus optional navigation and lifecycle callbacks.
+ * @returns The loading, error, or populated detail view with its actions.
  */
-export function RecipeDetailScreen({ recipeId, onBack }: RecipeDetailScreenProps): JSX.Element {
+export function RecipeDetailScreen({
+    recipeId,
+    onBack,
+    onEdit,
+    onViewVersions,
+    onDeleted,
+    onCloned,
+}: RecipeDetailScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
     const query = useRecipe(recipeId);
+    const profile = useUserProfile();
+    const deleteRecipe = useDeleteRecipe();
+    const setVisibility = useSetRecipeVisibility();
+    const cloneRecipe = useCloneRecipe();
+    const [deleteOpen, setDeleteOpen] = useState(false);
 
     const back =
         onBack !== undefined ? (
@@ -54,10 +95,66 @@ export function RecipeDetailScreen({ recipeId, onBack }: RecipeDetailScreenProps
         );
     }
 
+    const recipe = query.data;
+    const viewerId = profile.data?.user.id;
+    const isOwner = viewerId !== undefined && recipe.ownerId === viewerId;
+    const canGoPrivate = profile.data?.account.subscriptionTier === 'premium';
+    const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
+    const changeVisibility = (next: RecipeVisibilityType): void =>
+        setVisibility.mutate({ id: recipeId, visibility: next });
+
     return (
         <View style={styles.container}>
             {back}
-            <RecipeDetailView recipe={query.data} />
+            <RecipeDetailView recipe={recipe} />
+
+            {isOwner && (
+                <View>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t.editAction}
+                        onPress={() => onEdit?.(recipeId)}
+                    >
+                        <Text>{t.editAction}</Text>
+                    </Pressable>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t.versionsAction}
+                        onPress={() => onViewVersions?.(recipeId)}
+                    >
+                        <Text>{t.versionsAction}</Text>
+                    </Pressable>
+                    <RecipeVisibilityToggle
+                        visibility={recipe.visibility}
+                        canGoPrivate={canGoPrivate}
+                        disabledReason={canGoPrivate ? undefined : t.visibilityUpgradeReason}
+                        onChange={changeVisibility}
+                    />
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t.deleteAction}
+                        onPress={() => setDeleteOpen(true)}
+                    >
+                        <Text>{t.deleteAction}</Text>
+                    </Pressable>
+                    <RecipeDeleteDialog
+                        recipeTitle={recipe.title}
+                        open={deleteOpen}
+                        deleting={deleteRecipe.isPending}
+                        onConfirm={() => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() })}
+                        onCancel={() => setDeleteOpen(false)}
+                    />
+                </View>
+            )}
+
+            {isPublic && !isOwner && (
+                <RecipeCloneAction
+                    canClone
+                    {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}
+                    cloning={cloneRecipe.isPending}
+                    onClone={() => cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })}
+                />
+            )}
         </View>
     );
 }

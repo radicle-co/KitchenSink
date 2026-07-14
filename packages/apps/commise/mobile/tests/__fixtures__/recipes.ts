@@ -7,13 +7,18 @@
 import {
     RecipeSourceType,
     RecipeVisibility,
+    type Collection,
+    type Ingredient,
     type PaginatedResponse,
     type Recipe,
     type RecipeDetail,
     type RecipeIngredientView,
     type RecipeNutrition,
+    type RecipeSearchResult,
     type RecipeStepView,
+    type RecipeVersion,
 } from '@kitchensink/recipe-core';
+import type { RecipeSearchResponse } from '@kitchensink/recipe-service-client';
 
 /**
  * Build a full {@link Recipe} with sensible defaults, overridable per field.
@@ -127,6 +132,140 @@ export function makeRecipePage(
         page: 1,
         pageSize: 20,
         hasMore: false,
+        ...overrides,
+    };
+}
+
+/**
+ * Build a catalog {@link Ingredient} with sensible defaults, overridable per field.
+ *
+ * @param overrides - Fields to override on the default ingredient.
+ * @returns A complete `Ingredient`.
+ */
+export function makeIngredient(overrides: Partial<Ingredient> = {}): Ingredient {
+    return {
+        id: 'ing_1',
+        name: 'Olive oil',
+        isUserEntered: false,
+        createdAt: '2026-04-01T09:00:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
+ * Build a {@link RecipeVersion} with sensible defaults, overridable per field. The snapshot carries only the
+ * required scalars (the version-history view reads the version number, timestamp, and summary, not the
+ * snapshot body), so its `steps`/`ingredients` default to empty.
+ *
+ * @param overrides - Fields to override on the default version.
+ * @returns A complete `RecipeVersion`.
+ */
+export function makeRecipeVersion(overrides: Partial<RecipeVersion> = {}): RecipeVersion {
+    return {
+        id: 'ver_1',
+        recipeId: 'rec_1',
+        versionNumber: 1,
+        snapshot: {
+            version: 1,
+            title: 'Weeknight Pasta',
+            description: '',
+            steps: [],
+            ingredients: [],
+            servings: 4,
+            prepTimeMinutes: 10,
+            cookTimeMinutes: 20,
+        },
+        createdBy: 'usr_1',
+        createdAt: '2026-04-01T09:00:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
+ * Build a {@link Collection} with sensible defaults, overridable per field.
+ *
+ * @param overrides - Fields to override on the default collection.
+ * @returns A complete `Collection`.
+ */
+export function makeCollection(overrides: Partial<Collection> = {}): Collection {
+    return {
+        id: 'col_1',
+        ownerId: 'usr_1',
+        name: 'Weeknight favourites',
+        createdAt: '2026-04-01T09:00:00.000Z',
+        updatedAt: '2026-04-19T09:30:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
+ * Build a collection with its member recipes (the `getCollectionById` response shape).
+ *
+ * @param recipes - The member recipes.
+ * @param overrides - Collection fields to override.
+ * @returns A `Collection` with a `recipes` member list.
+ */
+export function makeCollectionWithRecipes(
+    recipes: readonly Recipe[] = [],
+    overrides: Partial<Collection> = {},
+): Collection & { readonly recipes: readonly Recipe[] } {
+    return {
+        ...makeCollection(overrides),
+        recipes: [...recipes],
+    };
+}
+
+/**
+ * Wrap collections in the API's {@link PaginatedResponse} envelope with sensible pagination defaults.
+ *
+ * @param collections - The page's collections.
+ * @param overrides - Pagination fields to override.
+ * @returns A complete `PaginatedResponse<Collection>`.
+ */
+export function makeCollectionPage(
+    collections: readonly Collection[],
+    overrides: Partial<Omit<PaginatedResponse<Collection>, 'data'>> = {},
+): PaginatedResponse<Collection> {
+    return {
+        data: [...collections],
+        total: collections.length,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+        ...overrides,
+    };
+}
+
+/**
+ * Build a {@link RecipeSearchResult} envelope around a recipe, overridable per field.
+ *
+ * @param overrides - Recipe fields to override on the wrapped recipe.
+ * @returns A complete `RecipeSearchResult`.
+ */
+export function makeRecipeSearchResult(overrides: Partial<Recipe> = {}): RecipeSearchResult {
+    return {
+        recipe: makeRecipe({ visibility: RecipeVisibility.PUBLIC, ...overrides }),
+    };
+}
+
+/**
+ * Wrap search results in the `searchRecipes` response envelope with sensible defaults.
+ *
+ * @param results - The search-result hits.
+ * @param overrides - Envelope fields to override.
+ * @returns A complete `RecipeSearchResponse`.
+ */
+export function makeSearchResponse(
+    results: readonly RecipeSearchResult[] = [],
+    overrides: Partial<Omit<RecipeSearchResponse, 'results'>> = {},
+): RecipeSearchResponse {
+    return {
+        results: [...results],
+        total: results.length,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+        facets: {},
         ...overrides,
     };
 }

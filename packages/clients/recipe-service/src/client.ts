@@ -162,8 +162,12 @@ export class RecipeServiceClient {
         this.http = ky.create({
             // ky appends the single joining slash; input paths are passed without a leading slash.
             prefixUrl: this.baseUrl,
-            // The injected `fetch` (a test double, or the platform global) flows straight through ky.
-            fetch: options.fetch ?? fetch,
+            // The injected `fetch` (a test double) is used as-is; otherwise the platform global, bound to
+            // `globalThis`. A BARE `fetch` reference handed to ky is invoked detached, which throws
+            // `TypeError: Illegal invocation` in the browser (window.fetch must be called with `window` as
+            // its receiver) — breaking every real browser request. Binding fixes it on web and is a no-op
+            // in Node/RN. (Test doubles are plain functions and need no binding.)
+            fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
             // Identity-sync retries are owned by `send()` (they inspect the body + re-mint the token), and
             // no other status is retried — so ky's own retry/timeout are disabled to preserve behavior.
             retry: 0,

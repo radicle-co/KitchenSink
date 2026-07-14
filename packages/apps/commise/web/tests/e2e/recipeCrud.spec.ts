@@ -31,7 +31,10 @@ test.describe('recipe CRUD (T079)', () => {
         await page.getByLabel('Cook time (minutes)').fill('30');
 
         await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('salt');
-        await page.getByRole('button', { name: 'Salt' }).click();
+        // Wait for the search RESULT button (exact 'Salt'), not the freeform "Add 'salt' as a custom
+        // ingredient" fallback (which a substring match on 'Salt' would also hit); clicking it resolves the
+        // ingredient line synchronously.
+        await page.getByRole('button', { name: 'Salt', exact: true }).click();
 
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Roast the vegetables.');
@@ -51,7 +54,7 @@ test.describe('recipe CRUD (T079)', () => {
 
         // DELETE — confirm the destructive dialog, then land back on the list without the recipe.
         await page.getByRole('button', { name: 'Delete recipe' }).click();
-        await page.getByRole('button', { name: 'Delete' }).click();
+        await page.getByRole('button', { name: 'Delete', exact: true }).click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toHaveCount(0);
     });

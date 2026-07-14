@@ -275,7 +275,11 @@ export async function mockRecipeApi(
             }
         }
 
-        return route.fulfill({ status: 404, json: { code: 'NOT_FOUND', message: `unmocked ${method} ${path}` } });
+        // Pass everything else through untouched — critically Clerk's Frontend API, which ALSO lives under
+        // `/v1/` (`/v1/client`, `/v1/environment`, token minting). 404-ing those would break `getToken()`
+        // and hang every recipe request that awaits a token. Only the recipe/identity endpoints matched
+        // above are mocked; the rest reach the real network.
+        return route.continue();
     });
 
     return store;

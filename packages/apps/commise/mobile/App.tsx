@@ -1,3 +1,11 @@
+// Hermes (React Native's engine) lacks `Intl.PluralRules`, which the shared recipe formatters use (browsers
+// have it, so web works, but the native app crashes without this). Polyfill it FIRST, before any module
+// that touches Intl loads. The @formatjs polyfills self-check and no-op when a native impl already exists.
+import '@formatjs/intl-getcanonicallocales/polyfill';
+import '@formatjs/intl-locale/polyfill';
+import '@formatjs/intl-pluralrules/polyfill';
+import '@formatjs/intl-pluralrules/locale-data/en';
+
 import { ClerkProvider } from '@clerk/expo';
 import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';

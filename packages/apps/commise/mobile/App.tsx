@@ -1,4 +1,5 @@
 import { ClerkProvider } from '@clerk/expo';
+import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
@@ -45,4 +46,10 @@ function App(): JSX.Element {
 }
 
 // Wrap provides the error boundary + touch/navigation instrumentation (R20).
-export default Sentry.wrap(App);
+const AppRoot = Sentry.wrap(App);
+
+// `main` in package.json points at this file, so it must register the root component itself (there is no
+// `expo/AppEntry` shim doing it — that shim's `../../App` path does not resolve to this monorepo location).
+registerRootComponent(AppRoot);
+
+export default AppRoot;

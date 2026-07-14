@@ -34,6 +34,9 @@ const tokens = createTokens({
         7: 48,
         8: 64,
         9: 96,
+        // Tamagui requires a `true` key equal to the default step (used by `$true` and unsuffixed sizing);
+        // `16` is the base scale value (step 4).
+        true: 16,
     },
     size: {
         0: 0,
@@ -46,6 +49,7 @@ const tokens = createTokens({
         7: 48,
         8: 64,
         9: 96,
+        true: 16,
     },
     radius: {
         0: 0,

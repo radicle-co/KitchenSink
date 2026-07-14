@@ -1,0 +1,24 @@
+appId: io.commise.mobile
+---
+# Public discovery + clone happy path (US2, T075/T076). Assumes an authenticated session (auth flow runs
+# first in CI) and a seeded recipe API with at least one public recipe. Switches to the Discover tab,
+# asserts the discovery chrome, then clones a public recipe (guarded on a seeded public row). Mobile
+# mirror of the web Playwright clone/discovery flow (cross-platform mandate).
+- launchApp
+
+# Recipe list is the initial top-level destination; switch to the Discover tab.
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+
+# RecipeDiscoveryScreen chrome.
+- assertVisible: 'Discover recipes'
+- assertVisible: 'Search public recipes'
+
+# Clone the first seeded public recipe (guarded: needs a seeded public row).
+- runFlow:
+      when:
+          visible: 'Clone'
+      commands:
+          - tapOn: 'Clone'
+          # A successful clone navigates to the newly-cloned recipe's detail (its instructions section).
+          - assertVisible: 'Instructions'

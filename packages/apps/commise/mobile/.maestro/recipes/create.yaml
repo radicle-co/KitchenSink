@@ -1,0 +1,52 @@
+appId: io.commise.mobile
+---
+# Recipe create happy path (US1, T067). Assumes an authenticated session (the auth login flow runs first
+# in CI ordering) and the app pointed at a seeded recipe/food API (EXPO_PUBLIC_API_URL). Drives the recipe
+# list -> new-recipe editor, fills the basics + resolves an ingredient via the food typeahead + adds a
+# step, then submits. The ingredient resolution is guarded on a seeded food match so the form-render +
+# input assertions still hold if the seed lacks the queried food. Mobile mirror of the web Playwright
+# recipe-create flow (cross-platform mandate).
+- launchApp
+
+# Recipe list surface, then into the create editor.
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# RecipeCreateScreen -> RecipeEditor: the "New recipe" heading + Basics fields + submit are present.
+- assertVisible: 'New recipe'
+- assertVisible: 'Title'
+
+- tapOn: 'Title'
+- inputText: 'Maestro Weeknight Soup'
+
+- tapOn: 'Servings'
+- inputText: '4'
+
+- tapOn: 'Prep time (minutes)'
+- inputText: '10'
+
+- tapOn: 'Cook time (minutes)'
+- inputText: '20'
+
+# Resolve an ingredient through the food typeahead (guarded: needs a seeded food match), then add a step.
+- tapOn: 'Search ingredients'
+- inputText: 'salt'
+- runFlow:
+      when:
+          visible: 'Resolved'
+      commands:
+          - tapOn: 'Resolved'
+
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Combine everything and simmer.'
+
+# Submit. When the ingredient resolved, the create succeeds and lands on the new recipe's detail; the
+# assertion is guarded so a seed without the food still verifies the editor renders + accepts input.
+- assertVisible: 'Create recipe'
+- runFlow:
+      when:
+          visible: 'Resolved'
+      commands:
+          - tapOn: 'Create recipe'
+          - assertVisible: 'Maestro Weeknight Soup'

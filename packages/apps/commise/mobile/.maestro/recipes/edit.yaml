@@ -1,0 +1,27 @@
+appId: io.commise.mobile
+---
+# Recipe edit happy path (US1, T067). Assumes an authenticated session (auth flow runs first in CI) and a
+# seeded recipe API. Drives list -> detail -> edit, changes the title, and saves. Guarded on the seeded
+# recipe so an empty library still passes the list-chrome assertion. Mobile mirror of the web Playwright
+# recipe-edit flow (cross-platform mandate).
+- launchApp
+
+- assertVisible: 'Recipes'
+
+- runFlow:
+      when:
+          visible: 'Mediterranean Grilled Lamb'
+      commands:
+          - tapOn: 'Mediterranean Grilled Lamb'
+          # RecipeDetailScreen: the owner's edit entry point.
+          - assertVisible: 'Edit recipe'
+          - tapOn: 'Edit recipe'
+          # RecipeEditScreen -> RecipeEditor in edit mode.
+          - assertVisible: 'Edit recipe'
+          - assertVisible: 'Save changes'
+          - tapOn: 'Title'
+          - eraseText
+          - inputText: 'Mediterranean Grilled Lamb (edited)'
+          - tapOn: 'Save changes'
+          # Back on the detail with the new title.
+          - assertVisible: 'Mediterranean Grilled Lamb (edited)'

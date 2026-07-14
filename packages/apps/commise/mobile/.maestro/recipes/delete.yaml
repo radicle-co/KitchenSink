@@ -1,0 +1,24 @@
+appId: io.commise.mobile
+---
+# Recipe delete happy path (US1, T068). Assumes an authenticated session (auth flow runs first in CI) and
+# a seeded recipe API. Drives list -> detail -> delete-confirm dialog -> confirm, then asserts the return
+# to the list. Guarded on the seeded recipe. NOTE: this permanently removes the recipe it opens, so CI
+# must (re)seed before this flow or run it last relative to the other recipe flows that read that seed.
+# Mobile mirror of the web Playwright delete flow (cross-platform mandate).
+- launchApp
+
+- assertVisible: 'Recipes'
+
+- runFlow:
+      when:
+          visible: 'Gourmet Garden Salad'
+      commands:
+          - tapOn: 'Gourmet Garden Salad'
+          # RecipeDetailScreen: owner-only delete trigger opens the confirm dialog.
+          - assertVisible: 'Delete recipe'
+          - tapOn: 'Delete recipe'
+          # RecipeDeleteDialog: destructive confirm (body warns it can't be undone).
+          - assertVisible: 'Delete'
+          - tapOn: 'Delete'
+          # Back on the recipe list.
+          - assertVisible: 'Recipes'

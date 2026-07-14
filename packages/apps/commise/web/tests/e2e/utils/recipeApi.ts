@@ -61,12 +61,19 @@ const catalogIngredient: Ingredient = {
 
 /**
  * Read the authenticated viewer's app-user id from the live Clerk session token's `external_id` claim — the
- * SAME claim the recipe UI uses to gate owner-only actions (delete/edit/visibility). Seed the mock's recipe
- * `ownerId` with this so those controls render for the test user. Falls back to a sentinel when the claim is
- * absent (which would itself hide owner controls — a signal the Clerk JWT template needs `external_id`).
+ * SAME claim the recipe UI (and the recipe service, fail-closed) uses as the owner key for owner-only actions
+ * (delete/edit/visibility). The mock seeds recipe `ownerId` with this so those controls render for the test
+ * user. `external_id` is emitted by the Clerk session-token customization on both instances (feature-001
+ * task T000-prereq), so it MUST be present here.
+ *
+ * This deliberately **throws** rather than falling back to a sentinel when the claim (or session) is missing:
+ * a silent fallback would surface later as a confusing "owner control not found" assertion, whereas a real
+ * regression in the session-token customization is exactly what this owner-gated suite exists to catch — so
+ * it fails loud, at the source, with a diagnostic message.
  *
  * @param page - A page with a live Clerk session (call after `signInWithTicket`).
- * @returns The viewer's app-user id, or `'usr_e2e'` if the claim is unavailable.
+ * @returns The viewer's app-user ULID from the token's `external_id` claim.
+ * @throws {Error} when no Clerk session/token is present, the token is malformed, or `external_id` is absent.
  * @sideEffect Reads the Clerk session token in the page context.
  */
 export async function readViewerAppId(page: Page): Promise<string> {
@@ -77,17 +84,27 @@ export async function readViewerAppId(page: Page): Promise<string> {
     });
 
     if (jwt === null) {
-        return 'usr_e2e';
+        throw new Error('readViewerAppId: no live Clerk session — call after signInWithTicket().');
     }
 
-    try {
-        const [, payload] = jwt.split('.');
-        const claims = JSON.parse(Buffer.from(payload as string, 'base64').toString('utf8')) as Record<string, unknown>;
+    const payload = jwt.split('.')[1];
 
-        return typeof claims['external_id'] === 'string' ? (claims['external_id'] as string) : 'usr_e2e';
-    } catch {
-        return 'usr_e2e';
+    if (payload === undefined) {
+        throw new Error('readViewerAppId: malformed Clerk session token (no JWT payload segment).');
     }
+
+    const claims = JSON.parse(Buffer.from(payload, 'base64').toString('utf8')) as Record<string, unknown>;
+    const externalId = claims['external_id'];
+
+    if (typeof externalId !== 'string' || externalId.length === 0) {
+        throw new Error(
+            "readViewerAppId: the Clerk session token carries no 'external_id' claim. The session-token " +
+                'customization (feature-001 T000-prereq) must emit the app-user ULID on both Clerk instances; ' +
+                'without it, recipe ownership is broken app-wide (owner controls never render, service 401s).',
+        );
+    }
+
+    return externalId;
 }
 
 /** Options for {@link mockRecipeApi}. */

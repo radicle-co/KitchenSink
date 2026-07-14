@@ -22,6 +22,7 @@ const {
     useSetRecipeVisibilityMock,
     useCloneRecipeMock,
     useAuthMock,
+    useUserProfileMock,
     refetchMock,
     deleteMutateMock,
     setVisibilityMutateMock,
@@ -33,6 +34,7 @@ const {
     useSetRecipeVisibilityMock: vi.fn(),
     useCloneRecipeMock: vi.fn(),
     useAuthMock: vi.fn(),
+    useUserProfileMock: vi.fn(),
     refetchMock: vi.fn(),
     deleteMutateMock: vi.fn(),
     setVisibilityMutateMock: vi.fn(),
@@ -46,6 +48,15 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useSetRecipeVisibility: useSetRecipeVisibilityMock,
     useCloneRecipe: useCloneRecipeMock,
 }));
+
+vi.mock('@/hooks/useUserProfile', () => ({
+    useUserProfile: useUserProfileMock,
+}));
+
+/** Build a profile-query stub carrying only the tier the visibility gate reads. */
+function profileWithTier(subscriptionTier: 'free' | 'premium') {
+    return { data: { account: { subscriptionTier } } };
+}
 
 vi.mock('next/navigation', () => ({
     useParams: () => ({ locale: 'en', id: 'rec_1' }),
@@ -62,6 +73,8 @@ const OWNER_ID = 'usr_1';
 /** Register the default hook returns every test relies on (a signed-in owner, idle mutations). */
 beforeEach(() => {
     useAuthMock.mockReturnValue({ sessionClaims: { external_id: OWNER_ID } });
+    // Default the viewer to the free tier; premium-specific tests override this.
+    useUserProfileMock.mockReturnValue(profileWithTier('free'));
 
     // Mutation mocks invoke `onSuccess` synchronously so the container's navigation wiring is exercised.
     deleteMutateMock.mockImplementation((_id: string, options?: { onSuccess?: () => void }) => {
@@ -199,7 +212,8 @@ describe('RecipeDetailContainer', () => {
             expect(setVisibilityMutateMock).toHaveBeenCalledWith({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC });
         });
 
-        it('gates the private option off (no premium signal) and explains why', () => {
+        it('gates the private option off for a free-tier owner and explains why', () => {
+            useUserProfileMock.mockReturnValue(profileWithTier('free'));
             useRecipeMock.mockReturnValue({
                 isLoading: false,
                 isError: false,
@@ -211,6 +225,34 @@ describe('RecipeDetailContainer', () => {
 
             expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled();
             expect(screen.getByText(/premium/i)).toBeInTheDocument();
+        });
+
+        it('enables the private option for a premium-tier owner', () => {
+            useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            expect(screen.getByRole('radio', { name: 'Private' })).toBeEnabled();
+        });
+
+        it('fails safe (private gated off) while the profile is still loading', () => {
+            useUserProfileMock.mockReturnValue({ data: undefined });
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled();
         });
     });
 

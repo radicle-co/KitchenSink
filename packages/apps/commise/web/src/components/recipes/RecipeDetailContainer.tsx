@@ -15,9 +15,11 @@
  *
  * Ownership is decided by comparing the recipe's `ownerId` (the app-user ULID) to the viewer's `external_id`
  * session claim — the SAME claim the recipe service uses as the owner key (see `@kitchensink/recipe-core`,
- * `IDENTITY_SYNC_PENDING_CODE`). Making a recipe private is a premium capability (C-004); no premium/tier
- * signal is threaded into the web client yet, so the private option is gated OFF with a localized reason —
- * see the FE-1 follow-up to thread the premium signal in.
+ * `IDENTITY_SYNC_PENDING_CODE`). Making a recipe private is a premium capability (C-004), gated on the
+ * viewer's `account.subscriptionTier` read via `useUserProfile` — the SAME tier signal the mobile detail
+ * screen gates on, so both platforms behave identically (CODING_STANDARDS §14). Free-tier owners see the
+ * private option disabled with a localized upgrade reason; the tier read fails safe (gated OFF) while the
+ * profile is still loading or absent.
  */
 import { useAuth } from '@clerk/nextjs';
 import {
@@ -39,6 +41,7 @@ import type { Route } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type FC } from 'react';
 
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeDetailContainer}. */
@@ -72,6 +75,7 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     const { locale } = useParams<{ locale: string }>();
     const router = useRouter();
     const { sessionClaims } = useAuth();
+    const profile = useUserProfile();
     const query = useRecipe(id);
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
@@ -108,9 +112,9 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     const isOwner = viewerId !== undefined && viewerId === recipe.ownerId;
     const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
 
-    // C-004: making a recipe private is a premium capability. No premium/tier signal is threaded into the
-    // web client yet, so gate the private option OFF and explain why (see the module doc's follow-up).
-    const canGoPrivate = false;
+    // C-004: making a recipe private is a premium capability, gated on the viewer's subscription tier — the
+    // same signal the mobile detail screen uses. Fails safe (OFF) while the profile loads or is absent.
+    const canGoPrivate = profile.data?.account.subscriptionTier === 'premium';
 
     return (
         <>

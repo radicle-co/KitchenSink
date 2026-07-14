@@ -315,21 +315,21 @@ This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks 
 - [x] T065 [US1] Implement recipe list screen with search/filter bar — web: `packages/apps/commise/web/src/app/recipes/page.tsx`, mobile: `packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx`
 - [x] T066 [US1] Implement recipe detail view with ingredients, instructions, photos, and nutrition summary — web + mobile
 - [ ] T067 [US1] Implement recipe create/edit form with ingredient autocomplete (food-service `search` typeahead + freeform), step editor, photo upload, and tag picker — web + mobile. The picker MUST handle async resolution: a just-added food (`addByName`) may show "nutrition pending" (`PENDING`/`UNRESOLVED`) and resolve later, and an `UNRESOLVED` food offers disambiguation candidates (`getCandidates`/`resolve(id, candidateIds)`); a terminal `NOT_FOUND`/`FAILED` surfaces an error, offers the freeform fallback, and allows removal; a recipe may temporarily show partial nutrition
-- [ ] T068 [US1] Implement recipe delete confirmation flow — web + mobile
-- [ ] T069 [US1] Implement version history view with restore action — web + mobile
+- [x] T068 [US1] Implement recipe delete confirmation flow — web + mobile
+- [x] T069 [US1] Implement version history view with restore action — web + mobile
 - [ ] T070 [US1] Implement concurrent edit conflict resolution UI (present both versions, choose/merge) — web + mobile
 
 ### Collections (US1)
 
-- [ ] T071 [US1] Implement collection list and detail views — web + mobile
-- [ ] T072 [US1] Implement add/remove recipe from collection flow — web + mobile
-- [ ] T073 [US1] Implement collection create/rename/delete — web + mobile
+- [x] T071 [US1] Implement collection list and detail views — web + mobile
+- [x] T072 [US1] Implement add/remove recipe from collection flow — web + mobile
+- [x] T073 [US1] Implement collection create/rename/delete — web + mobile
 
 ### Sharing & Cloning (US2)
 
-- [ ] T074 [US2] Implement recipe visibility toggle (public/private) with tier restrictions — web + mobile
-- [ ] T075 [US2] Implement clone recipe flow with attribution display — web + mobile
-- [ ] T076 [US2] Implement public recipe discovery/browse view — web + mobile
+- [x] T074 [US2] Implement recipe visibility toggle (public/private) with tier restrictions — web + mobile
+- [x] T075 [US2] Implement clone recipe flow with attribution display — web + mobile
+- [x] T076 [US2] Implement public recipe discovery/browse view — web + mobile
 
 ### Web E2E Tests (Playwright)
 

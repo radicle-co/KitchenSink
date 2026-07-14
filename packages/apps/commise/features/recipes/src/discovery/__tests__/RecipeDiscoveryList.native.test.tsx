@@ -1,0 +1,141 @@
+/**
+ * Native component tests for the public-discovery view (T076), rendered via react-native-web under jsdom.
+ * Mirrors the web leaf across EVERY state — loading, error, empty, populated — plus the search chrome, the
+ * interaction contracts (search change, select, clone, per-row clone-busy, retry), and attribution, so the
+ * two platform renders cannot drift.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
+import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
+
+import { makeRecipe } from '../../__fixtures__/index.js';
+// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { RecipeDiscoveryList } from '../RecipeDiscoveryList.native.js';
+import type { RecipeDiscoveryListProps } from '../model.js';
+
+afterEach(cleanup);
+
+const noop = () => undefined;
+
+/** Inline factory: wrap a {@link Recipe} in a search-result envelope, with an optional relevance rank. */
+function makeSearchResult(recipe: Partial<Recipe> = {}, rank?: number): RecipeSearchResult {
+    return rank === undefined ? { recipe: makeRecipe(recipe) } : { recipe: makeRecipe(recipe), rank };
+}
+
+function renderDiscovery(overrides: Partial<RecipeDiscoveryListProps> = {}) {
+    const props: RecipeDiscoveryListProps = {
+        status: 'ready',
+        results: [],
+        searchValue: '',
+        onSearchChange: noop,
+        onSelectRecipe: noop,
+        onClone: noop,
+        onRetry: noop,
+        ...overrides,
+    };
+    render(<RecipeDiscoveryList {...props} />);
+
+    return props;
+}
+
+const threeResults = [
+    makeSearchResult({ id: 'rec_1', title: 'Mediterranean Grilled Lamb', sourceAttribution: 'Serious Eats' }),
+    makeSearchResult({ id: 'rec_2', title: 'Asparagus with Green Sauce' }),
+    makeSearchResult({ id: 'rec_3', title: 'Gourmet Garden Salad', sourceAttribution: 'Bon Appétit' }),
+];
+
+describe('RecipeDiscoveryList (native) — chrome', () => {
+    it('always renders the heading and search field', () => {
+        renderDiscovery({ status: 'loading' });
+
+        expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
+        expect(screen.getByLabelText('Search public recipes')).toBeTruthy();
+    });
+
+    it('reports search input changes upward', () => {
+        const onSearchChange = vi.fn();
+        renderDiscovery({ onSearchChange });
+
+        fireEvent.change(screen.getByLabelText('Search public recipes'), { target: { value: 'lamb' } });
+
+        expect(onSearchChange).toHaveBeenCalledWith('lamb');
+    });
+});
+
+describe('RecipeDiscoveryList (native) — loading state', () => {
+    it('shows the loading label and no recipe rows', () => {
+        renderDiscovery({ status: 'loading' });
+
+        expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Grilled Lamb/ })).toBeNull();
+    });
+});
+
+describe('RecipeDiscoveryList (native) — error state', () => {
+    it('shows an alert with a retry action that reports upward', () => {
+        const onRetry = vi.fn();
+        renderDiscovery({ status: 'error', onRetry });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeDiscoveryList (native) — empty state', () => {
+    it('shows the empty message when a successful search returns nothing', () => {
+        renderDiscovery({ status: 'ready', results: [] });
+
+        expect(screen.getByText('No recipes found')).toBeTruthy();
+    });
+});
+
+describe('RecipeDiscoveryList (native) — populated state', () => {
+    it('renders a pluralized result count', () => {
+        renderDiscovery({ status: 'ready', results: threeResults });
+
+        expect(screen.getByText('3 recipes')).toBeTruthy();
+    });
+
+    it('renders one row per result and reports selection upward', () => {
+        const onSelectRecipe = vi.fn();
+        renderDiscovery({ status: 'ready', results: threeResults, onSelectRecipe });
+
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Asparagus with Green Sauce' }));
+        expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
+    });
+
+    it('renders source attribution only when present', () => {
+        renderDiscovery({ status: 'ready', results: threeResults });
+
+        expect(screen.getByText('From Serious Eats')).toBeTruthy();
+        expect(screen.getByText('From Bon Appétit')).toBeTruthy();
+        expect(screen.queryByText(/From undefined/)).toBeNull();
+    });
+});
+
+describe('RecipeDiscoveryList (native) — clone', () => {
+    it('reports the cloned recipe id upward', () => {
+        const onClone = vi.fn();
+        renderDiscovery({ status: 'ready', results: threeResults, onClone });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Clone Asparagus with Green Sauce' }));
+
+        expect(onClone).toHaveBeenCalledWith('rec_2');
+    });
+
+    it('marks only the cloning row busy, leaving the others actionable', () => {
+        const onClone = vi.fn();
+        renderDiscovery({ status: 'ready', results: threeResults, cloningId: 'rec_2', onClone });
+
+        expect(screen.getByRole('button', { name: 'Cloning Asparagus with Green Sauce' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Clone Mediterranean Grilled Lamb' })).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Clone Gourmet Garden Salad' }));
+        expect(onClone).toHaveBeenCalledWith('rec_3');
+    });
+});

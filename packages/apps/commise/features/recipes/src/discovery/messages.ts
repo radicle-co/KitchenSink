@@ -1,0 +1,64 @@
+/**
+ * @module @commise/features-recipes/discovery/messages — user-facing copy for the public-discovery
+ * surface (T076, US2).
+ *
+ * Shared, platform-neutral strings for the discovery view as a {@link LocalizedMessages} dictionary,
+ * consumed by BOTH the web `.tsx` and native `.native.tsx` leaves (via `useMessages`), so the platforms
+ * cannot drift on copy. The `en` set is required; adding a locale is just another key. This is scoped to
+ * discovery so it can grow independently of the shared recipe-feature copy in `../messages.ts`.
+ */
+import type { LocalizedMessages } from '@commise/i18n';
+
+/** Shared copy for the public-discovery screen (T076), rendered by both the web and native views. */
+export interface DiscoveryMessages {
+    /** Page/section heading for the discovery surface. */
+    readonly heading: string;
+    /** Accessible name for the search field. */
+    readonly searchLabel: string;
+    /** Placeholder shown inside the search field. */
+    readonly searchPlaceholder: string;
+    /** Singular result-count template (contains `{count}`). */
+    readonly countOne: string;
+    /** Plural result-count template (contains `{count}`). */
+    readonly countOther: string;
+    /** Accessible label for the loading state. */
+    readonly loadingLabel: string;
+    /** Heading of the empty state (a successful search with no hits). */
+    readonly emptyTitle: string;
+    /** Body copy of the empty state. */
+    readonly emptyBody: string;
+    /** Message shown when discovery fails to load. */
+    readonly errorTitle: string;
+    /** Label of the retry action in the error state. */
+    readonly retry: string;
+    /** Source-provenance template shown on a row (contains `{source}`). */
+    readonly attribution: string;
+    /** Visible label of the idle clone action. */
+    readonly clone: string;
+    /** Visible label of the clone action while its clone is in flight. */
+    readonly cloning: string;
+    /** Accessible label for the idle clone action (contains `{title}`, so each row is uniquely named). */
+    readonly cloneLabel: string;
+    /** Accessible label for the in-flight clone action (contains `{title}`). */
+    readonly cloningLabel: string;
+}
+
+export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
+    en: {
+        heading: 'Discover recipes',
+        searchLabel: 'Search public recipes',
+        searchPlaceholder: 'Search public recipes...',
+        countOne: '{count} recipe',
+        countOther: '{count} recipes',
+        loadingLabel: 'Loading recipes',
+        emptyTitle: 'No recipes found',
+        emptyBody: 'Try a different search to discover public recipes.',
+        errorTitle: 'We couldn’t load recipes.',
+        retry: 'Try again',
+        attribution: 'From {source}',
+        clone: 'Clone',
+        cloning: 'Cloning',
+        cloneLabel: 'Clone {title}',
+        cloningLabel: 'Cloning {title}',
+    },
+};

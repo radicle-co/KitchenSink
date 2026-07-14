@@ -5,7 +5,14 @@
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
  * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
  */
-import type { CreateRecipeInput, FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import type {
+    CreateRecipeInput,
+    FoodResolutionStatus,
+    RecipeDetail,
+    RecipeIngredientView,
+    RecipeStepView,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 /**
  * One editable ingredient line. `ingredientId` is `null` until the line resolves to a catalog row (via
@@ -103,6 +110,48 @@ export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput
     dietaryFlags: [...values.dietaryFlags],
     tags: [...values.tags],
     visibility: values.visibility,
+});
+
+/**
+ * Project the in-progress draft onto a base {@link RecipeDetail} so the concurrent-edit conflict view (T070)
+ * can show "mine" (the edit the user was about to save) beside "theirs" (the latest saved recipe). The
+ * conflict view renders only aggregate fields — title, servings, prep/cook/total times, and ingredient/step
+ * counts — so this overlays exactly those from the draft and keeps every other base field (id, ownerId,
+ * timestamps, photos, nutrition) untouched. Ingredient/step lines are mapped to the light view row types and
+ * unresolved ingredient lines are dropped, so the counts match what {@link toCreateRecipeInput} will persist.
+ * Pure.
+ *
+ * @param base - The recipe as last loaded (source of the fields the draft does not edit).
+ * @param values - The editor's current draft values.
+ * @returns A {@link RecipeDetail} whose editable fields reflect the draft.
+ */
+export const applyDraftToRecipeDetail = (base: RecipeDetail, values: RecipeFormValues): RecipeDetail => ({
+    ...base,
+    title: values.title.trim(),
+    servings: values.servings,
+    prepTimeMinutes: values.prepTimeMinutes,
+    cookTimeMinutes: values.cookTimeMinutes,
+    totalTimeMinutes: computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes),
+    ingredients: values.ingredients
+        .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
+        .map(
+            (line): RecipeIngredientView => ({
+                ingredientId: line.ingredientId,
+                name: line.name,
+                quantity: line.quantity,
+                ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
+                ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
+                // Provenance is not surfaced by the conflict view (counts only); default rather than guess.
+                isUserEntered: false,
+            }),
+        ),
+    steps: values.steps.map(
+        (step, index): RecipeStepView => ({
+            stepNumber: index + 1,
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        }),
+    ),
 });
 
 /** Field-level validation errors (a message per invalid field; absent when valid). */

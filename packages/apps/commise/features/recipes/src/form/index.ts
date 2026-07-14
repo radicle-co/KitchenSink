@@ -6,7 +6,13 @@
  */
 export { RecipeForm } from './RecipeForm.js';
 
-export { computeTotalTime, defaultRecipeFormValues, toCreateRecipeInput, validateRecipeForm } from './model.js';
+export {
+    applyDraftToRecipeDetail,
+    computeTotalTime,
+    defaultRecipeFormValues,
+    toCreateRecipeInput,
+    validateRecipeForm,
+} from './model.js';
 export type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
 
 export {

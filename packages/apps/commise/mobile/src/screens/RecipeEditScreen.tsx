@@ -25,6 +25,7 @@ import type { JSX } from 'react';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { mobileMessages } from '../i18n/messages.js';
 import { RecipeEditor } from './RecipeEditor.js';
 import { toRecipeFormValues } from './toRecipeFormValues.js';
@@ -135,15 +136,18 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     const showSaveError = update.isError && !isVersionConflictError(update.error);
 
     return (
-        <RecipeEditor
-            key={`${recipeId}:${seedNonce}`}
-            mode="edit"
-            initialValues={toRecipeFormValues(seed)}
-            submitting={update.isPending}
-            submitError={showSaveError ? t.saveError : undefined}
-            onSubmit={(values) => submit(values, seed.currentVersion)}
-            onCancel={onCancel}
-        />
+        <>
+            <RecipeEditor
+                key={`${recipeId}:${seedNonce}`}
+                mode="edit"
+                initialValues={toRecipeFormValues(seed)}
+                submitting={update.isPending}
+                submitError={showSaveError ? t.saveError : undefined}
+                onSubmit={(values) => submit(values, seed.currentVersion)}
+                onCancel={onCancel}
+            />
+            <RecipePhotoUploader recipeId={recipeId} />
+        </>
     );
 }
 

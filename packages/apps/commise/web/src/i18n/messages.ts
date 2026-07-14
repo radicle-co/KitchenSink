@@ -86,6 +86,17 @@ export interface WebMessages {
             /** Notice shown for a match whose food resolution is terminal (no nutrition match; FR-007). */
             readonly terminalNotice: string;
         };
+        /**
+         * Copy owned by the photo-uploader container (T067). The shared `RecipePhotoManager` block localizes
+         * its own grid/remove/empty/cap copy; these are the app-owned strings — the accessible label of the
+         * caller-supplied add-photo control, and the error shown when the presign → PUT → confirm upload fails.
+         */
+        readonly photos: {
+            /** Accessible label of the add-photo file-input control the container supplies to the block. */
+            readonly addLabel: string;
+            /** Error shown when uploading a photo (presign, direct PUT, or confirm) fails. */
+            readonly uploadError: string;
+        };
     };
     /**
      * Web-only collection copy — the fetch-state affordances the detail/form routes own (the shared
@@ -156,6 +167,10 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 createError: 'We couldn’t add that ingredient.',
                 addFreeform: 'Add “{query}” as a custom ingredient',
                 terminalNotice: 'No nutrition match — add it as a custom ingredient or remove it.',
+            },
+            photos: {
+                addLabel: 'Add photo',
+                uploadError: 'We couldn’t upload that photo. Please try again.',
             },
         },
         collections: {

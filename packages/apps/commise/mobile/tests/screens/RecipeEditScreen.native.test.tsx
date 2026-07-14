@@ -12,8 +12,12 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import {
+    useConfirmPhotoUpload,
     useCreateIngredient,
+    useCreatePhotoUploadUrl,
+    useDeleteRecipePhoto,
     useRecipe,
+    useRecipePhotos,
     useSearchIngredients,
     useUpdateRecipe,
 } from '@kitchensink/recipe-service-client/hooks';
@@ -26,12 +30,22 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useUpdateRecipe: vi.fn(),
     useSearchIngredients: vi.fn(),
     useCreateIngredient: vi.fn(),
+    // The screen now mounts the RecipePhotoUploader below the editor; stub its photo hooks so the screen's
+    // own render paths (this suite) don't reach the network. The uploader has its own dedicated test.
+    useRecipePhotos: vi.fn(),
+    useCreatePhotoUploadUrl: vi.fn(),
+    useConfirmPhotoUpload: vi.fn(),
+    useDeleteRecipePhoto: vi.fn(),
 }));
 
 const useRecipeMock = vi.mocked(useRecipe);
 const useUpdateRecipeMock = vi.mocked(useUpdateRecipe);
 const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
+const useRecipePhotosMock = vi.mocked(useRecipePhotos);
+const useCreatePhotoUploadUrlMock = vi.mocked(useCreatePhotoUploadUrl);
+const useConfirmPhotoUploadMock = vi.mocked(useConfirmPhotoUpload);
+const useDeleteRecipePhotoMock = vi.mocked(useDeleteRecipePhoto);
 
 function recipeResult(overrides: Partial<ReturnType<typeof useRecipe>> = {}): ReturnType<typeof useRecipe> {
     return {
@@ -94,6 +108,24 @@ beforeEach(() => {
     useCreateIngredientMock.mockReturnValue({ mutate: vi.fn(), isPending: false } as unknown as ReturnType<
         typeof useCreateIngredient
     >);
+    useRecipePhotosMock.mockReset();
+    useCreatePhotoUploadUrlMock.mockReset();
+    useConfirmPhotoUploadMock.mockReset();
+    useDeleteRecipePhotoMock.mockReset();
+    useRecipePhotosMock.mockReturnValue({ data: [], isLoading: false, isError: false } as unknown as ReturnType<
+        typeof useRecipePhotos
+    >);
+    useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn() } as unknown as ReturnType<
+        typeof useCreatePhotoUploadUrl
+    >);
+    useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() } as unknown as ReturnType<
+        typeof useConfirmPhotoUpload
+    >);
+    useDeleteRecipePhotoMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        variables: undefined,
+    } as unknown as ReturnType<typeof useDeleteRecipePhoto>);
 });
 
 describe('RecipeEditScreen — loading and error', () => {

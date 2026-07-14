@@ -46,6 +46,14 @@ export interface MobileMessages {
         /** Message shown when the version history fails to load. */
         readonly versionsError: string;
     };
+    readonly recipePhotos: {
+        /** Visible + accessible label of the control that opens the native image picker. */
+        readonly addLabel: string;
+        /** Alert shown when acquiring, uploading, or confirming a photo fails. */
+        readonly uploadError: string;
+        /** Alert shown when removing a photo fails. */
+        readonly removeError: string;
+    };
     readonly ingredientPicker: {
         /** Section heading for the ingredient typeahead. */
         readonly heading: string;
@@ -112,6 +120,11 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             cloneError: 'We couldn’t clone this recipe. Please try again.',
             versionsLoading: 'Loading version history…',
             versionsError: 'We couldn’t load the version history.',
+        },
+        recipePhotos: {
+            addLabel: 'Add photo',
+            uploadError: 'We couldn’t add your photo. Please try again.',
+            removeError: 'We couldn’t remove this photo. Please try again.',
         },
         ingredientPicker: {
             heading: 'Add an ingredient',

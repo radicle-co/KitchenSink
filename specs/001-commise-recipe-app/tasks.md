@@ -314,10 +314,10 @@ This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks 
 
 - [x] T065 [US1] Implement recipe list screen with search/filter bar — web: `packages/apps/commise/web/src/app/recipes/page.tsx`, mobile: `packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx`
 - [x] T066 [US1] Implement recipe detail view with ingredients, instructions, photos, and nutrition summary — web + mobile
-- [ ] T067 [US1] Implement recipe create/edit form with ingredient autocomplete (food-service `search` typeahead + freeform), step editor, photo upload, and tag picker — web + mobile. The picker MUST handle async resolution: a just-added food (`addByName`) may show "nutrition pending" (`PENDING`/`UNRESOLVED`) and resolve later, and an `UNRESOLVED` food offers disambiguation candidates (`getCandidates`/`resolve(id, candidateIds)`); a terminal `NOT_FOUND`/`FAILED` surfaces an error, offers the freeform fallback, and allows removal; a recipe may temporarily show partial nutrition
+- [x] T067 [US1] Implement recipe create/edit form with ingredient autocomplete (food-service `search` typeahead + freeform), step editor, photo upload, and tag picker — web + mobile. The picker MUST handle async resolution: a just-added food (`addByName`) may show "nutrition pending" (`PENDING`/`UNRESOLVED`) and resolve later, and an `UNRESOLVED` food offers disambiguation candidates (`getCandidates`/`resolve(id, candidateIds)`); a terminal `NOT_FOUND`/`FAILED` surfaces an error, offers the freeform fallback, and allows removal; a recipe may temporarily show partial nutrition
 - [x] T068 [US1] Implement recipe delete confirmation flow — web + mobile
 - [x] T069 [US1] Implement version history view with restore action — web + mobile
-- [ ] T070 [US1] Implement concurrent edit conflict resolution UI (present both versions, choose/merge) — web + mobile
+- [x] T070 [US1] Implement concurrent edit conflict resolution UI (present both versions, choose/merge) — web + mobile
 
 ### Collections (US1)
 

@@ -39,6 +39,12 @@ vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
 }));
 
+// The photo uploader is its own container with its own hooks (covered by RecipePhotoUploaderContainer.test);
+// stub it here so this suite exercises only the edit form / conflict logic and needs no photo-hook mocks.
+vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({
+    RecipePhotoUploaderContainer: () => null,
+}));
+
 /** An update-recipe mutation whose `mutate` invokes `onSuccess`. */
 function updateRecipeMutation(): Record<string, unknown> {
     return {

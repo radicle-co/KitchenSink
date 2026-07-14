@@ -38,6 +38,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FC } from 'react';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
+import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeEditContainer}. */
@@ -237,6 +238,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 onCancel={() => router.push(detailRoute)}
             />
             {updateRecipe.isError && <p role="alert">{recipes.form.submitError}</p>}
+            <RecipePhotoUploaderContainer recipeId={recipeId} />
         </div>
     );
 };

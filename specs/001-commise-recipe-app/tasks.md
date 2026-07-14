@@ -333,10 +333,10 @@ This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks 
 
 ### Web E2E Tests (Playwright)
 
-- [ ] T077 Verify all interactive elements have accessible names (`getByRole`/`getByLabel`) — web Playwright E2E tests in `packages/apps/commise/web/tests/e2e/`
-- [ ] T078 Verify color is never sole state conveyor (icon/text pairing) across all screens — web + mobile
-- [ ] T079 Add Playwright E2E tests for recipe CRUD happy path (create → view → edit → delete) in `packages/apps/commise/web/tests/e2e/recipe-crud.spec.ts`
-- [ ] T080 Add Playwright E2E tests for clone/visibility flow in `packages/apps/commise/web/tests/e2e/clone-visibility.spec.ts`
+- [x] T077 Verify all interactive elements have accessible names (`getByRole`/`getByLabel`) — web Playwright E2E tests in `packages/apps/commise/web/tests/e2e/`
+- [x] T078 Verify color is never sole state conveyor (icon/text pairing) across all screens — web + mobile
+- [x] T079 Add Playwright E2E tests for recipe CRUD happy path (create → view → edit → delete) in `packages/apps/commise/web/tests/e2e/recipe-crud.spec.ts`
+- [x] T080 Add Playwright E2E tests for clone/visibility flow in `packages/apps/commise/web/tests/e2e/clone-visibility.spec.ts`
 - [ ] T109 Add Playwright E2E tests for collections (create → add recipe → view → remove → delete) in `packages/apps/commise/web/tests/e2e/collections.spec.ts`
 - [ ] T110 Add Playwright E2E tests for search and filter in `packages/apps/commise/web/tests/e2e/search.spec.ts`
 

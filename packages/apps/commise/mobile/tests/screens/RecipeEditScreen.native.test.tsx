@@ -1,12 +1,16 @@
 /**
  * Component tests for the mobile RecipeEditScreen (react-native-web under jsdom). The screen loads the recipe
  * via (mocked) `useRecipe`, seeds the editor from it, and wires submit to (mocked) `useUpdateRecipe`, carrying
- * the loaded `currentVersion` as `expectedVersion`. Covers loading, error, the seeded ready state, and the
- * save path. The editor's ingredient typeahead reads the (mocked) ingredient search/create hooks.
+ * the loaded `currentVersion` as `expectedVersion`. Covers loading, error, the seeded ready state, the save
+ * path, and — the concurrent-edit conflict resolution (T070) — entering conflict mode on a 409, keep-mine
+ * re-submitting against the server's fresh version (with a repeat-conflict staying in conflict mode), and
+ * use-theirs discarding the draft by reseeding the editor. Conflict resolution mirrors the web container.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import type { RecipeDetail } from '@kitchensink/recipe-core';
+import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import {
     useCreateIngredient,
     useRecipe,
@@ -30,17 +34,50 @@ const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 
 function recipeResult(overrides: Partial<ReturnType<typeof useRecipe>> = {}): ReturnType<typeof useRecipe> {
-    return { isLoading: false, isError: false, data: undefined, ...overrides } as unknown as ReturnType<
-        typeof useRecipe
-    >;
+    return {
+        isLoading: false,
+        isError: false,
+        data: undefined,
+        refetch: vi.fn(),
+        ...overrides,
+    } as unknown as ReturnType<typeof useRecipe>;
 }
 
 function updateMutation(
     overrides: Partial<ReturnType<typeof useUpdateRecipe>> = {},
 ): ReturnType<typeof useUpdateRecipe> {
-    return { mutate: vi.fn(), isPending: false, isError: false, ...overrides } as unknown as ReturnType<
-        typeof useUpdateRecipe
-    >;
+    return {
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        error: undefined,
+        ...overrides,
+    } as unknown as ReturnType<typeof useUpdateRecipe>;
+}
+
+/** One scripted outcome the (mocked) update mutation replays, in order, per `mutate` call. */
+type Outcome =
+    | { readonly type: 'success'; readonly recipe: RecipeDetail }
+    | { readonly type: 'conflict'; readonly error: VersionConflictError };
+
+/** Build a `mutate` spy that replays `outcomes` in order — invoking the caller's `onSuccess`/`onError`. */
+function mutateWith(outcomes: readonly Outcome[]) {
+    const queue = [...outcomes];
+
+    return vi.fn(
+        (
+            _vars: unknown,
+            options?: { onSuccess?: (recipe: RecipeDetail) => void; onError?: (error: unknown) => void },
+        ) => {
+            const outcome = queue.shift();
+
+            if (outcome?.type === 'success') {
+                options?.onSuccess?.(outcome.recipe);
+            } else if (outcome?.type === 'conflict') {
+                options?.onError?.(outcome.error);
+            }
+        },
+    );
 }
 
 afterEach(cleanup);
@@ -109,5 +146,121 @@ describe('RecipeEditScreen — save', () => {
         expect(vars.input.expectedVersion).toBe(3);
         expect(vars.input.title).toBe('Weeknight Pasta');
         expect(onSaved).toHaveBeenCalledWith('rec_1');
+    });
+
+    it('surfaces the generic save-error alert for a non-conflict failure', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ id: 'rec_1' }) }));
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ isError: true, error: new Error('network') as never }));
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByText('We couldn’t save your changes. Please try again.')).toBeTruthy();
+    });
+
+    it('does not surface the generic save-error alert for a version conflict', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ id: 'rec_1' }) }));
+        useUpdateRecipeMock.mockReturnValue(
+            updateMutation({ isError: true, error: new VersionConflictError(5, 3) as never }),
+        );
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
+    it('enters conflict mode on a version conflict, showing both the draft and the latest saved version', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3, servings: 4 });
+        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5, servings: 8 });
+        const refetch = vi.fn().mockResolvedValue({ data: theirs });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
+        useUpdateRecipeMock.mockReturnValue(
+            updateMutation({
+                mutate: mutateWith([{ type: 'conflict', error: new VersionConflictError(5, 3) }]) as never,
+            }),
+        );
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
+        const mineGroup = screen.getByLabelText('Your version');
+        expect(within(mineGroup).getByText('My Draft Recipe')).toBeTruthy();
+        const theirsGroup = screen.getByLabelText('Latest saved version');
+        expect(within(theirsGroup).getByText('Server Saved Recipe')).toBeTruthy();
+        expect(within(theirsGroup).getByText('8')).toBeTruthy();
+        expect(refetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('keep-mine re-submits against the server’s current version and navigates on success', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
+        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
+        const refetch = vi.fn().mockResolvedValue({ data: theirs });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
+        const mutate = mutateWith([
+            { type: 'conflict', error: new VersionConflictError(5, 3) },
+            { type: 'success', recipe: saved },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
+        const onSaved = vi.fn();
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep my version' }));
+
+        expect(mutate).toHaveBeenCalledTimes(2);
+        const [firstVars] = mutate.mock.calls[0] as [{ input: { expectedVersion: number } }];
+        const [secondVars] = mutate.mock.calls[1] as [{ input: { expectedVersion: number } }];
+        expect(firstVars.input.expectedVersion).toBe(3);
+        expect(secondVars.input.expectedVersion).toBe(5);
+        expect(onSaved).toHaveBeenCalledWith('rec_1');
+    });
+
+    it('a repeat conflict on keep-mine stays in conflict mode with the newer saved version', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
+        const theirsV5 = makeRecipeDetail({ id: 'rec_1', title: 'Saved At Five', currentVersion: 5 });
+        const theirsV6 = makeRecipeDetail({ id: 'rec_1', title: 'Saved At Six', currentVersion: 6 });
+        const refetch = vi.fn().mockResolvedValueOnce({ data: theirsV5 }).mockResolvedValueOnce({ data: theirsV6 });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
+        const mutate = mutateWith([
+            { type: 'conflict', error: new VersionConflictError(5, 3) },
+            { type: 'conflict', error: new VersionConflictError(6, 5) },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
+        const onSaved = vi.fn();
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep my version' }));
+
+        expect(await screen.findByText('Saved At Six')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
+        const [secondVars] = mutate.mock.calls[1] as [{ input: { expectedVersion: number } }];
+        expect(secondVars.input.expectedVersion).toBe(5);
+        expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it('use-theirs discards the draft, reseeds the editor from the latest version, and does not navigate', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
+        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
+        const refetch = vi.fn().mockResolvedValue({ data: theirs });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
+        useUpdateRecipeMock.mockReturnValue(
+            updateMutation({
+                mutate: mutateWith([{ type: 'conflict', error: new VersionConflictError(5, 3) }]) as never,
+            }),
+        );
+        const onSaved = vi.fn();
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Use the latest version' }));
+
+        expect(await screen.findByRole('heading', { name: 'Edit recipe' })).toBeTruthy();
+        expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Server Saved Recipe');
+        expect(onSaved).not.toHaveBeenCalled();
     });
 });

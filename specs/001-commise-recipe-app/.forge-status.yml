@@ -1,6 +1,6 @@
 # Product Forge Lifecycle Status
 # Feature: 001-commise-recipe-app
-# Last updated: 2026-07-06
+# Last updated: 2026-07-13 (Product Forge resume: task_log reconciled with the 2026-07-13 sessions)
 
 feature: 001-commise-recipe-app
 mode: retroactive-bootstrap
@@ -113,14 +113,88 @@ phases:
           paths:
               - packages/shared/clerk-verify/src/clerk-verify.ts
               - packages/shared/clerk-verify/src/__tests__/clerk-verify.test.ts
+        # ── Reconciled 2026-07-13 (Product Forge resume): entries below were completed across the
+        #    2026-07-13 sessions but never recorded in this ledger. Backend recipe-service (domains,
+        #    DALs, services, contracts) was built earlier and is covered by tasks.md [x] marks + its own
+        #    test suites (unit 408 / integration 50 / service-e2e 1, all green); the frontend + infra +
+        #    deploy work below is the delta this reconciliation records.
+        - id: T065
+          part: 'Recipe list building blocks (RecipeList + RecipeListCard, web + native) — presentational, every state'
+          size: M
+          status: done
+          tests: 'component tests both platforms (all states); pkg 33→99 green'
+          commit: db5f619
+          paths:
+              - packages/apps/commise/features/recipes/src/list/
+        - id: T066
+          part: 'Read-only recipe detail view (RecipeDetailView, web + native) — header/meta/photos/ingredients/steps/nutrition'
+          size: M
+          status: done
+          tests: 'component tests both platforms (every content branch)'
+          commit: 26c0e58
+          paths:
+              - packages/apps/commise/features/recipes/src/detail/
+        - id: T002a
+          part: 'DataStack RecipeDbBootstrap — recipe_app IAM role + kitchensink_recipes on shared RDS (mirror food)'
+          size: M
+          status: done
+          tests: 'recipe-db-bootstrap unit 3/3; cdk diff prod+sandbox proved additive-only; DEPLOYED to kitchensink-data-sandbox'
+          commit: 3150b54
+          paths:
+              - packages/infra/global/src/recipe-db-bootstrap/handler.ts
+              - packages/infra/global/lib/platform/data-stack.ts
+        - id: T001-alb
+          part: 'Recipe-service CDK stack + Dockerfile + migrate lambda + ESM-boot fix + per-PR ALB priority (300 / band 30000)'
+          size: L
+          status: done
+          tests: 'infra unit 11/11; synth clean vs real sandbox VPC; image boot-tested; DEPLOYED as kitchensink-recipe-service-pr-73 (https://recipe-pr-73.commise.app /health + /health/ready ok)'
+          commit: ec42039, f355ee9
+          paths:
+              - packages/services/recipe-service/infra/lib/recipe-service-stack.ts
+              - packages/services/recipe-service/Dockerfile
+              - packages/services/recipe-service/src/lambdas/migrate/handler.ts
+        - id: 'T093/T094 + web/mobile app-shell wiring'
+          part: 'Live /recipes list→detail routes (web) + screens (mobile), RecipeServiceProvider + Clerk token source, *_API_URL env'
+          size: M
+          status: done
+          tests: 'web 116 / mobile 40 green (container tests mock the client)'
+          commit: 210706d
+          paths:
+              - packages/apps/commise/web/src/app/[locale]/recipes/
+              - packages/apps/commise/mobile/src/screens/Recipe*.tsx
+        - id: 'T096/T097'
+          part: 'Deterministic seed (5 recipes/2 owners + 1 collection) + npm run seed'
+          size: S
+          status: done
+          tests: 'seed data unit 4/4; RAN + verified against live-shape DB (5 recipes, 1 collection, 2 memberships)'
+          commit: 33874d9
+          paths:
+              - packages/services/recipe-service/src/database/seed.ts
+        - id: 'fixes + validation (non-task)'
+          part: 'throttle limits wired to RATE_LIMIT_* env + k6 SC-009 (p95≪500ms, 0% fail) + Maestro emulator CI job + recipe flow'
+          size: M
+          status: done
+          tests: 'throttle unit 10; k6 SC-009 green on live /v1; Maestro job wired (opt-in, CI-verified)'
+          commit: a046154, c45e7eb
+          paths:
+              - packages/services/recipe-service/src/common/throttle/throttle.config.ts
+              - packages/apps/commise/mobile/.maestro/recipes/list-detail.yaml
+              - .github/workflows/_ci.yml
 
     code-review:
         state: not-applicable
-        reason: No code yet.
+        reason: >
+            Not run as a formal Product Forge phase. Per-slice adversarial + rubber-duck self-review was
+            done inline this session, and the compound-engineering ce-review personas ran on earlier backend
+            batches. A formal Phase 6B multi-agent pass is still worth running before release.
 
     verify:
         state: completed
-        note: verify-report.md updated 2026-05-13; GR-002 API-prefix and GR-007 shared-core handoff blockers are resolved at documentation/task level. Implementation and test execution have not started.
+        note: >
+            verify-report.md updated 2026-05-13 (doc-level). Superseded by real execution on 2026-07-13:
+            recipe-service unit 408 / integration 50 / service-e2e 1 green; k6 SC-009 green on the live
+            /v1 endpoints (p95 ≪ 500ms, 0% failed). A fresh Phase 7 verify-full over the full frontend +
+            infra delta is still worth running before release-readiness is unblocked.
         artifact: verify-report.md
 
     test-plan:

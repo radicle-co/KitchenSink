@@ -132,6 +132,14 @@ describe('Identity env vars present', () => {
         expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PATTERN')).toBe(false);
         expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PREVIEW_MODE')).toBe(false);
     });
+
+    // Native (@clerk/expo) tokens are azp-less; pattern mode rejects them without the admission gate. The
+    // mobile app authenticates against the shared sandbox identity, so non-prod admits `client_type:native`.
+    // Prod runs list mode (skips the azp check on absent azp) → no flag, template byte-identical.
+    it('non-prod task admits native azp-less tokens (CLERK_ADMIT_NATIVE_CLIENT), prod does NOT', () => {
+        expect(taskHasEnvVar('CLERK_ADMIT_NATIVE_CLIENT')).toBe(true);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_ADMIT_NATIVE_CLIENT')).toBe(false);
+    });
 });
 
 describe('Alarms notify via SNS (A4)', () => {

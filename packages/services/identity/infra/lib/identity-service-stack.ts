@@ -228,6 +228,12 @@ export class IdentityServiceStack extends Stack {
                               this,
                               `/kitchensink/sandbox/clerk/azp-preview-mode`,
                           ),
+                          // Non-prod runs pattern mode, which rejects azp-less native (@clerk/expo) tokens
+                          // unless the native-admission gate is on. The mobile app authenticates against the
+                          // shared sandbox identity, so admit its `client_type: 'native'` tokens. Prod stays
+                          // list mode, which already skips the azp check on absent azp — so prod needs no flag
+                          // and its template stays byte-identical.
+                          CLERK_ADMIT_NATIVE_CLIENT: 'true',
                       }),
             },
             secrets: {

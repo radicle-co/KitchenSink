@@ -280,6 +280,10 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/sandbox/clerk/azp-preview-mode`,
             );
+            // Pattern mode rejects azp-less native (@clerk/expo) tokens unless the native-admission gate is
+            // on. The mobile app calls the recipe service directly, so admit its `client_type: 'native'`
+            // tokens. Prod stays list mode (skips the azp check on absent azp) → no flag, template unchanged.
+            recipeDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
         }
 
         // ── API service (ECS/Fargate behind the shared ALB) ─────────────────────────────────────

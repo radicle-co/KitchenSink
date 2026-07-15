@@ -365,6 +365,10 @@ export class FoodServiceStack extends Stack {
                 this,
                 `/kitchensink/sandbox/clerk/azp-preview-mode`,
             );
+            // Pattern mode rejects azp-less native (@clerk/expo) tokens unless the native-admission gate is
+            // on. Admit the mobile app's `client_type: 'native'` tokens. Prod stays list mode (skips the azp
+            // check on absent azp) → no flag, prod template byte-identical.
+            foodDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
         }
 
         // Optional load-test overrides (see packages/tools/loadtest): a preview can lower the USDA cap +

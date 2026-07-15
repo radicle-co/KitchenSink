@@ -140,5 +140,8 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         expect(envAll).toContain('CLERK_AZP_PATTERN');
         expect(envAll).toContain('CLERK_AZP_PREVIEW_MODE');
         expect(envAll).not.toContain('CLERK_AUTHORIZED_PARTIES');
+        // Pattern mode rejects azp-less native (@clerk/expo) tokens unless the admission gate is on; the
+        // mobile app calls the recipe service directly, so non-prod admits `client_type: 'native'`.
+        expect(envAll).toContain('CLERK_ADMIT_NATIVE_CLIENT');
     });
 });

@@ -239,6 +239,8 @@ describe('Food worker + service wiring', () => {
                 envNames.includes('CLERK_JWT_KEY') &&
                 envNames.includes('CLERK_AZP_PATTERN') &&
                 envNames.includes('CLERK_AZP_PREVIEW_MODE') &&
+                // Pattern mode admits the mobile app's azp-less native tokens via this gate (non-prod only).
+                envNames.includes('CLERK_ADMIT_NATIVE_CLIENT') &&
                 !envNames.includes('CLERK_AUTHORIZED_PARTIES'),
         );
 
@@ -251,7 +253,9 @@ describe('Food worker + service wiring', () => {
                 envNames.includes('CLERK_JWT_KEY') &&
                 envNames.includes('CLERK_AUTHORIZED_PARTIES') &&
                 !envNames.includes('CLERK_AZP_PATTERN') &&
-                !envNames.includes('CLERK_AZP_PREVIEW_MODE'),
+                !envNames.includes('CLERK_AZP_PREVIEW_MODE') &&
+                // Prod runs list mode (Clerk skips the azp check on absent azp) → no native gate, unchanged.
+                !envNames.includes('CLERK_ADMIT_NATIVE_CLIENT'),
         );
 
         expect(withClerk).toHaveLength(3);

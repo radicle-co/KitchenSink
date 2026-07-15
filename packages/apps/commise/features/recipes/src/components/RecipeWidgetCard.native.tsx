@@ -3,7 +3,8 @@
  */
 
 import type { FC } from 'react';
-import { Text, View } from 'react-native';
+import { palette } from '@commise/ui';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { RecipeWidgetCardProps } from './props.js';
 
@@ -13,9 +14,23 @@ import type { RecipeWidgetCardProps } from './props.js';
  */
 export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, children }) => {
     return (
-        <View accessibilityRole="summary" accessibilityLabel={title}>
-            <Text accessibilityRole="header">{title}</Text>
+        <View accessibilityRole="summary" accessibilityLabel={title} style={styles.card}>
+            <Text accessibilityRole="header" style={styles.title}>
+                {title}
+            </Text>
             {children}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    card: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 16,
+        gap: 8,
+    },
+    title: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+});

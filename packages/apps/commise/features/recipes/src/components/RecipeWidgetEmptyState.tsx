@@ -15,5 +15,5 @@ import type { RecipeWidgetEmptyStateProps } from './props.js';
 export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ message }) => {
     const messages = useMessages(recipeMessages);
 
-    return <p>{message ?? messages.emptyState}</p>;
+    return <p className="text-body-sm text-slate">{message ?? messages.emptyState}</p>;
 };

@@ -3,7 +3,8 @@
  */
 
 import type { FC } from 'react';
-import { View } from 'react-native';
+import { palette } from '@commise/ui';
+import { StyleSheet, View } from 'react-native';
 
 import { MAX_RECENT_RECIPES, type RecipeWidgetSkeletonProps } from './props.js';
 
@@ -15,10 +16,15 @@ export const RecipeWidgetSkeleton: FC<RecipeWidgetSkeletonProps> = ({ itemCount 
     const placeholders = Array.from({ length: itemCount }, (_unused, index) => index);
 
     return (
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.wrap}>
             {placeholders.map((key) => (
-                <View key={key} />
+                <View key={key} style={styles.row} />
             ))}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    wrap: { gap: 8 },
+    row: { height: 32, borderRadius: 8, backgroundColor: palette.pearl },
+});

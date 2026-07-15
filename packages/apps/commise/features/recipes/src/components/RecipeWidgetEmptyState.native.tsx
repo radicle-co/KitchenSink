@@ -4,6 +4,7 @@
 
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
+import { palette } from '@commise/ui';
 import { Text } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
@@ -17,5 +18,5 @@ import type { RecipeWidgetEmptyStateProps } from './props.js';
 export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ message }) => {
     const messages = useMessages(recipeMessages);
 
-    return <Text>{message ?? messages.emptyState}</Text>;
+    return <Text style={{ fontSize: 13, color: palette.slate }}>{message ?? messages.emptyState}</Text>;
 };

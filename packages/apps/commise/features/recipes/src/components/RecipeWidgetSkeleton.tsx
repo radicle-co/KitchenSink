@@ -14,9 +14,9 @@ export const RecipeWidgetSkeleton: FC<RecipeWidgetSkeletonProps> = ({ itemCount 
     const placeholders = Array.from({ length: itemCount }, (_unused, index) => index);
 
     return (
-        <div role="presentation" aria-hidden="true">
+        <div role="presentation" aria-hidden="true" className="flex flex-col gap-2">
             {placeholders.map((key) => (
-                <div key={key} />
+                <div key={key} className="h-8 animate-pulse rounded-lg bg-pearl" />
             ))}
         </div>
     );

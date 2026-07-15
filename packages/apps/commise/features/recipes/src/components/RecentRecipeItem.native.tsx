@@ -3,7 +3,8 @@
  */
 
 import type { FC } from 'react';
-import { Text, View } from 'react-native';
+import { palette } from '@commise/ui';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { RecentRecipeItemProps } from './props.js';
 
@@ -12,8 +13,13 @@ import type { RecentRecipeItemProps } from './props.js';
  */
 export const RecentRecipeItem: FC<RecentRecipeItemProps> = ({ recipe }) => {
     return (
-        <View accessibilityLabel={recipe.title}>
-            <Text>{recipe.title}</Text>
+        <View accessibilityLabel={recipe.title} style={styles.row}>
+            <Text style={styles.title}>{recipe.title}</Text>
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    row: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(178, 190, 195, 0.2)' },
+    title: { fontSize: 15, fontWeight: '500', color: palette.charcoal },
+});

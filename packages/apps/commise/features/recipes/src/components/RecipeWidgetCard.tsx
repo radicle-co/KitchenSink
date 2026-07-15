@@ -12,8 +12,11 @@ import type { RecipeWidgetCardProps } from './props.js';
  */
 export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, children }) => {
     return (
-        <section aria-label={title}>
-            <h3>{title}</h3>
+        <section
+            aria-label={title}
+            className="flex flex-col gap-3 rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border"
+        >
+            <h3 className="font-display text-heading-md font-semibold text-charcoal">{title}</h3>
             {children}
         </section>
     );

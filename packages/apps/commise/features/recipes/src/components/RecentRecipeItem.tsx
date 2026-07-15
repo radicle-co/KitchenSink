@@ -11,8 +11,8 @@ import type { RecentRecipeItemProps } from './props.js';
  */
 export const RecentRecipeItem: FC<RecentRecipeItemProps> = ({ recipe }) => {
     return (
-        <article aria-label={recipe.title}>
-            <span>{recipe.title}</span>
+        <article aria-label={recipe.title} className="rounded-lg px-3 py-2 transition hover:bg-pearl">
+            <span className="text-body-md font-medium text-charcoal">{recipe.title}</span>
         </article>
     );
 };

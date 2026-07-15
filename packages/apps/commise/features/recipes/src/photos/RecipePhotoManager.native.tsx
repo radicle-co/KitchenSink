@@ -7,7 +7,8 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { palette } from '@commise/ui';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { photoMessages } from './messages.js';
@@ -25,28 +26,31 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     const atCap = isAtPhotoCap(photos.length);
 
     return (
-        <View accessibilityLabel={m.heading}>
-            <Text accessibilityRole="header">{m.heading}</Text>
+        <View accessibilityLabel={m.heading} style={styles.container}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {m.heading}
+            </Text>
 
             {uploading === true ? <View accessibilityRole="progressbar" accessibilityLabel={m.uploadingLabel} /> : null}
             {errorMessage !== undefined ? (
-                <Text accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}>
                     {errorMessage}
                 </Text>
             ) : null}
 
             {photos.length === 0 ? (
-                <Text>{m.emptyBody}</Text>
+                <Text style={styles.muted}>{m.emptyBody}</Text>
             ) : (
-                <View>
+                <View style={styles.grid}>
                     {photos.map((photo, index) => {
                         const removing = removingPhotoId === photo.id;
 
                         return (
-                            <View key={photo.id}>
+                            <View key={photo.id} style={styles.photoWrap}>
                                 <Image
                                     source={{ uri: photo.url }}
                                     accessibilityLabel={fillTemplate(m.photoAlt, { index: index + 1 })}
+                                    style={styles.photo}
                                 />
                                 <Pressable
                                     accessibilityRole="button"
@@ -54,8 +58,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     accessibilityState={{ busy: removing, disabled: removing }}
                                     disabled={removing}
                                     onPress={() => onRemovePhoto(photo.id)}
+                                    style={[styles.removeButton, removing && styles.removeButtonBusy]}
                                 >
-                                    <Text>{removing ? m.removing : m.remove}</Text>
+                                    <Text style={styles.removeLabel}>{removing ? m.removing : m.remove}</Text>
                                 </Pressable>
                             </View>
                         );
@@ -63,7 +68,32 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 </View>
             )}
 
-            {atCap ? <Text>{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</Text> : addControl}
+            {atCap ? (
+                <Text style={styles.muted}>{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</Text>
+            ) : (
+                addControl
+            )}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { gap: 12 },
+    heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    muted: { fontSize: 13, color: palette.slate },
+    error: { fontSize: 13, color: palette.error },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    photoWrap: { position: 'relative', borderRadius: 12, overflow: 'hidden' },
+    photo: { width: 104, height: 104 },
+    removeButton: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        backgroundColor: 'rgba(45, 52, 54, 0.7)',
+        borderRadius: 999,
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+    },
+    removeButtonBusy: { opacity: 0.6 },
+    removeLabel: { color: palette.white, fontSize: 11, fontWeight: '500' },
+});

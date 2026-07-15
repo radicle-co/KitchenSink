@@ -149,6 +149,7 @@ describe('PhotosDal.create', () => {
         control.enqueue([{ count: MAX_PHOTOS_PER_RECIPE }]);
 
         let caught: unknown;
+
         try {
             await dal.create({ recipeId: RECIPE_ID, s3Key: 'k', contentType: 'image/jpeg', sizeBytes: 10 });
         } catch (error) {

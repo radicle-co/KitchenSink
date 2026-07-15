@@ -15,10 +15,12 @@ const makeHost = (): { host: ArgumentsHost; captured: CapturedResponse } => {
     const response = {
         status: vi.fn((code: number) => {
             captured.statusCode = code;
+
             return response;
         }),
         json: vi.fn((body: unknown) => {
             captured.body = body;
+
             return response;
         }),
     };
@@ -28,6 +30,7 @@ const makeHost = (): { host: ArgumentsHost; captured: CapturedResponse } => {
             getRequest: () => ({}),
         }),
     } as unknown as ArgumentsHost;
+
     return { host, captured };
 };
 

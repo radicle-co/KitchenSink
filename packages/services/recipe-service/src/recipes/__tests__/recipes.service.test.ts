@@ -346,6 +346,7 @@ describe('RecipesService.update', () => {
         const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error)).toBe(true);
+
         if (isRecipeDomainError(error)) {
             expect(error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
             expect(error.details).toEqual({ currentVersion: 5, conflictingVersion: 3 });
@@ -596,6 +597,7 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
         await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, ...patch });
 
         const updateArgs = (dal.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
+
         return updateArgs.hasSubstantiveEdit === true;
     }
 

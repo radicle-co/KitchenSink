@@ -12,9 +12,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 describe('recipe seed data', () => {
     it('seeds exactly 5 recipes with valid, unique UUID ids', () => {
         expect(SEED_RECIPES).toHaveLength(5);
+
         for (const r of SEED_RECIPES) {
             expect(r.id).toMatch(UUID);
         }
+
         expect(new Set(SEED_RECIPES.map((r) => r.id)).size).toBe(5);
     });
 
@@ -36,6 +38,7 @@ describe('recipe seed data', () => {
     it('collection has a valid UUID and references only real seed recipes owned by its owner', () => {
         expect(SEED_COLLECTION.id).toMatch(UUID);
         const byId = new Map(SEED_RECIPES.map((r) => [r.id, r]));
+
         for (const recipeId of SEED_COLLECTION.recipeIds) {
             const recipe = byId.get(recipeId);
             expect(recipe).toBeDefined();

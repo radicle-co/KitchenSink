@@ -57,7 +57,10 @@ describe('recipe-service schema — D2: no local users table', () => {
     });
 
     it('no exported Drizzle table is named "users"', () => {
-        const tableNames = Object.values(schema)
+        // Widened to `unknown` values first: the barrel also exports non-table members (types, the
+        // custom `tsvector` column builder), so `Object.values(schema)` is a union a `v is Table`
+        // predicate is not assignable to. Narrowing from `unknown` is what makes the guard legal.
+        const tableNames = Object.values(schema as Record<string, unknown>)
             .filter((v): v is Table => typeof v === 'object' && v !== null && Symbol.for('drizzle:Name') in v)
             .map((t) => getTableName(t));
         expect(tableNames).not.toContain('users');

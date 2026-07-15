@@ -12,9 +12,11 @@
  * `{ send }` stub whose recorded `PutObjectCommand.input` is asserted.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Mock } from 'vitest';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { VersionsService, versionArchiveKey } from '../versions.service.js';
+import type { VersionArchiveS3 } from '../versions.service.js';
 import type { VersionsDal } from '../dal/versions.dal.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import { makeVersionRow } from '../../__fixtures__/index.js';
@@ -34,9 +36,15 @@ const SNAPSHOT: RecipeSnapshot = {
     cookTimeMinutes: 10,
 };
 
-/** A `{ send }` S3 stub — the surface {@link VersionsService} depends on. */
-interface FakeS3 {
-    send: ReturnType<typeof vi.fn>;
+/**
+ * A `{ send }` S3 stub — the surface {@link VersionsService} depends on.
+ *
+ * `send` is typed to the REAL {@link VersionArchiveS3} signature rather than a bare `vi.fn()`, so the
+ * double is structurally assignable to the contract it doubles and drifts from it at compile time
+ * instead of silently.
+ */
+interface FakeS3 extends VersionArchiveS3 {
+    send: Mock<(command: PutObjectCommand) => Promise<unknown>>;
 }
 
 function fakeS3(): FakeS3 {
@@ -144,6 +152,7 @@ describe('VersionsService.createSnapshot', () => {
         const s3Ordered: FakeS3 = {
             send: vi.fn().mockImplementation(async () => {
                 order.push('archive');
+
                 return {};
             }),
         };
@@ -174,7 +183,9 @@ describe('VersionsService.restore', () => {
         version: 3,
         title: 'Old Title',
         description: 'old',
-        steps: [{ instruction: 'Old step' }],
+        // A snapshot's steps are full `RecipeStep`s — `recipeSnapshotSchema` rejects a bare
+        // `{ instruction }`, so the archived shape must carry the identity fields too.
+        steps: [{ id: 'rs-1', recipeId: RECIPE_ID, stepNumber: 1, instruction: 'Old step' }],
         ingredients: [
             {
                 id: 'ri-1',

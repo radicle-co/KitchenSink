@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
-import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Response } from 'express';
 import type { VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
 import { AuthMiddleware } from '../auth.middleware.js';
@@ -71,6 +71,7 @@ describe('AuthMiddleware', () => {
         for (const key of DEV_ENV_KEYS) {
             savedEnv[key] = process.env[key];
         }
+
         // Default to a deployed (non-dev-bypass) posture for every case unless a test opts in.
         delete process.env['RECIPE_DEV_AUTH_USER_ID'];
         process.env['NODE_ENV'] = 'production';
@@ -88,6 +89,7 @@ describe('AuthMiddleware', () => {
                 process.env[key] = savedEnv[key];
             }
         }
+
         vi.restoreAllMocks();
     });
 

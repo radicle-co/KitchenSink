@@ -58,6 +58,7 @@ describe('loadConfig', () => {
         delete env['CLERK_JWT_KEY'];
 
         let caught: unknown;
+
         try {
             loadConfig(apiConfigSchema, env);
         } catch (error) {
@@ -114,7 +115,13 @@ describe('loadConfig', () => {
 
     describe('azp enforcement mode', () => {
         it('loads in pattern mode when CLERK_AZP_PATTERN replaces the list (non-prod)', () => {
-            const env = { ...validEnv(), NODE_ENV: 'staging', CLERK_AZP_PATTERN: 'sandbox.commise.app' };
+            // Annotated: spreading `validEnv()`'s index signature into a literal with explicit keys
+            // drops it, so an un-annotated `env` cannot be indexed (or `delete`d) by an arbitrary key.
+            const env: Record<string, string> = {
+                ...validEnv(),
+                NODE_ENV: 'staging',
+                CLERK_AZP_PATTERN: 'sandbox.commise.app',
+            };
             delete env['CLERK_AUTHORIZED_PARTIES'];
 
             const config = loadConfig(apiConfigSchema, env);
@@ -130,14 +137,14 @@ describe('loadConfig', () => {
         });
 
         it('rejects setting NEITHER the azp list nor the pattern (fail-open guard)', () => {
-            const env = { ...validEnv(), NODE_ENV: 'staging' };
+            const env: Record<string, string> = { ...validEnv(), NODE_ENV: 'staging' };
             delete env['CLERK_AUTHORIZED_PARTIES'];
 
             expect(() => loadConfig(apiConfigSchema, env)).toThrow();
         });
 
         it('rejects CLERK_AZP_PATTERN in production (prod uses exact-match)', () => {
-            const env = { ...validEnv(), CLERK_AZP_PATTERN: 'sandbox.commise.app' };
+            const env: Record<string, string> = { ...validEnv(), CLERK_AZP_PATTERN: 'sandbox.commise.app' };
             delete env['CLERK_AUTHORIZED_PARTIES'];
 
             expect(() => loadConfig(apiConfigSchema, env)).toThrow();
@@ -155,6 +162,7 @@ describe('loadConfig — SSM fallback', () => {
 
     beforeEach(() => {
         ssmSend.mockReset();
+
         // Seed process.env with a fully-valid environment, then remove one required var per case.
         for (const [key, value] of Object.entries(validEnv())) {
             process.env[key] = value;
@@ -167,6 +175,7 @@ describe('loadConfig — SSM fallback', () => {
                 delete process.env[key];
             }
         }
+
         for (const [key, value] of Object.entries(savedEnv)) {
             process.env[key] = value;
         }
@@ -215,6 +224,7 @@ describe('loadConfig — SSM fallback', () => {
         ssmSend.mockResolvedValue({ Parameters: [] });
 
         let caught: unknown;
+
         try {
             await loadConfig(apiConfigSchema, {
                 ssmFallback: true,

@@ -7,7 +7,8 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { palette } from '@commise/ui';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeVersionMessages } from './messages.js';
 import { fillTemplate, formatVersionTimestamp, sortVersionsDescending, type RecipeVersionListProps } from './model.js';
@@ -24,44 +25,53 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
 
     if (versions.length === 0) {
         return (
-            <View accessibilityLabel={versionList.heading}>
-                <Text accessibilityRole="header">{versionList.heading}</Text>
-                <Text>{versionList.empty}</Text>
+            <View accessibilityLabel={versionList.heading} style={styles.container}>
+                <Text accessibilityRole="header" style={styles.heading}>
+                    {versionList.heading}
+                </Text>
+                <Text style={styles.muted}>{versionList.empty}</Text>
             </View>
         );
     }
 
     return (
-        <View accessibilityLabel={versionList.heading}>
-            <Text accessibilityRole="header">{versionList.heading}</Text>
+        <View accessibilityLabel={versionList.heading} style={styles.container}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {versionList.heading}
+            </Text>
             {sortVersionsDescending(versions).map((version) => {
                 const isCurrent = version.versionNumber === currentVersion;
                 const isBusy = restoringVersion === version.versionNumber;
 
                 return (
-                    <View key={version.id}>
-                        <Text>{fillTemplate(versionList.versionLabel, { version: version.versionNumber })}</Text>
-                        <Text>{formatVersionTimestamp(version.createdAt, locale)}</Text>
+                    <View key={version.id} style={styles.row}>
+                        <View style={styles.rowHeader}>
+                            <Text style={styles.versionLabel}>
+                                {fillTemplate(versionList.versionLabel, { version: version.versionNumber })}
+                            </Text>
+                            {isCurrent ? (
+                                <Text style={styles.currentBadge}>{versionList.currentBadge}</Text>
+                            ) : (
+                                <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={fillTemplate(versionList.restoreAction, {
+                                        version: version.versionNumber,
+                                    })}
+                                    accessibilityState={{ disabled: isRestoring, busy: isBusy }}
+                                    disabled={isRestoring}
+                                    onPress={() => onRestore(version.versionNumber)}
+                                    style={styles.restoreButton}
+                                >
+                                    <Text style={styles.restoreLabel}>{versionList.restore}</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                        <Text style={styles.muted}>{formatVersionTimestamp(version.createdAt, locale)}</Text>
                         {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
-                            <Text>{version.changeSummary}</Text>
-                        )}
-                        {isCurrent ? (
-                            <Text>{versionList.currentBadge}</Text>
-                        ) : (
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={fillTemplate(versionList.restoreAction, {
-                                    version: version.versionNumber,
-                                })}
-                                accessibilityState={{ disabled: isRestoring, busy: isBusy }}
-                                disabled={isRestoring}
-                                onPress={() => onRestore(version.versionNumber)}
-                            >
-                                <Text>{versionList.restore}</Text>
-                            </Pressable>
+                            <Text style={styles.muted}>{version.changeSummary}</Text>
                         )}
                         {isBusy && (
-                            <Text accessibilityLiveRegion="polite">
+                            <Text accessibilityLiveRegion="polite" style={styles.muted}>
                                 {fillTemplate(versionList.restoringStatus, { version: version.versionNumber })}
                             </Text>
                         )}
@@ -71,3 +81,22 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
+    heading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
+    muted: { fontSize: 13, color: palette.slate },
+    row: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 14,
+        gap: 4,
+    },
+    rowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    versionLabel: { fontSize: 16, fontWeight: '600', color: palette.charcoal },
+    currentBadge: { fontSize: 12, fontWeight: '500', color: palette.seafoam },
+    restoreButton: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
+    restoreLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+});

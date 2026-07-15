@@ -7,7 +7,8 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { palette } from '@commise/ui';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeVersionMessages } from './messages.js';
 import { toConflictSideFields, type ConflictField, type RecipeConflictViewProps } from './model.js';
@@ -19,16 +20,23 @@ const ConflictSide: FC<{
     readonly actionLabel: string;
     readonly onChoose: () => void;
 }> = ({ heading, fields, actionLabel, onChoose }) => (
-    <View accessibilityLabel={heading}>
-        <Text accessibilityRole="header">{heading}</Text>
+    <View accessibilityLabel={heading} style={styles.side}>
+        <Text accessibilityRole="header" style={styles.sideHeading}>
+            {heading}
+        </Text>
         {fields.map((field) => (
-            <View key={field.key}>
-                <Text>{field.label}</Text>
-                <Text>{field.value}</Text>
+            <View key={field.key} style={styles.field}>
+                <Text style={styles.fieldLabel}>{field.label}</Text>
+                <Text style={styles.fieldValue}>{field.value}</Text>
             </View>
         ))}
-        <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} onPress={onChoose}>
-            <Text>{actionLabel}</Text>
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            onPress={onChoose}
+            style={styles.chooseButton}
+        >
+            <Text style={styles.chooseLabel}>{actionLabel}</Text>
         </Pressable>
     </View>
 );
@@ -44,9 +52,11 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     const locale = useLocale();
 
     return (
-        <View accessibilityLabel={conflict.heading}>
-            <Text accessibilityRole="header">{conflict.heading}</Text>
-            <Text>{conflict.explanation}</Text>
+        <View accessibilityLabel={conflict.heading} style={styles.container}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {conflict.heading}
+            </Text>
+            <Text style={styles.explanation}>{conflict.explanation}</Text>
             <ConflictSide
                 heading={conflict.mineHeading}
                 fields={toConflictSideFields(mineTitle, mine, conflict, locale)}
@@ -62,3 +72,30 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
+    heading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
+    explanation: { fontSize: 14, color: palette.slate },
+    side: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 16,
+        gap: 8,
+    },
+    sideHeading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    field: { gap: 2 },
+    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
+    fieldValue: { fontSize: 15, color: palette.charcoal },
+    chooseButton: {
+        alignSelf: 'flex-start',
+        backgroundColor: palette.seafoam,
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        marginTop: 4,
+    },
+    chooseLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+});

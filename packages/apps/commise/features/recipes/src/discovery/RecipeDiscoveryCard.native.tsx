@@ -6,15 +6,17 @@
  * Clone action that busies (accessibilityState busy/disabled) while this row's clone is in flight.
  */
 import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { FC } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
 import type { RecipeDiscoveryCardProps } from './model.js';
 
 /**
- * A single public-recipe row on React Native.
+ * A single public-recipe row on React Native, styled to the Commise design language: a white rounded card
+ * with a display title, muted source attribution, and a coral Clone action.
  *
  * @param props - The discovery view-model, the per-row clone-busy flag, and the selection/clone callbacks.
  */
@@ -23,12 +25,14 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({ recipe, isCl
     const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
 
     return (
-        <View>
+        <View style={styles.card}>
             <Pressable accessibilityRole="button" accessibilityLabel={recipe.title} onPress={() => onSelect(recipe.id)}>
-                <Text>{recipe.title}</Text>
+                <Text style={styles.title}>{recipe.title}</Text>
             </Pressable>
             {recipe.sourceAttribution !== undefined ? (
-                <Text>{fillTemplate(discovery.attribution, { source: recipe.sourceAttribution })}</Text>
+                <Text style={styles.attribution}>
+                    {fillTemplate(discovery.attribution, { source: recipe.sourceAttribution })}
+                </Text>
             ) : null}
             <Pressable
                 accessibilityRole="button"
@@ -36,9 +40,32 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({ recipe, isCl
                 accessibilityState={{ busy: isCloning, disabled: isCloning }}
                 disabled={isCloning}
                 onPress={() => onClone(recipe.id)}
+                style={[styles.cloneButton, isCloning && styles.cloneButtonBusy]}
             >
-                <Text>{isCloning ? discovery.cloning : discovery.clone}</Text>
+                <Text style={styles.cloneLabel}>{isCloning ? discovery.cloning : discovery.clone}</Text>
             </Pressable>
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    card: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 18,
+        gap: 10,
+    },
+    title: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    attribution: { fontSize: 13, color: palette.slate },
+    cloneButton: {
+        alignSelf: 'flex-start',
+        backgroundColor: palette.coral,
+        borderRadius: 999,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+    },
+    cloneButtonBusy: { opacity: 0.6 },
+    cloneLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+});

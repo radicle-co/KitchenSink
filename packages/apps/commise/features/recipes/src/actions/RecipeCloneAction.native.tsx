@@ -6,8 +6,9 @@
  * marked busy while cloning, plus a source-attribution line rendered only when `sourceAttribution` is set.
  */
 import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { FC } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeActionMessages } from './messages.js';
@@ -22,9 +23,9 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
     const { clone } = useMessages(recipeActionMessages);
 
     return (
-        <View>
+        <View style={styles.wrap}>
             {sourceAttribution !== undefined && sourceAttribution.length > 0 && (
-                <Text>{fillTemplate(clone.attribution, { source: sourceAttribution })}</Text>
+                <Text style={styles.attribution}>{fillTemplate(clone.attribution, { source: sourceAttribution })}</Text>
             )}
             <Pressable
                 accessibilityRole="button"
@@ -32,10 +33,25 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
                 aria-busy={cloning || undefined}
                 disabled={cloning || !canClone}
                 onPress={onClone}
+                style={[styles.button, (cloning || !canClone) && styles.buttonDisabled]}
             >
-                <Text>{clone.clone}</Text>
+                <Text style={styles.label}>{clone.clone}</Text>
             </Pressable>
-            {cloning && <Text>{clone.cloningLabel}</Text>}
+            {cloning && <Text style={styles.attribution}>{clone.cloningLabel}</Text>}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    wrap: { gap: 8 },
+    attribution: { fontSize: 13, color: palette.slate },
+    button: {
+        alignSelf: 'flex-start',
+        backgroundColor: palette.coral,
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+    },
+    buttonDisabled: { opacity: 0.6 },
+    label: { color: palette.white, fontWeight: '600', fontSize: 14 },
+});

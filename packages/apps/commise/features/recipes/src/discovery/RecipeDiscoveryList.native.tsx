@@ -6,8 +6,9 @@
  * primitives. Every recipe shown is public; each row offers a Clone action.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatRecipeCount } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
@@ -54,8 +55,8 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             locale,
         );
         body = (
-            <View>
-                <Text>{count}</Text>
+            <View style={styles.cards}>
+                <Text style={styles.count}>{count}</Text>
                 {results.map((result) => {
                     const item = toRecipeDiscoveryItem(result);
 
@@ -74,15 +75,36 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     }
 
     return (
-        <View accessibilityLabel={discovery.heading}>
-            <Text accessibilityRole="header">{discovery.heading}</Text>
+        <View accessibilityLabel={discovery.heading} style={styles.container}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {discovery.heading}
+            </Text>
             <TextInput
                 accessibilityLabel={discovery.searchLabel}
                 placeholder={discovery.searchPlaceholder}
+                placeholderTextColor={palette.mist}
                 value={searchValue}
                 onChangeText={onSearchChange}
+                style={styles.search}
             />
             {body}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { flex: 1, gap: 16, paddingHorizontal: 16, paddingTop: 8 },
+    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    search: {
+        backgroundColor: palette.white,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        fontSize: 16,
+        color: palette.charcoal,
+    },
+    count: { fontSize: 13, fontWeight: '500', color: palette.slate },
+    cards: { gap: 12 },
+});

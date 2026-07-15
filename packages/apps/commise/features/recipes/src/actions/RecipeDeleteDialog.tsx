@@ -29,16 +29,44 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
     }
 
     return (
-        <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
-            <h2 id={titleId}>{deleteDialog.title}</h2>
-            <p id={bodyId}>{fillTemplate(deleteDialog.body, { title: recipeTitle })}</p>
-            <button type="button" onClick={onCancel}>
-                {deleteDialog.cancel}
-            </button>
-            <button type="button" onClick={onConfirm} disabled={deleting} aria-busy={deleting || undefined}>
-                {deleteDialog.confirm}
-            </button>
-            {deleting && <span role="status">{deleteDialog.deletingLabel}</span>}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal/40 p-4">
+            <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                aria-describedby={bodyId}
+                className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-card p-6 shadow-lg"
+            >
+                <h2 id={titleId} className="font-display text-heading-lg font-semibold text-charcoal">
+                    {deleteDialog.title}
+                </h2>
+                <p id={bodyId} className="text-body-md leading-relaxed text-slate">
+                    {fillTemplate(deleteDialog.body, { title: recipeTitle })}
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl"
+                    >
+                        {deleteDialog.cancel}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={deleting}
+                        aria-busy={deleting || undefined}
+                        className="rounded-full bg-error px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+                    >
+                        {deleteDialog.confirm}
+                    </button>
+                </div>
+                {deleting && (
+                    <span role="status" className="text-body-sm text-slate">
+                        {deleteDialog.deletingLabel}
+                    </span>
+                )}
+            </div>
         </div>
     );
 };

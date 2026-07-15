@@ -33,29 +33,46 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
         }
     };
 
+    const pill = (active: boolean) =>
+        `cursor-pointer rounded-full px-4 py-1.5 text-body-sm font-medium transition ${
+            active ? 'bg-card text-charcoal shadow-sm' : 'text-slate'
+        }`;
+
     return (
-        <fieldset aria-label={messages.groupLabel}>
-            <label>
-                <input
-                    type="radio"
-                    name={groupName}
-                    checked={visibility === RecipeVisibility.PUBLIC}
-                    onChange={() => onChange(RecipeVisibility.PUBLIC)}
-                />
-                {messages.publicLabel}
-            </label>
-            <label>
-                <input
-                    type="radio"
-                    name={groupName}
-                    checked={visibility === RecipeVisibility.PRIVATE}
-                    disabled={!canGoPrivate}
-                    aria-describedby={showReason ? reasonId : undefined}
-                    onChange={selectPrivate}
-                />
-                {messages.privateLabel}
-            </label>
-            {showReason && <p id={reasonId}>{disabledReason}</p>}
+        <fieldset aria-label={messages.groupLabel} className="flex flex-col gap-2">
+            <div className="inline-flex w-fit gap-1 rounded-full bg-pearl p-1">
+                <label className={pill(visibility === RecipeVisibility.PUBLIC)}>
+                    <input
+                        type="radio"
+                        name={groupName}
+                        className="sr-only"
+                        checked={visibility === RecipeVisibility.PUBLIC}
+                        onChange={() => onChange(RecipeVisibility.PUBLIC)}
+                    />
+                    {messages.publicLabel}
+                </label>
+                <label
+                    className={`${pill(visibility === RecipeVisibility.PRIVATE)} ${
+                        canGoPrivate ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                >
+                    <input
+                        type="radio"
+                        name={groupName}
+                        className="sr-only"
+                        checked={visibility === RecipeVisibility.PRIVATE}
+                        disabled={!canGoPrivate}
+                        aria-describedby={showReason ? reasonId : undefined}
+                        onChange={selectPrivate}
+                    />
+                    {messages.privateLabel}
+                </label>
+            </div>
+            {showReason && (
+                <p id={reasonId} className="text-body-sm text-warning">
+                    {disabledReason}
+                </p>
+            )}
         </fieldset>
     );
 };

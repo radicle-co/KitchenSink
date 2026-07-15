@@ -22,6 +22,12 @@ appId: io.commise.mobile
           - tapOn: 'Title'
           - eraseText
           - inputText: 'Mediterranean Grilled Lamb (edited)'
+          # Dismiss the keyboard (it covers the submit button at the foot of the scrolling form) and scroll
+          # the submit into view before tapping it.
+          - hideKeyboard
+          - scrollUntilVisible:
+                element: 'Save changes'
+                direction: DOWN
           - tapOn: 'Save changes'
           # Back on the detail with the new title.
           - assertVisible: 'Mediterranean Grilled Lamb (edited)'

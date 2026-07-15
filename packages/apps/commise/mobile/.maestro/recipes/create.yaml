@@ -37,12 +37,21 @@ appId: io.commise.mobile
       commands:
           - tapOn: 'Resolved'
 
+# Dismiss the keyboard and scroll the Steps section into view before adding one (the form scrolls).
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
+- hideKeyboard
 
 # Submit. When the ingredient resolved, the create succeeds and lands on the new recipe's detail; the
 # assertion is guarded so a seed without the food still verifies the editor renders + accepts input.
+- scrollUntilVisible:
+      element: 'Create recipe'
+      direction: DOWN
 - assertVisible: 'Create recipe'
 - runFlow:
       when:

@@ -63,9 +63,9 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             locale,
         );
         body = (
-            <div>
-                <p>{count}</p>
-                <ul>
+            <div className="flex flex-col gap-4">
+                <p className="text-body-sm font-medium text-slate">{count}</p>
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {results.map((result) => {
                         const item = toRecipeDiscoveryItem(result);
 
@@ -86,9 +86,9 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     }
 
     return (
-        <section aria-label={discovery.heading}>
+        <section aria-label={discovery.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
             <header>
-                <h1>{discovery.heading}</h1>
+                <h1 className="font-display text-display-md font-bold text-charcoal">{discovery.heading}</h1>
             </header>
             <input
                 type="search"
@@ -96,6 +96,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 placeholder={discovery.searchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
+                className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
             />
             {body}
         </section>

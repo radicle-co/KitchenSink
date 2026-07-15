@@ -23,12 +23,22 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({ recipe, isCl
     const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
 
     return (
-        <article aria-label={recipe.title}>
-            <button type="button" onClick={() => onSelect(recipe.id)}>
+        <article
+            aria-label={recipe.title}
+            className="group flex h-full flex-col gap-3 rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border transition hover:shadow-md"
+        >
+            <button
+                type="button"
+                aria-label={recipe.title}
+                onClick={() => onSelect(recipe.id)}
+                className="text-left font-display text-heading-md font-semibold text-charcoal transition-colors group-hover:text-seafoam"
+            >
                 {recipe.title}
             </button>
             {recipe.sourceAttribution !== undefined ? (
-                <p>{fillTemplate(discovery.attribution, { source: recipe.sourceAttribution })}</p>
+                <p className="text-body-sm text-slate">
+                    {fillTemplate(discovery.attribution, { source: recipe.sourceAttribution })}
+                </p>
             ) : null}
             <button
                 type="button"
@@ -36,6 +46,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({ recipe, isCl
                 aria-busy={isCloning}
                 disabled={isCloning}
                 onClick={() => onClone(recipe.id)}
+                className="mt-auto self-start rounded-full bg-coral px-4 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
             >
                 {isCloning ? discovery.cloning : discovery.clone}
             </button>

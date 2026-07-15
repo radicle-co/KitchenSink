@@ -15,6 +15,7 @@
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
@@ -52,15 +53,19 @@ export interface VersionArchiveS3 {
 /**
  * Deterministic S3 object key for a version archive: one immutable object per recipe/version.
  *
- * The key MUST be under the owner prefix `recipes/{ownerId}/…` (ownerId = the version's `createdBy`, the
- * app-user ULID — mutations are owner-only, so it equals the recipe owner). GDPR account erasure sweeps
- * exactly `recipes/{ownerId}/` (the erasure worker's `ownerMediaPrefix`); a key WITHOUT the owner segment
- * (the old `recipes/{recipeId}/versions/…`) escaped that sweep and survived erasure — a compliance defect
- * (verticals-8). This is the single in-service scheme; the shared `recipeObjectKeys` unification with the
- * archive worker (ARCH-BE-3, still on versionId vs versionNumber) is the follow-up. Pure.
+ * A thin row→parts adapter over the shared {@link recipeVersionArchiveKey} — the scheme itself now has
+ * exactly one home (`@kitchensink/recipe-core`'s `recipeObjectKeys`), shared with the version-archive
+ * and account-erasure workers. That unification is ARCH-BE-3, and it settled the service/worker split
+ * onto `versionNumber` (the client-facing address) over the internal `versionId`. The owner-prefix
+ * containment that GDPR erasure depends on (verticals-8) is enforced and tested there; this function
+ * only maps the persistence row onto it, since recipe-core must not know the DB row shape. Pure.
  */
 export function versionArchiveKey(row: RecipeVersionRow): string {
-    return `recipes/${row.createdBy}/${row.recipeId}/versions/${row.versionNumber}.json`;
+    return recipeVersionArchiveKey({
+        ownerId: row.createdBy,
+        recipeId: row.recipeId,
+        versionNumber: row.versionNumber,
+    });
 }
 
 /** Map a persisted `recipe_versions` row to the `RecipeVersion` wire contract. Pure. */

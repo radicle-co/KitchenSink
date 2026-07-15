@@ -51,6 +51,8 @@ export const makeArchiveMessage = (
 ): RecipeVersionArchiveMessage => ({
     recipeId: '00000000-0000-4000-8000-0000000000r1',
     versionId: '00000000-0000-4000-8000-0000000000v1',
+    // The archive object is keyed by the client-facing version NUMBER, not `versionId` (ARCH-BE-3).
+    versionNumber: 1,
     ownerId: '01J0000000000000000000OWN0',
     requestedAt: '2026-07-10T00:00:00.000Z',
     ...overrides,

@@ -2,6 +2,7 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { ownerMediaPrefix } from '@kitchensink/recipe-core';
 
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
@@ -26,8 +27,17 @@ const s3 = new S3Client({});
 export const parseErasureMessage = (record: SQSRecord): AccountErasureMessage =>
     JSON.parse(record.body) as AccountErasureMessage;
 
-/** S3 key prefix under which all of an owner's recipe media lives. */
-export const ownerMediaPrefix = (ownerId: string): string => `recipes/${ownerId}/`;
+/**
+ * S3 key prefix under which all of an owner's recipe media lives — re-exported from the shared
+ * `recipeObjectKeys` scheme (ARCH-BE-3) rather than rebuilt here, and kept exported because this
+ * module's tests and callers already address it here.
+ *
+ * This worker's sweep is only complete if every writer puts its objects under this exact prefix, so the
+ * prefix and the keys written against it must come from ONE definition. `verticals-8` is what happens
+ * when they don't: an owner-less key escaped the sweep and survived a right-to-erasure request. The
+ * containment invariant is tested in `@kitchensink/recipe-core`.
+ */
+export { ownerMediaPrefix };
 
 /**
  * Delete every `kitchensink_recipes` row owned by the user (recipes, versions, ingredients, steps,

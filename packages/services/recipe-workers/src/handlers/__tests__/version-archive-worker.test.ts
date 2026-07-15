@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ownerMediaPrefix, recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 
 import type { SQSEvent } from 'aws-lambda';
 
@@ -40,29 +41,53 @@ beforeEach(() => {
 });
 
 describe('snapshotObjectKey', () => {
-    it('builds the deterministic owner/recipe/version archive key', () => {
-        const key = snapshotObjectKey(makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionId: 'ver' }));
+    it('builds the deterministic owner/recipe/version archive key from the version NUMBER', () => {
+        const key = snapshotObjectKey(makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionNumber: 3 }));
 
-        expect(key).toBe('recipes/own/rec/versions/ver.json');
+        // ARCH-BE-3: keyed by the client-facing number, matching what recipe-service writes inline.
+        expect(key).toBe('recipes/own/rec/versions/3.json');
     });
 
     it('is deterministic and distinct per version', () => {
-        const message = makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionId: 'v1' });
+        const message = makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionNumber: 1 });
 
         expect(snapshotObjectKey(message)).toBe(snapshotObjectKey(message));
-        expect(snapshotObjectKey(message)).not.toBe(snapshotObjectKey({ ...message, versionId: 'v2' }));
+        expect(snapshotObjectKey(message)).not.toBe(snapshotObjectKey({ ...message, versionNumber: 2 }));
+    });
+
+    it('keys the archive identically to recipe-service (one scheme, ARCH-BE-3)', () => {
+        // The regression this pins: the worker and the service must never key the same snapshot to two
+        // different objects. Both now route through the shared recipeVersionArchiveKey.
+        const message = makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionNumber: 7 });
+
+        expect(snapshotObjectKey(message)).toBe(
+            recipeVersionArchiveKey({ ownerId: 'own', recipeId: 'rec', versionNumber: 7 }),
+        );
+    });
+
+    it('places the archive under the owner erasure prefix (verticals-8)', () => {
+        const message = makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionNumber: 2 });
+
+        expect(snapshotObjectKey(message).startsWith(ownerMediaPrefix('own'))).toBe(true);
     });
 });
 
 describe('parseArchiveMessage', () => {
     it('shapes a valid SQS body into a typed archive message', () => {
         const record = makeSqsRecord(
-            JSON.stringify({ recipeId: 'r', versionId: 'v', ownerId: 'o', requestedAt: '2026-07-10T00:00:00.000Z' }),
+            JSON.stringify({
+                recipeId: 'r',
+                versionId: 'v',
+                versionNumber: 1,
+                ownerId: 'o',
+                requestedAt: '2026-07-10T00:00:00.000Z',
+            }),
         );
 
         expect(parseArchiveMessage(record)).toEqual({
             recipeId: 'r',
             versionId: 'v',
+            versionNumber: 1,
             ownerId: 'o',
             requestedAt: '2026-07-10T00:00:00.000Z',
         });
@@ -109,8 +134,8 @@ describe('handler', () => {
     it('writes a JSON snapshot to the deterministic key for each record', async () => {
         await runHandler(
             makeArchiveEvent(
-                { ownerId: 'own', recipeId: 'rec', versionId: 'v1' },
-                { ownerId: 'own', recipeId: 'rec', versionId: 'v2' },
+                { ownerId: 'own', recipeId: 'rec', versionId: 'v1', versionNumber: 1 },
+                { ownerId: 'own', recipeId: 'rec', versionId: 'v2', versionNumber: 2 },
             ),
         );
 
@@ -119,12 +144,12 @@ describe('handler', () => {
 
         const first = putInput(s3Send.mock.calls[0][0]);
         expect(first.Bucket).toBe('archive-bucket');
-        expect(first.Key).toBe('recipes/own/rec/versions/v1.json');
+        expect(first.Key).toBe('recipes/own/rec/versions/1.json');
         expect(first.ContentType).toBe('application/json');
         const body = JSON.parse(first.Body) as { recipeId: string; versionId: string; ownerId: string };
         expect(body).toMatchObject({ recipeId: 'rec', versionId: 'v1', ownerId: 'own' });
 
-        expect(putInput(s3Send.mock.calls[1][0]).Key).toBe('recipes/own/rec/versions/v2.json');
+        expect(putInput(s3Send.mock.calls[1][0]).Key).toBe('recipes/own/rec/versions/2.json');
     });
 
     it('fails fast when RECIPE_ARCHIVE_BUCKET is unset — before touching the DB or S3', async () => {

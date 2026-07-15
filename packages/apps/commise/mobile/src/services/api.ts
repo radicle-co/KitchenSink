@@ -1,7 +1,14 @@
 import { updateProfile, type ProfileTransport } from '@commise/features-account';
 import type { UserUpdateInput } from '@kitchensink/identity-service';
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.commise.io';
+// Identity endpoints (`/v1/users/me`, `/v1/accounts/me`) are served by the IDENTITY service, which is a
+// separate deployable on a separate host from the recipe service (sandbox/prod route them to distinct
+// subdomains — `identity.{stage}` vs `recipe.{stage}` — and there is no cross-service proxy). So identity
+// calls must target their OWN origin, not the recipe origin in `EXPO_PUBLIC_API_URL`. This mirrors the web
+// split (`NEXT_PUBLIC_API_BASE_URL` for identity vs `NEXT_PUBLIC_API_URL` for recipe). Fall back to the
+// recipe origin only for back-compat with a single-gateway deployment, then to the prod default.
+export const API_BASE_URL =
+    process.env.EXPO_PUBLIC_IDENTITY_API_URL ?? process.env.EXPO_PUBLIC_API_URL ?? 'https://api.commise.io';
 
 export type GetToken = () => Promise<string | null>;
 

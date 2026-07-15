@@ -14,6 +14,8 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import type { JSX, ReactNode } from 'react';
 import { useMemo } from 'react';
 
+import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
+
 /** Local API origin used when `EXPO_PUBLIC_API_URL` is unset (backend on :3000; no trailing `/v1`). */
 const DEFAULT_API_URL = 'http://localhost:3000';
 
@@ -31,7 +33,9 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
             new RecipeServiceClient({
                 baseUrl: process.env['EXPO_PUBLIC_API_URL'] ?? DEFAULT_API_URL,
                 token: (options) =>
-                    getToken({ skipCache: options?.forceRefresh ?? false }).then((token) => token ?? ''),
+                    getToken({ template: NATIVE_JWT_TEMPLATE, skipCache: options?.forceRefresh ?? false }).then(
+                        (token) => token ?? '',
+                    ),
             }),
         [getToken],
     );

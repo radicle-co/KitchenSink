@@ -23,6 +23,7 @@ import {
     buildTransitionAzpPattern,
     hasExactlyOneAzpMode,
     isClerkVerificationError,
+    isNativeClientToken,
     resolveAzpEnforcement,
     verifyClerkToken,
 } from '../clerkVerify.js';
@@ -273,6 +274,45 @@ describe('resolveAzpEnforcement', () => {
         expect(cfg.admitAzplessToken).toBe(gate);
     });
 
+    it('wires the shared native gate when admitNativeClient is set (pattern mode)', () => {
+        const cfg = resolveAzpEnforcement({
+            authorizedPartiesRaw: '',
+            previewBaseDomain: 'sandbox.commise.app',
+            admitNativeClient: true,
+        });
+
+        // The wired gate is the shared native-client signal — admits ONLY `client_type: 'native'`.
+        expect(cfg.admitAzplessToken?.({ client_type: 'native' })).toBe(true);
+        expect(cfg.admitAzplessToken?.({ client_type: 'web' })).toBe(false);
+        expect(cfg.admitAzplessToken?.({})).toBe(false);
+    });
+
+    it('does NOT wire a native gate when admitNativeClient is unset/false', () => {
+        expect(
+            resolveAzpEnforcement({ authorizedPartiesRaw: '', previewBaseDomain: 'sandbox.commise.app' })
+                .admitAzplessToken,
+        ).toBeUndefined();
+        expect(
+            resolveAzpEnforcement({
+                authorizedPartiesRaw: '',
+                previewBaseDomain: 'sandbox.commise.app',
+                admitNativeClient: false,
+            }).admitAzplessToken,
+        ).toBeUndefined();
+    });
+
+    it('an explicit admitAzplessToken overrides the admitNativeClient shortcut', () => {
+        const gate = (): boolean => true;
+        const cfg = resolveAzpEnforcement({
+            authorizedPartiesRaw: '',
+            previewBaseDomain: 'sandbox.commise.app',
+            admitNativeClient: true,
+            admitAzplessToken: gate,
+        });
+
+        expect(cfg.admitAzplessToken).toBe(gate);
+    });
+
     it('builds a STRICT (subdomain-only) pattern by default', () => {
         const cfg = resolveAzpEnforcement({ authorizedPartiesRaw: '', previewBaseDomain: 'sandbox.commise.app' });
 
@@ -370,5 +410,15 @@ describe('buildTransitionAzpPattern (cutover)', () => {
 
         // "staging.sandbox.commise.app" is neither the apex nor a pr-{N} label.
         expect(re.test('https://staging.sandbox.commise.app')).toBe(false);
+    });
+});
+
+describe('isNativeClientToken', () => {
+    it('admits ONLY a token whose client_type claim is exactly "native"', () => {
+        expect(isNativeClientToken({ client_type: 'native' })).toBe(true);
+        expect(isNativeClientToken({ client_type: 'web' })).toBe(false);
+        expect(isNativeClientToken({ client_type: 'Native' })).toBe(false);
+        expect(isNativeClientToken({})).toBe(false);
+        expect(isNativeClientToken({ client_type: 123 })).toBe(false);
     });
 });

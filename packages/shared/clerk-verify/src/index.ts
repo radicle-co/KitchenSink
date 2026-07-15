@@ -9,6 +9,7 @@ export {
     buildPreviewAzpPattern,
     buildTransitionAzpPattern,
     hasExactlyOneAzpMode,
+    isNativeClientToken,
     resolveAzpEnforcement,
     ClerkVerificationError,
     isClerkVerificationError,

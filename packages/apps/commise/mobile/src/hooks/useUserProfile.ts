@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth as useIdpAuth } from '@clerk/expo';
 import type { UserProfile, UserUpdateInput } from '@kitchensink/identity-service';
+
+import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { deleteUserMe, getUserMe, patchUserMe } from '../services/api';
 
 const PROFILE_KEY = ['user', 'me'] as const;
@@ -14,7 +16,8 @@ export function useUserProfile() {
     // per request via auth().getToken(), so this guard is mobile-specific.)
     return useQuery({
         queryKey: PROFILE_KEY,
-        queryFn: () => getUserMe(() => getToken({ skipCache: true })) as Promise<UserProfile>,
+        queryFn: () =>
+            getUserMe(() => getToken({ template: NATIVE_JWT_TEMPLATE, skipCache: true })) as Promise<UserProfile>,
         enabled: Boolean(isSignedIn),
         staleTime: 2 * 60 * 1000,
     });
@@ -25,7 +28,7 @@ export function useUpdateProfile() {
     const qc = useQueryClient();
 
     return useMutation({
-        mutationFn: (body: UserUpdateInput) => patchUserMe(getToken, body),
+        mutationFn: (body: UserUpdateInput) => patchUserMe(() => getToken({ template: NATIVE_JWT_TEMPLATE }), body),
         onSuccess: () => qc.invalidateQueries({ queryKey: PROFILE_KEY }),
     });
 }
@@ -35,7 +38,7 @@ export function useDeleteAccount() {
 
     return useMutation({
         mutationFn: async () => {
-            await deleteUserMe(getToken);
+            await deleteUserMe(() => getToken({ template: NATIVE_JWT_TEMPLATE }));
             await signOut();
         },
     });

@@ -141,6 +141,22 @@ export function buildTransitionAzpPattern(baseDomain: string): RegExp {
 }
 
 /**
+ * The positive native-client signal for admitting an `azp`-less token in pattern mode: the token carries
+ * `client_type: 'native'`, a claim minted ONLY by the mobile app's dedicated Clerk JWT template
+ * (`commise-native`). Web session tokens never set it AND always carry an `azp`, so this gate is never
+ * even consulted for them (see {@link assertAzpMatchesPattern} — a present `azp` short-circuits to the
+ * pattern check). Keying on this explicit claim — never on `azp`-absence alone — is the security
+ * requirement: a token is admitted because it PROVES it is native, not merely because it lacks an origin.
+ * Pure.
+ *
+ * @param payload - The verified token payload.
+ * @returns `true` when `client_type` is exactly the string `'native'`.
+ */
+export function isNativeClientToken(payload: Readonly<Record<string, unknown>>): boolean {
+    return payload['client_type'] === 'native';
+}
+
+/**
  * Whether exactly one `azp` enforcement mode is selected — an exact-match list XOR a preview pattern.
  * `false` when BOTH are set (ambiguous) or NEITHER is (fail-open: `verifyToken` would skip the `azp`
  * check entirely). A service's config validation uses this to fail closed on deployed stages. Pure.
@@ -166,6 +182,13 @@ export function resolveAzpEnforcement(input: {
      */
     readonly previewMode?: string;
     readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
+    /**
+     * Convenience for the common case: when `true` (and no explicit {@link admitAzplessToken} is given),
+     * wire the shared {@link isNativeClientToken} gate so pattern mode admits azp-less native-app tokens
+     * (`client_type: 'native'`). Services set this from an env flag so the security signal lives once here,
+     * not copied per service. An explicit `admitAzplessToken` still wins. Ignored in list mode.
+     */
+    readonly admitNativeClient?: boolean;
 }): Pick<ClerkVerifyConfig, 'authorizedParties' | 'authorizedPartyPattern' | 'admitAzplessToken'> {
     const authorizedParties = (input.authorizedPartiesRaw ?? '')
         .split(',')
@@ -182,7 +205,9 @@ export function resolveAzpEnforcement(input: {
         return {
             authorizedParties,
             authorizedPartyPattern,
-            admitAzplessToken: input.admitAzplessToken,
+            // An explicit gate wins; otherwise the `admitNativeClient` flag wires the shared native gate.
+            admitAzplessToken:
+                input.admitAzplessToken ?? (input.admitNativeClient === true ? isNativeClientToken : undefined),
         };
     }
 

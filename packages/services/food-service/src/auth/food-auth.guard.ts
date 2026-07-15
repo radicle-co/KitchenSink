@@ -86,6 +86,11 @@ export class FoodAuthGuard implements NestMiddleware {
             // Cutover selector (ADR-0001): `transition` also admits the path-routed apex origin while the
             // shared sandbox migrates to per-PR subdomains; unset/anything-else stays strict (subdomain-only).
             previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
+            // Admit azp-less native-app tokens (`client_type: 'native'`) in pattern mode — the mobile app
+            // mints them via the `commise-native` Clerk JWT template (no browser origin ⇒ no `azp`). Gated
+            // by env so only stages fronting a native client enable it; the security signal lives once in
+            // clerk-verify's `isNativeClientToken`, never on azp-absence alone.
+            admitNativeClient: process.env['CLERK_ADMIT_NATIVE_CLIENT'] === 'true',
         });
         this.shedder = shedder;
     }

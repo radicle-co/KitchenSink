@@ -48,6 +48,14 @@ vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
 }));
 
+// react-native-safe-area-context ships RN-flavoured source vitest's transform chokes on, and jsdom has no
+// native safe-area provider. RecipesScreen reads useSafeAreaInsets for the status-bar inset; a zero-inset
+// stub renders it faithfully under test (the inset value is a device concern, not a navigation one).
+vi.mock('react-native-safe-area-context', () => ({
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+    SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
+}));
+
 const useRecipesMock = vi.mocked(useRecipes);
 const useRecipeMock = vi.mocked(useRecipe);
 

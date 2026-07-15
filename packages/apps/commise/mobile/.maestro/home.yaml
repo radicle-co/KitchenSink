@@ -1,0 +1,28 @@
+# Home widget-surface E2E (T104-e2e-mobile, US-000 / FR-046). Signs in and STAYS on the Home landing (via
+# the login core `auth/signin-home.yaml`, which does not cross into any feature surface), then verifies the
+# three things Home promises in v1: the recipe (recent-recipes) widget renders, the gated widgets (meal
+# plan / nutrition / resume-cooking, backed by the unbuilt 005–009) are ABSENT — not empty tiles — and the
+# recipe widget's "See all recipes" entry navigates into the recipes surface.
+
+appId: io.commise.mobile
+---
+# Sign in and land on the Home widget surface (asserts the "Welcome back, Chef!" greeting).
+- runFlow: auth/signin-home.yaml
+
+# The recipe (recent-recipes) widget renders on Home. The card title comes from the recipe feature's
+# `widgetTitle`; the wait absorbs the lazy widget-chunk load + the recipe-service fetch on first paint.
+- extendedWaitUntil:
+      visible: 'Recent recipes'
+      timeout: 40000
+
+# The gated widgets (005–009) are ABSENT in Home v1 — their feature packages don't exist, so they are never
+# registered and never rendered (not present-with-empty-state). Their mockup titles must NOT appear.
+- assertNotVisible: "This Week's Meals"
+- assertNotVisible: "Today's Nutrition"
+- assertNotVisible: 'Resume cooking'
+
+# Tapping the recipe widget's entry point navigates into the recipes surface.
+- tapOn: 'See all recipes'
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000

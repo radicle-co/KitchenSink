@@ -1,57 +1,24 @@
-# Reusable, idempotent sign-in sub-flow (Clerk email + password + new-device email code).
+# Reusable, idempotent sign-in sub-flow that lands on the RECIPES surface — the shape every recipe flow
+# expects. It wraps the login CORE (`signin-home.yaml`, which signs in and lands on the Home widget surface)
+# and then crosses into the recipes surface via the recipe widget's "See all recipes" entry.
 #
-# Launches the app and, ONLY IF the login screen is showing, signs in with the shared Clerk test user
-# (a `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no real
-# mailbox needed). When a persisted session already exists (`expo-secure-store` token cache), the login
-# screen is absent, the guarded block is skipped, and the flow falls straight through to the Home landing.
+# This split keeps "sign in" (→ Home, the real post-login landing, T104-mobile) separate from "navigate to a
+# feature". The recipe flows `runFlow: ../auth/signin.yaml` as their first step and then
+# `assertVisible: 'Recipes'` — so they keep working unchanged. A Home-surface E2E instead uses the core
+# `signin-home.yaml` directly, so it stays on Home.
 #
-# Post-login landing is now the Home widget surface (T104-mobile), NOT the recipe list. To keep every
-# consumer of this shared sub-flow working unchanged, this sub-flow asserts the Home greeting and then
-# crosses into the recipes surface via the recipe widget's "See all recipes" entry — so callers that
-# `runFlow: signin.yaml` and then `assertVisible: 'Recipes'` still land on the recipe list.
-#
-# The recipe flows `runFlow: ../auth/signin.yaml` as their first step instead of `launchApp`, so each is
-# self-contained and order-independent (no reliance on a separate login flow having run first). The login
-# form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (greeting
-# "Welcome back, Chef!"). Credentials mirror the web Playwright suite's TEST_USER_* (cross-platform parity).
+# The login form lives in mobile/src/screens/login.tsx. Credentials mirror the web Playwright suite's
+# TEST_USER_* (cross-platform parity).
 
 appId: io.commise.mobile
 ---
-- launchApp
-
-# Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
-- runFlow:
-      when:
-          visible: 'Sign in'
-      commands:
-          - tapOn: 'Email'
-          - inputText: 'commise-e2e-signin+clerk_test@example.com'
-          - tapOn: 'Password'
-          - inputText: 'Commise-e2e-Test-9j2xQ!'
-          - hideKeyboard
-          - tapOn: 'Sign in'
-          # New-device verification: this Clerk instance requires an email code after the password factor
-          # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new
-          # device. `+clerk_test` magic emails accept the fixed code 424242 — no real mailbox needed.
-          - extendedWaitUntil:
-                visible: 'Verification code'
-                timeout: 15000
-          - tapOn: 'Verification code'
-          - inputText: '424242'
-          - hideKeyboard
-          - tapOn: 'Verify'
-
-# The authenticated landing: HomeScreen renders the "Welcome back, Chef!" greeting header. The wait is
-# generous because completing sign-in (Clerk `setActive`) re-renders through the auth gate before Home
-# paints — a chain that is slow under the Metro dev bundler on first paint.
-- extendedWaitUntil:
-      visible: 'Welcome back, Chef!'
-      timeout: 40000
+# Sign in and land on Home (idempotent — skips the login form when a session is already persisted).
+- runFlow: signin-home.yaml
 
 # Cross from Home into the recipes surface via the recipe widget's "See all recipes" entry (accessibility
-# label from the mobile i18n `home.seeAllRecipes`). This is done here — in the shared sub-flow — because
-# EVERY consumer (the login-chrome flow + all five recipe flows) wants the recipe list next, so each can
-# keep its existing `assertVisible: 'Recipes'` with no per-flow change.
+# label from the mobile i18n `home.seeAllRecipes`). Done here, in the shared sub-flow, because EVERY consumer
+# (the login-chrome flow + all five recipe flows) wants the recipe list next, so each keeps its existing
+# `assertVisible: 'Recipes'` with no per-flow change.
 - tapOn: 'See all recipes'
 
 # The recipes surface: RecipesScreen renders the "Recipes" list heading (it then fetches from the recipe

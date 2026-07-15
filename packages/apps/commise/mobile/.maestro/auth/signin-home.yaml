@@ -1,0 +1,47 @@
+# Reusable, idempotent sign-in CORE sub-flow: launches the app, signs in if needed, and lands on the Home
+# widget surface (the real post-login landing, T104-mobile) — it does NOT cross into any feature surface.
+#
+# Launches the app and, ONLY IF the login screen is showing, signs in with the shared Clerk test user
+# (a `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no real
+# mailbox needed). When a persisted session already exists (`expo-secure-store` token cache), the login
+# screen is absent, the guarded block is skipped, and the flow falls straight through to the Home landing.
+#
+# Consumers that want the Home surface (`home.yaml`) use THIS core. Consumers that want the recipes list
+# (`signin.yaml` and, through it, the recipe flows) wrap this core and then cross into recipes — so "sign
+# in" and "navigate to a feature" stay separate concerns.
+#
+# The login form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (greeting
+# "Welcome back, Chef!"). Credentials mirror the web Playwright suite's TEST_USER_* (cross-platform parity).
+
+appId: io.commise.mobile
+---
+- launchApp
+
+# Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
+- runFlow:
+      when:
+          visible: 'Sign in'
+      commands:
+          - tapOn: 'Email'
+          - inputText: 'commise-e2e-signin+clerk_test@example.com'
+          - tapOn: 'Password'
+          - inputText: 'Commise-e2e-Test-9j2xQ!'
+          - hideKeyboard
+          - tapOn: 'Sign in'
+          # New-device verification: this Clerk instance requires an email code after the password factor
+          # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new
+          # device. `+clerk_test` magic emails accept the fixed code 424242 — no real mailbox needed.
+          - extendedWaitUntil:
+                visible: 'Verification code'
+                timeout: 15000
+          - tapOn: 'Verification code'
+          - inputText: '424242'
+          - hideKeyboard
+          - tapOn: 'Verify'
+
+# The authenticated landing: HomeScreen renders the "Welcome back, Chef!" greeting header. The wait is
+# generous because completing sign-in (Clerk `setActive`) re-renders through the auth gate before Home
+# paints — a chain that is slow under the Metro dev bundler on first paint.
+- extendedWaitUntil:
+      visible: 'Welcome back, Chef!'
+      timeout: 40000

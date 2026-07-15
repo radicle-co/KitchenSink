@@ -209,7 +209,7 @@ A feature is **not done** until every category its code touches has all the requ
 ### Integration Tests
 
 - [x] T051 [US2] Add integration test for clone visibility + attribution + substantive-edit unlock rules in `packages/services/recipe-service/__tests__/integration/recipes/clone-visibility.integration.spec.ts`
-- [ ] T103 [US2] Add integration test for collection cloning (public collection clone excludes private recipes) in `packages/services/recipe-service/__tests__/integration/collections/clone-collection.integration.spec.ts`
+- [x] T103 [US2] Add integration test for collection cloning (public collection clone excludes private recipes) in `packages/services/recipe-service/__tests__/integration/collections/clone-collection.integration.spec.ts`
 
 **Checkpoint**: US2 sharing and cloning behavior is independently functional and policy-compliant.
 
@@ -233,11 +233,11 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Collection Clone & Pull-from-Source (FR-011)
 
-- [ ] T127-test Write unit tests for collection clone service (creates new collection with `source_collection_id`, copies memberships with `added_via=clone_seed`, owner reassignment) in `packages/services/recipe-service/src/collections/__tests__/clone-collection.service.test.ts`
-- [ ] T128-test Write unit tests for pull-from-source service (additive only, `added_via=pull`, no-op when no new recipes, 400 when collection has no source) in `packages/services/recipe-service/src/collections/__tests__/pull-from-source.service.test.ts`
-- [ ] T127 [US2] Implement `cloneCollection` and `pullFromSource` in `packages/services/recipe-service/src/collections/collections.service.ts`
-- [ ] T128 [US2] Add `CloneCollectionRequest` DTO + controller endpoints `POST /v1/collections/{id}/clone` and `POST /v1/collections/{id}/pull-from-source` in `packages/services/recipe-service/src/collections/{dto/clone-collection.dto.ts,collections.controller.ts}`
-- [ ] T129 [US2] Update existing T103 collection-clone integration test to assert `source_collection_id` and `added_via=clone_seed` are set, and add a follow-up `pull-from-source` integration test in `packages/services/recipe-service/__tests__/integration/collections/pull-from-source.integration.spec.ts`
+- [x] T127-test Write unit tests for collection clone service (creates new collection with `source_collection_id`, copies memberships with `added_via=clone_seed`, owner reassignment) in `packages/services/recipe-service/src/collections/__tests__/clone-collection.service.test.ts`
+- [x] T128-test Write unit tests for pull-from-source service (additive only, `added_via=pull`, no-op when no new recipes, 400 when collection has no source) in `packages/services/recipe-service/src/collections/__tests__/pull-from-source.service.test.ts`
+- [x] T127 [US2] Implement `cloneCollection` and `pullFromSource` in `packages/services/recipe-service/src/collections/collections.service.ts`
+- [x] T128 [US2] Add `CloneCollectionRequest` DTO + controller endpoints `POST /v1/collections/{id}/clone` and `POST /v1/collections/{id}/pull-from-source` in `packages/services/recipe-service/src/collections/{dto/clone-collection.dto.ts,collections.controller.ts}`
+- [x] T129 [US2] Update existing T103 collection-clone integration test to assert `source_collection_id` and `added_via=clone_seed` are set, and add a follow-up `pull-from-source` integration test in `packages/services/recipe-service/__tests__/integration/collections/pull-from-source.integration.spec.ts`
 
 ### Async Version Archive Worker (FR-007b-i)
 

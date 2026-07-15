@@ -17,6 +17,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 
 import { mobileMessages } from '../i18n/messages.js';
 import { CollectionDetailScreen } from './CollectionDetailScreen.js';
@@ -63,17 +64,22 @@ function TabBar({
 
     return (
         <View accessibilityRole="tablist" style={styles.tabBar}>
-            {TAB_IDS.map((tab) => (
-                <Pressable
-                    key={tab}
-                    accessibilityRole="tab"
-                    accessibilityLabel={labels[tab]}
-                    accessibilityState={{ selected: tab === current }}
-                    onPress={() => onSelect(tab)}
-                >
-                    <Text>{labels[tab]}</Text>
-                </Pressable>
-            ))}
+            {TAB_IDS.map((tab) => {
+                const selected = tab === current;
+
+                return (
+                    <Pressable
+                        key={tab}
+                        accessibilityRole="tab"
+                        accessibilityLabel={labels[tab]}
+                        accessibilityState={{ selected }}
+                        onPress={() => onSelect(tab)}
+                        style={[styles.tab, selected && styles.tabSelected]}
+                    >
+                        <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{labels[tab]}</Text>
+                    </Pressable>
+                );
+            })}
         </View>
     );
 }
@@ -192,6 +198,17 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    tabBar: { flexDirection: 'row' },
+    container: { flex: 1, backgroundColor: palette.sand },
+    tabBar: {
+        flexDirection: 'row',
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(178, 190, 195, 0.3)',
+    },
+    tab: { paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tabSelected: { borderBottomColor: palette.seafoam },
+    tabLabel: { fontSize: 15, fontWeight: '500', color: palette.slate },
+    tabLabelSelected: { color: palette.seafoam, fontWeight: '600' },
 });

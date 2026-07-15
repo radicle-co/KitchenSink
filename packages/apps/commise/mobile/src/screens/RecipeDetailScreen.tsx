@@ -19,6 +19,7 @@ import {
     RecipeVisibilityToggle,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import {
     useCloneRecipe,
     useDeleteRecipe,
@@ -73,8 +74,13 @@ export function RecipeDetailScreen({
 
     const back =
         onBack !== undefined ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onBack}>
-                <Text>{t.back}</Text>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t.back}
+                onPress={onBack}
+                style={styles.backButton}
+            >
+                <Text style={styles.backLabel}>{t.back}</Text>
             </Pressable>
         ) : null;
 
@@ -109,20 +115,22 @@ export function RecipeDetailScreen({
             <RecipeDetailView recipe={recipe} />
 
             {isOwner && (
-                <View>
+                <View style={styles.ownerActions}>
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={t.editAction}
                         onPress={() => onEdit?.(recipeId)}
+                        style={styles.primaryAction}
                     >
-                        <Text>{t.editAction}</Text>
+                        <Text style={styles.primaryActionLabel}>{t.editAction}</Text>
                     </Pressable>
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={t.versionsAction}
                         onPress={() => onViewVersions?.(recipeId)}
+                        style={styles.secondaryAction}
                     >
-                        <Text>{t.versionsAction}</Text>
+                        <Text style={styles.secondaryActionLabel}>{t.versionsAction}</Text>
                     </Pressable>
                     <RecipeVisibilityToggle
                         visibility={recipe.visibility}
@@ -134,8 +142,9 @@ export function RecipeDetailScreen({
                         accessibilityRole="button"
                         accessibilityLabel={t.deleteAction}
                         onPress={() => setDeleteOpen(true)}
+                        style={styles.deleteAction}
                     >
-                        <Text>{t.deleteAction}</Text>
+                        <Text style={styles.deleteActionLabel}>{t.deleteAction}</Text>
                     </Pressable>
                     <RecipeDeleteDialog
                         recipeTitle={recipe.title}
@@ -160,6 +169,28 @@ export function RecipeDetailScreen({
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: palette.sand },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
+    backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 15 },
+    ownerActions: { gap: 12, paddingHorizontal: 16, paddingBottom: 24 },
+    primaryAction: {
+        alignSelf: 'flex-start',
+        backgroundColor: palette.seafoam,
+        borderRadius: 999,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+    },
+    primaryActionLabel: { color: palette.white, fontWeight: '600', fontSize: 15 },
+    secondaryAction: {
+        alignSelf: 'flex-start',
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: palette.seafoam,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+    },
+    secondaryActionLabel: { color: palette.seafoam, fontWeight: '600', fontSize: 14 },
+    deleteAction: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 8 },
+    deleteActionLabel: { color: palette.error, fontWeight: '600', fontSize: 14 },
 });

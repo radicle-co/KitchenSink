@@ -54,6 +54,26 @@ export interface CollectionWithRecipesResponse extends CollectionResponse {
     readonly recipes: Recipe[];
 }
 
+/**
+ * The `PullFromSourceResponse` wire schema — the result of an opt-in pull-from-source (FR-011).
+ *
+ * Shape is fixed by `contracts/api.openapi.yaml` (`required: [collection, addedRecipeIds]`), so it
+ * returns the resulting collection plus exactly which recipes this pull added — an empty
+ * `addedRecipeIds` is the ordinary "source had nothing new" outcome, not an error. There is
+ * deliberately no `removed` field: a pull is additive, and recipes the caller can no longer access are
+ * filtered at read time rather than deleted here.
+ */
+export interface PullFromSourceResult {
+    readonly collection: CollectionResponse;
+    readonly addedRecipeIds: string[];
+}
+
+/** Optional overrides for a clone's own name/description (`CloneCollectionRequest`, FR-011). */
+export interface CloneCollectionInput {
+    readonly name?: string;
+    readonly description?: string;
+}
+
 /** The `CollectionRecipeMembership` wire schema returned when a recipe is added to a collection. */
 export interface CollectionRecipeMembershipResponse {
     readonly collectionId: string;

@@ -29,6 +29,7 @@ import type { AuthenticatedRequest, Principal } from '../auth/principal.js';
 import { CollectionsService } from './collections.service.js';
 import {
     addRecipeSchema,
+    cloneCollectionSchema,
     createCollectionSchema,
     pageQuerySchema,
     updateCollectionSchema,
@@ -37,6 +38,7 @@ import type {
     CollectionRecipeMembershipResponse,
     CollectionResponse,
     CollectionWithRecipesResponse,
+    PullFromSourceResult,
 } from './collections.types.js';
 
 /** Validate `input` with `schema`, throwing a 400 `BadRequestException` on failure. */
@@ -119,6 +121,41 @@ export class CollectionsController {
         const { recipeId } = parseOrThrow(addRecipeSchema, body);
 
         return this.collections.addRecipe(owner.userId, id, recipeId);
+    }
+
+    /**
+     * Clone a collection into the caller's account (FR-011) — 201 with the new collection.
+     *
+     * The body is optional (`CloneCollectionRequest`: both fields optional), so a plain clone needs no
+     * payload; when present it overrides the clone's own name/description.
+     */
+    @Post(':id/clone')
+    @HttpCode(201)
+    public async clone(
+        @Req() req: AuthenticatedRequest,
+        @Param('id') id: string,
+        @Body() body: unknown,
+    ): Promise<CollectionResponse> {
+        const owner = this.requirePrincipal(req);
+        // An absent body arrives as `{}` (or undefined) — both parse to "no overrides".
+        const overrides = parseOrThrow(cloneCollectionSchema, body ?? {});
+
+        return this.collections.cloneCollection(owner.userId, id, overrides);
+    }
+
+    /**
+     * Pull new recipes from a clone's source (FR-011) — 200 with the collection + the ids this pull
+     * added. Opt-in per invocation: nothing reconciles until the owner asks.
+     */
+    @Post(':id/pull-from-source')
+    @HttpCode(200)
+    public async pullFromSource(
+        @Req() req: AuthenticatedRequest,
+        @Param('id') id: string,
+    ): Promise<PullFromSourceResult> {
+        const owner = this.requirePrincipal(req);
+
+        return this.collections.pullFromSource(owner.userId, id);
     }
 
     /** Remove a recipe from an owned collection. */

@@ -23,6 +23,8 @@ function makeService(): ServiceMock {
         deleteCollection: vi.fn(),
         addRecipe: vi.fn(),
         removeRecipe: vi.fn(),
+        cloneCollection: vi.fn(),
+        pullFromSource: vi.fn(),
     };
 }
 

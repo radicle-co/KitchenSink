@@ -30,3 +30,18 @@ export const invalidVisibilityError = (visibility: string): RecipeDomainError =>
     new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, `Invalid collection visibility: ${visibility}`, {
         visibility,
     });
+
+/**
+ * A pull-from-source was requested for a collection that has no source to pull FROM (→ 400).
+ *
+ * Either it was authored directly (never cloned), or its `source_collection_id` was orphaned when the
+ * source was deleted (`ON DELETE SET NULL`, T119). Both are a client asking for something this
+ * collection cannot do, so they surface as a distinguishable 400 rather than a silent no-op — a no-op
+ * would be indistinguishable from "pulled, nothing new" and hide the misuse (FR-011).
+ */
+export const collectionNotClonedError = (collectionId: string): RecipeDomainError =>
+    new RecipeDomainError(
+        RecipeErrorCode.COLLECTION_NOT_CLONED,
+        'This collection was not cloned from a source, so there is nothing to pull from.',
+        { collectionId },
+    );

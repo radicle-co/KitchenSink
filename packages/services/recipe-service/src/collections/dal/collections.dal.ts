@@ -33,6 +33,12 @@ export interface CreateCollectionRow {
     readonly name: string;
     readonly description?: string;
     readonly visibility: string;
+    /**
+     * Clone provenance (FR-011): the collection this one was cloned FROM, or absent/null for an
+     * originally-authored collection. A single hop — cloning a clone points at that clone, not its
+     * ancestor.
+     */
+    readonly sourceCollectionId?: string | null;
 }
 
 /** Partial patch for updating a collection. Absent fields are left untouched. */
@@ -61,6 +67,7 @@ export class CollectionsDal {
                 name: input.name,
                 description: input.description ?? null,
                 visibility: input.visibility,
+                sourceCollectionId: input.sourceCollectionId ?? null,
             })
             .returning();
 

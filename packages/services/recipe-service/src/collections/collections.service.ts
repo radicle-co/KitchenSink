@@ -27,13 +27,20 @@ import {
 import type { RecipeRow } from '../database/schema/recipes.js';
 import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
-import { collectionNotOwnedError, invalidVisibilityError, recipeNotFoundError } from './collections.errors.js';
+import {
+    collectionNotClonedError,
+    collectionNotOwnedError,
+    invalidVisibilityError,
+    recipeNotFoundError,
+} from './collections.errors.js';
 import type {
+    CloneCollectionInput,
     CollectionRecipeMembershipResponse,
     CollectionResponse,
     CollectionWithRecipesResponse,
     CreateCollectionInput,
     PageParams,
+    PullFromSourceResult,
     UpdateCollectionInput,
 } from './collections.types.js';
 
@@ -205,6 +212,116 @@ export class CollectionsService {
     public async removeRecipe(ownerId: string, collectionId: string, recipeId: string): Promise<void> {
         await this.requireOwned(ownerId, collectionId);
         await this.dal.removeRecipe(collectionId, recipeId);
+    }
+
+    /**
+     * Clone a collection into the caller's account as a point-in-time snapshot (FR-011).
+     *
+     * The seed set is read through the CLONER's eyes — `listRecipes(sourceId, clonerId)` scopes to
+     * `public OR owner_id = cloner`, so private recipes the cloner cannot access are excluded exactly
+     * as FR-011 requires. Passing the source's owner as the viewer here would leak their private
+     * recipes into a stranger's collection, so the cloner is the viewer, always.
+     *
+     * The clone is fully the cloner's: their ownership, `private` by default (FR-010 — a clone of a
+     * public collection is not itself published), and no listener links it back to the source. Later
+     * source edits reach it only through an explicit {@link pullFromSource}.
+     *
+     * @param clonerId - The app-user ULID performing the clone; becomes the clone's owner.
+     * @param sourceId - The collection being cloned.
+     * @param overrides - Optional `name` / `description` for the clone (`CloneCollectionRequest`);
+     *   absent fields inherit the source's, so a plain clone needs no body at all.
+     * @returns The new collection.
+     * @throws NotFoundException when the source is missing, or is private and not the caller's own — a
+     *   private collection is not discoverable, so its existence is never revealed.
+     * @sideEffect Inserts a `collections` row plus one `recipe_collections` row per seeded recipe.
+     */
+    public async cloneCollection(
+        clonerId: string,
+        sourceId: string,
+        overrides: CloneCollectionInput = {},
+    ): Promise<CollectionResponse> {
+        const source = await this.dal.findById(sourceId);
+
+        // 404 (not 403) for someone else's private collection: FR-011 clones PUBLIC collections, and a
+        // private one must not even be revealed to exist.
+        if (!source || (source.visibility !== 'public' && source.ownerId !== clonerId)) {
+            throw new NotFoundException('Collection not found');
+        }
+
+        const seedRecipes = await this.dal.listRecipes(sourceId, clonerId);
+
+        const clone = await this.dal.create({
+            ownerId: clonerId,
+            name: overrides.name ?? source.name,
+            description: overrides.description ?? source.description ?? undefined,
+            // A clone starts private regardless of the source's visibility — publishing is the
+            // cloner's own, separate decision (FR-010).
+            visibility: 'private',
+            sourceCollectionId: sourceId,
+        });
+
+        for (const recipe of seedRecipes) {
+            await this.dal.addRecipe(clone.id, recipe.id, RecipeCollectionAddedVia.CLONE_SEED);
+        }
+
+        return toCollectionResponse(clone, seedRecipes.length);
+    }
+
+    /**
+     * Reconcile a clone with its source's current state — opt-in, per invocation (FR-011).
+     *
+     * **Additive by design.** New source recipes the caller can see arrive as `added_via = 'pull'`.
+     * Recipes the SOURCE owner has since removed from the source are left in place: the clone is the
+     * cloner's property and source curation does not reach into it (data-model.md §Clone semantics).
+     * Recipes already present are skipped, so a recipe the cloner added themselves keeps its `manual`
+     * provenance and is never overwritten (FR-011).
+     *
+     * FR-011 also says a pull removes "recipes the cloner can no longer access". That need is already
+     * met, continuously and without a pull: `listRecipes` filters every membership read by
+     * `visibility = 'public' OR owner_id = viewer`, so a recipe that goes private vanishes from the
+     * clone on the next read. Deleting those rows here would be strictly worse — irreversible, and a
+     * recipe restored to public could never return.
+     *
+     * @param ownerId - The app-user ULID of the clone's owner.
+     * @param collectionId - The clone to reconcile.
+     * @returns The resulting collection plus the recipe ids this pull added (empty when the source has
+     *   nothing new) — the `PullFromSourceResponse` shape fixed by `contracts/api.openapi.yaml`.
+     * @throws NotFoundException when the collection is missing; NOT_OWNER (403) when not the caller's;
+     *   COLLECTION_NOT_CLONED (400) when it has no source, or its source no longer exists.
+     * @sideEffect Inserts `recipe_collections` rows for newly-pulled recipes.
+     */
+    public async pullFromSource(ownerId: string, collectionId: string): Promise<PullFromSourceResult> {
+        const collection = await this.requireOwned(ownerId, collectionId);
+
+        if (!collection.sourceCollectionId) {
+            throw collectionNotClonedError(collectionId);
+        }
+
+        // The pointer is ON DELETE SET NULL, but a clone read mid-delete can still carry a stale one —
+        // treat a vanished source as "nothing to pull from" rather than dereferencing it.
+        const source = await this.dal.findById(collection.sourceCollectionId);
+
+        if (!source) {
+            throw collectionNotClonedError(collectionId);
+        }
+
+        // Both reads are viewer-scoped to the CLONER — same access rule as clone time.
+        const [current, fromSource] = await Promise.all([
+            this.dal.listRecipes(collectionId, ownerId),
+            this.dal.listRecipes(collection.sourceCollectionId, ownerId),
+        ]);
+
+        const present = new Set(current.map((recipe) => recipe.id));
+        const incoming = fromSource.filter((recipe) => !present.has(recipe.id));
+
+        for (const recipe of incoming) {
+            await this.dal.addRecipe(collectionId, recipe.id, RecipeCollectionAddedVia.PULL);
+        }
+
+        return {
+            collection: toCollectionResponse(collection, current.length + incoming.length),
+            addedRecipeIds: incoming.map((recipe) => recipe.id),
+        };
     }
 
     /** Resolve a collection and assert the caller owns it; 404 if missing, NOT_OWNER (403) if not owned. */

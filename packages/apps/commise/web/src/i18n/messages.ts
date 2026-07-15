@@ -14,9 +14,38 @@ export interface WebMessages {
         readonly welcome: string;
         readonly nav: {
             readonly label: string;
+            readonly recipes: string;
             readonly profile: string;
             readonly settings: string;
             readonly account: string;
+        };
+        /**
+         * Copy owned by the Home widget-surface host (US-000 / FR-046): the greeting header and the
+         * accessible name of the widget-surface region. The widgets localize their own content via their
+         * feature packages; these are the host-chrome strings.
+         */
+        readonly surface: {
+            /** Greeting shown above the widget grid. */
+            readonly greeting: string;
+            /** Accessible name of the widget-surface region (`role="region"`). */
+            readonly regionLabel: string;
+            /** Accessible label + text of the recipe widget's "see all" entry point into the recipes surface. */
+            readonly seeAllRecipes: string;
+        };
+        /**
+         * Copy for the once-per-session subscription upgrade nudge shown when a free-tier viewer taps a
+         * premium-gated entry point on Home (FR-046). The mechanism is host-owned; in v1 no live widget is
+         * premium-gated, so it ships ready for the first gated widget (005–009).
+         */
+        readonly nudge: {
+            /** Nudge heading. */
+            readonly title: string;
+            /** Nudge body copy. */
+            readonly body: string;
+            /** Label of the primary upgrade action. */
+            readonly upgrade: string;
+            /** Label of the dismiss action. */
+            readonly dismiss: string;
         };
     };
     /**
@@ -132,9 +161,21 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             welcome: 'Welcome to Commise',
             nav: {
                 label: 'Account',
+                recipes: 'Recipes',
                 profile: 'Profile',
                 settings: 'Settings',
                 account: 'Account',
+            },
+            surface: {
+                greeting: 'Welcome back, Chef!',
+                regionLabel: 'Home',
+                seeAllRecipes: 'See all recipes',
+            },
+            nudge: {
+                title: 'Unlock Commise Pro',
+                body: 'Upgrade to Commise Pro to use this feature.',
+                upgrade: 'See plans',
+                dismiss: 'Maybe later',
             },
         },
         recipes: {

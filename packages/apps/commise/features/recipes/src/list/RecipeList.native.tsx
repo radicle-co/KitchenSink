@@ -5,8 +5,9 @@
  * contract and the same four states (loading, error, empty, populated), rendered with RN primitives.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
@@ -47,8 +48,8 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     } else {
         const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
         body = (
-            <View>
-                <Text>{count}</Text>
+            <View style={styles.cards}>
+                <Text style={styles.count}>{count}</Text>
                 {recipes.map((recipe) => (
                     <RecipeListCard key={recipe.id} recipe={recipe} onSelect={onSelectRecipe} />
                 ))}
@@ -57,18 +58,54 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     }
 
     return (
-        <View accessibilityLabel={list.heading}>
-            <Text accessibilityRole="header">{list.heading}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={list.createCta} onPress={onCreateRecipe}>
-                <Text>{list.createCta}</Text>
-            </Pressable>
+        <View accessibilityLabel={list.heading} style={styles.container}>
+            <View style={styles.headerRow}>
+                <Text accessibilityRole="header" style={styles.heading}>
+                    {list.heading}
+                </Text>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={list.createCta}
+                    onPress={onCreateRecipe}
+                    style={styles.createButton}
+                >
+                    <Text style={styles.createLabel}>{list.createCta}</Text>
+                </Pressable>
+            </View>
             <TextInput
                 accessibilityLabel={list.searchLabel}
                 placeholder={list.searchPlaceholder}
+                placeholderTextColor={palette.mist}
                 value={searchValue}
                 onChangeText={onSearchChange}
+                style={styles.search}
             />
             {body}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { flex: 1, gap: 16, paddingHorizontal: 16, paddingTop: 8 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    createButton: {
+        backgroundColor: palette.seafoam,
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
+    },
+    createLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    search: {
+        backgroundColor: palette.white,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        fontSize: 16,
+        color: palette.charcoal,
+    },
+    count: { fontSize: 13, fontWeight: '500', color: palette.slate },
+    cards: { gap: 12 },
+});

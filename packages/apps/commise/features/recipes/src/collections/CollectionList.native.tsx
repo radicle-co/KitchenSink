@@ -6,8 +6,9 @@
  * primitives.
  */
 import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { collectionMessages } from './messages.js';
 import type { CollectionListViewProps } from './model.js';
@@ -37,32 +38,60 @@ export const CollectionList: FC<CollectionListViewProps> = ({ status, collection
         );
     } else {
         body = (
-            <View>
+            <View style={styles.cards}>
                 {collections.map((collection) => (
-                    <View key={collection.id}>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={collection.name}
-                            onPress={() => onSelect(collection.id)}
-                        >
-                            <Text>{collection.name}</Text>
-                        </Pressable>
+                    <Pressable
+                        key={collection.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={collection.name}
+                        onPress={() => onSelect(collection.id)}
+                        style={styles.card}
+                    >
+                        <Text style={styles.cardTitle}>{collection.name}</Text>
                         {collection.description !== undefined && collection.description.length > 0 && (
-                            <Text>{collection.description}</Text>
+                            <Text style={styles.cardDescription}>{collection.description}</Text>
                         )}
-                    </View>
+                    </Pressable>
                 ))}
             </View>
         );
     }
 
     return (
-        <View accessibilityLabel={list.heading}>
-            <Text accessibilityRole="header">{list.heading}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={list.createCta} onPress={onCreate}>
-                <Text>{list.createCta}</Text>
-            </Pressable>
+        <View accessibilityLabel={list.heading} style={styles.container}>
+            <View style={styles.headerRow}>
+                <Text accessibilityRole="header" style={styles.heading}>
+                    {list.heading}
+                </Text>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={list.createCta}
+                    onPress={onCreate}
+                    style={styles.createButton}
+                >
+                    <Text style={styles.createLabel}>{list.createCta}</Text>
+                </Pressable>
+            </View>
             {body}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { flex: 1, gap: 16, paddingHorizontal: 16, paddingTop: 8 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    createButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
+    createLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    cards: { gap: 12 },
+    card: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 18,
+        gap: 4,
+    },
+    cardTitle: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    cardDescription: { fontSize: 13, color: palette.slate },
+});

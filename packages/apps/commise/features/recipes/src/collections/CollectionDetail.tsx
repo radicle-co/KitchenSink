@@ -23,35 +23,57 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     const recipes = collection.recipes ?? [];
 
     return (
-        <section aria-label={collection.name}>
-            <header>
-                <h1>{collection.name}</h1>
+        <section aria-label={collection.name} className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
+            <header className="flex flex-col gap-3">
+                <h1 className="font-display text-display-md font-bold text-charcoal">{collection.name}</h1>
                 {collection.description !== undefined && collection.description.length > 0 && (
-                    <p>{collection.description}</p>
+                    <p className="text-body-lg text-slate">{collection.description}</p>
                 )}
-                <button type="button" onClick={onRename}>
-                    {detail.renameCta}
-                </button>
-                <button type="button" onClick={onDelete}>
-                    {detail.deleteCta}
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={onRename}
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+                    >
+                        {detail.renameCta}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onDelete}
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-error transition hover:bg-coral/10"
+                    >
+                        {detail.deleteCta}
+                    </button>
+                </div>
             </header>
 
-            <section aria-label={detail.membersHeading}>
-                <h2>{detail.membersHeading}</h2>
+            <section aria-label={detail.membersHeading} className="flex flex-col gap-3">
+                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{detail.membersHeading}</h2>
                 {recipes.length === 0 ? (
-                    <div>
-                        <p>{detail.emptyTitle}</p>
+                    <div className="rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm">
+                        <p className="font-medium text-charcoal">{detail.emptyTitle}</p>
                         <p>{detail.emptyBody}</p>
                     </div>
                 ) : (
-                    <ul>
+                    <ul className="flex flex-col gap-3">
                         {recipes.map((recipe) => (
-                            <li key={recipe.id}>
-                                <button type="button" onClick={() => onSelectRecipe(recipe.id)}>
+                            <li
+                                key={recipe.id}
+                                className="flex items-center justify-between gap-3 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => onSelectRecipe(recipe.id)}
+                                    aria-label={recipe.title}
+                                    className="font-display text-heading-md font-semibold text-charcoal transition-colors hover:text-seafoam"
+                                >
                                     {recipe.title}
                                 </button>
-                                <button type="button" onClick={() => onRemoveRecipe(recipe.id)}>
+                                <button
+                                    type="button"
+                                    onClick={() => onRemoveRecipe(recipe.id)}
+                                    className="rounded-full px-3 py-1 text-body-sm font-medium text-error transition hover:bg-coral/10"
+                                >
                                     {fillTemplate(detail.removeRecipe, { title: recipe.title })}
                                 </button>
                             </li>

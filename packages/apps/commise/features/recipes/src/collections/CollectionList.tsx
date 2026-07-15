@@ -45,15 +45,22 @@ export const CollectionList: FC<CollectionListViewProps> = ({ status, collection
         );
     } else {
         body = (
-            <ul>
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {collections.map((collection) => (
-                    <li key={collection.id}>
-                        <button type="button" onClick={() => onSelect(collection.id)}>
-                            {collection.name}
+                    <li key={collection.id} className="group">
+                        <button
+                            type="button"
+                            onClick={() => onSelect(collection.id)}
+                            aria-label={collection.name}
+                            className="flex w-full flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                            <span className="font-display text-heading-md font-semibold text-charcoal transition-colors group-hover:text-seafoam">
+                                {collection.name}
+                            </span>
+                            {collection.description !== undefined && collection.description.length > 0 && (
+                                <span className="text-body-sm text-slate">{collection.description}</span>
+                            )}
                         </button>
-                        {collection.description !== undefined && collection.description.length > 0 && (
-                            <p>{collection.description}</p>
-                        )}
                     </li>
                 ))}
             </ul>
@@ -61,10 +68,14 @@ export const CollectionList: FC<CollectionListViewProps> = ({ status, collection
     }
 
     return (
-        <section aria-label={list.heading}>
-            <header>
-                <h1>{list.heading}</h1>
-                <button type="button" onClick={onCreate}>
+        <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+            <header className="flex items-center justify-between gap-4">
+                <h1 className="font-display text-display-md font-bold text-charcoal">{list.heading}</h1>
+                <button
+                    type="button"
+                    onClick={onCreate}
+                    className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
+                >
                     {list.createCta}
                 </button>
             </header>

@@ -225,11 +225,11 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Recipe Soft-Delete (C-007)
 
-- [ ] T123-test Write unit tests for recipe DAL soft-delete (sets `deleted_at`, list/find/search exclude tombstones, owner can still see version history) in `packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts`
+- [x] T123-test Write unit tests for recipe DAL soft-delete (sets `deleted_at`; find/list/update/setVisibility exclude tombstones; re-delete is idempotent) in `packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts`. **Corrected 2026-07-15**: the original text also said "owner can still see version history" — that contradicts FR-002 ("no longer accessible via normal APIs") and was NOT implemented. `VersionsService.list` gates on `RecipesService.getById`, so a tombstoned recipe 404s its version history; C-007 retention means the rows SURVIVE for erasure/S3, not that they stay reachable. Search/collection tombstone exclusion is owned by T124/T125's own DAL specs and is not duplicated here.
 - [x] T123 Update recipe DAL to soft-delete (UPDATE … SET deleted_at = now()) and add `WHERE deleted_at IS NULL` filter to all read queries in `packages/services/recipe-service/src/recipes/dal/recipes.dal.ts`
 - [x] T124 Update search DAL to exclude tombstoned recipes (`WHERE deleted_at IS NULL`) in `packages/services/recipe-service/src/search/dal/search.dal.ts`
 - [x] T125 Update collections DAL to exclude tombstoned recipes from membership list responses in `packages/services/recipe-service/src/collections/dal/collections.dal.ts`
-- [ ] T126 [US1] Add integration test asserting `DELETE /v1/recipes/{id}` returns 204, row remains with `deleted_at` set, and recipe is excluded from list/search/get/collection responses in `packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.spec.ts`
+- [x] T126 [US1] Add integration test asserting `DELETE /v1/recipes/{id}` returns 204, row remains with `deleted_at` set, and recipe is excluded from list/search/get/collection responses in `packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.spec.ts`. Covers the previously-unpinned C-007 retention guarantee (the row SURVIVES — a hard `DELETE FROM recipes` passed the whole suite before this) plus owner-list exclusion and idempotent re-delete. The search / collection / GET-404 clauses were already owned by `search/search.integration.spec.ts`, `collections/crud.integration.spec.ts`, and `recipes/crud.integration.spec.ts` respectively, so they are referenced rather than duplicated.
 
 ### Collection Clone & Pull-from-Source (FR-011)
 

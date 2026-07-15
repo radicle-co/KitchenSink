@@ -72,55 +72,77 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
     };
 
     return (
-        <section aria-label={picker.regionLabel}>
+        <section aria-label={picker.regionLabel} className="flex flex-col gap-2">
             <input
                 type="search"
                 aria-label={picker.searchLabel}
                 placeholder={picker.searchPlaceholder}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
             />
 
             {trimmed.length > 0 && (
-                <div>
-                    {search.isLoading && <p role="status" aria-label={picker.searching} />}
+                <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
+                    {search.isLoading && (
+                        <p role="status" aria-label={picker.searching} className="px-2 py-1 text-body-sm text-slate" />
+                    )}
 
-                    {search.isError && <p role="alert">{picker.errorTitle}</p>}
+                    {search.isError && (
+                        <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                            {picker.errorTitle}
+                        </p>
+                    )}
 
-                    {search.isSuccess && results.length === 0 && <p>{picker.noMatches}</p>}
+                    {search.isSuccess && results.length === 0 && (
+                        <p className="px-2 py-1 text-body-sm text-slate">{picker.noMatches}</p>
+                    )}
 
                     {results.length > 0 && (
-                        <ul>
+                        <ul className="flex flex-col">
                             {results.map((ingredient) => (
-                                <li key={ingredient.id}>
-                                    <button type="button" onClick={() => resolve(ingredient)}>
+                                <li key={ingredient.id} className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => resolve(ingredient)}
+                                        className="flex-1 rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
+                                    >
                                         {ingredient.name}
                                     </button>
                                     {ingredient.foodResolutionStatus !== undefined && (
-                                        <span>
+                                        <span className="text-caption text-slate">
                                             {resolutionStatusLabel(formMessages, ingredient.foodResolutionStatus)}
                                         </span>
                                     )}
                                     {isTerminalStatus(ingredient.foodResolutionStatus) && (
-                                        <span role="note">{picker.terminalNotice}</span>
+                                        <span role="note" className="text-caption text-warning">
+                                            {picker.terminalNotice}
+                                        </span>
                                     )}
                                 </li>
                             ))}
                         </ul>
                     )}
 
-                    {createIngredient.isPending && <p role="status" aria-label={picker.creating} />}
+                    {createIngredient.isPending && (
+                        <p role="status" aria-label={picker.creating} className="px-2 py-1 text-body-sm text-slate" />
+                    )}
 
                     <button
                         type="button"
                         onClick={addFreeform}
                         disabled={createIngredient.isPending}
                         aria-busy={createIngredient.isPending}
+                        className="self-start rounded-full bg-seafoam/10 px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/20 disabled:opacity-60"
                     >
                         {fillTemplate(picker.addFreeform, { query: trimmed })}
                     </button>
 
-                    {createIngredient.isError && <p role="alert">{picker.createError}</p>}
+                    {createIngredient.isError && (
+                        <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                            {picker.createError}
+                        </p>
+                    )}
                 </div>
             )}
         </section>

@@ -133,13 +133,17 @@ export const scrubLog = <T extends ScrubbableLog>(log: T): T | null => {
 /**
  * Initialize Sentry for the mobile app. Inert when `EXPO_PUBLIC_SENTRY_DSN` is unset (local dev).
  *
+ * @returns `true` when Sentry was configured (a DSN was present), `false` when it stayed inert. The
+ *   caller uses this to decide whether to `Sentry.wrap` the root — wrapping without an initialized
+ *   client emits an "App Start Span could not be finished. `Sentry.wrap` was called before `Sentry.init`"
+ *   warning, so an un-initialized build should skip the wrap entirely.
  * @sideEffect configures the global Sentry client.
  */
-export const initSentry = (): void => {
+export const initSentry = (): boolean => {
     const dsn = process.env['EXPO_PUBLIC_SENTRY_DSN'];
 
     if (!dsn) {
-        return;
+        return false;
     }
 
     Sentry.init({
@@ -151,4 +155,6 @@ export const initSentry = (): void => {
         beforeSend: scrubEvent,
         beforeSendLog: scrubLog,
     });
+
+    return true;
 };

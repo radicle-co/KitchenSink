@@ -14,6 +14,7 @@
 import type { JSX } from 'react';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMessages } from '@commise/i18n/react';
 
@@ -83,6 +84,7 @@ function TabBar({
  * @returns The current screen, under the tab bar when it is a top-level destination.
  */
 export function RecipesScreen(): JSX.Element {
+    const insets = useSafeAreaInsets();
     const [stack, setStack] = useState<readonly Surface[]>([{ id: 'list' }]);
 
     const nav = useMemo(
@@ -98,16 +100,21 @@ export function RecipesScreen(): JSX.Element {
     const current = stack[stack.length - 1] ?? { id: 'list' };
     const screen = renderSurface(current, nav);
 
+    // Apply the top safe-area inset so the tab bar + screen headings clear the status bar (without it the
+    // top row renders UNDER the status bar — a visual defect, and the occluded nodes drop out of the
+    // accessibility hierarchy, which also makes them invisible to screen readers and to Maestro E2E).
+    const containerStyle = [styles.container, { paddingTop: insets.top }];
+
     if (isTab(current)) {
         return (
-            <View style={styles.container}>
+            <View style={containerStyle}>
                 <TabBar current={current.id} onSelect={nav.selectTab} />
                 {screen}
             </View>
         );
     }
 
-    return screen;
+    return <View style={containerStyle}>{screen}</View>;
 }
 
 /** Navigation intents handed to each screen (a tiny stack API — no library). */

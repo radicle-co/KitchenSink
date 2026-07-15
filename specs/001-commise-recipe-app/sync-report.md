@@ -33,7 +33,11 @@ Run #2's OPEN-CRITICAL was "core recipe data model and CRUD entirely absent." It
 
 US-1 (create/manage) core CRUD, versioning, conflict resolution, photos, and US-2 recipe clone/visibility are implemented on **both** web and mobile. The "implement under 001 directly" HITL decision (2026-06-02) has been executed.
 
-### DRIFT-007 (CRITICAL, Layer 6 — forward): US-000 Home widget-surface host not implemented
+### DRIFT-007 (CRITICAL, Layer 6 — forward): US-000 Home widget-surface host not implemented — **RESOLVED 2026-07-15**
+
+**Resolution:** the Home widget-surface host shipped on both platforms (T104-web `4eb432a`, T104-mobile `cfc06ff`, e2e `94a474b`/`543081e`). Web: `apps/commise/web/src/components/home/` (composition root + ditox appShell + `curateHomeWidgets` + `next/dynamic`+Suspense+error-boundary render + once-per-session nudge), rendered by `[locale]/page.tsx`. Mobile: `HomeScreen` + `components/home/` (React.lazy render, ScrollView, nudge Modal) as the post-login landing via a root navigator. Component tests (9 web + 9 mobile), Playwright `home.spec.ts`, and Maestro `home.yaml` cover recipe widget loading/empty/populated, gated-widget absence, skip-unknown-id, and nudge once-per-session. The original finding text is retained below for history.
+
+
 
 - **Story**: US-000 Post-Login Home Screen (Priority **P1**, Must Have) / FR-046.
 - **Evidence**: `packages/apps/commise/{web,mobile}/src/components/home/` do **not exist**; no `curateHomeWidgets` / `appShell` / `addFeature` composition root wired in either app. Tasks **T104-web, T104-mobile** and their test tasks (T104-test-web/mobile, T104-e2e-web/mobile) are open.

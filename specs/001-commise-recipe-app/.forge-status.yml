@@ -256,6 +256,30 @@ phases:
           paths:
               - packages/apps/commise/features/recipes/src/
               - packages/apps/commise/web/src/app/globals.css
+        # ── 2026-07-15 (Product Forge resume): closed DRIFT-007 from sync-verify run #3 — the US-000 Home
+        #    widget-surface HOST (T104 family) on both platforms. The widget contract + recipe widget were
+        #    already built (T104-shared/curate-test [x]); this is the composition-root host that was absent.
+        - id: 'T104 — Home widget-surface host (web + mobile) [US-000 / FR-046]'
+          part: >
+              Composition root on both platforms: ditox appShell container (discovery, v1 registers only the
+              recipe widget), curateHomeWidgets (capability + tier gating; gated widgets 005-009 ABSENT, not
+              empty tiles), render each curated widget via next/dynamic (web) / React.lazy (mobile) + Suspense
+              + per-widget react-error-boundary with unknown-id skip, recipe slot fed the widget's data
+              (web: recipesPromise; mobile: recipes+isLoading) and owning the "see all recipes" entry, and a
+              once-per-session subscription nudge + useHomeNudge trigger seam. Web renders from [locale]/page;
+              mobile HomeScreen is the post-login landing via a root navigator (Home↔Recipes). Resolves
+              DRIFT-007. Used core `ditox` (not @ditox/react — stale React≤17 peer range; the appShell
+              register/resolve fns are core-container based) — an intentional divergence from the task text.
+          size: L
+          status: done
+          tests: '9 web + 9 mobile component tests; Playwright home.spec.ts; Maestro home.yaml. Web 199 + mobile 112 suites green; typecheck + lint clean both apps.'
+          commits: 4eb432a, 94a474b, cfc06ff, 543081e
+          paths:
+              - packages/apps/commise/web/src/components/home/
+              - packages/apps/commise/web/src/app/[locale]/page.tsx
+              - packages/apps/commise/mobile/src/components/home/
+              - packages/apps/commise/mobile/src/screens/{HomeScreen,AppRoot}.tsx
+              - packages/apps/commise/mobile/.maestro/{home,auth/signin-home,auth/signin}.yaml
 
     code-review:
         state: not-applicable

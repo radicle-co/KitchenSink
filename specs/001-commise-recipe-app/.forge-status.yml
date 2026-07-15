@@ -1,6 +1,8 @@
 # Product Forge Lifecycle Status
 # Feature: 001-commise-recipe-app
-# Last updated: 2026-07-13 (Product Forge resume: task_log reconciled with the 2026-07-13 sessions)
+# Last updated: 2026-07-15 (Product Forge resume: task_log reconciled with the 2026-07-14/15 sessions —
+#   native-auth completion, recipe CORS, full local run of both apps + all test tiers, and the
+#   mockup design-language styling pass across the recipe UI)
 
 feature: 001-commise-recipe-app
 mode: retroactive-bootstrap
@@ -180,6 +182,80 @@ phases:
               - packages/services/recipe-service/src/common/throttle/throttle.config.ts
               - packages/apps/commise/mobile/.maestro/recipes/list-detail.yaml
               - .github/workflows/_ci.yml
+        # ── Reconciled 2026-07-15 (Product Forge resume): the 2026-07-14/15 sessions. These are
+        #    infra/integration/polish beyond the tasks.md ledger (the 66 open T-tasks — soft-delete,
+        #    collection clone/pull, version-archive worker, account erasure, some test-infra — are still
+        #    genuinely OPEN). Recorded here so the ledger reflects what actually shipped this session.
+        - id: 'native-auth (azp-less @clerk/expo tokens, end-to-end)'
+          part: >
+              clerk-verify isNativeClientToken + admitNativeClient; identity/recipe/food services wire
+              CLERK_ADMIT_NATIVE_CLIENT; mobile mints every backend token from the commise-native Clerk JWT
+              template; non-prod CDK sets the flag (prod byte-identical). Root-caused a real gap — native
+              auth was designed (clerk-verify test) but never wired, so mobile could not reach identity.
+          size: L
+          status: done
+          tests: 'clerk-verify 46; identity 107 / recipe 18 / food 19 auth; infra 22/11/44; verified locally end-to-end'
+          commits: e4fdf4d, af9eb89
+          paths:
+              - packages/shared/clerk-verify/src/clerkVerify.ts
+              - packages/services/{identity,recipe-service,food-service}/src/auth/
+              - packages/apps/commise/mobile/src/auth/nativeToken.ts
+        - id: 'recipe-service CORS'
+          part: >
+              enableCors reusing the Clerk authorized-parties allowlist (mirrors identity) — the recipe
+              service had NO CORS, which blocked the web app cross-origin in sandbox/prod (the web e2e
+              route-mocks hid it). No CDK change (reuses per-stage CLERK_AUTHORIZED_PARTIES).
+          size: S
+          status: done
+          tests: '3 cors unit; live web Playwright (E2E_LIVE_BACKEND) green cross-origin'
+          commit: 1bba364
+          paths:
+              - packages/services/recipe-service/src/main.ts
+              - packages/services/recipe-service/src/config/cors.ts
+        - id: 'mobile identity-URL split + first-run/safe-area/Sentry fixes'
+          part: >
+              EXPO_PUBLIC_IDENTITY_API_URL (identity is a separate origin from recipe); top safe-area inset
+              (content rendered under the status bar); Sentry.wrap gated on init; inert Clerk UI-loader
+              rejection suppressed; Expo 57 / RN 0.86 first-run bugs (Intl polyfill, Tamagui true token,
+              registerRootComponent, Metro NodeNext resolver).
+          size: M
+          status: done
+          tests: '73 native + 30 unit mobile green'
+          commits: a420b96, 4449512, e2b1122, c268f94, e625544
+          paths:
+              - packages/apps/commise/mobile/App.tsx
+              - packages/apps/commise/mobile/src/services/api.ts
+        - id: 'full local run — both apps + ALL test tiers + all 6 Maestro flows'
+          part: >
+              recipe-service local (Docker + Postgres + LocalStack, dev-bypass + seed); identity-local
+              (JWKS→PEM, list mode, seeded user id-aligned to the recipe owner); web app on the real local
+              backend; ALL 6 mobile Maestro flows (login, list-detail, create, edit, delete, discover-clone)
+              pass end-to-end with real Clerk sign-in + working owner-gating; recipe-service integration 50 /
+              service-e2e 1 / k6 SC-009 (p95≪500ms, 0% fail). Fixed a real web production bug: unbound fetch
+              in the recipe client (globalThis.fetch.bind).
+          size: L
+          status: done
+          tests: 'all 6 Maestro flows green on emulator; recipe integration 50 / e2e 1 / k6 SC-009 green; web live-backend Playwright green'
+          commits: c7436f6, ac9bee1, 81eb257, d5233a2
+          paths:
+              - packages/apps/commise/mobile/.maestro/
+              - packages/clients/recipe-service/src/client.ts
+              - packages/apps/commise/web/tests/e2e/recipeLive.spec.ts
+        - id: 'mockup design-language styling pass (recipe UI, web + native)'
+          part: >
+              Style the ENTIRE recipe UI to the Commise design tokens (@commise/ui / Tailwind v4): list,
+              detail, form, discovery, collections, actions (delete/clone/visibility), ingredient picker,
+              versions, conflict view, photos, home widget, and the mobile tab bar + detail owner actions.
+              KEY infra fix: Tailwind @source for the shared features package (it scanned only the app, so
+              NO shared-component class rendered). Data-gated mockup elements (hero images, ratings,
+              difficulty, PRO badges, favorites, filter chips) are deferred — they need model/seed fields.
+          size: L
+          status: done
+          tests: '201 web + 133 native recipe tests green; verified by screenshot on web + emulator'
+          commits: f4cc71b, 3f2c31d, 20da536, f69ab41, 2f0b0cc, d2574b0, ba00797, f788e18, a8c254a, 2e6dd86, 5d62c81, d2d2939
+          paths:
+              - packages/apps/commise/features/recipes/src/
+              - packages/apps/commise/web/src/app/globals.css
 
     code-review:
         state: not-applicable
@@ -297,18 +373,49 @@ reconciliation:
             unconditional six-section US-0 assertions.
 
 sync_runs:
-    last_run: '2026-06-02T09:35:00Z'
-    total_runs: 2
+    last_run: '2026-07-15T00:00:00Z'
+    total_runs: 3
     last_drift_count: 7
     last_critical_count: 1
-    last_verdict: MIXED
+    last_verdict: DRIFT DETECTED
     notes: >
-        Run #2 (post-HITL): delegation analysis confirmed most capabilities are
-        correctly owned by sub-features 002-014 (auth, food DB, importing, AI,
-        meal planning, grocery, cooking mode, nutrition, subscriptions,
-        digitization, creator profiles, cooking school, notifications). Core
-        recipe scaffolding (US-0/1/2, FR-001..FR-006) remains 001's own scope
-        — HITL decision (2026-06-02) selected "implement under 001 directly"
-        (no new sub-feature spawn). DRIFT-002 OPEN-CRITICAL remains as active
-        WIP signal until core recipe code lands. Other findings: 2 WARNING,
-        3 INFO, 1 CLEAN (Layer 7 cross-links).
+        Run #3 (2026-07-15, post-implementation reconciliation): DRIFT-002
+        (run #2 OPEN-CRITICAL, "core recipe code absent") is RESOLVED — the
+        recipe domain landed across recipe-service (84 src/42 test),
+        recipe-core, apps/commise/features/recipes (70 src/43 test),
+        clients/recipe-service, and recipe-workers, on both web and mobile.
+        NEW findings: DRIFT-007 (CRITICAL, L6) — US-000 Home widget-surface
+        HOST (T104-web/mobile + tests) not implemented; the building-block
+        widgets exist and were styled but no curateHomeWidgets/appShell
+        composition root is wired in either app, so the P1 Home screen (FR-046)
+        is not yet shippable. DRIFT-008 (WARNING, L5-backward) — tasks.md
+        [ ]/[x] marks under-report shipped code (softDelete DAL+controller
+        T123/T125, account-erasure worker T136 have code but read open); the
+        dangerous direction ([x] with no code) was NOT found. Carried forward:
+        DRIFT-003, DRIFT-004 (WARNING), DRIFT-005/006 (INFO). DRIFT-008 was
+        RESOLVED the same run: a per-task file-inspection pass flipped 8
+        verified-complete marks (T061-T064, T095, T123-T125) [ ]→[x] in
+        tasks.md (124→132 of 190 done); the pass explicitly did NOT flip three
+        stub scaffolds (T130 still inline-S3, T131/T136 TODO-bodied workers),
+        so no false-DONE was introduced. No source code changed — doc-only
+        reconciliation. DRIFT-007 (Home host) remains OPEN per the standing
+        "don't progress the rest of 001 yet" constraint.
+    history:
+        - run: 1
+          date: '2026-06-02T00:47:00Z'
+          layers: '1-7'
+          critical: 2
+          warning: 3
+          verdict: CRITICAL DRIFT
+        - run: 2
+          date: '2026-06-02T09:35:00Z'
+          layers: '1-7'
+          critical: 1
+          warning: 2
+          verdict: MIXED
+        - run: 3
+          date: '2026-07-15T00:00:00Z'
+          layers: '5,6 (1-4,7 carried; 8-10 spot)'
+          critical: 1
+          warning: 3
+          verdict: DRIFT DETECTED

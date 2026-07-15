@@ -74,7 +74,7 @@ A feature is **not done** until every category its code touches has all the requ
 
 - [x] T093 [P] Configure `NEXT_PUBLIC_API_URL` env variable with local default in `packages/apps/commise/web/.env.local` and wire into shared API client
 - [x] T094 [P] Configure `EXPO_PUBLIC_API_URL` env variable with local default in `packages/apps/commise/mobile/.env` and wire into shared API client
-- [ ] T095 [P] Update the typed recipe API client (`packages/clients/recipe-service/src/`, `@kitchensink/recipe-service-client`) to read base URL from platform-appropriate env variable at initialization
+- [x] T095 [P] Update the typed recipe API client (`packages/clients/recipe-service/src/`, `@kitchensink/recipe-service-client`) to read base URL from platform-appropriate env variable at initialization
 
 ---
 
@@ -226,9 +226,9 @@ A feature is **not done** until every category its code touches has all the requ
 ### Recipe Soft-Delete (C-007)
 
 - [ ] T123-test Write unit tests for recipe DAL soft-delete (sets `deleted_at`, list/find/search exclude tombstones, owner can still see version history) in `packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts`
-- [ ] T123 Update recipe DAL to soft-delete (UPDATE … SET deleted_at = now()) and add `WHERE deleted_at IS NULL` filter to all read queries in `packages/services/recipe-service/src/recipes/dal/recipes.dal.ts`
-- [ ] T124 Update search DAL to exclude tombstoned recipes (`WHERE deleted_at IS NULL`) in `packages/services/recipe-service/src/search/dal/search.dal.ts`
-- [ ] T125 Update collections DAL to exclude tombstoned recipes from membership list responses in `packages/services/recipe-service/src/collections/dal/collections.dal.ts`
+- [x] T123 Update recipe DAL to soft-delete (UPDATE … SET deleted_at = now()) and add `WHERE deleted_at IS NULL` filter to all read queries in `packages/services/recipe-service/src/recipes/dal/recipes.dal.ts`
+- [x] T124 Update search DAL to exclude tombstoned recipes (`WHERE deleted_at IS NULL`) in `packages/services/recipe-service/src/search/dal/search.dal.ts`
+- [x] T125 Update collections DAL to exclude tombstoned recipes from membership list responses in `packages/services/recipe-service/src/collections/dal/collections.dal.ts`
 - [ ] T126 [US1] Add integration test asserting `DELETE /v1/recipes/{id}` returns 204, row remains with `deleted_at` set, and recipe is excluded from list/search/get/collection responses in `packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.spec.ts`
 
 ### Collection Clone & Pull-from-Source (FR-011)
@@ -280,11 +280,11 @@ This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks 
 
 ### Setup & Shared
 
-- [ ] T061 [P] Configure Next.js 15 App Router with Clerk web SDK (`@clerk/nextjs`: `<ClerkProvider>` + `middleware.ts`) in `packages/apps/commise/web/src/app/layout.tsx`
-- [ ] T062 [P] Configure Expo 53 with Clerk native SDK (`@clerk/expo`, tokens in `expo-secure-store`) in `packages/apps/commise/mobile/src/app/_layout.tsx`
-- [ ] T063 [P] Set up shared design tokens (colors, spacing, typography) in `packages/apps/commise/ui/src/tokens/` (`@commise/ui`) consumable by both web (Tailwind v4) and mobile (Tamagui)
+- [x] T061 [P] Configure Next.js 15 App Router with Clerk web SDK (`@clerk/nextjs`: `<ClerkProvider>` + `middleware.ts`) in `packages/apps/commise/web/src/app/layout.tsx`
+- [x] T062 [P] Configure Expo 53 with Clerk native SDK (`@clerk/expo`, tokens in `expo-secure-store`) in `packages/apps/commise/mobile/src/app/_layout.tsx`
+- [x] T063 [P] Set up shared design tokens (colors, spacing, typography) in `packages/apps/commise/ui/src/tokens/` (`@commise/ui`) consumable by both web (Tailwind v4) and mobile (Tamagui)
 - [ ] T064-test Write unit tests for the typed recipe API client hooks (useRecipes, useRecipe, useCreateRecipe, etc.) using MSW mocks in `packages/clients/recipe-service/src/hooks/__tests__/` — **TDD red for T064; complete before T064** (renumbered from a bare `T104` that collided with the Home-widget `T104-*` family)
-- [ ] T064 [P] Create the typed recipe API client (`@kitchensink/recipe-service-client`, TanStack Query v5) with typed hooks for recipe endpoints in `packages/clients/recipe-service/src/hooks/` — reads `NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL` for base URL (NFR-009); mirrors `@kitchensink/food-service-client`
+- [x] T064 [P] Create the typed recipe API client (`@kitchensink/recipe-service-client`, TanStack Query v5) with typed hooks for recipe endpoints in `packages/clients/recipe-service/src/hooks/` — reads `NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL` for base URL (NFR-009); mirrors `@kitchensink/food-service-client`
 
 ### Home Screen (US-0) — Widget Surface — P1
 

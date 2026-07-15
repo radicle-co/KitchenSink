@@ -56,9 +56,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     } else {
         const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
         body = (
-            <div>
-                <p>{count}</p>
-                <ul>
+            <div className="flex flex-col gap-4">
+                <p className="text-body-sm font-medium text-slate">{count}</p>
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {recipes.map((recipe) => (
                         <li key={recipe.id}>
                             <RecipeListCard recipe={recipe} onSelect={onSelectRecipe} />
@@ -70,10 +70,14 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     }
 
     return (
-        <section aria-label={list.heading}>
-            <header>
-                <h1>{list.heading}</h1>
-                <button type="button" onClick={onCreateRecipe}>
+        <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+            <header className="flex items-center justify-between gap-4">
+                <h1 className="font-display text-display-md font-bold text-charcoal">{list.heading}</h1>
+                <button
+                    type="button"
+                    onClick={onCreateRecipe}
+                    className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
+                >
                     {list.createCta}
                 </button>
             </header>
@@ -83,6 +87,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 placeholder={list.searchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
+                className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
             />
             {body}
         </section>

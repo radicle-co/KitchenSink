@@ -4,6 +4,10 @@
  * Read-only, presentational render of a loaded {@link RecipeDetail}: header (title, badges, description),
  * meta stats, photo gallery, ingredients, instructions, and per-serving nutrition (with the partial-
  * nutrition notice from FR-007). Fetch states (loading/error) belong to the composing app, not here.
+ *
+ * Styled to the Commise design language (docs/mockups/screens/screen-recipe-detail): Playfair display
+ * title, seafoam/coral tag pills, a four-up stats strip, checklist ingredients, numbered seafoam step
+ * markers, and a nutrition grid — all via `@commise/ui` design tokens exposed as Tailwind v4 utilities.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -12,107 +16,148 @@ import { recipeMessages } from '../messages.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
 import { formatQuantity, type RecipeDetailViewProps } from './model.js';
 
+const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4';
+const statValue = 'font-display text-2xl font-bold text-charcoal';
+const statLabel = 'text-caption uppercase tracking-wide text-slate';
+
 export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
     const { list, detail } = useMessages(recipeMessages);
     const badges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags, ...recipe.tags];
 
     return (
-        <article aria-label={recipe.title}>
-            <header>
-                <h1>{recipe.title}</h1>
+        <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
+            <header className="flex flex-col gap-4">
+                <h1 className="font-display text-4xl font-bold leading-tight text-charcoal">{recipe.title}</h1>
                 {badges.length > 0 && (
-                    <ul aria-label={`${recipe.title} tags`}>
-                        {badges.map((badge) => (
-                            <li key={badge}>{badge}</li>
+                    <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
+                        {badges.map((badge, index) => (
+                            <li
+                                key={badge}
+                                className={`rounded-full px-3 py-1 text-body-sm font-medium ${
+                                    index % 2 === 0 ? 'bg-seafoam/10 text-seafoam' : 'bg-coral/15 text-coral'
+                                }`}
+                            >
+                                {badge}
+                            </li>
                         ))}
                     </ul>
                 )}
-                <p>{recipe.description}</p>
+                <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
             </header>
 
-            <dl>
-                <div>
-                    <dt>{detail.prepLabel}</dt>
-                    <dd>{formatDurationMinutes(recipe.prepTimeMinutes, list.durationMinutes)}</dd>
+            <dl className={statCards}>
+                <div className="flex flex-col items-center gap-1 text-center">
+                    <dt className={statLabel}>{detail.prepLabel}</dt>
+                    <dd className={statValue}>{formatDurationMinutes(recipe.prepTimeMinutes, list.durationMinutes)}</dd>
                 </div>
-                <div>
-                    <dt>{detail.cookLabel}</dt>
-                    <dd>{formatDurationMinutes(recipe.cookTimeMinutes, list.durationMinutes)}</dd>
+                <div className="flex flex-col items-center gap-1 text-center">
+                    <dt className={statLabel}>{detail.cookLabel}</dt>
+                    <dd className={statValue}>{formatDurationMinutes(recipe.cookTimeMinutes, list.durationMinutes)}</dd>
                 </div>
-                <div>
-                    <dt>{detail.totalLabel}</dt>
-                    <dd>{formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes)}</dd>
+                <div className="flex flex-col items-center gap-1 text-center">
+                    <dt className={statLabel}>{detail.totalLabel}</dt>
+                    <dd className={statValue}>
+                        {formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes)}
+                    </dd>
                 </div>
-                <div>
-                    <dt>{detail.servingsLabel}</dt>
-                    <dd>{recipe.servings}</dd>
+                <div className="flex flex-col items-center gap-1 text-center">
+                    <dt className={statLabel}>{detail.servingsLabel}</dt>
+                    <dd className={statValue}>{recipe.servings}</dd>
                 </div>
             </dl>
 
             {recipe.photos.length > 0 && (
-                <ul aria-label={detail.photosLabel}>
+                <ul aria-label={detail.photosLabel} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {recipe.photos.map((photo, index) => (
-                        <li key={photo.id}>
+                        <li key={photo.id} className="overflow-hidden rounded-xl">
                             <img
                                 src={photo.url}
                                 alt={fillTemplate(detail.photoAlt, { title: recipe.title, index: index + 1 })}
+                                className="aspect-square w-full object-cover"
                             />
                         </li>
                     ))}
                 </ul>
             )}
 
-            <section aria-label={detail.ingredientsHeading}>
-                <h2>{detail.ingredientsHeading}</h2>
-                <ul>
+            <section aria-label={detail.ingredientsHeading} className="flex flex-col gap-3">
+                <h2 className="font-display text-heading-lg font-semibold text-charcoal">
+                    {detail.ingredientsHeading}
+                </h2>
+                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-card p-2 shadow-sm">
                     {recipe.ingredients.map((ingredient) => (
-                        <li key={ingredient.ingredientId}>
-                            <span>{formatQuantity(ingredient.quantity, ingredient.unit)}</span>{' '}
-                            <span>{ingredient.name}</span>
+                        <li key={ingredient.ingredientId} className="flex items-center gap-3 px-3 py-3">
+                            <span aria-hidden className="size-5 shrink-0 rounded border-2 border-mist" />
+                            <span className="font-medium text-charcoal">
+                                {formatQuantity(ingredient.quantity, ingredient.unit)}
+                            </span>{' '}
+                            <span className="text-charcoal">{ingredient.name}</span>
                             {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                                <span>{ingredient.notes}</span>
+                                <span className="text-body-sm text-slate">{ingredient.notes}</span>
                             )}
-                            {ingredient.isUserEntered && <span>{detail.userEnteredBadge}</span>}
+                            {ingredient.isUserEntered && (
+                                <span className="ml-auto rounded-full bg-pearl px-2 py-0.5 text-caption text-slate">
+                                    {detail.userEnteredBadge}
+                                </span>
+                            )}
                         </li>
                     ))}
                 </ul>
             </section>
 
-            <section aria-label={detail.instructionsHeading}>
-                <h2>{detail.instructionsHeading}</h2>
-                <ol>
+            <section aria-label={detail.instructionsHeading} className="flex flex-col gap-3">
+                <h2 className="font-display text-heading-lg font-semibold text-charcoal">
+                    {detail.instructionsHeading}
+                </h2>
+                <ol className="flex flex-col gap-4">
                     {recipe.steps.map((step) => (
-                        <li key={step.stepNumber}>
-                            <span>{step.instruction}</span>
-                            {step.timerSeconds !== undefined && (
-                                <span>{fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}</span>
-                            )}
+                        <li key={step.stepNumber} className="flex items-start gap-4">
+                            <span
+                                aria-hidden
+                                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-seafoam text-body-sm font-semibold text-white"
+                            >
+                                {step.stepNumber}
+                            </span>
+                            <div className="flex flex-col gap-1 pt-1">
+                                <span className="leading-relaxed text-charcoal">{step.instruction}</span>
+                                {step.timerSeconds !== undefined && (
+                                    <span className="text-body-sm font-medium text-seafoam">
+                                        {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
+                                    </span>
+                                )}
+                            </div>
                         </li>
                     ))}
                 </ol>
             </section>
 
-            <section aria-label={detail.nutritionHeading}>
-                <h2>{detail.nutritionHeading}</h2>
-                <dl>
-                    <div>
-                        <dt>{detail.caloriesLabel}</dt>
-                        <dd>{recipe.nutrition.calories}</dd>
+            <section aria-label={detail.nutritionHeading} className="flex flex-col gap-3">
+                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{detail.nutritionHeading}</h2>
+                <dl className="grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4">
+                    <div className="flex flex-col items-center gap-1 text-center">
+                        <dd className={statValue}>{recipe.nutrition.calories}</dd>
+                        <dt className={statLabel}>{detail.caloriesLabel}</dt>
                     </div>
-                    <div>
-                        <dt>{detail.proteinLabel}</dt>
-                        <dd>{fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.proteinG })}</dd>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                        <dd className={statValue}>
+                            {fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.proteinG })}
+                        </dd>
+                        <dt className={statLabel}>{detail.proteinLabel}</dt>
                     </div>
-                    <div>
-                        <dt>{detail.carbsLabel}</dt>
-                        <dd>{fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.carbsG })}</dd>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                        <dd className={statValue}>
+                            {fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.carbsG })}
+                        </dd>
+                        <dt className={statLabel}>{detail.carbsLabel}</dt>
                     </div>
-                    <div>
-                        <dt>{detail.fatLabel}</dt>
-                        <dd>{fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.fatG })}</dd>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                        <dd className={statValue}>
+                            {fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.fatG })}
+                        </dd>
+                        <dt className={statLabel}>{detail.fatLabel}</dt>
                     </div>
                 </dl>
-                {!recipe.nutrition.isComplete && <p>{detail.nutritionPartial}</p>}
+                {!recipe.nutrition.isComplete && <p className="text-body-sm text-slate">{detail.nutritionPartial}</p>}
             </section>
         </article>
     );

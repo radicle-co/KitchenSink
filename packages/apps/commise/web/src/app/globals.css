@@ -1,5 +1,10 @@
 @import '@commise/ui/theme.css';
 
+/* Tailwind v4 auto-scans THIS app's files but not workspace packages. The recipe UI (list, detail, form,
+   discovery, collections, …) is rendered from the shared @commise/features-recipes building blocks, so
+   scan their source too — otherwise the utility classes they use are never generated. */
+@source "../../../features/recipes/src/**/*.{ts,tsx}";
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 
 @layer base {

@@ -21,11 +21,20 @@ export const RecipeListCard: FC<RecipeListCardProps> = ({ recipe, onSelect }) =>
     const duration = formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes);
 
     return (
-        <article aria-label={recipe.title}>
-            <button type="button" onClick={() => onSelect(recipe.id)}>
-                {recipe.title}
+        <article aria-label={recipe.title} className="group">
+            <button
+                type="button"
+                onClick={() => onSelect(recipe.id)}
+                // The accessible name stays exactly the title (not "title + duration") so name-based
+                // selection — tests, the Playwright suite, and the Maestro flows — keeps resolving the card.
+                aria-label={recipe.title}
+                className="flex w-full flex-col gap-2 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+                <span className="font-display text-heading-md font-semibold text-charcoal transition-colors group-hover:text-seafoam">
+                    {recipe.title}
+                </span>
+                <span className="flex items-center gap-1 text-body-sm text-slate">{duration}</span>
             </button>
-            <span>{duration}</span>
         </article>
     );
 };

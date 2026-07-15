@@ -270,11 +270,17 @@ A feature is **not done** until every category its code touches has all the requ
 
 Before Phase 5 is marked complete, verify every implementation task below satisfies one of:
 
-- [ ] **Both platforms named** in the task description (file paths or "web + mobile" explicit)
-- [ ] **Paired tasks** exist and reference each other (e.g., T104-web + T104-mobile)
-- [ ] **`[PARITY-EXCEPTION]`** note present in the task body with reason and future spec reference
+1. **Both platforms named** in the task description (file paths or "web + mobile" explicit)
+2. **Paired tasks** exist and reference each other (e.g., T104-web + T104-mobile)
+3. **`[PARITY-EXCEPTION]`** note present in the task body with reason and future spec reference
 
-This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks pass.
+This checklist is a blocking gate. Phase 6 cannot start until all Phase 5 tasks pass. Verification is
+tracked by **T060**, not by this rubric.
+
+> **Numbered, not `- [ ]`, on purpose (2026-07-15).** These three are a rubric applied _to_ the tasks
+> below — they are not work items. As checkboxes they were counted by every `- [ ]` / `- [x]` tally,
+> which is why the ledger long read "190 tasks" when only **187** exist, and why they showed as three
+> permanently-open tasks that no one could ever close.
 
 ---
 
@@ -466,15 +472,26 @@ All phases follow red-green-refactor:
 
 ## Task Count Summary
 
-| Phase                     | Implementation | Unit Tests | Integration Tests | E2E Tests | Infrastructure | Total   |
-| ------------------------- | -------------- | ---------- | ----------------- | --------- | -------------- | ------- |
-| Phase 1: Setup            | 14             | 0          | 0                 | 0         | 14             | 28      |
-| Phase 2: Foundational     | 12             | 6          | 0                 | 0         | 6              | 24      |
-| Phase 3: US1              | 22             | 15         | 7                 | 0         | 1              | 45      |
-| Phase 4: US2              | 6              | 4          | 2                 | 0         | 0              | 12      |
-| Phase 4.5: Clarifications | 10             | 6          | 4                 | 0         | 3              | 23      |
-| Phase 5: Frontend         | 23             | 9          | 0                 | 13        | 0              | 45      |
-| Phase 6: Polish           | 11             | 0          | 0                 | 0         | 2              | 13      |
-| **Total**                 | **98**         | **40**     | **13**            | **13**    | **26**         | **190** |
+**Authoritative count (recounted 2026-07-15): 187 tasks.** The `Actual` column is derived by counting
+`- [ ] T…` / `- [x] T…` lines per phase; it is the number to trust. The category columns are the
+**original 2026-05-10 planning estimate**, kept for provenance — they were never re-derived as tasks were
+added, renumbered, and split, so they no longer sum to `Actual`.
+
+| Phase                     | Implementation | Unit Tests | Integration Tests | E2E Tests | Infrastructure | Est.    | **Actual** |
+| ------------------------- | -------------- | ---------- | ----------------- | --------- | -------------- | ------- | ---------- |
+| Phase 1: Setup            | 14             | 0          | 0                 | 0         | 14             | 28      | **31**     |
+| Phase 2: Foundational     | 12             | 6          | 0                 | 0         | 6              | 24      | **25**     |
+| Phase 3: US1              | 22             | 15         | 7                 | 0         | 1              | 45      | **42**     |
+| Phase 4: US2              | 6              | 4          | 2                 | 0         | 0              | 12      | **12**     |
+| Phase 4.5: Clarifications | 10             | 6          | 4                 | 0         | 3              | 23      | **23**     |
+| Phase 5: Frontend         | 23             | 9          | 0                 | 13        | 0              | 45      | **41**     |
+| Phase 6: Polish           | 11             | 0          | 0                 | 0         | 2              | 13      | **13**     |
+| **Total**                 | **98**         | **40**     | **13**            | **13**    | **26**         | **190** | **187**    |
 
 > Phase 5 count includes 7 Home screen tasks (T104-shared, T104-web, T104-mobile, T104-test-web, T104-test-mobile, T104-e2e-web, T104-e2e-mobile) added 2026-05-10 for FR-046 (post-login Home screen) and FR-044a (parity enforcement). Previous total was 173.
+
+> **Why the old 190 looked right (2026-07-15).** The estimate's 190 coincidentally equalled the raw
+> checkbox count — but that count included the 3 Parity-Checklist rubric bullets (now numbered, not
+> checkboxes) and the per-phase rows had drifted in both directions (Phase 1 +3, Phase 2 +1, Phase 3 −3,
+> Phase 5 −4), which happened to net to the same figure. Two errors cancelling is why it went unnoticed.
+> Raw checkbox count and real task count are now both **187**.

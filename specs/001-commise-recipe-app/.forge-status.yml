@@ -422,8 +422,17 @@ sync_runs:
         tasks.md (124→132 of 190 done); the pass explicitly did NOT flip three
         stub scaffolds (T130 still inline-S3, T131/T136 TODO-bodied workers),
         so no false-DONE was introduced. No source code changed — doc-only
-        reconciliation. DRIFT-007 (Home host) remains OPEN per the standing
-        "don't progress the rest of 001 yet" constraint.
+        reconciliation.
+        POST-RUN UPDATE (2026-07-15, same day): DRIFT-007 is now RESOLVED — the
+        Home widget-surface host shipped on both platforms (4eb432a, 94a474b,
+        cfc06ff, 543081e; see the T104 task_log entry). The sentence this
+        replaces said it "remains OPEN per the standing don't-progress
+        constraint"; that hold was lifted for T104 and the host landed after
+        run #3's note was written. Run #3's counts (1 CRITICAL) are preserved
+        above AS OF the run — they are a historical record, not live state.
+        Also corrected: run #3 said "124→132 of 190 done". The 190 counted 3
+        Parity-Checklist rubric bullets that were never tasks (tasks.md:273-275,
+        since renumbered out of the checkbox space). The real total is 187.
     history:
         - run: 1
           date: '2026-06-02T00:47:00Z'

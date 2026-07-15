@@ -3,12 +3,17 @@
 # Launches the app and, ONLY IF the login screen is showing, signs in with the shared Clerk test user
 # (a `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no real
 # mailbox needed). When a persisted session already exists (`expo-secure-store` token cache), the login
-# screen is absent, the guarded block is skipped, and the flow falls straight through to the recipe list.
+# screen is absent, the guarded block is skipped, and the flow falls straight through to the Home landing.
+#
+# Post-login landing is now the Home widget surface (T104-mobile), NOT the recipe list. To keep every
+# consumer of this shared sub-flow working unchanged, this sub-flow asserts the Home greeting and then
+# crosses into the recipes surface via the recipe widget's "See all recipes" entry — so callers that
+# `runFlow: signin.yaml` and then `assertVisible: 'Recipes'` still land on the recipe list.
 #
 # The recipe flows `runFlow: ../auth/signin.yaml` as their first step instead of `launchApp`, so each is
 # self-contained and order-independent (no reliance on a separate login flow having run first). The login
-# form lives in mobile/src/screens/login.tsx; the completed session renders RecipesScreen (heading
-# "Recipes"). Credentials mirror the web Playwright suite's TEST_USER_* (cross-platform parity).
+# form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (greeting
+# "Welcome back, Chef!"). Credentials mirror the web Playwright suite's TEST_USER_* (cross-platform parity).
 
 appId: io.commise.mobile
 ---
@@ -36,9 +41,21 @@ appId: io.commise.mobile
           - hideKeyboard
           - tapOn: 'Verify'
 
-# The authenticated surface: RecipesScreen renders the "Recipes" list heading. The wait is generous
-# because completing sign-in (Clerk `setActive`) re-renders through the auth gate and the list then
-# fetches from the recipe service — a chain that is slow under the Metro dev bundler on first paint.
+# The authenticated landing: HomeScreen renders the "Welcome back, Chef!" greeting header. The wait is
+# generous because completing sign-in (Clerk `setActive`) re-renders through the auth gate before Home
+# paints — a chain that is slow under the Metro dev bundler on first paint.
+- extendedWaitUntil:
+      visible: 'Welcome back, Chef!'
+      timeout: 40000
+
+# Cross from Home into the recipes surface via the recipe widget's "See all recipes" entry (accessibility
+# label from the mobile i18n `home.seeAllRecipes`). This is done here — in the shared sub-flow — because
+# EVERY consumer (the login-chrome flow + all five recipe flows) wants the recipe list next, so each can
+# keep its existing `assertVisible: 'Recipes'` with no per-flow change.
+- tapOn: 'See all recipes'
+
+# The recipes surface: RecipesScreen renders the "Recipes" list heading (it then fetches from the recipe
+# service — slow on first paint under the Metro dev bundler, hence the generous wait).
 - extendedWaitUntil:
       visible: 'Recipes'
       timeout: 40000

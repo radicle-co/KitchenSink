@@ -38,7 +38,7 @@ import { AuthGate } from './src/components/AuthGate';
 import { LocaleProvider } from './src/i18n/LocaleProvider';
 import { initSentry } from './src/observability/sentry';
 import { RecipeServiceGate } from './src/providers/RecipeServiceGate';
-import { RecipesScreen } from './src/screens/RecipesScreen';
+import { AppRoot as RootNavigator } from './src/screens/AppRoot';
 import { tokenCache } from './src/storage/tokenCache';
 import tamaguiConfig from './tamagui.config';
 
@@ -62,7 +62,7 @@ function App(): JSX.Element {
                             <SafeAreaProvider>
                                 <StatusBar style="auto" />
                                 <AuthGate>
-                                    <RecipesScreen />
+                                    <RootNavigator />
                                 </AuthGate>
                             </SafeAreaProvider>
                         </RecipeServiceGate>

@@ -7,6 +7,26 @@ import type { LocalizedMessages } from '@commise/i18n';
 
 /** The shape of the mobile app's own copy. */
 export interface MobileMessages {
+    readonly home: {
+        /** Greeting shown at the top of the post-login Home widget surface (US-000 / FR-046). */
+        readonly greeting: string;
+        /** Accessible label for the Home widget-surface region (the scrollable widget list). */
+        readonly regionLabel: string;
+        /** Label of the recipe widget's entry point into the full recipes surface. */
+        readonly seeAllRecipes: string;
+        /** Copy for the once-per-session subscription upgrade nudge (shown when a free-tier viewer taps a
+         * premium-gated widget entry point). No live v1 widget is gated, so it ships ready for 005–009. */
+        readonly nudge: {
+            /** The nudge dialog's heading (also its accessible label). */
+            readonly title: string;
+            /** The nudge's supporting body copy. */
+            readonly body: string;
+            /** The primary upgrade action (dismisses in v1; the subscription surface is owned by 010). */
+            readonly upgrade: string;
+            /** The dismiss action. */
+            readonly dismiss: string;
+        };
+    };
     readonly profile: {
         readonly displayName: string;
         readonly avatarUrl: string;
@@ -93,6 +113,17 @@ export interface MobileMessages {
 
 export const mobileMessages: LocalizedMessages<MobileMessages> = {
     en: {
+        home: {
+            greeting: 'Welcome back, Chef!',
+            regionLabel: 'Home',
+            seeAllRecipes: 'See all recipes',
+            nudge: {
+                title: 'Unlock Commise Pro',
+                body: 'Upgrade to Commise Pro to use this feature.',
+                upgrade: 'See plans',
+                dismiss: 'Maybe later',
+            },
+        },
         profile: {
             displayName: 'Display name',
             avatarUrl: 'Avatar URL',

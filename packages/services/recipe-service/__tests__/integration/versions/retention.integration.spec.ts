@@ -14,17 +14,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
+import { eq } from 'drizzle-orm';
+
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
-import { VersionsService, VERSIONS_DAL, versionArchiveKey } from '../../../src/versions/versions.service.js';
+import { DrizzleProvider } from '../../../src/database/database.module.js';
+import type { RecipeDrizzle } from '../../../src/database/client.js';
+import { recipeVersionPendingArchives } from '../../../src/database/schema/index.js';
+import { VersionsService, VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import type { VersionsDal } from '../../../src/versions/dal/versions.dal.js';
-import type { RecipeVersionRow } from '../../../src/database/schema/index.js';
 
 /** The dev-bypass owner ULID this suite creates and versions a recipe as. */
 const OWNER = '01JVERSIONS0OWNER0000000CC';
-
-/** LocalStack S3 endpoint + the version-archive bucket the harness provisions. */
-const S3_ENDPOINT = process.env['S3_ENDPOINT'] ?? 'http://localhost:4566';
-const VERSIONS_BUCKET = process.env['S3_BUCKET_VERSIONS'] ?? 'commise-versions';
 
 interface RecipeBody {
     id: string;
@@ -67,7 +67,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
         await booted.close();
     });
 
-    it('keeps the newest 10 versions in Postgres and archives pruned versions to S3', async () => {
+    it('leaves EVERY version in Postgres and records the over-retention ones in the outbox', async () => {
         // Create the golden recipe the versions attach to (recipe_versions.recipe_id is an FK).
         const createRes = await fetch(`${baseUrl}/v1/recipes`, {
             method: 'POST',
@@ -79,15 +79,15 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
 
         const service = booted.app.get(VersionsService);
         const dal = booted.app.get<VersionsDal>(VERSIONS_DAL);
+        const db = booted.app.get<RecipeDrizzle>(DrizzleProvider);
 
         // `create` now records an initial version automatically (verticals-1). Clear it so THIS suite
-        // controls the exact version set it seeds below (it tests retention, not create's snapshotting)
-        // — otherwise the auto v1 collides with the loop's v1 on the (recipe_id, version_number) unique.
+        // controls the exact version set it seeds below.
         for (const existing of await dal.listByRecipe(recipe.id)) {
             await dal.deleteById(existing.id);
         }
 
-        // Write 12 versions. Retention runs after each write, so versions 1 and 2 are pruned.
+        // Write 12 versions. Retention runs after each write, so versions 1 and 2 go over the limit.
         const total = 12;
         for (let versionNumber = 1; versionNumber <= total; versionNumber += 1) {
             await service.createSnapshot({
@@ -98,26 +98,70 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
             });
         }
 
-        // Postgres retains exactly the newest 10 (versions 3..12).
+        // T130 cutover: NOTHING is pruned at save time. Every version is still here, because the row is
+        // the payload the archive retry replays — it must outlive the save and every failed attempt.
+        // Pruning is the archive worker's job, after S3 confirms (archive-before-delete, async).
         const remaining = await dal.listByRecipe(recipe.id);
-        expect(remaining).toHaveLength(10);
-        const remainingVersions = remaining.map((row) => row.versionNumber).sort((a, b) => a - b);
-        expect(remainingVersions).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        expect(remaining).toHaveLength(total);
 
-        // The pruned versions (1 and 2) were archived to the versions bucket in LocalStack, under the
-        // owner prefix (createdBy = OWNER) so GDPR erasure can sweep them (verticals-8).
-        for (const prunedVersion of [1, 2]) {
-            const key = versionArchiveKey({
-                createdBy: OWNER,
-                recipeId: recipe.id,
-                versionNumber: prunedVersion,
-            } as unknown as RecipeVersionRow);
-            expect(key.startsWith(`recipes/${OWNER}/`)).toBe(true);
-            const archiveRes = await fetch(`${S3_ENDPOINT}/${VERSIONS_BUCKET}/${key}`);
-            expect(archiveRes.status).toBe(200);
-            const archived = (await archiveRes.json()) as { recipeId: string; versionNumber: number };
-            expect(archived.recipeId).toBe(recipe.id);
-            expect(archived.versionNumber).toBe(prunedVersion);
+        // The over-retention versions (1 and 2) are recorded in the outbox instead.
+        const pending = await db
+            .select({
+                recipeVersionId: recipeVersionPendingArchives.recipeVersionId,
+                versionNumber: recipeVersionPendingArchives.versionNumber,
+                status: recipeVersionPendingArchives.status,
+                attempts: recipeVersionPendingArchives.attempts,
+            })
+            .from(recipeVersionPendingArchives)
+            .where(eq(recipeVersionPendingArchives.recipeId, recipe.id));
+
+        expect(pending.map((row) => row.versionNumber).sort((a, b) => a - b)).toEqual([1, 2]);
+        // Fresh debts: claimable by the worker/sweeper, nothing attempted yet.
+        expect(pending.every((row) => row.status === 'pending')).toBe(true);
+        expect(pending.every((row) => row.attempts === 0)).toBe(true);
+    });
+
+    it('re-enqueues idempotently, so a repeated save cannot fan out duplicate archive work', async () => {
+        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(CREATE_PAYLOAD),
+        });
+        const recipe = (await createRes.json()) as RecipeBody;
+
+        const service = booted.app.get(VersionsService);
+        const dal = booted.app.get<VersionsDal>(VERSIONS_DAL);
+        const db = booted.app.get<RecipeDrizzle>(DrizzleProvider);
+
+        for (const existing of await dal.listByRecipe(recipe.id)) {
+            await dal.deleteById(existing.id);
         }
+
+        for (let versionNumber = 1; versionNumber <= 12; versionNumber += 1) {
+            await service.createSnapshot({
+                recipeId: recipe.id,
+                versionNumber,
+                snapshot: snapshotAt(versionNumber),
+                createdBy: OWNER,
+            });
+        }
+
+        // A 13th save re-derives the SAME over-retention set (1 and 2 are still un-archived) and
+        // re-enqueues them. UNIQUE(recipe_version_id) + ON CONFLICT DO NOTHING must absorb that —
+        // otherwise every subsequent save would pile up duplicate archive work for the same version.
+        await service.createSnapshot({
+            recipeId: recipe.id,
+            versionNumber: 13,
+            snapshot: snapshotAt(13),
+            createdBy: OWNER,
+        });
+
+        const pending = await db
+            .select({ versionNumber: recipeVersionPendingArchives.versionNumber })
+            .from(recipeVersionPendingArchives)
+            .where(eq(recipeVersionPendingArchives.recipeId, recipe.id));
+
+        // 13 versions, limit 10 -> versions 1, 2, 3 owe an archive. One row each, no duplicates.
+        expect(pending.map((row) => row.versionNumber).sort((a, b) => a - b)).toEqual([1, 2, 3]);
     });
 });

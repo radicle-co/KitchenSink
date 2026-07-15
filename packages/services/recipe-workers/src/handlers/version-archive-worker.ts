@@ -3,6 +3,8 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
+import type { RecipeVersion } from '@kitchensink/recipe-core';
+import { sql } from 'drizzle-orm';
 
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
@@ -30,13 +32,27 @@ export interface RecipeVersionArchiveMessage {
     readonly requestedAt: string;
 }
 
-export interface RecipeVersionSnapshot {
-    readonly recipeId: string;
-    readonly versionId: string;
-    readonly ownerId: string;
-    /** ISO 8601 timestamp of when the snapshot was captured. */
-    readonly archivedAt: string;
-}
+/**
+ * The archived object's body: the `RecipeVersion` wire contract from `@kitchensink/recipe-core`.
+ *
+ * Deliberately the SAME shape `recipe-service` used to PUT inline before T130 moved archiving here, so
+ * the async path is a relocation of the write, not a change to what an archive IS. Anything already in
+ * the bucket stays readable by the same reader.
+ */
+export type RecipeVersionSnapshot = RecipeVersion;
+
+/** The `recipe_versions` columns the archive body is built from (raw — this Lambda has no Drizzle schema). */
+type RecipeVersionArchiveRow = {
+    readonly id: string;
+    readonly recipe_id: string;
+    readonly version_number: number;
+    readonly snapshot: unknown;
+    readonly base_version: number | null;
+    readonly s3_key: string | null;
+    readonly created_by: string;
+    readonly change_summary: string | null;
+    readonly created_at: Date | string;
+};
 
 const s3 = new S3Client({});
 
@@ -61,22 +77,67 @@ export const snapshotObjectKey = (message: RecipeVersionArchiveMessage): string 
     });
 
 /**
- * Load the recipe version rows from `kitchensink_recipes` and serialize an immutable snapshot.
+ * Load the version row from `kitchensink_recipes` and serialize the archive body.
  *
- * @sideEffect reads from RDS.
+ * The snapshot itself already lives on `recipe_versions.snapshot` — the whole point of the outbox
+ * carrying no snapshot column — so this is a single read, not a re-assembly from recipes/steps/
+ * ingredients. Raw SQL because this Lambda's Drizzle handle is schema-less (see `common/db.ts`).
+ *
+ * @throws When the version row is gone. That is NOT a retryable condition and must not be swallowed:
+ *   the row is the payload, so if it has vanished (an erasure ran, a manual delete) there is nothing
+ *   left to archive and silently PUTting an empty body would fabricate a bogus archive — exactly the
+ *   failure the previous stub had, which returned an envelope with no snapshot and reported success.
+ * @sideEffect Reads `recipe_versions` from RDS.
  */
 export const loadVersionSnapshot = async (
-    _db: NodePgDatabase<Record<string, never>>,
+    db: NodePgDatabase<Record<string, never>>,
     message: RecipeVersionArchiveMessage,
 ): Promise<RecipeVersionSnapshot> => {
-    // TODO(Phase 4+): query the recipe, its version row, ingredients, and steps from
-    // kitchensink_recipes and assemble the full serialized snapshot body.
+    const result = await db.execute<RecipeVersionArchiveRow>(sql`
+        SELECT id, recipe_id, version_number, snapshot, base_version, s3_key, created_by,
+               change_summary, created_at
+        FROM recipe_versions
+        WHERE id = ${message.versionId}
+        LIMIT 1
+    `);
+
+    const row = result.rows[0];
+
+    if (!row) {
+        throw new Error(`version-archive-worker: recipe_versions row ${message.versionId} not found`);
+    }
+
     return {
-        recipeId: message.recipeId,
-        versionId: message.versionId,
-        ownerId: message.ownerId,
-        archivedAt: new Date().toISOString(),
+        id: row.id,
+        recipeId: row.recipe_id,
+        versionNumber: row.version_number,
+        snapshot: row.snapshot as RecipeVersion['snapshot'],
+        ...(row.base_version !== null ? { baseVersion: row.base_version } : {}),
+        ...(row.s3_key !== null ? { s3Key: row.s3_key } : {}),
+        createdBy: row.created_by,
+        ...(row.change_summary !== null ? { changeSummary: row.change_summary } : {}),
+        createdAt: new Date(row.created_at).toISOString(),
     };
+};
+
+/**
+ * Prune the archived version from Postgres — the FR-007b "newest 10 in the DB" retention step.
+ *
+ * Runs ONLY after the S3 PUT resolves. This is the archive-before-delete invariant, carried across the
+ * async boundary: `recipe-service` deliberately stopped pruning at save time (T130) because the row is
+ * the payload a retry replays, so it must outlive every failed attempt.
+ *
+ * Deleting the version row also clears its `recipe_version_pending_archives` row via `ON DELETE
+ * CASCADE` — which is precisely FR-007b-i's *"pending-archive records MUST only be deleted after a
+ * successful S3 confirmation"*, enforced by the schema rather than by remembering to do it.
+ *
+ * @sideEffect Deletes a `recipe_versions` row (cascading its pending-archive row).
+ */
+export const pruneArchivedVersion = async (
+    db: NodePgDatabase<Record<string, never>>,
+    versionId: string,
+): Promise<void> => {
+    await db.execute(sql`DELETE FROM recipe_versions WHERE id = ${versionId}`);
 };
 
 const processRecord = async (record: SQSRecord, archiveBucket: string): Promise<void> => {
@@ -95,9 +156,14 @@ const processRecord = async (record: SQSRecord, archiveBucket: string): Promise<
         }),
     );
 
-    logger.info('recipe version archived', {
+    // Only now is the snapshot safe to drop from Postgres. A throw above leaves both the version row
+    // and its pending row in place, so SQS redelivery (then the DLQ) retries the exact same payload.
+    await pruneArchivedVersion(db, message.versionId);
+
+    logger.info('recipe version archived and pruned', {
         recipeId: message.recipeId,
         versionId: message.versionId,
+        versionNumber: message.versionNumber,
         bucket: archiveBucket,
         key,
     });

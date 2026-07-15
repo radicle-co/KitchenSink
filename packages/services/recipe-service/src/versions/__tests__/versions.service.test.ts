@@ -13,17 +13,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-
 import { VersionsService, versionArchiveKey } from '../versions.service.js';
-import type { VersionArchiveS3 } from '../versions.service.js';
 import type { VersionsDal } from '../dal/versions.dal.js';
+import type { PendingArchivesDal, EnqueueArchiveInput } from '../dal/pending-archives.dal.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import { makeVersionRow } from '../../__fixtures__/index.js';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import type { RecipeVersionRow } from '../../database/schema/index.js';
-
-const BUCKET = 'commise-versions';
 
 const SNAPSHOT: RecipeSnapshot = {
     version: 1,
@@ -37,18 +33,16 @@ const SNAPSHOT: RecipeSnapshot = {
 };
 
 /**
- * A `{ send }` S3 stub — the surface {@link VersionsService} depends on.
- *
- * `send` is typed to the REAL {@link VersionArchiveS3} signature rather than a bare `vi.fn()`, so the
- * double is structurally assignable to the contract it doubles and drifts from it at compile time
- * instead of silently.
+ * A stub of the FR-007b-i archive outbox — the surface {@link VersionsService} now depends on in place
+ * of an S3 client (T130). Typed to the real {@link PendingArchivesDal} method signature so the double
+ * drifts from the contract at compile time rather than silently.
  */
-interface FakeS3 extends VersionArchiveS3 {
-    send: Mock<(command: PutObjectCommand) => Promise<unknown>>;
+interface FakePendingArchives {
+    enqueue: Mock<(input: EnqueueArchiveInput) => Promise<unknown>>;
 }
 
-function fakeS3(): FakeS3 {
-    return { send: vi.fn().mockResolvedValue({}) };
+function fakePendingArchives(): FakePendingArchives {
+    return { enqueue: vi.fn().mockResolvedValue({ id: 'pa-1' }) };
 }
 
 function fakeDal(overrides: Partial<VersionsDal> = {}): VersionsDal {
@@ -65,21 +59,21 @@ function fakeDal(overrides: Partial<VersionsDal> = {}): VersionsDal {
 /** The recipes service is unused by the snapshot/retention paths under test. */
 const NOOP_RECIPES = {} as unknown as RecipesService;
 
-function makeService(dal: VersionsDal, s3: FakeS3): VersionsService {
-    return new VersionsService(dal, NOOP_RECIPES, s3, BUCKET);
+function makeService(dal: VersionsDal, pending: FakePendingArchives = fakePendingArchives()): VersionsService {
+    return new VersionsService(dal, NOOP_RECIPES, pending as unknown as PendingArchivesDal);
 }
 
 describe('VersionsService.createSnapshot', () => {
-    let s3: FakeS3;
+    let pending: FakePendingArchives;
 
     beforeEach(() => {
-        s3 = fakeS3();
+        pending = fakePendingArchives();
     });
 
     it('writes the snapshot via the DAL and maps the row to the RecipeVersion wire contract', async () => {
         const row = makeVersionRow({ id: 'v-1', recipeId: 'r-1', versionNumber: 4, baseVersion: 3 });
         const dal = fakeDal({ createSnapshot: vi.fn().mockResolvedValue(row) });
-        const service = makeService(dal, s3);
+        const service = makeService(dal, pending);
 
         const result = await service.createSnapshot({
             recipeId: 'r-1',
@@ -96,13 +90,13 @@ describe('VersionsService.createSnapshot', () => {
         expect(typeof result.createdAt).toBe('string');
     });
 
-    it('does not touch S3 when the recipe is at or under the retention limit', async () => {
+    it('enqueues nothing when the recipe is at or under the retention limit', async () => {
         const dal = fakeDal({
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow()),
             findVersionsBeyondRetention: vi.fn().mockResolvedValue([]),
         });
 
-        await makeService(dal, s3).createSnapshot({
+        await makeService(dal, pending).createSnapshot({
             recipeId: 'r-1',
             versionNumber: 1,
             snapshot: SNAPSHOT,
@@ -110,11 +104,11 @@ describe('VersionsService.createSnapshot', () => {
         });
 
         expect(dal.findVersionsBeyondRetention).toHaveBeenCalledWith('r-1');
-        expect(s3.send).not.toHaveBeenCalled();
+        expect(pending.enqueue).not.toHaveBeenCalled();
         expect(dal.deleteById).not.toHaveBeenCalled();
     });
 
-    it('archives every pruned version to the versions bucket, then deletes it from the DB', async () => {
+    it('enqueues one outbox row per over-retention version, keyed for the archive worker', async () => {
         const overflow: RecipeVersionRow[] = [
             makeVersionRow({ id: 'old-2', recipeId: 'r-1', versionNumber: 2 }),
             makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 }),
@@ -122,56 +116,66 @@ describe('VersionsService.createSnapshot', () => {
         const dal = fakeDal({
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: 'r-1', versionNumber: 12 })),
             findVersionsBeyondRetention: vi.fn().mockResolvedValue(overflow),
-            deleteById: vi.fn().mockResolvedValue(undefined),
         });
-        const service = makeService(dal, s3);
 
-        await service.createSnapshot({
+        await makeService(dal, pending).createSnapshot({
             recipeId: 'r-1',
             versionNumber: 12,
             snapshot: SNAPSHOT,
             createdBy: 'owner-1',
         });
 
-        // One archive PUT per pruned version, targeting S3_BUCKET_VERSIONS at the deterministic key.
-        expect(s3.send).toHaveBeenCalledTimes(2);
-        const commands = s3.send.mock.calls.map((call) => call[0] as PutObjectCommand);
-        expect(commands.every((command) => command instanceof PutObjectCommand)).toBe(true);
-        expect(commands[0]?.input.Bucket).toBe(BUCKET);
-        expect(commands[0]?.input.Key).toBe(versionArchiveKey(overflow[0]!));
-        expect(commands[1]?.input.Key).toBe(versionArchiveKey(overflow[1]!));
-
-        // And each pruned version is removed from Postgres.
-        expect(dal.deleteById).toHaveBeenCalledWith('old-2');
-        expect(dal.deleteById).toHaveBeenCalledWith('old-1');
+        // The row carries versionNumber because that is what the archive object is KEYED by (ARCH-BE-3)
+        // — the worker builds `recipeVersionArchiveKey` from it without re-reading the version row.
+        expect(pending.enqueue).toHaveBeenCalledTimes(2);
+        expect(pending.enqueue).toHaveBeenCalledWith({ recipeVersionId: 'old-2', recipeId: 'r-1', versionNumber: 2 });
+        expect(pending.enqueue).toHaveBeenCalledWith({ recipeVersionId: 'old-1', recipeId: 'r-1', versionNumber: 1 });
     });
 
-    it('archives to S3 BEFORE deleting from the DB (a snapshot is never lost)', async () => {
-        const order: string[] = [];
-        const overflow = [makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 })];
-        const s3Ordered: FakeS3 = {
-            send: vi.fn().mockImplementation(async () => {
-                order.push('archive');
-
-                return {};
-            }),
-        };
+    it('NEVER prunes the version row itself — the payload must outlive the save (FR-007b-i)', async () => {
         const dal = fakeDal({
-            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: 'r-1', versionNumber: 11 })),
-            findVersionsBeyondRetention: vi.fn().mockResolvedValue(overflow),
-            deleteById: vi.fn().mockImplementation(async () => {
-                order.push('delete');
-            }),
+            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: 'r-1', versionNumber: 12 })),
+            findVersionsBeyondRetention: vi
+                .fn()
+                .mockResolvedValue([makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 })]),
+            deleteById: vi.fn(),
         });
 
-        await makeService(dal, s3Ordered).createSnapshot({
+        await makeService(dal, pending).createSnapshot({
             recipeId: 'r-1',
-            versionNumber: 11,
+            versionNumber: 12,
             snapshot: SNAPSHOT,
             createdBy: 'owner-1',
         });
 
-        expect(order).toEqual(['archive', 'delete']);
+        // THE load-bearing assertion of the cutover. The outbox row is ON DELETE CASCADE on the version
+        // row, so pruning here would delete the record of the debt AND the snapshot the retry replays —
+        // losing the archive with no trace. Only the worker prunes, and only after S3 confirms.
+        expect(dal.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('still returns a successful save when the outbox write fails (FR-007b-i)', async () => {
+        const dal = fakeDal({
+            createSnapshot: vi
+                .fn()
+                .mockResolvedValue(makeVersionRow({ id: 'v-new', recipeId: 'r-1', versionNumber: 12 })),
+            findVersionsBeyondRetention: vi
+                .fn()
+                .mockResolvedValue([makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 })]),
+        });
+        const failing: FakePendingArchives = { enqueue: vi.fn().mockRejectedValue(new Error('db down')) };
+
+        // "A user-facing recipe save MUST succeed independently of the S3 version-archive write." The
+        // save has already committed; an outbox failure is recoverable (the next save re-enqueues,
+        // idempotently), so it must never surface to the user.
+        const result = await makeService(dal, failing).createSnapshot({
+            recipeId: 'r-1',
+            versionNumber: 12,
+            snapshot: SNAPSHOT,
+            createdBy: 'owner-1',
+        });
+
+        expect(result.id).toBe('v-new');
     });
 });
 
@@ -223,7 +227,7 @@ describe('VersionsService.restore', () => {
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
         });
         const recipes = fakeRecipes();
-        const service = new VersionsService(dal, recipes, fakeS3(), BUCKET);
+        const service = new VersionsService(dal, recipes, fakePendingArchives() as unknown as PendingArchivesDal);
 
         const result = await service.restore(OWNER, RECIPE_ID, 3);
 
@@ -261,7 +265,7 @@ describe('VersionsService.restore', () => {
         const recipes = fakeRecipes({
             getById: vi.fn().mockResolvedValue({ ownerId: 'someone-else', currentVersion: 5 }),
         });
-        const service = new VersionsService(dal, recipes, fakeS3(), BUCKET);
+        const service = new VersionsService(dal, recipes, fakePendingArchives() as unknown as PendingArchivesDal);
 
         await expect(service.restore(OWNER, RECIPE_ID, 3)).rejects.toBeDefined();
         expect(recipes.update).not.toHaveBeenCalled();
@@ -269,7 +273,7 @@ describe('VersionsService.restore', () => {
 
     it('throws RECIPE_NOT_FOUND (404) when the recipe has no version with that number', async () => {
         const dal = fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) });
-        const service = new VersionsService(dal, fakeRecipes(), fakeS3(), BUCKET);
+        const service = new VersionsService(dal, fakeRecipes(), fakePendingArchives() as unknown as PendingArchivesDal);
 
         await expect(service.restore(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
         expect(dal.createSnapshot).not.toHaveBeenCalled();
@@ -286,7 +290,11 @@ describe('VersionsService.get', () => {
         const recipes = {
             getById: vi.fn().mockResolvedValue({ ownerId: OWNER, currentVersion: 2 }),
         } as unknown as RecipesService;
-        const service = new VersionsService(fakeDal({ findByRecipeAndVersion }), recipes, fakeS3(), BUCKET);
+        const service = new VersionsService(
+            fakeDal({ findByRecipeAndVersion }),
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+        );
 
         const result = await service.get(OWNER, RECIPE_ID, 2);
 
@@ -301,30 +309,10 @@ describe('VersionsService.get', () => {
         const service = new VersionsService(
             fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) }),
             recipes,
-            fakeS3(),
-            BUCKET,
+            fakePendingArchives() as unknown as PendingArchivesDal,
         );
 
         await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
-    });
-});
-
-describe('VersionsService retention S3 failure (best-effort)', () => {
-    it('does NOT delete an un-archived version and does not throw when the archive PUT fails', async () => {
-        const overflow = [makeVersionRow({ id: 'old-1', recipeId: 'r-1', versionNumber: 1 })];
-        const dal = fakeDal({
-            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: 'r-1', versionNumber: 11 })),
-            findVersionsBeyondRetention: vi.fn().mockResolvedValue(overflow),
-        });
-        const s3 = { send: vi.fn().mockRejectedValue(new Error('S3 down')) };
-        const service = makeService(dal, s3);
-
-        // The recipe save (which triggers retention) must succeed even though archiving failed...
-        await expect(
-            service.createSnapshot({ recipeId: 'r-1', versionNumber: 11, snapshot: SNAPSHOT, createdBy: 'owner-1' }),
-        ).resolves.toBeDefined();
-        // ...and the un-archived row must NOT be deleted (archive-before-delete invariant preserved).
-        expect(dal.deleteById).not.toHaveBeenCalled();
     });
 });
 

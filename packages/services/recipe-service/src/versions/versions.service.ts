@@ -4,21 +4,22 @@
  * Sits between the controller and the {@link VersionsDal}. It owns the rules the DAL delegates upward:
  * - **Snapshot write** — persist an immutable version row and shape it to the `RecipeVersion` wire
  *   contract.
- * - **Retention (FR-007b)** — Postgres keeps only the newest 10 versions of a recipe; on every write,
- *   versions beyond the limit are archived to the `S3_BUCKET_VERSIONS` bucket and then pruned from the
- *   DB (archive FIRST, delete SECOND, so a snapshot is never lost).
+ * - **Retention (FR-007b / FR-007b-i)** — Postgres keeps only the newest 10 versions of a recipe. This
+ *   service does NOT archive or prune: over-retention versions are recorded in the
+ *   `recipe_version_pending_archives` outbox, and the version-archive worker writes them to S3 and
+ *   prunes them once the write confirms (T130 — archive-before-delete, across the async boundary). A
+ *   user's save therefore never waits on, or fails because of, S3.
  * - **Read + restore** — list/get a recipe's versions (read-authorized through {@link RecipesService}),
  *   and restore an old snapshot as a new current version (owner-only).
  *
- * The S3 client is injected (a provider token), so unit tests pass a `{ send }` mock and never touch AWS.
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
+import { PendingArchivesDal } from './dal/pending-archives.dal.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner, recipeNotFound } from '../recipes/recipe.error.js';
 import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
@@ -38,17 +39,6 @@ export interface RestoreVersionResult {
 
 /** DI token for the version DAL — provided by `VersionsModule` via `useFactory` over the Drizzle client. */
 export const VERSIONS_DAL = 'VERSIONS_DAL';
-
-/** DI token for the injected S3 client (the archive writer). */
-export const VERSIONS_S3_CLIENT = 'VERSIONS_S3_CLIENT';
-
-/** DI token for the `S3_BUCKET_VERSIONS` bucket name. */
-export const VERSIONS_S3_BUCKET = 'VERSIONS_S3_BUCKET';
-
-/** The minimal S3 surface the service depends on — satisfied by both `S3Client` and a `{ send }` mock. */
-export interface VersionArchiveS3 {
-    send(command: PutObjectCommand): Promise<unknown>;
-}
 
 /**
  * Deterministic S3 object key for a version archive: one immutable object per recipe/version.
@@ -101,16 +91,17 @@ export class VersionsService {
         // type with no runtime value, so `design:paramtypes` emits `Object` and the cycle boots — while
         // `forwardRef(() => RecipesService)` (lazy arrow, evaluated later) still resolves the real instance.
         @Inject(forwardRef(() => RecipesService)) private readonly recipes: Pick<RecipesService, 'getById' | 'update'>,
-        @Inject(VERSIONS_S3_CLIENT) private readonly s3: VersionArchiveS3,
-        @Inject(VERSIONS_S3_BUCKET) private readonly bucket: string,
+        @Inject(PendingArchivesDal) private readonly pendingArchives: PendingArchivesDal,
     ) {}
 
     /**
-     * Persist an immutable version snapshot, then enforce retention: archive + prune everything beyond
-     * the newest {@link VERSION_RETENTION_LIMIT} versions.
+     * Persist an immutable version snapshot, then record any versions beyond the newest
+     * {@link VERSION_RETENTION_LIMIT} as owing S3 an archive write.
+     *
+     * The S3 write itself is NOT done here (FR-007b-i) — see {@link enforceRetention}.
      *
      * @returns The newly written version (wire contract).
-     * @sideEffect Inserts a `recipe_versions` row, PUTs archive objects to S3, and deletes pruned rows.
+     * @sideEffect Inserts a `recipe_versions` row and `recipe_version_pending_archives` rows.
      */
     public async createSnapshot(input: CreateSnapshotInput): Promise<RecipeVersion> {
         const row = await this.dal.createSnapshot(input);
@@ -224,44 +215,42 @@ export class VersionsService {
     }
 
     /**
-     * Archive + prune every version beyond the newest {@link VERSION_RETENTION_LIMIT}. Each overflow
-     * version is written to S3 FIRST and only then deleted from Postgres.
+     * Hand every version beyond the newest {@link VERSION_RETENTION_LIMIT} to the S3-archive outbox
+     * (T130 / FR-007b-i). Records intent only — no S3 write, no prune.
      *
-     * @sideEffect PUTs archive objects to S3 and deletes pruned `recipe_versions` rows.
+     * FR-007b-i requires that *"a user-facing recipe save MUST succeed independently of the S3
+     * version-archive write"*. It previously did not: the archive PUT ran inline, inside the caller's
+     * save, so S3 latency was the user's latency. The failure path was worse than it looked — a failed
+     * PUT was retried only on the *next save of that same recipe*, so a version whose owner never edited
+     * again was silently never archived, with no alert and no DLQ.
+     *
+     * The overflow is now enqueued and archived out of band by the version-archive worker. Two rules make
+     * that safe, and together they are why no `deleteById` remains here:
+     *
+     *  - **Nothing is pruned here.** The `recipe_versions` row must survive until S3 confirms, because it
+     *    holds the snapshot the retry replays. Its outbox row is `ON DELETE CASCADE` on that row, so
+     *    pruning early would delete the record of the debt *and* the payload in one step. The worker
+     *    prunes after the write lands — archive-before-delete, preserved across the async boundary.
+     *  - **An outbox failure never fails the save.** The save is already committed; losing an archive
+     *    *attempt* is recoverable, failing the user's write is not.
+     *
+     * @sideEffect Inserts `recipe_version_pending_archives` rows.
      */
     private async enforceRetention(recipeId: string): Promise<void> {
         const overflow = await this.dal.findVersionsBeyondRetention(recipeId);
 
         for (const version of overflow) {
-            // Archive-before-delete is the safety invariant: only prune a row once its snapshot is safely
-            // in S3. If the archive PUT fails, LEAVE the row in Postgres and stop — never delete an
-            // un-archived version, and never let a transient S3 error 500 the recipe save that already
-            // committed. The row is simply re-attempted on the next write (and the durable retry path is
-            // the pending-archive queue, T131). A `deleteById` failure is likewise swallowed to keep the
-            // save succeeding; the row just remains for the next pass.
             try {
-                await this.archive(version);
+                await this.pendingArchives.enqueue({
+                    recipeVersionId: version.id,
+                    recipeId: version.recipeId,
+                    versionNumber: version.versionNumber,
+                });
             } catch {
-                return;
-            }
-
-            try {
-                await this.dal.deleteById(version.id);
-            } catch {
-                // Row stays; a later retention pass prunes it. The snapshot is already archived, so safe.
+                // Swallowed by design (FR-007b-i). `findVersionsBeyondRetention` re-derives the overflow
+                // from scratch on every save and `enqueue` is idempotent, so the next save of this recipe
+                // re-enqueues it. Nothing is lost; only the archive is delayed.
             }
         }
-    }
-
-    /** Write one immutable version-archive object to the `S3_BUCKET_VERSIONS` bucket. */
-    private async archive(version: RecipeVersionRow): Promise<void> {
-        await this.s3.send(
-            new PutObjectCommand({
-                Bucket: this.bucket,
-                Key: versionArchiveKey(version),
-                ContentType: 'application/json',
-                Body: JSON.stringify(toRecipeVersion(version)),
-            }),
-        );
     }
 }

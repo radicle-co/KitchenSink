@@ -98,32 +98,93 @@ describe('parseArchiveMessage', () => {
     });
 });
 
+/** A `recipe_versions` row as the raw driver hands it back, with an overridable shape. */
+function makeVersionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+        id: 'ver',
+        recipe_id: 'rec',
+        version_number: 3,
+        snapshot: { version: 3, title: 'Soup', description: '', steps: [], ingredients: [] },
+        base_version: 2,
+        s3_key: null,
+        created_by: 'own',
+        change_summary: 'tweaked salt',
+        created_at: new Date('2026-07-10T08:30:00.000Z'),
+        ...overrides,
+    };
+}
+
+/** A schema-less Drizzle stub whose `execute` returns one queued result per call. */
+function dbReturning(...results: unknown[]): { execute: ReturnType<typeof vi.fn> } {
+    const execute = vi.fn();
+    for (const rows of results) {
+        execute.mockResolvedValueOnce({ rows });
+    }
+    execute.mockResolvedValue({ rows: [] });
+
+    return { execute };
+}
+
 describe('loadVersionSnapshot', () => {
     afterEach(() => {
         vi.useRealTimers();
     });
 
-    it('echoes the message identifiers and stamps an ISO-8601 archivedAt', async () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-07-10T08:30:00.000Z'));
+    it('serializes the row into the RecipeVersion archive body — snapshot INCLUDED', async () => {
+        const db = dbReturning([makeVersionRow()]);
         const message = makeArchiveMessage({ ownerId: 'own', recipeId: 'rec', versionId: 'ver' });
 
-        const snapshot = await loadVersionSnapshot({} as never, message);
+        const snapshot = await loadVersionSnapshot(db as never, message);
 
-        expect(snapshot).toEqual({
-            recipeId: 'rec',
-            versionId: 'ver',
-            ownerId: 'own',
-            archivedAt: '2026-07-10T08:30:00.000Z',
+        // The regression this pins: the previous stub returned {recipeId, versionId, ownerId,
+        // archivedAt} and NO snapshot, so the worker would have archived an empty envelope while
+        // reporting success — losing the version it claimed to save. The body must carry the snapshot.
+        expect(snapshot.snapshot).toEqual({
+            version: 3,
+            title: 'Soup',
+            description: '',
+            steps: [],
+            ingredients: [],
         });
-        expect(snapshot.archivedAt).toMatch(ISO_8601);
+        expect(snapshot).toMatchObject({
+            id: 'ver',
+            recipeId: 'rec',
+            versionNumber: 3,
+            baseVersion: 2,
+            createdBy: 'own',
+            changeSummary: 'tweaked salt',
+        });
+        expect(snapshot.createdAt).toMatch(ISO_8601);
+    });
+
+    it('omits absent optional columns rather than emitting nulls', async () => {
+        const db = dbReturning([makeVersionRow({ base_version: null, s3_key: null, change_summary: null })]);
+
+        const snapshot = await loadVersionSnapshot(db as never, makeArchiveMessage());
+
+        expect(snapshot).not.toHaveProperty('baseVersion');
+        expect(snapshot).not.toHaveProperty('s3Key');
+        expect(snapshot).not.toHaveProperty('changeSummary');
+    });
+
+    it('THROWS when the version row is gone rather than archiving an empty body', async () => {
+        const db = dbReturning([]);
+
+        // The row IS the payload. If it has vanished, there is nothing to archive — failing loudly
+        // makes SQS retry and then DLQ it, instead of writing a bogus object and pruning nothing.
+        await expect(loadVersionSnapshot(db as never, makeArchiveMessage({ versionId: 'gone' }))).rejects.toThrow(
+            /gone/,
+        );
     });
 });
 
 describe('handler', () => {
+    let dbExecute: ReturnType<typeof vi.fn>;
+
     beforeEach(() => {
         process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive-bucket';
-        vi.mocked(getRecipeDbMock).mockReturnValue({} as never);
+        dbExecute = vi.fn().mockResolvedValue({ rows: [makeVersionRow()] });
+        vi.mocked(getRecipeDbMock).mockReturnValue({ execute: dbExecute } as never);
         s3Send.mockResolvedValue({});
     });
 
@@ -146,8 +207,11 @@ describe('handler', () => {
         expect(first.Bucket).toBe('archive-bucket');
         expect(first.Key).toBe('recipes/own/rec/versions/1.json');
         expect(first.ContentType).toBe('application/json');
-        const body = JSON.parse(first.Body) as { recipeId: string; versionId: string; ownerId: string };
-        expect(body).toMatchObject({ recipeId: 'rec', versionId: 'v1', ownerId: 'own' });
+        // The body is the RecipeVersion wire contract — the SAME shape recipe-service PUT inline before
+        // T130 relocated the write here, so an archive means the same thing before and after the cutover.
+        const body = JSON.parse(first.Body) as { recipeId: string; createdBy: string; snapshot: unknown };
+        expect(body).toMatchObject({ recipeId: 'rec', createdBy: 'own' });
+        expect(body.snapshot).toBeDefined();
 
         expect(putInput(s3Send.mock.calls[1][0]).Key).toBe('recipes/own/rec/versions/2.json');
     });
@@ -171,5 +235,55 @@ describe('handler', () => {
         s3Send.mockRejectedValueOnce(new Error('PutObject failed'));
 
         await expect(runHandler(makeArchiveEvent({ versionId: 'v1' }))).rejects.toThrow('PutObject failed');
+    });
+});
+
+describe('handler — archive-before-prune (FR-007b-i)', () => {
+    let order: string[];
+    let dbExecute: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+        process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive-bucket';
+        order = [];
+        dbExecute = vi.fn().mockImplementation(async (query: unknown) => {
+            const text = JSON.stringify(query);
+            if (text.includes('DELETE')) {
+                order.push('prune');
+
+                return { rows: [] };
+            }
+
+            return { rows: [makeVersionRow()] };
+        });
+        vi.mocked(getRecipeDbMock).mockReturnValue({ execute: dbExecute } as never);
+        s3Send.mockImplementation(async () => {
+            order.push('archive');
+
+            return {};
+        });
+    });
+
+    afterEach(() => {
+        delete process.env['RECIPE_ARCHIVE_BUCKET'];
+    });
+
+    it('prunes the version from Postgres only AFTER the S3 put resolves', async () => {
+        await runHandler(makeArchiveEvent({ ownerId: 'own', recipeId: 'rec', versionId: 'v1', versionNumber: 1 }));
+
+        // The invariant the whole async path rests on. recipe-service stopped pruning at save time
+        // (T130) precisely so the row survives until this write confirms; pruning first would destroy
+        // the payload AND cascade away the outbox row that records the debt.
+        expect(order).toEqual(['archive', 'prune']);
+    });
+
+    it('does NOT prune when the S3 put fails — the row must survive for the retry', async () => {
+        s3Send.mockRejectedValue(new Error('S3 down'));
+
+        await expect(
+            runHandler(makeArchiveEvent({ ownerId: 'own', recipeId: 'rec', versionId: 'v1', versionNumber: 1 })),
+        ).rejects.toThrow('S3 down');
+
+        expect(order).not.toContain('prune');
+        // Throwing (rather than swallowing) is what makes SQS redeliver and eventually DLQ the record.
     });
 });

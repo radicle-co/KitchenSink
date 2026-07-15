@@ -4,7 +4,7 @@ appId: io.commise.mobile
 # first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_API_URL). Asserts the
 # list chrome renders, then drills into a seeded recipe and back — the mobile mirror of the web
 # Playwright recipe-list/detail flow (cross-platform mandate).
-- launchApp
+- runFlow: ../auth/signin.yaml
 
 # The recipe list surface (RecipeListScreen): heading + search + create CTA are always present.
 - assertVisible: 'Recipes'

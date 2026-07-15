@@ -4,7 +4,7 @@ appId: io.commise.mobile
 # seeded recipe API. Drives list -> detail -> edit, changes the title, and saves. Guarded on the seeded
 # recipe so an empty library still passes the list-chrome assertion. Mobile mirror of the web Playwright
 # recipe-edit flow (cross-platform mandate).
-- launchApp
+- runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 

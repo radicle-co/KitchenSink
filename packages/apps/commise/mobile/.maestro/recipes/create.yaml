@@ -6,7 +6,7 @@ appId: io.commise.mobile
 # step, then submits. The ingredient resolution is guarded on a seeded food match so the form-render +
 # input assertions still hold if the seed lacks the queried food. Mobile mirror of the web Playwright
 # recipe-create flow (cross-platform mandate).
-- launchApp
+- runFlow: ../auth/signin.yaml
 
 # Recipe list surface, then into the create editor.
 - assertVisible: 'Recipes'

@@ -1,62 +1,32 @@
-# Maestro E2E: Mobile auth flows with Clerk
+# Maestro E2E: mobile Clerk sign-in journey (US-auth). Verifies the login screen renders and a full
+# email + password + new-device email-code sign-in lands the caller on the authenticated recipe surface.
 #
-# Uses Clerk magic test emails (+clerk_test suffix) which auto-verify
-# with fixed OTP 424242 — no real email server needed.
+# Uses a Clerk `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no
+# real mailbox needed. The shared, idempotent `signin.yaml` sub-flow owns the actual credential entry (and
+# is reused by every recipe flow); this flow adds the login-chrome assertions and a clean-state launch so
+# the sign-in path itself is always exercised.
 #
 # Pre-requisites:
-#   - App built as debug APK (expo prebuild + gradle assembleDebug)
-#   - Android emulator running with app installed
-#   - Clerk dashboard has email+password auth enabled
+#   - App installed on a running Android emulator (debug APK loading JS from Metro, or a release build).
+#   - The shared Clerk test user provisioned (web e2e `ensureSignInTestUser`, same instance the app targets).
+#   - Clerk instance has email+password auth enabled with new-device email-code verification.
 #
-# Run: maestro test .maestro/auth/
+# Run: maestro test .maestro/auth/login-flow.yaml
 
 appId: io.commise.mobile
 ---
 - launchApp:
       clearState: true
 
-# Login screen assertions
+# The login screen renders (custom Clerk form — Commise brand + credential fields + submit).
 - assertVisible: 'Commise'
 - assertVisible: 'Email'
 - assertVisible: 'Password'
 - assertVisible: 'Sign in'
 
-# Navigate to sign-up
-- tapOn: 'Sign up'
-- assertVisible: 'Create your account'
+# Sign in with the shared test user (email + password + new-device email code) via the reusable sub-flow.
+# clearState above guarantees the guarded credential block runs (no persisted session to skip it).
+- runFlow: signin.yaml
 
-# Sign up with Clerk magic email (+clerk_test suffix)
-- tapOn: 'Email'
-- inputText: 'maestro+clerk_test@example.com'
-
-- tapOn: 'Password'
-- inputText: 'TestPassword123!'
-
-- tapOn: 'Create account'
-
-# If email verification appears, enter magic OTP
-- runFlow:
-      when:
-          visible: 'Verification'
-      commands:
-          - inputText: '424242'
-
-# Should land back at login screen or app content
-- assertVisible:
-      id: 'login-screen'
-      optional: true
-
-# Navigate back to login and sign in
-- tapOn: 'Sign in'
-- tapOn: 'Email'
-- inputText: 'maestro+clerk_test@example.com'
-
-- tapOn: 'Password'
-- inputText: 'TestPassword123!'
-
-- tapOn: 'Sign in'
-
-# After successful auth, AuthGate renders children (ProfileScreen)
-- assertVisible:
-      id: 'profile-screen'
-      timeout: 10000
+# A completed sign-in renders the authenticated surface: the RecipesScreen "Recipes" list heading.
+- assertVisible: 'Recipes'

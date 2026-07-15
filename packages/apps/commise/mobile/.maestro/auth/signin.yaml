@@ -1,0 +1,44 @@
+# Reusable, idempotent sign-in sub-flow (Clerk email + password + new-device email code).
+#
+# Launches the app and, ONLY IF the login screen is showing, signs in with the shared Clerk test user
+# (a `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no real
+# mailbox needed). When a persisted session already exists (`expo-secure-store` token cache), the login
+# screen is absent, the guarded block is skipped, and the flow falls straight through to the recipe list.
+#
+# The recipe flows `runFlow: ../auth/signin.yaml` as their first step instead of `launchApp`, so each is
+# self-contained and order-independent (no reliance on a separate login flow having run first). The login
+# form lives in mobile/src/screens/login.tsx; the completed session renders RecipesScreen (heading
+# "Recipes"). Credentials mirror the web Playwright suite's TEST_USER_* (cross-platform parity).
+
+appId: io.commise.mobile
+---
+- launchApp
+
+# Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
+- runFlow:
+      when:
+          visible: 'Sign in'
+      commands:
+          - tapOn: 'Email'
+          - inputText: 'commise-e2e-signin+clerk_test@example.com'
+          - tapOn: 'Password'
+          - inputText: 'Commise-e2e-Test-9j2xQ!'
+          - hideKeyboard
+          - tapOn: 'Sign in'
+          # New-device verification: this Clerk instance requires an email code after the password factor
+          # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new
+          # device. `+clerk_test` magic emails accept the fixed code 424242 — no real mailbox needed.
+          - extendedWaitUntil:
+                visible: 'Verification code'
+                timeout: 15000
+          - tapOn: 'Verification code'
+          - inputText: '424242'
+          - hideKeyboard
+          - tapOn: 'Verify'
+
+# The authenticated surface: RecipesScreen renders the "Recipes" list heading. The wait is generous
+# because completing sign-in (Clerk `setActive`) re-renders through the auth gate and the list then
+# fetches from the recipe service — a chain that is slow under the Metro dev bundler on first paint.
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000

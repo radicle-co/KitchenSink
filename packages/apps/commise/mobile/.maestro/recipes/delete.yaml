@@ -5,7 +5,7 @@ appId: io.commise.mobile
 # to the list. Guarded on the seeded recipe. NOTE: this permanently removes the recipe it opens, so CI
 # must (re)seed before this flow or run it last relative to the other recipe flows that read that seed.
 # Mobile mirror of the web Playwright delete flow (cross-platform mandate).
-- launchApp
+- runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 

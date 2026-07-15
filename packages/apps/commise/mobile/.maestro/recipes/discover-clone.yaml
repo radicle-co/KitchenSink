@@ -1,10 +1,13 @@
 appId: io.commise.mobile
 ---
-# Public discovery + clone happy path (US2, T075/T076). Assumes an authenticated session (auth flow runs
-# first in CI) and a seeded recipe API with at least one public recipe. Switches to the Discover tab,
-# asserts the discovery chrome, then clones a public recipe (guarded on a seeded public row). Mobile
-# mirror of the web Playwright clone/discovery flow (cross-platform mandate).
-- launchApp
+# Public discovery + clone happy path (US2, T075/T076). Signs in, switches to the Discover tab, opens a
+# public recipe the caller does NOT own, and clones it from the detail screen — the mobile mirror of the
+# web Playwright clone flow (`cloneVisibility.spec.ts`: "opening a public recipe you don't own and cloning
+# it lands you on the copy's detail"). The clone copies the recipe into the caller's library and navigates
+# to the new copy, so the copy's detail shows OWNER actions (Edit) that the original non-owned detail never
+# showed — asserting "Edit recipe" (not merely a section both details share) proves the clone landed on the
+# owned copy. Guarded on a seeded public row so an empty discovery feed still passes the chrome.
+- runFlow: ../auth/signin.yaml
 
 # Recipe list is the initial top-level destination; switch to the Discover tab.
 - assertVisible: 'Recipes'
@@ -14,11 +17,18 @@ appId: io.commise.mobile
 - assertVisible: 'Discover recipes'
 - assertVisible: 'Search public recipes'
 
-# Clone the first seeded public recipe (guarded: needs a seeded public row).
+# Open + clone the seeded PRO-owned public recipe (guarded on it being present).
 - runFlow:
       when:
-          visible: 'Clone'
+          visible: 'Herb Risotto'
       commands:
+          # Open the recipe's detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
+          # "Clone Herb Risotto" quick-clone button whose accessibility label also contains the title.
+          - tapOn:
+                text: '^Herb Risotto$'
+          # The detail of a public recipe the caller does not own exposes the clone action (US2).
+          - assertVisible: 'Clone'
           - tapOn: 'Clone'
-          # A successful clone navigates to the newly-cloned recipe's detail (its instructions section).
-          - assertVisible: 'Instructions'
+          # A successful clone navigates to the caller-owned copy's detail — which now offers the owner-only
+          # Edit action the original (non-owned) detail did not, proving the clone + navigation happened.
+          - assertVisible: 'Edit recipe'

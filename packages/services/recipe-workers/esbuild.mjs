@@ -14,7 +14,11 @@ import { writeFileSync } from 'node:fs';
  *
  * The `dist/package.json` `{"type":"module"}` marker makes Node load the emitted `.js` as ESM.
  */
-const entryPoints = ['src/handlers/version-archive-worker.ts', 'src/handlers/account-erasure-worker.ts'];
+const entryPoints = [
+    'src/handlers/version-archive-worker.ts',
+    'src/handlers/account-erasure-worker.ts',
+    'src/handlers/archive-sweeper.ts',
+];
 
 await build({
     entryPoints,

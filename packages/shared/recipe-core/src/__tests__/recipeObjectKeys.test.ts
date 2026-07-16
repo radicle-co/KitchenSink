@@ -18,6 +18,8 @@ import { describe, it, expect } from 'vitest';
 
 import {
     ownerMediaPrefix,
+    recipePhotoKeyPrefix,
+    recipePhotoOriginalKey,
     recipePhotoThumbnailKey,
     RECIPE_PHOTO_THUMBNAIL_SUFFIX,
     recipeVersionArchiveKey,
@@ -25,10 +27,15 @@ import {
 
 const OWNER = '01JOWNER0000000000000000A';
 const RECIPE = '00000000-0000-4000-8000-0000000000r1';
+const OBJECT_ID = 'e2b1a0c0-0000-4000-8000-000000000abc';
 
-/** A recipe-photo original object key, exactly as the service builds it — under the owner erasure prefix. */
-const photoKey = (ownerId: string, recipeId = RECIPE, uuid = 'e2b1a0c0-0000-4000-8000-000000000abc'): string =>
-    `${ownerMediaPrefix(ownerId)}${recipeId}/photos/${uuid}`;
+/**
+ * A recipe-photo original object key, built from the SAME authoritative helper the service uses. Pinning
+ * containment against this (not a re-spelled literal) is what makes the guarantee structural: a change to
+ * `ownerMediaPrefix`/`recipePhotoKeyPrefix` that broke containment fails the containment describe below.
+ */
+const photoKey = (ownerId: string, recipeId = RECIPE, objectId = OBJECT_ID): string =>
+    recipePhotoOriginalKey(ownerId, recipeId, objectId);
 
 describe('ownerMediaPrefix', () => {
     it('is the owner-scoped prefix the GDPR erasure sweep lists and deletes', () => {
@@ -73,6 +80,34 @@ describe('recipeVersionArchiveKey', () => {
     });
 });
 
+describe('recipePhotoKeyPrefix / recipePhotoOriginalKey', () => {
+    it('derives the photo prefix from the owner erasure prefix by appending (not re-spelling it)', () => {
+        // The prefix MUST be built on top of ownerMediaPrefix so containment is structural. Asserting the
+        // exact composition (ownerMediaPrefix + `{recipeId}/photos/`) fails if the helper stops deriving
+        // from ownerMediaPrefix — the coincidental-string-match regression this fix removes.
+        expect(recipePhotoKeyPrefix(OWNER, RECIPE)).toBe(`${ownerMediaPrefix(OWNER)}${RECIPE}/photos/`);
+        expect(recipePhotoKeyPrefix(OWNER, RECIPE)).toBe(`recipes/${OWNER}/${RECIPE}/photos/`);
+    });
+
+    it('ends with a slash so a scope check cannot match a sibling recipe by prefix', () => {
+        expect(recipePhotoKeyPrefix(OWNER, RECIPE).endsWith('/')).toBe(true);
+        // recipe `r1` must not be a prefix of recipe `r10`'s photo space (delimiter guards the boundary).
+        expect(recipePhotoKeyPrefix(OWNER, 'r1').startsWith(recipePhotoKeyPrefix(OWNER, 'r10'))).toBe(false);
+        expect(recipePhotoKeyPrefix(OWNER, 'r10').startsWith(recipePhotoKeyPrefix(OWNER, 'r1'))).toBe(false);
+    });
+
+    it('composes the original key as the prefix plus the server-assigned object id', () => {
+        expect(recipePhotoOriginalKey(OWNER, RECIPE, OBJECT_ID)).toBe(
+            `${recipePhotoKeyPrefix(OWNER, RECIPE)}${OBJECT_ID}`,
+        );
+    });
+
+    it('separates recipes within one owner and owners from each other', () => {
+        expect(recipePhotoKeyPrefix(OWNER, 'rec-a')).not.toBe(recipePhotoKeyPrefix(OWNER, 'rec-b'));
+        expect(recipePhotoKeyPrefix('owner-a', RECIPE)).not.toBe(recipePhotoKeyPrefix('owner-b', RECIPE));
+    });
+});
+
 describe('recipePhotoThumbnailKey', () => {
     it('derives the thumbnail as a distinct sibling BESIDE the original object (append, not relocate)', () => {
         const original = photoKey(OWNER);
@@ -105,6 +140,20 @@ describe('the GDPR containment invariant (verticals-8)', () => {
 
         for (const parts of cases) {
             expect(recipeVersionArchiveKey(parts).startsWith(ownerMediaPrefix(parts.ownerId))).toBe(true);
+        }
+    });
+
+    it('puts EVERY photo ORIGINAL key under its owner erasure prefix', () => {
+        // The recipe service builds photo original keys from recipePhotoKeyPrefix AND serves them as-is via
+        // CloudFront; if that prefix ever escaped ownerMediaPrefix, a photo original would survive a
+        // right-to-erasure request (verticals-8). A mutation that re-rooted the photo prefix (e.g. a bucket
+        // -level `photos/{recipeId}/…`) fails here.
+        const owners = [OWNER, '01JOTHER000000000000000B', 'a'];
+
+        for (const ownerId of owners) {
+            const original = recipePhotoOriginalKey(ownerId, RECIPE, OBJECT_ID);
+
+            expect(original.startsWith(ownerMediaPrefix(ownerId))).toBe(true);
         }
     });
 

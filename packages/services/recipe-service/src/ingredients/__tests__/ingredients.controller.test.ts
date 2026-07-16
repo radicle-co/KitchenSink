@@ -1,23 +1,31 @@
+/**
+ * T029 — unit tests for {@link IngredientsController} over a fake {@link IngredientsService}.
+ *
+ * The controller is thin (house convention): the `@OwnerId()` decorator resolves the verified caller and
+ * fails closed with `401` when absent — that path lives on the decorator and is tested in
+ * `auth/__tests__/current-principal.decorator.test.ts`, NOT here (a direct method call does not run
+ * param decorators). Body validation lives on the class-validator DTOs under the controller-scoped
+ * `ValidationPipe`; its outcomes are pinned in `dto/__tests__/ingredient-dtos.test.ts` (run through the
+ * SAME pipe) and end-to-end in the assembled-app e2e spec. What remains for the controller itself is the
+ * query-param logic it still owns (search `q` required + `limit` parsing) and that each route forwards the
+ * validated inputs to the right service method verbatim.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
-import type { AuthenticatedRequest, Principal } from '../../auth/principal.js';
 import { IngredientsController } from '../ingredients.controller.js';
 import type { IngredientsService } from '../ingredients.service.js';
+import type { CreateIngredientDto } from '../dto/create-ingredient.dto.js';
+import type { ResolveIngredientDto } from '../dto/resolve-ingredient.dto.js';
 import { makeCandidateView, makeIngredient } from '../__fixtures__/ingredients.fixtures.js';
 
-/** A request bearing an authenticated principal. */
-function makeReq(overrides: Partial<Principal> = {}): AuthenticatedRequest {
-    const principal: Principal = { userId: '01J0USER', sub: 'clerk_sub', scopes: [], permissions: [], ...overrides };
-
-    return { principal } as unknown as AuthenticatedRequest;
-}
+/** The verified caller ULID the `@OwnerId()` decorator would inject (an auth assertion; unused downstream). */
+const CALLER = '01J0USER';
 
 describe('IngredientsController', () => {
     let controller: IngredientsController;
-    let service: IngredientsService;
     let mocks: {
         search: ReturnType<typeof vi.fn>;
         createFreeform: ReturnType<typeof vi.fn>;
@@ -39,16 +47,15 @@ describe('IngredientsController', () => {
             getCandidates: vi.fn(),
             resolve: vi.fn(),
         };
-        service = mocks as unknown as IngredientsService;
-        controller = new IngredientsController(service);
+        controller = new IngredientsController(mocks as unknown as IngredientsService);
     });
 
     describe('GET /v1/ingredients/search', () => {
-        it('reads the principal, trims q, and delegates to the service', async () => {
+        it('trims q, parses limit, and delegates to the service', async () => {
             const rows = [makeIngredient({ id: 'a' })];
             mocks.search.mockResolvedValue(rows);
 
-            const result = await controller.search(makeReq(), '  flour  ', '5');
+            const result = await controller.search(CALLER, '  flour  ', '5');
 
             expect(mocks.search).toHaveBeenCalledWith('flour', 5);
             expect(result).toBe(rows);
@@ -57,60 +64,36 @@ describe('IngredientsController', () => {
         it('defaults the limit to undefined (service/DAL default) when omitted', async () => {
             mocks.search.mockResolvedValue([]);
 
-            await controller.search(makeReq(), 'flour');
+            await controller.search(CALLER, 'flour');
 
             expect(mocks.search).toHaveBeenCalledWith('flour', undefined);
         });
 
         it('rejects a missing/blank q with 400', async () => {
-            await expect(controller.search(makeReq(), '   ')).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.search(makeReq(), undefined)).rejects.toBeInstanceOf(BadRequestException);
+            await expect(controller.search(CALLER, '   ')).rejects.toBeInstanceOf(BadRequestException);
+            await expect(controller.search(CALLER, undefined)).rejects.toBeInstanceOf(BadRequestException);
             expect(mocks.search).not.toHaveBeenCalled();
         });
 
         it('rejects a non-numeric limit with 400', async () => {
-            await expect(controller.search(makeReq(), 'flour', 'abc')).rejects.toBeInstanceOf(BadRequestException);
-        });
-
-        it('fails closed with 401 when the principal is absent', async () => {
-            const req = {} as AuthenticatedRequest;
-
-            await expect(controller.search(req, 'flour')).rejects.toBeInstanceOf(UnauthorizedException);
+            await expect(controller.search(CALLER, 'flour', 'abc')).rejects.toBeInstanceOf(BadRequestException);
         });
     });
 
     describe('POST /v1/ingredients', () => {
-        it('creates a freeform ingredient from a valid body', async () => {
+        it('forwards the (DTO-validated) name to createFreeform', async () => {
             const created = makeIngredient({ id: 'f1', isUserEntered: true });
             mocks.createFreeform.mockResolvedValue(created);
 
-            const result = await controller.create(makeReq(), { name: '  Grandma spice  ' });
+            const result = await controller.create(CALLER, { name: 'Grandma spice' } as CreateIngredientDto);
 
             expect(mocks.createFreeform).toHaveBeenCalledWith('Grandma spice');
             expect(result).toBe(created);
         });
-
-        it('rejects a missing/blank name with 400', async () => {
-            await expect(controller.create(makeReq(), {})).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.create(makeReq(), { name: '   ' })).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.create(makeReq(), null)).rejects.toBeInstanceOf(BadRequestException);
-        });
-
-        it('rejects an over-long name with 400', async () => {
-            await expect(controller.create(makeReq(), { name: 'x'.repeat(121) })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-        });
-
-        it('fails closed with 401 when the principal is absent', async () => {
-            await expect(controller.create({} as AuthenticatedRequest, { name: 'ok' })).rejects.toBeInstanceOf(
-                UnauthorizedException,
-            );
-        });
     });
 
     describe('POST /v1/ingredients/by-name (async food resolution — the vertical entry point)', () => {
-        it('adds an unknown food by name (trimmed) and returns its non-terminal ingredient', async () => {
+        it('routes to addByName (NOT createFreeform) and returns the non-terminal ingredient', async () => {
             const added = makeIngredient({
                 id: 'i1',
                 foodId: 'F1',
@@ -118,127 +101,52 @@ describe('IngredientsController', () => {
             });
             mocks.addByName.mockResolvedValue(added);
 
-            const result = await controller.addByName(makeReq(), { name: '  Quinoa  ' });
+            const result = await controller.addByName(CALLER, { name: 'Quinoa' } as CreateIngredientDto);
 
-            // Mutation guard: the ADD path must delegate to addByName (NOT createFreeform) — a regression that
-            // routed this to the plain freeform create would fail here (createFreeform must stay untouched).
+            // Mutation guard: the ADD path must delegate to addByName — a regression routing it to the plain
+            // freeform create would fail here (createFreeform must stay untouched).
             expect(mocks.addByName).toHaveBeenCalledWith('Quinoa');
             expect(mocks.createFreeform).not.toHaveBeenCalled();
             expect(result).toBe(added);
         });
-
-        it('surfaces an UNRESOLVED add (needs disambiguation) unchanged from the service', async () => {
-            const unresolved = makeIngredient({
-                id: 'i2',
-                foodId: 'F2',
-                foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
-            });
-            mocks.addByName.mockResolvedValue(unresolved);
-
-            const result = await controller.addByName(makeReq(), { name: 'Ambiguous thing' });
-
-            expect(result.foodResolutionStatus).toBe(FoodResolutionStatus.UNRESOLVED);
-        });
-
-        it('rejects a missing/blank name with 400 and never calls the service', async () => {
-            await expect(controller.addByName(makeReq(), {})).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.addByName(makeReq(), { name: '   ' })).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.addByName(makeReq(), null)).rejects.toBeInstanceOf(BadRequestException);
-            expect(mocks.addByName).not.toHaveBeenCalled();
-        });
-
-        it('rejects an over-long name with 400', async () => {
-            await expect(controller.addByName(makeReq(), { name: 'x'.repeat(121) })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-        });
-
-        it('fails closed with 401 when the principal is absent (before any validation or food call)', async () => {
-            await expect(controller.addByName({} as AuthenticatedRequest, { name: 'ok' })).rejects.toBeInstanceOf(
-                UnauthorizedException,
-            );
-            expect(mocks.addByName).not.toHaveBeenCalled();
-        });
     });
 
     describe('GET /v1/ingredients/{id}/status (poll)', () => {
-        it('reads the principal and delegates the poll to the service', async () => {
+        it('delegates the poll to the service', async () => {
             const refreshed = makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED });
             mocks.refreshStatus.mockResolvedValue(refreshed);
 
-            const result = await controller.status(makeReq(), ID);
+            const result = await controller.status(CALLER, ID);
 
             expect(mocks.refreshStatus).toHaveBeenCalledWith(ID);
             expect(result).toBe(refreshed);
         });
-
-        it('fails closed with 401 when the principal is absent', async () => {
-            await expect(controller.status({} as AuthenticatedRequest, ID)).rejects.toBeInstanceOf(
-                UnauthorizedException,
-            );
-            expect(mocks.refreshStatus).not.toHaveBeenCalled();
-        });
     });
 
     describe('GET /v1/ingredients/{id}/candidates', () => {
-        it('reads the principal and delegates to the service', async () => {
+        it('delegates to the service', async () => {
             const candidates = [makeCandidateView({ candidateId: 'c1' })];
             mocks.getCandidates.mockResolvedValue(candidates);
 
-            const result = await controller.candidates(makeReq(), ID);
+            const result = await controller.candidates(CALLER, ID);
 
             expect(mocks.getCandidates).toHaveBeenCalledWith(ID);
             expect(result).toBe(candidates);
         });
-
-        it('fails closed with 401 when the principal is absent', async () => {
-            await expect(controller.candidates({} as AuthenticatedRequest, ID)).rejects.toBeInstanceOf(
-                UnauthorizedException,
-            );
-            expect(mocks.getCandidates).not.toHaveBeenCalled();
-        });
     });
 
     describe('POST /v1/ingredients/{id}/resolve', () => {
-        it('trims + forwards the picked candidate ids and returns the resolved ingredient', async () => {
+        it('forwards the (DTO-validated) picked candidate ids and returns the resolved ingredient', async () => {
             const resolved = makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED });
             mocks.resolve.mockResolvedValue(resolved);
 
-            const result = await controller.resolve(makeReq(), ID, { candidateIds: ['  cand-1  ', 'cand-2'] });
+            const result = await controller.resolve(CALLER, ID, {
+                candidateIds: ['cand-1', 'cand-2'],
+            } as ResolveIngredientDto);
 
-            // Mutation guard: the EXACT trimmed picks must reach the service — a wrong/dropped id fails here.
+            // Mutation guard: the EXACT picks must reach the service — a wrong/dropped id fails here.
             expect(mocks.resolve).toHaveBeenCalledWith(ID, ['cand-1', 'cand-2']);
             expect(result).toBe(resolved);
-        });
-
-        it('rejects a missing/empty/blank candidateIds with 400 and never calls the service', async () => {
-            await expect(controller.resolve(makeReq(), ID, {})).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.resolve(makeReq(), ID, { candidateIds: [] })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-            await expect(controller.resolve(makeReq(), ID, { candidateIds: ['  '] })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-            await expect(controller.resolve(makeReq(), ID, { candidateIds: [42] })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-            await expect(controller.resolve(makeReq(), ID, null)).rejects.toBeInstanceOf(BadRequestException);
-            expect(mocks.resolve).not.toHaveBeenCalled();
-        });
-
-        it('rejects an oversized candidateIds array with 400', async () => {
-            const tooMany = Array.from({ length: 21 }, (_, i) => `c${i}`);
-
-            await expect(controller.resolve(makeReq(), ID, { candidateIds: tooMany })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-        });
-
-        it('fails closed with 401 when the principal is absent (before any validation)', async () => {
-            await expect(
-                controller.resolve({} as AuthenticatedRequest, ID, { candidateIds: ['c1'] }),
-            ).rejects.toBeInstanceOf(UnauthorizedException);
-            expect(mocks.resolve).not.toHaveBeenCalled();
         });
     });
 });

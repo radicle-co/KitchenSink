@@ -118,6 +118,38 @@ describe.skipIf(!hasDatabaseUrl)(
             expect(reread?.portions).toEqual([{ unit: 'cup', gramsPerUnit: 185 }]);
         });
 
+        it('resolve is converge-only: a second resolve does NOT re-point an already-RESOLVED row', async () => {
+            // Drive UNRESOLVED → RESOLVED once, capturing the settled food link + nutrition.
+            const id = await seedFoodBacked(FoodResolutionStatus.UNRESOLVED);
+            vi.mocked(food.resolve).mockResolvedValue({ id: FOOD_ID, status: FoodResolutionStatus.RESOLVED });
+            vi.mocked(food.getStatus).mockResolvedValue(
+                makeStatusResult({
+                    id: FOOD_ID,
+                    status: FoodResolutionStatus.RESOLVED,
+                    food: makeFoodView({ id: FOOD_ID }),
+                }),
+            );
+
+            await service.resolve(id, ['cand-a']);
+            const afterFirst = await dal.findById(id);
+            expect(afterFirst?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+            expect(afterFirst?.caloriesPer100g).toBe(364);
+
+            // A SECOND resolve with a DIFFERENT pick must be an idempotent no-op — the ownerless shared row
+            // must not be re-pointed. If the converge-only guard were removed, food.resolve would fire with
+            // 'cand-b' and the persisted row could change; both assertions below would fail.
+            vi.mocked(food.resolve).mockClear();
+            vi.mocked(food.getStatus).mockClear();
+
+            const returned = await service.resolve(id, ['cand-b']);
+
+            expect(food.resolve).not.toHaveBeenCalled();
+            expect(food.getStatus).not.toHaveBeenCalled();
+            const afterSecond = await dal.findById(id);
+            expect(afterSecond).toEqual(afterFirst); // the persisted row is byte-for-byte unchanged
+            expect(returned.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+        });
+
         it('poll (refreshStatus) persists nutrition once a PENDING food RESOLVES', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.PENDING);
             vi.mocked(food.getStatus).mockResolvedValue(

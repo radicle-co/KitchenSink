@@ -139,6 +139,13 @@ phases:
           risk: low
           at: '2026-07-06'
           note: 'Start T000-prereq first (clerk-verify external_id→userId), TDD-first.'
+        - phase: code_review
+          decision: approved
+          at: '2026-07-16'
+          reviewed_by_model: null
+          cross_model_findings: 0
+          findings: { critical: 0, high: 0, medium: 3, low: 3, fixed: 5, acknowledged: 1 }
+          note: 'Phase 6B 4-dimension adversarial review. 0 CRITICAL/HIGH; suite mutation-resistant. 5 findings fixed + re-verified, REV-006 accepted (DAMP). See code-review.md.'
     task_log:
         - id: T000-prereq
           part: 'clerk-verify external_id→userId (shared verifier surface; optional field)'
@@ -402,11 +409,23 @@ phases:
               - packages/services/recipe-workers/infra/
 
     code-review:
-        state: not-applicable
-        reason: >
-            Not run as a formal Product Forge phase. Per-slice adversarial + rubber-duck self-review was
-            done inline this session, and the compound-engineering ce-review personas ran on earlier backend
-            batches. A formal Phase 6B multi-agent pass is still worth running before release.
+        state: completed
+        completed_at: '2026-07-16'
+        artifact: code-review.md
+        method: '4 parallel adversarial reviewers — security, correctness, architecture/maintainability, test mutation-resistance'
+        outcome: >
+            0 CRITICAL, 0 HIGH. Test suite independently confirmed mutation-resistant. 6 findings
+            (3 MEDIUM architecture + 2 LOW bug/hardening + 1 LOW accepted-DAMP); all 5 actionable ones
+            FIXED + mutation-verified, REV-006 (duplicate makeRecipe fixture) accepted as DAMP-tolerant.
+        fixes:
+            - 'REV-001 photo original key now composed from ownerMediaPrefix (structural GDPR containment) + test'
+            - 'REV-002 EMF metric envelope extracted to one emitMetric() helper (byte-identical)'
+            - 'REV-003 IngredientsController onto the house @OwnerId()+DTO+ValidationPipe convention'
+            - 'REV-004 stale rating-write error reset on recipe navigation (web + mobile) + test'
+            - 'REV-005 ingredient resolve made converge-only (no cross-user overwrite of a RESOLVED catalog row)'
+            - 'plus 2 adversarial security tests: photo-key traversal containment, PUBLIC_PATHS fail-closed'
+        post_fix_verify: 'recipe-core 51 / recipe-service 634 unit + 104 integration + 15 e2e / recipe-workers 162 / web 283 / mobile 32 node + 135 native — all typecheck + lint clean'
+        machine_gates: 'typecheck PASS, lint PASS (incl. oxlint), coverage PASS (pyramid); SCA osv-scanner tooling-unavailable locally — run in CI (sharp, @aws-sdk/client-sqs)'
 
     verify:
         state: completed

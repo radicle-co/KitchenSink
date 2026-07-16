@@ -171,6 +171,42 @@ describe('AuthMiddleware', () => {
         expect(next).toHaveBeenCalledOnce();
     });
 
+    describe('PUBLIC_PATHS cannot be tricked by a non-canonical path (fail-closed)', () => {
+        // The public allowlist is an EXACT match on the normalized path; `getPath` strips the query and
+        // trailing slashes but deliberately does NOT collapse `..` segments or lowercase the path. So a
+        // path that merely resembles a health probe must NOT be admitted unauthenticated — it falls through
+        // to full Bearer enforcement and 401s without a token. If the allowlist ever loosened to a
+        // prefix/`includes`/case-insensitive match, these protected-looking paths would slip through — and
+        // these cases would fail. `/health/../v1/account/erasure` is the load-bearing one: erasure is the
+        // most destructive route, and a traversal-prefixed spelling must never reach it without auth.
+        it.each([
+            ['a traversal-prefixed erasure path', '/health/../v1/account/erasure'],
+            ['a case-variant of the health probe', '/HEALTH'],
+            ['a traversal off the readiness probe', '/health/ready/../../v1/recipes'],
+            ['the health token as a mere prefix of a real route', '/healthz/secrets'],
+        ])('requires auth (401, next never called) for %s', async (_label, path) => {
+            const { req, res, next } = makeContext({ path });
+
+            await expect(middleware.use(req, res, next)).rejects.toBeInstanceOf(UnauthorizedException);
+            // verify never runs because there is no bearer — but crucially, the request was NOT waved
+            // through as public: next() was not called and no principal was attached.
+            expect(verifySpy).not.toHaveBeenCalled();
+            expect(req.principal).toBeUndefined();
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('still ADMITS the canonical health path with a trailing slash + query (normalization is intended)', async () => {
+            // The complement: normalization legitimately admits `/health/?x=1` → `/health`. This pins that
+            // the fail-closed cases above are about `..`/case/prefix, not about rejecting real probes.
+            const { req, res, next } = makeContext({ path: '/health/?probe=1' });
+
+            await middleware.use(req, res, next);
+
+            expect(verifySpy).not.toHaveBeenCalled();
+            expect(next).toHaveBeenCalledOnce();
+        });
+    });
+
     describe('dev bypass', () => {
         it('injects a dev Principal from RECIPE_DEV_AUTH_USER_ID outside production (no token, no verify)', async () => {
             process.env['NODE_ENV'] = 'development';

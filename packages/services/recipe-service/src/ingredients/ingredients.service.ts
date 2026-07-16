@@ -20,6 +20,7 @@
  * @implements FR-007 FR-007a
  */
 import { Injectable } from '@nestjs/common';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
 import { FoodServiceClient, isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, FoodStatus, FoodView, SearchResultView } from '@kitchensink/food-service-client';
@@ -27,7 +28,6 @@ import type { CandidateView, FoodStatus, FoodView, SearchResultView } from '@kit
 import { IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
 import { normalizeUnit } from '../common/units.js';
 import { ingredientNotFound } from '../recipes/recipe.error.js';
-import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 /**
  * The food client's `FoodStatus` and recipe-core's `FoodResolutionStatus` are the SAME UPPER_SNAKE
@@ -242,16 +242,33 @@ export class IngredientsService {
      * Resolve an `UNRESOLVED` food-backed ingredient from a candidate pick, then re-poll so the newly
      * `RESOLVED` golden-record nutrition is persisted.
      *
+     * **Converge-only.** A `RESOLVED` ingredient is a TERMINAL, immutable resolution: its `food_id` and
+     * golden-record nutrition are settled and must not be re-pointed. The `ingredients` catalog is
+     * intentionally ownerless (data-model R5) and shared across users, so without this guard any caller
+     * could re-`resolve` an already-resolved row to a DIFFERENT (still-legitimate) candidate and overwrite
+     * the food link + nutrition another user's resolution produced — a cross-user data-integrity defect,
+     * not an IDOR. So an already-`RESOLVED` ingredient is returned unchanged (idempotent no-op) without
+     * calling the food service or writing; only a still-open (non-terminal-resolved) ingredient may be
+     * driven to a resolution.
+     *
      * @param id - The 001 ingredient id.
      * @param candidateIds - The picked candidate row ids (validated to the food's own set by the service).
-     * @returns The refreshed, resolved ingredient.
+     * @returns The refreshed, resolved ingredient (or the existing resolution, unchanged, when already `RESOLVED`).
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
-     * @sideEffect Calls the food service (resolve + status), then updates `ingredients`.
+     * @sideEffect Calls the food service (resolve + status), then updates `ingredients` — SKIPPED entirely
+     *   for a freeform or already-`RESOLVED` ingredient.
      */
     public async resolve(id: string, candidateIds: readonly string[]): Promise<Ingredient> {
         const ingredient = await this.requireIngredient(id);
 
+        // Freeform / user-entered ingredients carry no food reference — nothing to resolve.
         if (ingredient.foodId === undefined) {
+            return ingredient;
+        }
+
+        // Converge-only: never overwrite a settled resolution (see the method docstring). Returning the
+        // loaded row (rather than re-polling) guarantees no food-service call and no write occur.
+        if (ingredient.foodResolutionStatus === FoodResolutionStatus.RESOLVED) {
             return ingredient;
         }
 

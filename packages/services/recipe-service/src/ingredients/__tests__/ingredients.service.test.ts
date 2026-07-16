@@ -316,6 +316,26 @@ describe('IngredientsService', () => {
             expect(clientMocks['resolve']).toHaveBeenCalledWith('F1', ['cand-1']);
             expect(result).toBe(resolved);
         });
+
+        it('resolve is a converge-only NO-OP on an already-RESOLVED ingredient (never re-points it)', async () => {
+            // The catalog is ownerless + shared (R5): re-resolving a settled row would let one caller
+            // overwrite the food link/nutrition another caller's resolution produced. An already-RESOLVED
+            // ingredient must be returned unchanged WITHOUT any food-service call or DB write. Removing the
+            // converge-only guard makes the food client + updateResolution fire again → this test fails.
+            const alreadyResolved = makeIngredient({
+                id: 'i1',
+                foodId: 'F1',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            });
+            dalMocks['findById']!.mockResolvedValue(alreadyResolved);
+
+            const result = await service.resolve('i1', ['a-different-candidate']);
+
+            expect(result).toBe(alreadyResolved);
+            expect(clientMocks['resolve']).not.toHaveBeenCalled();
+            expect(clientMocks['getStatus']).not.toHaveBeenCalled();
+            expect(dalMocks['updateResolution']).not.toHaveBeenCalled();
+        });
     });
 
     describe('createFreeform', () => {

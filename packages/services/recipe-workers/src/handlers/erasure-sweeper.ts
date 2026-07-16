@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
+import { emitMetric } from '../common/metrics.js';
 
 /**
  * Scheduled account-erasure sweeper (T136b / C-007 / D7) — the durability backstop behind
@@ -141,31 +142,22 @@ export async function oldestActiveJobAgeSeconds(db: NodePgDatabase<Record<string
 /**
  * Publish the oldest-job age as a CloudWatch metric via the embedded metric format.
  *
- * EMF for the same reasons the archive sweeper uses it: no extra SDK client, no `cloudwatch:PutMetricData`
- * grant, one log line. The age is a database fact, invisible to CloudWatch otherwise — without this the
- * alarm would have no data and sit permanently in INSUFFICIENT_DATA.
+ * Emitted because the age is a database fact, invisible to CloudWatch otherwise — without it the alarm
+ * would have no data and sit permanently in INSUFFICIENT_DATA. The EMF envelope itself lives once in
+ * {@link emitMetric}; this only supplies the erasure-specific namespace, name, and unit.
  *
  * @param stage - The deploy stage (the metric's only dimension).
  * @param ageSeconds - Age of the oldest in-flight job, or 0.
  * @sideEffect Writes one EMF line to stdout.
  */
 export function emitOldestJobAgeMetric(stage: string, ageSeconds: number): void {
-    console.log(
-        JSON.stringify({
-            _aws: {
-                Timestamp: Date.now(),
-                CloudWatchMetrics: [
-                    {
-                        Namespace: ERASURE_METRIC_NAMESPACE,
-                        Dimensions: [['Stage']],
-                        Metrics: [{ Name: 'OldestErasureJobAgeSeconds', Unit: 'Seconds' }],
-                    },
-                ],
-            },
-            Stage: stage,
-            OldestErasureJobAgeSeconds: ageSeconds,
-        }),
-    );
+    emitMetric({
+        namespace: ERASURE_METRIC_NAMESPACE,
+        name: 'OldestErasureJobAgeSeconds',
+        unit: 'Seconds',
+        stage,
+        value: ageSeconds,
+    });
 }
 
 /**

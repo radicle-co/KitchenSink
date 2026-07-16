@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
+import { emitMetric } from '../common/metrics.js';
 import type { RecipeVersionArchiveMessage } from './version-archive-worker.js';
 
 /**
@@ -138,62 +139,45 @@ export async function oldestPendingArchiveAgeSeconds(db: NodePgDatabase<Record<s
 /**
  * Publish the backlog as a CloudWatch metric via the embedded metric format.
  *
- * EMF (a structured log line CloudWatch parses out of the Lambda's log group) rather than
- * `PutMetricData`: it needs no extra SDK client, no `cloudwatch:PutMetricData` grant on the sweeper's
- * role, and costs one log line. The backlog is a database row count, invisible to CloudWatch otherwise
- * — without this the T138 alarm would have no data and would sit silently in INSUFFICIENT_DATA.
+ * The backlog is a database row count, invisible to CloudWatch otherwise — without it the T138 alarm
+ * would have no data and would sit silently in INSUFFICIENT_DATA. The EMF envelope itself lives once in
+ * {@link emitMetric}; this only supplies the archive-specific namespace, name, and unit.
  *
+ * @param stage - The deploy stage (the metric's only dimension).
+ * @param backlog - The total outstanding un-archived backlog this tick.
  * @sideEffect Writes one EMF line to stdout.
  */
 export function emitBacklogMetric(stage: string, backlog: number): void {
-    console.log(
-        JSON.stringify({
-            _aws: {
-                Timestamp: Date.now(),
-                CloudWatchMetrics: [
-                    {
-                        Namespace: 'Commise/RecipeArchive',
-                        Dimensions: [['Stage']],
-                        Metrics: [{ Name: 'PendingArchiveBacklog', Unit: 'Count' }],
-                    },
-                ],
-            },
-            Stage: stage,
-            PendingArchiveBacklog: backlog,
-        }),
-    );
+    emitMetric({
+        namespace: 'Commise/RecipeArchive',
+        name: 'PendingArchiveBacklog',
+        unit: 'Count',
+        stage,
+        value: backlog,
+    });
 }
 
 /**
  * Publish the oldest-un-archived-row age as a CloudWatch metric via the embedded metric format.
  *
- * EMF for the same reasons {@link emitBacklogMetric} uses it: no extra SDK client, no
- * `cloudwatch:PutMetricData` grant, one log line. The age is a database fact, invisible to CloudWatch
- * otherwise — without this the FR-007b-i "oldest pending > 1 hour" alarm would have no data and sit
- * permanently in INSUFFICIENT_DATA. Same namespace + `Stage` dimension as {@link emitBacklogMetric} so
- * both archive-path metrics share the alarm dimension.
+ * The age is a database fact, invisible to CloudWatch otherwise — without it the FR-007b-i "oldest
+ * pending > 1 hour" alarm would have no data and sit permanently in INSUFFICIENT_DATA. Same namespace +
+ * `Stage` dimension as {@link emitBacklogMetric} so both archive-path metrics share the alarm dimension.
+ * The EMF envelope itself lives once in {@link emitMetric}; this only supplies the archive-specific
+ * namespace, name, and unit.
  *
  * @param stage - The deploy stage (the metric's only dimension).
  * @param ageSeconds - Age of the oldest un-archived row, or 0.
  * @sideEffect Writes one EMF line to stdout.
  */
 export function emitOldestPendingArchiveAgeMetric(stage: string, ageSeconds: number): void {
-    console.log(
-        JSON.stringify({
-            _aws: {
-                Timestamp: Date.now(),
-                CloudWatchMetrics: [
-                    {
-                        Namespace: 'Commise/RecipeArchive',
-                        Dimensions: [['Stage']],
-                        Metrics: [{ Name: 'OldestPendingArchiveAgeSeconds', Unit: 'Seconds' }],
-                    },
-                ],
-            },
-            Stage: stage,
-            OldestPendingArchiveAgeSeconds: ageSeconds,
-        }),
-    );
+    emitMetric({
+        namespace: 'Commise/RecipeArchive',
+        name: 'OldestPendingArchiveAgeSeconds',
+        unit: 'Seconds',
+        stage,
+        value: ageSeconds,
+    });
 }
 
 /**

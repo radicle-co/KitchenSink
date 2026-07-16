@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
+import { emitMetric } from '../common/metrics.js';
 import { eraseRecipeObjects } from './account-erasure-worker.js';
 
 /**
@@ -101,31 +102,23 @@ export async function readRecentlyCompletedOwners(db: NodePgDatabase<Record<stri
 /**
  * Publish the orphans-deleted count as a CloudWatch metric via the embedded metric format.
  *
- * EMF for the same reasons the archive/erasure sweepers use it: no extra SDK client, no
- * `cloudwatch:PutMetricData` grant, one log line. Emitted every tick (0 when clean) so the alarm has data
- * instead of flapping into INSUFFICIENT_DATA the moment things are healthy.
+ * Emitted every tick (0 when clean) so the alarm has data instead of flapping into INSUFFICIENT_DATA the
+ * moment things are healthy; a NONZERO value is the signal a real resurrection was caught. The EMF
+ * envelope itself lives once in {@link emitMetric}; this only supplies the orphan-specific namespace,
+ * name, and unit.
  *
  * @param stage - The deploy stage (the metric's only dimension).
  * @param orphansDeleted - Objects deleted from erased owners' archive prefixes this tick.
  * @sideEffect Writes one EMF line to stdout.
  */
 export function emitOrphansDeletedMetric(stage: string, orphansDeleted: number): void {
-    console.log(
-        JSON.stringify({
-            _aws: {
-                Timestamp: Date.now(),
-                CloudWatchMetrics: [
-                    {
-                        Namespace: ORPHAN_METRIC_NAMESPACE,
-                        Dimensions: [['Stage']],
-                        Metrics: [{ Name: ORPHAN_METRIC_NAME, Unit: 'Count' }],
-                    },
-                ],
-            },
-            Stage: stage,
-            [ORPHAN_METRIC_NAME]: orphansDeleted,
-        }),
-    );
+    emitMetric({
+        namespace: ORPHAN_METRIC_NAMESPACE,
+        name: ORPHAN_METRIC_NAME,
+        unit: 'Count',
+        stage,
+        value: orphansDeleted,
+    });
 }
 
 /**

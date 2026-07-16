@@ -98,8 +98,16 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     const [ratingRecipeId, setRatingRecipeId] = useState(id);
 
     if (ratingRecipeId !== id) {
+        // The App Router keeps THIS container mounted across a `/recipes/A` → `/recipes/B` navigation (same
+        // dynamic-segment pattern), so on an id change we must scrub every scrap of the previous recipe's
+        // rating state. Resetting the mutations (not just the optimistic override) clears their `error` and
+        // `isPending` too — otherwise recipe A's failed/in-flight rating write leaks onto B, which shares the
+        // same `useMutation` instance, and B falsely shows A's error or busy state. The render-phase
+        // `setRatingRecipeId` forces an immediate re-render, by which point the observers read as idle.
         setRatingRecipeId(id);
         setRatingOverride(undefined);
+        setRating.reset();
+        deleteRating.reset();
     }
 
     if (query.isLoading) {

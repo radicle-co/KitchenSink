@@ -89,8 +89,16 @@ export function RecipeDetailScreen({
     const [ratingRecipeId, setRatingRecipeId] = useState(recipeId);
 
     if (ratingRecipeId !== recipeId) {
+        // A fresh push mounts a new screen, but a `replace`/deep-link reuses THIS screen instance with a new
+        // `recipeId` param — so on an id change we must scrub every scrap of the previous recipe's rating
+        // state. Resetting the mutations (not just the optimistic override) clears their `error` and
+        // `isPending` too — otherwise the previous recipe's failed/in-flight rating write leaks onto the new
+        // one, which shares the same `useMutation` instance, falsely showing a stale error or busy state. The
+        // render-phase `setRatingRecipeId` forces an immediate re-render, by which point the observers are idle.
         setRatingRecipeId(recipeId);
         setRatingOverride(undefined);
+        setRating.reset();
+        deleteRating.reset();
     }
 
     const back =

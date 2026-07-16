@@ -11,7 +11,12 @@
  * - `list` / `delete` / `reorder` delegate to the DAL and shape rows into the `RecipePhoto` contract.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { recipePhotoSchema, recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
+import {
+    ownerMediaPrefix,
+    recipePhotoKeyPrefix,
+    recipePhotoSchema,
+    recipePhotoThumbnailKey,
+} from '@kitchensink/recipe-core';
 import {
     BadRequestException,
     PayloadTooLargeException,
@@ -238,6 +243,31 @@ describe('PhotosService.confirm', () => {
 
         await expect(service.confirm(OWNER, RECIPE_ID, keyFor())).resolves.toBeDefined();
         expect(create).toHaveBeenCalledOnce();
+    });
+
+    it('persists a key UNDER the token owner prefix even for a traversal-crafted recipeId (verticals-8)', async () => {
+        // Adversarial: a caller supplies a recipeId containing `../` in an attempt to escape its own media
+        // space (e.g. reach into another owner's prefix). S3 keys are LITERAL strings — `../` is not path
+        // normalization — and the confirm-time prefix is always TOKEN-OWNER-prefixed, so the persisted key
+        // is necessarily under ownerMediaPrefix(tokenOwner) regardless of the recipeId's contents. That is
+        // the verticals-8 containment guarantee at the photos layer: a right-to-erasure sweep of the token
+        // owner's prefix still reaches this object, and it never lands under a DIFFERENT owner's prefix.
+        const craftedRecipeId = `../${OTHER}/hijack`;
+        // The client echoes back a key that matches the (token-owner-scoped) prefix so the startsWith
+        // re-check passes — this is the strongest case: the guard passed, yet containment must still hold.
+        const craftedKey = `${recipePhotoKeyPrefix(OWNER, craftedRecipeId)}object-1`;
+        const row = makeRecipePhotoRow({ recipeId: craftedRecipeId, s3Key: craftedKey });
+        const create = vi.fn().mockResolvedValue(row);
+        // getById resolves to OWNER, so the OWNER caller passes the owner check for this (crafted) recipeId.
+        const service = new PhotosService(fakeDal({ create }), fakeStorage(), CONFIG, fakeRecipes());
+
+        await service.confirm(OWNER, craftedRecipeId, craftedKey);
+
+        const persisted = create.mock.calls[0]?.[0] as { s3Key: string };
+        // Contained under the TOKEN owner's erasure prefix...
+        expect(persisted.s3Key.startsWith(ownerMediaPrefix(OWNER))).toBe(true);
+        // ...and never under the impersonated owner's prefix, despite the `../{OTHER}` in the path.
+        expect(persisted.s3Key.startsWith(ownerMediaPrefix(OTHER))).toBe(false);
     });
 
     it('rejects a key that is not scoped to the owner+recipe prefix (no reads, no insert)', async () => {

@@ -66,6 +66,48 @@ export function recipeVersionArchiveKey(parts: RecipeVersionArchiveKeyParts): st
 }
 
 /**
+ * The S3 key prefix under which ALL of one recipe's photo objects live, for a given owner —
+ * `recipes/{ownerId}/{recipeId}/photos/`.
+ *
+ * **Containment is structural, not coincidental.** The prefix is DERIVED from {@link ownerMediaPrefix}
+ * (`recipes/{ownerId}/`) by appending, never re-spelled, so every photo key formed from it necessarily
+ * begins with the owner erasure prefix — the exact guarantee the module docstring's containment invariant
+ * requires. This is the ONE authoritative definition of where a recipe's photos live: the recipe service
+ * builds original keys from it (`{prefix}{uuid}`) AND re-checks a client-echoed key against it at confirm,
+ * so a photo original can never escape the GDPR account-erasure sweep. Previously the recipe service
+ * hand-rolled this literal locally, so its containment under the erasure prefix was a coincidental string
+ * match — if {@link ownerMediaPrefix} ever changed, photo originals would silently survive a
+ * right-to-erasure request (the `verticals-8` defect). The invariant is pinned in
+ * `__tests__/recipeObjectKeys.test.ts`.
+ *
+ * The trailing slash is load-bearing, for the same reason it is on {@link ownerMediaPrefix}: it makes the
+ * prefix a delimiter-terminated segment so a `startsWith` scope check on `{recipeId}` cannot match a
+ * sibling recipe by a shared leading substring.
+ *
+ * @param ownerId - The app-user ULID that owns the recipe.
+ * @param recipeId - The recipe the photos belong to.
+ * @returns The owner+recipe-scoped, slash-terminated photo-object prefix. Pure.
+ */
+export function recipePhotoKeyPrefix(ownerId: string, recipeId: string): string {
+    return `${ownerMediaPrefix(ownerId)}${recipeId}/photos/`;
+}
+
+/**
+ * The deterministic original-object key for one recipe photo, `{prefix}{objectId}` under
+ * {@link recipePhotoKeyPrefix}. The server assigns `objectId` (an opaque UUID) — a client never supplies
+ * it — and the key is guaranteed under {@link ownerMediaPrefix}`(ownerId)`, so the erasure sweep reaches
+ * the original. See {@link recipePhotoKeyPrefix} for why containment is structural.
+ *
+ * @param ownerId - The app-user ULID that owns the recipe.
+ * @param recipeId - The recipe the photo belongs to.
+ * @param objectId - The server-assigned opaque object id (e.g. a UUID).
+ * @returns The photo's original object key. Pure.
+ */
+export function recipePhotoOriginalKey(ownerId: string, recipeId: string, objectId: string): string {
+    return `${recipePhotoKeyPrefix(ownerId, recipeId)}${objectId}`;
+}
+
+/**
  * The suffix that turns a recipe-photo original-object key into its thumbnail-variant key.
  *
  * `.thumb.jpg`, not a sibling folder, on purpose: the variant is DERIVED from the original key by

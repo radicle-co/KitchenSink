@@ -403,6 +403,58 @@ describe('RecipeDetailContainer', () => {
         });
     });
 
+    describe('rating error does not leak across a client navigation (mutation lens)', () => {
+        it('scrubs recipe A’s failed/pending rating write when the container navigates to recipe B', () => {
+            // The App Router keeps THIS container mounted across `/recipes/A` → `/recipes/B` (same dynamic
+            // segment), so the rating `useMutation` instances survive the navigation. A stateful double models
+            // that: `reset()` clears the observer, and every render reads the CURRENT observer state — exactly
+            // what real TanStack does. If the container fails to reset on the id change, recipe A's error and
+            // busy state leak onto B. Mutation lens: drop the `.reset()` calls and this test goes red.
+            const setRatingState = {
+                mutate: setRatingMutateMock,
+                isPending: true,
+                error: new NotFoundError('Resource not found') as Error | null,
+                reset: vi.fn(() => {
+                    setRatingState.isPending = false;
+                    setRatingState.error = null;
+                }),
+            };
+            const deleteRatingState = {
+                mutate: deleteRatingMutateMock,
+                isPending: false,
+                error: null as Error | null,
+                reset: vi.fn(),
+            };
+            useSetRecipeRatingMock.mockImplementation(() => ({ ...setRatingState }));
+            useDeleteRecipeRatingMock.mockImplementation(() => ({ ...deleteRatingState }));
+
+            // A non-owner viewing a rateable public recipe — the rating control (and its error) render.
+            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                refetch: refetchMock,
+            });
+
+            const { rerender } = render(<RecipeDetailContainer id="rec_1" />);
+
+            // Recipe A: the failed write is surfaced and the input is busy/disabled.
+            expect(screen.getByRole('alert')).toHaveTextContent('This recipe isn’t available.');
+            expect(screen.getByRole('radio', { name: 'Rate 3 stars' })).toBeDisabled();
+
+            // Navigate to recipe B WITHOUT placing a new rating (the container instance is preserved).
+            rerender(<RecipeDetailContainer id="rec_2" />);
+
+            // Both rating mutations are reset, so neither A's error nor its pending state reaches B.
+            expect(setRatingState.reset).toHaveBeenCalled();
+            expect(deleteRatingState.reset).toHaveBeenCalled();
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+            expect(screen.queryByText('This recipe isn’t available.')).not.toBeInTheDocument();
+            expect(screen.getByRole('radio', { name: 'Rate 3 stars' })).toBeEnabled();
+        });
+    });
+
     describe('rating (FR-013) — own recipe (Sc8, mutation lens)', () => {
         it('does NOT offer a rating input on the viewer’s own recipe, only the aggregate + a reason', () => {
             // The signed-in owner (default) viewing their own recipe.

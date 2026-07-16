@@ -32,7 +32,12 @@ import {
     UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
-import { recipePhotoThumbnailKey, type RecipePhoto } from '@kitchensink/recipe-core';
+import {
+    recipePhotoKeyPrefix,
+    recipePhotoOriginalKey,
+    recipePhotoThumbnailKey,
+    type RecipePhoto,
+} from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
 import { resolvePhotoView } from './photo-view.js';
@@ -232,7 +237,7 @@ export class PhotosService {
             );
         }
 
-        const key = `${photoKeyPrefix(ownerId, recipeId)}${randomUUID()}`;
+        const key = recipePhotoOriginalKey(ownerId, recipeId, randomUUID());
         const { uploadUrl, expiresIn } = await this.storage.presignUpload({
             s3Key: key,
             contentType: input.contentType,
@@ -253,7 +258,7 @@ export class PhotosService {
     public async confirm(ownerId: string, recipeId: string, key: string): Promise<RecipePhoto> {
         await this.assertOwner(ownerId, recipeId);
 
-        if (!key.startsWith(photoKeyPrefix(ownerId, recipeId))) {
+        if (!key.startsWith(recipePhotoKeyPrefix(ownerId, recipeId))) {
             throw new BadRequestException('The upload key is not scoped to this recipe.');
         }
 
@@ -406,11 +411,6 @@ export class PhotosService {
     private toPhotoResponse(row: RecipePhotoRow): RecipePhoto {
         return resolvePhotoView(row, this.config.cloudfrontUrl);
     }
-}
-
-/** The owner+recipe-scoped object-key prefix all of a recipe's photos live under. */
-function photoKeyPrefix(ownerId: string, recipeId: string): string {
-    return `recipes/${ownerId}/${recipeId}/photos/`;
 }
 
 /** Narrowing allowlist check for the upload content type. Pure. */

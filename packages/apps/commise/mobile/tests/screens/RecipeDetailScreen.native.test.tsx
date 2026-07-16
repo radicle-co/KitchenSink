@@ -10,6 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { NotFoundError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
@@ -228,6 +229,55 @@ describe('RecipeDetailScreen — visibility gating', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.getByText('Upgrade to premium to make a recipe private.')).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailScreen — rating error does not leak across a recipeId change (mutation lens)', () => {
+    it('scrubs a failed/pending rating write when the screen is reused with a new recipeId', () => {
+        // A `replace`/deep-link reuses THIS screen instance with a new `recipeId` param, so the rating
+        // `useMutation` instances survive. A stateful double models real TanStack: `reset()` clears the
+        // observer, and every render reads the CURRENT state. If the screen fails to reset on the id change,
+        // the previous recipe's error and busy state leak onto the new one. Mutation lens: drop the `.reset()`
+        // calls and this test goes red.
+        const setRatingState = {
+            mutate: vi.fn(),
+            isPending: true,
+            error: new NotFoundError('Resource not found') as Error | null,
+            reset: vi.fn(() => {
+                setRatingState.isPending = false;
+                setRatingState.error = null;
+            }),
+        };
+        const deleteRatingState = { mutate: vi.fn(), isPending: false, error: null as Error | null, reset: vi.fn() };
+        useSetRecipeRatingMock.mockImplementation(
+            () => ({ ...setRatingState }) as unknown as ReturnType<typeof useSetRecipeRating>,
+        );
+        useDeleteRecipeRatingMock.mockImplementation(
+            () => ({ ...deleteRatingState }) as unknown as ReturnType<typeof useDeleteRecipeRating>,
+        );
+
+        // A non-owner viewing a rateable public recipe — the rating control (and its error) render.
+        useRecipeMock.mockReturnValue(
+            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_owner', visibility: 'public' }) }),
+        );
+        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
+
+        const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        // Recipe A: the failed write is surfaced and the input reports it is busy.
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByText('This recipe isn’t available.')).toBeTruthy();
+        expect(screen.getByText('Saving your rating…')).toBeTruthy();
+
+        // Reuse the screen for recipe B WITHOUT placing a new rating (deep-link/replace path).
+        rerender(<RecipeDetailScreen recipeId="rec_2" />);
+
+        // Both rating mutations are reset, so neither the error nor the pending state reaches recipe B.
+        expect(setRatingState.reset).toHaveBeenCalled();
+        expect(deleteRatingState.reset).toHaveBeenCalled();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText('This recipe isn’t available.')).toBeNull();
+        expect(screen.queryByText('Saving your rating…')).toBeNull();
     });
 });
 

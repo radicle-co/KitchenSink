@@ -2,6 +2,89 @@
 
 ---
 
+## Run #4 — 2026-07-15 (end of Product Forge resume #2)
+
+**Phase**: 6 Implement (in-progress) · **feature_mode**: standard
+**Layers checked**: 4, 5, 6 (materially changed this session); 8 (contract) spot-checked against the
+clone/pull work; 1–3, 7, 9–10 carried forward from run #3
+**Verdict**: **CONSISTENT** — no open CRITICAL. All run #3 drift is resolved.
+
+### Summary
+
+| Severity    | Count | Δ vs run #3                                          |
+| ----------- | ----- | ---------------------------------------------------- |
+| ❌ CRITICAL | 0     | DRIFT-007 **RESOLVED** (Home host shipped)           |
+| ⚠️ WARNING  | 2     | DRIFT-008 resolved; DRIFT-009/010 new (both benign)  |
+| ℹ️ INFO     | 3     | carried (DRIFT-005/006 + the T150 deferred decision) |
+| ✅ CLEAN    | 5     | Layers 4, 5, 6, 7, 8                                 |
+
+### State at this run
+
+- **tasks.md: 152 / 187 done, 35 open.** Raw checkbox count now EQUALS the real task count — run #3's
+  "190" counted 3 Parity-Checklist rubric bullets that were never tasks (`tasks.md` §Phase 5); they are
+  numbered now, so no count can pick them up again.
+- Branch `001-commise-recipe-app`, tree clean, 20 commits ahead of `main` at `ed917db`.
+- Every tier green: recipe-core **17** · recipe-service **461 unit + 62 integration** · recipe-workers
+  **58 unit (incl. 10 CDK synth) + 5 integration** · typecheck 0 + lint 0 across all three.
+
+### Layer results
+
+**Layer 4 (plan ↔ tasks) — ✅ CLEAN.** The Phase 4.5 clarification deltas (soft-delete, clone/pull,
+async archive) now all have code. Three task-text divergences are recorded and deliberate — see
+DRIFT-009.
+
+**Layer 5 (tasks ↔ code) — ✅ CLEAN.** Every `[x]` flipped this session was verified against the file it
+names, and the dangerous direction (`[x]` with no code) does not exist. The reverse — code with no `[x]`
+— is also now clear for the groups touched.
+
+**Layer 6 (spec ↔ code) — ✅ CLEAN.** FR-007b-i is satisfied end to end for the first time: save records
+intent → sweeper dispatches → worker archives + prunes → DLQ + backlog alarm. C-007 retention and FR-011
+clone/pull are pinned at both unit and integration tiers.
+
+**Layer 8 (FE ↔ contract ↔ BE) — ✅ CLEAN (spot).** The clone/pull endpoints match
+`contracts/api.openapi.yaml`: an invented `PullFromSourceResult = { added: number }` was corrected to the
+contract's required `[collection, addedRecipeIds]`, and `CloneCollectionRequest`'s optional
+name/description overrides are wired. `COLLECTION_NOT_CLONED` was already in the shared enum and already
+mapped to 400 — the contract had anticipated the path.
+
+### Findings
+
+#### DRIFT-009 — task text diverges from shipped reality (WARNING, cosmetic, ACCEPTED)
+
+Three places where `tasks.md` names something the code deliberately does differently. All are recorded in
+`implementation-log.md` checkpoint #3 and in the task text itself; none are defects.
+
+| tasks.md says                                          | Reality                                  | Why                                                                                              |
+| ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `recipe-workers/src/version-archive-worker/handler.ts` | `src/handlers/version-archive-worker.ts` | esbuild `entryPoints` **and** the CDK handler strings already target it; moving breaks the build |
+| `CloneCollectionRequest` **DTO**                       | zod schema + `parseOrThrow`              | the controller's actual convention                                                               |
+| `attempt_count`                                        | `attempts`                               | the column migration `0004` actually created                                                     |
+
+**Resolution:** accepted as-is. The code is right; the task text is the historical artifact.
+
+#### DRIFT-010 — the erasure worker is deployed but hollow (WARNING → CRITICAL if T136b lands first)
+
+`recipe-workers/src/handlers/account-erasure-worker.ts` looks implemented but `eraseRecipeRows` is a
+**no-op TODO**, and the handler sweeps only the media bucket. The T132 stack (`b5eae03`) now **deploys**
+this Lambda. It is **inert today** — T132 creates no erasure queue and no subscription, so nothing can
+invoke it — but wiring the trigger (T136b) before the body (T136) would make erasure delete a user's
+photos, report success, and leave every DB row **and** every version archive: a false "erased".
+
+**Resolution:** NOT a defect today (inert), and deliberately not marked done — T136/T136b remain `[ ]`.
+Recorded as a blocking ordering constraint at the head of tasks.md's GDPR section and in
+`.forge-status.yml` `next_session_brief`. **T136 must land before T136b.**
+
+### Resolved since run #3
+
+- **DRIFT-007 (CRITICAL)** — the US-000 Home widget-surface host shipped on both platforms
+  (`4eb432a`, `94a474b`, `cfc06ff`, `543081e`).
+- **DRIFT-008 (WARNING)** — task-mark lag; the marks now match the code, and the count's ROOT cause (the
+  rubric bullets) is fixed rather than worked around.
+- **ARCH-BE-3** — the three-way S3 key-scheme split is unified in `@kitchensink/recipe-core`, with the
+  GDPR containment invariant (every archive key under the owner erasure prefix) pinned by test.
+
+---
+
 ## Run #3 — 2026-07-15 (post-implementation reconciliation)
 
 **Phase**: 6 Implement (in-progress) · **feature_mode**: standard
@@ -10,12 +93,12 @@
 
 ### Summary
 
-| Severity    | Count | Δ vs run #2                          |
-| ----------- | ----- | ------------------------------------ |
-| ❌ CRITICAL | 1     | DRIFT-002 **RESOLVED**; DRIFT-007 new |
+| Severity    | Count | Δ vs run #2                              |
+| ----------- | ----- | ---------------------------------------- |
+| ❌ CRITICAL | 1     | DRIFT-002 **RESOLVED**; DRIFT-007 new    |
 | ⚠️ WARNING  | 3     | +DRIFT-008 (task-mark lag, now RESOLVED) |
-| ℹ️ INFO     | 3     | unchanged                            |
-| ✅ CLEAN    | 2     | Layer 5 forward, Layer 7             |
+| ℹ️ INFO     | 3     | unchanged                                |
+| ✅ CLEAN    | 2     | Layer 5 forward, Layer 7                 |
 
 **Auto-resolutions applied (2026-07-15):** DRIFT-008 — flipped 8 verified-complete task marks (`T061, T062, T063, T064, T095, T123, T124, T125`) in `tasks.md` from `[ ]`→`[x]` (124→132 done). This is a Layer-5-backward reconciliation of documentation to shipped reality; no source code was changed. Each flip was gated on a per-task file inspection; three stub scaffolds (`T130, T131, T136`) were explicitly **not** flipped.
 
@@ -23,21 +106,19 @@
 
 Run #2's OPEN-CRITICAL was "core recipe data model and CRUD entirely absent." It has landed:
 
-| Package | Src files | Test files |
-| --- | --- | --- |
-| `packages/services/recipe-service` | 84 | 42 |
-| `packages/shared/recipe-core` | 2 | 1 |
-| `packages/apps/commise/features/recipes` | 70 | 43 |
-| `packages/clients/recipe-service` | 7 | 3 |
-| `packages/services/recipe-workers` | 6 | 4 |
+| Package                                  | Src files | Test files |
+| ---------------------------------------- | --------- | ---------- |
+| `packages/services/recipe-service`       | 84        | 42         |
+| `packages/shared/recipe-core`            | 2         | 1          |
+| `packages/apps/commise/features/recipes` | 70        | 43         |
+| `packages/clients/recipe-service`        | 7         | 3          |
+| `packages/services/recipe-workers`       | 6         | 4          |
 
 US-1 (create/manage) core CRUD, versioning, conflict resolution, photos, and US-2 recipe clone/visibility are implemented on **both** web and mobile. The "implement under 001 directly" HITL decision (2026-06-02) has been executed.
 
 ### DRIFT-007 (CRITICAL, Layer 6 — forward): US-000 Home widget-surface host not implemented — **RESOLVED 2026-07-15**
 
 **Resolution:** the Home widget-surface host shipped on both platforms (T104-web `4eb432a`, T104-mobile `cfc06ff`, e2e `94a474b`/`543081e`). Web: `apps/commise/web/src/components/home/` (composition root + ditox appShell + `curateHomeWidgets` + `next/dynamic`+Suspense+error-boundary render + once-per-session nudge), rendered by `[locale]/page.tsx`. Mobile: `HomeScreen` + `components/home/` (React.lazy render, ScrollView, nudge Modal) as the post-login landing via a root navigator. Component tests (9 web + 9 mobile), Playwright `home.spec.ts`, and Maestro `home.yaml` cover recipe widget loading/empty/populated, gated-widget absence, skip-unknown-id, and nudge once-per-session. The original finding text is retained below for history.
-
-
 
 - **Story**: US-000 Post-Login Home Screen (Priority **P1**, Must Have) / FR-046.
 - **Evidence**: `packages/apps/commise/{web,mobile}/src/components/home/` do **not exist**; no `curateHomeWidgets` / `appShell` / `addFeature` composition root wired in either app. Tasks **T104-web, T104-mobile** and their test tasks (T104-test-web/mobile, T104-e2e-web/mobile) are open.
@@ -49,20 +130,20 @@ US-1 (create/manage) core CRUD, versioning, conflict resolution, photos, and US-
 
 The `.forge-status.yml` `task_log` was reconciled for the 2026-07-13/14/15 sessions, but the `tasks.md` `[ ]`/`[x]` marks lagged the code. A per-task verification pass (each open task's target files inspected, not just the mark) confirmed **8 tasks had complete, non-stub code but were still `[ ]`**. These were flipped to `[x]` (124/190 → **132/190**):
 
-| Task | Evidence of completion |
-| --- | --- |
-| **T061** | `web/src/middleware.ts` present; `<ClerkProvider>` in `app/[locale]/layout.tsx` |
-| **T062** | `@clerk/expo` ClerkProvider wired in mobile App |
-| **T063** | `@commise/ui` palette/tokens present and consumed on both platforms |
-| **T064** | `clients/recipe-service/src/hooks.ts` + `client.ts` (TanStack Query) with client tests; consumed by both apps |
-| **T095** | `client.ts` reads `NEXT_PUBLIC_API_URL`/`EXPO_PUBLIC_API_URL` from env |
+| Task     | Evidence of completion                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| **T061** | `web/src/middleware.ts` present; `<ClerkProvider>` in `app/[locale]/layout.tsx`                                 |
+| **T062** | `@clerk/expo` ClerkProvider wired in mobile App                                                                 |
+| **T063** | `@commise/ui` palette/tokens present and consumed on both platforms                                             |
+| **T064** | `clients/recipe-service/src/hooks.ts` + `client.ts` (TanStack Query) with client tests; consumed by both apps   |
+| **T095** | `client.ts` reads `NEXT_PUBLIC_API_URL`/`EXPO_PUBLIC_API_URL` from env                                          |
 | **T123** | `recipes.dal.ts` `softDelete()` sets `deleted_at`; reads filter `isNull(deletedAt)`; controller `@Delete` wired |
-| **T124** | `search.dal.ts` `buildWhere()` line 341 `deleted_at IS NULL` |
-| **T125** | `collections/dal/collections.dal.ts:140` joins `isNull(recipes.deletedAt)` |
+| **T124** | `search.dal.ts` `buildWhere()` line 341 `deleted_at IS NULL`                                                    |
+| **T125** | `collections/dal/collections.dal.ts:140` joins `isNull(recipes.deletedAt)`                                      |
 
-**The dangerous direction (a `[x]` with no code) was NOT found** — but the verification pass *did* catch would-be false flips and correctly **left them open** because the code is a scaffolded **stub**, not a completion:
+**The dangerous direction (a `[x]` with no code) was NOT found** — but the verification pass _did_ catch would-be false flips and correctly **left them open** because the code is a scaffolded **stub**, not a completion:
 
-- **T130** — `versions.service.ts` still archives to S3 **inline** (`@sideEffect ... PUTs archive objects to S3`); the task is to *replace* that with an async `recipe_version_pending_archives` enqueue. Not done.
+- **T130** — `versions.service.ts` still archives to S3 **inline** (`@sideEffect ... PUTs archive objects to S3`); the task is to _replace_ that with an async `recipe_version_pending_archives` enqueue. Not done.
 - **T131** — `version-archive-worker.ts` exists but line 51 is `// TODO(Phase 4+): query the recipe, its version row...`. Stub.
 - **T136** — `account-erasure-worker.ts` exists but line 39 is `// TODO(Phase 4+): ... delete the owner's rows in FK-safe order`. Stub.
 

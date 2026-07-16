@@ -250,6 +250,27 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### GDPR Account Erasure
 
+> **⚠️ ORDERING HAZARD — read before starting this group (added 2026-07-15).**
+>
+> **T136 (the worker body) MUST land before T136b (the queue + subscription that triggers it).**
+>
+> `recipe-workers/src/handlers/account-erasure-worker.ts` looks implemented but is not:
+> `eraseRecipeRows(_db, _ownerId)` is a **no-op stub** (`TODO(Phase 4+)`), and the handler only calls
+> `eraseRecipeObjects` against the **media bucket**. So today it would delete a user's photos, report
+> success, and leave **every database row** and **every version archive in the versions bucket**
+> untouched — a false "erased" on a right-to-erasure request, which is worse than an erasure that
+> visibly fails.
+>
+> The T132 stack (`b5eae03`) **already deploys this Lambda**, but creates **no erasure queue and no
+> subscription**, so it is currently **inert — nothing can invoke it**. T136b is what wires the trigger.
+> Wiring the trigger while the body is still a stub is what turns an inert stub into a compliance
+> defect. Do T136 first.
+>
+> When implementing T136, the archive bucket is the easy thing to miss: erasure must sweep
+> `ownerMediaPrefix(ownerId)` in **both** `RECIPE_MEDIA_BUCKET` and `RECIPE_ARCHIVE_BUCKET`. Version
+> archives live under the same owner prefix by design (ARCH-BE-3 / `verticals-8`) precisely so this
+> sweep reaches them — the IAM role the stack already grants covers delete on both buckets.
+
 - [ ] T134-test Write unit tests for erasure service (queues job; duplicate request while job is `queued` or `running` returns HTTP 202 with existing job id; request after `completed` returns 410; request after `failed` enqueues a fresh job and returns 202; validates optional confirmation phrase) in `packages/services/recipe-service/src/account/__tests__/erasure.service.test.ts`
 - [ ] T135-test Write unit tests for erasure worker (hard-deletes recipes incl. tombstoned, versions, photos, collections, S3 photo + version objects, marks job completed) in `packages/services/recipe-workers/src/account-erasure-worker/__tests__/handler.test.ts`
 - [ ] T134 Implement `AccountModule` with `ErasureService` (inserts the `account_erasure_jobs` row and **enqueues to the SQS `account-erasure` queue**, D7) and `ErasureRequest` / `ErasureRequestAcceptedResponse` DTOs in `packages/services/recipe-service/src/account/{account.module.ts,erasure.service.ts,dto/erasure.dto.ts}`

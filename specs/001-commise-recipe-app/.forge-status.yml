@@ -281,6 +281,93 @@ phases:
               - packages/apps/commise/mobile/src/screens/{HomeScreen,AppRoot}.tsx
               - packages/apps/commise/mobile/.maestro/{home,auth/signin-home,auth/signin}.yaml
 
+        # ── 2026-07-15 (Product Forge resume #2): Phase 6 continued. Soft-delete test backfill, a
+        #    systemic static-analysis fix, FR-011 clone/pull, ARCH-BE-3, and the FR-007b-i async
+        #    version-archive group. 132 -> 152 of 187 (the 190 total counted 3 rubric bullets; fixed).
+        - id: 'T123-test + T126 — C-007 soft-delete tests'
+          part: >
+              Characterization tests for the already-shipped soft-delete (TDD was skipped when T123-T125
+              landed). The gap they close: C-007 RETENTION was unpinned at every tier — recipes/crud
+              asserts only 204-then-404, which a hard DELETE FROM recipes satisfies identically. Verified
+              by mutation: under a hard delete the crud spec stays GREEN while T126 fails.
+          size: M
+          status: done
+          tests: '8 unit (PgDialect-rendered WHERE assertions) + 3 integration; each mutation-verified'
+          commits: da29f7d, c6cafb5
+          paths:
+              - packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts
+              - packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.spec.ts
+        - id: 'static-analysis gap — unit tests had none'
+          part: >
+              tsconfig.json excluded src/**/__tests__ and lint ran --ignore-pattern '**/*.test.ts', and
+              vitest transpiles without typechecking, so unit tests had NO static analysis. The exclusion
+              was pure loss (tsconfig.build.json already excludes tests). 13 hidden errors fixed, incl. a
+              FakeS3 double NOT assignable to the VersionArchiveS3 it doubled, and a RecipeSnapshot
+              fixture the zod schema would reject. Proven effective within the hour: it caught
+              collections.controller.test.ts's ServiceMock going stale as the service grew.
+          size: M
+          status: done
+          tests: 'typecheck exit 0 + lint 0 with tests included; injected type error now fails (before: silent)'
+          commit: 25a6549
+          paths:
+              - packages/services/recipe-service/tsconfig.json
+              - packages/services/recipe-service/package.json
+        - id: 'T103/T127/T127-test/T128/T128-test/T129 — collection clone + pull (FR-011)'
+          part: >
+              True TDD red->green (17 unit tests confirmed failing first). Clone reads the source through
+              the CLONER's eyes so private recipes are excluded; pull is additive with added_via='pull'
+              and never overwrites the cloner's own 'manual' rows. Resolved an APPARENT 3-way
+              contradiction (FR-011 "removes inaccessible" vs data-model "removed-in-source stay" vs
+              tasks "additive only"): different conditions — access-revocation is already handled
+              continuously by listRecipes' membership-IDOR guard at READ time, so the write path is
+              additive and FR-011 still holds. Contract drift caught pre-merge: an invented
+              { added: number } vs api.openapi.yaml's required [collection, addedRecipeIds].
+          size: L
+          status: done
+          tests: '17 unit + 8 integration; mutation-verified (clone reading as source owner fails T103)'
+          commits: 7218ae6, 60eecf3
+          paths:
+              - packages/services/recipe-service/src/collections/
+              - packages/services/recipe-service/__tests__/integration/collections/
+        - id: 'ARCH-BE-3 — one S3 key scheme for recipe media'
+          part: >
+              A live defect, not cleanup. The key scheme had THREE representations: service
+              (versionNumber) and worker (versionId) DISAGREED and would archive one snapshot to two
+              objects, while the third (ownerMediaPrefix) is the GDPR erasure sweep — so the first two
+              were compliant only by coincidence. Now one shared recipeObjectKeys in recipe-core, with
+              the containment invariant (EVERY archive key starts with the owner erasure prefix) pinned
+              by test, so a key change that escapes erasure fails a test instead of an audit
+              (verticals-8). versionNumber won: client-facing address, unique via
+              (recipe_id, version_number), and already what shipped. Measured bonus: recipe-core
+              sideEffects:false shook zod out of the Lambda bundles, 964K -> 423K (-56%).
+          size: M
+          status: done
+          tests: '9 recipe-core unit; all consumers re-verified (workers 37, service 453, client 62, features 201, web 199)'
+          commit: 9a3eaf7
+          paths:
+              - packages/shared/recipe-core/src/recipeObjectKeys.ts
+        - id: 'T130-T133 + T138 — async version archive (FR-007b-i)'
+          part: >
+              The save now records intent in the recipe_version_pending_archives OUTBOX and returns; the
+              scheduled sweeper dispatches; the worker archives to S3 and only then prunes (the cascade
+              clears the outbox row, making "deleted only after S3 confirmation" a SCHEMA property).
+              KEY DESIGN: the service deliberately does NOT enqueue — a save that enqueues fails when SQS
+              is down — so the ROW is the source of truth, the message is derived, and the sweeper is the
+              only drain. T131's loadVersionSnapshot was worse than a stub: it returned an envelope with
+              NO snapshot, so wiring it up would have archived an empty object and pruned the row. T138's
+              alarm was nearly decorative: it first read the sweeper's claimed count, capped at
+              SWEEP_BATCH_SIZE=100, so it could never cross a threshold of 100 — now an unbounded
+              COUNT(*) via EMF. All Lambdas VPC-attached per ADR-0004; Environment tagging per ADR-0005;
+              both pinned by synth tests.
+          size: XL
+          status: done
+          tests: '58 workers unit (incl. 10 CDK synth) + 5 workers integration + 62 service integration; prune-before-archive mutation-verified'
+          commits: 270243f, 0f7256d, b5eae03, d5d3bcf, c5a5441
+          paths:
+              - packages/services/recipe-service/src/versions/
+              - packages/services/recipe-workers/src/handlers/
+              - packages/services/recipe-workers/infra/
+
     code-review:
         state: not-applicable
         reason: >
@@ -336,6 +423,31 @@ contracts:
 
 next_action: implement
 next_command: /speckit.product-forge.implement
+next_session_brief: >
+    Phase 6 implement, 152/187 done, 35 open. Worktree .worktrees/001-commise-recipe-app, branch
+    001-commise-recipe-app, tree clean, every tier green (recipe-core 17; recipe-service 461 unit + 62
+    integration; recipe-workers 58 unit incl. 10 CDK synth + 5 integration; typecheck 0 + lint 0 across
+    all three).
+
+    START HERE — the one hazard: T136 (account-erasure worker body) MUST land before T136b (the queue +
+    subscription that triggers it). eraseRecipeRows is a no-op TODO and the handler sweeps only the media
+    bucket, so today it would delete a user's photos, report success, and leave every DB row AND every
+    version archive — a false "erased". The T132 stack already DEPLOYS that Lambda but creates no queue or
+    subscription, so it is inert; T136b is what wires the trigger. Full note heads the GDPR section of
+    tasks.md. When writing T136, sweep ownerMediaPrefix(ownerId) in BOTH the media and archive buckets —
+    version archives live under the same owner prefix by design (ARCH-BE-3) so the sweep reaches them, and
+    the IAM role already grants delete on both.
+
+    Remaining groups: GDPR erasure (T134-T137, T136b) — service-side AccountModule/controller are still a
+    shell; frontend test tiers (T083/T084/T086/T087, T064-test, T105-T115); Phase 6 governance
+    (T052-T060, T116/T117). T150 is a deferred cross-feature 001<->003 decision — do not start.
+
+    Local harness: integration needs Docker Postgres + LocalStack. Port 5432 is held by
+    kitchensink-e2e-postgres, which carries the user's LIVE local data (kitchensink_recipes with seeded
+    recipes, kitchensink_identity, food_e2e) and the vitest global-setup DROPS the public schema — so run
+    against the throwaway DB instead:
+    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kitchensink_recipes_it
+    S3_ENDPOINT=http://localhost:4566 S3_FORCE_PATH_STYLE=true
 governance_note: >
     Revalidation complete (Revision 1, 2026-05-09, skip-approval).
     Blocking corrections required before implementation handoff — see review.md Revision 2.
@@ -397,11 +509,11 @@ reconciliation:
             unconditional six-section US-0 assertions.
 
 sync_runs:
-    last_run: '2026-07-15T00:00:00Z'
-    total_runs: 3
-    last_drift_count: 7
-    last_critical_count: 1
-    last_verdict: DRIFT DETECTED
+    last_run: '2026-07-15T23:00:00Z'
+    total_runs: 4
+    last_drift_count: 5
+    last_critical_count: 0
+    last_verdict: CONSISTENT
     notes: >
         Run #3 (2026-07-15, post-implementation reconciliation): DRIFT-002
         (run #2 OPEN-CRITICAL, "core recipe code absent") is RESOLVED — the
@@ -452,3 +564,15 @@ sync_runs:
           critical: 1
           warning: 3
           verdict: DRIFT DETECTED
+        - run: 4
+          date: '2026-07-15T23:00:00Z'
+          layers: '4,5,6 (8 spot; 1-3,7,9-10 carried)'
+          critical: 0
+          warning: 2
+          verdict: CONSISTENT
+          note: >
+              DRIFT-007 resolved (Home host shipped). DRIFT-008 resolved at its root — the 3 Parity
+              rubric bullets are numbered, so checkbox count == real task count (187) permanently.
+              NEW: DRIFT-009 (task text vs shipped reality — 3 accepted divergences) and DRIFT-010 (the
+              erasure worker is deployed but its eraseRecipeRows is a no-op TODO; inert because T132
+              wires no trigger, but T136 MUST land before T136b or erasure reports a false success).

@@ -106,6 +106,81 @@ function`) before any implementation existed.
 - **`seed.ts` lint warnings**: 2 unused `no-console` disable directives. `eslint --fix` removes them but
   leaves whitespace-only lines, so they are intentionally left alone (warnings, exit 0).
 
+---
+
+## Checkpoint #3 — after ARCH-BE-3 + the async version-archive group (T130–T133, T138)
+
+| Check                             |    Status     | Notes                                                                                                                    |
+| --------------------------------- | :-----------: | ------------------------------------------------------------------------------------------------------------------------ |
+| Task-Code correspondence          |      ✅       | 6 flipped (T130-test, T130, T131, T132, T133, T138) → **152/187**.                                                       |
+| Spec AC alignment                 |      ✅       | FR-007b-i satisfied end to end: save records intent → sweeper dispatches → worker archives + prunes → DLQ/backlog alarm. |
+| Unplanned changes                 |    ✅ None    | `version-archive-worker.ts` mutated during verification, restored.                                                       |
+| Plan alignment                    | ⚠️ divergence | Worker path is `src/handlers/*.ts` (esbuild entryPoints + CDK handler strings), NOT tasks.md's `src/<name>/handler.ts`.  |
+| Dependency / supply-chain (W5-C2) | ✅ None added | `@kitchensink/recipe-core` added to recipe-workers — a workspace package, not a registry fetch.                          |
+
+**Verdict:** CLEAN — continue.
+
+### Evidence (re-run at checkpoint)
+
+- recipe-core **17** · recipe-service **461 unit + 62 integration** · recipe-workers **58 unit
+  (incl. 10 CDK synth) + 5 integration** — all green; typecheck 0 + lint 0 on all three.
+- Integration ran against real Docker Postgres + LocalStack. Clean-state esbuild bundle: 3 handlers.
+- Mutation-verified: worker pruning **before** archiving fails both invariant tests; clone reading the
+  source as its owner fails the T103 access test.
+
+### The design decision this group turned on
+
+`recipe-service` does **not** enqueue on save. FR-007b-i requires the save to succeed _"independently of
+the S3 version-archive write"_, and a save that enqueues is a save that fails when SQS is down. So the
+**outbox row is the source of truth and the SQS message is derived** — which is why T132 needed a
+scheduled **sweeper** (the only thing that turns rows into messages; nothing else drains the outbox).
+
+Consequences worth keeping straight:
+
+- **Nothing prunes at save time.** The `recipe_versions` row is the payload a retry replays, and its
+  outbox row is `ON DELETE CASCADE` on it — pruning early deletes the payload _and_ the record of the
+  debt in one step. The worker prunes after S3 confirms; the cascade then clears the outbox row, making
+  _"deleted only after a successful S3 confirmation"_ a **schema property**, proven in T133.
+- **The sweeper never marks rows `in_flight`** — a row clears exactly one way. Duplicate dispatch is
+  expected and harmless (same immutable object, same key, second prune is a no-op DELETE). At-least-once
+  is correct here; at-most-once could lose a snapshot.
+
+### Findings
+
+1. **ARCH-BE-3 was a live defect, not cleanup.** The S3 key scheme had THREE representations; the
+   service (`versionNumber`) and worker (`versionId`) actively disagreed and would archive one snapshot
+   to two objects. The third, `ownerMediaPrefix`, is the GDPR erasure sweep — so the other two were
+   compliant only _by coincidence_. Now one `recipeObjectKeys` in recipe-core with the containment
+   invariant (**every archive key starts with the owner erasure prefix**) pinned by test, so a future
+   key change fails a test instead of an audit (`verticals-8`).
+2. **T131 was worse than "a stub".** `loadVersionSnapshot` returned an envelope with **no snapshot** —
+   wiring it up would have archived an empty object, reported success, and pruned the row.
+3. **A decorative alarm I nearly shipped.** T138's backlog alarm first read the sweeper's claimed count,
+   which is capped at `SWEEP_BATCH_SIZE = 100` and so could **never** cross a threshold of 100. Fixed to
+   an unbounded `COUNT(*)` emitted via EMF every tick (including when drained, so the alarm has data
+   rather than `INSUFFICIENT_DATA`).
+4. **Measured, not assumed:** recipe-core `sideEffects: false` (truthful — pure types/schemas/functions)
+   shook zod out of the Lambda bundles: **964K → 423K (−56%)**, zod refs 561 → 0.
+5. **`recipe-workers` typecheck never covered `infra/`** — its own tsconfig project. Now mirrors
+   recipe-service.
+
+### ⚠️ Carried into the next session — the one that matters
+
+**T136 must land before T136b.** The account-erasure worker the T132 stack deploys is a **stub**:
+`eraseRecipeRows` is a no-op TODO and the handler sweeps only the media bucket, so it would delete a
+user's photos, report success, and leave every DB row and every version archive. It is **inert today**
+(T132 creates no erasure queue/subscription — T136b does), so wiring the trigger before the body is what
+converts an inert stub into a false "erased". Full note at the head of tasks.md's GDPR section.
+
+### Divergences from tasks.md text (deliberate, verified)
+
+- **Worker location** — tasks.md says `src/version-archive-worker/handler.ts`; reality is
+  `src/handlers/version-archive-worker.ts`, which esbuild's `entryPoints` **and** the CDK handler
+  strings already target. Moving it would break the build for no gain.
+- **`CloneCollectionRequest` DTO** — implemented as a zod schema + `parseOrThrow` (the controller's real
+  convention), not a class DTO.
+- **`attempt_count`** — the column is `attempts` (see migration `0004`).
+
 ### Local harness note
 
 Port 5432 was held by the running `kitchensink-e2e-postgres` container carrying live local dev state

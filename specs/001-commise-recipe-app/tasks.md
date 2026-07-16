@@ -241,12 +241,12 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Async Version Archive Worker (FR-007b-i)
 
-- [ ] T130-test Write unit tests for pending-archive enqueue (insert row when version snapshot is written) and worker handler (success → delete row, failure → increment attempt_count + last_error) in `packages/services/recipe-service/src/versions/__tests__/archive-worker.test.ts`
-- [ ] T130 Update versioning service to insert into `recipe_version_pending_archives` instead of writing to S3 inline in `packages/services/recipe-service/src/versions/versions.service.ts`
-- [ ] T131 Implement version-archive worker (SQS-triggered Lambda) that drains pending rows, writes snapshots to S3 versions bucket, and deletes the pending row on success in `packages/services/recipe-workers/src/version-archive-worker/handler.ts` (workspace `@kitchensink/recipe-workers` scaffolded in T002; this Lambda reads the shared RDS (`kitchensink_recipes`) → VPC-attached t4g.nano NAT consumer)
-- [ ] T132 Add CDK infrastructure for version-archive SQS queue + DLQ + Lambda subscription in `packages/services/recipe-workers/infra/`
-- [ ] T133 Add integration test for the full async archive path (enqueue → worker drains → S3 object exists, pending row gone) using LocalStack SQS + S3 in `packages/services/recipe-workers/__tests__/integration/archive.integration.spec.ts`
-- [ ] T138 Add CloudWatch alarms for pending-archive backlog (per FR-007b-i SLO): backlog count > 100 sustained > 15 min, and oldest pending row age > 1 hour. Wire SNS topic for ops paging. Define in `packages/services/recipe-workers/infra/lib/alarms.ts`
+- [x] T130-test Write unit tests for pending-archive enqueue (insert row when version snapshot is written) and worker handler (success → delete row, failure → increment attempt_count + last_error) in `packages/services/recipe-service/src/versions/__tests__/archive-worker.test.ts`
+- [x] T130 Update versioning service to insert into `recipe_version_pending_archives` instead of writing to S3 inline in `packages/services/recipe-service/src/versions/versions.service.ts`
+- [x] T131 Implement version-archive worker (SQS-triggered Lambda) that drains pending rows, writes snapshots to S3 versions bucket, and deletes the pending row on success in `packages/services/recipe-workers/src/version-archive-worker/handler.ts` (workspace `@kitchensink/recipe-workers` scaffolded in T002; this Lambda reads the shared RDS (`kitchensink_recipes`) → VPC-attached t4g.nano NAT consumer)
+- [x] T132 Add CDK infrastructure for version-archive SQS queue + DLQ + Lambda subscription in `packages/services/recipe-workers/infra/`
+- [x] T133 Add integration test for the full async archive path (enqueue → worker drains → S3 object exists, pending row gone) using LocalStack SQS + S3 in `packages/services/recipe-workers/__tests__/integration/archive.integration.spec.ts`
+- [x] T138 Add CloudWatch alarms for pending-archive backlog (per FR-007b-i SLO): backlog count > 100 sustained > 15 min, and oldest pending row age > 1 hour. Wire SNS topic for ops paging. Define in `packages/services/recipe-workers/infra/lib/alarms.ts`
 
 ### GDPR Account Erasure
 

@@ -11,7 +11,7 @@
  * - `list` / `delete` / `reorder` delegate to the DAL and shape rows into the `RecipePhoto` contract.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { recipePhotoSchema } from '@kitchensink/recipe-core';
+import { recipePhotoSchema, recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 import {
     BadRequestException,
     PayloadTooLargeException,
@@ -28,7 +28,7 @@ import { makeRecipePhotoRow } from '../../__fixtures__/index.js';
 const OWNER = '01J000000000000000000FREE0';
 const OTHER = '01J00000000000000000OTHER0';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
-const CONFIG: PhotosConfig = { cloudfrontUrl: 'https://cdn.example.com' };
+const CONFIG: PhotosConfig = { cloudfrontUrl: 'https://cdn.example.com', thumbnailMaxPx: 400, thumbnailQuality: 80 };
 
 /**
  * A recipes service whose `getById` resolves to a recipe owned by the caller (default happy path).
@@ -75,6 +75,11 @@ function fakeStorage(overrides: Partial<PhotoStoragePort> = {}): PhotoStoragePor
             .mockResolvedValue({ uploadUrl: 'https://s3.example.com/put?sig=abc', expiresIn: PRESIGN_TTL_SECONDS }),
         readMagicBytes: vi.fn().mockResolvedValue(JPEG),
         headSize: vi.fn().mockResolvedValue(1024),
+        // `getObject` returns a REAL, decodable 1×1 PNG by default so the confirm path's thumbnail
+        // generation (sharp) succeeds; `putObject` stores the rendition. Override `getObject` with
+        // non-decodable bytes (or a rejection) to exercise the degrade-to-no-thumbnail path.
+        getObject: vi.fn().mockResolvedValue(PNG),
+        putObject: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     } as unknown as PhotoStoragePort;
 }
@@ -397,5 +402,66 @@ describe('PhotosService.confirm S3 error handling', () => {
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
         expect(error).toBeInstanceOf(UnprocessableEntityException);
+    });
+});
+
+describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)', () => {
+    it('generates a thumbnail, stores it BESIDE the original under the owner prefix, and persists its key', async () => {
+        const key = keyFor();
+        const thumbnailKey = recipePhotoThumbnailKey(key);
+        const row = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: key, thumbnailKey });
+        const create = vi.fn().mockResolvedValue(row);
+        const putObject = vi.fn().mockResolvedValue(undefined);
+        // A real decodable JPEG for the ORIGINAL read, so sharp produces a genuine rendition.
+        const getObject = vi.fn().mockResolvedValue(PNG);
+        const storage = fakeStorage({ getObject, putObject });
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+
+        await service.confirm(OWNER, RECIPE_ID, key);
+
+        // The rendition is written to the DETERMINISTIC variant key from recipe-core — under the SAME owner
+        // erasure prefix as the original, which is what keeps GDPR erasure containment structural.
+        expect(getObject).toHaveBeenCalledWith(key);
+        expect(putObject).toHaveBeenCalledTimes(1);
+        const put = putObject.mock.calls[0]?.[0] as { s3Key: string; body: Uint8Array; contentType: string };
+        expect(put.s3Key).toBe(thumbnailKey);
+        expect(put.s3Key.startsWith(`recipes/${OWNER}/`)).toBe(true);
+        expect(put.contentType).toBe('image/jpeg');
+        expect(put.body.byteLength).toBeGreaterThan(0);
+
+        // ...and the persisted row carries the thumbnail key so the cover projection can serve it.
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ s3Key: key, thumbnailKey }));
+    });
+
+    it('DEGRADES when the image cannot be resized: no thumbnail key persisted, upload still confirmed', async () => {
+        const key = keyFor();
+        const row = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: key, thumbnailKey: null });
+        const create = vi.fn().mockResolvedValue(row);
+        const putObject = vi.fn().mockResolvedValue(undefined);
+        // The object passed magic-byte validation but is not a decodable image → sharp throws.
+        const getObject = vi.fn().mockResolvedValue(GARBAGE);
+        const storage = fakeStorage({ getObject, putObject });
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+
+        // The confirm still succeeds — a thumbnail is an optimisation, not a save-blocking requirement.
+        await expect(service.confirm(OWNER, RECIPE_ID, key)).resolves.toBeDefined();
+
+        // No rendition stored, and NO thumbnailKey persisted → the cover falls back to the original.
+        expect(putObject).not.toHaveBeenCalled();
+        const createdInput = create.mock.calls[0]?.[0] as { thumbnailKey?: string };
+        expect(createdInput.thumbnailKey).toBeUndefined();
+    });
+
+    it('DEGRADES when storing the thumbnail fails, without failing the confirmed upload', async () => {
+        const key = keyFor();
+        const create = vi.fn().mockResolvedValue(makeRecipePhotoRow({ s3Key: key, thumbnailKey: null }));
+        const putObject = vi.fn().mockRejectedValue(new Error('S3 5xx'));
+        const storage = fakeStorage({ getObject: vi.fn().mockResolvedValue(PNG), putObject });
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+
+        await expect(service.confirm(OWNER, RECIPE_ID, key)).resolves.toBeDefined();
+
+        const createdInput = create.mock.calls[0]?.[0] as { thumbnailKey?: string };
+        expect(createdInput.thumbnailKey).toBeUndefined();
     });
 });

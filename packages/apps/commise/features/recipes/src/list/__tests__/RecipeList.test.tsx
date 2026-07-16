@@ -114,6 +114,24 @@ describe('RecipeList (web) — empty state', () => {
     });
 });
 
+describe('RecipeList (web) — no-match state', () => {
+    it('shows the no-match copy (NOT the empty copy) when a search filters every row out', () => {
+        // The caller HAS recipes; an active term filtered them all out. Showing "No recipes yet" here would
+        // be the empty-vs-no-match copy bug — assert the distinct no-match copy and the absence of the empty.
+        renderList({ status: 'ready', recipes: [], searchValue: 'zzz' });
+
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes yet')).toBeNull();
+    });
+
+    it('shows the empty copy when there is no active search', () => {
+        renderList({ status: 'ready', recipes: [], searchValue: '   ' });
+
+        expect(screen.getByText('No recipes yet')).toBeTruthy();
+        expect(screen.queryByText('No matching recipes')).toBeNull();
+    });
+});
+
 describe('RecipeList (web) — populated state', () => {
     it('renders a pluralized result count', () => {
         renderList({ status: 'ready', recipes: threeRecipes });

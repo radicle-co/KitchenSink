@@ -5,8 +5,10 @@
  * unexported `__fixtures__`.
  */
 import {
+    RecipeDifficulty,
     RecipeSourceType,
     RecipeVisibility,
+    usesPremiumCapability,
     type Collection,
     type Ingredient,
     type PaginatedResponse,
@@ -27,7 +29,7 @@ import type { RecipeSearchResponse } from '@kitchensink/recipe-service-client';
  * @returns A complete `Recipe`.
  */
 export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
-    return {
+    const base = {
         id: 'rec_1',
         ownerId: 'usr_1',
         title: 'Weeknight Pasta',
@@ -36,6 +38,7 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         cookTimeMinutes: 20,
         totalTimeMinutes: 30,
         servings: 4,
+        difficulty: RecipeDifficulty.MEDIUM,
         visibility: RecipeVisibility.PRIVATE,
         sourceType: RecipeSourceType.USER_CREATED,
         hasSubstantiveEdit: false,
@@ -43,9 +46,20 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         tags: [],
         hasPartialNutrition: false,
         currentVersion: 1,
+        averageRating: 4.5,
+        ratingCount: 12,
+        coverPhotoUrl: 'https://cdn.commise.app/recipes/rec_1/cover.jpg',
         createdAt: '2026-04-01T09:00:00.000Z',
         updatedAt: '2026-04-19T09:30:00.000Z',
         ...overrides,
+    };
+
+    return {
+        ...base,
+        // Keep the PRO flag and the average honest: the flag is the materialized badge rule, and an
+        // average exists only alongside a non-zero count (recipe-core invariants). Explicit overrides win.
+        usesPremiumCapability: overrides.usesPremiumCapability ?? usesPremiumCapability(base),
+        averageRating: base.ratingCount > 0 ? base.averageRating : undefined,
     };
 }
 

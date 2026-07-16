@@ -39,6 +39,7 @@ function mutation<T>(overrides: Partial<T> = {}): T {
 const props = {
     collectionId: 'col_1',
     onSelectRecipe: vi.fn(),
+    onAddRecipe: vi.fn(),
     onRename: vi.fn(),
     onDeleted: vi.fn(),
     onBack: vi.fn(),
@@ -103,6 +104,15 @@ describe('CollectionDetailScreen — populated', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Remove Fish Tacos' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'col_1', recipeId: 'rec_2' });
+    });
+
+    it('forwards an add-a-recipe request upward', () => {
+        const onAddRecipe = vi.fn();
+
+        render(<CollectionDetailScreen {...props} onAddRecipe={onAddRecipe} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
+
+        expect(onAddRecipe).toHaveBeenCalledTimes(1);
     });
 
     it('requests a rename with the current name', () => {

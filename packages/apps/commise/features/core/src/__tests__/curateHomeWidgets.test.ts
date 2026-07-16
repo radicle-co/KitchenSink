@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import type { HomeWidgetCurationContext, HomeWidgetDescriptor } from '../contract.js';
+import type {
+    HomeWidgetCurationContext,
+    HomeWidgetDescriptor,
+    LiveHomeWidgetDescriptor,
+    PlaceholderHomeWidgetDescriptor,
+} from '../contract.js';
 import { curateHomeWidgets } from '../curateHomeWidgets.js';
 
 /**
@@ -10,8 +15,18 @@ import { curateHomeWidgets } from '../curateHomeWidgets.js';
 const noopLoad = (): Promise<{ default: unknown }> => Promise.resolve({ default: null });
 
 const makeWidget = (
-    overrides: Partial<HomeWidgetDescriptor> & Pick<HomeWidgetDescriptor, 'id'>,
-): HomeWidgetDescriptor => ({
+    overrides: Partial<LiveHomeWidgetDescriptor> & Pick<LiveHomeWidgetDescriptor, 'id'>,
+): LiveHomeWidgetDescriptor => ({
+    load: noopLoad,
+    defaultWeight: 0,
+    ...overrides,
+});
+
+/** A placeholder fixture: `kind` + `capability` are what define the arm, so both are required here. */
+const makePlaceholder = (
+    overrides: Partial<PlaceholderHomeWidgetDescriptor> & Pick<PlaceholderHomeWidgetDescriptor, 'id' | 'capability'>,
+): PlaceholderHomeWidgetDescriptor => ({
+    kind: 'placeholder',
     load: noopLoad,
     defaultWeight: 0,
     ...overrides,
@@ -56,6 +71,89 @@ describe('curateHomeWidgets', () => {
             const ctx: HomeWidgetCurationContext = { liveCapabilities: [] };
 
             expect(ids(curateHomeWidgets(widgets, ctx))).toEqual(['always']);
+        });
+    });
+
+    describe('placeholder gating (FR-046 / R6 as amended by CR-001)', () => {
+        it('KEEPS a placeholder whose capability is NOT live — the feature has not shipped, so it stands in', () => {
+            const widgets = [makePlaceholder({ id: 'meal-plan', capability: 'meal-planning' })];
+            const ctx: HomeWidgetCurationContext = { liveCapabilities: ['recipes'] };
+
+            expect(ids(curateHomeWidgets(widgets, ctx))).toEqual(['meal-plan']);
+        });
+
+        it('DROPS a placeholder whose capability IS live — the real widget has taken over', () => {
+            const widgets = [makePlaceholder({ id: 'meal-plan', capability: 'meal-planning' })];
+            const ctx: HomeWidgetCurationContext = { liveCapabilities: ['meal-planning'] };
+
+            expect(curateHomeWidgets(widgets, ctx)).toEqual([]);
+        });
+
+        it('applies the hidden gate to a placeholder exactly as it does to a live widget', () => {
+            const widgets = [makePlaceholder({ id: 'meal-plan', capability: 'meal-planning' })];
+            const ctx: HomeWidgetCurationContext = { liveCapabilities: [], hidden: ['meal-plan'] };
+
+            expect(curateHomeWidgets(widgets, ctx)).toEqual([]);
+        });
+
+        it('applies the minTier gate to a placeholder exactly as it does to a live widget', () => {
+            const widgets = [makePlaceholder({ id: 'pro-soon', capability: 'nutrition', minTier: 'pro' })];
+
+            expect(curateHomeWidgets(widgets, { liveCapabilities: [], tier: 'free' })).toEqual([]);
+            expect(ids(curateHomeWidgets(widgets, { liveCapabilities: [], tier: 'pro' }))).toEqual(['pro-soon']);
+        });
+
+        it('orders placeholders among live widgets by defaultWeight like any other descriptor', () => {
+            const widgets = [
+                makeWidget({ id: 'recipes', capability: 'recipes', defaultWeight: 1000 }),
+                makePlaceholder({ id: 'nutrition', capability: 'nutrition', defaultWeight: 1400 }),
+                makePlaceholder({ id: 'meal-plan', capability: 'meal-planning', defaultWeight: 1200 }),
+            ];
+            const ctx: HomeWidgetCurationContext = { liveCapabilities: ['recipes'] };
+
+            expect(ids(curateHomeWidgets(widgets, ctx))).toEqual(['nutrition', 'meal-plan', 'recipes']);
+        });
+
+        it('lets the viewer order re-rank a placeholder against live widgets', () => {
+            const widgets = [
+                makeWidget({ id: 'recipes', capability: 'recipes', defaultWeight: 1000 }),
+                makePlaceholder({ id: 'nutrition', capability: 'nutrition', defaultWeight: 1400 }),
+            ];
+            const ctx: HomeWidgetCurationContext = { liveCapabilities: ['recipes'], order: ['recipes'] };
+
+            expect(ids(curateHomeWidgets(widgets, ctx))).toEqual(['recipes', 'nutrition']);
+        });
+    });
+
+    describe('placeholder → live self-supersede (the transition pin)', () => {
+        // The invariant that lets a roadmap placeholder be registered alongside the real feature's descriptor
+        // under the SAME id: the two arms are mutually exclusive on the same capability, so exactly one of
+        // them is ever eligible. This is what makes the placeholder safe to leave registered when 005 ships.
+        const bothArms = (): readonly HomeWidgetDescriptor[] => [
+            makePlaceholder({ id: 'meal-plan', capability: 'meal-planning', defaultWeight: 1200 }),
+            makeWidget({ id: 'meal-plan', capability: 'meal-planning', defaultWeight: 1200 }),
+        ];
+
+        it('shows ONLY the placeholder while the capability is not live', () => {
+            const curated = curateHomeWidgets(bothArms(), { liveCapabilities: [] });
+
+            expect(curated).toHaveLength(1);
+            expect(curated[0]?.kind).toBe('placeholder');
+        });
+
+        it('shows ONLY the live widget once the capability goes live — no duplicate tile', () => {
+            const curated = curateHomeWidgets(bothArms(), { liveCapabilities: ['meal-planning'] });
+
+            expect(curated).toHaveLength(1);
+            expect(curated[0]?.kind).toBeUndefined();
+        });
+
+        it('never yields both arms for the same id, for either capability state', () => {
+            for (const liveCapabilities of [[], ['meal-planning']]) {
+                const curated = curateHomeWidgets(bothArms(), { liveCapabilities });
+
+                expect(curated.filter((widget) => widget.id === 'meal-plan')).toHaveLength(1);
+            }
         });
     });
 

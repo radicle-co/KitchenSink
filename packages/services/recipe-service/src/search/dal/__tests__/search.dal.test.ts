@@ -142,6 +142,60 @@ describe('rowToRecipe', () => {
 
         expect(recipe.createdAt).toBe('2026-07-01T12:00:00.000Z');
     });
+
+    // ── CR-001 read-model fields ────────────────────────────────────────────────────────────────────
+    it('maps the trigger-maintained aggregate: numeric average → number, count as-is', () => {
+        const recipe = rowToRecipe(makeRawRecipeSearchRow({ average_rating: '4.50', rating_count: 12 }) as never);
+
+        expect(recipe.averageRating).toBe(4.5);
+        expect(recipe.ratingCount).toBe(12);
+    });
+
+    it('OMITS averageRating (never 0) when the recipe is unrated', () => {
+        const recipe = rowToRecipe(makeRawRecipeSearchRow({ average_rating: null, rating_count: 0 }) as never);
+
+        expect(recipe).not.toHaveProperty('averageRating');
+        expect(recipe.ratingCount).toBe(0);
+    });
+
+    it('maps difficulty when stated and omits it when NULL', () => {
+        expect(rowToRecipe(makeRawRecipeSearchRow({ difficulty: 'hard' }) as never).difficulty).toBe('hard');
+        expect(rowToRecipe(makeRawRecipeSearchRow({ difficulty: null }) as never)).not.toHaveProperty('difficulty');
+    });
+
+    it('derives usesPremiumCapability from visibility + sourceType (never visibility alone)', () => {
+        // Chosen-private → PRO.
+        expect(
+            rowToRecipe(makeRawRecipeSearchRow({ visibility: 'private', source_type: 'user_created' }) as never)
+                .usesPremiumCapability,
+        ).toBe(true);
+        // Forced-private import → NOT PRO (the trap `visibility === 'private'` would get wrong).
+        expect(
+            rowToRecipe(makeRawRecipeSearchRow({ visibility: 'private', source_type: 'imported_physical' }) as never)
+                .usesPremiumCapability,
+        ).toBe(false);
+        // Public → never PRO.
+        expect(
+            rowToRecipe(makeRawRecipeSearchRow({ visibility: 'public', source_type: 'user_created' }) as never)
+                .usesPremiumCapability,
+        ).toBe(false);
+    });
+
+    it('resolves coverPhotoUrl from the cover key + CDN base, and omits it without a key or a base', () => {
+        // Key + CDN base → absolute URL.
+        expect(
+            rowToRecipe(makeRawRecipeSearchRow({ cover_photo_key: 'recipes/o/r/photos/x.jpg' }) as never, 'https://cdn')
+                .coverPhotoUrl,
+        ).toBe('https://cdn/recipes/o/r/photos/x.jpg');
+        // Key present but NO CDN base → omitted (never a malformed relative URL).
+        expect(
+            rowToRecipe(makeRawRecipeSearchRow({ cover_photo_key: 'recipes/o/r/photos/x.jpg' }) as never),
+        ).not.toHaveProperty('coverPhotoUrl');
+        // No photo → omitted even with a base.
+        expect(
+            rowToRecipe(makeRawRecipeSearchRow({ cover_photo_key: null }) as never, 'https://cdn'),
+        ).not.toHaveProperty('coverPhotoUrl');
+    });
 });
 
 describe('clampPageSize / clampPage', () => {

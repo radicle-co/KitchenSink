@@ -13,7 +13,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
     useCloneRecipe,
     useDeleteRecipe,
+    useDeleteRecipeRating,
     useRecipe,
+    useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 
@@ -26,6 +28,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),
     useCloneRecipe: vi.fn(),
+    useSetRecipeRating: vi.fn(),
+    useDeleteRecipeRating: vi.fn(),
 }));
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
@@ -36,6 +40,8 @@ const useRecipeMock = vi.mocked(useRecipe);
 const useDeleteRecipeMock = vi.mocked(useDeleteRecipe);
 const useSetRecipeVisibilityMock = vi.mocked(useSetRecipeVisibility);
 const useCloneRecipeMock = vi.mocked(useCloneRecipe);
+const useSetRecipeRatingMock = vi.mocked(useSetRecipeRating);
+const useDeleteRecipeRatingMock = vi.mocked(useDeleteRecipeRating);
 const useUserProfileMock = vi.mocked(useUserProfile);
 
 function detailResult(overrides: Partial<ReturnType<typeof useRecipe>> = {}): ReturnType<typeof useRecipe> {
@@ -62,10 +68,14 @@ beforeEach(() => {
     useDeleteRecipeMock.mockReset();
     useSetRecipeVisibilityMock.mockReset();
     useCloneRecipeMock.mockReset();
+    useSetRecipeRatingMock.mockReset();
+    useDeleteRecipeRatingMock.mockReset();
     useUserProfileMock.mockReset();
     useDeleteRecipeMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>());
     useSetRecipeVisibilityMock.mockReturnValue(mutation<ReturnType<typeof useSetRecipeVisibility>>());
     useCloneRecipeMock.mockReturnValue(mutation<ReturnType<typeof useCloneRecipe>>());
+    useSetRecipeRatingMock.mockReturnValue(mutation<ReturnType<typeof useSetRecipeRating>>());
+    useDeleteRecipeRatingMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipeRating>>());
     useUserProfileMock.mockReturnValue(profile(undefined));
 });
 
@@ -131,6 +141,36 @@ describe('RecipeDetailScreen — ready state', () => {
 
         expect(screen.queryByRole('button', { name: 'Edit recipe' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Delete recipe' })).toBeNull();
+    });
+
+    it('pre-selects the viewer’s own rating from viewerRating and reveals remove, keeping the community score distinct', () => {
+        // FR-013: a non-owner viewing a recipe they have already rated 3 sees the rating INPUT pre-selected to 3
+        // and the remove affordance revealed on load, driven by the detail's `viewerRating` — while the community
+        // `averageRating` (4.5) stays the displayed social-proof score. Mutation lens: if the screen stops passing
+        // `viewerRating` through, the selection is empty and both assertions below fail.
+        useRecipeMock.mockReturnValue(
+            detailResult({
+                data: makeRecipeDetail({ ownerId: 'usr_owner', viewerRating: 3, averageRating: 4.5, ratingCount: 12 }),
+            }),
+        );
+        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.getByRole('radio', { name: 'Rate 3 stars', checked: true })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove my rating' })).toBeTruthy();
+        // The community aggregate is shown independently — the viewer's 3 has not replaced the community 4.5.
+        expect(screen.getByRole('img', { name: 'Rated 4.5 out of 5, 12 ratings' })).toBeTruthy();
+    });
+
+    it('shows no rating input on the viewer’s OWN recipe (Sc8), and viewerRating is absent there', () => {
+        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ ownerId: 'usr_viewer' }) }));
+        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.queryByRole('radiogroup', { name: 'Your rating' })).toBeNull();
+        expect(screen.getByText('You can’t rate your own recipe.')).toBeTruthy();
     });
 });
 

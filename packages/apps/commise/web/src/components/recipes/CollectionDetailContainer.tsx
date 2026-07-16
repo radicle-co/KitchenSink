@@ -74,6 +74,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
             collection={query.data}
             onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
             onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
+            onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}
             onRename={() => router.push(`/${locale}/collections/${id}/rename` as Route)}
             onDelete={() =>
                 deleteCollection.mutate(id, {

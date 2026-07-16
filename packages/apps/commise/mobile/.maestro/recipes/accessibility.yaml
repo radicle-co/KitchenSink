@@ -1,0 +1,75 @@
+appId: io.commise.mobile
+---
+# Accessibility audit of the recipes surface (T115). Read-only; mutates nothing; order-independent.
+#
+# WHAT THIS FLOW IS FOR, AND WHY IT IS NARROW. The other flows already USE accessibility labels as selectors,
+# which proves labels exist only incidentally — and mostly does not prove even that: Maestro matches a node's
+# text OR its accessible name, so `assertVisible: 'Edit recipe'` passes on a control with NO accessible name
+# at all, as long as a <Text> child renders the same string. Assertions like that would stay green on an
+# inaccessible app, so they are worthless as an a11y audit and are deliberately NOT repeated here.
+#
+# This flow asserts only things that are FALSIFIABLE — each one fails if the corresponding accessibility
+# affordance is removed:
+#   1. An accessible NAME that differs from the visible text (the string exists ONLY as accessibilityLabel).
+#   2. Accessibility STATE (`selected` / `checked` / `enabled`) actually reaching the platform a11y tree —
+#      state that a screen reader announces and that is not conveyed by colour alone.
+#
+# TAP TARGETS — Maestro CANNOT assert what T115 asks for, and this flow does not pretend to. Its dimension
+# matchers (`width`/`height` + `tolerance`) match an EXACT pixel size within a tolerance; there is no
+# >=/minimum matcher. So "every tap target is at least 48dp" is inexpressible: the closest encoding pins an
+# exact pixel height, which is device-density dependent, breaks on any benign style change, and still would
+# not assert a minimum. Pinning sizes here would be a brittle test that fails for the wrong reasons, so tap
+# -target minimums belong in the component tier (the RN StyleSheet is directly inspectable there) — see the
+# defects reported alongside this flow: several controls currently render ~32-38dp tall, under Android's 48dp
+# guidance, though above WCAG 2.2 AA 2.5.8's 24x24 floor.
+- runFlow: ../auth/signin.yaml
+
+# --- 1. Accessible name != visible text ------------------------------------------------------------------
+# The recipe-list search field is labelled "Search recipes" while its PLACEHOLDER reads "Search recipes...".
+# Anchoring (`^…$`) forces the match onto the accessible name: the placeholder cannot satisfy an anchored
+# match. Falsifiable — drop the TextInput's accessibilityLabel and only the hint remains, so this fails.
+- assertVisible: 'Recipes'
+- assertVisible:
+      text: '^Search recipes$'
+
+# --- 2. Tab bar exposes SELECTED state to assistive tech -------------------------------------------------
+# The tabs render selection with an underline + colour. Colour/position alone is not an accessible state, so
+# the tab bar also reports `accessibilityState={{ selected }}`. Falsifiable: delete that prop and a screen
+# reader can no longer tell which tab is current — and both assertions below fail.
+- assertVisible:
+      text: '^My recipes$'
+      selected: true
+- assertVisible:
+      text: '^Discover$'
+      selected: false
+
+# Selection state must FOLLOW the interaction, not be hardcoded.
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover recipes'
+      timeout: 40000
+- assertVisible:
+      text: '^Discover$'
+      selected: true
+- assertVisible:
+      text: '^My recipes$'
+      selected: false
+
+# --- 3. Icon/short-label controls carry a distinguishing accessible name ---------------------------------
+# Each discovery row's clone button VISIBLY reads just "Clone" — ambiguous to a screen-reader user paging
+# through a feed of identical buttons — so its accessible name is "Clone {title}". That full string exists
+# ONLY as the accessibilityLabel, so this is the strongest falsifiable naming assertion on the surface:
+# remove the label and the node's text is "Clone", which cannot match. Guarded on the seeded public recipe.
+- runFlow:
+      when:
+          visible: 'Herb Risotto'
+      commands:
+          - assertVisible: 'Clone Herb Risotto'
+          # The row title is a separate, correctly-named control (anchored so it selects the title button and
+          # not the clone button whose name contains the same title).
+          - assertVisible:
+                text: '^Herb Risotto$'
+
+# --- 4. The discovery search field is labelled independently of its placeholder --------------------------
+- assertVisible:
+      text: '^Search public recipes$'

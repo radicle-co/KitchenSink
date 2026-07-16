@@ -43,6 +43,19 @@ describe('toRecipeFormValues', () => {
         expect(values.cuisine).toBe('');
     });
 
+    it('seeds a stated difficulty so the edit form shows it', () => {
+        const values = toRecipeFormValues(makeRecipeDetail({ difficulty: 'hard' }));
+
+        expect(values.difficulty).toBe('hard');
+    });
+
+    it('omits an absent difficulty rather than setting it to undefined (stays "not stated")', () => {
+        const values = toRecipeFormValues(makeRecipeDetail({ difficulty: undefined }));
+
+        expect(values.difficulty).toBeUndefined();
+        expect('difficulty' in values).toBe(false);
+    });
+
     it('maps ingredient lines, preserving the catalog id and marking each resolved', () => {
         const detail = makeRecipeDetail({
             ingredients: [makeIngredientView({ ingredientId: 'ing_9', name: 'Basil', quantity: 3, unit: 'leaves' })],

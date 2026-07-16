@@ -17,6 +17,17 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateRecipe: vi.fn(),
     useSearchIngredients: vi.fn(),
     useCreateIngredient: vi.fn(),
+    // The ingredient picker + editor also read the async-resolution hooks; inert idle defaults keep them in
+    // the search branch (this screen never drives an UNRESOLVED disambiguation or a poll-after-add).
+    useAddIngredientByName: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
+    useIngredientStatus: () => ({ data: undefined }),
+    useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
+    useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
 }));
 
 const useCreateRecipeMock = vi.mocked(useCreateRecipe);

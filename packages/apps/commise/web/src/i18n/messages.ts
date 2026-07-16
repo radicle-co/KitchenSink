@@ -4,6 +4,7 @@
  * A {@link LocalizedMessages} dictionary resolved per request by `getDictionary` (server) / `useMessages`
  * (client). The `en` set is required; adding a locale is another key.
  */
+import type { GreetingBucket, HomeNavItemId, RoadmapWidgetId } from '@commise/features-core';
 import type { LocalizedMessages } from '@commise/i18n';
 
 /** The shape of the web app's own copy. */
@@ -20,13 +21,60 @@ export interface WebMessages {
             readonly account: string;
         };
         /**
+         * Copy for the Home chrome (sidebar, top bar, mobile tab bar) — US-000 / FR-046. Keyed by the SHARED
+         * models in `@commise/features-core`, so a destination or roadmap widget added there without copy is
+         * a compile error rather than a blank label discovered in review.
+         */
+        readonly chrome: {
+            /** The product wordmark beside the logo in the sidebar. */
+            readonly wordmark: string;
+            /** Accessible name of the logo/wordmark. */
+            readonly logoAlt: string;
+            /** Accessible name of the primary (sidebar) navigation landmark. */
+            readonly primaryNavLabel: string;
+            /** Accessible name of the mobile tab-bar navigation landmark. */
+            readonly tabNavLabel: string;
+            /** Title shown in the sticky top bar on the Home route. */
+            readonly pageTitle: string;
+            /** Accessible name of the control that opens navigation on small screens. */
+            readonly openNav: string;
+            /** Accessible name of the control that closes navigation on small screens. */
+            readonly closeNav: string;
+            /** Accessible name of the sidebar collapse control. */
+            readonly collapseNav: string;
+            /** Accessible name of the sidebar expand control (when collapsed). */
+            readonly expandNav: string;
+            /** Accessible name of the search entry point. */
+            readonly search: string;
+            /** Accessible name of the notifications control. */
+            readonly notifications: string;
+            /** Accessible name of the avatar / account entry point. */
+            readonly account: string;
+            /** Fallback avatar name when the viewer has no display name yet. */
+            readonly accountNoName: string;
+            /** Suffix appended to an unreachable destination's accessible name (never a dead link). */
+            readonly comingSoonSuffix: string;
+            /** Label of each navigation destination, keyed by the shared nav model's id. */
+            readonly destinations: Readonly<Record<HomeNavItemId, string>>;
+        };
+        /** Greeting copy, one per time-of-day bucket. Keyed by the shared {@link GreetingBucket} union. */
+        readonly greetings: Readonly<Record<GreetingBucket, string>>;
+        /**
+         * Copy for the roadmap skeleton placeholders (FR-046 / R6 as amended by CR-001). Titles are the REAL
+         * widget headings from the mockup — the placeholder shows what is coming, never invented data.
+         */
+        readonly roadmap: {
+            /** Visible badge on every placeholder. Visible (not sr-only) so it reads the same to everyone. */
+            readonly comingSoon: string;
+            /** The real heading of each roadmap widget, keyed by the shared roadmap registry's id. */
+            readonly titles: Readonly<Record<RoadmapWidgetId, string>>;
+        };
+        /**
          * Copy owned by the Home widget-surface host (US-000 / FR-046): the greeting header and the
          * accessible name of the widget-surface region. The widgets localize their own content via their
          * feature packages; these are the host-chrome strings.
          */
         readonly surface: {
-            /** Greeting shown above the widget grid. */
-            readonly greeting: string;
             /** Accessible name of the widget-surface region (`role="region"`). */
             readonly regionLabel: string;
             /** Accessible label + text of the recipe widget's "see all" entry point into the recipes surface. */
@@ -106,14 +154,34 @@ export interface WebMessages {
             readonly noMatches: string;
             /** Message shown when the ingredient search fails. */
             readonly errorTitle: string;
+            /** Primary "find nutrition" action for a typed name not in the results (addByName; contains `{query}`). */
+            readonly addByName: string;
+            /** Accessible label for the in-flight addByName (food-resolution) indicator. */
+            readonly addingByName: string;
+            /** Message shown when adding a food by name fails. */
+            readonly addByNameError: string;
             /** Accessible label for the in-flight freeform-create indicator. */
             readonly creating: string;
             /** Message shown when creating a freeform ingredient fails. */
             readonly createError: string;
-            /** Add-as-freeform action template (contains `{query}`). */
+            /** Add-as-freeform (fallback) action template (contains `{query}`). */
             readonly addFreeform: string;
             /** Notice shown for a match whose food resolution is terminal (no nutrition match; FR-007). */
             readonly terminalNotice: string;
+            /** Heading for the disambiguation panel of an `UNRESOLVED` match (contains `{name}`). */
+            readonly disambiguateTitle: string;
+            /** Accessible label for the in-flight candidate-loading indicator. */
+            readonly disambiguateLoading: string;
+            /** Message shown when loading disambiguation candidates fails. */
+            readonly disambiguateError: string;
+            /** Copy shown when an `UNRESOLVED` match has no candidates to choose from. */
+            readonly disambiguateEmpty: string;
+            /** Label of the action that leaves the disambiguation panel and returns to search. */
+            readonly disambiguateBack: string;
+            /** Accessible label for the in-flight resolve indicator. */
+            readonly resolving: string;
+            /** Message shown when resolving the picked candidate fails. */
+            readonly resolveError: string;
         };
         /**
          * Copy owned by the photo-uploader container (T067). The shared `RecipePhotoManager` block localizes
@@ -166,8 +234,45 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 settings: 'Settings',
                 account: 'Account',
             },
+            chrome: {
+                wordmark: 'Commise',
+                logoAlt: 'Commise',
+                primaryNavLabel: 'Main',
+                tabNavLabel: 'Main',
+                pageTitle: 'Home',
+                openNav: 'Open navigation',
+                closeNav: 'Close navigation',
+                collapseNav: 'Collapse navigation',
+                expandNav: 'Expand navigation',
+                search: 'Search',
+                notifications: 'Notifications',
+                account: 'Account',
+                accountNoName: 'Your account',
+                comingSoonSuffix: 'coming soon',
+                destinations: {
+                    home: 'Home',
+                    recipes: 'Recipes',
+                    'meal-plan': 'Meal Plan',
+                    grocery: 'Grocery',
+                    nutrition: 'Nutrition',
+                    profile: 'Profile',
+                },
+            },
+            greetings: {
+                morning: 'Good morning, Chef!',
+                afternoon: 'Good afternoon, Chef!',
+                evening: 'Good evening, Chef!',
+                night: 'Still up, Chef?',
+            },
+            roadmap: {
+                comingSoon: 'Coming soon',
+                titles: {
+                    nutrition: "Today's Nutrition",
+                    'resume-cooking': 'Resume cooking',
+                    'meal-plan': "This Week's Meals",
+                },
+            },
             surface: {
-                greeting: 'Welcome back, Chef!',
                 regionLabel: 'Home',
                 seeAllRecipes: 'See all recipes',
             },
@@ -204,10 +309,20 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 searching: 'Searching ingredients',
                 noMatches: 'No matching ingredients found.',
                 errorTitle: 'We couldn’t search ingredients.',
+                addByName: 'Find nutrition for “{query}”',
+                addingByName: 'Finding nutrition',
+                addByNameError: 'We couldn’t add that ingredient. You can add it as a custom ingredient instead.',
                 creating: 'Adding ingredient',
                 createError: 'We couldn’t add that ingredient.',
                 addFreeform: 'Add “{query}” as a custom ingredient',
                 terminalNotice: 'No nutrition match — add it as a custom ingredient or remove it.',
+                disambiguateTitle: 'Which “{name}” did you mean?',
+                disambiguateLoading: 'Loading options',
+                disambiguateError: 'We couldn’t load options for that ingredient.',
+                disambiguateEmpty: 'No options to choose from — add it as a custom ingredient instead.',
+                disambiguateBack: 'Back to search',
+                resolving: 'Resolving ingredient',
+                resolveError: 'We couldn’t resolve that ingredient.',
             },
             photos: {
                 addLabel: 'Add photo',

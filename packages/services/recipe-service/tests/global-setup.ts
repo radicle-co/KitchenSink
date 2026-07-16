@@ -6,26 +6,39 @@
  * from `docker-compose.test.yml`):
  *
  *   1. Wait for LocalStack's S3 to be reachable, then provision the recipe buckets (idempotent).
- *   2. Reset the test Postgres to a clean `public` schema and apply the ordered hand-authored
+ *   2. Provision the `account-erasure` SQS queue the T137 erasure suite drives (idempotent).
+ *   3. Reset the test Postgres to a clean `public` schema and apply the ordered hand-authored
  *      migrations (`src/database/migrations/0001..0005_*.sql`) in filename order.
- *   3. Seed a small, deterministic baseline dataset (idempotent via `ON CONFLICT DO NOTHING`) that
- *      later integration/e2e specs can rely on when they don't manage their own fixtures.
+ *   4. Seed the deterministic dataset via the shared `src/database/seed.ts` module (T096) — the ONE
+ *      authoritative "seeded world" (ingredient catalog + recipes + collection), idempotent via
+ *      `ON CONFLICT DO NOTHING` — that later integration/e2e specs rely on when they don't manage their
+ *      own fixtures. The load-bearing part is the ingredient catalog: since T043b, recipe create/update
+ *      validates every line's `ingredientId` against it.
  *
- * Idempotent: the whole setup can run repeatedly and always lands the same end state (step 2 drops and
- * recreates `public`; steps 1 and 3 use existence guards). It is a NO-OP when `DATABASE_URL` /
+ * Idempotent: the whole setup can run repeatedly and always lands the same end state (step 3 drops and
+ * recreates `public`; steps 1, 2 and 4 use existence guards). It is a NO-OP when `DATABASE_URL` /
  * `TEST_DATABASE_URL` is unset, so a machine without the harness up simply skips DB work rather than
  * failing (matches the food service's e2e ethos).
  *
- * Only the Node built-ins + `pg` (already a recipe-service dependency) are used — S3 bucket creation
- * goes through LocalStack's path-style REST API with global `fetch`, so no `@aws-sdk/*` dependency is
- * required here.
+ * S3 bucket creation goes through LocalStack's path-style REST API with global `fetch` (a bare `PUT` —
+ * no SDK needed). The SQS queue does NOT follow suit: `CreateQueue` is an AWS-protocol call, and
+ * hand-rolling that over `fetch` would be reinventing the SDK the service already depends on, so
+ * `@aws-sdk/client-sqs` (a recipe-service dependency) is used instead.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { CreateQueueCommand, SQSClient } from '@aws-sdk/client-sqs';
 import pg from 'pg';
+
+import { seed } from '../src/database/seed.js';
+
+// Re-exported so the specs that reference the seeded world import it from one place. The authoritative
+// definitions live in `src/database/seed.ts` (the T096 seed module this setup now drives); forwarding
+// them here keeps a single source of truth while leaving those specs' import paths unchanged.
+export { SEED_INGREDIENTS, SEED_OWNER_FREE } from '../src/database/seed.js';
 
 /** The harness Postgres connection string. Unset → the setup skips all DB work. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -33,38 +46,37 @@ const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_U
 /** LocalStack S3 endpoint. Defaults to the compose-published port. */
 const S3_ENDPOINT = process.env['S3_ENDPOINT'] ?? 'http://localhost:4566';
 
+/** LocalStack SQS endpoint. Same LocalStack, so it falls back to the S3 endpoint before the default. */
+const SQS_ENDPOINT = process.env['SQS_ENDPOINT'] ?? process.env['S3_ENDPOINT'] ?? 'http://localhost:4566';
+
 /** The two buckets the recipe service uses (photos + version archives). */
 export const SEED_BUCKETS = ['commise-photos', 'commise-versions'] as const;
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/database/migrations');
-
-// ── Deterministic baseline seed identifiers (stable across runs) ────────────────────────────────────
-// Owner keys are app-user ULIDs (there is no local users table — ownership is the external ULID).
-// Exported so integration/e2e specs can reference the seeded rows without re-deriving the ids.
-
-/** The `free`-tier baseline owner (app-user ULID). */
-export const SEED_OWNER_FREE = '01J000000000000000000FREE0';
-
-/** The `pro`-tier baseline owner (app-user ULID). */
-export const SEED_OWNER_PRO = '01J0000000000000000000PRO0';
-
-/** Stable recipe ids: one public (free owner), one private (pro owner). */
-export const SEED_RECIPE_PUBLIC_ID = '00000000-0000-4000-8000-000000000001';
-export const SEED_RECIPE_PRIVATE_ID = '00000000-0000-4000-8000-000000000002';
-
-/** Stable collection id (owned by the pro owner) plus its single membership. */
-export const SEED_COLLECTION_ID = '00000000-0000-4000-8000-0000000000c1';
+/** The account-erasure queue's name (`AccountModule` reads its URL from `ACCOUNT_ERASURE_QUEUE_URL`). */
+export const SEED_ERASURE_QUEUE_NAME = 'account-erasure';
 
 /**
- * Stable freeform ingredient ids (catalog rows). Integration/e2e specs attach these to recipes by id;
- * since T043b, recipe create/update validates every line's `ingredientId` against this catalog, so the
- * baseline seed MUST provide the rows the specs reference.
+ * LocalStack's fixed default AWS account id. Not a secret and not configurable — it is the constant
+ * LocalStack namespaces every queue URL under.
  */
-export const SEED_INGREDIENTS = [
-    { id: '00000000-0000-4000-8000-0000000000aa', name: 'Flour' },
-    { id: '00000000-0000-4000-8000-0000000000bb', name: 'Sugar' },
-    { id: '00000000-0000-4000-8000-0000000000cc', name: 'Butter' },
-] as const;
+const LOCALSTACK_ACCOUNT_ID = '000000000000';
+
+/**
+ * The `account-erasure` queue URL the booted app and the specs both address.
+ *
+ * Deliberately PATH-STYLE (`{endpoint}/{account}/{name}`) rather than the URL `CreateQueue` returns
+ * (`http://sqs.us-east-1.localhost.localstack.cloud:4566/...`). LocalStack accepts either — it resolves a
+ * queue from the URL's path — but the returned form depends on `localhost.localstack.cloud` resolving,
+ * which is a DNS dependency the harness gains nothing from taking on. Verified against LocalStack 3:
+ * `SendMessage`/`ReceiveMessage` against this path-style URL work.
+ *
+ * Exported as the ONE definition of the queue's address: `tests/e2e/harness.ts` defaults
+ * `ACCOUNT_ERASURE_QUEUE_URL` to it, and the erasure spec drains it, so the app under test and the spec
+ * asserting on it can never address different queues.
+ */
+export const SEED_ERASURE_QUEUE_URL = `${SQS_ENDPOINT}/${LOCALSTACK_ACCOUNT_ID}/${SEED_ERASURE_QUEUE_NAME}`;
+
+const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/database/migrations');
 
 /** Poll `predicate` until it resolves truthy or the deadline passes. */
 async function waitFor(label: string, timeoutMs: number, predicate: () => Promise<boolean>): Promise<void> {
@@ -112,6 +124,29 @@ async function provisionBuckets(): Promise<void> {
 }
 
 /**
+ * Create the `account-erasure` SQS queue. Idempotent: `CreateQueue` on an existing queue with identical
+ * attributes is a no-op that returns the same URL (verified against LocalStack 3).
+ *
+ * Static `test` credentials mirror `createSqsErasureQueue`'s LocalStack branch, so the harness is
+ * self-contained rather than depending on ambient host/CI AWS config.
+ *
+ * @sideEffect Network call to LocalStack; creates the queue.
+ */
+async function provisionErasureQueue(): Promise<void> {
+    const sqs = new SQSClient({
+        endpoint: SQS_ENDPOINT,
+        region: process.env['AWS_REGION'] ?? 'us-east-1',
+        credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+    });
+
+    try {
+        await sqs.send(new CreateQueueCommand({ QueueName: SEED_ERASURE_QUEUE_NAME }));
+    } finally {
+        sqs.destroy();
+    }
+}
+
+/**
  * Drop and recreate `public`, then apply every ordered `.sql` migration. The migrations are bare
  * `CREATE TABLE` (not idempotent on their own), so they must run against a clean schema.
  *
@@ -130,49 +165,6 @@ async function applyMigrations(pool: pg.Pool): Promise<void> {
 }
 
 /**
- * Insert the deterministic baseline dataset. Guarded with `ON CONFLICT DO NOTHING` so it is safe even
- * though {@link applyMigrations} already gives a clean slate.
- *
- * @sideEffect Writes baseline rows to the recipe tables.
- */
-async function seedBaseline(pool: pg.Pool): Promise<void> {
-    // Freeform catalog ingredients the recipe specs attach by id (search_vector populated like the DAL).
-    for (const ingredient of SEED_INGREDIENTS) {
-        await pool.query(
-            `INSERT INTO ingredients (id, name, is_user_entered, search_vector)
-             VALUES ($1, $2, true, to_tsvector('english', $2))
-             ON CONFLICT (id) DO NOTHING`,
-            [ingredient.id, ingredient.name],
-        );
-    }
-
-    await pool.query(
-        `INSERT INTO recipes
-             (id, owner_id, title, description, visibility, ingredient_names_text,
-              servings, prep_time_minutes, cook_time_minutes, total_time_minutes)
-         VALUES
-             ($1, $2, 'Baseline Public Recipe', 'Seeded public recipe for integration/e2e fixtures.', 'public', 'flour water salt', 1, 5, 10, 15),
-             ($3, $4, 'Baseline Private Recipe', 'Seeded private recipe for integration/e2e fixtures.', 'private', 'eggs butter sugar', 1, 5, 10, 15)
-         ON CONFLICT (id) DO NOTHING`,
-        [SEED_RECIPE_PUBLIC_ID, SEED_OWNER_FREE, SEED_RECIPE_PRIVATE_ID, SEED_OWNER_PRO],
-    );
-
-    await pool.query(
-        `INSERT INTO collections (id, owner_id, name, description, visibility)
-         VALUES ($1, $2, 'Baseline Collection', 'Seeded collection for integration/e2e fixtures.', 'private')
-         ON CONFLICT (id) DO NOTHING`,
-        [SEED_COLLECTION_ID, SEED_OWNER_PRO],
-    );
-
-    await pool.query(
-        `INSERT INTO recipe_collections (collection_id, recipe_id)
-         VALUES ($1, $2)
-         ON CONFLICT (collection_id, recipe_id) DO NOTHING`,
-        [SEED_COLLECTION_ID, SEED_RECIPE_PUBLIC_ID],
-    );
-}
-
-/**
  * Vitest global setup entry point. Provisions S3 buckets and, when a test database is configured,
  * migrates + seeds it. Safe to run with no harness up (skips DB work).
  *
@@ -188,6 +180,8 @@ export async function setup(): Promise<void> {
     }
 
     await provisionBuckets();
+    // After provisionBuckets, which is what waits for LocalStack to come up.
+    await provisionErasureQueue();
 
     const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
@@ -199,7 +193,7 @@ export async function setup(): Promise<void> {
         });
 
         await applyMigrations(pool);
-        await seedBaseline(pool);
+        await seed(pool);
     } finally {
         await pool.end();
     }

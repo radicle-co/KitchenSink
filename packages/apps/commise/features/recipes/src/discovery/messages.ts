@@ -23,10 +23,14 @@ export interface DiscoveryMessages {
     readonly countOther: string;
     /** Accessible label for the loading state. */
     readonly loadingLabel: string;
-    /** Heading of the empty state (a successful search with no hits). */
+    /** Heading of the browse-empty state (no public recipes to show at all). */
     readonly emptyTitle: string;
-    /** Body copy of the empty state. */
+    /** Body copy of the browse-empty state. */
     readonly emptyBody: string;
+    /** Heading of the no-match state (an active search/filter matched nothing). */
+    readonly noMatchTitle: string;
+    /** Body copy of the no-match state. */
+    readonly noMatchBody: string;
     /** Message shown when discovery fails to load. */
     readonly errorTitle: string;
     /** Label of the retry action in the error state. */
@@ -53,6 +57,8 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         loadingLabel: 'Loading recipes',
         emptyTitle: 'No recipes found',
         emptyBody: 'Try a different search to discover public recipes.',
+        noMatchTitle: 'No matching recipes',
+        noMatchBody: 'No public recipes match your search and filters. Try adjusting them.',
         errorTitle: 'We couldn’t load recipes.',
         retry: 'Try again',
         attribution: 'From {source}',

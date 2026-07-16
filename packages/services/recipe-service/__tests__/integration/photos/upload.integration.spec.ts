@@ -15,6 +15,8 @@
  * (`describe.skipIf(!hasDatabaseUrl)`).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
 
@@ -23,6 +25,18 @@ const OWNER = '01JPHOTO0OWNER0000000000AA';
 
 /** A minimal object that begins with the PNG 8-byte magic signature (padded so a HEAD size is non-zero). */
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array<number>(56).fill(0x00)]);
+
+/**
+ * A REAL, decodable 1×1 PNG (base64) — needed for the thumbnail path, where sharp must actually decode
+ * the confirmed original. The padded-signature {@link PNG_BYTES} above passes magic-byte validation but
+ * is NOT decodable, which is exactly the graceful-degrade case (confirm still succeeds, no thumbnail).
+ */
+const REAL_PNG_BYTES = new Uint8Array(
+    Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64',
+    ),
+);
 
 /** Bytes that are NOT a supported image (no JPEG/PNG/WebP signature) — `confirm` must reject these. */
 const GARBAGE_BYTES = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b]);
@@ -64,14 +78,30 @@ function pngUploadRequest(fileSize: number): { fileName: string; contentType: st
     return { fileName: 'dish.png', contentType: 'image/png', fileSize };
 }
 
+/** A recipe row as returned by the metadata list, carrying the derived cover URL when it has a cover. */
+interface ListedRecipe {
+    id: string;
+    coverPhotoUrl?: string;
+}
+
 describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
     let recipeId: string;
+    let s3: S3Client;
+    let photosBucket: string;
 
     beforeAll(async () => {
         booted = await bootRecipeApp({ devAuthUserId: OWNER });
         baseUrl = booted.baseUrl;
+
+        photosBucket = process.env['S3_BUCKET_PHOTOS'] ?? 'commise-photos';
+        s3 = new S3Client({
+            endpoint: process.env['S3_ENDPOINT'] ?? 'http://localhost:4566',
+            region: process.env['AWS_REGION'] ?? 'us-east-1',
+            forcePathStyle: true,
+            credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+        });
 
         const createRes = await fetch(`${baseUrl}/v1/recipes`, {
             method: 'POST',
@@ -83,6 +113,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
     });
 
     afterAll(async () => {
+        s3?.destroy();
         await booted.close();
     });
 
@@ -127,6 +158,54 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         expect(listRes.status).toBe(200);
         const list = (await listRes.json()) as PhotoBody[];
         expect(list.some((entry) => entry.id === photo.id)).toBe(true);
+    });
+
+    it('generates a thumbnail under the owner prefix and serves it as the recipe cover (FOLLOW-UP-CR-001-A)', async () => {
+        // A SECOND recipe, so its cover is unambiguously this test's photo (the first test's recipe already
+        // has a photo). Upload a REAL, decodable PNG so the confirm path actually produces a rendition.
+        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...RECIPE_PAYLOAD, title: 'Thumbnail Cover Recipe' }),
+        });
+        const coverRecipeId = ((await createRes.json()) as RecipeBody).id;
+
+        const presignRes = await fetch(`${baseUrl}/v1/recipes/${coverRecipeId}/photos/upload-url`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(pngUploadRequest(REAL_PNG_BYTES.byteLength)),
+        });
+        const presigned = (await presignRes.json()) as UploadUrlBody;
+
+        const putRes = await fetch(presigned.uploadUrl, {
+            method: 'PUT',
+            headers: { 'content-type': 'image/png' },
+            body: REAL_PNG_BYTES,
+        });
+        expect(putRes.ok).toBe(true);
+
+        const confirmRes = await fetch(`${baseUrl}/v1/recipes/${coverRecipeId}/photos/confirm`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),
+        });
+        expect(confirmRes.status).toBe(201);
+
+        // 1. The thumbnail rendition object actually exists in S3, at the deterministic variant key BESIDE
+        //    the original — under the owner erasure prefix (which is what makes GDPR erasure reach it).
+        const thumbnailKey = recipePhotoThumbnailKey(presigned.key);
+        const head = await s3.send(new HeadObjectCommand({ Bucket: photosBucket, Key: thumbnailKey }));
+        expect(head.ContentType).toBe('image/jpeg');
+        expect(head.ContentLength ?? 0).toBeGreaterThan(0);
+        expect(thumbnailKey.startsWith(`recipes/${OWNER}/`)).toBe(true);
+
+        // 2. The recipe LIST serves the THUMBNAIL (not the original) as the cover — the SC-009 win.
+        const listRes = await fetch(`${baseUrl}/v1/recipes`);
+        const list = (await listRes.json()) as { data: ListedRecipe[] };
+        const listed = list.data.find((entry) => entry.id === coverRecipeId);
+        expect(listed?.coverPhotoUrl).toBeDefined();
+        expect(listed?.coverPhotoUrl?.endsWith(thumbnailKey)).toBe(true);
+        expect(listed?.coverPhotoUrl).not.toBe(`${presigned.key}`); // not the full-size original key
     });
 
     it('rejects a confirm whose uploaded object is not a supported image (422, no row)', async () => {

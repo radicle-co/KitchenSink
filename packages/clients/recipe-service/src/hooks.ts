@@ -16,10 +16,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, createElement, useContext } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type {
     CreateRecipeInput,
+    Ingredient,
     RecipeSearchParams,
     RecipeVisibility,
+    SetRecipeRatingInput,
     UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
 
@@ -74,10 +77,20 @@ export function useRecipeServiceClient(): RecipeServiceClient {
 
 // ─── Query-key factory ──────────────────────────────────────────────────────────────────────────
 
-/** Stable query-key factory for every recipe-service query (use its prefixes for invalidation). */
+/**
+ * Stable query-key factory for every recipe-service query (use its prefixes for invalidation).
+ *
+ * Keys nest so that a prefix names exactly one region of the cache: `recipes` covers every recipe query,
+ * `recipe(id)` covers one recipe's whole subtree (its detail, versions, and photos), and `recipeLists` /
+ * `recipeSearches` cover the params-addressed families whose individual keys a mutation cannot enumerate
+ * (it does not know which filters or search terms a screen has cached). Note that `recipeSearches` is NOT
+ * under the `recipes` prefix — search is its own namespace, so staling it always takes an explicit call.
+ */
 export const recipeServiceKeys = {
     all: ['recipe-service'] as const,
     recipes: ['recipe-service', 'recipes'] as const,
+    /** Prefix over every `recipeList(params)` — the address for "every cached recipe list, whatever its filters". */
+    recipeLists: ['recipe-service', 'recipes', 'list'] as const,
     recipeList: (params: ListRecipesParams = {}) => ['recipe-service', 'recipes', 'list', params] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
@@ -87,9 +100,17 @@ export const recipeServiceKeys = {
     collections: ['recipe-service', 'collections'] as const,
     collectionList: (params: ListCollectionsParams = {}) => ['recipe-service', 'collections', 'list', params] as const,
     collection: (id: string) => ['recipe-service', 'collections', 'detail', id] as const,
+    /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
+    recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
     recipeSearch: (params: RecipeSearchParams = {}) => ['recipe-service', 'search', 'recipes', params] as const,
+    /** Prefix over every `ingredientSearch(query, limit)` — "every cached ingredient search, whatever the terms". */
+    ingredientSearches: ['recipe-service', 'search', 'ingredients'] as const,
     ingredientSearch: (query: string, limit?: number) =>
         ['recipe-service', 'search', 'ingredients', query, limit ?? null] as const,
+    /** One ingredient's async-resolution poll (`GET /v1/ingredients/{id}/status`). */
+    ingredientStatus: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'status'] as const,
+    /** One ingredient's disambiguation candidate set (`GET /v1/ingredients/{id}/candidates`). */
+    ingredientCandidates: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'candidates'] as const,
 } as const;
 
 /** Optional gate shared by id-addressed read hooks. */
@@ -199,7 +220,69 @@ export function useSearchIngredients(query: string, limit?: number, options: Que
     });
 }
 
+/** Default poll cadence (ms) for {@link useIngredientStatus} — spaced so a `PENDING` food does not hammer. */
+export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
+
+/** Options for {@link useIngredientStatus}. */
+export interface IngredientStatusOptions extends QueryEnableOptions {
+    /** Poll cadence (ms) while the food is `PENDING`. Defaults to {@link DEFAULT_INGREDIENT_POLL_INTERVAL_MS}. */
+    readonly pollIntervalMs?: number;
+}
+
+/**
+ * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
+ *
+ * The poll is SELF-LIMITING: `refetchInterval` returns a cadence ONLY while the last-seen status is
+ * `PENDING`, and `false` for every other state — `RESOLVED`, `UNRESOLVED` (needs user disambiguation, not
+ * more polling), the `NOT_FOUND`/`FAILED` terminals, and a freeform ingredient (no status). So it stops the
+ * instant nutrition arrives or a terminal/disambiguation state is reached, never spinning on a food that
+ * will not change by polling. TanStack keeps a single in-flight refetch per tick, and background refetching
+ * is left off, so it cannot storm the endpoint.
+ *
+ * @param id - The ingredient id (the query is disabled for an empty id).
+ * @param options - Enable gate + poll cadence.
+ */
+export function useIngredientStatus(id: string, options: IngredientStatusOptions = {}) {
+    const client = useRecipeServiceClient();
+    const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_INGREDIENT_POLL_INTERVAL_MS;
+
+    return useQuery({
+        queryKey: recipeServiceKeys.ingredientStatus(id),
+        queryFn: () => client.getIngredientStatus(id),
+        enabled: (options.enabled ?? true) && id.length > 0,
+        refetchInterval: (query) => {
+            const data = query.state.data as Ingredient | undefined;
+
+            return data?.foodResolutionStatus === FoodResolutionStatus.PENDING ? pollIntervalMs : false;
+        },
+    });
+}
+
+/**
+ * `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient.
+ * Gate it (`enabled`) on a line actually being `UNRESOLVED` so it never fetches for a resolved/freeform line.
+ *
+ * @param id - The ingredient id (the query is disabled for an empty id).
+ * @param options - Enable gate.
+ */
+export function useIngredientCandidates(id: string, options: QueryEnableOptions = {}) {
+    const client = useRecipeServiceClient();
+
+    return useQuery({
+        queryKey: recipeServiceKeys.ingredientCandidates(id),
+        queryFn: () => client.getIngredientCandidates(id),
+        enabled: (options.enabled ?? true) && id.length > 0,
+    });
+}
+
 // ─── Recipe mutations ─────────────────────────────────────────────────────────────────────────────
+//
+// Invalidation rule for this section: a write that adds, removes, or edits a recipe row stales BOTH the
+// `recipes` prefix AND `recipeSearches`. The second call is not belt-and-braces — search lives under its
+// own `search` namespace (outside `recipes`), yet reads the same golden `recipes` table through a
+// trigger-maintained `search_vector` updated in the write's own transaction. So the search cache goes
+// stale at exactly the same instant as the list, and nothing else invalidates it. Photo writes are
+// deliberately excluded: search rows are `Recipe` metadata, which carries no photo data.
 
 /** `POST /v1/recipes` — create a recipe. */
 export function useCreateRecipe() {
@@ -210,6 +293,7 @@ export function useCreateRecipe() {
         mutationFn: (input: CreateRecipeInput) => client.createRecipe(input),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
         },
     });
 }
@@ -221,9 +305,9 @@ export function useUpdateRecipe() {
 
     return useMutation({
         mutationFn: (vars: { id: string; input: UpdateRecipeInput }) => client.updateRecipe(vars.id, vars.input),
-        onSuccess: (recipe) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipe.id) });
+        onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
         },
     });
 }
@@ -235,9 +319,9 @@ export function useDeleteRecipe() {
 
     return useMutation({
         mutationFn: (id: string) => client.deleteRecipe(id),
-        onSuccess: (_result, id) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(id) });
+        onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
         },
     });
 }
@@ -251,6 +335,7 @@ export function useCloneRecipe() {
         mutationFn: (id: string) => client.cloneRecipe(id),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
         },
     });
 }
@@ -263,14 +348,48 @@ export function useSetRecipeVisibility() {
     return useMutation({
         mutationFn: (vars: { id: string; visibility: RecipeVisibility }) =>
             client.setRecipeVisibility(vars.id, vars.visibility),
-        onSuccess: (recipe) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipe.id) });
+        onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
         },
     });
 }
 
-/** `POST /v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version. */
+// A write that changes exactly ONE recipe's projected data (not its membership in other rows) stales three
+// regions and no more: that recipe's own subtree (`recipe(id)` — detail + versions + photos), every recipe
+// LIST (`recipeLists` — its rows render the same projection), and the SEARCH namespace (`recipeSearches` —
+// a search row embeds the full `Recipe`). It is keyed off the mutation's variables, so a sibling recipe's
+// detail stays cached. `recipeSearches` is ALWAYS a separate, explicit call: search lives under the
+// `search` namespace OUTSIDE the `recipes` prefix (a prior class of staleness bugs), so no `recipes`
+// invalidation reaches it by accident. Restore, both rating writes, and all three photo writes share this
+// exact set — each changes a DIFFERENT projected field (title/`currentVersion`, `averageRating`/
+// `ratingCount`, `coverPhotoUrl` respectively), but every one of those fields renders on the detail, on
+// every list row, AND on every search result.
+
+/**
+ * Invalidate the caches that render a single recipe's projected data: its own subtree (`recipe(id)`), every
+ * recipe list (`recipeLists`), and the recipe-search namespace (`recipeSearches`). Sibling recipes stay
+ * cached. See the block comment above for why these three — and only these three — go stale together.
+ *
+ * @param queryClient - The query client whose cache to invalidate.
+ * @param recipeId - The recipe whose detail/list/search projections changed.
+ * @sideEffect Marks the three regions stale on the query cache.
+ */
+function invalidateRecipeProjections(queryClient: ReturnType<typeof useQueryClient>, recipeId: string): void {
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+}
+
+/**
+ * `POST /v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version.
+ *
+ * A restore is server-side a full recipe update off the snapshot: it rewrites the title/description/times,
+ * replaces the ingredient and step sets, bumps `currentVersion`, and records a new version. So it stales the
+ * standard single-recipe projection set via {@link invalidateRecipeProjections} — list rows render `title`
+ * and `currentVersion`, and the snapshot's text rebuilds the row's search vector. Keyed off the mutation's
+ * variables: a restore touches exactly one recipe, so no sibling recipe's detail is invalidated.
+ */
 export function useRestoreRecipeVersion() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -279,8 +398,37 @@ export function useRestoreRecipeVersion() {
         mutationFn: (vars: { id: string; versionNumber: number }) =>
             client.restoreRecipeVersion(vars.id, vars.versionNumber),
         onSuccess: (_result, vars) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
+            invalidateRecipeProjections(queryClient, vars.id);
+        },
+    });
+}
+
+// The two rating writes below stale the same single-recipe projection set (subtree + every list + search):
+// a rating changes the trigger-maintained `averageRating` / `ratingCount`, which render on the detail, on
+// every list row, AND on every search result.
+
+/** `PUT /v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert). */
+export function useSetRecipeRating() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (vars: { id: string; input: SetRecipeRatingInput }) => client.setRecipeRating(vars.id, vars.input),
+        onSuccess: (_result, vars) => {
+            invalidateRecipeProjections(queryClient, vars.id);
+        },
+    });
+}
+
+/** `DELETE /v1/recipes/{id}/rating` — remove the caller's rating (idempotent). */
+export function useDeleteRecipeRating() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => client.deleteRecipeRating(id),
+        onSuccess: (_result, id) => {
+            invalidateRecipeProjections(queryClient, id);
         },
     });
 }
@@ -296,6 +444,52 @@ export function useCreateIngredient() {
     });
 }
 
+/**
+ * `POST /v1/ingredients/by-name` — add an unknown food by name through the food service (data-model R5).
+ *
+ * The ENTRY POINT of the async-resolution vertical: it persists a food-backed catalog row and returns it
+ * with a NON-terminal status (`PENDING` / `UNRESOLVED`), which the picker then polls ({@link useIngredientStatus})
+ * or disambiguates. On success it stales every cached ingredient search (`ingredientSearches`) — a search
+ * hit embeds `foodResolutionStatus`, and the newly added/deduped catalog row is now a candidate hit whose
+ * badge a cached typeahead would otherwise render stale. It does NOT touch the recipe projections: the row
+ * is a shared-catalog entry and changes no recipe/list/search row until a recipe is saved.
+ */
+export function useAddIngredientByName() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (name: string) => client.addIngredientByName(name),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientSearches });
+        },
+    });
+}
+
+/**
+ * `POST /v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick.
+ *
+ * On success the ingredient is now `RESOLVED` with nutrition, so this stales exactly the caches that
+ * rendered its pre-resolution state: its own poll (`ingredientStatus(id)`), its now-stale candidate set
+ * (`ingredientCandidates(id)`), and every cached ingredient search (`ingredientSearches` — a catalog hit
+ * embeds `foodResolutionStatus`, which a search list badges). It does NOT touch the recipe projections:
+ * resolving nutrition on the shared catalog row changes no recipe/list/search row until a recipe is saved.
+ */
+export function useResolveIngredient() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (vars: { id: string; candidateIds: readonly string[] }) =>
+            client.resolveIngredient(vars.id, vars.candidateIds),
+        onSuccess: (_result, vars) => {
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientStatus(vars.id) });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientCandidates(vars.id) });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientSearches });
+        },
+    });
+}
+
 // ─── Photo mutations ──────────────────────────────────────────────────────────────────────────────
 
 /** `POST /v1/recipes/{id}/photos/upload-url` — mint a presigned upload URL (no cache to invalidate). */
@@ -308,6 +502,19 @@ export function useCreatePhotoUploadUrl() {
     });
 }
 
+// Invalidation rule for the three photo writes below: each stales the standard single-recipe projection set
+// (subtree + every list + search) via `invalidateRecipeProjections`. Two reasons the subtree alone is not
+// enough. (1) `RecipeDetail.photos` is EMBEDDED (it ships with the detail for a one-round-trip read), so an
+// open detail would keep rendering a deleted photo or a stale order — covered because `recipe(id)` is a
+// prefix of `recipePhotos(id)`. (2) A photo write changes `coverPhotoUrl` (the lowest-sort-order photo,
+// resolved on projection), and that cover renders on every recipe LIST row (the list projection resolves it
+// so a card paints without an N+1 fetch) AND on every SEARCH result (a search row embeds the full `Recipe`).
+// Leaving those valid strands the grid/search on a stale-or-deleted cover URL — a broken, CDN-404 image.
+// Confirming can add the first/lower-sorted photo (cover appears/changes), deleting can drop the cover (the
+// next photo promotes), and a reorder IS choosing the cover — none of which the client can cheaply predict,
+// so all three invalidate uniformly. This is NOT over-invalidation: it is exactly the queries whose rendered
+// data can change, and a photo write is a single, infrequent user action (no refetch storm).
+
 /** `POST /v1/recipes/{id}/photos/confirm` — confirm an uploaded photo. */
 export function useConfirmPhotoUpload() {
     const client = useRecipeServiceClient();
@@ -317,8 +524,7 @@ export function useConfirmPhotoUpload() {
         mutationFn: (vars: { id: string; request: PhotoConfirmRequest }) =>
             client.confirmPhotoUpload(vars.id, vars.request),
         onSuccess: (_result, vars) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePhotos(vars.id) });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
+            invalidateRecipeProjections(queryClient, vars.id);
         },
     });
 }
@@ -331,7 +537,7 @@ export function useDeleteRecipePhoto() {
     return useMutation({
         mutationFn: (vars: { id: string; photoId: string }) => client.deleteRecipePhoto(vars.id, vars.photoId),
         onSuccess: (_result, vars) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePhotos(vars.id) });
+            invalidateRecipeProjections(queryClient, vars.id);
         },
     });
 }
@@ -345,7 +551,7 @@ export function useReorderRecipePhotos() {
         mutationFn: (vars: { id: string; photoIds: readonly string[] }) =>
             client.reorderRecipePhotos(vars.id, vars.photoIds),
         onSuccess: (_result, vars) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePhotos(vars.id) });
+            invalidateRecipeProjections(queryClient, vars.id);
         },
     });
 }
@@ -373,8 +579,7 @@ export function useUpdateCollection() {
     return useMutation({
         mutationFn: (vars: { id: string; request: UpdateCollectionRequest }) =>
             client.updateCollection(vars.id, vars.request),
-        onSuccess: (collection) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collection(collection.id) });
+        onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
         },
     });
@@ -387,12 +592,22 @@ export function useDeleteCollection() {
 
     return useMutation({
         mutationFn: (id: string) => client.deleteCollection(id),
-        onSuccess: (_result, id) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collection(id) });
+        onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
         },
     });
 }
+
+// Membership writes (add/remove below) stale ONLY that one collection's detail — deliberately NOT the
+// collection list, and this narrowness is confirmed correct against the actual DTOs. The list returns the
+// core `Collection` type (id/ownerId/name/description/sourceCollectionId/timestamps): it carries NO
+// member-derived data — no recipe count, no membership array, no cover (the service deliberately omits
+// `coverPhotoUrl` on the collection projection). Membership lives ONLY on the detail,
+// `CollectionWithRecipes.recipes`, which `collection(id)` already stales. The list is also unsorted by
+// activity (`ListCollectionsParams` is page/pageSize only) and a membership insert does not touch the
+// collection row's `updatedAt`, so its order cannot drift either. So a membership change alters nothing the
+// list renders; invalidating `collections` would refetch every cached collection to redraw identical rows.
+// Widen this ONLY if a list row starts rendering a count or a cover.
 
 /** `POST /v1/collections/{id}/recipes` — add a recipe to a collection. */
 export function useAddRecipeToCollection() {
@@ -442,8 +657,9 @@ export function usePullCollectionFromSource() {
 
     return useMutation({
         mutationFn: (id: string) => client.pullCollectionFromSource(id),
-        onSuccess: (_result, id) => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collection(id) });
+        // A pull only adds MEMBERSHIP rows (`added_via = 'pull'`) — it creates no recipes and edits no
+        // recipe row, so no recipe or search query is stale. Only the collection namespace is.
+        onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
         },
     });

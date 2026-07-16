@@ -2,8 +2,8 @@
  * Unit coverage for the recipe migrate runner's pure/guarded logic (feature 001) — the parts that run
  * without a database: the logical-DB-name guard, ordered `.sql` discovery, and the idempotent, injection-
  * safe create/drop of a per-PR database (base name is never created or dropped). The DB-hitting
- * `runMigrations` path is exercised end-to-end by the deploy's migrate invocation (9 migrations / 10
- * tables) and can gain an `.integration.spec.ts` later.
+ * `runMigrations` path is exercised end-to-end by the deploy's migrate invocation (the ordered
+ * `0001..NNNN_*.sql` set) and can gain an `.integration.spec.ts` later.
  */
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

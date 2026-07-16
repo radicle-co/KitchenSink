@@ -19,7 +19,7 @@ import {
     type RecipeRow,
     type RecipeStepRow,
 } from '../../database/schema/index.js';
-import type { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipeDifficulty, RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
 import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipe-ingredients.dal.js';
 
@@ -42,6 +42,12 @@ export interface CreateRecipeInput {
     prepTimeMinutes: number;
     cookTimeMinutes: number;
     totalTimeMinutes: number;
+    /**
+     * Author-stated difficulty (FR-001b). OMITTED (undefined) when the author states none — the column is
+     * nullable with no default, so an unstated difficulty stays NULL. There is no `null` on create (the
+     * clear sentinel is an update-only concern); either a value is set or the field is left off entirely.
+     */
+    difficulty?: RecipeDifficulty;
     tags: string[];
     dietaryFlags: string[];
     // ── Provenance (C-004) — omitted on a plain create (DB defaults apply); set when cloning. ──
@@ -79,6 +85,13 @@ export interface UpdateRecipeInput {
     prepTimeMinutes?: number;
     cookTimeMinutes?: number;
     totalTimeMinutes?: number;
+    /**
+     * Author-stated difficulty (FR-001b) — the three-state update field. `undefined` (absent) leaves the
+     * stored value UNCHANGED; a value SETS it; explicit `null` CLEARS it back to "not stated" (the column
+     * is nullable, no default). The DAL keys off `!== undefined` so `null` is written through as a real
+     * clear — treating `null` as "absent" would make a set difficulty unclearable, which FR-001b forbids.
+     */
+    difficulty?: RecipeDifficulty | null;
     tags?: string[];
     dietaryFlags?: string[];
     ingredientNamesText?: string;
@@ -99,6 +112,15 @@ export interface RecipeAggregate {
     ingredients: RecipeIngredientRow[];
 }
 
+/**
+ * A list-page aggregate: a {@link RecipeAggregate} plus the resolved cover-photo object key (CR-001 /
+ * FR-001c). The key is resolved for the whole page in ONE cover LATERAL (no N+1); the service maps it to
+ * an absolute CDN URL. ABSENT when the recipe has no photos.
+ */
+export interface ListRecipeAggregate extends RecipeAggregate {
+    coverPhotoKey?: string;
+}
+
 /** Pagination + sort inputs for {@link RecipesDal.findAll}. */
 export interface FindAllOptions {
     ownerId: string;
@@ -109,7 +131,7 @@ export interface FindAllOptions {
 
 /** A page of aggregates plus the unpaginated total (for `hasMore` computation upstream). */
 export interface FindAllResult {
-    rows: RecipeAggregate[];
+    rows: ListRecipeAggregate[];
     total: number;
 }
 
@@ -154,6 +176,9 @@ export class RecipesDal {
                     prepTimeMinutes: input.prepTimeMinutes,
                     cookTimeMinutes: input.cookTimeMinutes,
                     totalTimeMinutes: input.totalTimeMinutes,
+                    // Difficulty is set only when the author stated one; omitted otherwise so the column
+                    // stays NULL ("not stated"). No default is ever fabricated (FR-001b).
+                    ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
                     tags: input.tags,
                     dietaryFlags: input.dietaryFlags,
                     ingredientNamesText: input.ingredientNamesText,
@@ -236,15 +261,64 @@ export class RecipesDal {
         const byRecipe = groupSteps(steps);
         const ingredientRows = ids.length > 0 ? await this.linkDal.loadByRecipeIds(this.db, ids) : [];
         const ingredientsByRecipe = groupIngredients(ingredientRows);
+        const coverKeys = ids.length > 0 ? await this.loadCoverKeys(ids) : new Map<string, string>();
 
         return {
-            rows: pageRows.map((recipe) => ({
-                recipe,
-                steps: byRecipe.get(recipe.id) ?? [],
-                ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
-            })),
+            rows: pageRows.map((recipe) => {
+                const coverPhotoKey = coverKeys.get(recipe.id);
+
+                return {
+                    recipe,
+                    steps: byRecipe.get(recipe.id) ?? [],
+                    ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
+                    ...(coverPhotoKey !== undefined ? { coverPhotoKey } : {}),
+                };
+            }),
             total,
         };
+    }
+
+    /**
+     * Resolve the cover object key for a page of recipes in ONE query (CR-001 / FR-001c). The cover photo
+     * is the one with the lowest `sort_order`; because `sort_order` is not unique, the tiebreak
+     * (`created_at`, then the `id` PK) is part of the rule, so the same recipe yields the same cover across
+     * requests. The KEY returned is the small thumbnail rendition when the cover photo has one, else its
+     * full-size original (`COALESCE(thumbnail_key, s3_key)` — FOLLOW-UP-CR-001-A), so a card tile no longer
+     * ships the up-to-5 MB original. A `LEFT JOIN LATERAL … LIMIT 1` per row avoids the N+1 a per-card
+     * detail fetch would incur and uses `idx_recipe_photos_recipe_cover`. Recipes with no photos are simply
+     * absent from the map.
+     *
+     * @sideEffect Reads `recipe_photos`.
+     */
+    private async loadCoverKeys(recipeIds: string[]): Promise<Map<string, string>> {
+        const idList = sql.join(
+            recipeIds.map((id) => sql`${id}`),
+            sql`, `,
+        );
+        const result = await this.db.execute<{ id: string; cover_key: string | null }>(sql`
+            SELECT r.id, cp.cover_key
+            FROM recipes r
+            LEFT JOIN LATERAL (
+                -- Serve the small thumbnail rendition when present, else the full-size original
+                -- (FOLLOW-UP-CR-001-A). Pre-thumbnail rows have thumbnail_key NULL → fall back to s3_key.
+                SELECT COALESCE(p.thumbnail_key, p.s3_key) AS cover_key
+                FROM recipe_photos p
+                WHERE p.recipe_id = r.id
+                ORDER BY p.sort_order, p.created_at, p.id
+                LIMIT 1
+            ) cp ON true
+            WHERE r.id IN (${idList})
+        `);
+
+        const covers = new Map<string, string>();
+
+        for (const row of result.rows) {
+            if (row.cover_key !== null) {
+                covers.set(row.id, row.cover_key);
+            }
+        }
+
+        return covers;
     }
 
     /**
@@ -266,6 +340,10 @@ export class RecipesDal {
                     ...(input.prepTimeMinutes !== undefined ? { prepTimeMinutes: input.prepTimeMinutes } : {}),
                     ...(input.cookTimeMinutes !== undefined ? { cookTimeMinutes: input.cookTimeMinutes } : {}),
                     ...(input.totalTimeMinutes !== undefined ? { totalTimeMinutes: input.totalTimeMinutes } : {}),
+                    // Three-state difficulty (FR-001b): absent → key omitted (unchanged); a value → set;
+                    // explicit `null` → written as NULL (cleared). The `!== undefined` guard is what keeps
+                    // "clear" (null) distinct from "leave unchanged" (absent) — do not collapse them.
+                    ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
                     ...(input.tags !== undefined ? { tags: input.tags } : {}),
                     ...(input.dietaryFlags !== undefined ? { dietaryFlags: input.dietaryFlags } : {}),
                     ...(input.ingredientNamesText !== undefined

@@ -8,6 +8,8 @@ import {
     S3Client,
 } from '@aws-sdk/client-s3';
 
+import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
+
 import { eraseRecipeObjects, ownerMediaPrefix } from '../../../src/handlers/account-erasure-worker.js';
 import { snapshotObjectKey } from '../../../src/handlers/version-archive-worker.js';
 
@@ -26,6 +28,7 @@ const hasS3Endpoint = Boolean(S3_ENDPOINT);
 
 const OWNER_A = '01JOWNERA000000000000000AA';
 const OWNER_B = '01JOWNERB000000000000000BB';
+const OWNER_C = '01JOWNERC000000000000000CC';
 
 const makeClient = (): S3Client =>
     new S3Client({
@@ -74,6 +77,27 @@ describe.skipIf(!hasS3Endpoint)('recipe-workers S3 integration', () => {
 
         // Idempotent replay over an already-erased owner deletes nothing.
         expect(await eraseRecipeObjects(client, bucket, OWNER_A)).toBe(0);
+    });
+
+    it('erases the cover-thumbnail rendition together with its owner (FOLLOW-UP-CR-001-A containment)', async () => {
+        // The thumbnail is a NEW owner-scoped object. Its right-to-erasure guarantee is structural: the
+        // key is derived by `recipePhotoThumbnailKey` (append), so it lives under the SAME owner prefix the
+        // sweep lists. This proves that through the REAL sweep — plant an original photo AND its thumbnail,
+        // erase the owner, and assert BOTH are gone. A variant scheme that relocated the thumbnail off the
+        // owner prefix (the verticals-8 defect) would leave the thumbnail object behind and fail here.
+        const originalKey = `${ownerMediaPrefix(OWNER_C)}r1/photos/00000000-0000-4000-8000-0000000000c1`;
+        const thumbnailKey = recipePhotoThumbnailKey(originalKey);
+
+        expect(thumbnailKey.startsWith(ownerMediaPrefix(OWNER_C))).toBe(true);
+
+        await putObject(client, bucket, originalKey, 'original-bytes');
+        await putObject(client, bucket, thumbnailKey, 'thumbnail-bytes');
+
+        const deleted = await eraseRecipeObjects(client, bucket, OWNER_C);
+
+        // Both the original and its derived thumbnail were swept.
+        expect(deleted).toBe(2);
+        expect(await listKeys(client, bucket, ownerMediaPrefix(OWNER_C))).toEqual([]);
     });
 
     it('writes and reads back a version snapshot at the deterministic key', async () => {

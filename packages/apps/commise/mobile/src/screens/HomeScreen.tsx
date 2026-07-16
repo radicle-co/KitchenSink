@@ -16,23 +16,25 @@ import { HomeWidgetSurface } from '../components/home/index.js';
 export interface HomeScreenProps {
     /** Navigate to the full recipes surface (wired by the root navigator). */
     readonly onOpenRecipes: () => void;
+    /** Navigate to the account/profile surface (wired by the root navigator). */
+    readonly onOpenProfile: () => void;
 }
 
 /**
  * The Home landing screen.
  *
- * @param props - The `onOpenRecipes` navigation intent.
+ * @param props - The `onOpenRecipes` and `onOpenProfile` navigation intents.
  * @returns The Home widget surface under the top safe-area inset.
  */
-export function HomeScreen({ onOpenRecipes }: HomeScreenProps): JSX.Element {
+export function HomeScreen({ onOpenRecipes, onOpenProfile }: HomeScreenProps): JSX.Element {
     const insets = useSafeAreaInsets();
 
-    // Apply the top safe-area inset so the greeting clears the status bar (without it the top row renders
+    // Apply the top safe-area inset so the top bar clears the status bar (without it the top row renders
     // UNDER the status bar — a visual defect, and the occluded nodes drop out of the accessibility hierarchy,
     // which also makes them invisible to screen readers and to Maestro E2E).
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            <HomeWidgetSurface onSeeAllRecipes={onOpenRecipes} />
+            <HomeWidgetSurface onSeeAllRecipes={onOpenRecipes} onOpenAccount={onOpenProfile} />
         </View>
     );
 }

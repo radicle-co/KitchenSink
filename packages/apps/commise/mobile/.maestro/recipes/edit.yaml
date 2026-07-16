@@ -22,6 +22,14 @@ appId: io.commise.mobile
           - tapOn: 'Title'
           - eraseText
           - inputText: 'Mediterranean Grilled Lamb (edited)'
+          # Clear the stated difficulty (FR-001b): the edit form seeds the recipe's current difficulty, and
+          # choosing "Not stated" sends the three-state update's explicit clear (null), not an omit. The
+          # picker is below the title, so scroll it into view first.
+          - hideKeyboard
+          - scrollUntilVisible:
+                element: 'Difficulty'
+                direction: DOWN
+          - tapOn: 'Not stated'
           # Dismiss the keyboard (it covers the submit button at the foot of the scrolling form) and scroll
           # the submit into view before tapping it.
           - hideKeyboard

@@ -24,6 +24,7 @@ import type { RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsService, type RestoreVersionResult } from './versions.service.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
+import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 @Controller('v1/recipes/:recipeId/versions')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
@@ -52,6 +53,7 @@ export class VersionsController {
     /** `POST /v1/recipes/{recipeId}/versions/{versionNumber}/restore` — restore a version as the new current. */
     @Post(':versionNumber/restore')
     @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
     public async restore(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,

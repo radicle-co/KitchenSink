@@ -28,6 +28,7 @@ import { CreatePhotoUploadDto } from './dto/create-photo-upload.dto.js';
 import { ConfirmPhotoDto } from './dto/confirm-photo.dto.js';
 import { ReorderPhotosDto } from './dto/reorder-photos.dto.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
+import { PhotoRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 @Controller('v1/recipes/:recipeId/photos')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
@@ -41,6 +42,7 @@ export class PhotosController {
      */
     @Post('upload-url')
     @HttpCode(HttpStatus.OK)
+    @PhotoRateLimit()
     public async createUploadUrl(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
@@ -52,6 +54,7 @@ export class PhotosController {
     /** `POST …/photos/confirm` — validate the uploaded object (magic bytes + size) and persist it. */
     @Post('confirm')
     @HttpCode(HttpStatus.CREATED)
+    @PhotoRateLimit()
     public async confirm(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
@@ -69,8 +72,13 @@ export class PhotosController {
         return this.photosService.list(ownerId, recipeId);
     }
 
-    /** `PATCH …/photos/reorder` — set the recipe's photo display order. */
+    /**
+     * `PATCH …/photos/reorder` — set the recipe's photo display order. Rate-limited as a write, not a
+     * photo upload: the tight photo cap bounds the expensive S3 presign/finalize flow, whereas reorder is
+     * a cheap metadata mutation.
+     */
     @Patch('reorder')
+    @WriteRateLimit()
     public async reorder(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
@@ -82,6 +90,7 @@ export class PhotosController {
     /** `DELETE …/photos/{photoId}` — remove a photo from the recipe. */
     @Delete(':photoId')
     @HttpCode(HttpStatus.NO_CONTENT)
+    @WriteRateLimit()
     public async remove(
         @OwnerId() ownerId: string,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,

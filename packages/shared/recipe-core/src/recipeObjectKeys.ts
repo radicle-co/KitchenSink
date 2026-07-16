@@ -64,3 +64,35 @@ export function ownerMediaPrefix(ownerId: string): string {
 export function recipeVersionArchiveKey(parts: RecipeVersionArchiveKeyParts): string {
     return `${ownerMediaPrefix(parts.ownerId)}${parts.recipeId}/versions/${parts.versionNumber}.json`;
 }
+
+/**
+ * The suffix that turns a recipe-photo original-object key into its thumbnail-variant key.
+ *
+ * `.thumb.jpg`, not a sibling folder, on purpose: the variant is DERIVED from the original key by
+ * appending, which is what makes {@link recipePhotoThumbnailKey}'s containment structural rather than
+ * coincidental (see below). The `.jpg` records the format the recipe service writes the thumbnail in;
+ * because the resolved key is persisted per row (`recipe_photos.thumbnail_key`), never recomputed from
+ * the format, the service can evolve the format without orphaning existing objects.
+ */
+export const RECIPE_PHOTO_THUMBNAIL_SUFFIX = '.thumb.jpg';
+
+/**
+ * The deterministic key for a recipe photo's thumbnail rendition (FOLLOW-UP-CR-001-A), placed BESIDE the
+ * original by appending {@link RECIPE_PHOTO_THUMBNAIL_SUFFIX} to the original object key.
+ *
+ * **Containment is structural, not coincidental.** A recipe photo's original key is itself built under
+ * {@link ownerMediaPrefix}`(ownerId)` (`recipes/{ownerId}/{recipeId}/photos/{uuid}`). Deriving the
+ * thumbnail by *appending* to that key can only ever produce a longer string with the same leading
+ * characters, so the thumbnail is under the owner's erasure prefix whenever the original is — appending
+ * cannot remove a prefix. This is the ONE place the thumbnail key is formed, precisely so the GDPR
+ * account-erasure sweep (which lists and deletes exactly {@link ownerMediaPrefix}) reaches the thumbnail
+ * for free. A variant scheme that instead relocated the object (e.g. a `thumbnails/{uuid}` root outside
+ * the owner segment) would recreate `verticals-8`: an object that survives a right-to-erasure request.
+ * The containment invariant is pinned in `__tests__/recipeObjectKeys.test.ts`.
+ *
+ * @param originalPhotoKey - The recipe photo's original object key, itself under an owner prefix.
+ * @returns The thumbnail object key — the original key plus the thumbnail suffix. Pure.
+ */
+export function recipePhotoThumbnailKey(originalPhotoKey: string): string {
+    return `${originalPhotoKey}${RECIPE_PHOTO_THUMBNAIL_SUFFIX}`;
+}

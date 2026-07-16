@@ -24,6 +24,8 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     onClone,
     onRetry,
     cloningId,
+    hasActiveFilters = false,
+    filterSlot,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -42,10 +44,13 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             </View>
         );
     } else if (results.length === 0) {
+        // Empty ≠ no-match: a search/filter with zero hits is a NO-MATCH, not the browse-empty "no public
+        // recipes" state. `searchValue` or an active filter distinguishes them.
+        const searching = searchValue.trim().length > 0 || hasActiveFilters;
         body = (
             <View>
-                <Text>{discovery.emptyTitle}</Text>
-                <Text>{discovery.emptyBody}</Text>
+                <Text>{searching ? discovery.noMatchTitle : discovery.emptyTitle}</Text>
+                <Text>{searching ? discovery.noMatchBody : discovery.emptyBody}</Text>
             </View>
         );
     } else {
@@ -87,6 +92,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 onChangeText={onSearchChange}
                 style={styles.search}
             />
+            {filterSlot}
             {body}
         </View>
     );

@@ -276,6 +276,16 @@ export const storageConfigSchema = z.object({
 
     /** Presigned URL expiry in seconds. Defaults to 900 (15 min). */
     PRESIGNED_URL_EXPIRY_SECONDS: z.coerce.number().int().positive().default(900),
+
+    /**
+     * Cover-thumbnail rendition — longest-edge bound in px (FOLLOW-UP-CR-001-A). The confirm path resizes
+     * the uploaded original into a JPEG bounded to this size and serves it as `coverPhotoUrl`. Default 400
+     * (comfortably covers a ~300px card tile at 1–1.5× density). Tunable per stage; format is fixed JPEG.
+     */
+    THUMBNAIL_MAX_PX: z.coerce.number().int().positive().default(400),
+
+    /** Cover-thumbnail JPEG quality (1–100). Default 80 — the size/quality trade-off for a card tile. */
+    THUMBNAIL_QUALITY: z.coerce.number().int().min(1).max(100).default(80),
 });
 
 /** Typed storage configuration. */
@@ -289,6 +299,8 @@ export const storageConfigMeta: Record<keyof StorageConfig, ConfigFieldMeta> = {
     S3_BUCKET_VERSIONS: { secret: false, description: 'Version archive bucket' },
     CLOUDFRONT_URL: { secret: false, description: 'CloudFront distribution URL' },
     PRESIGNED_URL_EXPIRY_SECONDS: { secret: false, description: 'Presigned URL TTL' },
+    THUMBNAIL_MAX_PX: { secret: false, description: 'Cover-thumbnail longest-edge bound (px)' },
+    THUMBNAIL_QUALITY: { secret: false, description: 'Cover-thumbnail JPEG quality (1–100)' },
 };
 
 // ---------------------------------------------------------------------------
@@ -297,6 +309,13 @@ export const storageConfigMeta: Record<keyof StorageConfig, ConfigFieldMeta> = {
 
 /** Rate limiting configuration per endpoint category. */
 export const rateLimitConfigSchema = z.object({
+    /**
+     * Read endpoint limit (req/min per client) for the common path — list/detail/get, including the
+     * Home widget's reads. This is the default throttler's limit: any route without a category override
+     * inherits it, so it is deliberately the most generous. Defaults to 120.
+     */
+    RATE_LIMIT_READ: z.coerce.number().int().positive().default(120),
+
     /** Write endpoint limit (req/min per user). Defaults to 30. */
     RATE_LIMIT_WRITE: z.coerce.number().int().positive().default(30),
 
@@ -339,6 +358,38 @@ export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldM
 };
 
 // ---------------------------------------------------------------------------
+// Account Erasure Config
+// ---------------------------------------------------------------------------
+
+/**
+ * Config for the GDPR account-erasure hand-off (C-007 / D7): the `account-erasure` SQS queue the
+ * service enqueues to on `POST /v1/account/erasure`, drained by the worker in
+ * `@kitchensink/recipe-workers`.
+ *
+ * `ACCOUNT_ERASURE_QUEUE_URL` is REQUIRED, not optional. The service can technically accept an erasure
+ * request without it — the `account_erasure_jobs` row is the durable record and the cron sweeper
+ * re-drains it — but a stage wired without a queue would silently degrade every "erase my data" request
+ * to "whenever the next cron tick notices", with nothing but a log line to say so. A compliance path is
+ * exactly where a misconfiguration should fail the deploy loudly instead of the request quietly.
+ */
+export const accountErasureConfigSchema = z.object({
+    /** URL of the `account-erasure` SQS queue. */
+    ACCOUNT_ERASURE_QUEUE_URL: z.string().url(),
+
+    /** SQS endpoint URL. Override for LocalStack in dev/test. Omit for real AWS. */
+    SQS_ENDPOINT: z.string().url().optional(),
+});
+
+/** Typed account-erasure configuration. */
+export type AccountErasureConfig = z.infer<typeof accountErasureConfigSchema>;
+
+/** Secret/non-secret metadata for account-erasure config fields. Neither is a secret: a queue URL is not. */
+export const accountErasureConfigMeta: Record<keyof AccountErasureConfig, ConfigFieldMeta> = {
+    ACCOUNT_ERASURE_QUEUE_URL: { secret: false, description: 'account-erasure SQS queue URL (GDPR, C-007)' },
+    SQS_ENDPOINT: { secret: false, description: 'SQS endpoint (LocalStack override)' },
+};
+
+// ---------------------------------------------------------------------------
 // Composite: Full API Config
 // ---------------------------------------------------------------------------
 
@@ -358,6 +409,7 @@ export const apiConfigSchema = baseConfigSchema
     .merge(storageConfigSchema)
     .merge(rateLimitConfigSchema)
     .merge(foodServiceConfigSchema)
+    .merge(accountErasureConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
     .and(databaseConnectionSchema)

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeRecipeDetail, makeRecipeFormValues, makeStepView } from '../../__fixtures__/index.js';
 import { RecipeConflictView } from '../RecipeConflictView.js';
 import type { RecipeConflictViewProps } from '../model.js';
 
@@ -42,13 +42,19 @@ const theirs = makeRecipeDetail({
     steps: steps(4),
 });
 
+const mineValues = makeRecipeFormValues({ title: 'My Draft Title', servings: 6 });
+const theirsValues = makeRecipeFormValues({ title: 'Latest Saved Title', servings: 4 });
+
 function renderConflict(overrides: Partial<RecipeConflictViewProps> = {}) {
     const props: RecipeConflictViewProps = {
         mineTitle: 'My Draft Title',
         theirs,
         mine,
+        mineValues,
+        theirsValues,
         onKeepMine: noop,
         onUseTheirs: noop,
+        onMerge: noop,
         ...overrides,
     };
     render(<RecipeConflictView {...props} />);
@@ -120,5 +126,79 @@ describe('RecipeConflictView (web) — choices', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Use the latest version' }));
 
         expect(onUseTheirs).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers all three FR-007c options up front (keep mine, use theirs, merge)', () => {
+        renderConflict();
+
+        expect(screen.getByRole('button', { name: 'Keep my version' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Use the latest version' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Merge field by field' })).toBeTruthy();
+    });
+});
+
+describe('RecipeConflictView (web) — field-by-field merge (FR-007c option c)', () => {
+    const enterMerge = () => fireEvent.click(screen.getByRole('button', { name: 'Merge field by field' }));
+
+    it('enters merge mode with a per-field chooser defaulting to the user’s draft', () => {
+        renderConflict();
+        enterMerge();
+
+        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+        // Each editable field is its own radio group; title defaults to the user's draft value.
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        const mineRadio = within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' });
+        const theirsRadio = within(titleGroup).getByRole('radio', { name: 'Latest saved version: Latest Saved Title' });
+        expect((mineRadio as HTMLInputElement).checked).toBe(true);
+        expect((theirsRadio as HTMLInputElement).checked).toBe(false);
+    });
+
+    it('toggles a field between mine and theirs', () => {
+        renderConflict();
+        enterMerge();
+
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        const theirsRadio = within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' });
+        fireEvent.click(theirsRadio);
+
+        expect((theirsRadio as HTMLInputElement).checked).toBe(true);
+        expect(
+            (within(servingsGroup).getByRole('radio', { name: 'Your version: 6' }) as HTMLInputElement).checked,
+        ).toBe(false);
+    });
+
+    it('submits the merged draft reflecting each per-field choice (my title + their servings)', () => {
+        const onMerge = vi.fn();
+        renderConflict({ onMerge });
+        enterMerge();
+
+        // Keep the title on mine (default); pull servings from theirs.
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
+
+        expect(onMerge).toHaveBeenCalledTimes(1);
+        const merged = onMerge.mock.calls[0]?.[0];
+        expect(merged).toMatchObject({ title: 'My Draft Title', servings: 4 });
+    });
+
+    it('submitting with no changes composes the user’s draft (a field left at its default)', () => {
+        const onMerge = vi.fn();
+        renderConflict({ onMerge });
+        enterMerge();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
+
+        expect(onMerge).toHaveBeenCalledWith(expect.objectContaining({ title: 'My Draft Title', servings: 6 }));
+    });
+
+    it('returns to the three options via back', () => {
+        renderConflict();
+        enterMerge();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to options' }));
+
+        expect(screen.getByRole('button', { name: 'Keep my version' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
     });
 });

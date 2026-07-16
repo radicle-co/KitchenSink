@@ -21,7 +21,7 @@
  * @sideEffect Every method reads and/or writes Postgres via the injected Drizzle client.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import { DrizzleProvider } from '../../database/database.module.js';
 import type { RecipeDrizzle } from '../../database/client.js';
@@ -69,31 +69,6 @@ export class PendingArchivesDal {
             .returning();
 
         return row;
-    }
-
-    /**
-     * Record a failed archive attempt against a version's outbox row.
-     *
-     * The attempt count is incremented **in SQL** rather than read-modify-written: two workers racing
-     * the same row would otherwise both write `attempts = n + 1` from a stale read and under-count, and
-     * the count is what drives the DLQ cutoff. `status` moves to `failed`, which keeps the row inside
-     * `idx_pending_archives_status_next` so the sweeper can still claim it — a failed archive must stay
-     * retryable, never be stranded.
-     *
-     * @param recipeVersionId - The version whose archive attempt failed.
-     * @param error - The failure to record for operators.
-     * @sideEffect Updates the row's `attempts`, `last_error`, `status`, and `updated_at`.
-     */
-    public async markFailed(recipeVersionId: string, error: string): Promise<void> {
-        await this.db
-            .update(recipeVersionPendingArchives)
-            .set({
-                attempts: sql`${recipeVersionPendingArchives.attempts} + 1`,
-                lastError: error,
-                status: 'failed',
-                updatedAt: new Date(),
-            })
-            .where(eq(recipeVersionPendingArchives.recipeVersionId, recipeVersionId));
     }
 
     /**

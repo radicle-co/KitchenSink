@@ -1,0 +1,114 @@
+appId: io.commise.mobile
+---
+# Search + navigation (US1/US2, T114). The existing flows only assert the search box is VISIBLE; nothing ever
+# typed a query, so filtering was never tested. This flow types real queries and asserts the RESULT SET
+# CHANGED, and walks the three top-level tabs.
+#
+# It covers BOTH search surfaces, which are different mechanisms and fail for different reasons:
+#   - "My recipes"  -> CLIENT-side filter over the loaded page (RecipeListScreen's `useMemo`), instant.
+#   - "Discover"    -> SERVER-side search (`useSearchRecipes`, a `query` param per keystroke), needs a wait.
+#
+# Read-only: it types and clears text but mutates nothing, so it is order-independent. It anchors on
+# "Asparagus with Green Sauce" and "Herb Risotto" — the two seed rows no other flow renames or deletes.
+- runFlow: ../auth/signin.yaml
+
+# --- Navigation: the recipes list is the initial destination -------------------------------------------
+- assertVisible: 'Recipes'
+- assertVisible: 'New recipe'
+
+# --- Client-side search over "My recipes" ---------------------------------------------------------------
+# Baseline: BOTH seeded recipes are listed. Asserting the pre-filter state is what makes the post-filter
+# assertion meaningful — without it, "Lamb is not visible" could just mean the list never loaded.
+- extendedWaitUntil:
+      visible: 'Mediterranean Grilled Lamb'
+      timeout: 40000
+- assertVisible: 'Asparagus with Green Sauce'
+
+# Type a query that matches exactly ONE recipe.
+- tapOn: 'Search recipes'
+- inputText: 'Asparagus'
+- hideKeyboard
+
+# The result set really narrowed: the match stays, the non-match is GONE, and the count label says "1 recipe"
+# (RecipeList renders `{count} recipe(s)` from the filtered rows). The assertNotVisible is the falsifiable
+# core — if the filter were a no-op the list would be unchanged and this fails. The count is anchored (`^…$`)
+# because Maestro matches substrings: an unanchored '1 recipe' would also be satisfied by '21 recipes'.
+- assertVisible: 'Asparagus with Green Sauce'
+- assertNotVisible: 'Mediterranean Grilled Lamb'
+- assertVisible:
+      text: '^1 recipe$'
+
+# A query matching NOTHING collapses to the NO-MATCH state — proves the filter is applied, not merely
+# reordered. "No matching recipes" (not the browse-empty "No recipes yet"): the caller HAS recipes, the
+# search just excluded them all. Asserting the empty-vs-no-match distinction guards the copy-bug regression.
+- tapOn: 'Search recipes'
+- eraseText
+- inputText: 'zzzznosuchrecipe'
+- hideKeyboard
+- assertVisible: 'No matching recipes'
+- assertNotVisible: 'No recipes yet'
+
+# Clearing the query restores the full set — the round trip proves filtering is derived from the query and
+# never destroys the underlying cache.
+- tapOn: 'Search recipes'
+- eraseText
+- hideKeyboard
+- extendedWaitUntil:
+      visible: 'Mediterranean Grilled Lamb'
+      timeout: 20000
+- assertVisible: 'Asparagus with Green Sauce'
+
+# --- Navigation: cross to Discover, and search it server-side -------------------------------------------
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover recipes'
+      timeout: 40000
+
+# A query the server cannot match must yield discovery's empty state. This is the strongest assertion
+# available here that the query REACHES the service: if `query` were dropped from the request the endpoint
+# would return the full public feed and this would fail. It is also immune to seed drift (it does not care
+# which public rows exist), unlike an exact-count assertion — discover-clone.yaml clones "Herb Risotto" and
+# delete.yaml removes the other public seed row, so the public feed's size is not stable across a suite run.
+- tapOn: 'Search public recipes'
+- inputText: 'zzzznosuchrecipe'
+- hideKeyboard
+- extendedWaitUntil:
+      visible: 'No matching recipes'
+      timeout: 40000
+- assertNotVisible: 'No recipes found'
+
+# A query that DOES match returns the seeded public recipe — the positive half of the same contract.
+- tapOn: 'Search public recipes'
+- eraseText
+- inputText: 'Risotto'
+- hideKeyboard
+- extendedWaitUntil:
+      visible: 'Herb Risotto'
+      timeout: 40000
+
+# --- FR-006 filter bar (facet-driven) ------------------------------------------------------------------
+# The filter bar renders under the search box on Discover. The "Max total time" ladder is always present
+# (it is a bound, not a facet value list), so it is the deterministic control to exercise regardless of which
+# public seeds exist. Clearing the term first returns to the full browse set the filter then narrows.
+- tapOn: 'Search public recipes'
+- eraseText
+- hideKeyboard
+- extendedWaitUntil:
+      visible: 'Under 60 min'
+      timeout: 40000
+# Herb Risotto is 35 min (≤ 60), so selecting the 60-minute bound must keep it — a filter that wrongly
+# dropped a matching recipe fails here. Tapping again clears the bound (the round trip proves it toggles).
+- tapOn: 'Under 60 min'
+- assertVisible: 'Herb Risotto'
+- tapOn: 'Under 60 min'
+
+# --- Navigation: the third tab, and back to the first ---------------------------------------------------
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- tapOn: 'My recipes'
+- extendedWaitUntil:
+      visible: 'New recipe'
+      timeout: 40000

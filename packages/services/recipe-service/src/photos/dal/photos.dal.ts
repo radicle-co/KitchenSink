@@ -2,8 +2,9 @@
  * T034 — the recipe-photo data-access layer.
  *
  * Owns every SQL touch of the `recipe_photos` rows (defined in `database/schema/photos.ts`). A photo is
- * a SINGLE stored object (`s3_key`, `content_type`, `size_bytes`) served as-is via CloudFront — there
- * are no derived variants and no processing state. The DAL enforces the 10-photos-per-recipe cap
+ * a full-size stored object (`s3_key`, `content_type`, `size_bytes`) served as-is via CloudFront, plus an
+ * optional derived cover-thumbnail rendition (`thumbnail_key`, NULL when absent — FOLLOW-UP-CR-001-A);
+ * there is no processing state machine. The DAL enforces the 10-photos-per-recipe cap
  * ({@link MAX_PHOTOS_PER_RECIPE}) inside {@link PhotosDal.create}: it COUNTs the existing rows in the
  * same transaction as the INSERT and throws `MAX_PHOTOS_EXCEEDED` before writing, and it assigns the new
  * row's `sortOrder` as append-to-end (`= count`). Ordering, HTTP mapping, and S3 validation live above
@@ -24,8 +25,13 @@ export const MAX_PHOTOS_PER_RECIPE = 10;
 /** Everything the DAL needs to persist a confirmed photo's metadata row. */
 export interface CreatePhotoInput {
     recipeId: string;
-    /** The single stored object key (validated by magic bytes upstream). */
+    /** The full-size stored object key (validated by magic bytes upstream). */
     s3Key: string;
+    /**
+     * The cover-thumbnail rendition's object key (FOLLOW-UP-CR-001-A), or absent when generation degraded
+     * — persisted as NULL so the cover projections fall back to `s3Key`.
+     */
+    thumbnailKey?: string;
     /** The DETECTED (sniffed) content type — never a client-sent header. */
     contentType: string;
     /** The object's byte size from the S3 HEAD (validated ≤ 5 MB upstream). */
@@ -65,6 +71,7 @@ export class PhotosDal {
                 .values({
                     recipeId: input.recipeId,
                     s3Key: input.s3Key,
+                    thumbnailKey: input.thumbnailKey ?? null,
                     contentType: input.contentType,
                     sizeBytes: input.sizeBytes,
                     sortOrder: count,

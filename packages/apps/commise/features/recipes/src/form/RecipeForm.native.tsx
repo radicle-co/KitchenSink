@@ -20,11 +20,13 @@ import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
     addStep,
+    difficultyOptions,
     parseCommaList,
     parseNumericInput,
     removeIngredientAt,
     removeStepAt,
     resolutionStatusLabel,
+    setDifficulty,
     updateIngredientAt,
     updateStepAt,
     type RecipeFormProps,
@@ -178,6 +180,34 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                         style={styles.input}
                     />
                 </Field>
+                <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>{m.difficultyLabel}</Text>
+                    <View role="radiogroup" aria-label={m.difficultyLabel} style={styles.difficultyRow}>
+                        {difficultyOptions(m).map((option) => {
+                            const selected = values.difficulty === option.value;
+
+                            return (
+                                <Pressable
+                                    key={option.label}
+                                    role="radio"
+                                    aria-label={option.label}
+                                    aria-checked={selected}
+                                    onPress={() => onChange(setDifficulty(values, option.value))}
+                                    style={[styles.difficultyChip, selected && styles.difficultyChipSelected]}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.difficultyChipLabel,
+                                            selected && styles.difficultyChipLabelSelected,
+                                        ]}
+                                    >
+                                        {option.label}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                </View>
                 <Field label={m.tagsLabel}>
                     <TextInput
                         accessibilityLabel={m.tagsLabel}
@@ -341,6 +371,18 @@ const styles = StyleSheet.create({
         color: palette.charcoal,
     },
     multiline: { minHeight: 88, textAlignVertical: 'top' },
+    difficultyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    difficultyChip: {
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: border,
+        backgroundColor: palette.white,
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+    },
+    difficultyChipSelected: { borderColor: palette.seafoam, backgroundColor: palette.seafoam },
+    difficultyChipLabel: { fontSize: 14, color: palette.charcoal },
+    difficultyChipLabelSelected: { color: palette.white },
     row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
     rowGrow: { flexGrow: 1, flexBasis: '60%' },
     rowNarrow: { width: 88 },

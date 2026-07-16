@@ -115,6 +115,59 @@ describe('RecipeForm (web) — basics fields', () => {
     });
 });
 
+describe('RecipeForm (web) — difficulty picker', () => {
+    it('renders a radiogroup with Easy/Medium/Hard and an explicit Not stated option', () => {
+        renderForm();
+
+        expect(screen.getByRole('radiogroup', { name: 'Difficulty' })).toBeTruthy();
+        expect(screen.getByRole('radio', { name: 'Easy' })).toBeTruthy();
+        expect(screen.getByRole('radio', { name: 'Medium' })).toBeTruthy();
+        expect(screen.getByRole('radio', { name: 'Hard' })).toBeTruthy();
+        expect(screen.getByRole('radio', { name: 'Not stated' })).toBeTruthy();
+    });
+
+    it('checks Not stated (and nothing else) when no difficulty is set', () => {
+        renderForm({ values: filledValues() });
+
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Not stated' }).checked).toBe(true);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Easy' }).checked).toBe(false);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Medium' }).checked).toBe(false);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Hard' }).checked).toBe(false);
+    });
+
+    it.each([
+        ['Easy', 'easy'],
+        ['Medium', 'medium'],
+        ['Hard', 'hard'],
+    ])('checks the %s radio when that difficulty is selected', (label, value) => {
+        renderForm({ values: filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }) });
+
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: label }).checked).toBe(true);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Not stated' }).checked).toBe(false);
+    });
+
+    it('reports a difficulty selection upward', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues(), onChange });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Medium' }));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ difficulty: 'medium' }));
+    });
+
+    it('clears the difficulty (removing the field) when Not stated is chosen', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ difficulty: 'hard' }), onChange });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Not stated' }));
+
+        expect(onChange).toHaveBeenCalledTimes(1);
+        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
+        expect(next.difficulty).toBeUndefined();
+        expect('difficulty' in next).toBe(false);
+    });
+});
+
 describe('RecipeForm (web) — ingredients', () => {
     it('shows the empty state when there are no ingredient lines', () => {
         renderForm({ values: filledValues({ ingredients: [] }) });

@@ -28,6 +28,7 @@ describe('requireEnv', () => {
 
     it('throws MissingConfigError when the variable is unset', () => {
         let caught: unknown;
+
         try {
             requireEnv(TEST_KEY);
         } catch (error) {

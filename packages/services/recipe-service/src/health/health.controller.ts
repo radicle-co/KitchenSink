@@ -10,6 +10,7 @@
  * Both routes are unauthenticated (see `AuthMiddleware.PUBLIC_PATHS`).
  */
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type pg from 'pg';
 
 import { PgPoolProvider } from '../database/database.module.js';
@@ -24,6 +25,7 @@ interface HealthStatus {
 }
 
 @Controller('health')
+@SkipThrottle()
 export class HealthController {
     public constructor(@Inject(PgPoolProvider) private readonly pool: pg.Pool) {}
 

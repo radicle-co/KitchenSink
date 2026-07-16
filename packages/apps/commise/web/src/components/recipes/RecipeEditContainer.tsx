@@ -20,9 +20,11 @@
  */
 import {
     applyDraftToRecipeDetail,
+    pendingIngredientIds,
     RecipeConflictView,
     RecipeForm,
-    toCreateRecipeInput,
+    setIngredientStatusById,
+    toUpdateRecipeInput,
     validateRecipeForm,
     type RecipeFormErrors,
     type RecipeFormIngredient,
@@ -31,13 +33,14 @@ import {
 import { useMessages } from '@commise/i18n/react';
 import { isNotFoundError, isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
-import type { RecipeDetail, UpdateRecipeInput } from '@kitchensink/recipe-core';
+import type { FoodResolutionStatus, RecipeDetail, UpdateRecipeInput } from '@kitchensink/recipe-core';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FC } from 'react';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
+import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { webMessages } from '@/i18n/messages';
 
@@ -62,6 +65,8 @@ function toRecipeFormValues(detail: RecipeDetail): RecipeFormValues {
         title: detail.title,
         description: detail.description,
         cuisine: detail.cuisine ?? '',
+        // Seed the current difficulty so the edit form shows it; absence stays "not stated" (FR-001b).
+        ...(detail.difficulty === undefined ? {} : { difficulty: detail.difficulty }),
         tags: [...detail.tags],
         dietaryFlags: [...detail.dietaryFlags],
         servings: detail.servings,
@@ -112,6 +117,13 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     const [errors, setErrors] = useState<RecipeFormErrors>({});
     const [conflict, setConflict] = useState<ConflictState | null>(null);
     const seededIdRef = useRef<string | null>(null);
+
+    // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. Declared with the
+    // other hooks (BEFORE the early returns below) to honor the rules of hooks. Idempotent — a repeat of the
+    // same status returns the same reference — so the per-line pollers cannot loop.
+    const applyLineStatus = useCallback((ingredientId: string, status: FoodResolutionStatus): void => {
+        setValues((current) => (current === null ? current : setIngredientStatusById(current, ingredientId, status)));
+    }, []);
 
     // Seed the draft from the loaded recipe once; the guard keeps a background refetch from overwriting edits.
     useEffect(() => {
@@ -168,7 +180,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
 
     // Persist `draft` with the given optimistic-concurrency token; navigate on success, resolve conflicts on 409.
     const submitDraft = (draft: RecipeFormValues, expectedVersion: number): void => {
-        const input: UpdateRecipeInput = { ...toCreateRecipeInput(draft), expectedVersion };
+        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft), expectedVersion };
 
         updateRecipe.mutate(
             { id: recipeId, input },
@@ -199,6 +211,16 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
         submitDraft(conflict.draft, conflict.theirs.currentVersion);
     };
 
+    // "Merge": re-submit the field-by-field merged draft against the FRESH server version (so the resubmit
+    // does not itself 409 on the stale version the original save carried).
+    const handleMerge = (merged: RecipeFormValues): void => {
+        if (conflict === null) {
+            return;
+        }
+
+        submitDraft(merged, conflict.theirs.currentVersion);
+    };
+
     // "Use theirs": abandon the draft, reseed the form from the latest saved recipe, and stay on the form.
     const handleUseTheirs = (): void => {
         if (conflict === null) {
@@ -219,8 +241,11 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 mineTitle={conflict.draft.title}
                 mine={conflict.mine}
                 theirs={conflict.theirs}
+                mineValues={conflict.draft}
+                theirsValues={toRecipeFormValues(conflict.theirs)}
                 onKeepMine={handleKeepMine}
                 onUseTheirs={handleUseTheirs}
+                onMerge={handleMerge}
             />
         );
     }
@@ -228,6 +253,9 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     return (
         <div>
             <IngredientPicker onSelect={addIngredient} />
+            {pendingIngredientIds(values).map((id) => (
+                <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
+            ))}
             <RecipeForm
                 mode="edit"
                 values={values}

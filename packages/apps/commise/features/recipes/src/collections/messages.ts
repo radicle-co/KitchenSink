@@ -36,10 +36,55 @@ export interface CollectionDetailMessages {
     readonly emptyBody: string;
     /** Accessible-label template for a per-row remove control (contains `{title}`). */
     readonly removeRecipe: string;
+    /** Label of the add-a-recipe action (opens the recipe picker). */
+    readonly addRecipeCta: string;
     /** Label of the rename action. */
     readonly renameCta: string;
     /** Label of the delete action. */
     readonly deleteCta: string;
+}
+
+/**
+ * Copy for the collection recipe-picker (the ADD half of T072), rendered by both the web and native picker
+ * views. Templates carry `{name}` (the collection) or `{title}` (a recipe) placeholders.
+ */
+export interface CollectionRecipePickerMessages {
+    /** Heading template naming the collection recipes are added to (contains `{name}`). */
+    readonly heading: string;
+    /** Accessible label for the search field. */
+    readonly searchLabel: string;
+    /** Placeholder shown inside the search field. */
+    readonly searchPlaceholder: string;
+    /** Accessible label for the candidate-loading state. */
+    readonly loadingLabel: string;
+    /** Message shown when the candidate recipes fail to load. */
+    readonly errorTitle: string;
+    /** Label of the retry action in the load-error state. */
+    readonly retry: string;
+    /** Heading of the empty state when the caller owns no recipes at all. */
+    readonly emptyTitle: string;
+    /** Body copy of the no-recipes empty state. */
+    readonly emptyBody: string;
+    /** Label of the create-recipe action offered in the no-recipes empty state. */
+    readonly createRecipe: string;
+    /** Message shown when a search matches none of the caller's recipes (distinct from owning none). */
+    readonly noMatchesTitle: string;
+    /** Short visible label on a row's add control (the accessible name comes from {@link addRecipe}). */
+    readonly add: string;
+    /** Accessible-label template for a row's add control (contains `{title}`). */
+    readonly addRecipe: string;
+    /** Visible marker on a row already in this collection. */
+    readonly memberBadge: string;
+    /** Accessible-label template for the inert control of a row already in this collection (contains `{title}`). */
+    readonly memberControlLabel: string;
+    /** Visible label shown on a row whose add is in flight. */
+    readonly adding: string;
+    /** Polite-announcement template for a successful add (contains `{title}`). */
+    readonly addedAnnouncement: string;
+    /** Alert shown when an add fails. */
+    readonly addFailed: string;
+    /** Label of the done action that dismisses the picker. */
+    readonly done: string;
 }
 
 /** Copy for the collection create/rename form (T073), rendered by both the web and native form views. */
@@ -66,6 +111,8 @@ export interface CollectionMessages {
     readonly list: CollectionListMessages;
     /** Copy for the collection-detail screen. */
     readonly detail: CollectionDetailMessages;
+    /** Copy for the collection recipe-picker (the add-a-recipe flow). */
+    readonly picker: CollectionRecipePickerMessages;
     /** Copy for the collection create/rename form. */
     readonly form: CollectionFormMessages;
 }
@@ -86,8 +133,29 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             emptyTitle: 'No recipes in this collection yet',
             emptyBody: 'Add recipes to see them here.',
             removeRecipe: 'Remove {title}',
+            addRecipeCta: 'Add a recipe',
             renameCta: 'Rename',
             deleteCta: 'Delete',
+        },
+        picker: {
+            heading: 'Add recipes to {name}',
+            searchLabel: 'Search your recipes',
+            searchPlaceholder: 'Search your recipes',
+            loadingLabel: 'Loading your recipes',
+            errorTitle: 'We couldn’t load your recipes.',
+            retry: 'Try again',
+            emptyTitle: 'No recipes yet',
+            emptyBody: 'Create a recipe to add it to this collection.',
+            createRecipe: 'New recipe',
+            noMatchesTitle: 'No recipes match your search',
+            add: 'Add',
+            addRecipe: 'Add {title}',
+            memberBadge: 'In this collection',
+            memberControlLabel: '{title} is in this collection',
+            adding: 'Adding…',
+            addedAnnouncement: 'Added {title}',
+            addFailed: 'We couldn’t add that recipe. Please try again.',
+            done: 'Done',
         },
         form: {
             createTitle: 'New collection',

@@ -1,0 +1,56 @@
+appId: io.commise.mobile
+---
+# Interactive rating happy path (FR-013, scenarios 6/7/10) — the mobile mirror of the web Playwright
+# `recipeRating.spec.ts`. Signs in, opens a PUBLIC recipe the caller does NOT own (so the own-recipe gate,
+# Sc8, is NOT engaged and the rate input is offered), submits a rating, and removes it.
+#
+# WHY THIS FLOW ASSERTS THE CONTROL'S STATE MACHINE (and rate→remove) RATHER THAN AN EXACT AGGREGATE — read
+# before "fixing" it:
+#
+#   Against the shared live seed we do not know Herb Risotto's baseline average/count, so an exact
+#   "Rated X out of 5, N ratings" assertion would be brittle (the web spec asserts it because IT controls the
+#   seed via route mocks). So — like visibility.yaml — this asserts the machine-checkable control semantics:
+#   the rate radiogroup is offered (proving the recipe is rateable, not own-recipe), tapping a star reports
+#   the selection through the radio's CHECKED state, and rating reveals the remove affordance (Sc10). Unlike
+#   the irreversible free-tier visibility flip, a rating is per-user AND removable, so this flow RATES then
+#   REMOVES — restoring the caller's contribution to zero and leaving the shared aggregate net-unchanged for
+#   the next run. The exact recomputed aggregate (Sc6/Sc7) is verified end-to-end by the web spec.
+#
+# Uses "Herb Risotto" (the seeded public recipe owned by a DIFFERENT author that discover-clone.yaml relies
+# on) — reached via the Discover tab, since the caller's own library never contains a recipe they can rate.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+- assertVisible: 'Discover recipes'
+
+- runFlow:
+      when:
+          visible: 'Herb Risotto'
+      commands:
+          # Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
+          # "Clone Herb Risotto" quick-clone button whose label also contains the title.
+          - tapOn:
+                text: '^Herb Risotto$'
+
+          # The community aggregate (read-only social proof) and the rate call-to-action render. The presence
+          # of the rate radiogroup proves the recipe is RATEABLE — the own-recipe gate (Sc8) would replace it
+          # with "You can’t rate your own recipe." instead.
+          - scrollUntilVisible:
+                element: 'Community rating'
+                direction: DOWN
+          - assertVisible: 'Rate this recipe'
+          - assertVisible: 'Rate 4 stars'
+
+          # Rate 4 stars — the selection registers through the radio's CHECKED state (not colour alone).
+          # Falsifiable: wiring the wrong value or dropping the checked semantics fails this assertion.
+          - tapOn: 'Rate 4 stars'
+          - assertVisible:
+                text: 'Rate 4 stars'
+                checked: true
+
+          # Sc10 — rating reveals the remove affordance; removing it succeeds and withdraws the affordance,
+          # restoring the caller's contribution to zero (leaving the shared seed net-unchanged).
+          - assertVisible: 'Remove my rating'
+          - tapOn: 'Remove my rating'
+          - assertNotVisible: 'Remove my rating'

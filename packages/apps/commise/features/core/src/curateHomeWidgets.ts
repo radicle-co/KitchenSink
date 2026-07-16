@@ -2,7 +2,7 @@
  * @module @commise/features-core — pure Home-widget composition (L2).
  */
 
-import type { CurateHomeWidgets } from './contract.js';
+import { isPlaceholderHomeWidget, type CurateHomeWidgets, type HomeWidgetDescriptor } from './contract.js';
 
 /**
  * Ascending subscription-tier ladder (least → most privileged). Index 0 is the
@@ -46,11 +46,33 @@ const meetsTier = (viewerTier: string | undefined, minTier: string | undefined):
 };
 
 /**
+ * Whether a widget's **capability** gate admits it, given the live capabilities.
+ * The two arms are gated inversely — see {@link CurateHomeWidgets} — which is what
+ * makes a roadmap placeholder and its eventual real widget mutually exclusive
+ * under the same id.
+ *
+ * @param widget - The descriptor to gate.
+ * @param liveCapabilities - Capabilities whose backing service is live.
+ * @returns True when this arm's capability rule admits the widget.
+ */
+const meetsCapability = (widget: HomeWidgetDescriptor, liveCapabilities: readonly string[]): boolean => {
+    if (isPlaceholderHomeWidget(widget)) {
+        // A placeholder stands in ONLY while the real thing is missing. Once the service is live, the
+        // feature's own live descriptor (same id) renders instead — so the placeholder must yield.
+        return !liveCapabilities.includes(widget.capability);
+    }
+
+    // A live widget with no declared capability has no backing service to wait on.
+    return widget.capability === undefined || liveCapabilities.includes(widget.capability);
+};
+
+/**
  * Pure implementation of {@link CurateHomeWidgets}. Drops any widget that is
- * `hidden`, whose `capability` is not in `liveCapabilities`, or whose `minTier`
- * exceeds the viewer's tier; orders survivors by the viewer's `order` (widgets
- * named there come first, in that order) and then by descending `defaultWeight`.
- * Neither the input array nor the context is mutated.
+ * `hidden`, whose `minTier` exceeds the viewer's tier, or whose capability gate
+ * rejects it ({@link meetsCapability} — inverse for placeholders); orders
+ * survivors by the viewer's `order` (widgets named there come first, in that
+ * order) and then by descending `defaultWeight`. Neither the input array nor the
+ * context is mutated.
  */
 export const curateHomeWidgets: CurateHomeWidgets = (widgets, ctx) => {
     const hidden = ctx.hidden ?? [];
@@ -61,7 +83,7 @@ export const curateHomeWidgets: CurateHomeWidgets = (widgets, ctx) => {
             return false;
         }
 
-        if (widget.capability !== undefined && !ctx.liveCapabilities.includes(widget.capability)) {
+        if (!meetsCapability(widget, ctx.liveCapabilities)) {
             return false;
         }
 

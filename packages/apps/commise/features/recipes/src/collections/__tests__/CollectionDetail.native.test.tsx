@@ -42,6 +42,7 @@ function renderDetail(overrides: Partial<CollectionDetailViewProps> = {}) {
         collection: makeCollectionWithRecipes(),
         onSelectRecipe: noop,
         onRemoveRecipe: noop,
+        onAddRecipe: noop,
         onRename: noop,
         onDelete: noop,
         ...overrides,
@@ -90,6 +91,15 @@ describe('CollectionDetail (native) — member recipes', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
         expect(onRemoveRecipe).toHaveBeenCalledWith('rec_1');
+    });
+
+    it('reports an add-a-recipe request upward', () => {
+        const onAddRecipe = vi.fn();
+        renderDetail({ onAddRecipe });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
+
+        expect(onAddRecipe).toHaveBeenCalledTimes(1);
     });
 });
 

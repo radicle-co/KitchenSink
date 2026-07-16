@@ -7,6 +7,7 @@
 export { CollectionList } from './CollectionList.js';
 export { CollectionDetail } from './CollectionDetail.js';
 export { CollectionForm } from './CollectionForm.js';
+export { CollectionRecipePicker } from './CollectionRecipePicker.js';
 
 export type {
     CollectionDetailViewProps,
@@ -14,7 +15,9 @@ export type {
     CollectionFormProps,
     CollectionListStatus,
     CollectionListViewProps,
+    CollectionRecipePickerProps,
     CollectionWithRecipes,
+    RecipePickerStatus,
 } from './model.js';
 
 export { collectionMessages } from './messages.js';

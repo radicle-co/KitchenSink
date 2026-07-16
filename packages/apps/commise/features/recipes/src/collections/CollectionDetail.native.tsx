@@ -19,6 +19,7 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     collection,
     onSelectRecipe,
     onRemoveRecipe,
+    onAddRecipe,
     onRename,
     onDelete,
 }) => {
@@ -52,9 +53,19 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                 </Pressable>
             </View>
 
-            <Text accessibilityRole="header" style={styles.sectionHeading}>
-                {detail.membersHeading}
-            </Text>
+            <View style={styles.membersHeader}>
+                <Text accessibilityRole="header" style={styles.sectionHeading}>
+                    {detail.membersHeading}
+                </Text>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={detail.addRecipeCta}
+                    onPress={onAddRecipe}
+                    style={styles.addButton}
+                >
+                    <Text style={styles.addLabel}>{detail.addRecipeCta}</Text>
+                </Pressable>
+            </View>
             {recipes.length === 0 ? (
                 <View style={styles.card}>
                     <Text style={styles.emptyTitle}>{detail.emptyTitle}</Text>
@@ -97,7 +108,10 @@ const styles = StyleSheet.create({
     heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
     description: { fontSize: 15, color: palette.slate },
     headerActions: { flexDirection: 'row', gap: 8 },
-    sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal, marginTop: 8 },
+    sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
+    membersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+    addButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+    addLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     textButton: { paddingVertical: 6, paddingHorizontal: 10 },
     renameLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
     deleteLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },

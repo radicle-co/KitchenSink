@@ -14,7 +14,7 @@
 import {
     applyDraftToRecipeDetail,
     RecipeConflictView,
-    toCreateRecipeInput,
+    toUpdateRecipeInput,
     type RecipeFormValues,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
@@ -104,7 +104,7 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     // error falls through to the editor's inline save-error alert.
     const submit = (values: RecipeFormValues, expectedVersion: number): void => {
         update.mutate(
-            { id: recipeId, input: { ...toCreateRecipeInput(values), expectedVersion } },
+            { id: recipeId, input: { ...toUpdateRecipeInput(values), expectedVersion } },
             {
                 onSuccess: (updated) => onSaved(updated.id),
                 onError: (error) => {
@@ -122,12 +122,15 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
                 mineTitle={conflict.values.title}
                 mine={conflict.mine}
                 theirs={conflict.theirs}
+                mineValues={conflict.values}
+                theirsValues={toRecipeFormValues(conflict.theirs)}
                 onKeepMine={() => submit(conflict.values, conflict.theirs.currentVersion)}
                 onUseTheirs={() => {
                     setSeedOverride(conflict.theirs);
                     setSeedNonce((nonce) => nonce + 1);
                     setConflict(null);
                 }}
+                onMerge={(merged) => submit(merged, conflict.theirs.currentVersion)}
             />
         );
     }

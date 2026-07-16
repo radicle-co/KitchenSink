@@ -30,6 +30,25 @@ export interface ListCollectionsParams {
     readonly pageSize?: number;
 }
 
+/**
+ * A single cross-source disambiguation candidate for an `UNRESOLVED` ingredient (response item of
+ * `getIngredientCandidates` — `GET /v1/ingredients/{id}/candidates`). Mirrors the food client's
+ * `CandidateView` but is declared here so the recipe client never depends on `@kitchensink/food-service-client`.
+ * Source-agnostic: keyed by the candidate's own opaque handle, never a USDA `fdcId`.
+ */
+export interface IngredientCandidate {
+    /** The candidate row id — the handle passed back to `resolveIngredient`. */
+    readonly candidateId: string;
+    /** The source the candidate came from (e.g. `usda`). */
+    readonly source: string;
+    /** That source's opaque key for the item (NOT a user-facing identifier). */
+    readonly externalKey: string;
+    /** Candidate display name. */
+    readonly name: string;
+    /** One-line disambiguation hint, when present. */
+    readonly summary: string | null;
+}
+
 /** Request body for `createPhotoUploadUrl` (`POST /v1/recipes/{id}/photos/upload-url`). */
 export interface PhotoUploadUrlRequest {
     readonly fileName: string;

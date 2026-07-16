@@ -10,7 +10,12 @@ import {
     pruneArchivedVersion,
     snapshotObjectKey,
 } from '../../../src/handlers/version-archive-worker.js';
-import { claimPendingArchives, countBacklog, toArchiveMessage } from '../../../src/handlers/archive-sweeper.js';
+import {
+    claimPendingArchives,
+    countBacklog,
+    oldestPendingArchiveAgeSeconds,
+    toArchiveMessage,
+} from '../../../src/handlers/archive-sweeper.js';
 
 /**
  * T133 — the async version-archive path, against real Postgres + real S3 (LocalStack).
@@ -173,5 +178,32 @@ describe.skipIf(!canRun)('version-archive drain (T133 integration)', () => {
         // Both seeded rows above are outstanding (102 was never archived; 101 was pruned).
         expect(backlog).toBeGreaterThanOrEqual(1);
         expect(typeof backlog).toBe('number');
+    });
+
+    it('ages the oldest un-archived row off created_at against the real schema (the FR-007b-i age alarm)', async () => {
+        // Proves the age SQL — EXTRACT(EPOCH FROM (now() - created_at)), MAX, COALESCE, ::int — is valid
+        // against the real Postgres schema, not just a mock. Row 102 is still outstanding from the test
+        // above; its created_at is seconds ago, so the age is a small non-negative integer, never null.
+        const age = await oldestPendingArchiveAgeSeconds(db);
+
+        expect(typeof age).toBe('number');
+        expect(Number.isInteger(age)).toBe(true);
+        expect(age).toBeGreaterThanOrEqual(0);
+        // A row seeded within this run cannot be older than the whole suite; a wide bound keeps the
+        // assertion meaningful (it would catch a units bug — ms vs s — or a wrong column) without flaking.
+        expect(age).toBeLessThan(3600);
+    });
+
+    it('reports age 0 (never null) once the outbox is fully drained', async () => {
+        // COALESCE(..., 0) is the load-bearing clause: an empty table must yield 0, not NULL, or the alarm
+        // flaps into INSUFFICIENT_DATA the moment the backlog clears. Drain every outstanding row for this
+        // host recipe, then assert 0 — scoped to this suite's owner so it cannot race a parallel writer
+        // (the integration config runs files serially, and rows are owner-scoped to OWNER).
+        await db.execute(sql`
+            DELETE FROM recipe_version_pending_archives
+            WHERE recipe_id = ${recipeId}
+        `);
+
+        expect(await oldestPendingArchiveAgeSeconds(db)).toBe(0);
     });
 });

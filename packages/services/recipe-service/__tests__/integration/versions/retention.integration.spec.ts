@@ -1,10 +1,14 @@
 /**
- * T044 — version retention integration test (real Nest app + Docker Postgres + LocalStack S3).
+ * T044 — version retention integration test (real Nest app + Docker Postgres).
  *
  * Drives {@link VersionsService.createSnapshot} against the harness (booted by `bootRecipeApp`, migrated
- * + seeded by `tests/global-setup.ts`) to prove the FR-007b retention window end to end: Postgres keeps
- * only the newest 10 versions of a recipe, and every version pruned beyond that is archived to the
- * `S3_BUCKET_VERSIONS` bucket in LocalStack (so a snapshot is never lost).
+ * + seeded by `tests/global-setup.ts`) to prove the FR-007b / FR-007b-i retention behavior end to end AS
+ * SHIPPED post-T130: at save time NOTHING is pruned — every version stays in Postgres because the row is
+ * the payload the async archive retry replays — and each version beyond the newest 10 is recorded in the
+ * `recipe_version_pending_archives` outbox for the version-archive worker to archive-then-prune out of
+ * band. Enqueue is idempotent, so a repeated save cannot fan out duplicate archive work. There is no S3
+ * assertion here: the S3 write is the worker's job (covered by the recipe-workers archive drain spec),
+ * not this save path.
  *
  * Version writes are not yet wired to a recipe-save HTTP path in this vertical, so the spec resolves the
  * real {@link VersionsService} from the Nest container and calls `createSnapshot` directly (12 times) on

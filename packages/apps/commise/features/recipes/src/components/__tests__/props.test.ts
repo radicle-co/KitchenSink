@@ -1,56 +1,52 @@
 import { describe, it, expect } from 'vitest';
 
-import type { Recipe } from '@kitchensink/recipe-core';
-
+import { makeRecipe } from '../../__fixtures__/index.js';
+import { toRecipeCardModel } from '../../card/model.js';
 import { MAX_RECENT_RECIPES, toRecipeSummary } from '../props.js';
 
-const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
-    id: 'rec_1',
-    ownerId: 'usr_1',
-    title: 'Weeknight Pasta',
-    description: 'A quick dinner',
-    prepTimeMinutes: 10,
-    cookTimeMinutes: 15,
-    totalTimeMinutes: 25,
-    servings: 2,
-    visibility: 'private',
-    sourceType: 'user_created',
-    hasSubstantiveEdit: false,
-    dietaryFlags: [],
-    tags: ['dinner'],
-    hasPartialNutrition: false,
-    currentVersion: 1,
-    createdAt: '2026-04-18T12:00:00.000Z',
-    updatedAt: '2026-04-19T09:30:00.000Z',
-    ...overrides,
-});
-
 describe('toRecipeSummary', () => {
-    it('projects a Recipe down to exactly id, title, and updatedAt', () => {
-        const recipe = makeRecipe();
+    it('is the shared card projection (the widget and list draw the identical card)', () => {
+        const recipe = makeRecipe({ id: 'rec_42', title: 'Ramen', totalTimeMinutes: 25, servings: 3 });
 
-        expect(toRecipeSummary(recipe)).toEqual({
-            id: 'rec_1',
-            title: 'Weeknight Pasta',
-            updatedAt: '2026-04-19T09:30:00.000Z',
+        // The widget card and the list card are one piece of knowledge — toRecipeSummary MUST be the same
+        // projection as toRecipeCardModel, or the two surfaces could drift on which fields a card shows.
+        expect(toRecipeSummary(recipe)).toEqual(toRecipeCardModel(recipe));
+    });
+
+    it('projects the card fields the mockup card renders', () => {
+        const summary = toRecipeSummary(
+            makeRecipe({
+                id: 'rec_42',
+                title: 'Ramen',
+                totalTimeMinutes: 25,
+                servings: 3,
+                difficulty: 'easy',
+                averageRating: 4.2,
+                ratingCount: 8,
+                coverPhotoUrl: 'https://cdn/x.jpg',
+                usesPremiumCapability: false,
+            }),
+        );
+
+        expect(summary).toMatchObject({
+            id: 'rec_42',
+            title: 'Ramen',
+            totalTimeMinutes: 25,
+            servings: 3,
+            difficulty: 'easy',
+            averageRating: 4.2,
+            ratingCount: 8,
+            coverPhotoUrl: 'https://cdn/x.jpg',
+            usesPremiumCapability: false,
         });
     });
 
-    it('drops every other Recipe field (no leakage of the full DTO shape)', () => {
-        const summary = toRecipeSummary(makeRecipe({ description: 'secret', ownerId: 'usr_secret' }));
+    it('does not leak Recipe fields outside the card view-model', () => {
+        const summary = toRecipeSummary(makeRecipe({ ownerId: 'usr_secret', description: 'secret' }));
 
-        expect(Object.keys(summary).sort()).toEqual(['id', 'title', 'updatedAt']);
         expect(summary).not.toHaveProperty('ownerId');
         expect(summary).not.toHaveProperty('description');
-    });
-
-    it('carries through the exact field values from the source recipe', () => {
-        const recipe = makeRecipe({ id: 'rec_42', title: 'Ramen', updatedAt: '2026-05-01T00:00:00.000Z' });
-        const summary = toRecipeSummary(recipe);
-
-        expect(summary.id).toBe('rec_42');
-        expect(summary.title).toBe('Ramen');
-        expect(summary.updatedAt).toBe('2026-05-01T00:00:00.000Z');
+        expect(summary).not.toHaveProperty('visibility');
     });
 });
 

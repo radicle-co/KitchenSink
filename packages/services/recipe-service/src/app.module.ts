@@ -1,6 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AppConfigModule } from './config/config.module.js';
 import { CommonModule } from './common/common.module.js';
@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { RecipesModule } from './recipes/recipes.module.js';
+import { RatingsModule } from './ratings/ratings.module.js';
 import { IngredientsModule } from './ingredients/ingredients.module.js';
 import { VersionsModule } from './versions/versions.module.js';
 import { PhotosModule } from './photos/photos.module.js';
@@ -16,23 +17,25 @@ import { SearchModule } from './search/search.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AuthMiddleware } from './auth/auth.middleware.js';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
-import { throttleGroups } from './common/throttle/throttle.config.js';
+import { throttlerModuleOptions } from './common/throttle/throttle.config.js';
+import { UserThrottlerGuard } from './common/throttle/user-throttler.guard.js';
 
 /**
  * Root application module. Wires the config, per-domain feature modules, the global Drizzle provider,
  * and the cross-cutting concerns: the API exception filter (`APP_FILTER`), rate limiting
- * (`ThrottlerModule` + global `ThrottlerGuard`), and the fail-closed Clerk `AuthMiddleware` applied to
- * every non-public route.
+ * (`ThrottlerModule` + the global {@link UserThrottlerGuard}, which keys per authenticated user — not per
+ * ALB-shared IP), and the fail-closed Clerk `AuthMiddleware` applied to every non-public route.
  */
 @Module({
     imports: [
         AppConfigModule,
-        ThrottlerModule.forRoot([...throttleGroups]),
+        ThrottlerModule.forRoot(throttlerModuleOptions),
         CommonModule,
         DatabaseModule,
         HealthModule,
         AuthModule,
         RecipesModule,
+        RatingsModule,
         IngredientsModule,
         VersionsModule,
         PhotosModule,
@@ -46,8 +49,10 @@ import { throttleGroups } from './common/throttle/throttle.config.js';
             useClass: ApiExceptionFilter,
         },
         {
+            // Keys the rate limit on the authenticated app-user ULID (see UserThrottlerGuard) rather than
+            // the ALB-shared `req.ip` the stock ThrottlerGuard uses.
             provide: APP_GUARD,
-            useClass: ThrottlerGuard,
+            useClass: UserThrottlerGuard,
         },
     ],
 })

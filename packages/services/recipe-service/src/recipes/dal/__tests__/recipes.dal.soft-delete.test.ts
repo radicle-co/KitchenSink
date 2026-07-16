@@ -85,6 +85,13 @@ function createFakeDb(): FakeControl {
 
             return makeChain();
         },
+        // Raw execute — used by findAll's cover-photo LATERAL. Returns no covers; independent of the chain
+        // result queue so it does not perturb the ordered page/count reads the tombstone assertions inspect.
+        execute: (...args: unknown[]): Promise<{ rows: unknown[] }> => {
+            calls.push({ method: 'execute', args });
+
+            return Promise.resolve({ rows: [] });
+        },
         transaction: (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> => callback(db),
     };
 

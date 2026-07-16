@@ -1,15 +1,17 @@
 /**
- * T031-test — unit tests for {@link VersionsService} over a fake {@link VersionsDal} and a MOCKED S3
- * client.
+ * T031-test — unit tests for {@link VersionsService} over a fake {@link VersionsDal} and a fake
+ * {@link PendingArchivesDal} (the archive outbox).
  *
- * Pins the three responsibilities the DAL delegates upward:
+ * Pins the service's responsibilities AS SHIPPED post-T130:
  *   1. **Snapshot write** — persistence row → the `RecipeVersion` wire contract (ISO `createdAt`).
- *   2. **DB retention pruning** — after a write, versions beyond the newest 10 are deleted from Postgres.
- *   3. **S3 archive** — every pruned version is written to the `S3_BUCKET_VERSIONS` bucket (a
- *      `PutObjectCommand`) BEFORE it is deleted, so a snapshot is never lost.
+ *   2. **Retention enqueue** — after a write, each version beyond the newest 10 is recorded in the
+ *      `recipe_version_pending_archives` outbox (one idempotent row per version, keyed for the worker).
+ *   3. **No prune, no S3** — the version row is NEVER deleted here (it is the payload the async retry
+ *      replays), and the save NEVER writes S3 or fails on an outbox error — the version-archive worker
+ *      archives-then-prunes out of band.
  *
- * No database and no real S3 are involved: the DAL is a `vi.fn()` fake and the S3 client is a
- * `{ send }` stub whose recorded `PutObjectCommand.input` is asserted.
+ * No database, no S3, no SQS are involved: the DAL is a `vi.fn()` fake and the outbox is a fake whose
+ * `enqueue` calls are asserted.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';

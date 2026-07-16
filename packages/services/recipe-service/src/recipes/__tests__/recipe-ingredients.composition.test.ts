@@ -23,6 +23,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
+import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -108,6 +109,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             makeFakeVersionsService(),
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
         );
 
         const response = await service.create(OWNER_PRINCIPAL, CREATE_DTO);
@@ -149,6 +151,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             makeFakeVersionsService(),
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
         );
 
         const poisoned: CreateRecipeDto = {
@@ -169,6 +172,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             makeFakeVersionsService(),
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
         );
 
         const error = await catchError(service.create(OWNER_PRINCIPAL, CREATE_DTO));
@@ -187,6 +191,7 @@ describe('RecipesService.getById — ingredient composition (T043b)', () => {
             makeFakeVersionsService(),
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
         );
 
         const response = await service.getById(OWNER, 'r-1');
@@ -210,6 +215,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             makeFakeVersionsService(),
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
         );
 
         const patch: UpdateRecipeDto = {
@@ -237,6 +243,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             makeFakeVersionsService(),
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
         );
 
         await service.update(OWNER, 'r-1', { expectedVersion: 1, title: 'Renamed' });

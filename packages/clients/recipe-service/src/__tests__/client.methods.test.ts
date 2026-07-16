@@ -135,6 +135,38 @@ describe('RecipeServiceClient — recipes', () => {
         expect(req.url).toBe(`${BASE}/v1/recipes/rec_1/visibility`);
         expect(jsonBody(fetchMock)).toEqual({ visibility: 'public' });
     });
+
+    it('setRecipeRating PUTs /v1/recipes/{id}/rating with { stars } and returns the refreshed detail (200)', async () => {
+        const rated = makeRecipeDetail({ id: 'rec_1', ratingCount: 1, averageRating: 4 });
+        const fetchMock = stubFetch(200, rated);
+
+        const result = await makeClient(fetchMock).setRecipeRating('rec_1', { stars: 4 });
+
+        expect(result).toEqual(rated);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('PUT');
+        expect(req.url).toBe(`${BASE}/v1/recipes/rec_1/rating`);
+        // Only `stars` on the wire — the rater is the token, never a body field.
+        expect(jsonBody(fetchMock)).toEqual({ stars: 4 });
+    });
+
+    it('setRecipeRating percent-encodes the path id', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail());
+
+        await makeClient(fetchMock).setRecipeRating('rec/1', { stars: 3 });
+
+        expect(requestAt(fetchMock).url).toBe(`${BASE}/v1/recipes/rec%2F1/rating`);
+    });
+
+    it('deleteRecipeRating DELETEs /v1/recipes/{id}/rating and resolves void (204)', async () => {
+        const fetchMock = stubFetch(204);
+
+        await expect(makeClient(fetchMock).deleteRecipeRating('rec_1')).resolves.toBeUndefined();
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('DELETE');
+        expect(req.url).toBe(`${BASE}/v1/recipes/rec_1/rating`);
+        expect(req.body).toBeUndefined();
+    });
 });
 
 describe('RecipeServiceClient — ingredients', () => {
@@ -169,6 +201,69 @@ describe('RecipeServiceClient — ingredients', () => {
         expect(req.method).toBe('POST');
         expect(req.url).toBe(`${BASE}/v1/ingredients`);
         expect(jsonBody(fetchMock)).toEqual({ name: 'Sumac' });
+    });
+
+    it('addIngredientByName POSTs /v1/ingredients/by-name with { name } and returns the ingredient (202)', async () => {
+        const added = makeIngredient({ id: 'ing_food', name: 'Quinoa', foodResolutionStatus: 'PENDING' });
+        const fetchMock = stubFetch(202, added);
+
+        const result = await makeClient(fetchMock).addIngredientByName('Quinoa');
+
+        expect(result).toEqual(added);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        // Mutation guard: the add-by-name path must hit the async-resolution route, NOT the freeform
+        // `/v1/ingredients` create — a regression to createIngredient's path fails here.
+        expect(req.url).toBe(`${BASE}/v1/ingredients/by-name`);
+        expect(jsonBody(fetchMock)).toEqual({ name: 'Quinoa' });
+    });
+
+    it('addIngredientByName treats a 201 (freeform-create status) as an error, not success', async () => {
+        // Guards the deliberate 202 contract: this route is async-resolution (202 Accepted), NOT the
+        // synchronous 201 freeform create. Accepting a 201 here would erase that distinction.
+        const fetchMock = stubFetch(201, makeIngredient({ id: 'ing_food' }));
+
+        await expect(makeClient(fetchMock).addIngredientByName('Quinoa')).rejects.toThrow();
+    });
+
+    it('getIngredientStatus GETs /v1/ingredients/{id}/status and returns the refreshed ingredient (200)', async () => {
+        const refreshed = makeIngredient({ id: 'ing_p', foodResolutionStatus: 'RESOLVED' });
+        const fetchMock = stubFetch(200, refreshed);
+
+        const result = await makeClient(fetchMock).getIngredientStatus('ing_p');
+
+        expect(result).toEqual(refreshed);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        expect(req.url).toBe(`${BASE}/v1/ingredients/ing_p/status`);
+    });
+
+    it('getIngredientCandidates GETs /v1/ingredients/{id}/candidates and returns the candidate list (200)', async () => {
+        const candidates = [
+            { candidateId: 'c1', source: 'usda', externalKey: 'k1', name: 'Quinoa, cooked', summary: null },
+        ];
+        const fetchMock = stubFetch(200, candidates);
+
+        const result = await makeClient(fetchMock).getIngredientCandidates('ing_u');
+
+        expect(result).toEqual(candidates);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        expect(req.url).toBe(`${BASE}/v1/ingredients/ing_u/candidates`);
+    });
+
+    it('resolveIngredient POSTs /v1/ingredients/{id}/resolve with the picked ids and returns the resolved ingredient (200)', async () => {
+        const resolved = makeIngredient({ id: 'ing_u', foodResolutionStatus: 'RESOLVED' });
+        const fetchMock = stubFetch(200, resolved);
+
+        const result = await makeClient(fetchMock).resolveIngredient('ing_u', ['c1', 'c2']);
+
+        expect(result).toEqual(resolved);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/v1/ingredients/ing_u/resolve`);
+        // Mutation guard: the exact picked ids must be sent — a wrong/dropped id fails this assertion.
+        expect(jsonBody(fetchMock)).toEqual({ candidateIds: ['c1', 'c2'] });
     });
 });
 

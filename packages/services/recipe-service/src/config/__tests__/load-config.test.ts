@@ -32,6 +32,7 @@ const validEnv = (): Record<string, string> => ({
     S3_BUCKET_VERSIONS: 'commise-versions',
     CLOUDFRONT_URL: 'https://cdn.commise.app',
     DATABASE_URL: 'postgres://recipe_app@localhost:5432/kitchensink_recipes',
+    ACCOUNT_ERASURE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/account-erasure',
 });
 
 describe('loadConfig', () => {
@@ -68,6 +69,14 @@ describe('loadConfig', () => {
         expect(isConfigValidationError(caught)).toBe(true);
         expect(caught).toBeInstanceOf(ConfigValidationError);
         expect((caught as ConfigValidationError).message).toContain('CLERK_JWT_KEY');
+    });
+
+    it('requires ACCOUNT_ERASURE_QUEUE_URL — a stage must not boot unable to dispatch a GDPR erasure', () => {
+        const env = validEnv();
+        delete env['ACCOUNT_ERASURE_QUEUE_URL'];
+
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(/ACCOUNT_ERASURE_QUEUE_URL/);
     });
 
     it('throws ConfigValidationError on an invalid value', () => {

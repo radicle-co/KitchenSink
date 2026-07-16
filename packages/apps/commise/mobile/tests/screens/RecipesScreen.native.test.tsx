@@ -14,10 +14,12 @@ import {
     useCreateIngredient,
     useCreateRecipe,
     useDeleteRecipe,
+    useDeleteRecipeRating,
     useRecipe,
     useRecipes,
     useSearchIngredients,
     useSearchRecipes,
+    useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 
@@ -40,8 +42,21 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateRecipe: vi.fn(),
     useSearchIngredients: vi.fn(),
     useCreateIngredient: vi.fn(),
+    // The ingredient picker + editor also read the async-resolution hooks; inert idle defaults keep them in
+    // the search branch (this screen never drives an UNRESOLVED disambiguation or a poll-after-add).
+    useAddIngredientByName: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
+    useIngredientStatus: () => ({ data: undefined }),
+    useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
+    useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
     useSearchRecipes: vi.fn(),
     useCollections: vi.fn(),
+    useSetRecipeRating: vi.fn(),
+    useDeleteRecipeRating: vi.fn(),
 }));
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
@@ -86,6 +101,8 @@ beforeEach(() => {
     vi.mocked(useSetRecipeVisibility).mockReturnValue(mutation<ReturnType<typeof useSetRecipeVisibility>>());
     vi.mocked(useCloneRecipe).mockReturnValue(mutation<ReturnType<typeof useCloneRecipe>>());
     vi.mocked(useCreateRecipe).mockReturnValue(mutation<ReturnType<typeof useCreateRecipe>>());
+    vi.mocked(useSetRecipeRating).mockReturnValue(mutation<ReturnType<typeof useSetRecipeRating>>());
+    vi.mocked(useDeleteRecipeRating).mockReturnValue(mutation<ReturnType<typeof useDeleteRecipeRating>>());
     vi.mocked(useSearchIngredients).mockReturnValue(query<ReturnType<typeof useSearchIngredients>>({ data: [] }));
     vi.mocked(useCreateIngredient).mockReturnValue(mutation<ReturnType<typeof useCreateIngredient>>());
     vi.mocked(useSearchRecipes).mockReturnValue(

@@ -16,14 +16,22 @@ import {
     RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
+    RecipeRatingControl,
     RecipeVisibilityToggle,
+    ratingModeFor,
+    resolveSelectedStars,
+    type RatingSelectionOverride,
+    type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
+    useDeleteRecipeRating,
     useRecipe,
+    useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import { RecipeVisibility, type RecipeVisibility as RecipeVisibilityType } from '@kitchensink/recipe-core';
@@ -70,7 +78,20 @@ export function RecipeDetailScreen({
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
     const cloneRecipe = useCloneRecipe();
+    const setRating = useSetRecipeRating();
+    const deleteRating = useDeleteRecipeRating();
     const [deleteOpen, setDeleteOpen] = useState(false);
+    // The viewer's OPTIMISTIC rating action this session, or undefined to defer to the server. The detail's
+    // `viewerRating` (the viewer's own prior rating) is the source of truth and pre-selects on load; this only
+    // bridges the write→refetch gap so the stars don't flicker back before the refetch lands. See
+    // `resolveSelectedStars`. Reset below when the screen switches recipes so it can't leak across recipes.
+    const [ratingOverride, setRatingOverride] = useState<RatingSelectionOverride>(undefined);
+    const [ratingRecipeId, setRatingRecipeId] = useState(recipeId);
+
+    if (ratingRecipeId !== recipeId) {
+        setRatingRecipeId(recipeId);
+        setRatingOverride(undefined);
+    }
 
     const back =
         onBack !== undefined ? (
@@ -109,10 +130,43 @@ export function RecipeDetailScreen({
     const changeVisibility = (next: RecipeVisibilityType): void =>
         setVisibility.mutate({ id: recipeId, visibility: next });
 
+    // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8) — ownership is the only
+    // client-side gate; the backend enforces the rest (Sc8 403, Sc9 not-found). A write's error maps to the
+    // honest surface: a not-found (the client's 404 shape) is "not available" (Sc9), never "forbidden".
+    const ratingMode = ratingModeFor({ viewerId, ownerId: recipe.ownerId });
+    const ratingError = setRating.error ?? deleteRating.error;
+    const ratingErrorKind: RecipeRatingError | undefined =
+        ratingError === null || ratingError === undefined
+            ? undefined
+            : isNotFoundError(ratingError)
+              ? 'notAvailable'
+              : 'generic';
+    // The stars the input pre-selects: the server's `viewerRating` once loaded, bridged by the optimistic
+    // override during a write so it never flickers. The community `averageRating` stays the displayed score.
+    const selectedStars = resolveSelectedStars(ratingOverride, recipe.viewerRating);
+
     return (
         <View style={styles.container}>
             {back}
             <RecipeDetailView recipe={recipe} />
+
+            <RecipeRatingControl
+                mode={ratingMode}
+                {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
+                ratingCount={recipe.ratingCount}
+                {...(selectedStars === undefined ? {} : { selectedStars })}
+                pending={setRating.isPending || deleteRating.isPending}
+                {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
+                onRate={(stars) =>
+                    setRating.mutate(
+                        { id: recipeId, input: { stars } },
+                        { onSuccess: () => setRatingOverride({ stars }) },
+                    )
+                }
+                onRemove={() =>
+                    deleteRating.mutate(recipeId, { onSuccess: () => setRatingOverride({ stars: undefined }) })
+                }
+            />
 
             {isOwner && (
                 <View style={styles.ownerActions}>

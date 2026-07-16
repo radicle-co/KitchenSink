@@ -121,6 +121,57 @@ export const loadVersionSnapshot = async (
 };
 
 /**
+ * Whether the version's owner has an account-erasure job on record — in ANY state
+ * (`queued`/`running`/`completed`/`failed`) — used to refuse minting a fresh archive object under an
+ * owner who has exercised GDPR right-to-erasure (C-007 / D7).
+ *
+ * **Why this exists — the archive-resurrection race.** This worker and the account-erasure worker touch
+ * the same owner from two different queues with no shared lock. The erasure worker deletes the DB rows
+ * FIRST, then sweeps the owner's S3 prefix, then marks the job `completed` (see its header). So the
+ * dangerous interleaving is: this worker {@link loadVersionSnapshot}s the row *before* erasure deletes
+ * it, then PUTs the snapshot *after* erasure's prefix sweep has already run — materialising an object
+ * under an erased owner's `recipes/{ownerId}/` prefix while the job row reads `completed`. That is user
+ * data surviving a right-to-erasure request. Rows-first ordering in the erasure worker narrows the
+ * window; it does not close it.
+ *
+ * **Why ANY status, not `completed` only.** By the time an erasure job is `completed`, the erasure
+ * worker has ALREADY deleted the `recipe_versions` row (delete precedes the status write), so
+ * {@link loadVersionSnapshot} would have thrown before this check ever ran — a `completed`-only check
+ * would therefore miss the worst sub-window: the interval AFTER the erasure's archive-bucket sweep but
+ * BEFORE it writes `completed`, during which the job is still `running` and a racing PUT lands an object
+ * that the sweep has already passed. Testing for any job row closes that `running` sub-window, and is
+ * also the correct policy on its own terms: once an owner has *requested* erasure (`queued`), is being
+ * erased (`running`), has been erased (`completed`), or had an erasure abandoned (`failed`), there is no
+ * state in which minting a NEW snapshot of their data is desirable. The owner ULID is per-user and does
+ * not come back after erasure (identity deletes the account — D2), so this never suppresses a legitimate
+ * archive for a live user.
+ *
+ * **This is risk-reduction, NOT a proof.** The check reads the DB and the PUT writes S3 — two systems,
+ * not one atomic step. An erasure that begins after this read and completes its prefix sweep before the
+ * ensuing PUT can still leave an orphan. The window is now sub-millisecond (read immediately precedes
+ * the PUT) but non-zero. The true backstop is a periodic orphan-sweep that reconciles archive objects
+ * against erased owners; that does not yet exist and is owed (see the module TODO / report).
+ *
+ * A transient failure here MUST propagate, not be swallowed: it throws, the version row is untouched,
+ * and SQS redelivers — a DB blip must never be read as "no erasure" and let a suppressed PUT through, nor
+ * be read as "erasure" and drop a legitimate snapshot.
+ *
+ * @sideEffect Reads `account_erasure_jobs`.
+ */
+export const ownerErasureRequested = async (
+    db: NodePgDatabase<Record<string, never>>,
+    ownerId: string,
+): Promise<boolean> => {
+    const result = await db.execute<{ erased: boolean }>(sql`
+        SELECT EXISTS (
+            SELECT 1 FROM account_erasure_jobs WHERE owner_id = ${ownerId}
+        ) AS erased
+    `);
+
+    return result.rows[0]?.erased === true;
+};
+
+/**
  * Prune the archived version from Postgres — the FR-007b "newest 10 in the DB" retention step.
  *
  * Runs ONLY after the S3 PUT resolves. This is the archive-before-delete invariant, carried across the
@@ -145,6 +196,27 @@ const processRecord = async (record: SQSRecord, archiveBucket: string): Promise<
     const db = getRecipeDb();
 
     const snapshot = await loadVersionSnapshot(db, message);
+
+    // GDPR archive-resurrection guard (C-007 / D7) — see {@link ownerErasureRequested}. Read the erasure
+    // state as late as possible, immediately before the PUT, so the read→PUT window is as small as it can
+    // be. If the owner has any erasure job on record, do NOT materialise a fresh object under their erased
+    // prefix. Treat the version as already-gone: prune the row — idempotent with, and consistent with the
+    // end state of, the erasure worker's own delete — so the outbox debt is cleared and this message is
+    // not re-dispatched forever, then return without writing. (A missing row throws in loadVersionSnapshot
+    // above; here the row still exists, so we prune it deliberately rather than throw.)
+    if (await ownerErasureRequested(db, message.ownerId)) {
+        await pruneArchivedVersion(db, message.versionId);
+
+        logger.warn('version-archive suppressed: owner has an erasure job on record; snapshot not written', {
+            recipeId: message.recipeId,
+            versionId: message.versionId,
+            versionNumber: message.versionNumber,
+            ownerId: message.ownerId,
+        });
+
+        return;
+    }
+
     const key = snapshotObjectKey(message);
 
     await s3.send(

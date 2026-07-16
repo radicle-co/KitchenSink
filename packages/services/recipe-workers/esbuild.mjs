@@ -18,6 +18,8 @@ const entryPoints = [
     'src/handlers/version-archive-worker.ts',
     'src/handlers/account-erasure-worker.ts',
     'src/handlers/archive-sweeper.ts',
+    'src/handlers/erasure-sweeper.ts',
+    'src/handlers/erasure-orphan-sweeper.ts',
 ];
 
 await build({

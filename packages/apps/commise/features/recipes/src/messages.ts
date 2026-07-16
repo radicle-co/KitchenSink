@@ -28,6 +28,10 @@ export interface RecipeListMessages {
     readonly emptyTitle: string;
     /** Body copy of the empty state. */
     readonly emptyBody: string;
+    /** Heading of the no-match state (the caller HAS recipes, but none match the active search). */
+    readonly noMatchTitle: string;
+    /** Body copy of the no-match state. */
+    readonly noMatchBody: string;
     /** Label of the create-recipe call to action. */
     readonly createCta: string;
     /** Message shown when the list fails to load. */
@@ -74,6 +78,38 @@ export interface RecipeDetailMessages {
     readonly gramsUnit: string;
 }
 
+/**
+ * Shared copy for the mockup-parity recipe card (CR-001) — rendered identically by the Home widget and the
+ * recipe list, on both web and native. Visible strings match the mockup; the rest are accessible names that
+ * convey what a sighted user reads from the icons/pills/stars so the card is not color- or icon-only.
+ */
+export interface RecipeCardMessages {
+    /** Visible "PRO" badge text (FR-003a). */
+    readonly proBadge: string;
+    /** Accessible name for the PRO badge (icon/short-text is not self-describing to assistive tech). */
+    readonly proBadgeLabel: string;
+    /** Visible difficulty pill labels, keyed by difficulty. */
+    readonly difficultyEasy: string;
+    readonly difficultyMedium: string;
+    readonly difficultyHard: string;
+    /** Accessible difficulty template (contains `{difficulty}`), e.g. "Difficulty: Easy". */
+    readonly difficultyLabel: string;
+    /** Accessible total-time template (contains `{minutes}`), e.g. "45 minutes total time". */
+    readonly timeLabel: string;
+    /** Accessible servings template (contains `{count}`), e.g. "Serves 4". */
+    readonly servingsLabel: string;
+    /** Accessible rating-summary template (contains `{average}` and `{ratings}`). */
+    readonly ratingSummary: string;
+    /** Singular rating-count template (contains `{count}`). */
+    readonly ratingCountOne: string;
+    /** Plural rating-count template (contains `{count}`). */
+    readonly ratingCountOther: string;
+    /** Shown/announced for a recipe that has no ratings yet (never a fabricated 0-star score). */
+    readonly unrated: string;
+    /** Accessible label for the cover-image placeholder shown when a recipe has no photo. */
+    readonly noPhotoLabel: string;
+}
+
 /** The shape of the recipe feature's shared copy. */
 export interface RecipeMessages {
     /** Title of the recent-recipes Home widget card. */
@@ -84,6 +120,8 @@ export interface RecipeMessages {
     readonly list: RecipeListMessages;
     /** Copy for the recipe-detail screen. */
     readonly detail: RecipeDetailMessages;
+    /** Copy for the shared recipe card (Home widget + list). */
+    readonly card: RecipeCardMessages;
 }
 
 export const recipeMessages: LocalizedMessages<RecipeMessages> = {
@@ -100,6 +138,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             loadingLabel: 'Loading recipes',
             emptyTitle: 'No recipes yet',
             emptyBody: 'Create your first recipe to see it here.',
+            noMatchTitle: 'No matching recipes',
+            noMatchBody: 'No recipes match your search. Try a different term.',
             createCta: 'New recipe',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
@@ -122,6 +162,21 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             carbsLabel: 'Carbs',
             fatLabel: 'Fat',
             gramsUnit: '{grams} g',
+        },
+        card: {
+            proBadge: 'PRO',
+            proBadgeLabel: 'Premium recipe',
+            difficultyEasy: 'Easy',
+            difficultyMedium: 'Medium',
+            difficultyHard: 'Hard',
+            difficultyLabel: 'Difficulty: {difficulty}',
+            timeLabel: '{minutes} minutes total time',
+            servingsLabel: 'Serves {count}',
+            ratingSummary: 'Rated {average} out of 5, {ratings}',
+            ratingCountOne: '{count} rating',
+            ratingCountOther: '{count} ratings',
+            unrated: 'Not yet rated',
+            noPhotoLabel: 'No photo yet',
         },
     },
 };

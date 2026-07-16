@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
@@ -24,5 +25,11 @@ export default async function DiscoverPage({
         redirect(`/${locale}/sign-in` as Route);
     }
 
-    return <RecipeDiscoveryContainer locale={locale} />;
+    // The container reads the search criteria from the URL via `useSearchParams()`, which requires a Suspense
+    // boundary during pre-render.
+    return (
+        <Suspense>
+            <RecipeDiscoveryContainer locale={locale} />
+        </Suspense>
+    );
 }

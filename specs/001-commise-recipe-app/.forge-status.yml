@@ -72,7 +72,40 @@ phases:
         artifact: null
 
     implement:
-        state: in-progress
+        state: complete
+        completed_at: '2026-07-16'
+        completion_note: >
+            Phase 6 complete. All 187 core tasks + the CR-001 mockup-parity set (T151-T169) done and
+            verified. 227 tasks marked done in tasks.md; the 3 remaining open are NOT incomplete v1 code:
+            T052 (backend quickstart runbook — doc polish), T116 (full GitHub Actions CI — only runnable
+            post-merge; every job is wired + verified locally), and T150 (an explicitly-deferred
+            cross-feature 001<->003 write-back DECISION, out of v1 scope by its own text).
+        verified_2026_07_16:
+            typecheck: 'clean, all 8 packages'
+            lint: 'clean, all 8 packages'
+            unit: 'recipe-core 46 / recipe-service 624 / recipe-workers 158 / recipe-service-client 249 / features-core 123 / features-recipes 365 web + 203 native / web 282 / mobile 32 node + 134 native'
+            integration: 'recipe-service 103 + recipe-workers 23 (real Postgres 16 + LocalStack)'
+            e2e: 'recipe-service 15'
+            notable_this_session: >
+                Closed 3 false-DONE MUST violations the prior sync-verify missed (T065 filter bar, T072
+                add-to-collection, T070 conflict-merge); completed the full GDPR erasure vertical
+                (worker/service/infra/integration + archive-resurrection orphan-sweep backstop,
+                mutation-verified 19/19); fixed the throttle AND-bug capping the whole API at 10/min +
+                the health-probe throttle + per-user (userId) throttle tracker; fixed a spec-MUST
+                archive backlog alarm that could never fire (STAGE dim) + added the missing >1h age alarm
+                + SNS paging; built the Home chrome + skeleton placeholders + full recipe-card mockup
+                parity (cover thumbnail, difficulty pill+write path, community star rating + FR-013 write
+                control, derived PRO badge); completed the ingredient async-resolution vertical
+                (addByName route + poll + disambiguation, both platforms); added the recipe-workers
+                integration CI job. A full backend re-audit (123 [x] tasks) found the ledger otherwise
+                clean.
+            honest_residuals: >
+                (1) Live E2E/Maestro/Playwright authed runs are CI-only in this env — the Clerk dev
+                sign-in is down locally (pre-existing, unrelated), so those specs are written + wired but
+                not driven against a live sign-in here. (2) sharp thumbnail deployment requires the CI
+                install arch to match the Fargate task arch (degrades to serving the original on
+                mismatch). (3) The local kitchensink_recipes dev DB shows 0 seeded recipes (re-seedable
+                via npm run seed; no schema/DB lost).
         started_at: '2026-07-06'
         stable_checkpoint:
             at: '2026-07-06'
@@ -421,33 +454,31 @@ contracts:
         - contracts/recipe.types.ts
         - contracts/config.types.ts
 
-next_action: implement
-next_command: /speckit.product-forge.implement
+next_action: release-readiness
+next_command: /speckit.product-forge.release-readiness
 next_session_brief: >
-    Phase 6 implement, 152/187 done, 35 open. Worktree .worktrees/001-commise-recipe-app, branch
-    001-commise-recipe-app, tree clean, every tier green (recipe-core 17; recipe-service 461 unit + 62
-    integration; recipe-workers 58 unit incl. 10 CDK synth + 5 integration; typecheck 0 + lint 0 across
-    all three).
+    Phase 6 implement COMPLETE (2026-07-16). 227 tasks done; 3 honest residuals remain that are NOT
+    incomplete v1 code — T052 (backend quickstart runbook, doc polish), T116 (full GitHub Actions CI,
+    only runnable post-merge — every job is wired + verified locally), T150 (explicitly-deferred
+    cross-feature 001<->003 write-back DECISION, out of v1 scope).
 
-    START HERE — the one hazard: T136 (account-erasure worker body) MUST land before T136b (the queue +
-    subscription that triggers it). eraseRecipeRows is a no-op TODO and the handler sweeps only the media
-    bucket, so today it would delete a user's photos, report success, and leave every DB row AND every
-    version archive — a false "erased". The T132 stack already DEPLOYS that Lambda but creates no queue or
-    subscription, so it is inert; T136b is what wires the trigger. Full note heads the GDPR section of
-    tasks.md. When writing T136, sweep ownerMediaPrefix(ownerId) in BOTH the media and archive buckets —
-    version archives live under the same owner prefix by design (ARCH-BE-3) so the sweep reaches them, and
-    the IAM role already grants delete on both.
+    Tree clean and every tier green: typecheck 0 + lint 0 across all 8 packages; unit recipe-core 46 /
+    recipe-service 624 / recipe-workers 158 / recipe-service-client 249 / features-core 123 /
+    features-recipes 365 web + 203 native / web 282 / mobile 32 node + 134 native; integration
+    recipe-service 103 + recipe-workers 23 (real Postgres 16 + LocalStack); e2e recipe-service 15.
 
-    Remaining groups: GDPR erasure (T134-T137, T136b) — service-side AccountModule/controller are still a
-    shell; frontend test tiers (T083/T084/T086/T087, T064-test, T105-T115); Phase 6 governance
-    (T052-T060, T116/T117). T150 is a deferred cross-feature 001<->003 decision — do not start.
+    NEXT: run /speckit.product-forge.code-review (Phase 6B) then /speckit.product-forge.verify-full
+    (Phase 7), then release-readiness. Before deploy, confirm the sharp thumbnail install-arch == Fargate
+    task-arch (ADR-adjacent CI note), and subscribe the per-stage recipe-workers alarm SNS topic (ops).
 
-    Local harness: integration needs Docker Postgres + LocalStack. Port 5432 is held by
-    kitchensink-e2e-postgres, which carries the user's LIVE local data (kitchensink_recipes with seeded
-    recipes, kitchensink_identity, food_e2e) and the vitest global-setup DROPS the public schema — so run
-    against the throwaway DB instead:
+    Local harness (unchanged): integration needs Docker Postgres + LocalStack. Port 5432 is
+    kitchensink-e2e-postgres (the user's LIVE local data); the vitest global-setup DROPS the public
+    schema, so ALWAYS run against the throwaway DB:
     DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kitchensink_recipes_it
     S3_ENDPOINT=http://localhost:4566 S3_FORCE_PATH_STYLE=true
+    NOTE: bring LocalStack up first (docker compose -f docker-compose.test.yml up -d localstack) and
+    CREATE DATABASE kitchensink_recipes_it if absent; run recipe-service integration BEFORE recipe-workers
+    (the workers suite has no migrating global-setup — it needs the schema recipe-service migrates).
 governance_note: >
     Revalidation complete (Revision 1, 2026-05-09, skip-approval).
     Blocking corrections required before implementation handoff — see review.md Revision 2.

@@ -44,6 +44,8 @@ import { createS3PhotoStorage } from './photos.storage.js';
             inject: [ConfigService],
             useFactory: (config: ConfigService): PhotosConfig => ({
                 cloudfrontUrl: config.getOrThrow<string>('CLOUDFRONT_URL'),
+                thumbnailMaxPx: config.get<number>('THUMBNAIL_MAX_PX') ?? 400,
+                thumbnailQuality: config.get<number>('THUMBNAIL_QUALITY') ?? 80,
             }),
         },
         PhotosService,

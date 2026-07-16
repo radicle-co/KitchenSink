@@ -24,6 +24,8 @@ export interface CollectionDetailScreenProps {
     readonly collectionId: string;
     /** Invoked with a recipe id when a member row is activated. */
     readonly onSelectRecipe: (recipeId: string) => void;
+    /** Invoked when the add-a-recipe action is activated (opens the recipe picker). */
+    readonly onAddRecipe: () => void;
     /** Invoked with the collection's current name when the rename action is activated. */
     readonly onRename: (currentName: string) => void;
     /** Invoked after the collection is successfully deleted. */
@@ -41,6 +43,7 @@ export interface CollectionDetailScreenProps {
 export function CollectionDetailScreen({
     collectionId,
     onSelectRecipe,
+    onAddRecipe,
     onRename,
     onDeleted,
     onBack,
@@ -82,6 +85,7 @@ export function CollectionDetailScreen({
                 collection={collection}
                 onSelectRecipe={onSelectRecipe}
                 onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id: collectionId, recipeId })}
+                onAddRecipe={onAddRecipe}
                 onRename={() => onRename(collection.name)}
                 onDelete={() => deleteCollection.mutate(collectionId, { onSuccess: onDeleted })}
             />

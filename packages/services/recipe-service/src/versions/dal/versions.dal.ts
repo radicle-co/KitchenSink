@@ -2,12 +2,14 @@
  * T030 — the recipe-version data-access layer.
  *
  * Owns every SQL touch of the immutable `recipe_versions` snapshot history (defined in
- * `database/schema/versions.ts`). It is authorization-agnostic: ownership (`NOT_OWNER`) and the S3
- * archive orchestration live in {@link VersionsService}. The DAL's three load-bearing responsibilities:
+ * `database/schema/versions.ts`). It is authorization-agnostic: ownership (`NOT_OWNER`) and the
+ * retention orchestration live in {@link VersionsService}. The DAL's three load-bearing responsibilities:
  *   1. **Snapshot create** — insert one immutable `recipe_versions` row from a captured snapshot.
  *   2. **List by recipe** — every version for a recipe, newest-first (`version_number DESC`).
  *   3. **Retention query** — the versions BEYOND the newest 10 (FR-007b): `ORDER BY version_number DESC
- *      OFFSET 10` returns exactly the rows the service archives to S3 and prunes from Postgres.
+ *      OFFSET 10` returns exactly the rows the service records in the archive outbox. Post-T130 the DAL
+ *      does NOT prune them and the service does NOT write S3 — the version-archive worker archives each
+ *      to S3 and only then prunes it (archive-before-delete, across the async boundary).
  *
  * @sideEffect Every method reads and/or writes Postgres via the injected Drizzle client.
  */
@@ -17,7 +19,11 @@ import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeVersions, type RecipeVersionRow } from '../../database/schema/index.js';
 
-/** How many of the newest versions are retained in Postgres; older ones live only in S3 (FR-007b). */
+/**
+ * How many of the newest versions Postgres retains as the "hot" window (FR-007b). Older ones are NOT
+ * deleted at save time (T130): they are recorded in the archive outbox and only pruned by the
+ * version-archive worker once their S3 archive confirms — so they end up living only in S3.
+ */
 export const VERSION_RETENTION_LIMIT = 10;
 
 /** Everything the DAL needs to insert one immutable version snapshot row. */

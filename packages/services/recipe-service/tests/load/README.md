@@ -23,6 +23,23 @@ A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job
 - A valid Clerk **session token** in `RECIPE_LOAD_TEST_TOKEN`. Every route except `/health` is
   auth-protected, so without a token the service returns `401` and the failure-rate threshold trips.
 
+## ⚠️ Rate limiting will trip these tests unless the target stage raises the limits
+
+The service rate-limits by **client IP** (`ThrottlerGuard`'s default tracker). A single k6 runner drives
+every VU from **one IP**, so the whole run shares one throttle counter per route — even the generous read
+limit (`RATE_LIMIT_READ`, default 120/min) is exhausted almost immediately at any real VU count, and the
+run collapses into `429`s (tripping `http_req_failed`). This is invisible if throttling is effectively
+disabled on the target: a green SC-009 that was run against a stage where the `RATE_LIMIT_*` values were
+cranked (or where the run stayed under the cap) does **not** prove the production limits behave.
+
+To exercise these scripts against a realistic service you MUST run the target stage with generous
+`RATE_LIMIT_*` overrides sized for `peak_vus × requests_per_vu_per_minute` (throttling is per-IP, so the
+whole run counts as one client), e.g. `RATE_LIMIT_READ=1000000 RATE_LIMIT_WRITE=1000000 …`. The limits
+never fall back to disabled (`throttleLimitFromEnv` rejects non-positive values), so pick a high positive
+number. The load thresholds still measure latency/error-rate; they just stop being masked by the limiter.
+(A truthful, throttling-on load test would need per-user tracking plus many distinct tokens — see the
+per-user-tracking follow-up in the service's throttle notes.)
+
 ## Configuration (environment variables)
 
 | Variable                 | Default                 | Meaning                                         |

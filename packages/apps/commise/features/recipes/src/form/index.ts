@@ -10,7 +10,10 @@ export {
     applyDraftToRecipeDetail,
     computeTotalTime,
     defaultRecipeFormValues,
+    pendingIngredientIds,
+    setIngredientStatusById,
     toCreateRecipeInput,
+    toUpdateRecipeInput,
     validateRecipeForm,
 } from './model.js';
 export type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
@@ -20,15 +23,17 @@ export {
     addStep,
     blankIngredient,
     blankStep,
+    difficultyOptions,
     parseCommaList,
     parseNumericInput,
     removeIngredientAt,
     removeStepAt,
     resolutionStatusLabel,
+    setDifficulty,
     updateIngredientAt,
     updateStepAt,
 } from './props.js';
-export type { RecipeFormMode, RecipeFormProps } from './props.js';
+export type { DifficultyOption, RecipeFormMode, RecipeFormProps } from './props.js';
 
 export { recipeFormMessages } from './messages.js';
 export type { RecipeFormMessages } from './messages.js';

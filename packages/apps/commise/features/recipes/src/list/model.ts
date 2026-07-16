@@ -6,7 +6,8 @@
  * view-model projection and the copy-formatting primitives.
  */
 import type { Locale } from '@commise/i18n';
-import type { Recipe } from '@kitchensink/recipe-core';
+
+import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
 
 /**
  * The three top-level states the list view renders. `ready` further splits into empty vs populated on
@@ -15,31 +16,19 @@ import type { Recipe } from '@kitchensink/recipe-core';
 export type RecipeListStatus = 'loading' | 'error' | 'ready';
 
 /**
- * Minimal view-model for one recipe row in the list — the subset of a {@link Recipe} the list renders, so
- * the building blocks never depend on the full DTO. Richer detail (ingredients, steps, photos, nutrition)
- * belongs to the detail view (T066), not the list.
+ * View-model for one recipe card in the list. This is the SHARED card view-model ({@link RecipeCardModel}):
+ * the list and the Home widget draw the identical mockup card (4:3 cover + PRO badge, title, time · servings
+ * · difficulty, star rating), so both render the same shape and project through the same
+ * {@link toRecipeListItem}. Kept as a named alias so existing list imports (`RecipeListItem`) stay stable.
+ * Richer cookable content (ingredients, steps, per-serving nutrition) still belongs to the detail view (T066).
  */
-export interface RecipeListItem {
-    readonly id: string;
-    readonly title: string;
-    /** Total time (prep + cook) in minutes — the single duration the list card surfaces. */
-    readonly totalTimeMinutes: number;
-    /** ISO 8601 timestamp of the recipe's last update (drives the default `updatedAt` sort). */
-    readonly updatedAt: string;
-}
+export type RecipeListItem = RecipeCardModel;
 
 /**
- * Project a {@link Recipe} down to the {@link RecipeListItem} the list renders. Pure.
- *
- * @param recipe - The source recipe DTO.
- * @returns The list view-model subset.
+ * Project a {@link import('@kitchensink/recipe-core').Recipe} down to the {@link RecipeListItem} the list
+ * card renders — the single shared card projection, so the list and widget can never disagree on card fields.
  */
-export const toRecipeListItem = (recipe: Recipe): RecipeListItem => ({
-    id: recipe.id,
-    title: recipe.title,
-    totalTimeMinutes: recipe.totalTimeMinutes,
-    updatedAt: recipe.updatedAt,
-});
+export const toRecipeListItem = toRecipeCardModel;
 
 /**
  * Replace `{token}` placeholders in `template` with the matching value from `tokens`. Unknown tokens are

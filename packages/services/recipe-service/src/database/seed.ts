@@ -1,8 +1,17 @@
 /**
- * Deterministic E2E/dev seed (T096): a fixed set of recipes + one collection owned by two stable test
- * subjects (a free-tier and a pro-tier Clerk subject), keyed by `owner_id`. There is NO `users` table to
- * seed (D2) — ownership is the app-user ULID carried on the token. Idempotent via stable ids +
- * `ON CONFLICT (id) DO NOTHING`, so it is safe to run on every deploy / test boot.
+ * Deterministic E2E/dev seed (T096): a fixed catalog of ingredients + a fixed set of recipes + one
+ * collection owned by two stable test subjects (a free-tier and a pro-tier Clerk subject), keyed by
+ * `owner_id`. There is NO `users` table to seed (D2) — ownership is the app-user ULID carried on the
+ * token. Idempotent via stable ids + `ON CONFLICT (id) DO NOTHING`, so it is safe to run on every
+ * deploy / test boot.
+ *
+ * This module is the ONE authoritative definition of "the seeded world" (T097): `tests/global-setup.ts`
+ * calls {@link seed} and re-exports {@link SEED_INGREDIENTS} for the specs that reference the catalog, so
+ * there is a single source of truth rather than a divergent hand-rolled baseline.
+ *
+ * The ingredient catalog is load-bearing: since T043b, recipe create/update validates every line's
+ * `ingredientId` against it, so the integration/e2e specs that build recipes referencing these ids
+ * depend on these rows existing.
  *
  * Run with `npm run seed` (T097) against a `DATABASE_URL`; the migrations must already be applied.
  *
@@ -15,6 +24,23 @@ const { Pool } = pg;
 /** The two stable owners the seed data belongs to (app-user ULIDs, not Clerk `sub`). */
 export const SEED_OWNER_FREE = '01J0K6000000000000000000K6';
 export const SEED_OWNER_PRO = '01J0PRO0000000000000000PRO';
+
+/** A stable catalog ingredient (fixed uuid so re-seeding is a no-op). */
+export interface SeedIngredient {
+    readonly id: string;
+    readonly name: string;
+}
+
+/**
+ * The stable freeform ingredient catalog rows. Integration/e2e specs attach these to recipes by id and
+ * the composition spec reads them back by name — so both the ORDER (`[Flour, Sugar, Butter]`) and the
+ * names are part of the contract those specs assert against.
+ */
+export const SEED_INGREDIENTS: readonly SeedIngredient[] = [
+    { id: '00000000-0000-4000-8000-0000000000aa', name: 'Flour' },
+    { id: '00000000-0000-4000-8000-0000000000bb', name: 'Sugar' },
+    { id: '00000000-0000-4000-8000-0000000000cc', name: 'Butter' },
+];
 
 /** A stable seed recipe (fixed uuid so re-seeding is a no-op). */
 export interface SeedRecipe {
@@ -103,10 +129,25 @@ export const SEED_COLLECTION = {
  * @returns Counts of rows inserted this run (already-present rows are skipped, not counted).
  * @sideEffect Executes INSERTs.
  */
-export async function seed(pool: pg.Pool): Promise<{ recipes: number; collections: number; memberships: number }> {
+export async function seed(
+    pool: pg.Pool,
+): Promise<{ ingredients: number; recipes: number; collections: number; memberships: number }> {
+    let ingredients = 0;
     let recipes = 0;
     let collections = 0;
     let memberships = 0;
+
+    // Catalog first: recipe create/update validates each line's `ingredientId` against these rows (T043b).
+    // `search_vector` is populated the same way the IngredientsDal does on a freeform insert.
+    for (const ingredient of SEED_INGREDIENTS) {
+        const res = await pool.query(
+            `INSERT INTO ingredients (id, name, is_user_entered, search_vector)
+             VALUES ($1, $2, true, to_tsvector('english', $2))
+             ON CONFLICT (id) DO NOTHING`,
+            [ingredient.id, ingredient.name],
+        );
+        ingredients += res.rowCount ?? 0;
+    }
 
     for (const r of SEED_RECIPES) {
         const res = await pool.query(
@@ -145,7 +186,7 @@ export async function seed(pool: pg.Pool): Promise<{ recipes: number; collection
         memberships += mem.rowCount ?? 0;
     }
 
-    return { recipes, collections, memberships };
+    return { ingredients, recipes, collections, memberships };
 }
 
 /**
@@ -164,9 +205,8 @@ export async function main(): Promise<void> {
 
     try {
         const counts = await seed(pool);
-        // eslint-disable-next-line no-console
         console.log(
-            `seed: inserted ${counts.recipes} recipes, ${counts.collections} collections, ${counts.memberships} memberships (already-present rows skipped).`,
+            `seed: inserted ${counts.ingredients} ingredients, ${counts.recipes} recipes, ${counts.collections} collections, ${counts.memberships} memberships (already-present rows skipped).`,
         );
     } finally {
         await pool.end();
@@ -176,7 +216,6 @@ export async function main(): Promise<void> {
 // Run when invoked directly (tsx src/database/seed.ts), not when imported by a test.
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
     main().catch((err: unknown) => {
-        // eslint-disable-next-line no-console
         console.error(err);
         process.exitCode = 1;
     });

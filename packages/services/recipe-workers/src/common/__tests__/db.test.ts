@@ -31,10 +31,12 @@ const { PoolMock, poolConfigs, SignerMock, signerConfigs, getAuthToken, drizzleM
     // Regular `function` (not arrow) implementations so the mocks are constructable with `new`.
     const PoolMock = vi.fn(function (this: unknown, config: PoolConfig) {
         poolConfigs.push(config);
+
         return { config, end: vi.fn() };
     });
     const SignerMock = vi.fn(function (this: unknown, config: SignerConfig) {
         signerConfigs.push(config);
+
         return { getAuthToken };
     });
     const drizzleMock = vi.fn((pool: unknown) => ({ __drizzle: true, pool }));
@@ -59,9 +61,11 @@ let savedEnv: Record<string, string | undefined>;
 
 beforeEach(() => {
     savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
+
     for (const key of ENV_KEYS) {
         delete process.env[key];
     }
+
     poolConfigs.length = 0;
     signerConfigs.length = 0;
     vi.clearAllMocks();
@@ -87,6 +91,7 @@ describe('getRecipeDb', () => {
         const { isMissingConfigError } = await import('../config.js');
 
         let caught: unknown;
+
         try {
             getRecipeDb();
         } catch (error) {
@@ -104,6 +109,7 @@ describe('getRecipeDb', () => {
         const { isMissingConfigError } = await import('../config.js');
 
         let caught: unknown;
+
         try {
             getRecipeDb();
         } catch (error) {

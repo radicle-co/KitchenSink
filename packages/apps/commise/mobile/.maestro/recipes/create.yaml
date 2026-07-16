@@ -16,6 +16,10 @@ appId: io.commise.mobile
 - assertVisible: 'New recipe'
 - assertVisible: 'Title'
 
+# State a difficulty (FR-001b): the picker is a radiogroup in the Basics section. Select Hard.
+- assertVisible: 'Difficulty'
+- tapOn: 'Hard'
+
 - tapOn: 'Title'
 - inputText: 'Maestro Weeknight Soup'
 

@@ -29,7 +29,12 @@ const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
 
 import { getRecipeDb as getRecipeDbMock } from '../../common/db.js';
-import { handler, toArchiveMessage, type PendingArchiveRow } from '../archive-sweeper.js';
+import {
+    handler,
+    oldestPendingArchiveAgeSeconds,
+    toArchiveMessage,
+    type PendingArchiveRow,
+} from '../archive-sweeper.js';
 
 interface SendInput {
     QueueUrl: string;
@@ -49,11 +54,22 @@ function makePendingRow(overrides: Partial<PendingArchiveRow> = {}): PendingArch
 }
 
 /** A schema-less Drizzle stub whose `execute` returns the queued rows for the claim SELECT. */
-function dbWithPending(rows: PendingArchiveRow[], backlog = rows.length): { execute: ReturnType<typeof vi.fn> } {
+function dbWithPending(
+    rows: PendingArchiveRow[],
+    backlog = rows.length,
+    oldestAgeSeconds = 0,
+): { execute: ReturnType<typeof vi.fn> } {
     const execute = vi.fn().mockImplementation(async (query: unknown) => {
-        // The handler counts the backlog first, then claims a batch.
-        if (JSON.stringify(query).includes('count(*)')) {
+        const serialized = JSON.stringify(query);
+
+        // The handler emits the backlog + oldest-age metrics first, then claims a batch. Each read is
+        // matched on a fragment unique to its SELECT so the stub answers the right query.
+        if (serialized.includes('count(*)')) {
             return { rows: [{ count: backlog }] };
+        }
+
+        if (serialized.includes('age_seconds')) {
+            return { rows: [{ age_seconds: oldestAgeSeconds }] };
         }
 
         return { rows };
@@ -165,6 +181,87 @@ describe('backlog metric (T138 wiring)', () => {
             .map((call) => String(call[0]))
             .find((line) => line.includes('PendingArchiveBacklog'));
         expect(JSON.parse(emf as string)).toMatchObject({ PendingArchiveBacklog: 0 });
+        log.mockRestore();
+    });
+});
+
+describe('oldestPendingArchiveAgeSeconds', () => {
+    it('reads the age of the oldest un-archived row off created_at, unbounded by the sweep batch', async () => {
+        // The query the age alarm depends on. It must NOT filter to the batch or to `next_attempt_at <= now()`
+        // (a backed-off failing row's next_attempt_at is in the FUTURE) — the 59-minute row still being
+        // retried normally is exactly the one about to breach, and it must be counted.
+        const execute = vi.fn().mockResolvedValue({ rows: [{ age_seconds: 4200 }] });
+
+        const age = await oldestPendingArchiveAgeSeconds({ execute } as never);
+
+        expect(age).toBe(4200);
+        const query = JSON.stringify(execute.mock.calls[0][0]);
+        // Age is measured off `created_at` (when the version was saved / became pending debt), never
+        // `next_attempt_at`, which backoff pushes into the future and would make a failing row look young.
+        expect(query).toContain('created_at');
+        expect(query).not.toContain('next_attempt_at');
+    });
+
+    it('returns 0 (never null) when the outbox is empty, so the alarm always has a datapoint', async () => {
+        // COALESCE(..., 0) in SQL means an empty table yields age 0, not NULL — a metric that only appears
+        // while broken cannot be alarmed on reliably.
+        const execute = vi.fn().mockResolvedValue({ rows: [{ age_seconds: 0 }] });
+
+        await expect(oldestPendingArchiveAgeSeconds({ execute } as never)).resolves.toBe(0);
+    });
+});
+
+describe('oldest-pending-age metric (T138 / FR-007b-i wiring)', () => {
+    it('emits the oldest un-archived row age every tick — the "oldest pending > 1 hour" alarm depends on it', async () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        // A single-row batch while the oldest row has aged 2 hours: the metric must report 7200 regardless
+        // of how few rows this tick claims, so the 3600s alarm can actually fire.
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithPending([makePendingRow()], 1, 7200) as never);
+
+        await handler();
+
+        const emf = log.mock.calls
+            .map((call) => String(call[0]))
+            .find((line) => line.includes('OldestPendingArchiveAgeSeconds'));
+        expect(emf).toBeDefined();
+        expect(JSON.parse(emf as string)).toMatchObject({
+            Stage: expect.any(String),
+            OldestPendingArchiveAgeSeconds: 7200,
+        });
+        log.mockRestore();
+    });
+
+    it('emits 0 when drained, so the age alarm has data instead of INSUFFICIENT_DATA', async () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithPending([], 0, 0) as never);
+
+        await handler();
+
+        const emf = log.mock.calls
+            .map((call) => String(call[0]))
+            .find((line) => line.includes('OldestPendingArchiveAgeSeconds'));
+        expect(JSON.parse(emf as string)).toMatchObject({ OldestPendingArchiveAgeSeconds: 0 });
+        log.mockRestore();
+    });
+
+    it('publishes the age under the SAME namespace + Stage dimension as the alarm watches', async () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        process.env['STAGE'] = 'sandbox';
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithPending([], 0, 0) as never);
+
+        await handler();
+
+        const emf = log.mock.calls
+            .map((call) => String(call[0]))
+            .find((line) => line.includes('OldestPendingArchiveAgeSeconds'));
+        const parsed = JSON.parse(emf as string) as {
+            Stage: string;
+            _aws: { CloudWatchMetrics: { Namespace: string; Dimensions: string[][] }[] };
+        };
+        expect(parsed.Stage).toBe('sandbox');
+        expect(parsed._aws.CloudWatchMetrics[0].Namespace).toBe('Commise/RecipeArchive');
+        expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage']]);
+        delete process.env['STAGE'];
         log.mockRestore();
     });
 });

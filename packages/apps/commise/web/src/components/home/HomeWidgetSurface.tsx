@@ -8,11 +8,14 @@
  *    ({@link import('./homeContainer.js').createHomeContainer}); resolved here via `resolveHomeWidgets`.
  *  - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the
  *    viewer's subscription **tier**, applying personalization order/hidden (owned by identity 002, absent in
- *    v1). In Home v1 only the recipe widget is registered and live; gated widgets (005–009) are **absent**,
- *    not rendered as empty tiles.
- *  - **render** — each curated descriptor is drawn through its registered slot, wrapped in a per-widget
- *    `ErrorBoundary` + `Suspense`. A curated id with **no** registered renderer is **skipped** (graceful
- *    version skew — an older client tolerates a newer personalization list).
+ *    v1). In Home v1 the recipe widget is the only **live** widget; the unshipped 005–009 cohort is present
+ *    as **skeleton placeholders** (CR-001) — the real widget's shape with no invented data — which gate
+ *    themselves out the moment the backing service ships and the feature's live widget (same id) takes over.
+ *  - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary` +
+ *    `Suspense`: a live widget with a **bespoke** host slot (the recipe widget, which needs its data prop)
+ *    through `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live
+ *    id with no bespoke renderer is **skipped** (graceful version skew — an older client tolerates a newer
+ *    personalization list).
  *
  * The surface is a client component: it needs the viewer's Clerk token to read the profile tier and the
  * recent recipes. `container` and `renderers` are injectable purely so the composition, skip, and nudge
@@ -20,6 +23,7 @@
  */
 import {
     curateHomeWidgets,
+    isPlaceholderHomeWidget,
     resolveHomeWidgets,
     type HomeWidgetCurationContext,
     type HomeWidgetId,
@@ -27,18 +31,21 @@ import {
 import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { Container } from 'ditox';
-import type { Route } from 'next';
-import Link from 'next/link';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
+import { HomeChrome } from './chrome/HomeChrome';
+import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot';
+import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { HomeNudgeContext, SubscriptionNudge, useOncePerSessionNudge } from './SubscriptionNudge';
+
+/** The active destination this surface represents in the Home navigation. */
+const HOME_NAV_ACTIVE_ID = 'home' as const;
 
 /**
  * Capabilities whose backing service is live in Home v1. Only the recipe service ships now; each feature
@@ -83,6 +90,7 @@ export function HomeWidgetSurface({
     const nudge = useOncePerSessionNudge();
 
     const tier = profile.data?.account.subscriptionTier;
+    const displayName = profile.data?.user.displayName;
 
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {
@@ -96,45 +104,54 @@ export function HomeWidgetSurface({
     }, [container, tier]);
 
     return (
-        <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 bg-[var(--color-background)] px-4 py-8">
-            <header className="flex items-center justify-between gap-4">
-                <h1 className="font-display text-2xl font-semibold text-charcoal">{home.surface.greeting}</h1>
-                <nav aria-label={home.nav.label} className="flex items-center gap-4 text-sm">
-                    <Link href={`/${locale}/recipes` as Route}>{home.nav.recipes}</Link>
-                    <Link href={`/${locale}/profile` as Route}>{home.nav.profile}</Link>
-                    <Link href={`/${locale}/settings` as Route}>{home.nav.settings}</Link>
-                    <Link href={`/${locale}/account` as Route}>{home.nav.account}</Link>
-                    <LogoutButton />
-                </nav>
-            </header>
+        <HomeChrome
+            chrome={home.chrome}
+            locale={locale}
+            liveCapabilities={LIVE_CAPABILITIES}
+            activeId={HOME_NAV_ACTIVE_ID}
+            displayName={displayName}
+        >
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+                <HomeGreeting />
 
-            <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
-                <section
-                    role="region"
-                    aria-label={home.surface.regionLabel}
-                    className="grid grid-cols-1 gap-4 md:grid-cols-2"
-                >
-                    {curated.map((descriptor) => {
-                        const Widget = renderers[descriptor.id];
+                <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
+                    <section role="region" aria-label={home.surface.regionLabel} className="flex flex-col gap-6">
+                        {curated.map((descriptor) => {
+                            const Bespoke = renderers[descriptor.id];
 
-                        if (Widget === undefined) {
-                            // Curated (registered/personalized) but no renderer for this id on this client —
-                            // skip it rather than crash, so an older client tolerates a newer widget set.
+                            // A widget with a bespoke host slot (the live recipe widget, which needs its data
+                            // prop wired) renders through that slot.
+                            if (Bespoke !== undefined) {
+                                return (
+                                    <ErrorBoundary key={descriptor.id} fallback={null}>
+                                        <Suspense fallback={null}>
+                                            <Bespoke />
+                                        </Suspense>
+                                    </ErrorBoundary>
+                                );
+                            }
+
+                            // A roadmap placeholder renders through its own loader seam — no bespoke slot, no
+                            // second id list in the host.
+                            if (isPlaceholderHomeWidget(descriptor)) {
+                                return (
+                                    <ErrorBoundary key={descriptor.id} fallback={null}>
+                                        <Suspense fallback={null}>
+                                            <RoadmapWidgetSlot descriptor={descriptor} />
+                                        </Suspense>
+                                    </ErrorBoundary>
+                                );
+                            }
+
+                            // A live widget id with no bespoke renderer on this client — skip it rather than
+                            // crash, so an older client tolerates a newer personalization list (version skew).
                             return null;
-                        }
+                        })}
+                    </section>
+                </HomeNudgeContext.Provider>
 
-                        return (
-                            <ErrorBoundary key={descriptor.id} fallback={null}>
-                                <Suspense fallback={null}>
-                                    <Widget />
-                                </Suspense>
-                            </ErrorBoundary>
-                        );
-                    })}
-                </section>
-            </HomeNudgeContext.Provider>
-
-            <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />
-        </main>
+                <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />
+            </div>
+        </HomeChrome>
     );
 }

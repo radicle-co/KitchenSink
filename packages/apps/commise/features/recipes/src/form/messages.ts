@@ -30,6 +30,16 @@ export interface RecipeFormMessages {
     readonly descriptionLabel: string;
     /** Accessible label for the cuisine field. */
     readonly cuisineLabel: string;
+    /** Group label for the difficulty radio group (FR-001b). */
+    readonly difficultyLabel: string;
+    /** Difficulty option: easy. */
+    readonly difficultyEasy: string;
+    /** Difficulty option: medium. */
+    readonly difficultyMedium: string;
+    /** Difficulty option: hard. */
+    readonly difficultyHard: string;
+    /** Difficulty option that clears a stated difficulty back to "not stated". */
+    readonly difficultyNotStated: string;
     /** Accessible label for the tags field. */
     readonly tagsLabel: string;
     /** Hint explaining the comma-separated entry for tags. */
@@ -105,6 +115,11 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         titlePlaceholder: 'e.g. Weeknight Pasta',
         descriptionLabel: 'Description',
         cuisineLabel: 'Cuisine',
+        difficultyLabel: 'Difficulty',
+        difficultyEasy: 'Easy',
+        difficultyMedium: 'Medium',
+        difficultyHard: 'Hard',
+        difficultyNotStated: 'Not stated',
         tagsLabel: 'Tags',
         tagsHint: 'Separate tags with commas',
         dietaryFlagsLabel: 'Dietary flags',

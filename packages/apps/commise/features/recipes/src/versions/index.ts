@@ -8,11 +8,17 @@ export { RecipeVersionList } from './RecipeVersionList.js';
 export { RecipeConflictView } from './RecipeConflictView.js';
 
 export {
+    buildRecipeMergeFields,
+    composeMergedRecipe,
+    defaultMergeSelections,
     formatVersionTimestamp,
     sortVersionsDescending,
     toConflictSideFields,
     type ConflictField,
+    type MergeSide,
     type RecipeConflictViewProps,
+    type RecipeMergeField,
+    type RecipeMergeSelections,
     type RecipeVersionListProps,
 } from './model.js';
 export {

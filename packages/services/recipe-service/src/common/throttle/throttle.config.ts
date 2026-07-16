@@ -1,41 +1,32 @@
+import type { ThrottlerOptions } from '@nestjs/throttler';
+
 /**
- * Rate-limit window in milliseconds. `@nestjs/throttler` (v6, NestJS 11) expresses each named
- * limit's `ttl` in milliseconds, so the per-minute windows below are `60 * 1000`.
+ * Rate-limit window in milliseconds. `@nestjs/throttler` (v6, NestJS 11) expresses each limit's `ttl`
+ * in milliseconds, so the per-minute windows below are `60 * 1000`.
  */
 export const THROTTLE_WINDOW_MS = 60_000;
 
 /**
- * Route groups the API rate-limits independently. The `@Throttle({ [group]: {} })` decorator on a
- * controller/handler selects which named limit applies.
+ * Name of the single registered throttler.
+ *
+ * WHY ONE THROTTLER, NOT A NAMED ONE PER CATEGORY. In `@nestjs/throttler` v6 the global `ThrottlerGuard`
+ * applies the **logical AND of every registered throttler to every route** — registering N named
+ * throttlers means each route is simultaneously subject to all N, and the effective cap is the most
+ * restrictive one. `@Throttle({ [name]: { limit } })` only *overrides* that name's limit for the route;
+ * it does **not** deselect the other throttlers (that would need `@SkipThrottle` for each of them). Every
+ * route in this service belongs to exactly one category (read / write / photo / search) — no route needs
+ * layered burst+sustained limits — so the correct model is a single throttler whose limit is the generous
+ * read default, with per-route `@Throttle` overrides ({@link WriteRateLimit}/{@link PhotoRateLimit}/
+ * {@link SearchRateLimit}) for the tighter categories and `@SkipThrottle()` for health probes. A route
+ * that forgets its override then fails **safe** (inherits the generous read limit) rather than silently
+ * inheriting the most restrictive one.
  */
-export const ThrottleGroup = {
-    /** Mutating recipe/collection endpoints (create, update, delete). */
-    WRITES: 'writes',
-    /** Photo-upload endpoints (presign + finalize). */
-    PHOTOS: 'photos',
-    /** Full-text recipe search endpoints. */
-    SEARCH: 'search',
-} as const;
-
-/**
- * Name of a rate-limit route group.
- */
-export type ThrottleGroup = (typeof ThrottleGroup)[keyof typeof ThrottleGroup];
-
-/**
- * A single named throttle definition, shaped for `ThrottlerModule.forRoot([...])`: `ttl` is the
- * window in milliseconds and `limit` is the max requests per window.
- */
-export interface ThrottleGroupDefinition {
-    readonly name: ThrottleGroup;
-    readonly limit: number;
-    readonly ttl: number;
-}
+export const DEFAULT_THROTTLER_NAME = 'default';
 
 /**
  * Resolve a per-window request limit from an env var, falling back to a default. This keeps the throttle
  * limits configurable via the same `RATE_LIMIT_*` vars the config schema declares (they were previously
- * hardcoded here and ignored the env — so a load test or a higher-traffic stage could not raise them).
+ * hardcoded and ignored the env — so a load test or a higher-traffic stage could not raise them).
  * A missing/blank/non-positive-integer value falls back, so a bad override can never disable throttling.
  * Pure aside from reading `process.env`.
  *
@@ -56,33 +47,26 @@ export function throttleLimitFromEnv(envVar: string, fallback: number): number {
 }
 
 /**
- * Write endpoints: `RATE_LIMIT_WRITE` requests/minute (default 30).
+ * Read endpoints — the common path (list/detail/get, the Home widget's reads). The most generous limit,
+ * and the default any route inherits when it carries no category override. `RATE_LIMIT_READ` req/min
+ * (default 120).
  */
-export const writeThrottle: ThrottleGroupDefinition = {
-    name: ThrottleGroup.WRITES,
-    limit: throttleLimitFromEnv('RATE_LIMIT_WRITE', 30),
-    ttl: THROTTLE_WINDOW_MS,
-};
+export const readLimit = throttleLimitFromEnv('RATE_LIMIT_READ', 120);
+
+/** Mutating endpoints (create/update/delete/clone/visibility/restore/erasure). `RATE_LIMIT_WRITE` req/min (default 30). */
+export const writeLimit = throttleLimitFromEnv('RATE_LIMIT_WRITE', 30);
+
+/** Photo-upload endpoints (presign + finalize). `RATE_LIMIT_PHOTO_UPLOAD` req/min (default 10). */
+export const photoLimit = throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', 10);
+
+/** Full-text/autocomplete search endpoints. `RATE_LIMIT_SEARCH` req/min (default 60). */
+export const searchLimit = throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60);
 
 /**
- * Photo-upload endpoints: `RATE_LIMIT_PHOTO_UPLOAD` requests/minute (default 10).
+ * The `ThrottlerModule.forRoot(...)` registration: a single throttler whose limit is the generous read
+ * default. Category-specific tighter limits are applied per route via the `@Throttle` overrides in
+ * `throttle.decorators.ts`. See {@link DEFAULT_THROTTLER_NAME} for why this is one throttler, not many.
  */
-export const photoThrottle: ThrottleGroupDefinition = {
-    name: ThrottleGroup.PHOTOS,
-    limit: throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', 10),
-    ttl: THROTTLE_WINDOW_MS,
-};
-
-/**
- * Search endpoints: `RATE_LIMIT_SEARCH` requests/minute (default 60).
- */
-export const searchThrottle: ThrottleGroupDefinition = {
-    name: ThrottleGroup.SEARCH,
-    limit: throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60),
-    ttl: THROTTLE_WINDOW_MS,
-};
-
-/**
- * All throttle groups, ready to hand to `ThrottlerModule.forRoot(throttleGroups)`.
- */
-export const throttleGroups: readonly ThrottleGroupDefinition[] = [writeThrottle, photoThrottle, searchThrottle];
+export const throttlerModuleOptions: ThrottlerOptions[] = [
+    { name: DEFAULT_THROTTLER_NAME, ttl: THROTTLE_WINDOW_MS, limit: readLimit },
+];

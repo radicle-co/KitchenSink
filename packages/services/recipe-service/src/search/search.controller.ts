@@ -13,8 +13,10 @@ import { SearchService } from './search.service.js';
 import { SearchRecipesQueryDto } from './dto/search-recipes.query.dto.js';
 import type { RecipeSearchResponse } from './dto/search-response.dto.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
+import { SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 
 @Controller('v1/search')
+@SearchRateLimit()
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
 export class SearchController {
     public constructor(private readonly searchService: SearchService) {}

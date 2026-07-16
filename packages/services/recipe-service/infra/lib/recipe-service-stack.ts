@@ -259,6 +259,21 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/${baseStage}/clerk/jwt-public-key`,
             ),
+            // The account-erasure queue the recipe-workers stack owns (T136b). REQUIRED — ErasureService
+            // refuses to boot without it, so a stage wired with no queue fails the deploy loudly instead of
+            // degrading every "erase my data" request to a silent cron-tick wait. Read from SSM, NOT a
+            // cross-stack export: an `Fn.importValue` would lock the workers export while this stack imports
+            // it, and the ADR-0005 PR-close cleanup deletes a PR's stacks in no fixed order — workers-first
+            // would hit the export-in-use deadlock ADR-0002 documents, unattended, in CI.
+            //
+            // Keyed on `stage`, NOT `baseStage` (unlike the VPC/ALB/RDS platform imports above): the queue
+            // is the feature deploy's OWN resource, so a pr-{N} service must enqueue onto the pr-{N} queue.
+            // Its worker points at the pr-{N} logical DB (ADR-0006); draining a sandbox erasure there would
+            // erase an owner out of the WRONG database while the real sandbox job stayed queued.
+            ACCOUNT_ERASURE_QUEUE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${stage}/recipe/account-erasure-queue-url`,
+            ),
         };
 
         if (props.foodServiceUrl !== undefined) {
@@ -294,6 +309,23 @@ export class RecipeServiceStack extends Stack {
         database.grantConnect(apiTaskRole, 'recipe_app');
         photosBucket.grantReadWrite(apiTaskRole);
         versionsBucket.grantReadWrite(apiTaskRole);
+
+        // sqs:SendMessage on the erasure queue, and NOTHING more (ARCH-IT-7): the API produces erasure
+        // work, only the worker consumes it — a task role that could receive/delete could drain a
+        // right-to-erasure request without performing it. The ARN comes from the same per-stage SSM
+        // parameter the URL does (published by recipe-workers), so the grant is scoped to exactly this
+        // stage's queue with no cross-stack export lock.
+        apiTaskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['sqs:SendMessage'],
+                resources: [
+                    ssm.StringParameter.valueForStringParameter(
+                        this,
+                        `/kitchensink/${stage}/recipe/account-erasure-queue-arn`,
+                    ),
+                ],
+            }),
+        );
 
         const apiTaskDefinition = new ecs.FargateTaskDefinition(this, 'RecipeApiTaskDefinition', {
             cpu: 512,

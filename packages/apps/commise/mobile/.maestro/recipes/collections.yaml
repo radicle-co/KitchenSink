@@ -1,0 +1,88 @@
+appId: io.commise.mobile
+---
+# Collections management happy path (US3, T112). Signs in, switches to the Collections tab, and drives the
+# full lifecycle the collection screens expose: create -> open -> rename -> delete. The mobile counterpart to
+# the web Playwright collections spec (cross-platform mandate).
+#
+# HERMETIC BY DESIGN: this flow creates the collection it operates on and deletes it at the end, so it seeds
+# and cleans its own data and depends on NO seed row (`packages/services/recipe-service/src/database/seed.ts`
+# ships exactly one collection, "Weeknight Favorites", owned by the PRO subject — the e2e signer is the FREE
+# subject and therefore sees an EMPTY collections list). That also makes it order-independent: nothing else in
+# the suite reads or writes this fixture. If the flow fails midway the fixture leaks (a stray "Maestro test
+# collection"), which is noisy but harmless — a re-run creates its own.
+#
+# Screens: CollectionsScreen -> CollectionFormScreen (create) -> CollectionDetailScreen ->
+# CollectionRecipePickerScreen (add) -> CollectionFormScreen (rename). Selectors are the accessibility labels
+# from `features/recipes/src/collections/messages.ts`.
+- runFlow: ../auth/signin.yaml
+
+# The recipes surface, then across the tab bar to Collections. Only the TAB carries this label right now
+# (the CollectionList heading + container label also read "Collections", but neither is rendered yet).
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+
+# CollectionList chrome. The create CTA proves the list rendered (heading "Collections" alone would also
+# match the tab we just tapped, so it would not).
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+# CREATE. Tapping the CTA pushes CollectionFormScreen in `create` mode (its title is also "New collection").
+- tapOn: 'New collection'
+- assertVisible: 'Collection name'
+- tapOn: 'Collection name'
+- inputText: 'Maestro test collection'
+- hideKeyboard
+- tapOn: 'Create'
+
+# A successful create navigates back to the list, where the new collection renders as a row. Waiting on the
+# ROW (not the chrome) is what proves the create actually persisted and the list cache was invalidated.
+- extendedWaitUntil:
+      visible: 'Maestro test collection'
+      timeout: 40000
+
+# OPEN. The detail shows the collection's name, its actions, and — for a brand-new collection — the
+# member-empty state. Asserting the empty state proves we landed on the right (freshly created) collection.
+- tapOn: 'Maestro test collection'
+- assertVisible: 'Rename'
+- assertVisible: 'No recipes in this collection yet'
+
+# ADD A RECIPE (FR-009). The empty collection offers "Add a recipe", which pushes
+# CollectionRecipePickerScreen (its heading names this collection). Adding a recipe hits
+# `useAddRecipeToCollection` -> POST /v1/collections/{id}/recipes; the row then flips to the inert "In this
+# collection" marker. Guarded on the seeded recipe (the same fixture the recipe list/edit flows drive) being
+# an add candidate, so an empty library still exercises create/rename/delete. "Done" returns to the detail
+# either way. Mobile mirror of the web Playwright add leg.
+- tapOn: 'Add a recipe'
+- assertVisible: 'Add recipes to Maestro test collection'
+- runFlow:
+      when:
+          visible: 'Add Mediterranean Grilled Lamb'
+      commands:
+          - tapOn: 'Add Mediterranean Grilled Lamb'
+          - assertVisible: 'In this collection'
+- tapOn: 'Done'
+- assertVisible: 'Rename'
+
+# RENAME. Pushes CollectionFormScreen in `rename` mode, seeded with the current name.
+- tapOn: 'Rename'
+- assertVisible: 'Rename collection'
+- tapOn: 'Collection name'
+- eraseText
+- inputText: 'Maestro renamed collection'
+- hideKeyboard
+- tapOn: 'Save'
+
+# Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection`
+# invalidated the detail query.
+- extendedWaitUntil:
+      visible: 'Maestro renamed collection'
+      timeout: 40000
+
+# DELETE (also this flow's cleanup). Deleting returns to the collections list; the row must be GONE, which is
+# the assertion that proves the delete actually happened rather than merely navigating away.
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro renamed collection'

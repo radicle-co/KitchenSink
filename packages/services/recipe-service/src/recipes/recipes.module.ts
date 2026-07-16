@@ -4,8 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
 import { RecipesController } from './recipes.controller.js';
-import { RecipesService, RECIPES_DAL, RECIPE_PHOTOS_DAL, RECIPE_PHOTOS_CDN_URL } from './recipes.service.js';
+import {
+    RecipesService,
+    RECIPES_DAL,
+    RECIPE_PHOTOS_DAL,
+    RECIPE_PHOTOS_CDN_URL,
+    RECIPE_RATINGS_DAL,
+} from './recipes.service.js';
 import { RecipesDal } from './dal/recipes.dal.js';
+import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { VersionsModule } from '../versions/versions.module.js';
@@ -41,6 +48,14 @@ import { VersionsModule } from '../versions/versions.module.js';
             provide: RECIPE_PHOTOS_DAL,
             inject: [DrizzleProvider],
             useFactory: (db: RecipeDrizzle): PhotosDal => new PhotosDal(db),
+        },
+        {
+            // Its OWN RatingsDal instance over the shared Drizzle client, to read the viewer's own rating for
+            // `RecipeDetail.viewerRating` WITHOUT importing RatingsModule (which imports RecipesService →
+            // would be a cycle). Same "own DAL instance" pattern as the embedded PhotosDal above.
+            provide: RECIPE_RATINGS_DAL,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): RatingsDal => new RatingsDal(db),
         },
         {
             provide: RECIPE_PHOTOS_CDN_URL,

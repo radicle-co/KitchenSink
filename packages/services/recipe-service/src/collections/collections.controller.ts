@@ -40,6 +40,7 @@ import type {
     CollectionWithRecipesResponse,
     PullFromSourceResult,
 } from './collections.types.js';
+import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 /** Validate `input` with `schema`, throwing a 400 `BadRequestException` on failure. */
 function parseOrThrow<T>(schema: ZodType<T>, input: unknown): T {
@@ -58,6 +59,7 @@ export class CollectionsController {
 
     /** Create a collection owned by the caller. */
     @Post()
+    @WriteRateLimit()
     public async create(@Req() req: AuthenticatedRequest, @Body() body: unknown): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
         const input = parseOrThrow(createCollectionSchema, body);
@@ -90,6 +92,7 @@ export class CollectionsController {
 
     /** Update an owned collection (name/description/visibility). */
     @Patch(':id')
+    @WriteRateLimit()
     public async update(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
@@ -104,6 +107,7 @@ export class CollectionsController {
     /** Delete an owned collection (no-cascade w.r.t. its recipes). */
     @Delete(':id')
     @HttpCode(204)
+    @WriteRateLimit()
     public async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string): Promise<void> {
         const owner = this.requirePrincipal(req);
 
@@ -112,6 +116,7 @@ export class CollectionsController {
 
     /** Add a recipe to an owned collection. */
     @Post(':id/recipes')
+    @WriteRateLimit()
     public async addRecipe(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
@@ -131,6 +136,7 @@ export class CollectionsController {
      */
     @Post(':id/clone')
     @HttpCode(201)
+    @WriteRateLimit()
     public async clone(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
@@ -149,6 +155,7 @@ export class CollectionsController {
      */
     @Post(':id/pull-from-source')
     @HttpCode(200)
+    @WriteRateLimit()
     public async pullFromSource(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
@@ -161,6 +168,7 @@ export class CollectionsController {
     /** Remove a recipe from an owned collection. */
     @Delete(':id/recipes/:recipeId')
     @HttpCode(204)
+    @WriteRateLimit()
     public async removeRecipe(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,

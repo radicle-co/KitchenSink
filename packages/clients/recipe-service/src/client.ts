@@ -26,6 +26,7 @@ import type {
     RecipeVersion,
     RecipeVisibility,
     RestoreVersionResponse,
+    SetRecipeRatingInput,
     UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
 import ky, { HTTPError } from 'ky';
@@ -48,6 +49,7 @@ import type {
     CreateCollectionRequest,
     ErasureRequest,
     ErasureRequestAcceptedResponse,
+    IngredientCandidate,
     ListCollectionsParams,
     ListRecipesParams,
     PhotoConfirmRequest,
@@ -321,6 +323,49 @@ export class RecipeServiceClient {
         throw this.toError(res);
     }
 
+    /**
+     * `PUT /v1/recipes/{id}/rating` — set the caller's rating of a recipe (idempotent upsert, FR-013).
+     *
+     * The rater is the authenticated caller (the bearer token) — there is deliberately no rater field in
+     * the body. Re-rating replaces the caller's previous rating; sending the same request twice has the
+     * same effect as sending it once.
+     *
+     * @param id - The recipe id.
+     * @param input - The `{ stars }` body (whole 1–5).
+     * @returns The recipe with its recomputed `averageRating` / `ratingCount`.
+     * @throws {ForbiddenError} (`CANNOT_RATE_OWN_RECIPE`) when the caller owns the recipe;
+     *   {@link NotFoundError} when the recipe is absent OR not visible to the caller.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async setRecipeRating(id: string, input: SetRecipeRatingInput): Promise<RecipeDetail> {
+        const res = await this.send('PUT', `/v1/recipes/${encodeURIComponent(id)}/rating`, input);
+
+        if (res.status === 200) {
+            return res.body as RecipeDetail;
+        }
+
+        throw this.toError(res);
+    }
+
+    /**
+     * `DELETE /v1/recipes/{id}/rating` — remove the caller's rating of a recipe (`204`, FR-013).
+     *
+     * Idempotent: removing a rating that does not exist still succeeds with `204`.
+     *
+     * @param id - The recipe id.
+     * @throws {NotFoundError} when the recipe is absent OR not visible to the caller.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async deleteRecipeRating(id: string): Promise<void> {
+        const res = await this.send('DELETE', `/v1/recipes/${encodeURIComponent(id)}/rating`);
+
+        if (res.status === 204) {
+            return;
+        }
+
+        throw this.toError(res);
+    }
+
     // ─── Ingredients ────────────────────────────────────────────────────────────────────────────
 
     /**
@@ -354,6 +399,91 @@ export class RecipeServiceClient {
         const res = await this.send('POST', '/v1/ingredients', { name });
 
         if (res.status === 201) {
+            return res.body as Ingredient;
+        }
+
+        throw this.toError(res);
+    }
+
+    /**
+     * `POST /v1/ingredients/by-name` — add an unknown food by name through the source-agnostic food service
+     * (`202`, data-model R5). The ENTRY POINT of the async-resolution vertical: the server persists a
+     * food-backed catalog row and returns it with a NON-terminal `foodResolutionStatus` (`PENDING` /
+     * `UNRESOLVED`). `202 Accepted` (not `201`) signals that nutrition resolution is asynchronous and
+     * incomplete — poll {@link getIngredientStatus} while `PENDING`, or disambiguate an `UNRESOLVED` row via
+     * {@link getIngredientCandidates} / {@link resolveIngredient}.
+     *
+     * @param name - The food name to add.
+     * @returns The created (or deduped) food-backed ingredient with its non-terminal resolution status.
+     * @throws {BadRequestError} on an empty/oversized name; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async addIngredientByName(name: string): Promise<Ingredient> {
+        const res = await this.send('POST', '/v1/ingredients/by-name', { name });
+
+        if (res.status === 202) {
+            return res.body as Ingredient;
+        }
+
+        throw this.toError(res);
+    }
+
+    /**
+     * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
+     *
+     * The server re-reads the food service, persists the current status (and golden-record nutrition once
+     * `RESOLVED`), and returns the refreshed ingredient. Poll while `foodResolutionStatus` is `PENDING`;
+     * stop on any terminal/resolved/unresolved state (see {@link useIngredientStatus}).
+     *
+     * @param id - The ingredient id.
+     * @returns The refreshed ingredient with its current resolution status.
+     * @throws {NotFoundError} when the ingredient is absent; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getIngredientStatus(id: string): Promise<Ingredient> {
+        const res = await this.send('GET', `/v1/ingredients/${encodeURIComponent(id)}/status`);
+
+        if (res.status === 200) {
+            return res.body as Ingredient;
+        }
+
+        throw this.toError(res);
+    }
+
+    /**
+     * `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient.
+     *
+     * @param id - The ingredient id.
+     * @returns The candidate foods to pick from (empty for a freeform or non-`UNRESOLVED` ingredient).
+     * @throws {NotFoundError} when the ingredient is absent; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getIngredientCandidates(id: string): Promise<readonly IngredientCandidate[]> {
+        const res = await this.send('GET', `/v1/ingredients/${encodeURIComponent(id)}/candidates`);
+
+        if (res.status === 200) {
+            return res.body as readonly IngredientCandidate[];
+        }
+
+        throw this.toError(res);
+    }
+
+    /**
+     * `POST /v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick (`200`).
+     *
+     * The server resolves the food from the chosen candidate id(s) then re-polls so the newly-`RESOLVED`
+     * nutrition is persisted; the returned ingredient carries the resolved status + nutrition.
+     *
+     * @param id - The ingredient id.
+     * @param candidateIds - The picked candidate ids (non-empty).
+     * @returns The refreshed, resolved ingredient.
+     * @throws {BadRequestError} on an empty/invalid `candidateIds`; {@link NotFoundError} when absent.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async resolveIngredient(id: string, candidateIds: readonly string[]): Promise<Ingredient> {
+        const res = await this.send('POST', `/v1/ingredients/${encodeURIComponent(id)}/resolve`, { candidateIds });
+
+        if (res.status === 200) {
             return res.body as Ingredient;
         }
 

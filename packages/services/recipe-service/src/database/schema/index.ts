@@ -7,7 +7,14 @@
  */
 
 // ── recipes + recipe_steps (T011) ─────────────────────────────────────────────────────────────────
-export { tsvector, recipes, recipeSteps, RECIPE_VISIBILITIES, RECIPE_SOURCE_TYPES } from './recipes.js';
+export {
+    tsvector,
+    recipes,
+    recipeSteps,
+    RECIPE_VISIBILITIES,
+    RECIPE_SOURCE_TYPES,
+    RECIPE_DIFFICULTIES,
+} from './recipes.js';
 export type {
     RecipeRow,
     NewRecipeRow,
@@ -15,6 +22,7 @@ export type {
     NewRecipeStepRow,
     RecipeVisibility,
     RecipeSourceType,
+    RecipeDifficulty,
 } from './recipes.js';
 
 // ── ingredients + recipe_ingredients (T012) ───────────────────────────────────────────────────────
@@ -41,6 +49,10 @@ export type {
 export { recipePhotos } from './photos.js';
 export type { RecipePhotoRow, NewRecipePhotoRow } from './photos.js';
 
+// ── recipe_ratings (CR-001 / FR-013) ──────────────────────────────────────────────────────────────
+export { recipeRatings } from './ratings.js';
+export type { RecipeRatingRow, NewRecipeRatingRow } from './ratings.js';
+
 // ── collections + recipe_collections (T014, T119) ─────────────────────────────────────────────────
 export { collections, recipeCollections, COLLECTION_VISIBILITIES, RECIPE_COLLECTION_ADDED_VIA } from './collections.js';
 export type {
@@ -53,8 +65,13 @@ export type {
 } from './collections.js';
 
 // ── account_erasure_jobs (T122) ───────────────────────────────────────────────────────────────────
-export { accountErasureJobs, ERASURE_JOB_STATUSES } from './account.js';
-export type { AccountErasureJobRow, NewAccountErasureJobRow, ErasureJobStatus } from './account.js';
+export { accountErasureJobs, ERASURE_JOB_STATUSES, ACTIVE_ERASURE_JOB_STATUSES } from './account.js';
+export type {
+    AccountErasureJobRow,
+    NewAccountErasureJobRow,
+    ErasureJobStatus,
+    ActiveErasureJobStatus,
+} from './account.js';
 
 // ── convenience re-exports ────────────────────────────────────────────────────────────────────────
 export type { InferInsertModel, InferSelectModel } from 'drizzle-orm';

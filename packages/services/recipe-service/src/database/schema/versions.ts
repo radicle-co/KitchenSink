@@ -76,6 +76,12 @@ export const recipeVersionPendingArchives = pgTable(
             .references(() => recipes.id, { onDelete: 'cascade' }),
         versionNumber: integer('version_number').notNull(),
 
+        // Retry-bookkeeping columns RESERVED, not live: the shipped design (T130) drives retries via SQS
+        // redelivery and exhaustion via the DLQ, so a failed archive THROWS and is re-driven by SQS — the
+        // service/worker never write `'failed'`/`'in_flight'`/`'dlq'`, never increment `attempts`, never set
+        // `last_error`, and never reschedule `next_attempt_at`. Every row stays `status = 'pending'`,
+        // `attempts = 0` for its whole life (enqueue → worker archives → DELETE). Kept for a possible future
+        // in-DB retry policy; do NOT assume they reflect real attempt state today.
         status: text('status').notNull().default('pending'),
         attempts: integer('attempts').notNull().default(0),
         lastError: text('last_error'),

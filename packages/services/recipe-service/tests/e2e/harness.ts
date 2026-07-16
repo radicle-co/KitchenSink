@@ -23,6 +23,8 @@ import type { AddressInfo } from 'node:net';
 
 import type { INestApplication } from '@nestjs/common';
 
+import { SEED_ERASURE_QUEUE_URL } from '../global-setup.js';
+
 /** The harness Postgres connection string the booted app is configured against. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
@@ -76,6 +78,10 @@ function applyHarnessEnv(options: BootRecipeAppOptions): void {
     setDefault('S3_BUCKET_PHOTOS', 'commise-photos');
     setDefault('S3_BUCKET_VERSIONS', 'commise-versions');
     setDefault('CLOUDFRONT_URL', 'http://localhost:4566/commise-photos');
+    setDefault('SQS_ENDPOINT', 'http://localhost:4566');
+    // The queue the global setup actually provisions — one definition, so the booted app and the specs
+    // draining the queue can never address different queues.
+    setDefault('ACCOUNT_ERASURE_QUEUE_URL', SEED_ERASURE_QUEUE_URL);
 
     if (options.devAuthUserId !== undefined) {
         process.env['RECIPE_DEV_AUTH_USER_ID'] = options.devAuthUserId;

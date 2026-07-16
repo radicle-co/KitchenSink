@@ -9,30 +9,10 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
 
+import { makeRecipe } from '../../__fixtures__/index.js';
 import RecipeHomeWidget from '../RecipeHomeWidget.js';
 
 afterEach(cleanup);
-
-const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
-    id: 'rec_1',
-    ownerId: 'usr_1',
-    title: 'Weeknight Pasta',
-    description: 'A quick dinner',
-    prepTimeMinutes: 10,
-    cookTimeMinutes: 15,
-    totalTimeMinutes: 25,
-    servings: 2,
-    visibility: 'private',
-    sourceType: 'user_created',
-    hasSubstantiveEdit: false,
-    dietaryFlags: [],
-    tags: ['dinner'],
-    hasPartialNutrition: false,
-    currentVersion: 1,
-    createdAt: '2026-04-18T12:00:00.000Z',
-    updatedAt: '2026-04-19T09:30:00.000Z',
-    ...overrides,
-});
 
 describe('RecipeHomeWidget (web)', () => {
     it('shows the skeleton fallback while the recipes promise is pending', () => {

@@ -66,6 +66,29 @@ export const recipeSourceTypeSchema = z.enum([
 ]);
 
 /**
+ * Allowed recipe difficulty values (CR-001 / FR-001b).
+ */
+export const RecipeDifficulty = {
+    EASY: 'easy',
+    MEDIUM: 'medium',
+    HARD: 'hard',
+} as const;
+
+/**
+ * Author-stated difficulty of a recipe.
+ *
+ * OPTIONAL wherever it appears: "the author did not state a difficulty" is a real state, and there is
+ * no honest default for it. Consumers MUST render an absent difficulty as no badge — never as a
+ * substituted or assumed value (FR-001b).
+ */
+export type RecipeDifficulty = (typeof RecipeDifficulty)[keyof typeof RecipeDifficulty];
+
+/**
+ * Runtime validator for {@link RecipeDifficulty}.
+ */
+export const recipeDifficultySchema = z.enum([RecipeDifficulty.EASY, RecipeDifficulty.MEDIUM, RecipeDifficulty.HARD]);
+
+/**
  * Sort options supported by recipe search.
  */
 export const RecipeSearchSortBy = {
@@ -100,6 +123,11 @@ export interface Recipe {
     cookTimeMinutes: number;
     totalTimeMinutes: number;
     servings: number;
+    /**
+     * Author-stated difficulty (FR-001b). ABSENT when the author did not state one — consumers render
+     * no badge rather than substituting a default. Never fabricated, never computed.
+     */
+    difficulty?: RecipeDifficulty;
     visibility: RecipeVisibility;
     sourceType: RecipeSourceType;
     sourceUrl?: string;
@@ -112,6 +140,39 @@ export interface Recipe {
     hasPartialNutrition: boolean;
     currentVersion: number;
     /**
+     * Mean of this recipe's ratings, 1–5 (FR-013a). READ-ONLY — maintained by a database trigger and
+     * never accepted from a client; rate via `PUT /v1/recipes/{id}/rating`.
+     *
+     * ABSENT exactly when {@link ratingCount} is 0. An unrated recipe has NO average — it is never
+     * reported as `0`, which would render as a genuine zero-star score.
+     */
+    averageRating?: number;
+    /**
+     * Number of ratings contributing to {@link averageRating} (FR-013a). READ-ONLY; `0` when unrated.
+     */
+    ratingCount: number;
+    /**
+     * Whether this recipe uses a premium-only capability — the "PRO" badge (FR-003a).
+     *
+     * DERIVED on projection from `visibility` + `sourceType`; there is NO backing column and no
+     * entitlement lookup. Do NOT re-derive this in a mapper, controller, or client: the single
+     * authoritative implementation is {@link usesPremiumCapability}, which the list and detail
+     * projections both call. When 010 ships real entitlements, that function is the only thing that
+     * changes — this field does not.
+     */
+    usesPremiumCapability: boolean;
+    /**
+     * Absolute CDN URL of the recipe's cover photo (FR-001c) — the photo with the lowest sort order,
+     * resolved deterministically. Present on the LIST projection so a card renders without an N+1
+     * detail fetch; also present on detail, where it is the same photo as the first of `photos`.
+     *
+     * ABSENT when the recipe has no photos — never a placeholder or stock image URL.
+     *
+     * NOTE: photos are stored and served unprocessed with no derived variants, so this URL is the
+     * FULL-SIZE original (up to 5 MB) even when painted into a thumbnail. See FOLLOW-UP-CR-001-A.
+     */
+    coverPhotoUrl?: string;
+    /**
      * Soft-delete tombstone (C-007). When set, the recipe is excluded from every
      * production read path. Hard removal happens only via the user-initiated
      * GDPR erasure flow.
@@ -119,6 +180,30 @@ export interface Recipe {
     deletedAt?: IsoDateTimeString;
     createdAt: IsoDateTimeString;
     updatedAt: IsoDateTimeString;
+}
+
+/**
+ * The single authoritative derivation of the "PRO" badge (FR-003a) — whether a recipe uses a
+ * capability only a premium user has. Called by BOTH the list and the detail projection so they can
+ * never disagree; never inlined or re-implemented elsewhere.
+ *
+ * The only premium-gated recipe capability today is CHOOSING private visibility. Note this is
+ * deliberately NOT `visibility === 'private'`: per C-004, `imported_physical` and `imported_paid`
+ * recipes are private for EVERY tier (their privacy is forced, not chosen), so badging them PRO would
+ * mark a free-tier user's OCR import as premium content. That is latent today — 004 has not shipped,
+ * so every row is `user_created` — which is exactly why it is encoded correctly now, while the rule
+ * costs nothing to get right.
+ *
+ * When 010 ships real entitlements, this function is the one place the rule changes.
+ *
+ * @param recipe - The recipe's visibility and source type.
+ * @returns True when the recipe uses a premium-only capability. Pure.
+ */
+export function usesPremiumCapability(recipe: Pick<Recipe, 'visibility' | 'sourceType'>): boolean {
+    return (
+        recipe.visibility === RecipeVisibility.PRIVATE &&
+        (recipe.sourceType === RecipeSourceType.USER_CREATED || recipe.sourceType === RecipeSourceType.IMPORTED_PUBLIC)
+    );
 }
 
 /**
@@ -133,6 +218,7 @@ export const recipeSchema = z.object({
     cookTimeMinutes: nonNegativeIntSchema,
     totalTimeMinutes: nonNegativeIntSchema,
     servings: positiveIntSchema,
+    difficulty: recipeDifficultySchema.optional(),
     visibility: recipeVisibilitySchema,
     sourceType: recipeSourceTypeSchema,
     sourceUrl: z.string().url().optional(),
@@ -144,6 +230,11 @@ export const recipeSchema = z.object({
     tags: z.array(z.string().min(1)),
     hasPartialNutrition: z.boolean(),
     currentVersion: positiveIntSchema,
+    // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.
+    averageRating: z.number().finite().min(1).max(5).optional(),
+    ratingCount: nonNegativeIntSchema,
+    usesPremiumCapability: z.boolean(),
+    coverPhotoUrl: z.string().url().optional(),
     deletedAt: isoDateTimeStringSchema.optional(),
     createdAt: isoDateTimeStringSchema,
     updatedAt: isoDateTimeStringSchema,
@@ -402,6 +493,14 @@ export interface RecipeDetail extends Recipe {
     steps: RecipeStepView[];
     photos: RecipePhoto[];
     nutrition: RecipeNutrition;
+    /**
+     * The VIEWER's OWN rating of this recipe, 1..5 (FR-013). Per-viewer and READ-ONLY — distinct from the
+     * community `averageRating` (which remains the displayed score). Lets the rating control pre-select the
+     * viewer's existing stars and reveal remove-on-load without a second request. ABSENT when the viewer has
+     * not rated the recipe (and inherently absent on the viewer's own recipe — an owner cannot rate their
+     * own). Detail projection ONLY; never on the list projection (which shows the community score).
+     */
+    viewerRating?: number;
 }
 
 export const recipeDetailSchema = recipeSchema.extend({
@@ -409,6 +508,8 @@ export const recipeDetailSchema = recipeSchema.extend({
     steps: z.array(recipeStepViewSchema),
     photos: z.array(recipePhotoSchema),
     nutrition: recipeNutritionSchema,
+    // 1..5 stars; absent (not 0) when the viewer has not rated — see the RecipeDetail.viewerRating docstring.
+    viewerRating: z.number().int().min(1).max(5).optional(),
 });
 
 /**
@@ -467,6 +568,54 @@ export const recipeVersionSchema = z.object({
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
+});
+
+/**
+ * One user's star rating of one recipe (CR-001 / FR-013).
+ *
+ * Owned by the RATER (`userId`), not by the rated recipe's owner — which makes ratings the third
+ * owner-scoped root GDPR erasure must reach, and the only one that routinely lives on another user's
+ * row (FR-013b). At most one rating per (recipe, user): re-rating REPLACES.
+ */
+export interface RecipeRating {
+    id: string;
+    recipeId: string;
+    /** App-user ULID of the RATER (not the recipe owner). */
+    userId: string;
+    /** Whole stars, 1–5 inclusive. */
+    stars: number;
+    createdAt: IsoDateTimeString;
+    updatedAt: IsoDateTimeString;
+}
+
+/**
+ * Runtime validator for {@link RecipeRating}.
+ */
+export const recipeRatingSchema = z.object({
+    id: idSchema,
+    recipeId: idSchema,
+    userId: idSchema,
+    stars: z.number().int().min(1).max(5),
+    createdAt: isoDateTimeStringSchema,
+    updatedAt: isoDateTimeStringSchema,
+});
+
+/**
+ * Body of the idempotent `PUT /v1/recipes/{id}/rating` upsert (FR-013).
+ *
+ * The rater is taken from the authenticated token, never from the body — a client-supplied rater id
+ * would let any caller rate as anyone else.
+ */
+export interface SetRecipeRatingInput {
+    /** Whole stars, 1–5 inclusive. */
+    stars: number;
+}
+
+/**
+ * Runtime validator for {@link SetRecipeRatingInput}.
+ */
+export const setRecipeRatingInputSchema = z.object({
+    stars: z.number().int().min(1).max(5),
 });
 
 /**
@@ -657,6 +806,8 @@ export interface CreateRecipeInput {
     prepTimeMinutes: number;
     cookTimeMinutes: number;
     totalTimeMinutes: number;
+    /** Author-stated difficulty (FR-001b). Omit when the author states none — there is no default. */
+    difficulty?: RecipeDifficulty;
     cuisine?: string;
     dietaryFlags?: string[];
     tags?: string[];
@@ -675,6 +826,7 @@ export const createRecipeInputSchema = z.object({
     prepTimeMinutes: nonNegativeIntSchema,
     cookTimeMinutes: nonNegativeIntSchema,
     totalTimeMinutes: nonNegativeIntSchema,
+    difficulty: recipeDifficultySchema.optional(),
     cuisine: z.string().min(1).optional(),
     dietaryFlags: z.array(z.string().min(1)).optional(),
     tags: z.array(z.string().min(1)).optional(),
@@ -683,9 +835,20 @@ export const createRecipeInputSchema = z.object({
 
 /**
  * Input payload to update an existing recipe with optimistic concurrency protection.
+ *
+ * Standard semantic: an OMITTED field is left unchanged.
  */
-export interface UpdateRecipeInput extends Partial<CreateRecipeInput> {
+export interface UpdateRecipeInput extends Omit<Partial<CreateRecipeInput>, 'difficulty'> {
     expectedVersion: number;
+    /**
+     * Author-stated difficulty (FR-001b). Three distinct meanings, and they are not interchangeable:
+     * omitted = leave unchanged; a value = set it; explicit `null` = CLEAR it back to "not stated".
+     *
+     * `null` is required because FR-001b makes "no difficulty" a first-class state: without an
+     * explicit clear sentinel, `Partial<>`'s omitted-means-unchanged rule would make that state
+     * reachable only at create time, so a user who ever set a difficulty could never remove it.
+     */
+    difficulty?: RecipeDifficulty | null;
 }
 
 /**
@@ -693,6 +856,8 @@ export interface UpdateRecipeInput extends Partial<CreateRecipeInput> {
  */
 export const updateRecipeInputSchema = createRecipeInputSchema.partial().extend({
     expectedVersion: positiveIntSchema,
+    // .nullable().optional() — the three-state field above: absent | value | null (clear).
+    difficulty: recipeDifficultySchema.nullable().optional(),
 });
 
 /**
@@ -782,6 +947,14 @@ export const RecipeErrorCode = {
     ARCHIVE_DLQ: 'ARCHIVE_DLQ',
     COLLECTION_NOT_CLONED: 'COLLECTION_NOT_CLONED',
     ERASURE_IN_PROGRESS: 'ERASURE_IN_PROGRESS',
+    /**
+     * The caller tried to rate their own recipe (FR-013) — always a 403, never a 404.
+     *
+     * Note the deliberate asymmetry with the other rating rejection: rating a recipe the caller cannot
+     * SEE must return `RECIPE_NOT_FOUND` (404), because a 403 there would confirm the recipe exists.
+     * Here the caller owns the recipe, so they already know it exists and there is nothing to leak.
+     */
+    CANNOT_RATE_OWN_RECIPE: 'CANNOT_RATE_OWN_RECIPE',
 } as const;
 
 /**
@@ -804,6 +977,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.ARCHIVE_DLQ,
     RecipeErrorCode.COLLECTION_NOT_CLONED,
     RecipeErrorCode.ERASURE_IN_PROGRESS,
+    RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
 ]);
 
 /**

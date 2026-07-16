@@ -21,24 +21,32 @@ const {
     useDeleteRecipeMock,
     useSetRecipeVisibilityMock,
     useCloneRecipeMock,
+    useSetRecipeRatingMock,
+    useDeleteRecipeRatingMock,
     useAuthMock,
     useUserProfileMock,
     refetchMock,
     deleteMutateMock,
     setVisibilityMutateMock,
     cloneMutateMock,
+    setRatingMutateMock,
+    deleteRatingMutateMock,
     pushMock,
 } = vi.hoisted(() => ({
     useRecipeMock: vi.fn(),
     useDeleteRecipeMock: vi.fn(),
     useSetRecipeVisibilityMock: vi.fn(),
     useCloneRecipeMock: vi.fn(),
+    useSetRecipeRatingMock: vi.fn(),
+    useDeleteRecipeRatingMock: vi.fn(),
     useAuthMock: vi.fn(),
     useUserProfileMock: vi.fn(),
     refetchMock: vi.fn(),
     deleteMutateMock: vi.fn(),
     setVisibilityMutateMock: vi.fn(),
     cloneMutateMock: vi.fn(),
+    setRatingMutateMock: vi.fn(),
+    deleteRatingMutateMock: vi.fn(),
     pushMock: vi.fn(),
 }));
 
@@ -47,6 +55,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useDeleteRecipe: useDeleteRecipeMock,
     useSetRecipeVisibility: useSetRecipeVisibilityMock,
     useCloneRecipe: useCloneRecipeMock,
+    useSetRecipeRating: useSetRecipeRatingMock,
+    useDeleteRecipeRating: useDeleteRecipeRatingMock,
 }));
 
 vi.mock('@/hooks/useUserProfile', () => ({
@@ -86,9 +96,19 @@ beforeEach(() => {
         },
     );
 
+    // Rating mutations invoke `onSuccess` synchronously so the container's selection wiring is exercised.
+    setRatingMutateMock.mockImplementation((_vars: unknown, options?: { onSuccess?: () => void }) =>
+        options?.onSuccess?.(),
+    );
+    deleteRatingMutateMock.mockImplementation((_id: string, options?: { onSuccess?: () => void }) =>
+        options?.onSuccess?.(),
+    );
+
     useDeleteRecipeMock.mockReturnValue({ mutate: deleteMutateMock, isPending: false });
     useSetRecipeVisibilityMock.mockReturnValue({ mutate: setVisibilityMutateMock, isPending: false });
     useCloneRecipeMock.mockReturnValue({ mutate: cloneMutateMock, isPending: false });
+    useSetRecipeRatingMock.mockReturnValue({ mutate: setRatingMutateMock, isPending: false, error: null });
+    useDeleteRecipeRatingMock.mockReturnValue({ mutate: deleteRatingMutateMock, isPending: false, error: null });
 });
 
 afterEach(() => {
@@ -321,6 +341,84 @@ describe('RecipeDetailContainer', () => {
             render(<RecipeDetailContainer id="rec_1" />);
 
             expect(screen.getByRole('button', { name: 'Clone' })).toBeDisabled();
+        });
+    });
+
+    describe('rating (FR-013) — non-owner viewer', () => {
+        /** A public recipe owned by someone else, so the viewer may rate it. */
+        function renderRateable() {
+            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                refetch: refetchMock,
+            });
+            render(<RecipeDetailContainer id="rec_1" />);
+        }
+
+        it('wires the rate mutation to THIS recipe id and the selected star value (Sc6, mutation lens)', async () => {
+            const user = userEvent.setup();
+            renderRateable();
+
+            await user.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
+
+            expect(setRatingMutateMock).toHaveBeenCalledWith({ id: 'rec_1', input: { stars: 4 } }, expect.any(Object));
+        });
+
+        it('re-rates to a new value, replacing the prior rating (Sc7)', async () => {
+            const user = userEvent.setup();
+            renderRateable();
+
+            await user.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
+            await user.click(screen.getByRole('radio', { name: 'Rate 2 stars' }));
+
+            expect(setRatingMutateMock).toHaveBeenLastCalledWith(
+                { id: 'rec_1', input: { stars: 2 } },
+                expect.any(Object),
+            );
+        });
+
+        it('reveals remove after rating and wires it to THIS recipe id (Sc10, mutation lens)', async () => {
+            const user = userEvent.setup();
+            renderRateable();
+
+            // The remove affordance appears only once a rating is placed this session.
+            expect(screen.queryByRole('button', { name: 'Remove my rating' })).not.toBeInTheDocument();
+            await user.click(screen.getByRole('radio', { name: 'Rate 3 stars' }));
+            await user.click(screen.getByRole('button', { name: 'Remove my rating' }));
+
+            expect(deleteRatingMutateMock).toHaveBeenCalledWith('rec_1', expect.any(Object));
+        });
+
+        it('surfaces a not-found rating write as "not available", never "forbidden" (Sc9)', () => {
+            useSetRecipeRatingMock.mockReturnValue({
+                mutate: setRatingMutateMock,
+                isPending: false,
+                error: new NotFoundError('Resource not found'),
+            });
+            renderRateable();
+
+            expect(screen.getByRole('alert')).toHaveTextContent('This recipe isn’t available.');
+        });
+    });
+
+    describe('rating (FR-013) — own recipe (Sc8, mutation lens)', () => {
+        it('does NOT offer a rating input on the viewer’s own recipe, only the aggregate + a reason', () => {
+            // The signed-in owner (default) viewing their own recipe.
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            expect(screen.queryByRole('radiogroup', { name: 'Your rating' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('radio', { name: 'Rate 4 stars' })).not.toBeInTheDocument();
+            expect(screen.getByText('You can’t rate your own recipe.')).toBeInTheDocument();
+            expect(setRatingMutateMock).not.toHaveBeenCalled();
         });
     });
 });

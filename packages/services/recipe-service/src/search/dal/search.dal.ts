@@ -21,9 +21,10 @@
  * @sideEffect Every `search` call reads `recipes` (and `recipe_ingredients` when filtering by ingredient).
  */
 import { sql, type SQL } from 'drizzle-orm';
-import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
+import { RecipeSearchSortBy, usesPremiumCapability } from '@kitchensink/recipe-core';
 import type {
     Recipe,
+    RecipeDifficulty,
     RecipeFacetCount,
     RecipeSearchResult,
     RecipeSourceType,
@@ -31,6 +32,7 @@ import type {
 } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
+import { resolveCdnUrl } from '../../photos/photo-view.js';
 
 /** Default page size when the caller does not specify one (mirrors the list endpoint's default). */
 export const DEFAULT_SEARCH_PAGE_SIZE = 20;
@@ -45,13 +47,19 @@ export const MAX_SEARCH_PAGE_SIZE = 50;
  */
 export const FACET_SAMPLE_SIZE = 200;
 
-/** The explicit `recipes` projection returned by the page read — deliberately excludes `search_vector`. */
+/**
+ * The explicit `recipes` projection returned by the page read — deliberately excludes `search_vector`.
+ * Every name is qualified `recipes.` because the page read joins a cover-photo LATERAL (see below), so a
+ * bare column list would be ambiguous once another relation is in scope.
+ */
 const RECIPE_COLUMNS = sql`
-    id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
-    total_time_minutes, servings, visibility, source_type, source_url,
-    source_attribution, cloned_from_id, has_substantive_edit, cuisine,
-    dietary_flags, tags, has_partial_nutrition, current_version,
-    ingredient_names_text, deleted_at, created_at, updated_at`;
+    recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
+    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty,
+    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.source_type,
+    recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
+    recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
+    recipes.current_version, recipes.ingredient_names_text, recipes.deleted_at, recipes.created_at,
+    recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
 export interface RecipeSearchFilters {
@@ -107,6 +115,9 @@ interface RawRecipeSearchRow {
     cook_time_minutes: number | null;
     total_time_minutes: number | null;
     servings: number;
+    difficulty: string | null;
+    average_rating: string | null;
+    rating_count: number;
     visibility: string;
     source_type: string;
     source_url: string | null;
@@ -122,6 +133,7 @@ interface RawRecipeSearchRow {
     deleted_at: Date | string | null;
     created_at: Date | string;
     updated_at: Date | string;
+    cover_photo_key: string | null;
     rank: number | string | null;
 }
 
@@ -143,8 +155,24 @@ function rankToNumber(value: number | string | null): number | undefined {
     return value === null ? undefined : Number(value);
 }
 
-/** Map a raw `recipes` row to the canonical `Recipe` domain shape (nulls → `undefined`). Pure. */
-export function rowToRecipe(row: RawRecipeSearchRow): Recipe {
+/**
+ * Map a raw `recipes` row to the canonical `Recipe` domain shape (nulls → `undefined`). Pure.
+ *
+ * CR-001: `difficulty` (omitted when unstated), the trigger-maintained `averageRating`/`ratingCount`
+ * (average omitted when unrated — never `0`), the derived `usesPremiumCapability` (via the ONE
+ * authoritative `recipe-core` rule, exactly as the recipes projection does it), and `coverPhotoUrl`
+ * (resolved from the cover LATERAL's key against `cloudfrontUrl`). Cover is emitted only when both a key
+ * and a CDN base are present, so a caller without the CDN base simply omits it rather than emitting a
+ * malformed URL.
+ *
+ * @param row - The raw snake_case page row.
+ * @param cloudfrontUrl - CDN base used to resolve the cover-photo key to an absolute URL. When absent,
+ *   `coverPhotoUrl` is omitted.
+ */
+export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Recipe {
+    const visibility = row.visibility as RecipeVisibility;
+    const sourceType = row.source_type as RecipeSourceType;
+
     return {
         id: row.id,
         ownerId: row.owner_id,
@@ -154,8 +182,9 @@ export function rowToRecipe(row: RawRecipeSearchRow): Recipe {
         cookTimeMinutes: row.cook_time_minutes ?? 0,
         totalTimeMinutes: row.total_time_minutes ?? 0,
         servings: row.servings,
-        visibility: row.visibility as RecipeVisibility,
-        sourceType: row.source_type as RecipeSourceType,
+        ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
+        visibility,
+        sourceType,
         ...(row.source_url !== null ? { sourceUrl: row.source_url } : {}),
         ...(row.source_attribution !== null ? { sourceAttribution: row.source_attribution } : {}),
         ...(row.cloned_from_id !== null ? { clonedFromId: row.cloned_from_id } : {}),
@@ -165,6 +194,13 @@ export function rowToRecipe(row: RawRecipeSearchRow): Recipe {
         tags: row.tags,
         hasPartialNutrition: row.has_partial_nutrition,
         currentVersion: row.current_version,
+        // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
+        ...(row.average_rating !== null ? { averageRating: Number(row.average_rating) } : {}),
+        ratingCount: row.rating_count,
+        usesPremiumCapability: usesPremiumCapability({ visibility, sourceType }),
+        ...(row.cover_photo_key !== null && cloudfrontUrl !== undefined
+            ? { coverPhotoUrl: resolveCdnUrl(cloudfrontUrl, row.cover_photo_key) }
+            : {}),
         ...(row.deleted_at !== null ? { deletedAt: toIsoString(row.deleted_at) } : {}),
         createdAt: toIsoString(row.created_at),
         updatedAt: toIsoString(row.updated_at),
@@ -259,6 +295,11 @@ export class SearchDal {
     public constructor(
         private readonly db: RecipeDrizzle,
         private readonly facetSampleSize: number = FACET_SAMPLE_SIZE,
+        // CDN base for resolving the cover-photo key to an absolute `coverPhotoUrl` (CR-001 / FR-001c).
+        // Optional so existing test constructions (`new SearchDal(db)` / `new SearchDal(db, 2)`) keep
+        // compiling; `SearchModule` always supplies it in production, so cover URLs are always resolved
+        // there. When absent, `coverPhotoUrl` is simply omitted (never a malformed URL).
+        private readonly cloudfrontUrl?: string,
     ) {}
 
     /**
@@ -278,8 +319,17 @@ export class SearchDal {
         const orderBy = orderByExpr(filters.sortBy, query);
 
         const pageResult = await this.db.execute<RawRecipeSearchRow>(sql`
-            SELECT ${RECIPE_COLUMNS}, ${rank} AS rank
+            SELECT ${RECIPE_COLUMNS}, cp.cover_photo_key, ${rank} AS rank
             FROM recipes
+            LEFT JOIN LATERAL (
+                -- Serve the small thumbnail rendition when present, else the full-size original
+                -- (FOLLOW-UP-CR-001-A). Pre-thumbnail rows have thumbnail_key NULL → fall back to s3_key.
+                SELECT COALESCE(p.thumbnail_key, p.s3_key) AS cover_photo_key
+                FROM recipe_photos p
+                WHERE p.recipe_id = recipes.id
+                ORDER BY p.sort_order, p.created_at, p.id
+                LIMIT 1
+            ) cp ON true
             WHERE ${where}
             ORDER BY ${orderBy}
             LIMIT ${pageSize} OFFSET ${offset}
@@ -324,7 +374,7 @@ export class SearchDal {
 
     /** Map a raw row + query into a ranked {@link RecipeSearchResult} (rank omitted in browse mode). */
     private toSearchResult(row: RawRecipeSearchRow, query: string | undefined): RecipeSearchResult {
-        const recipe = rowToRecipe(row);
+        const recipe = rowToRecipe(row, this.cloudfrontUrl);
 
         if (query === undefined) {
             return { recipe };

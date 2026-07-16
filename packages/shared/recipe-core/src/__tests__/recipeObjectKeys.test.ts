@@ -16,10 +16,19 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { ownerMediaPrefix, recipeVersionArchiveKey } from '../recipeObjectKeys.js';
+import {
+    ownerMediaPrefix,
+    recipePhotoThumbnailKey,
+    RECIPE_PHOTO_THUMBNAIL_SUFFIX,
+    recipeVersionArchiveKey,
+} from '../recipeObjectKeys.js';
 
 const OWNER = '01JOWNER0000000000000000A';
 const RECIPE = '00000000-0000-4000-8000-0000000000r1';
+
+/** A recipe-photo original object key, exactly as the service builds it — under the owner erasure prefix. */
+const photoKey = (ownerId: string, recipeId = RECIPE, uuid = 'e2b1a0c0-0000-4000-8000-000000000abc'): string =>
+    `${ownerMediaPrefix(ownerId)}${recipeId}/photos/${uuid}`;
 
 describe('ownerMediaPrefix', () => {
     it('is the owner-scoped prefix the GDPR erasure sweep lists and deletes', () => {
@@ -64,6 +73,24 @@ describe('recipeVersionArchiveKey', () => {
     });
 });
 
+describe('recipePhotoThumbnailKey', () => {
+    it('derives the thumbnail as a distinct sibling BESIDE the original object (append, not relocate)', () => {
+        const original = photoKey(OWNER);
+        const thumbnail = recipePhotoThumbnailKey(original);
+
+        // Appended, not moved: the thumbnail extends the original key rather than living under a new root.
+        // That is what makes containment structural (see the containment describe below).
+        expect(thumbnail).toBe(`${original}${RECIPE_PHOTO_THUMBNAIL_SUFFIX}`);
+        expect(thumbnail.startsWith(original)).toBe(true);
+        // A distinct object — the thumbnail must never collide with the full-size original.
+        expect(thumbnail).not.toBe(original);
+    });
+
+    it('records the .jpg format the service writes the rendition in', () => {
+        expect(recipePhotoThumbnailKey(photoKey(OWNER)).endsWith('.thumb.jpg')).toBe(true);
+    });
+});
+
 describe('the GDPR containment invariant (verticals-8)', () => {
     it('puts EVERY archive key under its owner erasure prefix', () => {
         // THE load-bearing assertion of this module. Account erasure sweeps exactly
@@ -81,9 +108,30 @@ describe('the GDPR containment invariant (verticals-8)', () => {
         }
     });
 
+    it('puts EVERY photo-thumbnail key under its owner erasure prefix (FOLLOW-UP-CR-001-A)', () => {
+        // The thumbnail rendition is a new owner-scoped object, so it is subject to the SAME containment
+        // guarantee as the archive: the erasure sweep only reaches what lives under `ownerMediaPrefix`, so
+        // a thumbnail key that escaped it would survive a right-to-erasure request — the verticals-8
+        // defect, reintroduced. A mutation that relocated the thumbnail off the original key (e.g.
+        // `thumbnails/{uuid}` at the bucket root) fails here.
+        const owners = [OWNER, '01JOTHER000000000000000B', 'a'];
+
+        for (const ownerId of owners) {
+            const thumbnail = recipePhotoThumbnailKey(photoKey(ownerId));
+
+            expect(thumbnail.startsWith(ownerMediaPrefix(ownerId))).toBe(true);
+        }
+    });
+
     it("does not place one owner's archive under another owner's prefix", () => {
         const key = recipeVersionArchiveKey({ ownerId: 'owner-a', recipeId: RECIPE, versionNumber: 1 });
 
         expect(key.startsWith(ownerMediaPrefix('owner-b'))).toBe(false);
+    });
+
+    it("does not place one owner's photo thumbnail under another owner's prefix", () => {
+        const thumbnail = recipePhotoThumbnailKey(photoKey('owner-a'));
+
+        expect(thumbnail.startsWith(ownerMediaPrefix('owner-b'))).toBe(false);
     });
 });

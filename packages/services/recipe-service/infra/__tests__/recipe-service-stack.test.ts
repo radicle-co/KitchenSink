@@ -145,3 +145,73 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         expect(envAll).toContain('CLERK_ADMIT_NATIVE_CLIENT');
     });
 });
+
+/**
+ * The account-erasure queue hand-off (T136b / C-007).
+ *
+ * `accountErasureConfigSchema` makes `ACCOUNT_ERASURE_QUEUE_URL` REQUIRED — the service does not boot
+ * without it, deliberately, so a stage wired without a queue fails the deploy loudly instead of degrading
+ * every "erase my data" request to a silent cron-tick wait. That choice is only honoured if this stack
+ * actually supplies the variable, which is what these tests pin.
+ */
+describe('Account-erasure queue wiring', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synthTemplate('sandbox', 'sandbox');
+    });
+
+    const apiEnvironment = (t: Template): { Name: string; Value: unknown }[] => {
+        const taskDefs = t.findResources('AWS::ECS::TaskDefinition');
+
+        return Object.values(taskDefs).flatMap((def) =>
+            (def.Properties?.ContainerDefinitions ?? []).flatMap(
+                (container: { Environment?: { Name: string; Value: unknown }[] }) => container.Environment ?? [],
+            ),
+        );
+    };
+
+    it('supplies ACCOUNT_ERASURE_QUEUE_URL to the API task', () => {
+        // Without this the container crash-loops on boot: the config schema rejects the missing key.
+        expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('ACCOUNT_ERASURE_QUEUE_URL');
+    });
+
+    it('sources the queue URL from SSM, not a cross-stack export', () => {
+        // The mechanism matters as much as the value. An `Fn.importValue` of a recipe-workers export would
+        // lock that export for as long as this stack imports it, and the ADR-0005 PR-close cleanup deletes
+        // a PR's stacks with no ordering guarantee — deleting workers first would fail with the
+        // export-in-use deadlock ADR-0002 documents, unattended, in CI. SSM carries the value with no lock:
+        // either stack can be deleted in any order, and a missing parameter still fails the deploy loudly.
+        const queueUrlEnv = apiEnvironment(template).find((entry) => entry.Name === 'ACCOUNT_ERASURE_QUEUE_URL');
+        const serialized = JSON.stringify(queueUrlEnv?.Value);
+
+        expect(serialized).toContain('Ref');
+        expect(serialized).not.toContain('Fn::ImportValue');
+    });
+
+    it('reads the queue from THIS stage, never the base stage', () => {
+        // A pr-73 service must not enqueue onto the sandbox queue. The workers stack for pr-73 points its
+        // Lambdas at the pr-73 logical DB (ADR-0006), so a sandbox erasure message drained by a pr-73
+        // worker would find no job row for that owner — and the worker erases unconditionally, so it would
+        // delete that owner's rows out of the pr-73 database while the real sandbox job stayed queued.
+        // Unlike the platform imports (VPC/ALB/RDS), which correctly ride `baseStage`, the queue is the
+        // feature deploy's OWN resource.
+        const prTemplate = synthTemplate('pr-73', 'sandbox');
+        const parameters = JSON.stringify(prTemplate.toJSON().Parameters ?? {});
+
+        expect(parameters).toContain('/kitchensink/pr-73/recipe/account-erasure-queue-url');
+        expect(parameters).not.toContain('/kitchensink/sandbox/recipe/account-erasure-queue-url');
+    });
+
+    it('grants the API task role sqs:SendMessage on the erasure queue and nothing more', () => {
+        // ARCH-IT-7: the API produces erasure work; only the worker consumes it. A task role that could
+        // receive/delete could drain a right-to-erasure request without performing it.
+        const policies = Object.values(template.findResources('AWS::IAM::Policy'));
+        const sqsPolicy = policies.find((policy) => JSON.stringify(policy).includes('sqs:SendMessage'));
+        const serialized = JSON.stringify(sqsPolicy);
+
+        expect(sqsPolicy).toBeDefined();
+        expect(serialized).not.toContain('sqs:ReceiveMessage');
+        expect(serialized).not.toContain('sqs:DeleteMessage');
+    });
+});

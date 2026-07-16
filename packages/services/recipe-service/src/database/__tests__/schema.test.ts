@@ -9,6 +9,7 @@ import {
     ingredients,
     recipeIngredients,
     recipePhotos,
+    recipeRatings,
     recipeVersions,
     recipeVersionPendingArchives,
     collections,
@@ -88,6 +89,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             cook_time_minutes: { type: 'integer', notNull: true },
             total_time_minutes: { type: 'integer', notNull: true },
             servings: { type: 'integer', notNull: true },
+            // CR-001: nullable difficulty (no default) + trigger-maintained rating aggregate.
+            difficulty: { type: 'text', notNull: false },
+            average_rating: { type: 'numeric(3,2)', notNull: false },
+            rating_count: { type: 'integer', notNull: true },
             visibility: { type: 'text', notNull: true },
             source_type: { type: 'text', notNull: true },
             source_url: { type: 'text', notNull: false },
@@ -161,9 +166,24 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             id: { type: 'uuid', notNull: true },
             recipe_id: { type: 'uuid', notNull: true },
             s3_key: { type: 'text', notNull: true },
+            // The cover-thumbnail rendition key (FOLLOW-UP-CR-001-A) — nullable (pre-feature / degraded rows).
+            thumbnail_key: { type: 'text', notNull: false },
             content_type: { type: 'text', notNull: true },
             size_bytes: { type: 'integer', notNull: false },
             sort_order: { type: 'integer', notNull: true },
+            created_at: { type: 'timestamp with time zone', notNull: true },
+            updated_at: { type: 'timestamp with time zone', notNull: true },
+        });
+    });
+
+    it('recipe_ratings (CR-001 / FR-013)', () => {
+        expect(getTableName(recipeRatings)).toBe('recipe_ratings');
+        expectColumns(recipeRatings, {
+            id: { type: 'uuid', notNull: true },
+            recipe_id: { type: 'uuid', notNull: true },
+            // The RATER's app-user ULID — no FK, no users table (D2), same as recipes.owner_id.
+            user_id: { type: 'varchar(255)', notNull: true },
+            stars: { type: 'integer', notNull: true },
             created_at: { type: 'timestamp with time zone', notNull: true },
             updated_at: { type: 'timestamp with time zone', notNull: true },
         });

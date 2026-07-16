@@ -67,6 +67,16 @@ export function unknownIngredient(ingredientId: string): RecipeDomainError {
 }
 
 /**
+ * `CANNOT_RATE_OWN_RECIPE` (→ 403) — the caller tried to rate a recipe they own (FR-013). A 403 is
+ * correct and leaks nothing here: the owner already knows their own recipe exists. This is deliberately
+ * distinct from the IDOR case — rating a recipe the caller CANNOT see is a 404 `RECIPE_NOT_FOUND`
+ * ({@link recipeNotFound}), so an unreadable recipe is indistinguishable from a missing one.
+ */
+export function cannotRateOwnRecipe(id: string): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.CANNOT_RATE_OWN_RECIPE, `Recipe ${id} cannot be rated by its owner.`);
+}
+
+/**
  * `VERSION_CONFLICT` — the client's `expectedVersion` no longer matches the stored `currentVersion`
  * (optimistic-concurrency loss, T033). `details` carries both versions for the 409 payload.
  */

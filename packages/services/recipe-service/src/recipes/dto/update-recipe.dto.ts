@@ -7,9 +7,20 @@
  * is intentionally absent here.
  */
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import {
+    ArrayMinSize,
+    IsArray,
+    IsIn,
+    IsInt,
+    IsOptional,
+    IsString,
+    MaxLength,
+    Min,
+    ValidateNested,
+} from 'class-validator';
+import type { RecipeDifficulty } from '@kitchensink/recipe-core';
 
-import { CreateRecipeStepInputDto, RecipeIngredientInputDto } from './create-recipe.dto.js';
+import { CreateRecipeStepInputDto, RECIPE_DIFFICULTIES, RecipeIngredientInputDto } from './create-recipe.dto.js';
 
 /** Body of `PATCH /v1/recipes/{id}`. */
 export class UpdateRecipeDto {
@@ -31,6 +42,22 @@ export class UpdateRecipeDto {
     @IsString()
     @MaxLength(100)
     cuisine?: string;
+
+    /**
+     * Author-stated difficulty (FR-001b) — THREE distinct, non-interchangeable states:
+     *   - the property ABSENT   → leave unchanged (the standard partial-update semantic);
+     *   - a value (easy/…)      → set it;
+     *   - explicit `null`       → CLEAR it back to "not stated".
+     *
+     * `@IsOptional()` short-circuits validation for BOTH `undefined` and `null`, so an explicit `null`
+     * passes (it is the clear sentinel), while `@IsIn` still rejects any non-null value outside the enum.
+     * class-transformer preserves the distinction on the instance: an absent key stays `undefined`, an
+     * explicit `null` stays `null` — which the service/DAL rely on to tell "leave" from "clear". Pinned by
+     * the DTO validation tests and the DAL/integration clear-vs-unchanged tests.
+     */
+    @IsOptional()
+    @IsIn(RECIPE_DIFFICULTIES)
+    difficulty?: RecipeDifficulty | null;
 
     @IsOptional()
     @IsArray()

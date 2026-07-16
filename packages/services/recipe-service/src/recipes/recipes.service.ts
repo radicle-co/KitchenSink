@@ -16,20 +16,23 @@ import type { RecipeNutrition, RecipePhoto, RecipeSnapshot } from '@kitchensink/
 
 import { VersionsService } from '../versions/versions.service.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
-import { resolvePhotoView } from '../photos/photo-view.js';
+import { resolveCoverUrl, resolvePhotoView } from '../photos/photo-view.js';
 import { computeRecipeNutrition, type NutritionLine } from './domain/nutrition.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
+import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
 import { defaultCloneVisibility, evaluateVisibility } from './domain/visibility-policy.js';
 import { isRecipeViewableBy } from './domain/recipe-visibility.js';
+import { resolveCdnUrl } from '../photos/photo-view.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
-import type { RecipeIngredientRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
+import { RecipeSourceType, RecipeVisibility, usesPremiumCapability } from '@kitchensink/recipe-core';
+import type { RecipeDifficulty } from '@kitchensink/recipe-core';
+import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
@@ -40,6 +43,16 @@ export const RECIPE_PHOTOS_DAL = 'RECIPE_PHOTOS_DAL';
 
 /** DI token for the CloudFront base URL used to resolve embedded photo URLs. */
 export const RECIPE_PHOTOS_CDN_URL = 'RECIPE_PHOTOS_CDN_URL';
+
+/**
+ * DI token for the recipes vertical's OWN {@link RatingsDal} instance (over the shared Drizzle client),
+ * used only to read the VIEWER's own rating for the `RecipeDetail.viewerRating` field. Its own instance
+ * (not the ratings vertical's `RATINGS_DAL`) keeps `RecipesModule` self-contained and, crucially, avoids
+ * a module cycle: `RatingsModule` imports `RecipesModule` (to reuse `RecipesService`), so `RecipesModule`
+ * must NOT import `RatingsModule`. The same "own DAL instance" pattern the vertical uses for its embedded
+ * PhotosDal. `RatingsDal` remains the single owner of all `recipe_ratings` SQL (including this read).
+ */
+export const RECIPE_RATINGS_DAL = 'RECIPE_RATINGS_DAL';
 
 /**
  * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on
@@ -83,16 +96,35 @@ function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientRespons
     };
 }
 
+/** Optional projection extras layered onto a recipe response by the caller (detail vs. list). */
+interface RecipeResponseExtras {
+    /** Embedded photos (DETAIL reads only) — omitted on list/search metadata. */
+    photos?: RecipePhoto[];
+    /** Per-serving nutrition (DETAIL reads only) — omitted on list/search metadata. */
+    nutrition?: RecipeNutrition;
+    /** Absolute CDN URL of the cover photo (FR-001c). Resolved by the caller (list LATERAL / detail photos). */
+    coverPhotoUrl?: string;
+    /**
+     * The VIEWER's own rating (1–5), for the `RecipeDetail.viewerRating` field (FR-013). DETAIL reads only,
+     * and only when the viewer has actually rated — ABSENT otherwise (never `0`). Resolved by the caller
+     * (`getById`) from the viewer-scoped `recipe_ratings` row.
+     */
+    viewerRating?: number;
+}
+
 /**
  * Map a persisted recipe aggregate to the wire response. Pure. On the single-recipe DETAIL reads the
  * caller passes the embedded `photos` + per-serving `nutrition` so the client renders the whole recipe in
  * one round-trip; on list/search metadata reads both are omitted (their keys are absent).
+ *
+ * CR-001 read-model fields are populated here for EVERY path that shares this mapper (create/get/list/
+ * update/clone/set-visibility): `difficulty` (nullable → omitted when unstated), the trigger-maintained
+ * `averageRating`/`ratingCount` (average omitted when unrated — never `0`), and the derived
+ * `usesPremiumCapability` (via the single authoritative `recipe-core` fn — the ONLY place the PRO rule is
+ * evaluated on the server). `coverPhotoUrl` arrives via {@link RecipeResponseExtras} because the two read
+ * paths resolve it differently (list via a cover LATERAL, detail from the first embedded photo).
  */
-function toRecipeResponse(
-    aggregate: RecipeAggregate,
-    photos?: RecipePhoto[],
-    nutrition?: RecipeNutrition,
-): RecipeResponse {
+function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtras = {}): RecipeResponse {
     const { recipe, steps, ingredients } = aggregate;
 
     return {
@@ -101,6 +133,9 @@ function toRecipeResponse(
         title: recipe.title,
         ...(recipe.description !== null ? { description: recipe.description } : {}),
         ...(recipe.cuisine !== null ? { cuisine: recipe.cuisine } : {}),
+        // Difficulty is nullable with no default: OMITTED (not `null`) when unstated → the client renders
+        // no badge. The DB CHECK guarantees any non-null value is one of easy|medium|hard.
+        ...(recipe.difficulty !== null ? { difficulty: recipe.difficulty as RecipeDifficulty } : {}),
         visibility: recipe.visibility as RecipeVisibility,
         sourceType: recipe.sourceType as RecipeSourceType,
         ...(recipe.sourceUrl !== null ? { sourceUrl: recipe.sourceUrl } : {}),
@@ -123,14 +158,30 @@ function toRecipeResponse(
         tags: recipe.tags,
         dietaryFlags: recipe.dietaryFlags,
         currentVersion: recipe.currentVersion,
-        createdAt: recipe.createdAt.toISOString(),
-        updatedAt: recipe.updatedAt.toISOString(),
+        // Trigger-maintained aggregate. `average_rating` is a numeric column → pg returns a string|null;
+        // the average is OMITTED (not `0`) when unrated, coherent with `ratingCount = 0`.
+        ...(recipe.averageRating !== null ? { averageRating: Number(recipe.averageRating) } : {}),
+        ratingCount: recipe.ratingCount,
+        // The viewer's OWN rating (per-viewer, distinct from the community average) — present only on the
+        // detail read and only when the viewer has rated; OMITTED (not `0`) otherwise. The caller resolves
+        // it viewer-scoped, so it can only ever be THIS viewer's stars.
+        ...(extras.viewerRating !== undefined ? { viewerRating: extras.viewerRating } : {}),
+        // The derived PRO badge — evaluated ONCE, here, from the same `recipe-core` rule the search
+        // projection uses; never `visibility === 'private'`, never a stored column.
+        usesPremiumCapability: usesPremiumCapability({
+            visibility: recipe.visibility as RecipeVisibility,
+            sourceType: recipe.sourceType as RecipeSourceType,
+        }),
         // Tombstone: present only when the recipe is soft-deleted; OMITTED (not `null`) otherwise, to match
         // the optional `Recipe.deletedAt` contract (a `null` would fail `recipeSchema`).
         ...(recipe.deletedAt !== null ? { deletedAt: recipe.deletedAt.toISOString() } : {}),
+        // Cover photo (FR-001c) — absent when the recipe has no photos.
+        ...(extras.coverPhotoUrl !== undefined ? { coverPhotoUrl: extras.coverPhotoUrl } : {}),
         // Embedded photos + per-serving nutrition for the detail read (absent on list/search metadata).
-        ...(photos !== undefined ? { photos } : {}),
-        ...(nutrition !== undefined ? { nutrition } : {}),
+        ...(extras.photos !== undefined ? { photos: extras.photos } : {}),
+        ...(extras.nutrition !== undefined ? { nutrition: extras.nutrition } : {}),
+        createdAt: recipe.createdAt.toISOString(),
+        updatedAt: recipe.updatedAt.toISOString(),
     };
 }
 
@@ -278,13 +329,18 @@ export class RecipesService {
         // instance over the shared Drizzle client (no PhotosModule import → no module cycle).
         @Inject(RECIPE_PHOTOS_DAL) private readonly photosDal: PhotosDal,
         @Inject(RECIPE_PHOTOS_CDN_URL) private readonly photosCdnUrl: string,
+        // Own RatingsDal instance over the shared Drizzle client, used ONLY to read the viewer's own rating
+        // for `RecipeDetail.viewerRating` (see RECIPE_RATINGS_DAL for why an own instance, not a module import).
+        @Inject(RECIPE_RATINGS_DAL) private readonly ratingsDal: RatingsDal,
     ) {}
 
-    /** Load a recipe's photos, resolved to the shared `RecipePhoto` wire shape (display order). */
-    private async loadPhotos(recipeId: string): Promise<RecipePhoto[]> {
-        const rows = await this.photosDal.findByRecipe(recipeId);
-
-        return rows.map((row) => resolvePhotoView(row, this.photosCdnUrl));
+    /**
+     * Load a recipe's photo ROWS in display order. Returns rows (not wire views) because the detail read
+     * needs the cover row's `thumbnailKey` to resolve the cover thumbnail (FOLLOW-UP-CR-001-A), which the
+     * `RecipePhoto` wire shape does not carry. {@link toDetailResponse} maps them to the gallery views.
+     */
+    private async loadPhotoRows(recipeId: string): Promise<RecipePhotoRow[]> {
+        return this.photosDal.findByRecipe(recipeId);
     }
 
     /**
@@ -321,9 +377,30 @@ export class RecipesService {
      * Shape a recipe aggregate into the full `RecipeDetail` response: the metadata + composed ingredients
      * and steps, PLUS the embedded `photos` and computed per-serving `nutrition`. Used by every
      * single-recipe read (get/create/update/clone/set-visibility).
+     *
+     * `options.viewerRating` carries the viewer's own stars for the `viewerRating` field; only the GET
+     * detail path supplies it (create/clone/update/set-visibility are owner operations, and an owner can
+     * never hold a rating on their own recipe, so it is correctly absent there).
      */
-    private async toDetailResponse(aggregate: RecipeAggregate, photos: RecipePhoto[]): Promise<RecipeResponse> {
-        return toRecipeResponse(aggregate, photos, await this.computeDetailNutrition(aggregate));
+    private async toDetailResponse(
+        aggregate: RecipeAggregate,
+        photoRows: RecipePhotoRow[],
+        options: { viewerRating?: number } = {},
+    ): Promise<RecipeResponse> {
+        // The embedded gallery is always the FULL-SIZE originals (`resolvePhotoView.url`). The COVER,
+        // however, serves the small thumbnail rendition (FOLLOW-UP-CR-001-A) via `resolveCoverUrl`, falling
+        // back to the original when a photo predates the thumbnail. On detail the cover is the FIRST
+        // photo — `loadPhotoRows` returns them in the same (sort_order, created_at) order the list/search
+        // cover LATERAL uses, so all three read paths agree on which photo is the cover.
+        const photos = photoRows.map((row) => resolvePhotoView(row, this.photosCdnUrl));
+        const coverRow = photoRows[0];
+
+        return toRecipeResponse(aggregate, {
+            photos,
+            nutrition: await this.computeDetailNutrition(aggregate),
+            ...(coverRow !== undefined ? { coverPhotoUrl: resolveCoverUrl(coverRow, this.photosCdnUrl) } : {}),
+            ...(options.viewerRating !== undefined ? { viewerRating: options.viewerRating } : {}),
+        });
     }
 
     /**
@@ -383,6 +460,9 @@ export class RecipesService {
             prepTimeMinutes: dto.prepTimeMinutes,
             cookTimeMinutes: dto.cookTimeMinutes,
             totalTimeMinutes: dto.totalTimeMinutes,
+            // Author-stated difficulty (FR-001b) — persisted only when the author stated one; omitted
+            // otherwise so the row stays "not stated" (NULL). Never defaulted.
+            ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
             tags: dto.tags ?? [],
             dietaryFlags: dto.dietaryFlags ?? [],
             ingredientNamesText: buildIngredientNamesText(ingredients),
@@ -444,7 +524,17 @@ export class RecipesService {
             throw notOwner(id);
         }
 
-        return this.toDetailResponse(aggregate, await this.loadPhotos(id));
+        // The viewer's OWN rating (FR-013) for `viewerRating`, scoped to (recipe, this viewer) so it can
+        // only ever be the caller's own stars — one indexed point lookup on this single-recipe read.
+        // `undefined` (viewer has not rated, incl. the owner viewing their own recipe) → the field is absent.
+        const [photos, viewerRating] = await Promise.all([
+            this.loadPhotoRows(id),
+            this.ratingsDal.findStars(id, ownerId),
+        ]);
+
+        return this.toDetailResponse(aggregate, photos, {
+            ...(viewerRating !== undefined ? { viewerRating } : {}),
+        });
     }
 
     /** List the caller's own recipes (owner-scoped, tombstones excluded), paginated. */
@@ -453,9 +543,16 @@ export class RecipesService {
         const { rows, total } = await this.dal.findAll({ ownerId, page, pageSize, sortBy });
 
         return {
-            // Metadata list — NO embedded photos (also: `.map(toRecipeResponse)` would pass the index as
-            // the `photos` arg, so the explicit arrow is required, not just an optimization).
-            data: rows.map((row) => toRecipeResponse(row)),
+            // Metadata list — NO embedded photos/nutrition, but WITH the derived cover URL resolved from
+            // the DAL's cover-photo key (one cover LATERAL for the page; no N+1). The explicit arrow is
+            // required (a bare `.map(toRecipeResponse)` would pass the index as the extras arg).
+            data: rows.map((row) =>
+                toRecipeResponse(row, {
+                    ...(row.coverPhotoKey !== undefined
+                        ? { coverPhotoUrl: resolveCdnUrl(this.photosCdnUrl, row.coverPhotoKey) }
+                        : {}),
+                }),
+            ),
             total,
             page,
             pageSize,
@@ -507,6 +604,10 @@ export class RecipesService {
             prepTimeMinutes: dto.prepTimeMinutes,
             cookTimeMinutes: dto.cookTimeMinutes,
             totalTimeMinutes: dto.totalTimeMinutes,
+            // Three-state difficulty (FR-001b) passed straight through: `undefined` leaves it unchanged, a
+            // value sets it, explicit `null` clears it. The DAL is what distinguishes the three — the DTO
+            // preserved absent-vs-null, and forwarding the raw value keeps that distinction intact.
+            difficulty: dto.difficulty,
             tags: dto.tags,
             dietaryFlags: dto.dietaryFlags,
             // Rebuild the search text from the RESOLVED catalog lines (not dto.ingredients) so the index
@@ -535,7 +636,7 @@ export class RecipesService {
             await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated');
         }
 
-        return this.toDetailResponse(updated, await this.loadPhotos(id));
+        return this.toDetailResponse(updated, await this.loadPhotoRows(id));
     }
 
     /** Soft-delete (tombstone) a recipe the caller owns. */
@@ -645,7 +746,7 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        return this.toDetailResponse(updated, await this.loadPhotos(id));
+        return this.toDetailResponse(updated, await this.loadPhotoRows(id));
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

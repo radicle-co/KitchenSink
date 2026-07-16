@@ -7,7 +7,7 @@
 
 import type { ReactNode } from 'react';
 
-import type { Recipe } from '@kitchensink/recipe-core';
+import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
 
 /**
  * Maximum number of recent recipes the widget shows (US-0 / FR-046: up to 4 most
@@ -16,25 +16,18 @@ import type { Recipe } from '@kitchensink/recipe-core';
 export const MAX_RECENT_RECIPES = 4;
 
 /**
- * Minimal, platform-agnostic view-model for one recent-recipe row — the subset of
- * a {@link Recipe} the widget renders, so building blocks never depend on the full
- * DTO shape.
+ * View-model for one recent-recipe card in the Home widget. This is the SHARED card view-model
+ * ({@link RecipeCardModel}): the widget and the recipe list draw the identical mockup card, so they render
+ * the same shape and project through the same {@link toRecipeSummary}. Kept as a named alias so existing
+ * widget imports (`RecipeSummary`) stay stable.
  */
-export interface RecipeSummary {
-    id: string;
-    title: string;
-    /** ISO 8601 timestamp of the recipe's last update. */
-    updatedAt: string;
-}
+export type RecipeSummary = RecipeCardModel;
 
 /**
- * Project a {@link Recipe} down to the {@link RecipeSummary} the widget renders.
+ * Project a {@link import('@kitchensink/recipe-core').Recipe} down to the {@link RecipeSummary} the widget
+ * card renders — the single shared card projection, so the widget and list can never disagree on card fields.
  */
-export const toRecipeSummary = (recipe: Recipe): RecipeSummary => ({
-    id: recipe.id,
-    title: recipe.title,
-    updatedAt: recipe.updatedAt,
-});
+export const toRecipeSummary = toRecipeCardModel;
 
 /**
  * Props for the widget card shell (title + body slot).

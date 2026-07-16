@@ -18,6 +18,7 @@ tags:
     - name: Ingredients
     - name: Versions
     - name: Photos
+    - name: Ratings
     - name: Collections
     - name: Search
     - name: Account
@@ -39,7 +40,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/Recipe'
+                                $ref: '#/components/schemas/RecipeDetail'
                 '400':
                     $ref: '#/components/responses/BadRequest'
                 '401':
@@ -88,7 +89,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/Recipe'
+                                $ref: '#/components/schemas/RecipeDetail'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
                 '403':
@@ -113,7 +114,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/Recipe'
+                                $ref: '#/components/schemas/RecipeDetail'
                 '400':
                     $ref: '#/components/responses/BadRequest'
                 '401':
@@ -158,7 +159,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/Recipe'
+                                $ref: '#/components/schemas/RecipeDetail'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
                 '403':
@@ -185,13 +186,81 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/Recipe'
+                                $ref: '#/components/schemas/RecipeDetail'
                 '400':
                     $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
                 '403':
                     $ref: '#/components/responses/Forbidden'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+
+    /v1/recipes/{id}/rating:
+        put:
+            tags: [Ratings]
+            summary: Set the caller's rating for a recipe (idempotent upsert)
+            description: |
+                Creates or replaces the AUTHENTICATED CALLER's rating of this recipe (FR-013). One
+                rating per user per recipe: re-rating updates the existing row, never inserts a second,
+                so repeating the same request has the same effect as sending it once.
+
+                The rater is taken from the bearer token. There is deliberately no rater field in the
+                body — a client-suppliable rater id would let any caller rate as another user.
+
+                Authorization is READ-derived: a caller may rate any recipe they can see, and only
+                such a recipe (FR-013). Note the deliberate asymmetry in the failure responses:
+
+                - Recipe not visible to the caller (private and not theirs), or tombstoned, or
+                  non-existent → **404** `RECIPE_NOT_FOUND`. These cases are INDISTINGUISHABLE by
+                  design: a 403 here would confirm the recipe exists to someone not allowed to know.
+                - Caller owns the recipe → **403** `CANNOT_RATE_OWN_RECIPE`. A 403 is correct here and
+                  leaks nothing: the owner already knows their own recipe exists.
+
+                `averageRating` / `ratingCount` on the returned recipe are recomputed by the database
+                and are read-only everywhere (FR-013a).
+            operationId: setRecipeRating
+            parameters:
+                - $ref: '#/components/parameters/RecipeId'
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetRecipeRatingRequest'
+            responses:
+                '200':
+                    description: Rating saved (created or replaced); the recipe with its refreshed aggregate
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RecipeDetail'
+                '400':
+                    $ref: '#/components/responses/BadRequest'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '403':
+                    $ref: '#/components/responses/Forbidden'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+        delete:
+            tags: [Ratings]
+            summary: Remove the caller's rating for a recipe
+            description: |
+                Removes the AUTHENTICATED CALLER's rating of this recipe (FR-013) and re-derives the
+                recipe's aggregate. Idempotent: removing a rating that does not exist succeeds with
+                204 — DELETE asserts the absence of the rating, and that state is reached either way.
+
+                Visibility rules match the PUT: a recipe the caller cannot see is 404, indistinguishable
+                from one that does not exist.
+            operationId: deleteRecipeRating
+            parameters:
+                - $ref: '#/components/parameters/RecipeId'
+            responses:
+                '204':
+                    description: Rating removed, or the caller had no rating (idempotent)
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
                 '404':
                     $ref: '#/components/responses/NotFound'
 
@@ -285,6 +354,128 @@ paths:
                     $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
+
+    /v1/ingredients/by-name:
+        post:
+            tags: [Ingredients]
+            summary: Add an unknown food by name (async food resolution — the vertical entry point)
+            description: |
+                The ENTRY POINT of the async food-resolution vertical (data-model R5 / FR-007). Adds an
+                unknown food by name through the source-agnostic food service (003) via its typed client
+                (`foodClient.addByName`), persists a food-backed catalog row (deduped on the opaque
+                `food_id`), and returns it immediately with a NON-terminal `foodResolutionStatus`
+                (`PENDING` or `UNRESOLVED`).
+
+                Returns `202 Accepted` — deliberately NOT `201`. The ingredient ROW is created
+                synchronously, but the meaningful work — nutrition resolution of the linked food — is
+                asynchronous and NOT complete when this returns. `202` is the caller's signal to poll
+                `GET /v1/ingredients/{id}/status` (until `RESOLVED`) or to disambiguate an `UNRESOLVED`
+                row via `GET /v1/ingredients/{id}/candidates` + `POST /v1/ingredients/{id}/resolve`; the
+                body's `foodResolutionStatus` is authoritative. This is distinct from `POST /v1/ingredients`,
+                which is the synchronous (`201`) freeform (user-entered) create with no food resolution.
+            operationId: addIngredientByName
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateIngredientRequest'
+            responses:
+                '202':
+                    description: |
+                        The food-backed ingredient was created/deduped; nutrition resolution proceeds
+                        asynchronously (poll its status). Its `foodResolutionStatus` is non-terminal.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Ingredient'
+                '400':
+                    $ref: '#/components/responses/BadRequest'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+
+    /v1/ingredients/{id}/status:
+        get:
+            tags: [Ingredients]
+            summary: Poll a food-backed ingredient's async resolution status
+            description: |
+                Re-reads the source-agnostic food service (003) via its typed client
+                (`foodClient.getStatus`), persists the current resolution status — and, on `RESOLVED`,
+                the golden-record per-100g nutrition + household portions — and returns the refreshed
+                `Ingredient`. A freeform (user-entered) ingredient has no linked food and is returned
+                unchanged. This is a client-driven POLL: clients refetch while the status is `PENDING`
+                and stop on any terminal/resolved/unresolved state (see `Ingredient.foodResolutionStatus`).
+            operationId: getIngredientStatus
+            parameters:
+                - $ref: '#/components/parameters/IngredientId'
+            responses:
+                '200':
+                    description: The refreshed ingredient with its current resolution status
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Ingredient'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+
+    /v1/ingredients/{id}/candidates:
+        get:
+            tags: [Ingredients]
+            summary: List disambiguation candidates for an UNRESOLVED ingredient
+            description: |
+                The cross-source candidate set (via `foodClient.getCandidates`) the caller picks from to
+                resolve an `UNRESOLVED` food-backed ingredient. Empty for a freeform or non-`UNRESOLVED`
+                ingredient. Pick one (or more) and submit them to `POST /v1/ingredients/{id}/resolve`.
+            operationId: getIngredientCandidates
+            parameters:
+                - $ref: '#/components/parameters/IngredientId'
+            responses:
+                '200':
+                    description: The (non-expired) candidate set
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/IngredientCandidate'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+
+    /v1/ingredients/{id}/resolve:
+        post:
+            tags: [Ingredients]
+            summary: Resolve an UNRESOLVED ingredient from a candidate pick
+            description: |
+                Resolves an `UNRESOLVED` food-backed ingredient from the chosen candidate id(s) (via
+                `foodClient.resolve`), then re-polls so the newly-`RESOLVED` golden-record nutrition is
+                persisted. Returns `200` with the resolved `Ingredient` (an update, not a creation). A
+                freeform ingredient (no linked food) is a no-op returning the ingredient unchanged.
+            operationId: resolveIngredient
+            parameters:
+                - $ref: '#/components/parameters/IngredientId'
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResolveIngredientRequest'
+            responses:
+                '200':
+                    description: The refreshed, resolved ingredient
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Ingredient'
+                '400':
+                    $ref: '#/components/responses/BadRequest'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '404':
+                    $ref: '#/components/responses/NotFound'
 
     /v1/recipes/{id}/versions:
         get:
@@ -820,6 +1011,10 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErasureRequestAcceptedResponse'
+                # Only reachable when the client chooses to send a `confirmationPhrase` and it does
+                # not match; an absent phrase is not an error (see the ErasureRequest schema).
+                '400':
+                    $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
                 '410':
@@ -858,6 +1053,13 @@ components:
                 maximum: 100
                 default: 20
         RecipeId:
+            name: id
+            in: path
+            required: true
+            schema:
+                type: string
+                format: uuid
+        IngredientId:
             name: id
             in: path
             required: true
@@ -1037,6 +1239,44 @@ components:
                 updatedAt:
                     type: string
                     format: date-time
+
+        IngredientCandidate:
+            type: object
+            description: |
+                A single cross-source disambiguation candidate for an `UNRESOLVED` ingredient (mirrors the
+                food client's `CandidateView`). Source-agnostic: keyed by the candidate's own opaque handle,
+                never a USDA `fdcId`.
+            required: [candidateId, source, externalKey, name]
+            properties:
+                candidateId:
+                    type: string
+                    description: The candidate row id — the handle passed back to resolve.
+                source:
+                    type: string
+                    description: The source the candidate came from (e.g. `usda`).
+                externalKey:
+                    type: string
+                    description: That source's opaque key for the item (NOT surfaced as a user identifier).
+                name:
+                    type: string
+                    description: Candidate display name.
+                summary:
+                    type: string
+                    nullable: true
+                    description: One-line disambiguation hint, when present.
+
+        ResolveIngredientRequest:
+            type: object
+            required: [candidateIds]
+            description: The candidate id(s) the user picked to resolve an `UNRESOLVED` ingredient.
+            properties:
+                candidateIds:
+                    type: array
+                    minItems: 1
+                    maxItems: 20
+                    items:
+                        type: string
+                        minLength: 1
 
         RecipeNutrition:
             type: object
@@ -1231,28 +1471,45 @@ components:
 
         Recipe:
             type: object
+            description: |
+                Recipe METADATA — the list/search projection (returned by `GET /v1/recipes`,
+                `GET /v1/search/recipes`, and embedded in `CollectionWithRecipes`). It deliberately does
+                NOT carry `ingredients`, `steps`, `photos`, or `nutrition` — those hang off
+                `RecipeDetail` (the single-recipe reads) so a list never pays an N+1 to compose them. To
+                still render a card image without that N+1, the list projection carries `coverPhotoUrl`
+                (FR-001c). This mirrors the shipped `@kitchensink/recipe-core` `Recipe` type exactly.
             required:
                 - id
                 - ownerId
                 - title
+                - description
                 - visibility
-                - ingredients
-                - steps
+                - sourceType
+                - hasSubstantiveEdit
+                - hasPartialNutrition
                 - servings
                 - prepTimeMinutes
                 - cookTimeMinutes
                 - totalTimeMinutes
                 - tags
                 - dietaryFlags
-                - version
+                - currentVersion
+                - ratingCount
+                - usesPremiumCapability
                 - createdAt
                 - updatedAt
             properties:
                 id:
                     type: string
                     format: uuid
+                    description: |
+                        The recipe's own id — a server-generated UUID (`gen_random_uuid()`). Distinct
+                        from `ownerId`, which is an app-user ULID (see below).
                 ownerId:
                     type: string
+                    description: |
+                        App-user ULID of the owner, taken from the token claim (D2). NOT a UUID and NOT
+                        a cross-DB foreign key — the recipe service owns no `users` table.
                 title:
                     type: string
                     minLength: 1
@@ -1263,23 +1520,86 @@ components:
                 cuisine:
                     type: string
                     maxLength: 100
+                difficulty:
+                    type: string
+                    enum: [easy, medium, hard]
+                    description: |
+                        Author-stated difficulty (FR-001b). OPTIONAL and deliberately has NO default:
+                        "the author did not state a difficulty" is a real state. ABSENT when unstated —
+                        clients render no badge rather than substituting a value. Descriptive only; no
+                        behavior depends on it.
+                averageRating:
+                    type: number
+                    format: float
+                    minimum: 1
+                    maximum: 5
+                    description: |
+                        Mean of this recipe's ratings (FR-013a). READ-ONLY — maintained by a database
+                        trigger; never accepted from a client. Rate via `PUT /v1/recipes/{id}/rating`.
+
+                        ABSENT exactly when `ratingCount` is 0. An unrated recipe has NO average; it is
+                        never reported as 0, which would render as a real zero-star score.
+                ratingCount:
+                    type: integer
+                    minimum: 0
+                    description: |
+                        Number of ratings contributing to `averageRating` (FR-013a). READ-ONLY.
+                        0 when unrated, in which case `averageRating` is absent.
+                usesPremiumCapability:
+                    type: boolean
+                    description: |
+                        Whether this recipe uses a premium-only capability — the "PRO" badge (FR-003a).
+
+                        DERIVED on projection from `visibility` + `sourceType`; there is NO backing
+                        column and no entitlement lookup. Deliberately NOT equal to
+                        `visibility === 'private'`: per C-004, `imported_physical` / `imported_paid`
+                        recipes are private for EVERY tier (forced, not chosen), so they are not
+                        premium. Clients MUST treat this as opaque and MUST NOT re-derive it — when
+                        010 ships real entitlements the rule changes server-side and this field does not.
+                coverPhotoUrl:
+                    type: string
+                    format: uri
+                    description: |
+                        Absolute CDN URL of the recipe's cover photo (FR-001c) — the photo with the
+                        lowest sort order, resolved deterministically. Present on the LIST projection so
+                        a card renders without an N+1 detail fetch. ABSENT when the recipe has no photos;
+                        never a placeholder or stock image URL.
+
+                        NOTE: photos are stored/served unprocessed with no derived variants, so this is
+                        the FULL-SIZE original (up to 5 MB) even when painted into a thumbnail. See
+                        FOLLOW-UP-CR-001-A in CR-001.
                 visibility:
                     type: string
                     enum: [public, private]
-                ingredients:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/RecipeIngredient'
-                steps:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/RecipeStep'
-                photos:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/RecipePhoto'
-                nutrition:
-                    $ref: '#/components/schemas/RecipeNutrition'
+                sourceType:
+                    type: string
+                    enum: [user_created, imported_public, imported_physical, imported_paid]
+                    description: |
+                        Provenance of the recipe (C-004). Governs the visibility rules and, together with
+                        `visibility`, the derived `usesPremiumCapability`. `user_created` for every 001
+                        row today; the imported_* values arrive with feature 004.
+                sourceUrl:
+                    type: string
+                    format: uri
+                    description: Original URL, present only for `imported_public` recipes.
+                sourceAttribution:
+                    type: string
+                    description: Display attribution text carried by imported recipes.
+                clonedFromId:
+                    type: string
+                    format: uuid
+                    description: The source recipe id when this recipe was cloned (FR-005).
+                hasSubstantiveEdit:
+                    type: boolean
+                    description: |
+                        True once a clone's ingredients or instructions have been modified (FR-005 /
+                        C-004) — the gate a premium user must pass before making a public-source clone
+                        private.
+                hasPartialNutrition:
+                    type: boolean
+                    description: |
+                        True when any ingredient line is user-entered or its food is still resolving
+                        (FR-007a / R5), so the recipe's nutrition is a partial estimate.
                 servings:
                     type: integer
                     minimum: 1
@@ -1300,9 +1620,13 @@ components:
                     type: array
                     items:
                         type: string
-                version:
+                currentVersion:
                     type: integer
                     minimum: 1
+                    description: |
+                        Monotonic version counter (FR-007c). The optimistic-concurrency token — a client
+                        echoes it back as `expectedVersion` on update. (Renamed from `version` to match
+                        the shipped `@kitchensink/recipe-core` `Recipe.currentVersion`.)
                 createdAt:
                     type: string
                     format: date-time
@@ -1317,6 +1641,47 @@ components:
                         Soft-delete tombstone timestamp. When set, the recipe is excluded
                         from list, search, and detail responses. Hard removal happens only
                         via the GDPR account erasure flow.
+
+        RecipeDetail:
+            description: |
+                A recipe WITH its cookable content — the `Recipe` metadata PLUS the composed
+                `ingredients`, `steps`, `photos`, and per-serving `nutrition`. Returned by the
+                single-recipe operations (`getRecipeById`, `createRecipe`, `updateRecipe`, `cloneRecipe`,
+                `setRecipeVisibility`, `setRecipeRating`, and the `recipe` of `restoreRecipeVersion`);
+                the lighter `Recipe` is what list/search return. Mirrors the shipped
+                `@kitchensink/recipe-core` `RecipeDetail` (= `Recipe` extended with these fields).
+            allOf:
+                - $ref: '#/components/schemas/Recipe'
+                - type: object
+                  required: [ingredients, steps, photos, nutrition]
+                  properties:
+                      ingredients:
+                          type: array
+                          items:
+                              $ref: '#/components/schemas/RecipeIngredient'
+                      steps:
+                          type: array
+                          items:
+                              $ref: '#/components/schemas/RecipeStep'
+                      photos:
+                          type: array
+                          items:
+                              $ref: '#/components/schemas/RecipePhoto'
+                      nutrition:
+                          $ref: '#/components/schemas/RecipeNutrition'
+                      viewerRating:
+                          type: integer
+                          minimum: 1
+                          maximum: 5
+                          readOnly: true
+                          description: |
+                              The VIEWER's OWN rating of this recipe, 1..5 (FR-013). Per-viewer and
+                              read-only — distinct from the community `averageRating`, which remains the
+                              displayed score. Lets the rating control pre-select the viewer's existing
+                              stars (and reveal remove-on-load) without a second request. ABSENT when the
+                              viewer has not rated the recipe (and inherently absent on the viewer's own
+                              recipe — an owner cannot rate their own). Detail projection ONLY; never
+                              returned on the list/search `Recipe` projection.
 
         CreateRecipeRequest:
             type: object
@@ -1339,6 +1704,13 @@ components:
                 cuisine:
                     type: string
                     maxLength: 100
+                difficulty:
+                    type: string
+                    enum: [easy, medium, hard]
+                    description: |
+                        Author-stated difficulty (FR-001b). Optional; omit when the author states none.
+                        There is deliberately NO `default:` here — defaulting would make every recipe
+                        claim its author chose that value.
                 visibility:
                     type: string
                     enum: [public, private]
@@ -1392,6 +1764,21 @@ components:
                 cuisine:
                     type: string
                     maxLength: 100
+                difficulty:
+                    type: string
+                    enum: [easy, medium, hard]
+                    nullable: true
+                    description: |
+                        Author-stated difficulty (FR-001b). THREE distinct meanings — they are not
+                        interchangeable:
+                          - omitted    → leave unchanged (the standard update semantic)
+                          - a value    → set it
+                          - null       → CLEAR it back to "not stated"
+
+                        The explicit null is required because FR-001b makes "no difficulty" a
+                        first-class state: without a clear sentinel, omitted-means-unchanged would make
+                        that state reachable only at create time, so a user who ever set a difficulty
+                        could never remove it.
                 ingredients:
                     type: array
                     minItems: 1
@@ -1422,6 +1809,20 @@ components:
                     type: array
                     items:
                         type: string
+
+        SetRecipeRatingRequest:
+            type: object
+            required: [stars]
+            description: |
+                Body of `PUT /v1/recipes/{id}/rating` (FR-013). The rater is taken from the bearer
+                token — there is deliberately no rater field, since a client-suppliable rater id would
+                let any caller rate as another user.
+            properties:
+                stars:
+                    type: integer
+                    minimum: 1
+                    maximum: 5
+                    description: Whole stars, 1–5 inclusive. Enforced by a DB CHECK as well as validation.
 
         SetRecipeVisibilityRequest:
             type: object
@@ -1762,7 +2163,7 @@ components:
             required: [recipe, restoredFromVersion, currentVersion]
             properties:
                 recipe:
-                    $ref: '#/components/schemas/Recipe'
+                    $ref: '#/components/schemas/RecipeDetail'
                 restoredFromVersion:
                     type: integer
                     minimum: 1

@@ -7,17 +7,21 @@
  * validation pass so an incomplete form never reaches the network.
  */
 import {
+    pendingIngredientIds,
     RecipeForm,
+    setIngredientStatusById,
     validateRecipeForm,
     type RecipeFormErrors,
     type RecipeFormMode,
     type RecipeFormValues,
 } from '@commise/features-recipes';
+import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
+import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
 
 /** Props for {@link RecipeEditor}. */
 export interface RecipeEditorProps {
@@ -61,15 +65,31 @@ export function RecipeEditor({
         }
     };
 
+    // Carry the line's ACTUAL resolution status from the picker (a food added by name may be PENDING and
+    // resolve later) — never assume RESOLVED, or a still-resolving line would never be polled. A line with no
+    // status (a plain freeform create) simply carries none.
     const appendResolved = (ingredient: ResolvedIngredient): void => {
         setValues((current) => ({
             ...current,
             ingredients: [
                 ...current.ingredients,
-                { ingredientId: ingredient.id, name: ingredient.name, quantity: 1, resolutionStatus: 'RESOLVED' },
+                {
+                    ingredientId: ingredient.id,
+                    name: ingredient.name,
+                    quantity: 1,
+                    ...(ingredient.resolutionStatus === undefined
+                        ? {}
+                        : { resolutionStatus: ingredient.resolutionStatus }),
+                },
             ],
         }));
     };
+
+    // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. Idempotent — a repeat
+    // of the same status returns the same reference — so the per-line pollers below cannot loop.
+    const applyLineStatus = useCallback((ingredientId: string, status: FoodResolutionStatus): void => {
+        setValues((current) => setIngredientStatusById(current, ingredientId, status));
+    }, []);
 
     return (
         <View>
@@ -77,6 +97,9 @@ export function RecipeEditor({
                 <Text accessibilityRole="alert">{submitError}</Text>
             )}
             <IngredientPicker onResolve={appendResolved} />
+            {pendingIngredientIds(values).map((id) => (
+                <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
+            ))}
             <RecipeForm
                 values={values}
                 errors={errors}

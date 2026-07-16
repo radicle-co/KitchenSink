@@ -1,13 +1,26 @@
 /**
- * Public-recipe discovery screen (mobile, T076 / US2). Drives the shared native `RecipeDiscoveryList`
- * building block from `useSearchRecipes`, owning the search field and mapping the query's loading/error/ready
- * state to the view's status. Each row's Clone action runs `useCloneRecipe`; the mutation's in-flight
- * `variables` (the recipe id) drive the per-row busy state so exactly the row being cloned shows progress.
- * Remote state stays in the query cache — the screen derives its view state and never copies it.
+ * Public-recipe discovery screen (mobile, T076 / US2 + FR-006). Drives the shared native `RecipeDiscoveryList`
+ * + `RecipeFilterBar` building blocks from `useSearchRecipes`. Unlike web (URL-persisted), mobile holds the
+ * search term and the active filters in component state — the platform edge — but feeds them through the SAME
+ * shared pure model (`filtersToSearchParams`, `toggleFacetValue`, …), so the two platforms cannot drift on
+ * filter semantics. The search response's `facets` drive the filter chips. Each row's Clone action runs
+ * `useCloneRecipe`; the mutation's in-flight `variables` busy exactly that row. Remote state stays in the
+ * query cache — the screen derives its view state and never copies it.
  */
-import { RecipeDiscoveryList, type RecipeDiscoveryStatus } from '@commise/features-recipes';
+import {
+    RecipeDiscoveryList,
+    RecipeFilterBar,
+    clearRecipeFilters,
+    filtersToSearchParams,
+    hasActiveFilters,
+    setMaxTotalTime,
+    toggleFacetValue,
+    EMPTY_RECIPE_FILTERS,
+    type FacetDimension,
+    type RecipeDiscoveryStatus,
+    type RecipeFilterState,
+} from '@commise/features-recipes';
 import { useSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
-import type { RecipeSearchParams } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useState } from 'react';
 
@@ -21,14 +34,13 @@ export interface RecipeDiscoveryScreenProps {
  * The public-discovery screen.
  *
  * @param props - The selection callback the navigator wires to detail navigation.
- * @returns The discovery browse/search view with per-row clone.
+ * @returns The discovery browse/search/filter view with per-row clone.
  */
 export function RecipeDiscoveryScreen({ onSelectRecipe }: RecipeDiscoveryScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
-    const trimmed = searchValue.trim();
-    const params: RecipeSearchParams = trimmed.length > 0 ? { query: trimmed } : {};
+    const [filters, setFilters] = useState<RecipeFilterState>(EMPTY_RECIPE_FILTERS);
 
-    const search = useSearchRecipes(params);
+    const search = useSearchRecipes(filtersToSearchParams(filters, searchValue));
     const clone = useCloneRecipe();
 
     const status: RecipeDiscoveryStatus = search.isError ? 'error' : search.isLoading ? 'loading' : 'ready';
@@ -44,6 +56,18 @@ export function RecipeDiscoveryScreen({ onSelectRecipe }: RecipeDiscoveryScreenP
             onClone={(id) => clone.mutate(id)}
             onRetry={() => void search.refetch()}
             cloningId={cloningId}
+            hasActiveFilters={hasActiveFilters(filters)}
+            filterSlot={
+                <RecipeFilterBar
+                    facets={search.data?.facets ?? {}}
+                    filters={filters}
+                    onToggleFacet={(dimension: FacetDimension, value: string) =>
+                        setFilters((current) => toggleFacetValue(current, dimension, value))
+                    }
+                    onSetMaxTotalTime={(minutes) => setFilters((current) => setMaxTotalTime(current, minutes))}
+                    onClearAll={() => setFilters(clearRecipeFilters())}
+                />
+            }
         />
     );
 }

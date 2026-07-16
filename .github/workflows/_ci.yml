@@ -328,6 +328,102 @@ jobs:
                   CLOUDFRONT_URL: http://localhost:4566/commise-photos
               run: npm run test:integration --workspace=@kitchensink/recipe-service --if-present
 
+    integration-recipe-workers:
+        name: Integration (recipe-workers — Postgres + LocalStack)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # Feature 001 recipe-workers. The GDPR account-erasure worker and the version-archive drain make
+        # DESTRUCTIVE, compliance-critical guarantees (FK/cascade behaviour, the `cloned_from_id` NO-ACTION
+        # detach, "no deleted_at filter", the dual-bucket owner-prefix S3 sweep, the archive-resurrection
+        # guard) that a fake db/mocked S3 CANNOT prove — only real Postgres + real S3 can. Those specs live
+        # in packages/services/recipe-workers/__tests__/integration and had NO CI job, so the guarantees
+        # passed only on a developer's machine; this job puts them under CI. Mirrors `integration-recipe`:
+        # Postgres backs the relational cascades, LocalStack provides the S3 the sweep/guard exercise.
+        #
+        # UNLIKE recipe-service, the workers integration suite has NO vitest globalSetup that migrates the
+        # schema — it deliberately drives the exported `db`-taking seams over a caller-supplied pool and
+        # ASSUMES the recipe schema already exists (see the spec headers). So this job applies the SAME
+        # ordered, hand-authored recipe-service migrations (src/database/migrations/000*_*.sql — the single
+        # source of truth for the schema, applied exactly as recipe-service's tests/global-setup.ts does:
+        # a clean `public`, then each file in filename order) to the throwaway DB BEFORE the run. Without
+        # this step every spec errors with `relation "recipes" does not exist` (verified). The specs
+        # self-provision their S3 buckets via CreateBucket, so no bucket-init step is needed here.
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: recipe_workers_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0
+                env:
+                    # Community tier — no auth token. The workers' AWS surface is S3 only (SQS is driven
+                    # via the exported seams, not a live queue), but the S3 family is free/Community.
+                    SERVICES: s3,sqs
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # Apply the recipe schema to the throwaway DB FIRST — the workers integration specs have no
+            # globalSetup and assume the schema is present. This is the SAME set of ordered migration SQL
+            # files recipe-service's tests/global-setup.ts applies (drop `public`, then each file in
+            # filename order), so the schema under test is byte-identical to the recipe-service run.
+            - name: Apply recipe schema migrations to the throwaway DB
+              env:
+                  PGHOST: localhost
+                  PGPORT: '5432'
+                  PGUSER: postgres
+                  PGPASSWORD: postgres
+                  PGDATABASE: recipe_workers_test
+              run: |
+                  psql -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+                  for f in packages/services/recipe-service/src/database/migrations/*.sql; do
+                      echo "applying $f"
+                      psql -v ON_ERROR_STOP=1 -f "$f"
+                  done
+            # Drives the erasure/archive integration specs against the real, migrated Postgres + LocalStack
+            # S3. The S3 clients hardcode `test`/`test` creds and force path-style addressing, so only the
+            # endpoint + bucket names come from env; both are set for parity with `integration-recipe`.
+            - name: Run recipe-workers integration tests
+              env:
+                  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/recipe_workers_test
+                  AWS_ENDPOINT_URL: http://localhost:4566
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_REGION: us-east-1
+                  S3_ENDPOINT: http://localhost:4566
+                  S3_FORCE_PATH_STYLE: 'true'
+                  S3_BUCKET_PHOTOS: commise-photos
+                  S3_BUCKET_VERSIONS: commise-versions
+              run: npm run test:integration --workspace=@kitchensink/recipe-workers
+
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)
         runs-on: ubuntu-latest

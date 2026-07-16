@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import { toRecipeCardModel } from '../../card/model.js';
 import { fillTemplate, formatDurationMinutes, formatRecipeCount, toRecipeListItem } from '../model.js';
 
 describe('fillTemplate', () => {
@@ -23,26 +24,34 @@ describe('fillTemplate', () => {
 });
 
 describe('toRecipeListItem', () => {
-    it('projects a full Recipe down to the list view-model subset', () => {
-        const recipe = makeRecipe({
-            id: 'rec_42',
-            title: 'Herb Risotto',
-            totalTimeMinutes: 35,
-            updatedAt: '2026-05-01T12:00:00.000Z',
-        });
+    it('is the shared card projection (the list and widget draw the identical card)', () => {
+        const recipe = makeRecipe({ id: 'rec_42', title: 'Herb Risotto', totalTimeMinutes: 35 });
 
-        expect(toRecipeListItem(recipe)).toEqual({
+        // The list card and the Home-widget card are one piece of knowledge — this MUST be the same
+        // projection as toRecipeCardModel, or the two surfaces could drift on which fields a card shows.
+        expect(toRecipeListItem(recipe)).toEqual(toRecipeCardModel(recipe));
+    });
+
+    it('projects the card fields the list card renders', () => {
+        const item = toRecipeListItem(
+            makeRecipe({ id: 'rec_42', title: 'Herb Risotto', totalTimeMinutes: 35, servings: 6, difficulty: 'hard' }),
+        );
+
+        expect(item).toMatchObject({
             id: 'rec_42',
             title: 'Herb Risotto',
             totalTimeMinutes: 35,
-            updatedAt: '2026-05-01T12:00:00.000Z',
+            servings: 6,
+            difficulty: 'hard',
         });
     });
 
-    it('does not leak fields outside the view-model subset', () => {
+    it('does not leak Recipe fields outside the card view-model', () => {
         const item = toRecipeListItem(makeRecipe({ ownerId: 'usr_secret', description: 'private notes' }));
 
-        expect(Object.keys(item).sort()).toEqual(['id', 'title', 'totalTimeMinutes', 'updatedAt'].sort());
+        expect(item).not.toHaveProperty('ownerId');
+        expect(item).not.toHaveProperty('description');
+        expect(item).not.toHaveProperty('visibility');
     });
 });
 

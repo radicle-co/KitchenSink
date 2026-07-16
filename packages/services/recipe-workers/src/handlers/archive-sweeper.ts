@@ -103,6 +103,39 @@ export async function countBacklog(db: NodePgDatabase<Record<string, never>>): P
 }
 
 /**
+ * The age, in seconds, of the OLDEST un-archived outbox row — 0 when the outbox is empty.
+ *
+ * FR-007b-i requires an alarm "when the oldest pending row is older than 1 hour", so this is the metric
+ * behind that alarm. It is deliberately shaped like the erasure sweeper's {@link
+ * oldestActiveJobAgeSeconds}, and the separation from {@link claimPendingArchives} is load-bearing twice:
+ *
+ *  1. That read is capped at {@link SWEEP_BATCH_SIZE} AND filtered to `next_attempt_at <= now()`. Deriving
+ *     the age from it would both cap the signal and hide the 59-minute row that is still backing off — the
+ *     row about to breach. This query is unbounded and ignores staleness.
+ *  2. **Age is measured off `created_at`, never `next_attempt_at`.** `next_attempt_at` is pushed into the
+ *     future on every failed attempt (backoff), so a row that keeps failing would look *younger* the more
+ *     it fails — the exact opposite of what the "oldest stuck row" alarm needs. `created_at` is fixed at
+ *     the moment the version became pending debt, so the age only ever grows until the row is archived and
+ *     cascaded away. Every row in the table is genuinely un-archived (a successful archive prunes the
+ *     version, which cascades the row), so no status filter is needed — mirroring {@link countBacklog}.
+ *
+ * `COALESCE(..., 0)` makes an empty outbox report 0 rather than NULL: a metric that only appears while
+ * broken cannot be alarmed on reliably (the alarm would flap into INSUFFICIENT_DATA the moment it drains).
+ *
+ * @param db - The recipe database handle.
+ * @returns Seconds since the oldest un-archived row was created, or 0.
+ * @sideEffect Reads `recipe_version_pending_archives`.
+ */
+export async function oldestPendingArchiveAgeSeconds(db: NodePgDatabase<Record<string, never>>): Promise<number> {
+    const result = await db.execute<{ age_seconds: number }>(sql`
+        SELECT COALESCE(MAX(EXTRACT(EPOCH FROM (now() - created_at))), 0)::int AS age_seconds
+        FROM recipe_version_pending_archives
+    `);
+
+    return result.rows[0]?.age_seconds ?? 0;
+}
+
+/**
  * Publish the backlog as a CloudWatch metric via the embedded metric format.
  *
  * EMF (a structured log line CloudWatch parses out of the Lambda's log group) rather than
@@ -113,7 +146,6 @@ export async function countBacklog(db: NodePgDatabase<Record<string, never>>): P
  * @sideEffect Writes one EMF line to stdout.
  */
 export function emitBacklogMetric(stage: string, backlog: number): void {
-    // eslint-disable-next-line no-console
     console.log(
         JSON.stringify({
             _aws: {
@@ -133,6 +165,38 @@ export function emitBacklogMetric(stage: string, backlog: number): void {
 }
 
 /**
+ * Publish the oldest-un-archived-row age as a CloudWatch metric via the embedded metric format.
+ *
+ * EMF for the same reasons {@link emitBacklogMetric} uses it: no extra SDK client, no
+ * `cloudwatch:PutMetricData` grant, one log line. The age is a database fact, invisible to CloudWatch
+ * otherwise — without this the FR-007b-i "oldest pending > 1 hour" alarm would have no data and sit
+ * permanently in INSUFFICIENT_DATA. Same namespace + `Stage` dimension as {@link emitBacklogMetric} so
+ * both archive-path metrics share the alarm dimension.
+ *
+ * @param stage - The deploy stage (the metric's only dimension).
+ * @param ageSeconds - Age of the oldest un-archived row, or 0.
+ * @sideEffect Writes one EMF line to stdout.
+ */
+export function emitOldestPendingArchiveAgeMetric(stage: string, ageSeconds: number): void {
+    console.log(
+        JSON.stringify({
+            _aws: {
+                Timestamp: Date.now(),
+                CloudWatchMetrics: [
+                    {
+                        Namespace: 'Commise/RecipeArchive',
+                        Dimensions: [['Stage']],
+                        Metrics: [{ Name: 'OldestPendingArchiveAgeSeconds', Unit: 'Seconds' }],
+                    },
+                ],
+            },
+            Stage: stage,
+            OldestPendingArchiveAgeSeconds: ageSeconds,
+        }),
+    );
+}
+
+/**
  * Dispatch every due outbox row to the archive queue.
  *
  * @throws When `RECIPE_ARCHIVE_QUEUE_URL` is unset — sweeping into the void would silently drain the
@@ -145,8 +209,13 @@ export const handler = async (): Promise<void> => {
 
     // Emitted every tick, including when drained — a metric that only appears while broken cannot be
     // alarmed on reliably (the alarm would flap into INSUFFICIENT_DATA the moment things recover).
+    // FR-007b-i names TWO conditions: a backlog over 100, AND the oldest pending row older than an hour.
+    // Both are DB facts CloudWatch cannot see, so both are emitted here every tick under the same Stage.
+    const stage = process.env['STAGE'] ?? 'unknown';
     const backlog = await countBacklog(db);
-    emitBacklogMetric(process.env['STAGE'] ?? 'unknown', backlog);
+    emitBacklogMetric(stage, backlog);
+    const oldestAgeSeconds = await oldestPendingArchiveAgeSeconds(db);
+    emitOldestPendingArchiveAgeMetric(stage, oldestAgeSeconds);
 
     const rows = await claimPendingArchives(db);
 
@@ -176,5 +245,5 @@ export const handler = async (): Promise<void> => {
         }
     }
 
-    logger.info('archive-sweeper swept', { claimed: rows.length, dispatched });
+    logger.info('archive-sweeper swept', { claimed: rows.length, dispatched, oldestAgeSeconds });
 };

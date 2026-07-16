@@ -43,6 +43,12 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         tags: ['soup'],
         hasPartialNutrition: false,
         currentVersion: 1,
+        // CR-001 aggregate: an unrated recipe (ratingCount 0, no averageRating). Both are now REQUIRED on
+        // the `Recipe` contract (FR-013a); a rating fixture overrides them.
+        ratingCount: 0,
+        // Derived PRO badge (FR-003a) — REQUIRED on `Recipe`. A private user_created recipe is premium,
+        // but this default projection is the non-premium baseline; override per test.
+        usesPremiumCapability: false,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
         ...overrides,

@@ -13,8 +13,14 @@ import { requireEnv } from './config.js';
  * the pg password. TLS is mandatory for IAM auth. The pool + drizzle instance are cached across
  * warm invocations (module scope) so a container reuses one pool.
  *
- * TODO(Phase 4+): pass the recipe Drizzle schema into `drizzle(pool, { schema, casing })` once the
- * `kitchensink_recipes` schema package exists, so callers get typed relational queries.
+ * **Schema-less by design, not by omission.** The handle is `NodePgDatabase<Record<string, never>>` — no
+ * Drizzle schema is passed — and every handler issues raw `sql\`…\`` statements rather than relational
+ * queries. That is deliberate: the `kitchensink_recipes` Drizzle models live inside `recipe-service`'s
+ * `src` (not a shared package), and importing them here would couple these Lambdas to that service's
+ * internals — the exact coupling the raw-SQL boundary avoids. Passing a schema would buy typed relational
+ * queries that no handler uses, so it is a genuine no-op until a SHARED recipe-schema package exists AND a
+ * handler actually needs a relational query. Neither is true today; when both are, add `{ schema, casing }`
+ * here and the seam is ready for it.
  */
 
 const DEFAULT_DB_PORT = 5432;

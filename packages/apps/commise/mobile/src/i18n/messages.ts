@@ -3,17 +3,53 @@
  * copy lives in the feature packages' `messages.ts`. A {@link LocalizedMessages} dictionary resolved per
  * active locale via `useMessages` from `@commise/i18n/react`. The `en` set is required.
  */
+import type { GreetingBucket, HomeNavItemId, RoadmapWidgetId } from '@commise/features-core';
 import type { LocalizedMessages } from '@commise/i18n';
 
 /** The shape of the mobile app's own copy. */
 export interface MobileMessages {
     readonly home: {
-        /** Greeting shown at the top of the post-login Home widget surface (US-000 / FR-046). */
-        readonly greeting: string;
+        /**
+         * Time-of-day greeting copy, one per bucket. Keyed by the shared {@link GreetingBucket} union so web
+         * and mobile greet identically (FR-044); a missing bucket is a compile error, not a blank header.
+         */
+        readonly greetings: Readonly<Record<GreetingBucket, string>>;
         /** Accessible label for the Home widget-surface region (the scrollable widget list). */
         readonly regionLabel: string;
         /** Label of the recipe widget's entry point into the full recipes surface. */
         readonly seeAllRecipes: string;
+        /**
+         * Copy for the Home chrome (top bar + bottom tab bar) — US-000 / FR-046. Keyed by the SHARED nav
+         * model in `@commise/features-core`, so a destination added there without copy is a compile error.
+         */
+        readonly chrome: {
+            /** Title shown in the top bar on the Home route. */
+            readonly pageTitle: string;
+            /** Accessible name of the search entry point. */
+            readonly search: string;
+            /** Accessible name of the notifications control. */
+            readonly notifications: string;
+            /** Accessible name of the avatar / account entry point. */
+            readonly account: string;
+            /** Fallback avatar accessible name when the viewer has no display name yet. */
+            readonly accountNoName: string;
+            /** Accessible name of the bottom tab-bar navigation landmark. */
+            readonly tabNavLabel: string;
+            /** Suffix appended to an unreachable destination's accessible name (never a dead tab). */
+            readonly comingSoonSuffix: string;
+            /** Label of each navigation destination, keyed by the shared nav model's id. */
+            readonly destinations: Readonly<Record<HomeNavItemId, string>>;
+        };
+        /**
+         * Copy for the roadmap skeleton placeholders (FR-046 / R6 as amended by CR-001). Titles are the REAL
+         * widget headings from the mockup — the placeholder shows what is coming, never invented data.
+         */
+        readonly roadmap: {
+            /** Visible "coming soon" badge on every placeholder. */
+            readonly comingSoon: string;
+            /** The real heading of each roadmap widget, keyed by the shared roadmap registry's id. */
+            readonly titles: Readonly<Record<RoadmapWidgetId, string>>;
+        };
         /** Copy for the once-per-session subscription upgrade nudge (shown when a free-tier viewer taps a
          * premium-gated widget entry point). No live v1 widget is gated, so it ships ready for 005–009. */
         readonly nudge: {
@@ -83,10 +119,30 @@ export interface MobileMessages {
         readonly searchPlaceholder: string;
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
-        /** Create-a-freeform-ingredient action template (contains `{query}`). */
+        /** Primary "find nutrition" action for a typed name (addByName, the async-resolution entry point; contains `{query}`). */
+        readonly addByName: string;
+        /** Busy label shown while a food is being added by name (food-resolution in flight). */
+        readonly addingByName: string;
+        /** Message shown when adding a food by name fails. */
+        readonly addByNameError: string;
+        /** Create-a-freeform-ingredient (fallback) action template (contains `{query}`). */
         readonly create: string;
         /** Busy label shown while a freeform ingredient is being created. */
         readonly creating: string;
+        /** Heading for the disambiguation panel of an `UNRESOLVED` match (contains `{name}`). */
+        readonly disambiguateTitle: string;
+        /** Busy label shown while disambiguation candidates load. */
+        readonly disambiguateLoading: string;
+        /** Message shown when loading disambiguation candidates fails. */
+        readonly disambiguateError: string;
+        /** Copy shown when an `UNRESOLVED` match has no candidates to choose from. */
+        readonly disambiguateEmpty: string;
+        /** Label of the action that leaves the disambiguation panel and returns to search. */
+        readonly disambiguateBack: string;
+        /** Busy label shown while the picked candidate resolves. */
+        readonly resolving: string;
+        /** Message shown when resolving the picked candidate fails. */
+        readonly resolveError: string;
     };
     readonly collections: {
         /** Accessible label shown while a single collection is loading. */
@@ -114,9 +170,39 @@ export interface MobileMessages {
 export const mobileMessages: LocalizedMessages<MobileMessages> = {
     en: {
         home: {
-            greeting: 'Welcome back, Chef!',
+            greetings: {
+                morning: 'Good morning, Chef!',
+                afternoon: 'Good afternoon, Chef!',
+                evening: 'Good evening, Chef!',
+                night: 'Still up, Chef?',
+            },
             regionLabel: 'Home',
             seeAllRecipes: 'See all recipes',
+            chrome: {
+                pageTitle: 'Home',
+                search: 'Search',
+                notifications: 'Notifications',
+                account: 'Account',
+                accountNoName: 'Your account',
+                tabNavLabel: 'Main',
+                comingSoonSuffix: 'coming soon',
+                destinations: {
+                    home: 'Home',
+                    recipes: 'Recipes',
+                    'meal-plan': 'Meal Plan',
+                    grocery: 'Grocery',
+                    nutrition: 'Nutrition',
+                    profile: 'Profile',
+                },
+            },
+            roadmap: {
+                comingSoon: 'Coming soon',
+                titles: {
+                    nutrition: "Today's Nutrition",
+                    'resume-cooking': 'Resume cooking',
+                    'meal-plan': "This Week's Meals",
+                },
+            },
             nudge: {
                 title: 'Unlock Commise Pro',
                 body: 'Upgrade to Commise Pro to use this feature.',
@@ -162,8 +248,18 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             searchLabel: 'Search ingredients',
             searchPlaceholder: 'e.g. olive oil',
             empty: 'No matching ingredients. Create a new one below.',
+            addByName: 'Find nutrition for “{query}”',
+            addingByName: 'Finding nutrition…',
+            addByNameError: 'We couldn’t add that ingredient. Create a custom one below instead.',
             create: 'Create “{query}”',
             creating: 'Adding…',
+            disambiguateTitle: 'Which “{name}” did you mean?',
+            disambiguateLoading: 'Loading options…',
+            disambiguateError: 'We couldn’t load options for that ingredient.',
+            disambiguateEmpty: 'No options to choose from — create a custom one below.',
+            disambiguateBack: 'Back to search',
+            resolving: 'Resolving…',
+            resolveError: 'We couldn’t resolve that ingredient.',
         },
         collections: {
             detailLoading: 'Loading collection…',

@@ -1,16 +1,22 @@
 /**
  * Component tests for the mobile Home widget-surface HOST logic (US-000 / FR-046): discovery → curation →
- * render, the skip-unknown-id path, gated-widget absence, and the once-per-session nudge. Rendered via
- * react-native-web under jsdom (see `vitest.native.config.ts`). The host's seams (`container`, `renderers`)
- * are injected with fakes so these assert the composition-root behaviour without loading the real widget
- * chunks — the real recipe slot's loading/empty/populated states are covered in
- * `RecipeWidgetSlot.native.test.tsx`.
+ * render, the placeholder-vs-bespoke render split, the skip-unknown-id path, and the once-per-session nudge.
+ * Rendered via react-native-web under jsdom (see `vitest.native.config.ts`). The host's seams (`container`,
+ * `renderers`) are injected with fakes so these assert the composition-root behaviour without loading the
+ * real widget chunks — the real recipe slot's states are covered in `RecipeWidgetSlot.native.test.tsx`, and
+ * the chrome pieces in their own tests.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { FC, JSX } from 'react';
 
-import { registerHomeWidget, resolveHomeWidgets, type HomeWidgetDescriptor } from '@commise/features-core';
+import {
+    isPlaceholderHomeWidget,
+    registerHomeWidget,
+    resolveHomeWidgets,
+    ROADMAP_WIDGET_IDS,
+    type HomeWidgetDescriptor,
+} from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { LocaleProvider } from '@commise/i18n/react';
 import { createContainer, type Container } from 'ditox';
@@ -20,29 +26,54 @@ import { HomeWidgetSurface } from '../../../src/components/home/HomeWidgetSurfac
 import { homeContainer } from '../../../src/components/home/homeContainer.js';
 import { useHomeNudge } from '../../../src/components/home/SubscriptionNudge.js';
 
-// The profile hook hits Clerk + the identity API; stub it to a controllable tier.
+// The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
 const { profileRef } = vi.hoisted(() => ({
-    profileRef: { current: { data: { account: { subscriptionTier: 'free' as string | undefined } } } },
+    profileRef: {
+        current: {
+            data: {
+                account: { subscriptionTier: 'free' as string | undefined },
+                user: { displayName: 'Jane Doe' as string | undefined },
+            },
+        },
+    },
 }));
 vi.mock('../../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => profileRef.current }));
 
-afterEach(cleanup);
+// The Home surface reads the bottom safe-area inset for the tab bar; a zero-inset stub renders it faithfully.
+vi.mock('react-native-safe-area-context', () => ({
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+    SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
+}));
+
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 
 const noop = (): void => undefined;
 
-/** A registrable descriptor with an inert loader (the injected renderer is what actually draws). */
-const makeDescriptor = (id: string): HomeWidgetDescriptor => ({
+/** A registrable LIVE descriptor with an inert loader (the injected renderer is what actually draws). */
+const makeLiveDescriptor = (id: string): HomeWidgetDescriptor => ({
     id,
     load: () => Promise.resolve({ default: (): null => null }),
     defaultWeight: 1,
 });
 
-/** A container pre-registered with the given widget ids. */
-const containerWith = (...ids: readonly string[]): Container => {
+/** A registrable PLACEHOLDER descriptor whose loader resolves the supplied skeleton component. */
+const makePlaceholderDescriptor = (id: string, Skeleton: FC): HomeWidgetDescriptor => ({
+    kind: 'placeholder',
+    id,
+    capability: `${id}-capability`,
+    load: () => Promise.resolve({ default: Skeleton }),
+    defaultWeight: 1,
+});
+
+/** A container pre-registered with the given descriptors. */
+const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Container => {
     const container = createContainer();
 
-    for (const id of ids) {
-        registerHomeWidget(container, makeDescriptor(id));
+    for (const descriptor of descriptors) {
+        registerHomeWidget(container, descriptor);
     }
 
     return container;
@@ -51,7 +82,7 @@ const containerWith = (...ids: readonly string[]): Container => {
 const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> = {}): void => {
     render(
         <LocaleProvider locale="en">
-            <HomeWidgetSurface onSeeAllRecipes={noop} {...props} />
+            <HomeWidgetSurface onSeeAllRecipes={noop} onOpenAccount={noop} {...props} />
         </LocaleProvider>,
     );
 };
@@ -59,31 +90,55 @@ const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> =
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;
 
 describe('HomeWidgetSurface (mobile) — host composition', () => {
-    it('renders the greeting header and the widget-surface region', () => {
-        renderSurface({ container: containerWith(RECIPE_HOME_WIDGET_ID), renderers: { recipes: FakeRecipeWidget } });
+    it('renders the time-of-day greeting header and the navigation chrome', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
-        expect(screen.getByText('Welcome back, Chef!')).toBeTruthy();
-        expect(screen.getByLabelText('Home')).toBeTruthy();
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        expect(screen.getByText('Good afternoon, Chef!')).toBeTruthy();
+        // The chrome rendered: the bottom tab-bar landmark ("Main") is unambiguous (unlike the region/tab
+        // "Home" labels, which intentionally repeat the destination name).
+        expect(screen.getByLabelText('Main')).toBeTruthy();
     });
 
-    it('renders the slot for a curated widget whose id has a registered renderer', async () => {
-        renderSurface({ container: containerWith(RECIPE_HOME_WIDGET_ID), renderers: { recipes: FakeRecipeWidget } });
+    it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
 
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
     });
 
-    it('SKIPS a curated widget whose id has no renderer instead of crashing (graceful version skew)', async () => {
-        // `mystery` is registered (so it survives curation) but absent from `renderers`. A host that did not
-        // guard the missing renderer would render `<undefined />` and throw "Element type is invalid". That
-        // crash would be *swallowed* by the per-widget `ErrorBoundary` (fallback null) — so the recipe widget
-        // still paints either way — and the only observable trace of the crash is React logging the caught
-        // error to `console.error`. Asserting ZERO error logs is therefore what makes this test load-bearing:
-        // remove the skip guard and this fails (React logs the boundary-caught "Element type is invalid").
+    it('renders a placeholder through its loader seam (skeleton), not the bespoke renderer map', async () => {
+        const Skeleton: FC = () => <Text>fake-skeleton</Text>;
+
+        renderSurface({
+            container: containerWith(
+                makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+                makePlaceholderDescriptor('meal-plan', Skeleton),
+            ),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        expect(await screen.findByText('fake-skeleton')).toBeTruthy();
+        expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
+    });
+
+    it('SKIPS a live widget whose id has no renderer instead of crashing (graceful version skew)', async () => {
+        // `mystery` is a LIVE descriptor registered but absent from `renderers`, so it has no bespoke slot and
+        // is not a placeholder. A host that did not guard this would render `<undefined />`; that crash would
+        // be swallowed by the per-widget ErrorBoundary, and the only trace is React's console.error. Asserting
+        // ZERO error logs is what makes this load-bearing — remove the skip guard and this fails.
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         renderSurface({
-            container: containerWith(RECIPE_HOME_WIDGET_ID, 'mystery'),
-            renderers: { recipes: FakeRecipeWidget },
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID), makeLiveDescriptor('mystery')),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
         });
 
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
@@ -103,27 +158,43 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
             );
         };
 
-        renderSurface({ container: containerWith(RECIPE_HOME_WIDGET_ID), renderers: { recipes: GatedWidget } });
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: GatedWidget },
+        });
         const gate = await screen.findByRole('button', { name: 'gate' });
 
-        // First gated tap → the nudge appears.
         fireEvent.click(gate);
         expect(screen.getByText('Unlock Commise Pro')).toBeTruthy();
 
-        // Dismiss it.
         fireEvent.click(screen.getByRole('button', { name: 'Maybe later' }));
         expect(screen.queryByText('Unlock Commise Pro')).toBeNull();
 
-        // A second gated tap in the same session must NOT re-show it (once per session).
         fireEvent.click(gate);
         expect(screen.queryByText('Unlock Commise Pro')).toBeNull();
     });
 });
 
 describe('homeContainer (mobile) — v1 registration', () => {
-    it('registers ONLY the recipe widget (gated widgets 005–009 are absent, not empty tiles)', () => {
-        const registeredIds = resolveHomeWidgets(homeContainer).map((descriptor) => descriptor.id);
+    it('registers the live recipe widget AND the roadmap placeholders (005–009 are skeletons, not absent)', () => {
+        const ids = resolveHomeWidgets(homeContainer).map((descriptor) => descriptor.id);
 
-        expect(registeredIds).toEqual([RECIPE_HOME_WIDGET_ID]);
+        expect(ids).toContain(RECIPE_HOME_WIDGET_ID);
+
+        for (const roadmapId of ROADMAP_WIDGET_IDS) {
+            expect(ids).toContain(roadmapId);
+        }
+    });
+
+    it('registers the roadmap ids as placeholder-arm descriptors, and the recipe id as a live one', () => {
+        const byId = new Map(resolveHomeWidgets(homeContainer).map((descriptor) => [descriptor.id, descriptor]));
+
+        for (const roadmapId of ROADMAP_WIDGET_IDS) {
+            const descriptor = byId.get(roadmapId);
+            expect(descriptor && isPlaceholderHomeWidget(descriptor)).toBe(true);
+        }
+
+        const recipe = byId.get(RECIPE_HOME_WIDGET_ID);
+        expect(recipe && isPlaceholderHomeWidget(recipe)).toBe(false);
     });
 });

@@ -15,6 +15,7 @@ import {
     customType,
     index,
     integer,
+    numeric,
     pgTable,
     text,
     timestamp,
@@ -41,11 +42,15 @@ export const tsvector = customType<{ data: string; driverData: string }>({
 export const RECIPE_VISIBILITIES = ['public', 'private'] as const;
 /** Recipe provenance / source classification (C-004). */
 export const RECIPE_SOURCE_TYPES = ['user_created', 'imported_public', 'imported_physical', 'imported_paid'] as const;
+/** Author-stated difficulty (CR-001 / FR-001b). NULL ("not stated") is a first-class state, not in this set. */
+export const RECIPE_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
 /** A recipe visibility value. */
 export type RecipeVisibility = (typeof RECIPE_VISIBILITIES)[number];
 /** A recipe source-type value. */
 export type RecipeSourceType = (typeof RECIPE_SOURCE_TYPES)[number];
+/** A recipe difficulty value (the non-null states). */
+export type RecipeDifficulty = (typeof RECIPE_DIFFICULTIES)[number];
 
 // ── recipes: the golden row ───────────────────────────────────────────────────────────────────────
 
@@ -61,6 +66,18 @@ export const recipes = pgTable(
         cookTimeMinutes: integer('cook_time_minutes').notNull(),
         totalTimeMinutes: integer('total_time_minutes').notNull(),
         servings: integer('servings').notNull(),
+
+        // Difficulty (CR-001 / FR-001b). NULLABLE, NO default — "the author did not state one" is a
+        // real state, and there is no honest default. NULL renders as NO badge, never a guess. See the
+        // 0010 migration comment for why this deliberately diverges from the servings/times NOT NULL.
+        difficulty: text('difficulty'),
+
+        // Denormalized rating aggregate (CR-001 / FR-013a). Maintained ONLY by the
+        // recipe_ratings_aggregate_refresh() trigger (0010 migration) — NEVER written by application
+        // code. average_rating IS NULL exactly when rating_count = 0 (an unrated recipe has no average;
+        // 0.00 would render as a real zero-star score), enforced by recipes_rating_aggregate_coherent.
+        averageRating: numeric('average_rating', { precision: 3, scale: 2 }),
+        ratingCount: integer('rating_count').notNull().default(0),
 
         visibility: text('visibility').notNull().default('public'),
         sourceType: text('source_type').notNull().default('user_created'),
@@ -100,6 +117,15 @@ export const recipes = pgTable(
         check('recipes_cook_time_nonneg', sql`${table.cookTimeMinutes} >= 0`),
         check('recipes_total_time_nonneg', sql`${table.totalTimeMinutes} >= 0`),
         check('recipes_servings_positive', sql`${table.servings} > 0`),
+        // Difficulty: NULL passes (NULL IN (...) is NULL, not false), so this enforces the enum on stated values.
+        check('recipes_difficulty_check', sql`${table.difficulty} IN ('easy', 'medium', 'hard')`),
+        check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),
+        check(
+            'recipes_average_rating_range',
+            sql`${table.averageRating} IS NULL OR (${table.averageRating} >= 1 AND ${table.averageRating} <= 5)`,
+        ),
+        // The incoherent pairing (a count with no average, or an average with no count) is unrepresentable.
+        check('recipes_rating_aggregate_coherent', sql`(${table.ratingCount} = 0) = (${table.averageRating} IS NULL)`),
         check('recipes_visibility_check', sql`${table.visibility} IN ('public', 'private')`),
         check(
             'recipes_source_type_check',

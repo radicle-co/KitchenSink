@@ -15,6 +15,20 @@ export function resolveCdnUrl(cloudfrontUrl: string, key: string): string {
     return `${cloudfrontUrl.replace(/\/+$/, '')}/${key}`;
 }
 
+/**
+ * Resolve the CDN URL a recipe's COVER should serve for one photo row: the small thumbnail rendition when
+ * present, else the full-size original (FOLLOW-UP-CR-001-A). This is the row-level equivalent of the list
+ * / search cover LATERAL's `COALESCE(thumbnail_key, s3_key)` — used by the detail read, whose cover comes
+ * from the first embedded photo ROW rather than from a projected key. Pure.
+ *
+ * The fallback is load-bearing: photos uploaded before the thumbnail feature (or whose generation
+ * degraded) have `thumbnailKey === null`, and MUST still show a cover — the original — rather than a
+ * broken link. The gallery (`resolvePhotoView.url`) always stays the full-size original.
+ */
+export function resolveCoverUrl(row: RecipePhotoRow, cloudfrontUrl: string): string {
+    return resolveCdnUrl(cloudfrontUrl, row.thumbnailKey ?? row.s3Key);
+}
+
 /** Map a `recipe_photos` row to the shared `RecipePhoto` contract against the given CDN base. Pure. */
 export function resolvePhotoView(row: RecipePhotoRow, cloudfrontUrl: string): RecipePhoto {
     return {

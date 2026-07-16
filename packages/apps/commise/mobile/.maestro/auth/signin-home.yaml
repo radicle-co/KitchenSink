@@ -10,8 +10,9 @@
 # (`signin.yaml` and, through it, the recipe flows) wrap this core and then cross into recipes — so "sign
 # in" and "navigate to a feature" stay separate concerns.
 #
-# The login form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (greeting
-# "Welcome back, Chef!"). Credentials mirror the web Playwright suite's TEST_USER_* (cross-platform parity).
+# The login form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (a
+# time-of-day greeting ending in "Chef" — "Good morning, Chef!" etc.). Credentials mirror the web Playwright
+# suite's TEST_USER_* (cross-platform parity).
 
 appId: io.commise.mobile
 ---
@@ -39,9 +40,10 @@ appId: io.commise.mobile
           - hideKeyboard
           - tapOn: 'Verify'
 
-# The authenticated landing: HomeScreen renders the "Welcome back, Chef!" greeting header. The wait is
+# The authenticated landing: HomeScreen renders the time-of-day greeting header (always ending in "Chef").
+# The match is greeting-agnostic (the exact bucket depends on the wall clock at run time). The wait is
 # generous because completing sign-in (Clerk `setActive`) re-renders through the auth gate before Home
 # paints — a chain that is slow under the Metro dev bundler on first paint.
 - extendedWaitUntil:
-      visible: 'Welcome back, Chef!'
+      visible: '.*Chef.*'
       timeout: 40000

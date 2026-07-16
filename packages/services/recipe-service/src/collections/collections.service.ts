@@ -15,8 +15,10 @@ import {
     RecipeCollectionAddedVia,
     RecipeSourceType,
     RecipeVisibility,
+    usesPremiumCapability,
     type PaginatedResponse,
     type Recipe,
+    type RecipeDifficulty,
 } from '@kitchensink/recipe-core';
 
 import {
@@ -81,12 +83,23 @@ function toRecipe(row: RecipeRow): Recipe {
         tags: row.tags,
         hasPartialNutrition: row.hasPartialNutrition,
         currentVersion: row.currentVersion,
+        // CR-001 read-model: the trigger-maintained aggregate + the derived PRO badge (same authoritative
+        // `recipe-core` rule the recipes/search projections use). `coverPhotoUrl` is deliberately NOT
+        // resolved on the collection-embedded projection — no cover LATERAL runs here — so it is absent
+        // (a valid state); the collection card owns its no-image visual until a cover path is added.
+        ratingCount: row.ratingCount,
+        usesPremiumCapability: usesPremiumCapability({
+            visibility: row.visibility as RecipeVisibility,
+            sourceType: row.sourceType as RecipeSourceType,
+        }),
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
 
     return {
         ...recipe,
+        ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
+        ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),

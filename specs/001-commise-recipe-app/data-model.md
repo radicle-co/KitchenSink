@@ -23,8 +23,15 @@ recipes ──< recipe_ingredients >── ingredients
    ├──< recipe_steps
    ├──< recipe_photos
    ├──< recipe_versions
+   ├──< recipe_ratings          (CR-001; one row per (recipe, user))
    └──< recipe_collections >── collections
 ```
+
+> **Owner-scoped roots (C-007).** Three columns are roots of user-owned data and every one of them must
+> be reached by GDPR erasure: `recipes.owner_id`, `collections.owner_id`, and — added by CR-001 —
+> **`recipe_ratings.user_id`**. A rating is authored by its rater, not by the rated recipe's owner, so it
+> is the only owner-scoped root that routinely lives on **another user's** row. See
+> [Soft Delete & GDPR Erasure](#soft-delete--gdpr-erasure-c-007).
 
 ---
 
@@ -51,6 +58,26 @@ CREATE TABLE recipes (
     cook_time_minutes      INTEGER     CHECK (cook_time_minutes >= 0),
     total_time_minutes     INTEGER     CHECK (total_time_minutes >= 0),
     servings               INTEGER     CHECK (servings > 0),
+
+    -- Difficulty (CR-001 / FR-001b). NULLABLE ON PURPOSE — "the author did not say" is a real,
+    -- representable state, and there is no honest default. Unlike servings/times (0007/0008), which
+    -- are load-bearing (scaling + nutrition) and always knowable, difficulty is a subjective
+    -- judgement nothing computes from. A NOT NULL DEFAULT 'medium' would make every recipe claim its
+    -- author chose "medium" — fabricated authorship, and wrong the moment 004 imports a recipe whose
+    -- source states no difficulty. NULL renders as NO badge, never as a guess.
+    difficulty             TEXT        CHECK (difficulty IN ('easy', 'medium', 'hard')),
+
+    -- Denormalized rating aggregate (CR-001 / FR-013a) — maintained ONLY by the
+    -- recipe_ratings_aggregate_refresh() trigger below. Never written by application code.
+    -- average_rating IS NULL exactly when rating_count = 0 (an unrated recipe has no average; 0.00
+    -- would render as a real zero-star score). The CHECK makes that pairing unrepresentable.
+    average_rating         NUMERIC(3,2),
+    rating_count           INTEGER     NOT NULL DEFAULT 0,
+    CONSTRAINT recipes_rating_count_nonneg CHECK (rating_count >= 0),
+    CONSTRAINT recipes_average_rating_range
+        CHECK (average_rating IS NULL OR (average_rating >= 1 AND average_rating <= 5)),
+    CONSTRAINT recipes_rating_aggregate_coherent
+        CHECK ((rating_count = 0) = (average_rating IS NULL)),
 
     -- Visibility (C-004)
     visibility             TEXT        NOT NULL DEFAULT 'public'
@@ -271,9 +298,94 @@ CREATE TABLE recipe_photos (
 
 -- Enforce max 10 photos per recipe via partial index + application layer check
 CREATE INDEX idx_recipe_photos_recipe_id ON recipe_photos (recipe_id);
+
+-- CR-001 / FR-001c: serves the cover-photo LATERAL on the recipe LIST projection (one photo per recipe,
+-- lowest sort_order). Supersedes idx_recipe_photos_recipe_id for that access path (leftmost prefix).
+CREATE INDEX idx_recipe_photos_recipe_cover ON recipe_photos (recipe_id, sort_order, created_at, id);
 ```
 
 **Enforcement note**: The 10-photo limit per recipe is enforced in the service layer via a COUNT check before INSERT, with a database advisory lock to prevent race conditions.
+
+#### Cover photo resolution (CR-001 / FR-001c)
+
+The recipe **list** projection carries a `coverPhotoUrl` so the Home widget and the list grid can render a
+card image without an N+1 fetch of each recipe's detail. It is **derived, not stored**: the cover is the
+recipe's photo with the lowest `sort_order`.
+
+`sort_order` is not unique per recipe (it defaults to `0`), so the tiebreak is part of the rule — without it
+the chosen cover can flip between two equally-ordered photos from one request to the next:
+
+```sql
+-- Cover photo for a page of recipes: ONE query, no N+1.
+SELECT r.*, cp.s3_key AS cover_photo_key
+FROM recipes r
+LEFT JOIN LATERAL (
+    SELECT p.s3_key
+    FROM recipe_photos p
+    WHERE p.recipe_id = r.id
+    ORDER BY p.sort_order, p.created_at, p.id   -- deterministic: sort_order alone can tie
+    LIMIT 1
+) cp ON true
+WHERE r.deleted_at IS NULL;
+```
+
+A recipe with no photos yields `NULL` → `coverPhotoUrl` is **absent** from the response (never `null`, never
+a placeholder image URL — the client owns the no-image visual).
+
+> ⚠️ **Known performance risk (accepted, with a named follow-up).** Photos are stored and served **as-is** —
+> no resizing, no derived variants (see [Photo Upload Flow](#photo-upload-flow)). The card renders a 4:3
+> thumbnail, so `coverPhotoUrl` today makes the client download the **full-size original** (up to 5 MB per
+> photo) to paint a ~300 px tile. A 4-card Home widget can therefore pull ~20 MB on first paint. This is a
+> real regression risk against **SC-009** and mobile data use, and it is **not** solved by CR-001. Tracked
+> as **FOLLOW-UP-CR-001-A** (derived photo renditions / thumbnail variants) in
+> [CR-001](./change-requests/CR-001-mockup-parity.md); it must be resolved before the Home widget is
+> considered release-ready on mobile.
+
+---
+
+## Derived read-model properties (CR-001)
+
+Some card fields the mockup shows are **not columns** and MUST NOT become columns. They are computed on
+projection from data the row already carries, so they cannot drift out of sync with the truth they derive
+from, and they cost no migration and no write path.
+
+| Property                | Derived from                                 | Rule                                                                    |
+| ----------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
+| `usesPremiumCapability` | `recipes.visibility` + `recipes.source_type` | See below (FR-003a). One authoritative implementation in `recipe-core`. |
+| `coverPhotoUrl`         | `recipe_photos` (lowest `sort_order`)        | See [Cover photo resolution](#cover-photo-resolution-cr-001--fr-001c).  |
+
+### `usesPremiumCapability` — the PRO badge (FR-003a)
+
+The PRO badge means **"this recipe uses a capability only a premium user has"**. It is **derived, never
+stored**: there is no `is_pro` column, no entitlement model, and no overlap with feature 010.
+
+The **only** premium-gated recipe capability today is **choosing** private visibility. The naive rule
+`visibility === 'private'` is **wrong**, and this is the trap to avoid:
+
+| Condition                    | Private allowed?                    | Premium capability used? |
+| ---------------------------- | ----------------------------------- | ------------------------ |
+| `user_created`, private      | premium only                        | **yes**                  |
+| `imported_public`, private   | premium only (+ substantive edit)   | **yes**                  |
+| `imported_physical`, private | **any tier** — private is forced    | **no**                   |
+| `imported_paid`, private     | **any tier** — private is permanent | **no**                   |
+
+Per C-004, `imported_physical` and `imported_paid` recipes are private **regardless of tier**, so a
+free-tier user can hold private recipes. `visibility === 'private'` alone would brand those with a PRO
+badge they did not earn. The correct rule is therefore:
+
+```
+usesPremiumCapability = visibility === 'private'
+                        AND source_type IN ('user_created', 'imported_public')
+```
+
+This is only latent today (004 has not shipped, so every row is `user_created`), which is exactly why it
+must be encoded correctly **now** — while the rule lives in one place and costs nothing to get right.
+
+**One authoritative representation (DRY).** The rule is implemented **once**, as a pure function in
+`@kitchensink/recipe-core`, and called by both the list and the detail projection. It is never re-derived
+in a mapper, a controller, or a client. **Forward path:** when 010 ships real entitlements, this function is
+the single place that changes — no wire change, no client change, which is precisely why the derived value
+is exposed as a field rather than left for clients to compute.
 
 ---
 
@@ -317,6 +429,130 @@ CREATE INDEX idx_recipe_versions_snapshot ON recipe_versions USING GIN (snapshot
 ```
 
 Application purges DB rows beyond 10 most recent on each write. All versions remain on S3 indefinitely.
+
+---
+
+### `recipe_ratings` (CR-001 / FR-013)
+
+One row per (recipe, rater). Re-rating **updates** the row; it never inserts a second one. `user_id` is the
+**rater's** app-user ULID — not the recipe owner's — which makes this table the third owner-scoped erasure
+root (see [Soft Delete & GDPR Erasure](#soft-delete--gdpr-erasure-c-007)).
+
+```sql
+CREATE TABLE recipe_ratings (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipe_id   UUID         NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    -- App-user ULID of the RATER (from token claim). No FK, no local users table (D2) — same rule as
+    -- recipes.owner_id / collections.owner_id.
+    user_id     VARCHAR(255) NOT NULL,
+    stars       INTEGER      NOT NULL,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    CONSTRAINT recipe_ratings_stars_range CHECK (stars BETWEEN 1 AND 5),
+    -- One rating per user per recipe. This is also the conflict target of the idempotent
+    -- PUT /v1/recipes/{id}/rating upsert (ON CONFLICT (recipe_id, user_id) DO UPDATE).
+    CONSTRAINT recipe_ratings_recipe_user_unique UNIQUE (recipe_id, user_id)
+);
+
+-- The UNIQUE constraint's index is (recipe_id, user_id) — leftmost-prefix, so it already serves
+-- "all ratings for a recipe" (the aggregate recompute). No separate recipe_id index is needed.
+
+-- REQUIRED for GDPR erasure: the sweep is `DELETE FROM recipe_ratings WHERE user_id = :ownerId`.
+-- Without this index that delete is a Seq Scan of every rating in the system (verified by EXPLAIN).
+CREATE INDEX idx_recipe_ratings_user_id ON recipe_ratings (user_id);
+```
+
+**Rating rules (FR-013)** — enforced in the service layer, not at the DB (they are business rules, not
+schema invariants, per the same split as [Visibility Enforcement](#visibility-enforcement-rules-c-004)):
+
+- A user may rate any recipe they can **see**. The existing read-path visibility/IDOR rule governs, so a
+  recipe the caller cannot read is **not rateable and MUST NOT be distinguishable from a non-existent
+  one** — same `404 RECIPE_NOT_FOUND` as a read, never `403`.
+- A user MUST NOT rate their **own** recipe (`recipes.owner_id = :userId` → `403 CANNOT_RATE_OWN_RECIPE`).
+  `403` is correct _here_ — the caller demonstrably already knows the recipe exists, so there is nothing to leak.
+- A tombstoned recipe (`deleted_at IS NOT NULL`) is not rateable → `404`.
+
+#### Rating Aggregate Maintenance (PostgreSQL Trigger)
+
+`recipes.average_rating` / `recipes.rating_count` are **trigger-maintained**, following the same pattern as
+the trigger-maintained `search_vector` above: the database owns the derived value, so no application path —
+including the bulk deletes in the erasure worker and the FK cascade — can bypass it and leave the aggregate
+wrong.
+
+Two properties of this design are **load-bearing and non-obvious**; both were verified empirically against
+PostgreSQL 16 before this DDL was written:
+
+1. **It is a STATEMENT-level trigger over a transition table, not a row-level trigger.** A bulk
+   `DELETE FROM recipe_ratings WHERE user_id = :ownerId` (GDPR erasure) fires it **once**, not once per row
+   (`EXPLAIN ANALYZE` → `Trigger trg_recipe_ratings_agg_del: calls=1`). Note that PostgreSQL forbids
+   transition tables on a multi-event trigger, which is why there are **three** single-event triggers
+   sharing one function rather than one `INSERT OR UPDATE OR DELETE` trigger.
+2. **The `FOR UPDATE` lock is not optional — it is the correctness fix for a lost update.** Without it, two
+   users rating the same recipe concurrently at READ COMMITTED silently corrupt the aggregate: the second
+   transaction's recompute reads a snapshot taken _before_ the first committed, blocks on the row lock, then
+   writes its stale count over the fresh one. Measured on PG 16: two concurrent raters produced
+   `rating_count = 1, average_rating = 3.00` against a ground truth of `2 / 4.00` — and it never self-heals.
+   Taking the lock **first** forces the aggregate statement onto a fresh snapshot that sees the committed
+   row. `ORDER BY id` gives a deterministic lock order so multi-recipe statements cannot deadlock.
+
+```sql
+CREATE OR REPLACE FUNCTION recipe_ratings_aggregate_refresh() RETURNS trigger AS $$
+BEGIN
+  -- Lock the affected recipes FIRST, in a deterministic order. Under READ COMMITTED this blocks a
+  -- concurrent rater of the same recipe until it commits; the aggregate below then runs on a fresh
+  -- snapshot that includes that commit. Without this lock the recompute silently writes a stale
+  -- aggregate (lost update) that never self-corrects.
+  PERFORM 1 FROM recipes
+   WHERE id IN (SELECT DISTINCT recipe_id FROM changed_rows)
+   ORDER BY id
+     FOR UPDATE;
+
+  WITH affected AS (
+      SELECT DISTINCT recipe_id FROM changed_rows
+  ), agg AS (
+      -- LEFT JOIN so a recipe whose last rating was just deleted yields cnt = 0 (and NULL average)
+      -- rather than dropping out of the result and keeping a stale count.
+      SELECT a.recipe_id,
+             COUNT(rr.id)               AS cnt,
+             AVG(rr.stars)::NUMERIC(3,2) AS avg_stars
+      FROM affected a
+      LEFT JOIN recipe_ratings rr ON rr.recipe_id = a.recipe_id
+      GROUP BY a.recipe_id
+  )
+  UPDATE recipes r
+     SET rating_count   = agg.cnt,
+         average_rating = CASE WHEN agg.cnt = 0 THEN NULL ELSE agg.avg_stars END
+    FROM agg
+   WHERE r.id = agg.recipe_id;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Transition tables are not permitted on a multi-event trigger, so: one trigger per event, one shared
+-- function, all referencing the transition table under the same name `changed_rows`.
+CREATE TRIGGER trg_recipe_ratings_agg_ins AFTER INSERT ON recipe_ratings
+  REFERENCING NEW TABLE AS changed_rows FOR EACH STATEMENT
+  EXECUTE FUNCTION recipe_ratings_aggregate_refresh();
+
+CREATE TRIGGER trg_recipe_ratings_agg_upd AFTER UPDATE ON recipe_ratings
+  REFERENCING NEW TABLE AS changed_rows FOR EACH STATEMENT
+  EXECUTE FUNCTION recipe_ratings_aggregate_refresh();
+
+CREATE TRIGGER trg_recipe_ratings_agg_del AFTER DELETE ON recipe_ratings
+  REFERENCING OLD TABLE AS changed_rows FOR EACH STATEMENT
+  EXECUTE FUNCTION recipe_ratings_aggregate_refresh();
+```
+
+**Recipe-delete cascade is safe (verified).** `DELETE FROM recipes` cascades to `recipe_ratings`, which
+fires `trg_recipe_ratings_agg_del`, whose `UPDATE recipes` then matches zero rows because the recipe is
+already gone. It is a single silent no-op — no error, no orphan rows.
+
+**Why trigger-maintained and not computed on read** — see [CR-001 § D-B](./change-requests/CR-001-mockup-parity.md).
+In one line: the read path (Home widget + list, every session, every user) vastly outnumbers the write path
+(rating a recipe, once per user per recipe), so the aggregate is computed once per _write_ instead of on
+every _read_, and it arrives free in the `recipes` row the list query already selects — no JOIN, no
+GROUP BY, and it stays sortable/indexable if rating-ordered browse is ever added.
 
 ---
 
@@ -426,7 +662,9 @@ POST /v1/recipes/{id}/photos/upload-url
     (ContentLengthRange ≤ 5 MB; ContentType restricted to the allowlist)
   → Returns { uploadUrl, key, expiresIn: 900 }
 
-Client PUT → s3://bucket/photos/{uuid}.{ext}
+Client PUT → s3://{RECIPE_MEDIA_BUCKET}/recipes/{ownerId}/{recipeId}/photos/{uuid}
+             (ARCH-BE-3 — owner-prefixed. The key MUST start with `recipes/{ownerId}/` or the object
+              silently survives GDPR erasure, whose sweep matches exactly that prefix.)
 
 POST /v1/recipes/{id}/photos/confirm { key, contentType }
   → Fargate recipe API validates the uploaded object:
@@ -457,7 +695,9 @@ const command = new PutObjectCommand({
 On every recipe save:
 
 1. INSERT new `recipe_versions` row with full snapshot
-2. Serialize snapshot → upload to S3 (`versions/{recipe_id}/{version_number}.json`)
+2. Serialize snapshot → upload to S3 at `recipeVersionArchiveKey({ ownerId, recipeId, versionNumber })`
+   = `recipes/{ownerId}/{recipeId}/versions/{version_number}.json` (ARCH-BE-3 — owner-prefixed, built
+   ONLY via `@kitchensink/recipe-core`, never hand-assembled)
 3. COUNT versions in DB for this recipe
 4. If count > 10: DELETE the oldest `recipe_versions` rows (keep 10 most recent)
 5. UPDATE `recipes.current_version` to new version number
@@ -507,7 +747,7 @@ All schema in this document is expressed as reference SQL DDL for clarity. The *
 - **Drizzle ORM** (`drizzle-orm` + `pg`) for schema definitions in `packages/services/recipe-service/src/database/schema/`
 - **drizzle-kit** for migration generation (`drizzle-kit generate`) and execution (`drizzle-kit migrate`)
 - Migrations live in `packages/services/recipe-service/src/database/migrations/` (auto-generated, committed to git)
-- Schema files: `recipes.ts`, `ingredients.ts`, `versions.ts`, `photos.ts`, `collections.ts`
+- Schema files: `recipes.ts`, `ingredients.ts`, `versions.ts`, `photos.ts`, `collections.ts`, `ratings.ts` (CR-001)
 
 The recipe service (`@kitchensink/recipe-service`) **uses the shared RDS instance with its own logical
 database `kitchensink_recipes`** — it does **not** provision a new RDS instance. The database + its owning
@@ -526,6 +766,12 @@ The Drizzle schema is the **source of truth** — this DDL document is a design 
 ### Trigger Setup
 
 The `recipes_search_vector_update()` trigger function (see Search Vector Maintenance above) is created via a **custom SQL migration** in drizzle-kit, since Drizzle ORM does not natively support trigger definitions. Add as a `sql` block in the initial migration:
+
+> The same applies to `recipe_ratings_aggregate_refresh()` and its three triggers (see
+> [Rating Aggregate Maintenance](#rating-aggregate-maintenance-postgresql-trigger)) — hand-authored SQL in
+> the CR-001 migration, not Drizzle-generated. Drizzle's schema definition for `recipes.average_rating` /
+> `recipes.rating_count` describes the columns only; the **trigger** is what maintains them, and no
+> application code may write those two columns.
 
 ```typescript
 // packages/services/recipe-service/src/database/migrations/0001_add_search_trigger.ts
@@ -592,7 +838,7 @@ CREATE INDEX idx_pending_archives_recipe_id
 
 1. Recipe save transaction commits: writes `recipes` + `recipe_versions` + `recipe_version_pending_archives` (status=`pending`) atomically.
 2. Same transaction enqueues an SQS message referencing `recipe_version_pending_archives.id`.
-3. Archive worker Lambda consumes the message, sets status=`in_flight`, uploads JSON snapshot to `s3://archive-bucket/versions/{recipe_id}/{version_number}.json`, then sets `recipe_versions.s3_key` and DELETEs the pending row on success.
+3. Archive worker Lambda consumes the message, sets status=`in_flight`, uploads the JSON snapshot to `s3://{RECIPE_ARCHIVE_BUCKET}/` + `recipeVersionArchiveKey({ ownerId, recipeId, versionNumber })` = `recipes/{ownerId}/{recipeId}/versions/{version_number}.json` (ARCH-BE-3 — the key comes from `@kitchensink/recipe-core`; the service and worker MUST NOT each build their own, which is the drift that defect recorded), then sets `recipe_versions.s3_key` and DELETEs the pending row on success.
 4. On failure: increment `attempts`, set `status='failed'`, record `last_error`, schedule `next_attempt_at` with exponential backoff. SQS redrive policy moves messages exceeding `maxReceiveCount` to a DLQ; the worker marks `status='dlq'` for operator visibility.
 5. The user-facing read path **never blocks** on archive completion. `recipe_versions.s3_key IS NULL` simply means "DB-only so far"; the row is fully usable for restore.
 
@@ -612,14 +858,40 @@ User-initiated GDPR erasure is the **only** path that physically removes data:
 
 1. Frontend calls `POST /v1/account/erasure` (idempotent per C-007) to enumerate the user's tombstoned + active recipes, photos, versions, collections, and pending archives.
 2. User confirms; backend records an `erasure_request` audit row (out of scope for this feature; tracked in compliance backlog) and enqueues an erasure job.
-3. Erasure worker, in order:
-    - DELETEs `recipe_version_pending_archives` rows for the user's recipes.
-    - DELETEs S3 objects under `versions/{recipe_id}/` and `photos/{recipe_id}/` for each owned recipe.
-    - DELETEs `recipe_versions`, `recipe_photos`, `recipe_ingredients`, `recipe_steps`, `recipe_collections`, `recipes`, and `collections` for the user.
+3. Erasure worker, **rows first, then the S3 sweeps** (see the ordering note below):
+
+    1. DELETEs **`recipe_ratings` rows authored BY the user** (`WHERE user_id = :ownerId`) — the CR-001
+       third owner-scoped root. These live on **other users' recipes**, which survive. The aggregate
+       trigger re-derives `average_rating` / `rating_count` on each affected surviving recipe. Uses
+       `idx_recipe_ratings_user_id`.
+    2. Sets `cloned_from_id = NULL` on cloned descendants owned by **other** users (step 5 below).
+    3. DELETEs `recipe_version_pending_archives` rows for the user's recipes.
+    4. DELETEs `recipe_versions`, `recipe_photos`, `recipe_ingredients`, `recipe_steps`,
+       `recipe_collections`, `recipes`, and `collections` for the user. Deleting the user's own recipes
+       cascades to `recipe_ratings` rows authored by **other** users on those recipes — correct: the rated
+       recipe ceases to exist.
+    5. **Then** sweeps S3: deletes every object under `ownerMediaPrefix(ownerId)` = `recipes/{ownerId}/`
+       in **both** `RECIPE_MEDIA_BUCKET` and `RECIPE_ARCHIVE_BUCKET` (ARCH-BE-3 —
+       `@kitchensink/recipe-core`). Version archives live under the same owner prefix **by design**, which
+       is precisely what lets one prefix sweep reach them.
 
     (No local `users` row to delete — the recipe service does not own one; the user's identity record is erased by feature 002.)
 
-4. Cloned descendants owned by **other** users are unaffected; their `cloned_from_id` is set to NULL by the erasure worker prior to deleting the source recipe to preserve referential integrity without leaking source data.
+    > **Ordering: rows first, then S3 — and why this reversed.** An earlier revision of this document
+    > prescribed S3-before-rows. That order existed **only** because the key scheme it assumed was
+    > _row-enumerated_ (`photos/{recipe_id}/`): you had to read the rows to learn which objects to delete,
+    > so the rows had to outlive the sweep. **ARCH-BE-3's owner-prefixed keys removed that constraint** —
+    > the sweep is a pure prefix scan that never reads the database. Deleting rows first is therefore
+    > strictly better: the reverse leaves live rows pointing at already-deleted objects (broken reads for
+    > the window between the two steps) and widens the failure race. Both the key scheme and the step order
+    > in this section were stale against ARCH-BE-3; they are the same root cause, fixed together (CR-001).
+
+4. **The erasure worker MUST NOT disable triggers** (`ALTER TABLE … DISABLE TRIGGER`) to speed up the bulk
+   deletes. Doing so would leave **other users'** recipes holding permanently wrong rating aggregates with
+   nothing to repair them. It is not needed for performance: the aggregate trigger is **statement-level**,
+   so the whole `DELETE … WHERE user_id = :ownerId` fires it exactly **once** regardless of how many ratings
+   the user authored (verified: `Trigger trg_recipe_ratings_agg_del: calls=1`).
+5. Cloned descendants owned by **other** users are unaffected; their `cloned_from_id` is set to NULL by the erasure worker prior to deleting the source recipe to preserve referential integrity without leaking source data.
 
 This is the **only** code path permitted to issue `DELETE FROM recipes`. All other "delete" operations MUST set `deleted_at` instead.
 
@@ -666,6 +938,24 @@ CREATE INDEX idx_erasure_jobs_status
 - After a `failed` job → **202** (fresh retry; a new `queued` job is enqueued).
 
 The cron sweeper re-drains jobs stuck in `queued`/`running` (see plan.md).
+
+> **Who writes `failed` — the worker deliberately does NOT.** On error the erasure worker records
+> `attempts` / `last_error`, **leaves the job `running`**, and rethrows so SQS redelivers. Giving up is the
+> DLQ's decision, not the worker's. This is not an oversight, and it must not be "fixed" into a
+> `status = 'failed'` write inside the worker, for two compounding reasons:
+>
+> 1. `failed` drops the job out of the `queued`/`running` set that the cron sweeper re-drains — so a job
+>    that marked itself failed would be abandoned by the very mechanism meant to recover it.
+> 2. `failed` frees `idx_erasure_jobs_active_owner` (the partial unique index covers only
+>    `queued`/`running`). A re-`POST` would then insert a **second** active job, and the original SQS
+>    message's next retry would crash on that index.
+>
+> The `failed` state is therefore **terminal-until-retry and written from exactly one place outside the
+> worker**. Which place is being decided in **T136b** (a DLQ-subscribed handler vs. the sweeper detecting
+> exhausted `attempts`); until T136b lands, **nothing writes `failed`** and the third bullet above is
+> unreachable in practice. The idempotency contract above is unchanged and remains correct — this note
+> records the _writer_, which was previously unstated and made the `failed` path read as reachable when no
+> code produced it.
 
 ---
 

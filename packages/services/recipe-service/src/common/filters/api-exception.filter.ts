@@ -29,6 +29,10 @@ export const RECIPE_ERROR_STATUS: Record<RecipeErrorCodeType, number> = {
     [RecipeErrorCode.COLLECTION_NOT_CLONED]: HttpStatus.BAD_REQUEST,
     [RecipeErrorCode.ERASURE_IN_PROGRESS]: HTTP_STATUS_LOCKED,
     [RecipeErrorCode.UNKNOWN_INGREDIENT]: HttpStatus.BAD_REQUEST,
+    // Rating your OWN recipe is a 403, not a 404: the caller demonstrably already knows the recipe
+    // exists (they own it), so an explicit rejection leaks nothing (FR-013). The asymmetric case —
+    // rating a recipe you cannot SEE — is a 404 RECIPE_NOT_FOUND, handled by the not-found mapping above.
+    [RecipeErrorCode.CANNOT_RATE_OWN_RECIPE]: HttpStatus.FORBIDDEN,
 };
 
 /**

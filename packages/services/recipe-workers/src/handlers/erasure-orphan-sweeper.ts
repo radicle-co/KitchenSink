@@ -1,0 +1,178 @@
+import { S3Client } from '@aws-sdk/client-s3';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { sql } from 'drizzle-orm';
+
+import { requireEnv } from '../common/config.js';
+import { getRecipeDb } from '../common/db.js';
+import { logger } from '../common/logger.js';
+import { eraseRecipeObjects } from './account-erasure-worker.js';
+
+/**
+ * Scheduled erasure-orphan sweeper — the reconciliation backstop that CLOSES the archive-resurrection
+ * race the {@link ownerErasureRequested} guard could only narrow. VPC-attached DB consumer.
+ *
+ * **The residual it closes.** `version-archive-worker` reads an owner's erasure state and then PUTs the
+ * snapshot as two separate steps against two systems (RDS, then S3). Its own header says so: "The window
+ * is now sub-millisecond … but non-zero. The true backstop is a periodic orphan-sweep that reconciles
+ * archive objects against erased owners." An account-erasure that begins after that read and finishes its
+ * archive-bucket sweep before the ensuing PUT leaves a snapshot object under an erased owner's
+ * `recipes/{ownerId}/` prefix — user data surviving a right-to-erasure request. This sweeper finds and
+ * deletes exactly those objects.
+ *
+ * **Why `completed`-only, and why the ARCHIVE bucket only.** Once an owner's erasure job is `completed`,
+ * the erasure worker has already deleted every DB row and swept BOTH buckets, so that owner's archive
+ * prefix MUST be empty forever after. Anything under it is therefore an orphan and is safe to delete. An
+ * owner still `queued`/`running`/`failed` has NOT had a successful sweep, so their archive prefix may
+ * legitimately still hold data — sweeping them would be data loss, not reconciliation. And it is the
+ * ARCHIVE bucket alone that a late version-archive PUT can dirty: the erasure worker sweeps the media
+ * bucket synchronously, and nothing writes fresh media for a `completed` owner.
+ *
+ * **Why a bounded recent look-back, not "all completed owners".** A racing PUT can only land within one
+ * archive-worker invocation of the erasure's sweep — the worker loads the row, checks erasure, and PUTs
+ * inside a single ≤60s invocation, and a redelivery cannot re-create the orphan because
+ * `loadVersionSnapshot` throws once the row is gone. So an orphan appears within ~minutes of completion
+ * and never later. {@link COMPLETED_LOOKBACK} is set far above that (24h) so every freshly-`completed`
+ * owner is re-swept across many ticks, while still bounding the scan to recent completions — the
+ * all-time `completed` set grows without limit, and re-listing an owner whose prefix was cleaned on the
+ * first tick forever would be pure waste. Owners are ordered oldest-completion-first so the ones nearest
+ * to ageing out of the window are reconciled before the batch cap bites.
+ *
+ * **Idempotent and cheap by design.** A clean tick — the overwhelming common case, because the guard
+ * makes an actual orphan exceedingly rare — costs one small indexed-by-status read plus one empty
+ * `ListObjectsV2` per recently-`completed` owner (typically a handful; erasure is rare). It emits
+ * {@link ORPHAN_METRIC_NAME} every tick (0 when clean) so the alarm always has data; a NONZERO value is
+ * the signal that a real resurrection was caught and the race actually fired — alarm-worthy on its own.
+ */
+
+/** How many completed owners one tick reconciles. Bounds the Lambda's runtime; the next tick takes the rest. */
+export const SWEEP_BATCH_SIZE = 100;
+
+/**
+ * How far back to look for `completed` erasure owners.
+ *
+ * Sized off the failure it reconciles, not a feeling: an orphan can only appear within one
+ * archive-worker invocation (≤60s) of an erasure's archive sweep (see the module header), so a window of
+ * hours is already vast margin over the seconds in which an orphan can actually materialise. 24h buys
+ * ~24 hourly re-sweeps of every freshly-completed owner — enough that a PUT landing just after one tick's
+ * listing is caught by the next — while keeping the scan off the unbounded all-time `completed` set.
+ */
+const COMPLETED_LOOKBACK = '24 hours';
+
+/** Shares the erasure namespace: an archive object surviving erasure is an erasure-compliance fact. */
+const ORPHAN_METRIC_NAMESPACE = 'Commise/RecipeErasure';
+
+/** The metric name the resurrection-caught alarm watches. Mirrored by the infra alarm — one knowledge. */
+export const ORPHAN_METRIC_NAME = 'ArchiveOrphansDeleted';
+
+const s3 = new S3Client({});
+
+/**
+ * The app-user ULIDs of erasure jobs `completed` within {@link COMPLETED_LOOKBACK}, oldest first.
+ *
+ * `status = 'completed'` is the entire safety model — a non-completed owner has not had a successful
+ * sweep and may legitimately still hold archives, so it must never be returned. Deliberately NOT filtered
+ * on `('queued','running')` (the erasure sweeper's predicate): that set is the opposite of what this
+ * reconciles. Ordered oldest-completion-first so the owners closest to leaving the look-back window are
+ * reconciled before the {@link SWEEP_BATCH_SIZE} cap.
+ *
+ * There is no index on `status = 'completed'` (the partial `idx_erasure_jobs_status` covers only the
+ * active statuses), so this is a filtered scan; that is acceptable because `account_erasure_jobs` is a
+ * small, slow-growing table (one row per erasure request ever, and an erased ULID never returns — D2). If
+ * erasure volume ever made this hot, the lever is a partial index on `(updated_at) WHERE status =
+ * 'completed'`, owned by the recipe-service schema — not this worker.
+ *
+ * @param db - The recipe database handle.
+ * @returns The recently-completed owner ULIDs, oldest completion first.
+ * @sideEffect Reads `account_erasure_jobs`.
+ */
+export async function readRecentlyCompletedOwners(db: NodePgDatabase<Record<string, never>>): Promise<string[]> {
+    const result = await db.execute<{ owner_id: string }>(sql`
+        SELECT owner_id
+        FROM account_erasure_jobs
+        WHERE status = 'completed'
+          AND updated_at >= now() - interval '${sql.raw(COMPLETED_LOOKBACK)}'
+        ORDER BY updated_at ASC
+        LIMIT ${SWEEP_BATCH_SIZE}
+    `);
+
+    return result.rows.map((row) => row.owner_id);
+}
+
+/**
+ * Publish the orphans-deleted count as a CloudWatch metric via the embedded metric format.
+ *
+ * EMF for the same reasons the archive/erasure sweepers use it: no extra SDK client, no
+ * `cloudwatch:PutMetricData` grant, one log line. Emitted every tick (0 when clean) so the alarm has data
+ * instead of flapping into INSUFFICIENT_DATA the moment things are healthy.
+ *
+ * @param stage - The deploy stage (the metric's only dimension).
+ * @param orphansDeleted - Objects deleted from erased owners' archive prefixes this tick.
+ * @sideEffect Writes one EMF line to stdout.
+ */
+export function emitOrphansDeletedMetric(stage: string, orphansDeleted: number): void {
+    console.log(
+        JSON.stringify({
+            _aws: {
+                Timestamp: Date.now(),
+                CloudWatchMetrics: [
+                    {
+                        Namespace: ORPHAN_METRIC_NAMESPACE,
+                        Dimensions: [['Stage']],
+                        Metrics: [{ Name: ORPHAN_METRIC_NAME, Unit: 'Count' }],
+                    },
+                ],
+            },
+            Stage: stage,
+            [ORPHAN_METRIC_NAME]: orphansDeleted,
+        }),
+    );
+}
+
+/**
+ * Reconcile the archive bucket against recently-`completed` erasure owners, deleting any orphaned
+ * snapshot a late version-archive PUT left behind.
+ *
+ * @throws {MissingConfigError} When `RECIPE_ARCHIVE_BUCKET` is unset — reconciling "no bucket" would
+ *   report a clean tick while every orphan survived.
+ * @sideEffect Reads `account_erasure_jobs`, lists+deletes S3 objects, emits one EMF line.
+ */
+export const handler = async (): Promise<void> => {
+    const archiveBucket = requireEnv('RECIPE_ARCHIVE_BUCKET');
+    const db = getRecipeDb();
+
+    const owners = await readRecentlyCompletedOwners(db);
+
+    let orphansDeleted = 0;
+
+    for (const ownerId of owners) {
+        // Per-owner, never per-batch: one erased owner's S3 failure must not strand another owner's
+        // reconciliation. The owner keeps its `completed` row and stays inside the look-back window, so
+        // the next tick re-attempts it — the same row-as-truth durability the other sweepers rely on.
+        try {
+            // Reuse the erasure worker's authoritative prefix-sweep (list → batch-delete → count) rather
+            // than re-implementing it: it IS the same operation, keyed under the same `ownerMediaPrefix`
+            // (ARCH-BE-3), and it already surfaces per-key S3 delete failures instead of papering over them.
+            orphansDeleted += await eraseRecipeObjects(s3, archiveBucket, ownerId);
+        } catch (error) {
+            logger.error('erasure-orphan-sweeper: could not reconcile a completed owner’s archive prefix', {
+                ownerId,
+                bucket: archiveBucket,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    emitOrphansDeletedMetric(process.env['STAGE'] ?? 'unknown', orphansDeleted);
+
+    if (orphansDeleted > 0) {
+        // A real resurrection fired: the sub-millisecond guard window was actually hit and this backstop
+        // caught it. Loud on purpose — it is both the remediation and the evidence the race is non-zero.
+        logger.warn('erasure-orphan-sweeper deleted archive orphans under erased owners', {
+            orphansDeleted,
+            ownersScanned: owners.length,
+            bucket: archiveBucket,
+        });
+    } else {
+        logger.info('erasure-orphan-sweeper swept clean', { ownersScanned: owners.length });
+    }
+};

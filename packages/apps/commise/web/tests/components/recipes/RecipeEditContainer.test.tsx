@@ -8,7 +8,7 @@
  * "use theirs" reseeds the form from the latest recipe without navigating. The recipe-service hooks + Next
  * router are mocked. Queries use role/label/text only.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotFoundError, VersionConflictError } from '@kitchensink/recipe-service-client';
 import type { UpdateRecipeInput } from '@kitchensink/recipe-core';
@@ -33,6 +33,17 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useUpdateRecipe: useUpdateRecipeMock,
     useSearchIngredients: useSearchIngredientsMock,
     useCreateIngredient: useCreateIngredientMock,
+    // The ingredient picker also reads the async-resolution hooks; inert idle defaults keep it in its
+    // search branch (this container never drives an UNRESOLVED disambiguation or a poll-after-add).
+    useAddIngredientByName: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
+    useIngredientStatus: () => ({ data: undefined }),
+    useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
+    useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -255,6 +266,47 @@ describe('RecipeEditContainer', () => {
         expect(firstVars.input.expectedVersion).toBe(3);
         expect(secondVars.input.expectedVersion).toBe(4);
         expect(secondVars.input.title).toBe('Weeknight Pasta Deluxe');
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+    });
+
+    it('merge re-submits the field-by-field merged draft against the fresh version and navigates', async () => {
+        const user = userEvent.setup();
+        // Theirs differs on both title and servings; the merged result keeps MY title but takes THEIR servings.
+        const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4, servings: 8 });
+        refetchMock.mockResolvedValue({ data: theirs });
+        const mutation = versionAwareMutation(4);
+        useRecipeMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3, servings: 4 }),
+            refetch: refetchMock,
+        });
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        useSearchIngredientsMock.mockReturnValue(idleSearch());
+        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+
+        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+
+        await user.type(screen.getByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        // Enter the merge panel and pull servings from the latest saved version, keeping my title.
+        await user.click(await screen.findByRole('button', { name: 'Merge field by field' }));
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 8' }));
+        await user.click(screen.getByRole('button', { name: 'Save merged version' }));
+
+        const mutate = mutation['mutate'] as ReturnType<typeof vi.fn>;
+        expect(mutate).toHaveBeenCalledTimes(2);
+        const [firstVars] = mutate.mock.calls[0] as [MutateVars];
+        const [secondVars] = mutate.mock.calls[1] as [MutateVars];
+        // Mutation lens (stale version): the resubmit MUST carry the fresh server version (4), not the stale
+        // 3 the first save carried — otherwise the merge would re-409 and never navigate.
+        expect(firstVars.input.expectedVersion).toBe(3);
+        expect(secondVars.input.expectedVersion).toBe(4);
+        // Mutation lens (per-field): the merged write is my title + their servings, not one whole side.
+        expect(secondVars.input.title).toBe('Weeknight Pasta Deluxe');
+        expect(secondVars.input.servings).toBe(8);
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
     });
 

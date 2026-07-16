@@ -1,20 +1,32 @@
 'use client';
 
 /**
- * Container for the public-discovery route: binds the shared, presentational `RecipeDiscoveryList` building
- * block to live data. It owns the search-box state, projects `useSearchRecipes({ query })` onto the block's
- * three top-level states (loading / error / ready) and its result rows, and wires the per-row clone and
- * recipe-selection actions. Cloning a public recipe runs `useCloneRecipe` and, on success, navigates to the
- * caller's freshly-cloned copy; the row whose clone is in flight is busied via `cloningId`. It holds no
- * server data of its own — TanStack Query is the source of truth for the remote search results.
+ * Container for the public-discovery route: binds the shared, presentational `RecipeDiscoveryList` +
+ * `RecipeFilterBar` building blocks to live data. It owns NO server data — TanStack Query is the source of
+ * truth for the remote search results — and it holds NO filter state of its own either: the search term and
+ * the active filters live in the URL (`?query=…&dietaryFlags=…&tags=…&maxTotalTime=…`), so a filtered view is
+ * shareable and survives reload/back. It derives `{ filters, query }` from the URL, projects them onto the
+ * `useSearchRecipes` params via the shared pure model, and writes changes back with
+ * `window.history.replaceState` — the Next-integrated history API that updates `useSearchParams()` WITHOUT a
+ * server round-trip (a `router.replace` per keystroke would re-render this `force-dynamic` server page). The
+ * search response's `facets` drive the filter chips; per-row clone navigates to the caller's fresh copy.
  */
-import { RecipeDiscoveryList } from '@commise/features-recipes';
-import type { RecipeDiscoveryStatus } from '@commise/features-recipes';
-import type { RecipeSearchParams } from '@kitchensink/recipe-core';
+import { RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
+import type { FacetDimension, RecipeDiscoveryStatus } from '@commise/features-recipes';
+import {
+    clearRecipeFilters,
+    filtersFromQueryString,
+    filtersToQueryString,
+    filtersToSearchParams,
+    hasActiveFilters,
+    setMaxTotalTime,
+    toggleFacetValue,
+    type RecipeFilterState,
+} from '@commise/features-recipes';
 import { useCloneRecipe, useSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
-import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback } from 'react';
 import type { FC } from 'react';
 
 /** Props for {@link RecipeDiscoveryContainer}. */
@@ -40,41 +52,59 @@ function toDiscoveryStatus(isLoading: boolean, isError: boolean): RecipeDiscover
  * The live public-discovery container.
  *
  * @param props - The active locale.
- * @returns The wired {@link RecipeDiscoveryList}.
+ * @returns The wired {@link RecipeDiscoveryList} with its {@link RecipeFilterBar}.
  */
 export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ locale }) => {
     const router = useRouter();
-    const [searchValue, setSearchValue] = useState('');
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
 
-    // Only send a `query` param once the user has typed something meaningful, so the initial load browses
-    // all public recipes (an empty/whitespace term is "no filter", not a search for the empty string).
-    const params = useMemo<RecipeSearchParams>(() => {
-        const term = searchValue.trim();
+    // The URL is the single source of truth for the search criteria. Deriving (never copying into state) keeps
+    // the view in lockstep with a shared/reloaded link and the back button.
+    const { filters, query } = filtersFromQueryString(searchParams.toString());
 
-        return term.length === 0 ? {} : { query: searchValue };
-    }, [searchValue]);
-
-    const query = useSearchRecipes(params);
+    const search = useSearchRecipes(filtersToSearchParams(filters, query));
     const clone = useCloneRecipe();
 
-    const status = toDiscoveryStatus(query.isLoading, query.isError);
-    const results = query.data?.results ?? [];
+    const status = toDiscoveryStatus(search.isLoading, search.isError);
     const cloningId = clone.isPending ? clone.variables : null;
+
+    // Write the next criteria to the URL via the Next-integrated history API (no server round-trip per
+    // keystroke, unlike router.replace on this force-dynamic page). `useSearchParams()` re-renders in response.
+    const applyCriteria = useCallback(
+        (nextFilters: RecipeFilterState, nextQuery: string) => {
+            const qs = filtersToQueryString(nextFilters, nextQuery);
+            window.history.replaceState(null, '', qs.length > 0 ? `${pathname}?${qs}` : pathname);
+        },
+        [pathname],
+    );
 
     return (
         <RecipeDiscoveryList
             status={status}
-            results={results}
-            searchValue={searchValue}
-            onSearchChange={setSearchValue}
+            results={search.data?.results ?? []}
+            searchValue={query}
+            onSearchChange={(value) => applyCriteria(filters, value)}
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
             onClone={(id) =>
                 clone.mutate(id, {
                     onSuccess: (recipe) => router.push(`/${locale}/recipes/${recipe.id}` as Route),
                 })
             }
-            onRetry={() => void query.refetch()}
+            onRetry={() => void search.refetch()}
             cloningId={cloningId}
+            hasActiveFilters={hasActiveFilters(filters)}
+            filterSlot={
+                <RecipeFilterBar
+                    facets={search.data?.facets ?? {}}
+                    filters={filters}
+                    onToggleFacet={(dimension: FacetDimension, value: string) =>
+                        applyCriteria(toggleFacetValue(filters, dimension, value), query)
+                    }
+                    onSetMaxTotalTime={(minutes) => applyCriteria(setMaxTotalTime(filters, minutes), query)}
+                    onClearAll={() => applyCriteria(clearRecipeFilters(), query)}
+                />
+            }
         />
     );
 };

@@ -20,12 +20,19 @@ import {
     Max,
     MaxLength,
     Min,
+    ValidateIf,
     ValidateNested,
 } from 'class-validator';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeDifficulty, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** The allowed visibility literals, derived from the shared `RecipeVisibility` value object. */
 const RECIPE_VISIBILITIES = Object.values(RecipeVisibility);
+
+/**
+ * The allowed difficulty literals (`easy`/`medium`/`hard`), derived from the shared `RecipeDifficulty`
+ * value object. Exported so the update DTO validates against the exact same set (one authoritative list).
+ */
+export const RECIPE_DIFFICULTIES = Object.values(RecipeDifficulty);
 
 /** A single ingredient line on a create/update request (wire shape of the domain `RecipeIngredient`). */
 export class RecipeIngredientInputDto {
@@ -102,6 +109,16 @@ export class CreateRecipeDto {
     @IsString()
     @MaxLength(100)
     cuisine?: string;
+
+    // Author-stated difficulty (FR-001b). OPTIONAL with NO default: an omitted field means "the author
+    // stated none", a first-class state the DB stores as NULL. Deliberately `@ValidateIf(absent-skip)` and
+    // NOT `@IsOptional()`: `@IsOptional()` short-circuits on `null` too, which would let a client send
+    // `null` on create — but create is value-or-OMIT (the OpenAPI create schema is non-nullable; the null
+    // CLEAR sentinel is an UPDATE-only concern). `@ValidateIf` skips validation only when the field is
+    // truly absent (undefined), so `@IsIn` still runs for `null` and REJECTS it, while a genuine omit passes.
+    @ValidateIf((dto: CreateRecipeDto) => dto.difficulty !== undefined)
+    @IsIn(RECIPE_DIFFICULTIES)
+    difficulty?: RecipeDifficulty;
 
     @IsOptional()
     @IsIn(RECIPE_VISIBILITIES)

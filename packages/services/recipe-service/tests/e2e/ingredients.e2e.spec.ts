@@ -1,0 +1,124 @@
+/**
+ * T029/T067 — e2e proof of the ingredient async-resolution surface through the fully ASSEMBLED recipe app
+ * (`ThrottlerModule` + global guard, `AuthMiddleware`, `ApiExceptionFilter`, `ParseUUIDPipe`, real HTTP)
+ * via `bootRecipeApp`. It pins the client-visible HTTP contract of the poll/candidates/resolve routes: the
+ * status codes and shapes a caller actually receives.
+ *
+ * The external food service (003) is NOT running in the harness, so these specs deliberately drive the
+ * branches that need NO food-service call — a FREEFORM (user-entered) ingredient has no linked food, so
+ * `status` returns it unchanged, `candidates` is empty, and `resolve` is a no-op — plus the boundary cases
+ * (missing ingredient → 404, malformed id → 400, empty `candidateIds` → 400). The food-backed happy path
+ * (poll → RESOLVED with nutrition, resolve from a candidate) is proven where the food client is stubbable:
+ * the service unit tests and the disambiguation integration spec. Skips when no test database is configured.
+ */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+
+import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+
+const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+
+const CALLER = '01JINGE2E00000CALLER00000A';
+const FREEFORM_NAME = 'E2E disambiguation freeform spice';
+const MISSING_ID = '00000000-0000-4000-8000-0000000000ff';
+
+describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, assembled app)', () => {
+    let booted: BootedRecipeApp;
+    let pool: pg.Pool;
+
+    beforeAll(async () => {
+        booted = await bootRecipeApp({ devAuthUserId: CALLER });
+        pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
+    });
+
+    afterAll(async () => {
+        await pool.query('DELETE FROM ingredients WHERE lower(name) = lower($1)', [FREEFORM_NAME]);
+        await pool.end();
+        await booted?.close();
+    });
+
+    /** Create the shared freeform ingredient over HTTP and return its id. */
+    async function createFreeform(): Promise<string> {
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: FREEFORM_NAME }),
+        });
+        expect(res.status).toBe(201);
+        const body = (await res.json()) as { id: string; isUserEntered: boolean };
+        expect(body.isUserEntered).toBe(true);
+
+        return body.id;
+    }
+
+    it('GET /{id}/status on a freeform ingredient returns it unchanged (200, no food call)', async () => {
+        const id = await createFreeform();
+
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/status`);
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { id: string; foodResolutionStatus?: string };
+        expect(body.id).toBe(id);
+        expect(body.foodResolutionStatus).toBeUndefined();
+    });
+
+    it('GET /{id}/candidates on a freeform ingredient is an empty list (200)', async () => {
+        const id = await createFreeform();
+
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/candidates`);
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual([]);
+    });
+
+    it('POST /{id}/resolve on a freeform ingredient is a no-op that returns it (200)', async () => {
+        const id = await createFreeform();
+
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/resolve`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ candidateIds: ['cand-1'] }),
+        });
+
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as { id: string }).id).toBe(id);
+    });
+
+    it('POST /{id}/resolve with an empty candidateIds is a 400', async () => {
+        const id = await createFreeform();
+
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/resolve`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ candidateIds: [] }),
+        });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('POST /by-name with a blank name is a 400 (route is mounted; validated BEFORE any food call)', async () => {
+        // The food service (003) is not in the harness, so the 202 happy path is proven at the unit +
+        // integration tiers (where the food client is stubbable). Here we pin that the async-resolution ENTRY
+        // POINT is actually wired into the assembled app: a mounted route validates a blank name to 400 (a
+        // MISSING route would 404), and validation short-circuits before the un-stubbed food client is touched.
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/by-name`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: '   ' }),
+        });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('GET /{id}/status for a non-existent ingredient is a 404', async () => {
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${MISSING_ID}/status`);
+
+        expect(res.status).toBe(404);
+    });
+
+    it('GET /{id}/candidates for a malformed (non-UUID) id is a 400 (ParseUUIDPipe)', async () => {
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/not-a-uuid/candidates`);
+
+        expect(res.status).toBe(400);
+    });
+});

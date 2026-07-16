@@ -9,9 +9,11 @@ import type {
     CreateRecipeInput,
     FoodResolutionStatus,
     RecipeDetail,
+    RecipeDifficulty,
     RecipeIngredientView,
     RecipeStepView,
     RecipeVisibility,
+    UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
 
 /**
@@ -39,6 +41,13 @@ export interface RecipeFormValues {
     readonly title: string;
     readonly description: string;
     readonly cuisine: string;
+    /**
+     * Author-stated difficulty (FR-001b). ABSENT means "not stated" — a real, first-class state, never a
+     * substituted default. On an EDIT form this field is seeded from the recipe's current difficulty, so the
+     * user removing it (choosing "not stated") makes the field absent, which {@link toUpdateRecipeInput}
+     * turns into an explicit `null` clear on the wire (as opposed to an omit, which would leave it unchanged).
+     */
+    readonly difficulty?: RecipeDifficulty;
     readonly tags: readonly string[];
     readonly dietaryFlags: readonly string[];
     readonly servings: number;
@@ -90,6 +99,8 @@ export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput
     title: values.title.trim(),
     ...(values.description.trim() === '' ? {} : { description: values.description.trim() }),
     ...(values.cuisine.trim() === '' ? {} : { cuisine: values.cuisine.trim() }),
+    // Difficulty is optional on create with NO clear sentinel: carry it only when stated, omit otherwise.
+    ...(values.difficulty === undefined ? {} : { difficulty: values.difficulty }),
     ingredients: values.ingredients
         .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
         .map((line) => ({
@@ -113,6 +124,27 @@ export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput
 });
 
 /**
+ * Map form values to the body of an `UpdateRecipeInput` (the caller adds the `expectedVersion` optimistic-
+ * concurrency token). Identical to {@link toCreateRecipeInput} for every field EXCEPT `difficulty`, which is
+ * three-state on update (omit = unchanged, value = set, `null` = clear).
+ *
+ * The edit form is seeded from the recipe's current difficulty, so the field's presence encodes the user's
+ * INTENT: a present value means "set/keep this difficulty", and an ABSENT value means the user chose "not
+ * stated" and wants it CLEARED. This maps absent → explicit `null` (not omit): omit would leave a previously
+ * set difficulty unchanged, making "not stated" unreachable once set (FR-001b). Sending the current value
+ * again, or `null` on an already-unstated recipe, is idempotent — consistent with the form's full-state
+ * replacement of every other field on update. Pure. (Validate BEFORE submitting.)
+ *
+ * @param values - The editor's form values.
+ * @returns The `UpdateRecipeInput` body, without `expectedVersion`.
+ */
+export const toUpdateRecipeInput = (values: RecipeFormValues): Omit<UpdateRecipeInput, 'expectedVersion'> => ({
+    ...toCreateRecipeInput(values),
+    // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
+    difficulty: values.difficulty ?? null,
+});
+
+/**
  * Project the in-progress draft onto a base {@link RecipeDetail} so the concurrent-edit conflict view (T070)
  * can show "mine" (the edit the user was about to save) beside "theirs" (the latest saved recipe). The
  * conflict view renders only aggregate fields — title, servings, prep/cook/total times, and ingredient/step
@@ -125,34 +157,90 @@ export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput
  * @param values - The editor's current draft values.
  * @returns A {@link RecipeDetail} whose editable fields reflect the draft.
  */
-export const applyDraftToRecipeDetail = (base: RecipeDetail, values: RecipeFormValues): RecipeDetail => ({
-    ...base,
-    title: values.title.trim(),
-    servings: values.servings,
-    prepTimeMinutes: values.prepTimeMinutes,
-    cookTimeMinutes: values.cookTimeMinutes,
-    totalTimeMinutes: computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes),
-    ingredients: values.ingredients
-        .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
-        .map(
-            (line): RecipeIngredientView => ({
-                ingredientId: line.ingredientId,
-                name: line.name,
-                quantity: line.quantity,
-                ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
-                ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
-                // Provenance is not surfaced by the conflict view (counts only); default rather than guess.
-                isUserEntered: false,
+export const applyDraftToRecipeDetail = (base: RecipeDetail, values: RecipeFormValues): RecipeDetail => {
+    // Drop the base difficulty so a draft that CLEARED it ("not stated") is reflected as absent, not the
+    // stale server value; the draft's difficulty (when stated) is re-added below.
+    const { difficulty: _baseDifficulty, ...rest } = base;
+
+    return {
+        ...rest,
+        ...(values.difficulty === undefined ? {} : { difficulty: values.difficulty }),
+        title: values.title.trim(),
+        servings: values.servings,
+        prepTimeMinutes: values.prepTimeMinutes,
+        cookTimeMinutes: values.cookTimeMinutes,
+        totalTimeMinutes: computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes),
+        ingredients: values.ingredients
+            .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
+            .map(
+                (line): RecipeIngredientView => ({
+                    ingredientId: line.ingredientId,
+                    name: line.name,
+                    quantity: line.quantity,
+                    ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
+                    ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
+                    // Provenance is not surfaced by the conflict view (counts only); default rather than guess.
+                    isUserEntered: false,
+                }),
+            ),
+        steps: values.steps.map(
+            (step, index): RecipeStepView => ({
+                stepNumber: index + 1,
+                instruction: step.instruction,
+                ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
             }),
         ),
-    steps: values.steps.map(
-        (step, index): RecipeStepView => ({
-            stepNumber: index + 1,
-            instruction: step.instruction,
-            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-        }),
-    ),
-});
+    };
+};
+
+/**
+ * The catalog ids of every ingredient line still resolving nutrition (`PENDING`) — de-duplicated, so a food
+ * added twice is polled once. The composing create/edit container renders one status poller per id to drive
+ * a `PENDING` line to `RESOLVED` (poll-after-add, data-model R5 / FR-007). A line with no catalog id (blank
+ * or freeform-in-progress) is never polled. Pure.
+ *
+ * @param values - The editor's current form values.
+ * @returns The unique catalog ids of the `PENDING` food-backed lines.
+ */
+export const pendingIngredientIds = (values: RecipeFormValues): string[] => {
+    const ids = values.ingredients
+        .filter(
+            (line): line is RecipeFormIngredient & { ingredientId: string } =>
+                line.ingredientId !== null && line.resolutionStatus === 'PENDING',
+        )
+        .map((line) => line.ingredientId);
+
+    return [...new Set(ids)];
+};
+
+/**
+ * Set the resolution status of EVERY ingredient line linked to `ingredientId` (a food can appear on more than
+ * one line), but only where it actually differs. Returns the SAME `values` reference when nothing changes, so
+ * a repeated poll callback reporting an unchanged status cannot trigger a render loop. Pure.
+ *
+ * @param values - The editor's current form values.
+ * @param ingredientId - The catalog id of the line(s) whose status resolved.
+ * @param status - The newly observed resolution status.
+ * @returns The next values (or the identical reference when no line changed).
+ */
+export const setIngredientStatusById = (
+    values: RecipeFormValues,
+    ingredientId: string,
+    status: FoodResolutionStatus,
+): RecipeFormValues => {
+    let changed = false;
+    const ingredients = values.ingredients.map((line) => {
+        if (line.ingredientId === ingredientId && line.resolutionStatus !== status) {
+            changed = true;
+
+            return { ...line, resolutionStatus: status };
+        }
+
+        return line;
+    });
+
+    return changed ? { ...values, ingredients } : values;
+};
 
 /** Field-level validation errors (a message per invalid field; absent when valid). */
 export interface RecipeFormErrors {

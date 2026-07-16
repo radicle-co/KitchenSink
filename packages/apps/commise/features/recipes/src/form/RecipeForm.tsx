@@ -23,11 +23,13 @@ import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
     addStep,
+    difficultyOptions,
     parseCommaList,
     parseNumericInput,
     removeIngredientAt,
     removeStepAt,
     resolutionStatusLabel,
+    setDifficulty,
     updateIngredientAt,
     updateStepAt,
     type RecipeFormProps,
@@ -44,6 +46,9 @@ const primaryButton =
 const ghostButton = 'rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl';
 const removeButton = 'rounded-full px-3 py-1 text-body-sm font-medium text-error transition hover:bg-coral/10';
 const errorText = 'text-body-sm text-error';
+const difficultyChip =
+    'flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam-light';
+const difficultyChipSelected = 'border-seafoam bg-seafoam text-white';
 
 export const RecipeForm: FC<RecipeFormProps> = ({
     values,
@@ -253,6 +258,33 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                             className={field}
                         />
                     </label>
+                </div>
+                <div className="flex flex-col gap-1">
+                    <span id="recipe-difficulty-label" className={fieldLabel}>
+                        {m.difficultyLabel}
+                    </span>
+                    <div role="radiogroup" aria-labelledby="recipe-difficulty-label" className="flex flex-wrap gap-2">
+                        {difficultyOptions(m).map((option) => {
+                            const selected = values.difficulty === option.value;
+
+                            return (
+                                <label
+                                    key={option.label}
+                                    className={`${difficultyChip} ${selected ? difficultyChipSelected : ''}`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="recipe-difficulty"
+                                        aria-label={option.label}
+                                        checked={selected}
+                                        onChange={() => onChange(setDifficulty(values, option.value))}
+                                        className="sr-only"
+                                    />
+                                    <span>{option.label}</span>
+                                </label>
+                            );
+                        })}
+                    </div>
                 </div>
                 {errors?.servings !== undefined && (
                     <p className={errorText} role="alert">

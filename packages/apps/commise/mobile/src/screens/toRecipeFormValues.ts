@@ -22,6 +22,8 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
     title: detail.title,
     description: detail.description,
     cuisine: detail.cuisine ?? '',
+    // Seed the current difficulty so the edit form shows it; absence stays "not stated" (FR-001b).
+    ...(detail.difficulty === undefined ? {} : { difficulty: detail.difficulty }),
     tags: [...detail.tags],
     dietaryFlags: [...detail.dietaryFlags],
     servings: detail.servings,

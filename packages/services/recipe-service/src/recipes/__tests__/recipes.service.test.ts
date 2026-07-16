@@ -13,11 +13,19 @@ import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
+import type { RatingsDal } from '../../ratings/dal/ratings.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
-import { makeRecipeIngredientRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeRecipeIngredientRow,
+    makeRecipePhotoRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+} from '../../__fixtures__/index.js';
+import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
+import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
 import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
@@ -72,9 +80,19 @@ function fakeIngredientsDal(): IngredientsDal {
     } as unknown as IngredientsDal;
 }
 
-/** Construct the service with a permissive catalog DAL (overridable per test via the DAL arg). */
-function newService(dal: RecipesDal): RecipesService {
-    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService(), fakePhotosDal(), RECIPE_PHOTOS_CDN);
+/**
+ * Construct the service with a permissive catalog DAL (overridable per test via the DAL arg). `ratingsDal`
+ * defaults to an unrated-viewer stub; pass a `fakeRatingsDal(stars)` to exercise the `viewerRating` path.
+ */
+function newService(dal: RecipesDal, ratingsDal: RatingsDal = fakeRatingsDal()): RecipesService {
+    return new RecipesService(
+        dal,
+        fakeIngredientsDal(),
+        makeFakeVersionsService(),
+        fakePhotosDal(),
+        RECIPE_PHOTOS_CDN,
+        ratingsDal,
+    );
 }
 
 /** Capture the error a rejected promise throws, or fail if it resolves. */
@@ -137,7 +155,14 @@ describe('RecipesService.create', () => {
         const created = aggregate({ currentVersion: 1 });
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
-        const service = new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN);
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
 
         await service.create(principal(), CREATE_DTO);
 
@@ -185,10 +210,14 @@ describe('RecipesService.create', () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
-            principal(),
-            CREATE_DTO,
-        );
+        await new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        ).create(principal(), CREATE_DTO);
 
         // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
         // and the conditional inclusion of displayText/timerSeconds/userCalories with null siblings
@@ -229,10 +258,14 @@ describe('RecipesService.create', () => {
 
         // The recipe committed; a version hiccup must be swallowed (logged), not propagated.
         await expect(
-            new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
-                principal(),
-                CREATE_DTO,
-            ),
+            new RecipesService(
+                dal,
+                fakeIngredientsDal(),
+                versions,
+                fakePhotosDal(),
+                RECIPE_PHOTOS_CDN,
+                fakeRatingsDal(),
+            ).create(principal(), CREATE_DTO),
         ).resolves.toMatchObject({ id: 'r-1' });
         expect(consoleError).toHaveBeenCalled();
 
@@ -302,6 +335,70 @@ describe('RecipesService.getById', () => {
 
         expect(response.id).toBe('r-1');
     });
+
+    it("includes the VIEWER's own rating as viewerRating, scoped to (recipe, viewer)", async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        // The viewer (OTHER) has rated this recipe 4 stars.
+        const ratingsDal = fakeRatingsDal(4);
+
+        const response = await newService(dal, ratingsDal).getById(OTHER, 'r-1');
+
+        expect(response.viewerRating).toBe(4);
+        // Viewer-scoping pin: the lookup MUST use the VIEWER's id (OTHER), never the recipe's owner. If the
+        // code passed the owner (or any other id), this argument assertion fails — the leak this guards.
+        expect(ratingsDal.findStars).toHaveBeenCalledWith('r-1', OTHER);
+    });
+
+    it('OMITS viewerRating when the viewer has not rated the recipe (never a fabricated 0)', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        // Default stub: findStars resolves undefined (viewer has no rating).
+        const response = await newService(dal).getById(OTHER, 'r-1');
+
+        expect(response.viewerRating).toBeUndefined();
+        expect('viewerRating' in response).toBe(false);
+    });
+});
+
+describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () => {
+    /** A service whose embedded PhotosDal returns the given photo rows (cover comes from the first). */
+    function serviceWithPhotos(dal: RecipesDal, photoRows: Parameters<typeof makeRecipePhotoRow>[0][]): RecipesService {
+        const photosDal = {
+            findByRecipe: vi.fn().mockResolvedValue(photoRows.map((r) => makeRecipePhotoRow(r))),
+        } as unknown as PhotosDal;
+
+        return new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            makeFakeVersionsService(),
+            photosDal,
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+    }
+
+    it("serves the cover from the first photo's THUMBNAIL, while the gallery keeps the full-size original", async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const s3Key = 'recipes/01JOWNER/r-1/photos/p1';
+        const thumbnailKey = `${s3Key}.thumb.jpg`;
+        const service = serviceWithPhotos(dal, [{ s3Key, thumbnailKey, sortOrder: 0 }]);
+
+        const response = await service.getById(OTHER, 'r-1');
+
+        // The cover is the thumbnail — a mutation that served `s3Key` (the original) fails here.
+        expect(response.coverPhotoUrl).toBe(`${RECIPE_PHOTOS_CDN}/${thumbnailKey}`);
+        // ...but the embedded gallery photo is still the full-size original.
+        expect(response.photos?.[0]?.url).toBe(`${RECIPE_PHOTOS_CDN}/${s3Key}`);
+    });
+
+    it('falls back to the original for a cover photo that has no thumbnail (pre-feature / degraded)', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'public' })) });
+        const s3Key = 'recipes/01JOWNER/r-1/photos/p1';
+        const service = serviceWithPhotos(dal, [{ s3Key, thumbnailKey: null, sortOrder: 0 }]);
+
+        const response = await service.getById(OTHER, 'r-1');
+
+        expect(response.coverPhotoUrl).toBe(`${RECIPE_PHOTOS_CDN}/${s3Key}`);
+    });
 });
 
 describe('RecipesService.list', () => {
@@ -321,6 +418,56 @@ describe('RecipesService.list', () => {
         const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
 
         expect(response.hasMore).toBe(false);
+    });
+});
+
+describe('RecipesService — difficulty passthrough (FR-001b)', () => {
+    /** The recorded arg the service handed the DAL for a create/update call. */
+    function dalCallArg(fn: unknown, index: number): Record<string, unknown> {
+        return (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][index] as Record<string, unknown>;
+    }
+
+    it('forwards a stated difficulty to the DAL on create', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'medium' })) });
+
+        await newService(dal).create(principal(), { ...CREATE_DTO, difficulty: 'medium' });
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ difficulty: 'medium' }));
+    });
+
+    it('does NOT forward a difficulty key to the DAL create when the author stated none', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        // CREATE_DTO carries no difficulty → the DAL create arg must omit the key (row stays NULL).
+        await newService(dal).create(principal(), CREATE_DTO);
+
+        expect(dalCallArg(dal.create, 0)).not.toHaveProperty('difficulty');
+    });
+
+    it('maps a persisted difficulty into the wire response (round-trips what was written)', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'hard' })) });
+
+        const response = await newService(dal).create(principal(), { ...CREATE_DTO, difficulty: 'hard' });
+
+        expect(response.difficulty).toBe('hard');
+    });
+
+    it.each([
+        ['a value', { expectedVersion: 1, difficulty: 'hard' } as UpdateRecipeDto, 'hard'],
+        ['null (clear)', { expectedVersion: 1, difficulty: null } as UpdateRecipeDto, null],
+        ['absent (unchanged)', { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto, undefined],
+    ])('forwards difficulty=%s straight through to the DAL update', async (_label, patch, expected) => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(OWNER, 'r-1', patch);
+
+        // The three states must reach the DAL as three DISTINCT values (value / null / undefined) — the DAL
+        // is what turns them into set / clear / leave-unchanged. Asserting the exact value (incl. the
+        // undefined vs null difference) proves the service does not collapse "clear" into "leave unchanged".
+        expect(dalCallArg(dal.update, 1)['difficulty']).toBe(expected);
     });
 });
 
@@ -373,7 +520,14 @@ describe('RecipesService.update', () => {
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN);
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
 
         await service.update(OWNER, 'r-1', patch);
 
@@ -388,7 +542,14 @@ describe('RecipesService.update', () => {
             findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
-        const service = new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN);
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
 
         await service.update(OWNER, 'r-1', patch, { recordSnapshot: false });
 
@@ -529,10 +690,14 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
-            principal(),
-            CREATE_DTO,
-        );
+        await new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         // Every user-nutrition field is present and coerced to a number; the null displayText is omitted.
@@ -573,10 +738,14 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(created) });
 
-        await new RecipesService(dal, fakeIngredientsDal(), versions, fakePhotosDal(), RECIPE_PHOTOS_CDN).create(
-            principal(),
-            CREATE_DTO,
-        );
+        await new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
         expect(snapshot.servings).toBe(2);

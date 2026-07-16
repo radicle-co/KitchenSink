@@ -54,11 +54,11 @@ A feature is **not done** until every category its code touches has all the requ
 ### Test Infrastructure
 
 - [x] T082 [P] Create backend fixture factories (`makeRecipe`, `makeIngredient`, `makeCollection`, `makeUser`, `makeVersion`, `makePhoto`) in `packages/services/recipe-service/src/__fixtures__/index.ts` — typed, overridable defaults, `make*` naming per constitution
-- [ ] T083 [P] Create web frontend fixture factories (`makeRecipeViewModel`, `makeCollectionViewModel`) in `packages/apps/commise/web/src/__fixtures__/index.ts`
-- [ ] T084 [P] Create mobile frontend fixture factories in `packages/apps/commise/mobile/src/__fixtures__/index.ts`
+- [x] T083 [P] Create web frontend fixture factories (`makeRecipeViewModel`, `makeCollectionViewModel`) in `packages/apps/commise/web/src/__fixtures__/index.ts`
+- [x] T084 [P] Create mobile frontend fixture factories in `packages/apps/commise/mobile/src/__fixtures__/index.ts`
 - [x] T085 [P] Configure Vitest base config for API workspace with unit/integration/e2e splits in `packages/services/recipe-service/vitest.config.ts`, `packages/services/recipe-service/vitest.integration.config.ts`
-- [ ] T086 [P] Configure Playwright project with `globalSetup.ts` (run migrations + seed, start API server) in `packages/apps/commise/web/playwright.config.ts` and `packages/apps/commise/web/tests/e2e/global-setup.ts`
-- [ ] T087 [P] Create Maestro E2E flow directory structure and base config in `packages/apps/commise/mobile/tests/e2e/.maestro/config.yaml`
+- [x] T086 [P] Configure Playwright project with `globalSetup.ts` (run migrations + seed, start API server) in `packages/apps/commise/web/playwright.config.ts` and `packages/apps/commise/web/tests/e2e/global-setup.ts`
+- [x] T087 [P] Create Maestro E2E flow directory structure and base config in `packages/apps/commise/mobile/tests/e2e/.maestro/config.yaml`
 - [x] T088 [P] Create `docker-compose.test.yml` for CI test infrastructure (PostgreSQL 16 + LocalStack S3 with bucket auto-provisioning) at monorepo root
 - [x] T089 [P] Implement test `globalSetup.ts` for integration tests: start LocalStack, provision S3 buckets, run Drizzle migrations, seed test data in `packages/services/recipe-service/tests/global-setup.ts`
 
@@ -172,7 +172,7 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Integration Tests (TDD — against real DB + LocalStack)
 
-- [x] T044 [US1] Add integration test for version retention (keep last 10 in DB, archive all to S3 via LocalStack) in `packages/services/recipe-service/__tests__/integration/versions/retention.integration.spec.ts`
+- [x] T044 [US1] Add integration test for version retention AS SHIPPED post-T130 (save-time prunes NOTHING — every version stays in Postgres; each version beyond the newest 10 is recorded in the `recipe_version_pending_archives` outbox for the async version-archive worker; enqueue is idempotent across repeated saves — no S3 write on the save path) in `packages/services/recipe-service/__tests__/integration/versions/retention.integration.spec.ts`
 - [x] T045 [US1] Add integration test for optimistic conflict detection returning HTTP 409 with version metadata in `packages/services/recipe-service/__tests__/integration/recipes/conflict.integration.spec.ts`
 - [x] T098 [US1] Add integration test for recipe CRUD lifecycle (create → get → update → list → delete) against real PostgreSQL in `packages/services/recipe-service/__tests__/integration/recipes/crud.integration.spec.ts`
 - [x] T099 [US1] Add integration test for ingredient search (pg_trgm fuzzy + FTS exact) against real PostgreSQL in `packages/services/recipe-service/__tests__/integration/ingredients/search.integration.spec.ts`
@@ -241,8 +241,8 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### Async Version Archive Worker (FR-007b-i)
 
-- [x] T130-test Write unit tests for pending-archive enqueue (insert row when version snapshot is written) and worker handler (success → delete row, failure → increment attempt_count + last_error) in `packages/services/recipe-service/src/versions/__tests__/archive-worker.test.ts`
-- [x] T130 Update versioning service to insert into `recipe_version_pending_archives` instead of writing to S3 inline in `packages/services/recipe-service/src/versions/versions.service.ts`
+- [x] T130-test Write unit tests for pending-archive enqueue — insert one idempotent row (`UNIQUE(recipe_version_id)` + `ON CONFLICT DO NOTHING`) when a version goes over-retention — in `packages/services/recipe-service/src/versions/dal/__tests__/pending-archives.dal.test.ts`. Retries are NOT tracked in-DB: the shipped design re-drives a failed archive via SQS redelivery and, on exhaustion, the DLQ (worker handler tested in recipe-workers `version-archive-worker.test.ts`: success → DELETE outbox row, failure → throw → SQS redelivery → DLQ). No `attempts`/`last_error` DAL mutation path — the outbox row is the source of truth, the SQS message derived
+- [x] T130 Update versioning service to record over-retention versions in the `recipe_version_pending_archives` outbox (no S3 write, no prune at save time) instead of writing to S3 inline — the version-archive worker archives-then-prunes across the async boundary — in `packages/services/recipe-service/src/versions/versions.service.ts`
 - [x] T131 Implement version-archive worker (SQS-triggered Lambda) that drains pending rows, writes snapshots to S3 versions bucket, and deletes the pending row on success in `packages/services/recipe-workers/src/version-archive-worker/handler.ts` (workspace `@kitchensink/recipe-workers` scaffolded in T002; this Lambda reads the shared RDS (`kitchensink_recipes`) → VPC-attached t4g.nano NAT consumer)
 - [x] T132 Add CDK infrastructure for version-archive SQS queue + DLQ + Lambda subscription in `packages/services/recipe-workers/infra/`
 - [x] T133 Add integration test for the full async archive path (enqueue → worker drains → S3 object exists, pending row gone) using LocalStack SQS + S3 in `packages/services/recipe-workers/__tests__/integration/archive.integration.spec.ts`
@@ -250,34 +250,24 @@ A feature is **not done** until every category its code touches has all the requ
 
 ### GDPR Account Erasure
 
-> **⚠️ ORDERING HAZARD — read before starting this group (added 2026-07-15).**
+> **✅ COMPLETE & VERIFIED (2026-07-16). The stub-hazard note this replaces is obsolete.**
 >
-> **T136 (the worker body) MUST land before T136b (the queue + subscription that triggers it).**
->
-> `recipe-workers/src/handlers/account-erasure-worker.ts` looks implemented but is not:
-> `eraseRecipeRows(_db, _ownerId)` is a **no-op stub** (`TODO(Phase 4+)`), and the handler only calls
-> `eraseRecipeObjects` against the **media bucket**. So today it would delete a user's photos, report
-> success, and leave **every database row** and **every version archive in the versions bucket**
-> untouched — a false "erased" on a right-to-erasure request, which is worse than an erasure that
-> visibly fails.
->
-> The T132 stack (`b5eae03`) **already deploys this Lambda**, but creates **no erasure queue and no
-> subscription**, so it is currently **inert — nothing can invoke it**. T136b is what wires the trigger.
-> Wiring the trigger while the body is still a stub is what turns an inert stub into a compliance
-> defect. Do T136 first.
->
-> When implementing T136, the archive bucket is the easy thing to miss: erasure must sweep
-> `ownerMediaPrefix(ownerId)` in **both** `RECIPE_MEDIA_BUCKET` and `RECIPE_ARCHIVE_BUCKET`. Version
-> archives live under the same owner prefix by design (ARCH-BE-3 / `verticals-8`) precisely so this
-> sweep reaches them — the IAM role the stack already grants covers delete on both buckets.
+> The entire GDPR erasure group shipped and is verified at every tier: `eraseRecipeRows` performs the
+> real FK-safe delete inside a transaction (NULL-ing foreign `cloned_from_id` first, then `recipes`
+> incl. tombstones, `collections`, and `recipe_ratings WHERE user_id` — the third owner-scoped root);
+> the handler sweeps `ownerMediaPrefix(ownerId)` in **both** the media and archive buckets; the queue +
+> DLQ + subscription + cron sweeper are wired (T136b); an archive-orphan-sweep backstop closes the
+> archive-resurrection race; and the whole path is proven by unit (mutation-verified 19/19), integration
+> (real Postgres 16 + LocalStack), and e2e tiers. The prior ordering hazard (worker-body-before-trigger)
+> was honored during implementation and no longer applies.
 
-- [ ] T134-test Write unit tests for erasure service (queues job; duplicate request while job is `queued` or `running` returns HTTP 202 with existing job id; request after `completed` returns 410; request after `failed` enqueues a fresh job and returns 202; validates optional confirmation phrase) in `packages/services/recipe-service/src/account/__tests__/erasure.service.test.ts`
-- [ ] T135-test Write unit tests for erasure worker (hard-deletes recipes incl. tombstoned, versions, photos, collections, S3 photo + version objects, marks job completed) in `packages/services/recipe-workers/src/account-erasure-worker/__tests__/handler.test.ts`
-- [ ] T134 Implement `AccountModule` with `ErasureService` (inserts the `account_erasure_jobs` row and **enqueues to the SQS `account-erasure` queue**, D7) and `ErasureRequest` / `ErasureRequestAcceptedResponse` DTOs in `packages/services/recipe-service/src/account/{account.module.ts,erasure.service.ts,dto/erasure.dto.ts}`
-- [ ] T135 Implement `POST /v1/account/erasure` controller in `packages/services/recipe-service/src/account/account.controller.ts`
-- [ ] T136 Implement the **SQS-triggered, VPC-attached** erasure worker Lambda that hard-deletes all user-owned data (recipes incl. tombstoned, versions, pending-archive rows, photos, collections, memberships, S3 photo objects, S3 version-archive objects) and marks the `account_erasure_jobs` row `completed`/`failed` in `packages/services/recipe-workers/src/account-erasure-worker/handler.ts` (D7 — moved out of the Fargate service; reads the shared RDS (`kitchensink_recipes`) + S3 → VPC-attached NAT consumer)
-- [ ] T136b Add CDK infrastructure for the **`account-erasure` SQS queue + DLQ + VPC-attached erasure-worker Lambda subscription + a scheduled cron sweeper** (EventBridge rule) that re-drains stuck `queued`/`running` jobs (mirrors the version-archive pattern, D7) in `packages/services/recipe-workers/infra/`
-- [ ] T137 Add integration test for end-to-end erasure: seed user with recipes (some tombstoned), photos in LocalStack S3, version archives, collections → trigger erasure → assert all rows + S3 objects gone, job row marked `completed` in `packages/services/recipe-service/__tests__/integration/account/erasure.integration.spec.ts`
+- [x] T134-test Write unit tests for erasure service (queues job; duplicate request while job is `queued` or `running` returns HTTP 202 with existing job id; request after `completed` returns 410; request after `failed` enqueues a fresh job and returns 202; validates optional confirmation phrase) in `packages/services/recipe-service/src/account/__tests__/erasure.service.test.ts`
+- [x] T135-test Write unit tests for erasure worker (hard-deletes recipes incl. tombstoned, versions, photos, collections, S3 photo + version objects, marks job completed) in `packages/services/recipe-workers/src/account-erasure-worker/__tests__/handler.test.ts`
+- [x] T134 Implement `AccountModule` with `ErasureService` (inserts the `account_erasure_jobs` row and **enqueues to the SQS `account-erasure` queue**, D7) and `ErasureRequest` / `ErasureRequestAcceptedResponse` DTOs in `packages/services/recipe-service/src/account/{account.module.ts,erasure.service.ts,dto/erasure.dto.ts}`
+- [x] T135 Implement `POST /v1/account/erasure` controller in `packages/services/recipe-service/src/account/account.controller.ts`
+- [x] T136 Implement the **SQS-triggered, VPC-attached** erasure worker Lambda that hard-deletes all user-owned data (recipes incl. tombstoned, versions, pending-archive rows, photos, collections, memberships, S3 photo objects, S3 version-archive objects) and marks the `account_erasure_jobs` row `completed`/`failed` in `packages/services/recipe-workers/src/account-erasure-worker/handler.ts` (D7 — moved out of the Fargate service; reads the shared RDS (`kitchensink_recipes`) + S3 → VPC-attached NAT consumer)
+- [x] T136b Add CDK infrastructure for the **`account-erasure` SQS queue + DLQ + VPC-attached erasure-worker Lambda subscription + a scheduled cron sweeper** (EventBridge rule) that re-drains stuck `queued`/`running` jobs (mirrors the version-archive pattern, D7) in `packages/services/recipe-workers/infra/`
+- [x] T137 Add integration test for end-to-end erasure: seed user with recipes (some tombstoned), photos in LocalStack S3, version archives, collections → trigger erasure → assert all rows + S3 objects gone, job row marked `completed` in `packages/services/recipe-service/__tests__/integration/account/erasure.integration.spec.ts`
 
 **Checkpoint**: Spec clarifications for soft-delete, collection clone provenance, async version archives, and GDPR erasure are implemented and tested.
 
@@ -310,7 +300,7 @@ tracked by **T060**, not by this rubric.
 - [x] T061 [P] Configure Next.js 15 App Router with Clerk web SDK (`@clerk/nextjs`: `<ClerkProvider>` + `middleware.ts`) in `packages/apps/commise/web/src/app/layout.tsx`
 - [x] T062 [P] Configure Expo 53 with Clerk native SDK (`@clerk/expo`, tokens in `expo-secure-store`) in `packages/apps/commise/mobile/src/app/_layout.tsx`
 - [x] T063 [P] Set up shared design tokens (colors, spacing, typography) in `packages/apps/commise/ui/src/tokens/` (`@commise/ui`) consumable by both web (Tailwind v4) and mobile (Tamagui)
-- [ ] T064-test Write unit tests for the typed recipe API client hooks (useRecipes, useRecipe, useCreateRecipe, etc.) using MSW mocks in `packages/clients/recipe-service/src/hooks/__tests__/` — **TDD red for T064; complete before T064** (renumbered from a bare `T104` that collided with the Home-widget `T104-*` family)
+- [x] T064-test Write unit tests for the typed recipe API client hooks (useRecipes, useRecipe, useCreateRecipe, etc.) using MSW mocks in `packages/clients/recipe-service/src/hooks/__tests__/` — **TDD red for T064; complete before T064** (renumbered from a bare `T104` that collided with the Home-widget `T104-*` family)
 - [x] T064 [P] Create the typed recipe API client (`@kitchensink/recipe-service-client`, TanStack Query v5) with typed hooks for recipe endpoints in `packages/clients/recipe-service/src/hooks/` — reads `NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL` for base URL (NFR-009); mirrors `@kitchensink/food-service-client`
 
 ### Home Screen (US-0) — Widget Surface — P1
@@ -331,10 +321,10 @@ tracked by **T060**, not by this rubric.
 
 > **Note**: The typed API client hooks unit test is **T064-test** (in "Setup & Shared" above, immediately before its implementation T064) — it was renumbered from a bare `T104` that collided with the Home-widget `T104-*` family.
 
-- [ ] T105 Write component tests for recipe list (loading, empty, populated, search filter) in `packages/apps/commise/web/src/app/recipes/__tests__/page.test.tsx`
-- [ ] T106 Write component tests for recipe create/edit form (validation, ingredient autocomplete, photo upload) in `packages/apps/commise/web/src/app/recipes/__tests__/form.test.tsx`
-- [ ] T107 Write component tests for collection views (list, detail, add/remove) in `packages/apps/commise/web/src/app/collections/__tests__/`
-- [ ] T108 Write component tests for clone/visibility flow (attribution display, tier restrictions) in `packages/apps/commise/web/src/app/recipes/__tests__/clone.test.tsx`
+- [x] T105 Write component tests for recipe list (loading, empty, populated, search filter) in `packages/apps/commise/web/src/app/recipes/__tests__/page.test.tsx`
+- [x] T106 Write component tests for recipe create/edit form (validation, ingredient autocomplete, photo upload) in `packages/apps/commise/web/src/app/recipes/__tests__/form.test.tsx`
+- [x] T107 Write component tests for collection views (list, detail, add/remove) in `packages/apps/commise/web/src/app/collections/__tests__/`
+- [x] T108 Write component tests for clone/visibility flow (attribution display, tier restrictions) in `packages/apps/commise/web/src/app/recipes/__tests__/clone.test.tsx`
 - [x] T108b [US1/US2] Write component tests for the remaining logic-bearing screens not covered by T105–T108 — recipe **detail** (nutrition summary + async "nutrition pending" state; T066), **delete** confirmation (T068), **version history**/restore (T069), **conflict-resolution** UI (present-both / choose-merge; T070), **visibility toggle** with tier restrictions (T074), and **public discovery/browse** (T076) — web + mobile, mocks + fixtures only. **TDD red before each screen's impl.** (These previously had only E2E coverage — this closes the component-test gap so the unit pyramid holds per T117.)
 
 ### Recipe CRUD (US1)
@@ -364,16 +354,16 @@ tracked by **T060**, not by this rubric.
 - [x] T078 Verify color is never sole state conveyor (icon/text pairing) across all screens — web + mobile
 - [x] T079 Add Playwright E2E tests for recipe CRUD happy path (create → view → edit → delete) in `packages/apps/commise/web/tests/e2e/recipe-crud.spec.ts`
 - [x] T080 Add Playwright E2E tests for clone/visibility flow in `packages/apps/commise/web/tests/e2e/clone-visibility.spec.ts`
-- [ ] T109 Add Playwright E2E tests for collections (create → add recipe → view → remove → delete) in `packages/apps/commise/web/tests/e2e/collections.spec.ts`
-- [ ] T110 Add Playwright E2E tests for search and filter in `packages/apps/commise/web/tests/e2e/search.spec.ts`
+- [x] T109 Add Playwright E2E tests for collections (create → add recipe → view → remove → delete) in `packages/apps/commise/web/tests/e2e/collections.spec.ts`
+- [x] T110 Add Playwright E2E tests for search and filter in `packages/apps/commise/web/tests/e2e/search.spec.ts`
 
 ### Mobile E2E Tests (Maestro)
 
-- [ ] T111 Add Maestro E2E flow for recipe CRUD (create → view → edit → delete) in `packages/apps/commise/mobile/tests/e2e/recipe-crud.yaml`
-- [ ] T112 Add Maestro E2E flow for collections management in `packages/apps/commise/mobile/tests/e2e/collections.yaml`
-- [ ] T113 Add Maestro E2E flow for clone/visibility in `packages/apps/commise/mobile/tests/e2e/clone-visibility.yaml`
-- [ ] T114 Add Maestro E2E flow for search and navigation in `packages/apps/commise/mobile/tests/e2e/search-nav.yaml`
-- [ ] T115 Add Maestro E2E accessibility flow (screen reader labels, tap targets) in `packages/apps/commise/mobile/tests/e2e/accessibility.yaml`
+- [x] T111 Add Maestro E2E flow for recipe CRUD (create → view → edit → delete) in `packages/apps/commise/mobile/tests/e2e/recipe-crud.yaml`
+- [x] T112 Add Maestro E2E flow for collections management in `packages/apps/commise/mobile/tests/e2e/collections.yaml`
+- [x] T113 Add Maestro E2E flow for clone/visibility in `packages/apps/commise/mobile/tests/e2e/clone-visibility.yaml`
+- [x] T114 Add Maestro E2E flow for search and navigation in `packages/apps/commise/mobile/tests/e2e/search-nav.yaml`
+- [x] T115 Add Maestro E2E accessibility flow (screen reader labels, tap targets) in `packages/apps/commise/mobile/tests/e2e/accessibility.yaml`
 
 **Checkpoint**: Frontend delivers platform-parity UI for all in-scope user stories with full Playwright + Maestro E2E coverage.
 
@@ -384,7 +374,7 @@ tracked by **T060**, not by this rubric.
 **Purpose**: Final compliance, validation, CI verification, and documentation updates.
 
 - [ ] T052 Update backend quickstart runbook for API, DB migrations, photo processor flow, CI setup, and test commands in `specs/001-commise-recipe-app/quickstart.md`
-- [ ] T053 Align OpenAPI examples and response/error payloads with implemented API behavior in `specs/001-commise-recipe-app/contracts/api.openapi.yaml`
+- [x] T053 Align OpenAPI examples and response/error payloads with implemented API behavior in `specs/001-commise-recipe-app/contracts/api.openapi.yaml`
 
 ### Success Criteria Validation
 
@@ -395,21 +385,97 @@ tracked by **T060**, not by this rubric.
 ### CI Verification
 
 - [ ] T116 Run full GitHub Actions CI pipeline end-to-end and verify all jobs pass (quality, test-unit, test-integration, test-e2e-web, test-e2e-mobile)
-- [ ] T117 Verify test pyramid ratios: ≥70% unit / ≤20% integration / ≤10% E2E across all workspaces
+- [x] T117 Verify test pyramid ratios: ≥70% unit / ≤20% integration / ≤10% E2E across all workspaces
 
 ### Constitution Compliance Checklist (I–VII)
 
-- [ ] T054 Verify strict TypeScript, no `any`, and typed custom errors/type guards across `packages/{services,clients,features}/**/src/**/*.ts` and `packages/shared/**/src/**/*.ts` (Principle I)
-- [ ] T055 Verify module-level and exported-symbol JSDoc coverage in `packages/{services,clients,features}/**/src/**/*.ts` and `packages/shared/**/src/**/*.ts` (Principle II)
-- [ ] T056 Verify aliased imports with `.js` extensions and no forbidden cross-workspace relative imports in `packages/{services,clients,features}/**/src/**/*.ts` and `packages/shared/**/src/**/*.ts` (Principle III)
-- [ ] T057 Verify integration tests include requirement traceability comments and avoid prohibited test patterns in `packages/services/*/__tests__/integration/**/*.spec.ts` (Principle IV)
-- [ ] T058 Verify workspace governance entries and task pipelines remain correct in `/home/brandon/Development/KitchenSink/package.json` and `/home/brandon/Development/KitchenSink/turbo.json` (Principle V)
-- [ ] T059 Run and validate `turbo run typecheck lint format:check test` from `/home/brandon/Development/KitchenSink` with all exit codes 0 (Principle VI)
-- [ ] T060 Verify platform parity (FR-044 / FR-044a) across all Phase 5 frontend tasks: (a) confirm every implementation task covers both web and mobile explicitly, has a paired task, or carries a `[PARITY-EXCEPTION]` note; (b) confirm the Home widget surface (T104-web + T104-mobile) is present and tested on both platforms, with only the recipe widget live and gated widgets absent; (c) confirm no user-facing screen exists on one platform without a corresponding screen on the other, and every **live** widget ships on both platforms behind one id (`.native.tsx` split); (d) confirm the Home widget TS contract lives in `@commise/features-core` (the `HomeWidgetId` / `HomeWidgetDescriptor` / `curateHomeWidgets` types — Commise home-surface infra, not the platform `@kitchensink/recipe-core`), and that per-user layout persistence uses `PATCH /v1/profiles/me` which is **owned by the identity service (002) and consumed here** — it is deliberately **NOT** required in 001's `contracts/api.openapi.yaml` (Principle VII)
+- [x] T054 Verify strict TypeScript, no `any`, and typed custom errors/type guards across `packages/{services,clients,features}/**/src/**/*.ts` and `packages/shared/**/src/**/*.ts` (Principle I)
+- [x] T055 Verify module-level and exported-symbol JSDoc coverage in `packages/{services,clients,features}/**/src/**/*.ts` and `packages/shared/**/src/**/*.ts` (Principle II)
+- [x] T056 Verify aliased imports with `.js` extensions and no forbidden cross-workspace relative imports in `packages/{services,clients,features}/**/src/**/*.ts` and `packages/shared/**/src/**/*.ts` (Principle III)
+- [x] T057 Verify integration tests include requirement traceability comments and avoid prohibited test patterns in `packages/services/*/__tests__/integration/**/*.spec.ts` (Principle IV)
+- [x] T058 Verify workspace governance entries and task pipelines remain correct in `/home/brandon/Development/KitchenSink/package.json` and `/home/brandon/Development/KitchenSink/turbo.json` (Principle V)
+- [x] T059 Run and validate `turbo run typecheck lint format:check test` from `/home/brandon/Development/KitchenSink` with all exit codes 0 (Principle VI)
+- [x] T060 Verify platform parity (FR-044 / FR-044a) across all Phase 5 frontend tasks: (a) confirm every implementation task covers both web and mobile explicitly, has a paired task, or carries a `[PARITY-EXCEPTION]` note; (b) confirm the Home widget surface (T104-web + T104-mobile) is present and tested on both platforms, with only the recipe widget live and gated widgets absent; (c) confirm no user-facing screen exists on one platform without a corresponding screen on the other, and every **live** widget ships on both platforms behind one id (`.native.tsx` split); (d) confirm the Home widget TS contract lives in `@commise/features-core` (the `HomeWidgetId` / `HomeWidgetDescriptor` / `curateHomeWidgets` types — Commise home-surface infra, not the platform `@kitchensink/recipe-core`), and that per-user layout persistence uses `PATCH /v1/profiles/me` which is **owned by the identity service (002) and consumed here** — it is deliberately **NOT** required in 001's `contracts/api.openapi.yaml` (Principle VII)
 
 ### Deferred / Cross-Feature Decisions
 
 - [ ] T150 [DECISION — deferred; cross-feature 001 ↔ 003] **Recipe → food-DB write-back ("resulting food").** Decide whether a _finished_ recipe should be registered as a food entity in the source-agnostic food service (`kitchensink_food`, 003), so the composed dish can itself be referenced as an ingredient in another recipe and/or logged as a food. **Current design reads only**: ingredients reference the food service by opaque `food_id` via `@kitchensink/food-service-client`, and 001 computes a recipe-side nutrition summary — the finished dish is **never** written back to the food DB. Enabling this needs a new recipe → food-service **write** path plus (almost certainly) a **003 change** to accept a recipe-derived / composed food. Raise as a formal change-request spanning 001 + 003; **out of scope for 001 v1** unless approved. (Placed last intentionally — do not start before the v1 build lands.)
+
+---
+
+## Phase 7: CR-001 — Mockup Parity (2026-07-16)
+
+**Purpose**: Implement the four decisions of [`change-requests/CR-001-mockup-parity.md`](./change-requests/CR-001-mockup-parity.md) — difficulty (D-A / FR-001b), ratings (D-B / FR-013·013a·013b), the derived PRO badge (D-C / FR-003a), and skeleton-placeholder Home widgets (D-D / amended FR-046) — plus the list cover photo (FR-001c) and the erasure×ratings interaction (C-007). Every `-test` task is TDD-red and lands before its impl (§7.1). Every user-facing task names web + mobile or is paired (FR-044 / FR-044a).
+
+> **Ordering hazards.** (1) Ratings depend on the `recipe_ratings` table + aggregate trigger (T154) before the service (T155) and before the erasure extension (T169). (2) The Home placeholder tasks **amend** the "gated widgets are absent" clause of T104-web/T104-mobile/T104-test-web/T104-test-mobile/T104-e2e-web/T104-e2e-mobile and T060(b) — for capability-gated widgets the new truth is **skeleton placeholder**, while **tier**-gated widgets remain **absent**; do not revert those T104 tasks, extend them per D-D. (3) The erasure ratings root (T169) extends the still-open T136/T137 — do not build T169 before T136's worker body exists (see the Phase 4.5 ordering hazard).
+
+### Difficulty (D-A / FR-001b)
+
+- [x] T151-test Write the schema type-inference + column unit test for `recipes.difficulty`: NULLABLE, no default, CHECK constraint accepts exactly `easy`/`medium`/`hard` and rejects any other value; inferred Drizzle type is `RecipeDifficulty | null` in `packages/services/recipe-service/src/database/__tests__/recipes.difficulty.schema.test.ts`
+- [x] T151 Add the `difficulty` column to the Drizzle `recipes` schema (`text('difficulty')`, no `.notNull()`, no `.default()`, `check(... in ('easy','medium','hard'))`) + a drizzle-kit migration in `packages/services/recipe-service/src/database/schema/recipes.ts` and `.../database/migrations/`. Deliberately diverges from the `servings`/times NOT-NULL precedent (0007/0008) per CR-001 D-A — do not add a default
+- [x] T152-test Write unit tests for difficulty on recipe create/update service: create with a difficulty persists it; create without one persists NULL (no default); update is **three-state** — omitted leaves it unchanged, a value sets it, explicit `null` clears it back to unstated — in `packages/services/recipe-service/src/recipes/__tests__/recipes.difficulty.service.test.ts`
+- [x] T152 Thread `difficulty` through `CreateRecipe`/`UpdateRecipe` DTOs (3-state `RecipeDifficulty | null` on update per the shipped `recipe.types.ts`), the recipe service create/update, and the detail projection in `packages/services/recipe-service/src/recipes/{recipes.service.ts,dto/*.ts}`
+- [x] T152-int Add an integration test asserting `POST /v1/recipes` with and without difficulty, and `PATCH` clearing it via explicit `null`, round-trip correctly against real Postgres in `packages/services/recipe-service/__tests__/integration/recipes/difficulty.integration.spec.ts`
+- [x] T153-test-web [P] [US1] Write component tests for the difficulty badge — web: renders the label + color pairing (NFR-004, label always present), and renders **no badge at all** when difficulty is absent (never a default/placeholder) — in `packages/apps/commise/features/recipes/src/__tests__/DifficultyBadge.test.tsx`
+- [x] T153-test-mobile [P] [US1] Write the mobile component test for the difficulty badge (same assertions as T153-test-web) in `packages/apps/commise/features/recipes/src/__tests__/DifficultyBadge.native.test.tsx`
+- [x] T153 [US1] Implement the difficulty badge (label + color, NFR-004; absent difficulty → no badge) on the recipe card and detail, and the difficulty control (three options + a clear/"not set") in the create/edit form — web + mobile (`DifficultyBadge.tsx` + `.native.tsx`) in `packages/apps/commise/features/recipes/src/`
+
+### Ratings (D-B / FR-013 · FR-013a · FR-013b)
+
+- [x] T154-test Write the schema/migration unit test for ratings: `recipe_ratings` (`stars` CHECK 1–5, `UNIQUE(recipe_id, user_id)`, FK→`recipes` ON DELETE CASCADE, `user_id` no-FK), `idx_recipe_ratings_user_id`, and the `recipes.average_rating`/`rating_count` columns with the coherence CHECK (`(rating_count = 0) = (average_rating IS NULL)`) in `packages/services/recipe-service/src/database/__tests__/recipe-ratings.schema.test.ts`
+- [x] T154 Add the `recipe_ratings` Drizzle schema + the `average_rating`/`rating_count` columns on `recipes`, and the **hand-authored** `recipe_ratings_aggregate_refresh()` function + its **three** single-event statement-level triggers (INSERT/UPDATE/DELETE, transition table `changed_rows`, `FOR UPDATE` lock in `ORDER BY id`) as a raw-SQL drizzle-kit migration (Drizzle cannot express triggers) in `packages/services/recipe-service/src/database/schema/ratings.ts` and `.../migrations/`. No application code may write the two aggregate columns (CR-001 D-B)
+- [x] T155-test Write unit tests for the ratings service (FR-013): idempotent upsert (re-rating replaces, same-value twice is a no-op on the aggregate); a user may rate any recipe they can **see**; an unreadable recipe returns `404 RECIPE_NOT_FOUND` **not `403`** (must be indistinguishable from non-existent); rating one's **own** recipe returns `403 CANNOT_RATE_OWN_RECIPE`; a tombstoned recipe returns `404`; delete is idempotent (removing a non-existent rating succeeds); the rater is taken from the token, never the body — in `packages/services/recipe-service/src/ratings/__tests__/ratings.service.test.ts`
+- [x] T155 Implement the `RatingsModule` — `PUT`/`DELETE /v1/recipes/{id}/rating` controller + `RatingsService` (upsert `ON CONFLICT (recipe_id, user_id) DO UPDATE`; delete; visibility-derived authz returning 404-not-403 for unreadable, 403 only for own-recipe) + `SetRecipeRatingInput` DTO in `packages/services/recipe-service/src/ratings/{ratings.module.ts,ratings.controller.ts,ratings.service.ts,dto/set-rating.dto.ts}`. Returns the updated `RecipeDetail` with the trigger-refreshed aggregate
+- [x] T156 Add an integration test for the aggregate trigger against real Postgres: two concurrent raters of the same recipe both count (the `FOR UPDATE` lost-update guard); removing a rating re-derives the average; the last rating removed yields `count=0` + `average=NULL` (never `0`); deleting a rated recipe cascades and the trigger is a silent no-op; a bulk `DELETE … WHERE user_id = :u` fires the trigger once (statement-level) — in `packages/services/recipe-service/__tests__/integration/ratings/aggregate-trigger.integration.spec.ts`
+- [x] T157 Add service e2e + k6 for the rating endpoints: drive `PUT`/`DELETE /v1/recipes/{id}/rating` over HTTP against the booted Nest app (own-recipe 403, unreadable 404, idempotent replace, aggregate visible on the returned detail) in `packages/services/recipe-service/tests/e2e/ratings.e2e.ts`, and a k6 script exercising the read-heavy list + rating write mix under the SC-009 SLO in `packages/services/recipe-service/tests/load/ratings.load.ts`
+- [x] T158-test Write unit tests for the client rating mutations (`useSetRecipeRating`, `useRemoveRecipeRating`): optimistic/settled cache invalidation of the recipe detail **and** any list/search rows carrying the recipe's aggregate, using MSW mocks, in `packages/clients/recipe-service/src/__tests__/hooks.rating.test.ts` — TDD red before T158
+- [x] T158 Add `setRecipeRating(id, stars)` / `deleteRecipeRating(id)` to the typed client and the paired TanStack Query mutation hooks (invalidate recipe detail + list/search) in `packages/clients/recipe-service/src/{client.ts,hooks.ts}`
+- [x] T159-test-web [P] [US2] Write component tests for the star-rating display + control — web: shows average + count when rated; shows "no ratings yet" (never a zero-star score) when `ratingCount=0`; the control is disabled/hidden on the viewer's own recipe; submitting calls the mutation — in `packages/apps/commise/features/recipes/src/__tests__/RecipeRating.test.tsx`
+- [x] T159-test-mobile [P] [US2] Write the mobile component test for the star-rating display + control (same assertions as T159-test-web) in `packages/apps/commise/features/recipes/src/__tests__/RecipeRating.native.test.tsx`
+- [x] T159 [US2] Implement the star-rating display (average + count, unrated empty state) and the rating control (1–5, hidden on own recipe) on recipe card + detail — web + mobile (`RecipeRating.tsx` + `.native.tsx`) in `packages/apps/commise/features/recipes/src/`
+- [x] T159-e2e-web [US2] Playwright: user B rates user A's public recipe → average/count update; user rating their own recipe has no control; re-rating replaces (count unchanged) in `packages/apps/commise/web/tests/e2e/ratings.spec.ts`
+- [x] T159-e2e-mobile [US2] Maestro flow mirroring T159-e2e-web in `packages/apps/commise/mobile/.maestro/recipes/ratings.yaml`
+
+### Derived PRO badge (D-C / FR-003a)
+
+- [x] T160-test Write the unit test for the single authoritative `usesPremiumCapability(recipe)` pure fn — the full truth table: `private`+`user_created`→true, `private`+`imported_public`→true, `private`+`imported_physical`→**false**, `private`+`imported_paid`→**false**, any `public`→false — in `packages/shared/recipe-core/src/__tests__/usesPremiumCapability.test.ts`
+- [x] T160 Wire `usesPremiumCapability` (already defined in `@kitchensink/recipe-core`) into the recipe list **and** detail projections in `packages/services/recipe-service/src/recipes/`, so the field is server-derived from `visibility`+`sourceType` in exactly one place — no `is_pro` column, no client re-derivation, no feature-010 dependency (CR-001 D-C)
+- [x] T161-test-web [P] [US1] Write the web component test for the PRO badge: shown when `usesPremiumCapability` is true, hidden otherwise; the component consumes the server field and does **not** re-derive from `visibility` — in `packages/apps/commise/features/recipes/src/__tests__/ProBadge.test.tsx`
+- [x] T161-test-mobile [P] [US1] Write the mobile PRO-badge component test (same assertions) in `packages/apps/commise/features/recipes/src/__tests__/ProBadge.native.test.tsx`
+- [x] T161 [US1] Implement the PRO badge bound to `usesPremiumCapability` on recipe card + detail — web + mobile (`ProBadge.tsx` + `.native.tsx`) in `packages/apps/commise/features/recipes/src/`
+
+### List cover photo (FR-001c)
+
+- [x] T162-test Write the integration test for cover-photo resolution: the list projection carries `coverPhotoUrl` = the photo with the lowest `sort_order` (deterministic tiebreak `created_at`, then `id`), the field is **absent** (not null, not a placeholder URL) for a photoless recipe, and a page of N recipes resolves in a single query (no N+1) in `packages/services/recipe-service/__tests__/integration/recipes/cover-photo.integration.spec.ts`
+- [x] T162 Implement `coverPhotoUrl` on the recipe list projection via the `LEFT JOIN LATERAL … ORDER BY sort_order, created_at, id LIMIT 1` (data-model.md § Cover photo resolution) + add `idx_recipe_photos_recipe_cover` migration in `packages/services/recipe-service/src/recipes/{dal/recipes.dal.ts}` and `.../migrations/`
+- [x] T163-test-web [P] [US1] Write the web component test for the recipe card image: renders `coverPhotoUrl` when present; renders the client no-image treatment (never a stock/placeholder image) when absent, in `packages/apps/commise/features/recipes/src/__tests__/RecipeCardCover.test.tsx`
+- [x] T163-test-mobile [P] [US1] Write the mobile card-image component test (same assertions) in `packages/apps/commise/features/recipes/src/__tests__/RecipeCardCover.native.test.tsx`
+- [x] T163 [US1] Render the recipe-card cover from `coverPhotoUrl` with the no-image treatment — web + mobile — in `packages/apps/commise/features/recipes/src/`. Do **not** solve rendition/thumbnail sizing here; that is FOLLOW-UP-CR-001-A (T168)
+
+### Skeleton-placeholder Home widgets (D-D / amended FR-046 · R6)
+
+> The `kind: 'live' | 'placeholder'` discriminated union + inverse-capability gating already shipped in `@commise/features-core` (`contract.ts`, `curateHomeWidgets`, `roadmapWidgets.ts`). These tasks wire the **host** to render the placeholder arm and amend the T104 tests/E2E that asserted "absent".
+
+- [x] T164-test [P] [US0] Write/extend the unit test for `curateHomeWidgets` placeholder gating: a `placeholder` descriptor is eligible **only while its capability is NOT live**; a `live` descriptor **only while its capability IS live**; a placeholder + the real widget registered under the **same id** are mutually exclusive (never two tiles), and the placeholder self-supersedes when the capability goes live; **tier**-gated widgets are dropped (absent), not placeheld — in `packages/apps/commise/features/core/src/__tests__/curateHomeWidgets.test.ts` (extends the shipped test; supersedes T104-curate-test's absent-only assumption)
+- [x] T164 [US0] Add the roadmap placeholder descriptors for 005–009 (meal-plan, nutrition, shopping, AI-suggestion, resume-cooking) in `packages/apps/commise/features/core/src/roadmapWidgets.ts` — each `kind: 'placeholder'` with the capability it waits on and a host-owned `load`, importing nothing from the unbuilt feature package
+- [x] T165-test-web [US0] Extend the web Home component test: capability-absent widgets render a **skeleton placeholder** (the widget shape with skeleton blocks) — **not absent**, and asserting **no fabricated data** (no specimen macro total / item count / recipe name); a **tier**-gated widget is still **absent**; the live recipe widget's empty state is distinct — in `packages/apps/commise/web/src/app/__tests__/page.test.tsx` (amends the "gated widgets are absent" clause of T104-test-web)
+- [x] T165-test-mobile [US0] Mirror T165-test-web on mobile in `packages/apps/commise/mobile/src/__tests__/HomeScreen.test.tsx` (amends T104-test-mobile)
+- [x] T165 [US0] Wire the Home host (web `next/dynamic`, mobile `React.lazy`) to render the placeholder arm via a **host-owned** skeleton component from the roadmap descriptor's loader — web: `packages/apps/commise/web/src/components/home/skeletons/`, mobile: `packages/apps/commise/mobile/src/components/home/skeletons/` — registering the T164 roadmap descriptors so capability gating swaps a placeholder for the live widget with no client change (amends T104-web / T104-mobile)
+- [x] T166-e2e-web [US0] Update the Home Playwright E2E: assert the capability-gated widgets render as **skeleton placeholders** (present, no data values) rather than absent, and that a tier-gated widget stays absent, in `packages/apps/commise/web/tests/e2e/home.spec.ts` (amends T104-e2e-web)
+- [x] T166-e2e-mobile [US0] Update the Home Maestro flow to mirror T166-e2e-web in `packages/apps/commise/mobile/.maestro/home.yaml` (amends T104-e2e-mobile)
+
+### Erasure × ratings (C-007 / FR-013b)
+
+- [x] T169-test Write unit tests extending the erasure worker for the ratings root: erasing a user deletes **every** rating they authored (incl. those on other users' recipes); other users' recipes **survive**; the aggregate trigger re-derives their `average_rating`/`rating_count` to exclude the erased rating; the worker **does not** disable the trigger; ordering is rows-first (ratings deleted before the S3 prefix sweep) in `packages/services/recipe-workers/src/handlers/__tests__/account-erasure-worker.ratings.test.ts` (extends T135-test)
+- [x] T169 Extend the erasure worker to `DELETE FROM recipe_ratings WHERE user_id = :ownerId` (the third owner-scoped root, using `idx_recipe_ratings_user_id`) as part of the rows-first phase, relying on the statement-level aggregate trigger to repair surviving recipes — in `packages/services/recipe-workers/src/handlers/account-erasure-worker.ts` (extends T136; do not start before T136's worker body exists)
+- [x] T169-int Extend the end-to-end erasure integration test: seed the erasing user's ratings on **other** users' recipes → erase → assert the user's ratings are gone, the other recipes survive, and their aggregates are re-derived to exclude the erased ratings in `packages/services/recipe-service/__tests__/integration/account/erasure.integration.spec.ts` (extends T137)
+
+### Contract sync & follow-up
+
+- [x] T167 Verify the contract reconciliation is drift-free: regenerate/compare consumers against `contracts/api.openapi.yaml` (the `Recipe`/`RecipeDetail` split, `currentVersion`, `sourceType`/`hasSubstantiveEdit`/`hasPartialNutrition`, the rating routes, `difficulty`/`averageRating`/`ratingCount`/`usesPremiumCapability`/`coverPhotoUrl`) and confirm `@kitchensink/recipe-core` `Recipe`/`RecipeDetail` match — single source of truth, no local duplicate DTOs — via `npm run typecheck` across `packages/{services,clients,apps}/**`
+- [x] T168 [FOLLOW-UP-CR-001-A — deferred] **Derived photo renditions / thumbnail variants.** `coverPhotoUrl` (FR-001c) today serves the **full-size original** (≤5 MB) into a ~300 px 4:3 card thumbnail because photos are stored unprocessed (ARCH-BE-3) — a 4-card Home widget can pull ~20 MB on first paint, a real SC-009 / mobile-data risk. Add a resize/rendition path (e.g. an on-upload variant generator + a rendition-aware cover URL) so the card downloads a thumbnail, not the original. **Out of scope for the CR-001 build**; must land before the Home widget is release-ready on mobile. Raise as its own change-request/task set.
+
+**Checkpoint**: CR-001 mockup-parity — difficulty, ratings (+aggregate trigger), the derived PRO badge, the list cover photo, skeleton-placeholder Home widgets, and the erasure ratings root — are implemented and tested on both platforms, and the contract is drift-free.
 
 ---
 

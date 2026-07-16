@@ -1,12 +1,12 @@
-# Home widget-surface E2E (T104-e2e-mobile, US-000 / FR-046). Signs in and STAYS on the Home landing (via
-# the login core `auth/signin-home.yaml`, which does not cross into any feature surface), then verifies the
-# three things Home promises in v1: the recipe (recent-recipes) widget renders, the gated widgets (meal
-# plan / nutrition / resume-cooking, backed by the unbuilt 005–009) are ABSENT — not empty tiles — and the
+# Home widget-surface E2E (T104-e2e-mobile, US-000 / FR-046 / CR-001). Signs in and STAYS on the Home landing
+# (via the login core `auth/signin-home.yaml`, which does not cross into any feature surface), then verifies
+# what Home promises in v1: the recipe (recent-recipes) widget renders; the unshipped 005–009 cohort renders
+# as SKELETON PLACEHOLDERS ("coming soon", never fabricated data — CR-001) rather than being absent; and the
 # recipe widget's "See all recipes" entry navigates into the recipes surface.
 
 appId: io.commise.mobile
 ---
-# Sign in and land on the Home widget surface (asserts the "Welcome back, Chef!" greeting).
+# Sign in and land on the Home widget surface (the login core waits on the time-of-day "…Chef" greeting).
 - runFlow: auth/signin-home.yaml
 
 # The recipe (recent-recipes) widget renders on Home. The card title comes from the recipe feature's
@@ -15,11 +15,13 @@ appId: io.commise.mobile
       visible: 'Recent recipes'
       timeout: 40000
 
-# The gated widgets (005–009) are ABSENT in Home v1 — their feature packages don't exist, so they are never
-# registered and never rendered (not present-with-empty-state). Their mockup titles must NOT appear.
-- assertNotVisible: "This Week's Meals"
-- assertNotVisible: "Today's Nutrition"
-- assertNotVisible: 'Resume cooking'
+# The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), each carrying the
+# real widget heading and a visible "Coming soon". Their feature packages don't exist yet, so this is the
+# placeholder shape with no invented data (CR-001), not the live widget.
+- assertVisible: "Today's Nutrition"
+- assertVisible: 'Resume cooking'
+- assertVisible: "This Week's Meals"
+- assertVisible: 'Coming soon'
 
 # Tapping the recipe widget's entry point navigates into the recipes surface.
 - tapOn: 'See all recipes'

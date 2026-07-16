@@ -22,6 +22,7 @@ import { palette } from '@commise/ui';
 import { mobileMessages } from '../i18n/messages.js';
 import { CollectionDetailScreen } from './CollectionDetailScreen.js';
 import { CollectionFormScreen } from './CollectionFormScreen.js';
+import { CollectionRecipePickerScreen } from './CollectionRecipePickerScreen.js';
 import { CollectionsScreen } from './CollectionsScreen.js';
 import { RecipeCreateScreen } from './RecipeCreateScreen.js';
 import { RecipeDetailScreen } from './RecipeDetailScreen.js';
@@ -43,6 +44,7 @@ type Surface =
     | { readonly id: 'edit'; readonly recipeId: string }
     | { readonly id: 'versions'; readonly recipeId: string }
     | { readonly id: 'collectionDetail'; readonly collectionId: string }
+    | { readonly id: 'collectionAddRecipe'; readonly collectionId: string }
     | { readonly id: 'collectionCreate' }
     | { readonly id: 'collectionRename'; readonly collectionId: string; readonly name: string };
 
@@ -177,9 +179,18 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 <CollectionDetailScreen
                     collectionId={surface.collectionId}
                     onSelectRecipe={(recipeId) => nav.push({ id: 'detail', recipeId })}
+                    onAddRecipe={() => nav.push({ id: 'collectionAddRecipe', collectionId: surface.collectionId })}
                     onRename={(name) => nav.push({ id: 'collectionRename', collectionId: surface.collectionId, name })}
                     onDeleted={() => nav.selectTab('collections')}
                     onBack={nav.back}
+                />
+            );
+        case 'collectionAddRecipe':
+            return (
+                <CollectionRecipePickerScreen
+                    collectionId={surface.collectionId}
+                    onCreateRecipe={() => nav.push({ id: 'create' })}
+                    onDone={nav.back}
                 />
             );
         case 'collectionCreate':

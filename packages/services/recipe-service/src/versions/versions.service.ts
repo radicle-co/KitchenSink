@@ -1,5 +1,6 @@
 /**
- * T031 — recipe-version orchestration: snapshot writes, DB retention, and S3 archiving.
+ * T031 — recipe-version orchestration: snapshot writes and retention enqueue (NOT S3 archiving — that
+ * moved to the async version-archive worker in T130; see {@link enforceRetention}).
  *
  * Sits between the controller and the {@link VersionsDal}. It owns the rules the DAL delegates upward:
  * - **Snapshot write** — persist an immutable version row and shape it to the `RecipeVersion` wire

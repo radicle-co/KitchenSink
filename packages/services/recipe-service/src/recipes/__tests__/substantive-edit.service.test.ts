@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { RecipesService } from '../recipes.service.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
+import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
@@ -66,7 +67,14 @@ function fakeIngredientsDal(): IngredientsDal {
 }
 
 function service(dal: RecipesDal): RecipesService {
-    return new RecipesService(dal, fakeIngredientsDal(), makeFakeVersionsService(), fakePhotosDal(), RECIPE_PHOTOS_CDN);
+    return new RecipesService(
+        dal,
+        fakeIngredientsDal(),
+        makeFakeVersionsService(),
+        fakePhotosDal(),
+        RECIPE_PHOTOS_CDN,
+        fakeRatingsDal(),
+    );
 }
 
 describe('RecipesService.update — substantive-edit detection', () => {

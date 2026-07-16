@@ -112,6 +112,29 @@ describe('RecipeDiscoveryList (web) — empty state', () => {
     });
 });
 
+describe('RecipeDiscoveryList (web) — no-match state', () => {
+    it('shows the no-match copy (NOT the browse-empty copy) when a search matched nothing', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: 'tiramisu' });
+
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes found')).toBeNull();
+    });
+
+    it('shows the no-match copy when only a filter (no term) matched nothing', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: '', hasActiveFilters: true });
+
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes found')).toBeNull();
+    });
+
+    it('shows the browse-empty copy when nothing is active', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: '' });
+
+        expect(screen.getByText('No recipes found')).toBeTruthy();
+        expect(screen.queryByText('No matching recipes')).toBeNull();
+    });
+});
+
 describe('RecipeDiscoveryList (web) — populated state', () => {
     it('renders a pluralized result count', () => {
         renderDiscovery({ status: 'ready', results: threeResults });

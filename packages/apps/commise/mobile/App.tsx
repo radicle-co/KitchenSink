@@ -27,6 +27,7 @@ import '@formatjs/intl-pluralrules/polyfill';
 import '@formatjs/intl-pluralrules/locale-data/en';
 
 import { ClerkProvider } from '@clerk/expo';
+import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
 import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -53,6 +54,11 @@ if (!publishableKey) {
 }
 
 function App(): JSX.Element {
+    // Load the Playfair Display faces used by the Home greeting/display headings. Non-blocking on purpose: we
+    // do NOT gate the first render on it — RN falls back to the system serif until the faces register, then
+    // re-renders — so a slow or failed font load can never hold the whole app on a blank screen.
+    useFonts({ PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold });
+
     return (
         <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
             <LocaleProvider>

@@ -41,8 +41,36 @@ export interface RecipeConflictMessages {
     readonly keepMine: string;
     /** Label of the "use the latest version" choice. */
     readonly useTheirs: string;
+    /** Label of the "merge field by field" choice (enters the per-field merge panel — FR-007c option c). */
+    readonly mergeAction: string;
+    /** Heading for the per-field merge panel. */
+    readonly mergeHeading: string;
+    /** Explanatory copy for the per-field merge panel. */
+    readonly mergeExplanation: string;
+    /** Per-field radio option template (contains `{side}` and `{value}`). */
+    readonly mergeOptionLabel: string;
+    /** Label of the "save the merged result" action in the merge panel. */
+    readonly mergeSubmit: string;
+    /** Label of the "return to the three choices" action in the merge panel. */
+    readonly mergeBack: string;
     /** Field label: recipe title. */
     readonly titleLabel: string;
+    /** Field label: description. */
+    readonly descriptionLabel: string;
+    /** Field label: cuisine. */
+    readonly cuisineLabel: string;
+    /** Field label: tags. */
+    readonly tagsLabel: string;
+    /** Field label: dietary flags. */
+    readonly dietaryFlagsLabel: string;
+    /** Field label: visibility. */
+    readonly visibilityLabel: string;
+    /** Rendered value for a public recipe. */
+    readonly visibilityPublic: string;
+    /** Rendered value for a private recipe. */
+    readonly visibilityPrivate: string;
+    /** Rendered value for an empty field (no title, no tags, etc.). */
+    readonly emptyValue: string;
     /** Field label: servings. */
     readonly servingsLabel: string;
     /** Field label: prep time. */
@@ -93,7 +121,22 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             theirsHeading: 'Latest saved version',
             keepMine: 'Keep my version',
             useTheirs: 'Use the latest version',
+            mergeAction: 'Merge field by field',
+            mergeHeading: 'Merge changes field by field',
+            mergeExplanation:
+                'For each field, choose which version to keep. Your version is selected by default — change any field to pull in the latest saved value.',
+            mergeOptionLabel: '{side}: {value}',
+            mergeSubmit: 'Save merged version',
+            mergeBack: 'Back to options',
             titleLabel: 'Title',
+            descriptionLabel: 'Description',
+            cuisineLabel: 'Cuisine',
+            tagsLabel: 'Tags',
+            dietaryFlagsLabel: 'Dietary flags',
+            visibilityLabel: 'Visibility',
+            visibilityPublic: 'Public',
+            visibilityPrivate: 'Private',
+            emptyValue: 'None',
             servingsLabel: 'Servings',
             prepLabel: 'Prep time',
             cookLabel: 'Cook time',

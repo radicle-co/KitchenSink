@@ -1,13 +1,11 @@
 import { afterEach, describe, it, expect } from 'vitest';
 
 import {
+    DEFAULT_THROTTLER_NAME,
     THROTTLE_WINDOW_MS,
-    ThrottleGroup,
-    photoThrottle,
-    searchThrottle,
-    throttleGroups,
+    readLimit,
     throttleLimitFromEnv,
-    writeThrottle,
+    throttlerModuleOptions,
 } from '../throttle.config.js';
 
 describe('throttleLimitFromEnv', () => {
@@ -37,30 +35,30 @@ describe('throttle configuration', () => {
         expect(THROTTLE_WINDOW_MS).toBe(60_000);
     });
 
-    it('limits write endpoints to 30 requests per minute', () => {
-        expect(writeThrottle).toEqual({ name: ThrottleGroup.WRITES, limit: 30, ttl: 60_000 });
+    it('registers exactly ONE throttler (categories are per-route @Throttle overrides, not named throttlers)', () => {
+        // The defect this guards: v6 applies the AND of every registered throttler to every route, so a
+        // second registered throttler would silently cap EVERY route at the most restrictive limit. One
+        // throttler makes that class of bug unrepresentable.
+        expect(Array.isArray(throttlerModuleOptions)).toBe(true);
+        expect(throttlerModuleOptions).toHaveLength(1);
     });
 
-    it('limits photo-upload endpoints to 10 requests per minute', () => {
-        expect(photoThrottle).toEqual({ name: ThrottleGroup.PHOTOS, limit: 10, ttl: 60_000 });
+    it("registers the single throttler under the 'default' name so @Throttle({ default }) overrides bind", () => {
+        expect(DEFAULT_THROTTLER_NAME).toBe('default');
+        expect(throttlerModuleOptions[0]?.name).toBe(DEFAULT_THROTTLER_NAME);
     });
 
-    it('limits search endpoints to 60 requests per minute', () => {
-        expect(searchThrottle).toEqual({ name: ThrottleGroup.SEARCH, limit: 60, ttl: 60_000 });
+    it('makes the generous read limit the default throttler limit (the common-path / inherited cap)', () => {
+        expect(readLimit).toBe(120);
+        expect(throttlerModuleOptions[0]).toEqual({
+            name: DEFAULT_THROTTLER_NAME,
+            ttl: THROTTLE_WINDOW_MS,
+            limit: readLimit,
+        });
     });
 
-    it('exposes every group in a single array for ThrottlerModule registration', () => {
-        expect(throttleGroups).toEqual([writeThrottle, photoThrottle, searchThrottle]);
-    });
-
-    it('has a unique name per group', () => {
-        const names = throttleGroups.map((group) => group.name);
-        expect(new Set(names).size).toBe(names.length);
-    });
-
-    it('shares the one-minute window across every group', () => {
-        for (const group of throttleGroups) {
-            expect(group.ttl).toBe(THROTTLE_WINDOW_MS);
-        }
+    it('sets the default read limit well above the photo-upload limit (reads must NOT inherit 10/min)', () => {
+        // Regression pin for the original defect: reads were effectively capped at the photo limit (10).
+        expect(readLimit).toBeGreaterThan(10);
     });
 });

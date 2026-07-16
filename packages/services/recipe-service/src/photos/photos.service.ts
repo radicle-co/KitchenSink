@@ -8,8 +8,10 @@
  *   passing the 5 MB {@link MAX_UPLOAD_BYTES} bound and a generated owner+recipe-scoped object key.
  * - **`confirm`** — validates the uploaded object by MAGIC-BYTE signature (accepting jpeg/png/webp
  *   ONLY, NOT the client-sent Content-Type — HEIC/HEIF and everything else are rejected) AND an S3 HEAD
- *   size ≤ 5 MB, then inserts the row with the DETECTED content type. The object is served as-is via
- *   CloudFront — there is no resizing, no variants, and no processing state.
+ *   size ≤ 5 MB, then generates a small cover-thumbnail rendition (FOLLOW-UP-CR-001-A) and inserts the
+ *   row with the DETECTED content type plus the thumbnail key. The full-size object is served as-is via
+ *   CloudFront; the thumbnail is the ONE derived variant, and thumbnail generation is best-effort (a
+ *   failure degrades to no thumbnail, never a failed save). There is no processing state machine.
  * - **response shaping** — persistence rows → the shared `RecipePhoto` wire contract
  *   (`{ id, recipeId, key, url, contentType, order, createdAt }`): the object is served as-is, the server
  *   resolves the full CDN `url`, and `order` is the 1-based display position.
@@ -23,16 +25,18 @@ import {
     BadRequestException,
     Inject,
     Injectable,
+    Logger,
     NotFoundException,
     PayloadTooLargeException,
     UnprocessableEntityException,
     UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
-import type { RecipePhoto } from '@kitchensink/recipe-core';
+import { recipePhotoThumbnailKey, type RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
 import { resolvePhotoView } from './photo-view.js';
+import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photo-thumbnail.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner } from '../recipes/recipe.error.js';
 import type { RecipePhotoRow } from '../database/schema/index.js';
@@ -62,6 +66,10 @@ const MAGIC_BYTE_READ_LENGTH = 4100;
 export interface PhotosConfig {
     /** CloudFront distribution base URL that fronts the photo bucket. */
     readonly cloudfrontUrl: string;
+    /** Max longest-edge (px) for the generated cover thumbnail (FOLLOW-UP-CR-001-A). */
+    readonly thumbnailMaxPx: number;
+    /** JPEG quality (1–100) for the generated cover thumbnail. */
+    readonly thumbnailQuality: number;
 }
 
 /** The presign inputs the storage port signs into the PUT URL. */
@@ -82,6 +90,16 @@ export interface PresignedUpload {
     readonly expiresIn: number;
 }
 
+/** A thumbnail object to store: its key, JPEG bytes, and content type. */
+export interface PutObjectInput {
+    /** The variant object key (under the owner erasure prefix). */
+    readonly s3Key: string;
+    /** The rendition bytes. */
+    readonly body: Uint8Array;
+    /** The content type to store the object with (served as-is by CloudFront). */
+    readonly contentType: string;
+}
+
 /**
  * The narrow S3 surface the service depends on — the real adapter wraps `S3Client` + `getSignedUrl`
  * (`s3-request-presigner`); unit tests inject a mock. This is the "S3 + presigner" seam.
@@ -93,6 +111,10 @@ export interface PhotoStoragePort {
     readMagicBytes(s3Key: string, byteCount: number): Promise<Uint8Array>;
     /** HEAD an object → its `ContentLength` in bytes (`undefined` when S3 omits it). */
     headSize(s3Key: string): Promise<number | undefined>;
+    /** Read an object's full bytes (the confirmed original, to derive its thumbnail). */
+    getObject(s3Key: string): Promise<Uint8Array>;
+    /** Write an object (the generated thumbnail rendition). */
+    putObject(input: PutObjectInput): Promise<void>;
 }
 
 /** The client's `upload-url` request: the file it intends to upload (for the allowlist + size pre-check). */
@@ -150,6 +172,8 @@ export async function detectImageContentType(
 
 @Injectable()
 export class PhotosService {
+    private readonly logger = new Logger(PhotosService.name);
+
     public constructor(
         @Inject(PHOTOS_DAL) private readonly dal: PhotosDal,
         @Inject(PHOTOS_STORAGE) private readonly storage: PhotoStoragePort,
@@ -255,10 +279,57 @@ export class PhotosService {
             throw new PayloadTooLargeException(`The uploaded object exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`);
         }
 
-        const input: CreatePhotoInput = { recipeId, s3Key: key, contentType: detected, sizeBytes: size };
+        // Generate the small cover-thumbnail rendition and persist its key so the cover projections serve
+        // it instead of the up-to-5 MB original (FOLLOW-UP-CR-001-A / SC-009). Best-effort: a thumbnail is
+        // an optimisation, not correctness, so a generation failure degrades to `undefined` (the cover
+        // falls back to the original) rather than failing the user's confirmed upload.
+        const thumbnailKey = await this.generateAndStoreThumbnail(key);
+
+        const input: CreatePhotoInput = {
+            recipeId,
+            s3Key: key,
+            contentType: detected,
+            sizeBytes: size,
+            ...(thumbnailKey !== undefined ? { thumbnailKey } : {}),
+        };
         const row = await this.dal.create(input);
 
         return this.toPhotoResponse(row);
+    }
+
+    /**
+     * Read the confirmed original, resize it to a bounded cover thumbnail (sharp), and store the rendition
+     * BESIDE the original under the same owner erasure prefix ({@link recipePhotoThumbnailKey}). Returns
+     * the stored thumbnail key, or `undefined` when generation/storage fails — in which case the caller
+     * persists no `thumbnailKey` and the cover falls back to the original.
+     *
+     * Deliberately catch-all and non-fatal: neither a non-decodable-but-magic-valid image nor a transient
+     * S3 hiccup on the derived object should fail a save whose original already uploaded. The failure is
+     * logged (observable) but swallowed. A missing thumbnail is self-healing at the read layer via the
+     * `COALESCE(thumbnail_key, s3_key)` cover projection.
+     *
+     * @sideEffect Reads the original from S3 and writes the thumbnail object to S3.
+     */
+    private async generateAndStoreThumbnail(originalKey: string): Promise<string | undefined> {
+        try {
+            const original = await this.storage.getObject(originalKey);
+            const thumbnail = await generateThumbnail(original, {
+                maxPx: this.config.thumbnailMaxPx,
+                quality: this.config.thumbnailQuality,
+            });
+            const thumbnailKey = recipePhotoThumbnailKey(originalKey);
+
+            await this.storage.putObject({ s3Key: thumbnailKey, body: thumbnail, contentType: THUMBNAIL_CONTENT_TYPE });
+
+            return thumbnailKey;
+        } catch (error) {
+            this.logger.warn(
+                `Cover thumbnail generation failed for ${originalKey}; serving the original as cover. ` +
+                    `${error instanceof Error ? error.message : String(error)}`,
+            );
+
+            return undefined;
+        }
     }
 
     /** List a recipe's photos, ordered, shaped into the `RecipePhoto` contract. Read-authorized. */

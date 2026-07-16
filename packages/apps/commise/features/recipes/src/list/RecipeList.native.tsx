@@ -39,10 +39,13 @@ export const RecipeList: FC<RecipeListViewProps> = ({
             </View>
         );
     } else if (recipes.length === 0) {
+        // Empty ≠ no-match: an active search that filtered every row out is NOT "no recipes yet" (the caller
+        // has recipes) — it's a no-match. Distinguishing them keeps the empty-state copy honest.
+        const searching = searchValue.trim().length > 0;
         body = (
             <View>
-                <Text>{list.emptyTitle}</Text>
-                <Text>{list.emptyBody}</Text>
+                <Text>{searching ? list.noMatchTitle : list.emptyTitle}</Text>
+                <Text>{searching ? list.noMatchBody : list.emptyBody}</Text>
             </View>
         );
     } else {

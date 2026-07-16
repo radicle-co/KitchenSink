@@ -14,12 +14,16 @@ import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryCo
 import { makeSearchResponse, makeSearchResult } from './__fixtures__/discoveryFixtures';
 import { makeRecipe, makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { useSearchRecipesMock, useCloneRecipeMock, pushMock, refetchMock, cloneMutateMock } = vi.hoisted(() => ({
+const { useSearchRecipesMock, useCloneRecipeMock, pushMock, refetchMock, cloneMutateMock, nav } = vi.hoisted(() => ({
     useSearchRecipesMock: vi.fn(),
     useCloneRecipeMock: vi.fn(),
     pushMock: vi.fn(),
     refetchMock: vi.fn(),
     cloneMutateMock: vi.fn(),
+    // The container reads the search criteria from the URL. `nav.params` is the current query; a test sets it
+    // to simulate a shared/reloaded filtered link, and criteria writes go through `window.history.replaceState`
+    // (spied per-test), which in the real app updates `useSearchParams()` reactively.
+    nav: { params: new URLSearchParams(), pathname: '/en/discover' },
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -29,6 +33,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
+    usePathname: () => nav.pathname,
+    useSearchParams: () => nav.params,
 }));
 
 function mockClone(overrides: Record<string, unknown> = {}): void {
@@ -42,6 +48,8 @@ function mockClone(overrides: Record<string, unknown> = {}): void {
 
 afterEach(() => {
     vi.clearAllMocks();
+    vi.restoreAllMocks();
+    nav.params = new URLSearchParams();
 });
 
 describe('RecipeDiscoveryContainer', () => {
@@ -111,8 +119,9 @@ describe('RecipeDiscoveryContainer', () => {
         expect(refetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('passes the typed search term to the search hook as a query param', async () => {
+    it('writes the typed search term to the URL (shareable), not to local state', async () => {
         const user = userEvent.setup();
+        const replaceState = vi.spyOn(window.history, 'replaceState');
         useSearchRecipesMock.mockReturnValue({
             isLoading: false,
             isError: false,
@@ -123,9 +132,11 @@ describe('RecipeDiscoveryContainer', () => {
 
         render(<RecipeDiscoveryContainer locale="en" />);
 
-        await user.type(screen.getByRole('searchbox', { name: 'Search public recipes' }), 'pasta');
+        // A single keystroke — the input is URL-controlled, so cumulative typing depends on the router
+        // reactivity that only the real runtime (Playwright) provides; the container's job here is to WRITE.
+        await user.type(screen.getByRole('searchbox', { name: 'Search public recipes' }), 'p');
 
-        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ query: 'pasta' });
+        expect(replaceState).toHaveBeenLastCalledWith(null, '', '/en/discover?query=p');
     });
 
     it('searches with no query param before the user types', () => {
@@ -140,6 +151,40 @@ describe('RecipeDiscoveryContainer', () => {
         render(<RecipeDiscoveryContainer locale="en" />);
 
         expect(useSearchRecipesMock).toHaveBeenLastCalledWith({});
+    });
+
+    it('projects the filters from the URL onto the search params and the pressed chips', () => {
+        nav.params = new URLSearchParams('dietaryFlags=vegan');
+        useSearchRecipesMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }),
+            refetch: refetchMock,
+        });
+        mockClone();
+
+        render(<RecipeDiscoveryContainer locale="en" />);
+
+        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ dietaryFlags: ['vegan'] });
+        expect(screen.getByRole('button', { name: 'vegan, 2 recipes' }).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('writes a toggled facet to the URL', async () => {
+        const user = userEvent.setup();
+        const replaceState = vi.spyOn(window.history, 'replaceState');
+        useSearchRecipesMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }),
+            refetch: refetchMock,
+        });
+        mockClone();
+
+        render(<RecipeDiscoveryContainer locale="en" />);
+
+        await user.click(screen.getByRole('button', { name: 'vegan, 2 recipes' }));
+
+        expect(replaceState).toHaveBeenLastCalledWith(null, '', '/en/discover?dietaryFlags=vegan');
     });
 
     it('navigates to the recipe detail route when a result is selected', async () => {

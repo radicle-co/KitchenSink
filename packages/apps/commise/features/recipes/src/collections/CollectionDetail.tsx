@@ -16,6 +16,7 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     collection,
     onSelectRecipe,
     onRemoveRecipe,
+    onAddRecipe,
     onRename,
     onDelete,
 }) => {
@@ -48,7 +49,18 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
             </header>
 
             <section aria-label={detail.membersHeading} className="flex flex-col gap-3">
-                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{detail.membersHeading}</h2>
+                <div className="flex items-center justify-between gap-4">
+                    <h2 className="font-display text-heading-lg font-semibold text-charcoal">
+                        {detail.membersHeading}
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={onAddRecipe}
+                        className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
+                    >
+                        {detail.addRecipeCta}
+                    </button>
+                </div>
                 {recipes.length === 0 ? (
                     <div className="rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm">
                         <p className="font-medium text-charcoal">{detail.emptyTitle}</p>

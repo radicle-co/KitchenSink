@@ -6,6 +6,8 @@
  * APIs. The count/template copy-formatting primitives are reused from the list model (`../list/model.js`)
  * — one authoritative implementation of pluralization + placeholder filling for the whole feature.
  */
+import type { ReactNode } from 'react';
+
 import type { RecipeSearchResult } from '@kitchensink/recipe-core';
 
 /**
@@ -67,4 +69,16 @@ export interface RecipeDiscoveryListProps {
     readonly onRetry: () => void;
     /** The id of the recipe whose clone is currently in flight, if any (busies exactly that row). */
     readonly cloningId?: string | null;
+    /**
+     * Whether any filter (beyond the search term) is active. Combined with a non-blank `searchValue` it tells
+     * the empty body apart from a no-match: a successful search/filter with zero hits is a NO-MATCH ("nothing
+     * matches your search"), not the browse-empty "no public recipes" state. Defaults to `false`.
+     */
+    readonly hasActiveFilters?: boolean;
+    /**
+     * Optional composition seam rendered between the search field and the results body — where the composing
+     * app mounts the {@link import('../filters/index.js').RecipeFilterBar} so the filters sit under the search
+     * box, above the results. The view stays presentational and unaware of filter semantics.
+     */
+    readonly filterSlot?: ReactNode;
 }

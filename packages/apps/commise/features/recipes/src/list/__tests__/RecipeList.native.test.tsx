@@ -94,6 +94,15 @@ describe('RecipeList (native) — empty state', () => {
     });
 });
 
+describe('RecipeList (native) — no-match state', () => {
+    it('shows the no-match copy (NOT the empty copy) when a search filters every row out', () => {
+        renderList({ status: 'ready', recipes: [], searchValue: 'zzz' });
+
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes yet')).toBeNull();
+    });
+});
+
 describe('RecipeList (native) — populated state', () => {
     it('renders a pluralized result count', () => {
         renderList({ status: 'ready', recipes: threeRecipes });

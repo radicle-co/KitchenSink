@@ -11,18 +11,22 @@
 import {
     RecipeForm,
     defaultRecipeFormValues,
+    pendingIngredientIds,
+    setIngredientStatusById,
     toCreateRecipeInput,
     validateRecipeForm,
 } from '@commise/features-recipes';
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormValues } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { useCreateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { FC } from 'react';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
+import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeCreateContainer}. */
@@ -48,6 +52,13 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
         setValues((current) => ({ ...current, ingredients: [...current.ingredients, line] }));
     };
 
+    // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. The callback is
+    // idempotent — `setIngredientStatusById` returns the same reference when the status is unchanged — so the
+    // per-line pollers below cannot loop, and a line stops being polled the instant it leaves `PENDING`.
+    const applyLineStatus = useCallback((ingredientId: string, status: FoodResolutionStatus): void => {
+        setValues((current) => setIngredientStatusById(current, ingredientId, status));
+    }, []);
+
     const handleSubmit = (): void => {
         const nextErrors = validateRecipeForm(values);
         setErrors(nextErrors);
@@ -64,6 +75,9 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
     return (
         <div>
             <IngredientPicker onSelect={addIngredient} />
+            {pendingIngredientIds(values).map((id) => (
+                <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
+            ))}
             <RecipeForm
                 mode="create"
                 values={values}

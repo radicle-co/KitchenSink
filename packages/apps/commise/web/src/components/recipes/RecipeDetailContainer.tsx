@@ -26,7 +26,12 @@ import {
     RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
+    RecipeRatingControl,
     RecipeVisibilityToggle,
+    ratingModeFor,
+    resolveSelectedStars,
+    type RatingSelectionOverride,
+    type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -34,7 +39,9 @@ import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
+    useDeleteRecipeRating,
     useRecipe,
+    useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
@@ -80,7 +87,20 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
     const cloneRecipe = useCloneRecipe();
+    const setRating = useSetRecipeRating();
+    const deleteRating = useDeleteRecipeRating();
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    // The viewer's OPTIMISTIC rating action this session, or undefined to defer to the server. The detail's
+    // `viewerRating` (the viewer's own prior rating) is the source of truth and pre-selects on load; this only
+    // bridges the write→refetch gap so the stars don't flicker back before the refetch lands. See
+    // `resolveSelectedStars`. Reset below when the route switches recipes so it can't leak across recipes.
+    const [ratingOverride, setRatingOverride] = useState<RatingSelectionOverride>(undefined);
+    const [ratingRecipeId, setRatingRecipeId] = useState(id);
+
+    if (ratingRecipeId !== id) {
+        setRatingRecipeId(id);
+        setRatingOverride(undefined);
+    }
 
     if (query.isLoading) {
         return <div role="status" aria-label={recipes.detail.loadingLabel} />;
@@ -116,9 +136,40 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     // same signal the mobile detail screen uses. Fails safe (OFF) while the profile loads or is absent.
     const canGoPrivate = profile.data?.account.subscriptionTier === 'premium';
 
+    // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8). The read-through user
+    // resolution guarantees the recipe is one the viewer can see, so ownership is the only client-side gate;
+    // the backend enforces the rest (Sc8 own-recipe 403, Sc9 not-found for the unreadable). A rating write's
+    // error is mapped to the honest surface: a not-found (the client's 404 shape) is "not available" (Sc9),
+    // never a distinct "forbidden"; anything else is generic. Set errors win over remove (only one is in
+    // flight at a time — the control disables its inputs while pending).
+    const ratingMode = ratingModeFor({ viewerId, ownerId: recipe.ownerId });
+    const ratingError = setRating.error ?? deleteRating.error;
+    const ratingErrorKind: RecipeRatingError | undefined =
+        ratingError === null || ratingError === undefined
+            ? undefined
+            : isNotFoundError(ratingError)
+              ? 'notAvailable'
+              : 'generic';
+    // The stars the input pre-selects: the server's `viewerRating` once loaded, bridged by the optimistic
+    // override during a write so it never flickers. The community `averageRating` stays the displayed score.
+    const selectedStars = resolveSelectedStars(ratingOverride, recipe.viewerRating);
+
     return (
         <>
             <RecipeDetailView recipe={recipe} />
+
+            <RecipeRatingControl
+                mode={ratingMode}
+                average={recipe.averageRating}
+                ratingCount={recipe.ratingCount}
+                selectedStars={selectedStars}
+                pending={setRating.isPending || deleteRating.isPending}
+                error={ratingErrorKind}
+                onRate={(stars) =>
+                    setRating.mutate({ id, input: { stars } }, { onSuccess: () => setRatingOverride({ stars }) })
+                }
+                onRemove={() => deleteRating.mutate(id, { onSuccess: () => setRatingOverride({ stars: undefined }) })}
+            />
 
             {isOwner && (
                 <>

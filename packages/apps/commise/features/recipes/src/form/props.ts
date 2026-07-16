@@ -8,7 +8,7 @@
  * ingredient (the container owns the food-service typeahead). Every edit produces the next
  * {@link RecipeFormValues} and is handed back up via `onChange`.
  */
-import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { RecipeDifficulty, type FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
 import type { RecipeFormMessages } from './messages.js';
@@ -123,6 +123,44 @@ export const updateStepAt = (
     ...values,
     steps: values.steps.map((step, i) => (i === index ? { ...step, ...patch } : step)),
 });
+
+/**
+ * Set (or clear) the form's author-stated difficulty. Passing a value states it; passing `undefined` clears
+ * it back to "not stated" by REMOVING the key (never storing an explicit `undefined`, which
+ * `exactOptionalPropertyTypes` forbids and which would misrepresent "not stated"). Pure — the single
+ * transition both platform pickers use, so web and native cannot diverge on how a difficulty edit applies.
+ *
+ * @param values - The current form values.
+ * @param difficulty - The chosen difficulty, or `undefined` to clear it to "not stated".
+ * @returns The next values with difficulty set or removed.
+ */
+export const setDifficulty = (values: RecipeFormValues, difficulty?: RecipeDifficulty): RecipeFormValues => {
+    const { difficulty: _current, ...rest } = values;
+
+    return difficulty === undefined ? rest : { ...rest, difficulty };
+};
+
+/** One selectable difficulty in the picker. `value` absent = the "not stated" option (clears the field). */
+export interface DifficultyOption {
+    /** The difficulty this option states, or absent for the "not stated" (clear) option. */
+    readonly value?: RecipeDifficulty;
+    /** The localized, accessible label shown for the option. */
+    readonly label: string;
+}
+
+/**
+ * The ordered difficulty picker options — Easy, Medium, Hard, then an explicit "not stated" (clear) option —
+ * with their localized labels. Shared by both platform leaves so the option set and order cannot drift. Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The picker options in display order.
+ */
+export const difficultyOptions = (messages: RecipeFormMessages): DifficultyOption[] => [
+    { value: RecipeDifficulty.EASY, label: messages.difficultyEasy },
+    { value: RecipeDifficulty.MEDIUM, label: messages.difficultyMedium },
+    { value: RecipeDifficulty.HARD, label: messages.difficultyHard },
+    { label: messages.difficultyNotStated },
+];
 
 /**
  * Parse a numeric text input to a finite number, coercing blank/invalid entries to 0 (validation, not this

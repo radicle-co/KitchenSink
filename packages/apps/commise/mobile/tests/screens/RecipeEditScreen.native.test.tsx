@@ -30,6 +30,17 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useUpdateRecipe: vi.fn(),
     useSearchIngredients: vi.fn(),
     useCreateIngredient: vi.fn(),
+    // The ingredient picker + editor also read the async-resolution hooks; inert idle defaults keep them in
+    // the search branch (this screen never drives an UNRESOLVED disambiguation or a poll-after-add).
+    useAddIngredientByName: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
+    useIngredientStatus: () => ({ data: undefined }),
+    useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
+    useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
     // The screen now mounts the RecipePhotoUploader below the editor; stub its photo hooks so the screen's
     // own render paths (this suite) don't reach the network. The uploader has its own dedicated test.
     useRecipePhotos: vi.fn(),
@@ -273,6 +284,47 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         const [secondVars] = mutate.mock.calls[1] as [{ input: { expectedVersion: number } }];
         expect(secondVars.input.expectedVersion).toBe(5);
         expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it('merge re-submits the field-by-field merged draft against the fresh version and reports the id', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3, servings: 4 });
+        const theirs = makeRecipeDetail({
+            id: 'rec_1',
+            title: 'Server Saved Recipe',
+            currentVersion: 5,
+            servings: 8,
+        });
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
+        const refetch = vi.fn().mockResolvedValue({ data: theirs });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
+        const mutate = mutateWith([
+            { type: 'conflict', error: new VersionConflictError(5, 3) },
+            { type: 'success', recipe: saved },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
+        const onSaved = vi.fn();
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        // Enter the merge panel, keep my title (default), pull servings from the latest saved version.
+        fireEvent.click(await screen.findByRole('button', { name: 'Merge field by field' }));
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 8' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
+
+        expect(mutate).toHaveBeenCalledTimes(2);
+        const [firstVars] = mutate.mock.calls[0] as [{ input: { expectedVersion: number } }];
+        const [secondVars] = mutate.mock.calls[1] as [
+            { input: { expectedVersion: number; title: string; servings: number } },
+        ];
+        // Stale-version lens: resubmit carries the fresh server version (5), not the stale 3.
+        expect(firstVars.input.expectedVersion).toBe(3);
+        expect(secondVars.input.expectedVersion).toBe(5);
+        // Per-field lens: my title + their servings.
+        expect(secondVars.input.title).toBe('My Draft Recipe');
+        expect(secondVars.input.servings).toBe(8);
+        expect(onSaved).toHaveBeenCalledWith('rec_1');
     });
 
     it('use-theirs discards the draft, reseeds the editor from the latest version, and does not navigate', async () => {

@@ -7,19 +7,19 @@
  * retries can replay the exact failed payload"*, and *"pending-archive records MUST only be deleted
  * after a successful S3 confirmation"*.
  *
- * Two invariants the shape encodes and these tests pin:
- *   1. **Enqueue is idempotent.** `UNIQUE(recipe_version_id)` means one pending row per version, so a
- *      re-run of retention (or a replayed save) can never fan out duplicate archive work.
- *   2. **Failures are recorded, not thrown.** A failed attempt increments `attempts` and stores
- *      `last_error`, leaving the row claimable by the sweeper (`idx_pending_archives_status_next`
- *      covers `status IN ('pending','failed')`) — the row is never silently dropped.
+ * The invariant the shape encodes and these tests pin:
+ *   - **Enqueue is idempotent.** `UNIQUE(recipe_version_id)` means one pending row per version, so a
+ *     re-run of retention (or a replayed save) can never fan out duplicate archive work.
+ *
+ * There is deliberately no failure-recording method on this DAL: the shipped archive worker relies on
+ * SQS redelivery + the DLQ for retries (the outbox row is the source of truth, the message derived — see
+ * `version-archive-worker.ts` in recipe-workers), so a failed archive throws and is re-driven by SQS
+ * rather than mutating an `attempts`/`last_error` column here.
  *
  * The SQL itself is covered by the T133 LocalStack integration spec; this pins the DAL's logic over a
  * fake Drizzle client, mirroring the `recipes.dal.test.ts` harness.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { SQL } from 'drizzle-orm';
-import { PgDialect } from 'drizzle-orm/pg-core';
 
 import { PendingArchivesDal } from '../pending-archives.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
@@ -100,15 +100,7 @@ function createFakeDb(): FakeControl {
     };
 }
 
-const dialect = new PgDialect();
-
-function renderedWheres(control: FakeControl): string[] {
-    return control.calls
-        .filter((call) => call.method === 'where')
-        .map((call) => dialect.sqlToQuery(call.args[0] as SQL).sql);
-}
-
-function payloadOf(control: FakeControl, method: 'values' | 'set'): Record<string, unknown> {
+function payloadOf(control: FakeControl, method: 'values'): Record<string, unknown> {
     return control.calls.find((call) => call.method === method)?.args[0] as Record<string, unknown>;
 }
 
@@ -155,48 +147,6 @@ describe('PendingArchivesDal.enqueue', () => {
         // here would be a second place to drift.
         expect(values['status']).toBeUndefined();
         expect(values['attempts']).toBeUndefined();
-    });
-});
-
-describe('PendingArchivesDal.markFailed', () => {
-    let control: FakeControl;
-    let dal: PendingArchivesDal;
-
-    beforeEach(() => {
-        control = createFakeDb();
-        dal = new PendingArchivesDal(control.db);
-    });
-
-    it('increments attempts in SQL (not read-modify-write) and records the error', async () => {
-        control.enqueue([{ id: 'pa-1' }]);
-
-        await dal.markFailed(VERSION_ID, 'S3 timeout');
-
-        const set = payloadOf(control, 'set');
-        // An in-SQL increment keeps two concurrent workers from both writing attempts = n+1 off a stale
-        // read and under-counting — the count drives the DLQ cutoff, so it has to be right.
-        expect(set['attempts']).toBeDefined();
-        expect(set['lastError']).toBe('S3 timeout');
-        expect(set['status']).toBe('failed');
-    });
-
-    it('keeps the row claimable by the sweeper (status stays in the retry index)', async () => {
-        control.enqueue([{ id: 'pa-1' }]);
-
-        await dal.markFailed(VERSION_ID, 'boom');
-
-        // `idx_pending_archives_status_next` covers status IN ('pending','failed') — a failed row must
-        // land in that set or the sweeper will never pick it up again and the snapshot is stranded.
-        expect(payloadOf(control, 'set')['status']).toBe('failed');
-    });
-
-    it('targets exactly the one version whose archive failed', async () => {
-        control.enqueue([{ id: 'pa-1' }]);
-
-        await dal.markFailed(VERSION_ID, 'boom');
-
-        const [where] = renderedWheres(control);
-        expect(where).toContain('"recipe_version_id" = $1');
     });
 });
 

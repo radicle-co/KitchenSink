@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ownerMediaPrefix, recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 
 import type { SQSEvent } from 'aws-lambda';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 // Shared mock for the worker's module-level `new S3Client({})`; the PutObject class echoes its input.
 const { s3Send } = vi.hoisted(() => ({ s3Send: vi.fn() }));
@@ -20,7 +22,13 @@ const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
 
 import { getRecipeDb as getRecipeDbMock } from '../../common/db.js';
-import { handler, loadVersionSnapshot, parseArchiveMessage, snapshotObjectKey } from '../version-archive-worker.js';
+import {
+    handler,
+    loadVersionSnapshot,
+    ownerErasureRequested,
+    parseArchiveMessage,
+    snapshotObjectKey,
+} from '../version-archive-worker.js';
 import { makeArchiveEvent, makeArchiveMessage, makeSqsRecord } from '../__fixtures__/messages.js';
 
 type TestHandler = (event: SQSEvent) => Promise<void>;
@@ -117,9 +125,11 @@ function makeVersionRow(overrides: Record<string, unknown> = {}): Record<string,
 /** A schema-less Drizzle stub whose `execute` returns one queued result per call. */
 function dbReturning(...results: unknown[]): { execute: ReturnType<typeof vi.fn> } {
     const execute = vi.fn();
+
     for (const rows of results) {
         execute.mockResolvedValueOnce({ rows });
     }
+
     execute.mockResolvedValue({ rows: [] });
 
     return { execute };
@@ -175,6 +185,70 @@ describe('loadVersionSnapshot', () => {
         await expect(loadVersionSnapshot(db as never, makeArchiveMessage({ versionId: 'gone' }))).rejects.toThrow(
             /gone/,
         );
+    });
+});
+
+describe('ownerErasureRequested', () => {
+    const dialect = new PgDialect();
+
+    /** A db stub that captures the rendered SQL of the single `execute` and returns one result. */
+    function capturingDb(rows: unknown[]): {
+        db: { execute: ReturnType<typeof vi.fn> };
+        rendered: () => { text: string; params: readonly unknown[] };
+    } {
+        let captured: SQL | undefined;
+        const execute = vi.fn().mockImplementation((statement: SQL) => {
+            captured = statement;
+
+            return Promise.resolve({ rows });
+        });
+
+        return {
+            db: { execute },
+            rendered: () => {
+                const { sql: text, params } = dialect.sqlToQuery(captured!);
+
+                return { text: text.replace(/\s+/g, ' ').trim(), params };
+            },
+        };
+    }
+
+    it('reports TRUE when an erasure job exists for the owner', async () => {
+        const { db } = capturingDb([{ erased: true }]);
+
+        expect(await ownerErasureRequested(db as never, 'own')).toBe(true);
+    });
+
+    it('reports FALSE when no erasure job exists for the owner', async () => {
+        const { db } = capturingDb([{ erased: false }]);
+
+        expect(await ownerErasureRequested(db as never, 'own')).toBe(false);
+    });
+
+    it('reports FALSE when the query returns no row at all (defensive, not a throw)', async () => {
+        const { db } = capturingDb([]);
+
+        expect(await ownerErasureRequested(db as never, 'own')).toBe(false);
+    });
+
+    it('scopes the existence check to the passed owner id against account_erasure_jobs', async () => {
+        // The owner-scoping is the whole safety property: a different owner's erasure must not be able to
+        // answer this query. Render the real SQL and assert the predicate the database will evaluate — a
+        // dropped `WHERE owner_id = $1` or a hard-coded owner cannot pass this.
+        const { db, rendered } = capturingDb([{ erased: false }]);
+
+        await ownerErasureRequested(db as never, '01JOWNER-UNDER-ERASURE');
+
+        const { text, params } = rendered();
+        expect(text).toMatch(/from account_erasure_jobs where owner_id = \$1/i);
+        expect(params).toEqual(['01JOWNER-UNDER-ERASURE']);
+    });
+
+    it('propagates a DB error rather than defaulting to "no erasure"', async () => {
+        // A swallowed error read as `false` would let a suppressed PUT slip through during an erasure.
+        const execute = vi.fn().mockRejectedValue(new Error('connection terminated'));
+
+        await expect(ownerErasureRequested({ execute } as never, 'own')).rejects.toThrow('connection terminated');
     });
 });
 
@@ -247,6 +321,7 @@ describe('handler — archive-before-prune (FR-007b-i)', () => {
         order = [];
         dbExecute = vi.fn().mockImplementation(async (query: unknown) => {
             const text = JSON.stringify(query);
+
             if (text.includes('DELETE')) {
                 order.push('prune');
 
@@ -285,5 +360,131 @@ describe('handler — archive-before-prune (FR-007b-i)', () => {
 
         expect(order).not.toContain('prune');
         // Throwing (rather than swallowing) is what makes SQS redeliver and eventually DLQ the record.
+    });
+});
+
+describe('handler — GDPR archive-resurrection guard (C-007 / D7)', () => {
+    const dialect = new PgDialect();
+
+    /**
+     * A schema-less db stub that routes by rendered SQL: the erasure EXISTS check answers with the
+     * configured flag, the version SELECT returns a row, and DELETE is recorded as a prune. This is what
+     * lets a test assert "PUT suppressed but row still pruned" without a real database.
+     */
+    function guardDb(ownerHasErasure: boolean): {
+        db: { execute: ReturnType<typeof vi.fn> };
+        prunedVersionIds: string[];
+    } {
+        const prunedVersionIds: string[] = [];
+        const execute = vi.fn().mockImplementation((statement: SQL) => {
+            const { sql: text, params } = dialect.sqlToQuery(statement);
+            const normalized = text.toLowerCase();
+
+            if (normalized.includes('account_erasure_jobs')) {
+                return Promise.resolve({ rows: [{ erased: ownerHasErasure }] });
+            }
+
+            if (normalized.includes('delete from recipe_versions')) {
+                prunedVersionIds.push(String(params[0]));
+
+                return Promise.resolve({ rows: [] });
+            }
+
+            return Promise.resolve({ rows: [makeVersionRow()] });
+        });
+
+        return { db: { execute }, prunedVersionIds };
+    }
+
+    beforeEach(() => {
+        process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive-bucket';
+        s3Send.mockResolvedValue({});
+    });
+
+    afterEach(() => {
+        delete process.env['RECIPE_ARCHIVE_BUCKET'];
+    });
+
+    it('writes the snapshot when the owner has NO erasure job (unchanged path)', async () => {
+        const { db, prunedVersionIds } = guardDb(false);
+        vi.mocked(getRecipeDbMock).mockReturnValue(db as never);
+
+        await runHandler(makeArchiveEvent({ ownerId: 'own', recipeId: 'rec', versionId: 'v1', versionNumber: 1 }));
+
+        // No erasure on record → behaves exactly as before this guard existed: PUT, then prune.
+        expect(s3Send).toHaveBeenCalledTimes(1);
+        expect(putInput(s3Send.mock.calls[0][0]).Key).toBe('recipes/own/rec/versions/1.json');
+        expect(prunedVersionIds).toEqual(['v1']);
+    });
+
+    it('does NOT write the snapshot when the owner has an erasure job on record', async () => {
+        const { db } = guardDb(true);
+        vi.mocked(getRecipeDbMock).mockReturnValue(db as never);
+
+        await runHandler(makeArchiveEvent({ ownerId: 'erased', recipeId: 'rec', versionId: 'v1', versionNumber: 1 }));
+
+        // The core assertion: no object is materialised under an erased owner's prefix. Reverting the guard
+        // in the worker makes THIS fail — the PUT would fire.
+        expect(s3Send).not.toHaveBeenCalled();
+    });
+
+    it('still prunes the version row when it suppresses the PUT (clears the outbox debt)', async () => {
+        const { db, prunedVersionIds } = guardDb(true);
+        vi.mocked(getRecipeDbMock).mockReturnValue(db as never);
+
+        await runHandler(makeArchiveEvent({ ownerId: 'erased', recipeId: 'rec', versionId: 'v9', versionNumber: 4 }));
+
+        // A suppressed PUT must not leave an un-prunable outbox row that the sweeper re-dispatches forever.
+        // The version is pruned (cascading its pending-archive row), consistent with the erasure end state.
+        expect(s3Send).not.toHaveBeenCalled();
+        expect(prunedVersionIds).toEqual(['v9']);
+    });
+
+    it('does NOT suppress the PUT when a DIFFERENT owner is under erasure', async () => {
+        // guardDb answers the EXISTS check by the flag, but the real scoping is proven in
+        // `ownerErasureRequested` (the rendered `WHERE owner_id = $1`). Here we pin the handler contract:
+        // an owner with NO erasure of their own archives normally even while other owners are being erased.
+        const { db, prunedVersionIds } = guardDb(false);
+        vi.mocked(getRecipeDbMock).mockReturnValue(db as never);
+
+        await runHandler(makeArchiveEvent({ ownerId: 'live', recipeId: 'rec', versionId: 'v2', versionNumber: 2 }));
+
+        expect(s3Send).toHaveBeenCalledTimes(1);
+        expect(prunedVersionIds).toEqual(['v2']);
+    });
+
+    it('checks erasure state AFTER loading the snapshot and BEFORE the PUT (tightest read→PUT window)', async () => {
+        const order: string[] = [];
+        const execute = vi.fn().mockImplementation((statement: SQL) => {
+            const normalized = dialect.sqlToQuery(statement).sql.toLowerCase();
+
+            if (normalized.includes('account_erasure_jobs')) {
+                order.push('erasure-check');
+
+                return Promise.resolve({ rows: [{ erased: false }] });
+            }
+
+            if (normalized.includes('delete from recipe_versions')) {
+                order.push('prune');
+
+                return Promise.resolve({ rows: [] });
+            }
+
+            order.push('load');
+
+            return Promise.resolve({ rows: [makeVersionRow()] });
+        });
+        vi.mocked(getRecipeDbMock).mockReturnValue({ execute } as never);
+        s3Send.mockImplementation(async () => {
+            order.push('put');
+
+            return {};
+        });
+
+        await runHandler(makeArchiveEvent({ ownerId: 'own', recipeId: 'rec', versionId: 'v1', versionNumber: 1 }));
+
+        // load → erasure-check → put → prune. The check must sit immediately before the PUT so the
+        // read→PUT window (the residual race surface) is as small as possible.
+        expect(order).toEqual(['load', 'erasure-check', 'put', 'prune']);
     });
 });

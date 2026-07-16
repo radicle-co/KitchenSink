@@ -38,6 +38,7 @@ export type {
     CreateCollectionRequest,
     ErasureRequest,
     ErasureRequestAcceptedResponse,
+    IngredientCandidate,
     ListCollectionsParams,
     ListRecipesParams,
     PhotoConfirmRequest,

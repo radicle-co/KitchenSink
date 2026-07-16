@@ -15,6 +15,8 @@ import { registerHomeWidget, type AddFeature } from '@commise/features-core';
 import { recipeHomeWidgetDescriptor } from '@commise/features-recipes';
 import { createContainer, type Container } from 'ditox';
 
+import { addRoadmapPlaceholders } from './roadmapFeature.js';
+
 /**
  * The recipe feature's Home registration: contributes {@link recipeHomeWidgetDescriptor} to the appShell
  * container's multi-value widget token. This is the feature's `.use(addFeature)` seam.
@@ -28,9 +30,11 @@ export const addRecipeFeature: AddFeature = (container) => {
 
 /**
  * Every feature registration applied to the Home container, in registration order. Home v1 = the recipe
- * feature only; append a feature's `addFeature` here when its package ships.
+ * feature, plus the roadmap scaffolding that stands in for the features that do not exist yet (FR-046 / R6 as
+ * amended by CR-001). Append a feature's `addFeature` here when its package ships — and delete its roadmap
+ * entry at the same time (leaving it is harmless: it gates itself out once the capability is live).
  */
-export const HOME_FEATURES: readonly AddFeature[] = [addRecipeFeature];
+export const HOME_FEATURES: readonly AddFeature[] = [addRecipeFeature, addRoadmapPlaceholders];
 
 /**
  * Build a fresh Home appShell container with every supplied feature registered. A pure factory (no shared

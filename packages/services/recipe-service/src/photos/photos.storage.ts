@@ -10,7 +10,7 @@
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import type { PhotoStoragePort, PresignedUpload, PresignUploadInput } from './photos.service.js';
+import type { PhotoStoragePort, PresignedUpload, PresignUploadInput, PutObjectInput } from './photos.service.js';
 
 /** Config the S3 adapter needs (sourced from the service's storage config). */
 export interface S3PhotoStorageConfig {
@@ -78,6 +78,27 @@ export function createS3PhotoStorage(config: S3PhotoStorageConfig): PhotoStorage
             const response = await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: s3Key }));
 
             return response.ContentLength;
+        },
+
+        async getObject(s3Key: string): Promise<Uint8Array> {
+            const response = await client.send(new GetObjectCommand({ Bucket: config.bucket, Key: s3Key }));
+
+            if (response.Body === undefined) {
+                return new Uint8Array();
+            }
+
+            return response.Body.transformToByteArray();
+        },
+
+        async putObject(input: PutObjectInput): Promise<void> {
+            await client.send(
+                new PutObjectCommand({
+                    Bucket: config.bucket,
+                    Key: input.s3Key,
+                    Body: input.body,
+                    ContentType: input.contentType,
+                }),
+            );
         },
     };
 }

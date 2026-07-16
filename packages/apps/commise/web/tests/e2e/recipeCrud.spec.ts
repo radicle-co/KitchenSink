@@ -29,6 +29,8 @@ test.describe('recipe CRUD (T079)', () => {
         await page.getByLabel('Servings').fill('4');
         await page.getByLabel('Prep time (minutes)').fill('15');
         await page.getByLabel('Cook time (minutes)').fill('30');
+        // State a difficulty (FR-001b) — the picker is a radiogroup; select Hard.
+        await page.getByRole('radio', { name: 'Hard' }).click();
 
         await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('salt');
         // Wait for the search RESULT button (exact 'Salt'), not the freeform "Add 'salt' as a custom
@@ -46,11 +48,20 @@ test.describe('recipe CRUD (T079)', () => {
         const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0];
         expect(createdId).toBeTruthy();
 
-        // EDIT — change the title and save (the edit form seeds from the recipe, so it is already valid).
+        // EDIT — the edit form seeds from the recipe (already valid). The difficulty stated at create must have
+        // round-tripped, so Hard is pre-selected. Change the title and CLEAR the difficulty ("Not stated"),
+        // then save — the three-state update sends an explicit clear, not an omit.
         await page.goto(route(`/recipes/${createdId}/edit`));
+        await expect(page.getByRole('radio', { name: 'Hard' })).toBeChecked();
         await page.getByLabel('Title').fill('E2E Ratatouille (edited)');
+        await page.getByRole('radio', { name: 'Not stated' }).click();
         await page.getByRole('button', { name: 'Save changes' }).click();
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toBeVisible();
+
+        // The clear persisted: re-opening the editor shows Not stated selected, never the stale Hard.
+        await page.goto(route(`/recipes/${createdId}/edit`));
+        await expect(page.getByRole('radio', { name: 'Not stated' })).toBeChecked();
+        await expect(page.getByRole('radio', { name: 'Hard' })).not.toBeChecked();
 
         // DELETE — confirm the destructive dialog, then land back on the list without the recipe.
         await page.getByRole('button', { name: 'Delete recipe' }).click();

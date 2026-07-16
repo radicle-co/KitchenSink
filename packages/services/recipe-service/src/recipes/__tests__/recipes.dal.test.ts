@@ -71,6 +71,13 @@ function createFakeDb(): FakeControl {
 
             return makeChain();
         },
+        // Raw execute — used by findAll's cover-photo LATERAL. Returns no covers by default; independent
+        // of the chain result queue so it does not perturb the ordered select/count/steps/ingredients reads.
+        execute: (...args: unknown[]): Promise<{ rows: unknown[] }> => {
+            calls.push({ method: 'execute', args });
+
+            return Promise.resolve({ rows: [] });
+        },
         transaction: (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> => callback(db),
     };
 
@@ -131,6 +138,93 @@ describe('RecipesDal.create', () => {
             { recipeId: 'r-1', stepNumber: 1, instruction: 'Chop', timerSeconds: null },
             { recipeId: 'r-1', stepNumber: 2, instruction: 'Cook', timerSeconds: 600 },
         ]);
+    });
+});
+
+describe('RecipesDal.create — difficulty (FR-001b)', () => {
+    let control: FakeControl;
+    let dal: RecipesDal;
+
+    beforeEach(() => {
+        control = createFakeDb();
+        dal = new RecipesDal(control.db);
+    });
+
+    const baseCreate = {
+        ownerId: 'owner-1',
+        title: 'Soup',
+        visibility: 'public' as const,
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 10,
+        totalTimeMinutes: 15,
+        tags: [],
+        dietaryFlags: [],
+        ingredientNamesText: '',
+        ingredients: [],
+        steps: [],
+    };
+
+    it('persists a stated difficulty on the inserted row', async () => {
+        control.enqueue([makeRecipeRow({ id: 'r-1', difficulty: 'hard' })], [], undefined);
+
+        await dal.create({ ...baseCreate, difficulty: 'hard' });
+
+        expect(valuesPayloads(control)[0]).toMatchObject({ difficulty: 'hard' });
+    });
+
+    it('OMITS the difficulty column when the author stated none (stays NULL, never a default)', async () => {
+        control.enqueue([makeRecipeRow({ id: 'r-1' })], [], undefined);
+
+        await dal.create(baseCreate);
+
+        // The insert payload must not carry a `difficulty` key — the column default (NULL) applies.
+        expect(valuesPayloads(control)[0]).not.toHaveProperty('difficulty');
+    });
+});
+
+describe('RecipesDal.update — difficulty three-state (FR-001b)', () => {
+    let control: FakeControl;
+    let dal: RecipesDal;
+
+    beforeEach(() => {
+        control = createFakeDb();
+        dal = new RecipesDal(control.db);
+    });
+
+    /** The recorded `set(...)` payload from the UPDATE. */
+    function setPayload(): Record<string, unknown> {
+        const setCall = control.calls.find((call) => call.method === 'set');
+
+        return setCall?.args[0] as Record<string, unknown>;
+    }
+
+    it('SETS the column when a value is provided', async () => {
+        control.enqueue([makeRecipeRow({ id: 'r-1', currentVersion: 2, difficulty: 'easy' })], []);
+
+        await dal.update('r-1', { expectedVersion: 1, difficulty: 'easy' });
+
+        expect(setPayload()).toHaveProperty('difficulty', 'easy');
+    });
+
+    it('CLEARS the column (writes null) when difficulty is explicit null', async () => {
+        control.enqueue([makeRecipeRow({ id: 'r-1', currentVersion: 2 })], []);
+
+        await dal.update('r-1', { expectedVersion: 1, difficulty: null });
+
+        // The mutation-critical half: `null` MUST be written through as a real NULL clear.
+        expect(setPayload()).toHaveProperty('difficulty', null);
+    });
+
+    it('LEAVES the column untouched (omits the key) when difficulty is absent', async () => {
+        control.enqueue([makeRecipeRow({ id: 'r-1', currentVersion: 2 })], []);
+
+        await dal.update('r-1', { expectedVersion: 1, title: 'Renamed' });
+
+        // The other mutation-critical half: an absent difficulty must NOT appear in the SET payload — a
+        // `difficulty` key here would clear it on EVERY partial update. Together with the null test above,
+        // this proves the DAL keeps "clear" (null) and "leave unchanged" (absent) genuinely distinct.
+        expect(setPayload()).not.toHaveProperty('difficulty');
     });
 });
 

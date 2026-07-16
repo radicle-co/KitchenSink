@@ -5,12 +5,17 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { RecipeDifficulty } from '@kitchensink/recipe-core';
+
 import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
 import {
     applyDraftToRecipeDetail,
     computeTotalTime,
     defaultRecipeFormValues,
+    pendingIngredientIds,
+    setIngredientStatusById,
     toCreateRecipeInput,
+    toUpdateRecipeInput,
     validateRecipeForm,
     type RecipeFormValues,
 } from '../model.js';
@@ -80,6 +85,53 @@ describe('toCreateRecipeInput', () => {
         );
         expect(input.steps[0]).toEqual({ instruction: 'Rest.', timerSeconds: 600 });
         expect(input.steps[1]).toEqual({ instruction: 'Serve.' });
+    });
+
+    it('carries a stated difficulty', () => {
+        expect(toCreateRecipeInput(filledValues({ difficulty: RecipeDifficulty.HARD })).difficulty).toBe('hard');
+        expect(toCreateRecipeInput(filledValues({ difficulty: RecipeDifficulty.EASY })).difficulty).toBe('easy');
+    });
+
+    it('OMITS difficulty when not stated — create has no clear sentinel, so it must never send null', () => {
+        const input = toCreateRecipeInput(filledValues());
+
+        // Mutation guard: `null` (the update clear) is illegal on create; absence must be a true omit.
+        expect(input.difficulty).toBeUndefined();
+        expect('difficulty' in input).toBe(false);
+    });
+});
+
+describe('toUpdateRecipeInput (three-state difficulty)', () => {
+    it('carries a stated difficulty (set on an update)', () => {
+        expect(toUpdateRecipeInput(filledValues({ difficulty: RecipeDifficulty.MEDIUM })).difficulty).toBe('medium');
+    });
+
+    it('carries the NEW value when an edit changes difficulty', () => {
+        // Form seeded from medium, user picks hard → the update asserts the new value.
+        expect(toUpdateRecipeInput(filledValues({ difficulty: RecipeDifficulty.HARD })).difficulty).toBe('hard');
+    });
+
+    it('sends explicit null to CLEAR when an edit removes a previously-set difficulty', () => {
+        // The edit form loaded a difficulty, the user chose "not stated" → the field is absent. This is the
+        // crux: it MUST become an explicit `null` clear, NOT an omit (omit = unchanged = cannot clear).
+        const input = toUpdateRecipeInput(filledValues());
+
+        expect(input.difficulty).toBeNull();
+        expect('difficulty' in input).toBe(true);
+    });
+
+    it('mirrors create for every non-difficulty field', () => {
+        const values = filledValues({ description: 'Creamy.', cuisine: 'Italian', difficulty: RecipeDifficulty.EASY });
+        const { difficulty: _updateDifficulty, ...updateRest } = toUpdateRecipeInput(values);
+        const { difficulty: _createDifficulty, ...createRest } = toCreateRecipeInput(values);
+
+        expect(updateRest).toEqual(createRest);
+    });
+
+    it('diverges from create ONLY on the not-stated case: create omits, update clears with null', () => {
+        // The one behavioral difference between the two mappers, pinned so neither drifts onto the other.
+        expect('difficulty' in toCreateRecipeInput(filledValues())).toBe(false);
+        expect(toUpdateRecipeInput(filledValues()).difficulty).toBeNull();
     });
 });
 
@@ -161,6 +213,24 @@ describe('applyDraftToRecipeDetail', () => {
         expect(result.photos).toBe(base.photos);
         expect(result.nutrition).toBe(base.nutrition);
     });
+
+    it('reflects the draft difficulty over the base', () => {
+        const withDifficulty = makeRecipeDetail({ difficulty: RecipeDifficulty.EASY });
+
+        const result = applyDraftToRecipeDetail(withDifficulty, filledValues({ difficulty: RecipeDifficulty.HARD }));
+
+        expect(result.difficulty).toBe('hard');
+    });
+
+    it('reflects a CLEARED draft difficulty as absent, not the stale base value', () => {
+        // Base carries a difficulty; the draft cleared it. Mutation guard: a plain `...base` spread would
+        // leak the stale server difficulty into "mine".
+        const withDifficulty = makeRecipeDetail({ difficulty: RecipeDifficulty.HARD });
+
+        const result = applyDraftToRecipeDetail(withDifficulty, filledValues());
+
+        expect(result.difficulty).toBeUndefined();
+    });
 });
 
 describe('validateRecipeForm', () => {
@@ -187,5 +257,62 @@ describe('validateRecipeForm', () => {
     it('requires positive servings and non-negative times', () => {
         expect(validateRecipeForm(filledValues({ servings: 0 })).servings).toBeDefined();
         expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBeDefined();
+    });
+});
+
+describe('pendingIngredientIds (poll-after-add: which lines still resolve)', () => {
+    it('returns only the catalog ids of PENDING lines, de-duplicated', () => {
+        const values = filledValues({
+            ingredients: [
+                { ingredientId: 'p1', name: 'Quinoa', quantity: 1, resolutionStatus: 'PENDING' },
+                { ingredientId: 'r1', name: 'Rice', quantity: 1, resolutionStatus: 'RESOLVED' },
+                { ingredientId: 'p1', name: 'Quinoa again', quantity: 2, resolutionStatus: 'PENDING' },
+                { ingredientId: 'u1', name: 'Ambiguous', quantity: 1, resolutionStatus: 'UNRESOLVED' },
+            ],
+        });
+
+        // Only PENDING ids, and p1 (twice) collapses to one — RESOLVED/UNRESOLVED are NOT polled.
+        expect(pendingIngredientIds(values)).toEqual(['p1']);
+    });
+
+    it('never polls a line with no catalog id or with no status', () => {
+        const values = filledValues({
+            ingredients: [
+                { ingredientId: null, name: 'Blank', quantity: 1, resolutionStatus: 'PENDING' },
+                { ingredientId: 'x', name: 'Freeform', quantity: 1 },
+            ],
+        });
+
+        expect(pendingIngredientIds(values)).toEqual([]);
+    });
+});
+
+describe('setIngredientStatusById (poll-after-add: apply a resolved status)', () => {
+    const pendingValues = (): RecipeFormValues =>
+        filledValues({
+            ingredients: [
+                { ingredientId: 'p1', name: 'Quinoa', quantity: 1, resolutionStatus: 'PENDING' },
+                { ingredientId: 'p1', name: 'Quinoa', quantity: 2, resolutionStatus: 'PENDING' },
+                { ingredientId: 'other', name: 'Rice', quantity: 1, resolutionStatus: 'PENDING' },
+            ],
+        });
+
+    it('flips EVERY line linked to the id to the new status, leaving other lines untouched', () => {
+        const next = setIngredientStatusById(pendingValues(), 'p1', 'RESOLVED');
+
+        expect(next.ingredients.map((l) => l.resolutionStatus)).toEqual(['RESOLVED', 'RESOLVED', 'PENDING']);
+    });
+
+    it('returns the SAME reference when the status is unchanged (no render loop)', () => {
+        const values = pendingValues();
+
+        // p1 is already PENDING → setting PENDING must be a no-op that preserves referential identity.
+        expect(setIngredientStatusById(values, 'p1', 'PENDING')).toBe(values);
+    });
+
+    it('returns the SAME reference when no line matches the id', () => {
+        const values = pendingValues();
+
+        expect(setIngredientStatusById(values, 'missing', 'RESOLVED')).toBe(values);
     });
 });

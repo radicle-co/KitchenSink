@@ -146,6 +146,11 @@ phases:
           cross_model_findings: 0
           findings: { critical: 0, high: 0, medium: 3, low: 3, fixed: 5, acknowledged: 1 }
           note: 'Phase 6B 4-dimension adversarial review. 0 CRITICAL/HIGH; suite mutation-resistant. 5 findings fixed + re-verified, REV-006 accepted (DAMP). See code-review.md.'
+        - phase: verify
+          decision: approved
+          at: '2026-07-16'
+          findings: { critical: 0, warning: 3, skipped: 2 }
+          note: 'Phase 7 verify-full: PASS WITH WARNINGS, 0 CRITICAL. Every Must-Have FR/US traced end-to-end; contract + constitution clean. 3 doc-level warnings (W3 fixed; W1/W2 acknowledged as path-descriptive). Acknowledged to continue.'
     task_log:
         - id: T000-prereq
           part: 'clerk-verify external_id→userId (shared verifier surface; optional field)'
@@ -429,12 +434,23 @@ phases:
 
     verify:
         state: completed
-        note: >
-            verify-report.md updated 2026-05-13 (doc-level). Superseded by real execution on 2026-07-13:
-            recipe-service unit 408 / integration 50 / service-e2e 1 green; k6 SC-009 green on the live
-            /v1 endpoints (p95 ≪ 500ms, 0% failed). A fresh Phase 7 verify-full over the full frontend +
-            infra delta is still worth running before release-readiness is unblocked.
+        completed_at: '2026-07-16'
         artifact: verify-report.md
+        digest_path: verify/digest.md
+        verdict: 'PASS WITH WARNINGS'
+        outcome: >
+            Phase 7 full verification (implementation-complete run, HEAD d1d1b43). 0 CRITICAL. Every
+            Must-Have FR/US traced end-to-end research→spec→tasks→code→tests with file:line evidence
+            (card fields, ratings + IDOR authz + GDPR ratings-root erasure, Home widget gating, both
+            FR-007b-i alarms, conflict-merge, search/filter, collections). Layer 9 contract-drift clean
+            (every /v1/* path → controller + client; the one unhandled path is x-deferred:feature-008).
+            Layer 11 constitution: passed. 3 WARNINGs, all documentation-level, zero functional impact.
+        warnings:
+            - 'W1/W2 (doc): task text for T153/T159/T161/T163 names standalone badge/cover/rating component files; functionality shipped coherently inside card/RecipeCard.tsx + rating/RecipeRatingControl.tsx with full tests. Path-descriptive drift only — acknowledged.'
+            - 'W3 (doc): v-model/traceability-matrix.md was a stale pre-impl snapshot — FIXED with a SUPERSEDED banner pointing to verify-report.md.'
+        skipped:
+            - 'Authed E2E/Maestro execution — Clerk dev sign-in down locally (pre-existing env limit); specs verified to EXIST + be CI-wired, not run.'
+            - 'Deterministic traceability pre-gate (validate-traceability.js) — repo forces ESM but the script is CommonJS + no live traceability.yml; LLM layers ran instead.'
 
     test-plan:
         state: complete

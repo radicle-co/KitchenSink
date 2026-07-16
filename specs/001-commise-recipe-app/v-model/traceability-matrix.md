@@ -1,8 +1,17 @@
 # Traceability Matrix
 
+> ⚠️ **SUPERSEDED — pre-implementation snapshot (2026-05-10). Do NOT read the row statuses below as live.**
+> This matrix was authored before the build and its `⬜ Untested` / `❌ MISSING` markers are STALE. As of
+> the 2026-07-16 Phase-7 verification the feature is implemented and its full suite is green (recipe-service
+> 634 unit + 104 integration + 15 e2e / recipe-workers 162 / recipe-core 51 / client 249 / features-core
+> 123 / features-recipes 365 web + 203 native / web 283 / mobile 32 node + 135 native; typecheck + lint
+> clean). The authoritative implementation-complete trace is **`../verify-report.md`** (verdict: PASS WITH
+> WARNINGS, 0 CRITICAL) and the task ledger is **`../tasks.md`** (227 done). Retained for V-Model audit
+> history only.
+
 **Generated**: 2026-05-10
 **Source**: `specs/001-commise-recipe-app/v-model/`
-**Execution Status**: Pre-implementation — mapped scenarios remain `⬜ Untested` until real test result ingestion.
+**Execution Status**: Pre-implementation snapshot — SUPERSEDED (see banner above); live status is in `../verify-report.md`.
 
 ## Matrix A — Validation (User View)
 

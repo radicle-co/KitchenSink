@@ -77,18 +77,23 @@ describe.skipIf(!hasS3Endpoint)('recipe-workers S3 integration', () => {
     });
 
     it('writes and reads back a version snapshot at the deterministic key', async () => {
+        // ARCH-BE-3: the archive is keyed by the client-facing versionNumber, not the internal
+        // versionId, and the body is the RecipeVersion wire contract.
         const message = {
             ownerId: OWNER_A,
             recipeId: 'rec-1',
             versionId: 'ver-1',
+            versionNumber: 4,
             requestedAt: '2026-07-10T00:00:00.000Z',
         };
         const key = snapshotObjectKey(message);
         const snapshot = {
+            id: 'ver-1',
             recipeId: 'rec-1',
-            versionId: 'ver-1',
-            ownerId: OWNER_A,
-            archivedAt: '2026-07-10T00:00:00.000Z',
+            versionNumber: 4,
+            snapshot: { version: 4, title: 'Soup', description: '', steps: [], ingredients: [] },
+            createdBy: OWNER_A,
+            createdAt: '2026-07-10T00:00:00.000Z',
         };
 
         await putObject(client, bucket, key, JSON.stringify(snapshot));
@@ -96,7 +101,7 @@ describe.skipIf(!hasS3Endpoint)('recipe-workers S3 integration', () => {
         const got = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         const body = await got.Body?.transformToString();
 
-        expect(key).toBe(`recipes/${OWNER_A}/rec-1/versions/ver-1.json`);
+        expect(key).toBe(`recipes/${OWNER_A}/rec-1/versions/4.json`);
         expect(JSON.parse(body ?? '{}')).toEqual(snapshot);
     });
 });

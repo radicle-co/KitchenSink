@@ -27,7 +27,6 @@ appId: io.commise.mobile
           - inputText: 'commise-e2e-signin+clerk_test@example.com'
           - tapOn: 'Password'
           - inputText: 'Commise-e2e-Test-9j2xQ!'
-          - hideKeyboard
           - tapOn: 'Sign in'
           # New-device verification: this Clerk instance requires an email code after the password factor
           # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new
@@ -37,7 +36,6 @@ appId: io.commise.mobile
                 timeout: 15000
           - tapOn: 'Verification code'
           - inputText: '424242'
-          - hideKeyboard
           - tapOn: 'Verify'
 
 # The authenticated landing: HomeScreen renders the time-of-day greeting header (always ending in "Chef").

@@ -13,6 +13,10 @@ adb install -r "$APK"
 adb reverse tcp:3000 tcp:3000 || true
 # The soft-keyboard spell checker/suggestions mangle Maestro inputText (duplicated chars, e.g. "collectionn").
 adb shell settings put secure spell_checker_enabled 0 || true
+# With a hardware keyboard (see _ci.yml `enable-hardware-keyboard`), suppress the on-screen soft keyboard so
+# text fields never raise it. The flows therefore need no `hideKeyboard`, whose BACK keypress otherwise pops
+# the nav stack / exits the app whenever no soft keyboard is open.
+adb shell settings put secure show_ime_with_hard_keyboard 0 || true
 
 # Re-provision the shared sign-in user right before the flows: the parallel web-E2E job's globalTeardown
 # (deleteAllE2EUsers) deletes it ~45min earlier, so the job's early provision step is stale by now.

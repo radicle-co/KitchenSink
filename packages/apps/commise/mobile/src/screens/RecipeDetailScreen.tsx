@@ -235,7 +235,9 @@ export function RecipeDetailScreen({
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: palette.sand },
-    content: { paddingBottom: 48 },
+    // Generous bottom padding so the foot-of-screen controls — including the inline delete dialog's confirm
+    // button when it opens — clear the device's navigation bar and can be fully scrolled into view.
+    content: { paddingBottom: 120 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
     backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 15 },

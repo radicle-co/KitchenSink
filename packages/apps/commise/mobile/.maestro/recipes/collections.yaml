@@ -32,7 +32,6 @@ appId: io.commise.mobile
 - assertVisible: 'Collection name'
 - tapOn: 'Collection name'
 - inputText: 'Maestro test collection'
-- hideKeyboard
 - tapOn: 'Create'
 
 # A successful create navigates back to the list, where the new collection renders as a row. Waiting on the
@@ -70,7 +69,6 @@ appId: io.commise.mobile
 - tapOn: 'Collection name'
 - eraseText
 - inputText: 'Maestro renamed collection'
-- hideKeyboard
 - tapOn: 'Save'
 
 # Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection`

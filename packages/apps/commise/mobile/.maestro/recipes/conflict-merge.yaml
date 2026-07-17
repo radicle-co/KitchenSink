@@ -31,7 +31,6 @@ appId: io.commise.mobile
 - tapOn: 'Title'
 - eraseText
 - inputText: 'Mediterranean Grilled Lamb (my edit)'
-- hideKeyboard
 - scrollUntilVisible:
       element: 'Save changes'
       direction: DOWN

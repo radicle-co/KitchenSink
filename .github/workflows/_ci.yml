@@ -888,6 +888,13 @@ jobs:
                   ram-size: 4096M
                   emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none
                   disable-animations: true
+                  # Use a hardware keyboard so text fields never raise the SOFT keyboard. Maestro's
+                  # `hideKeyboard` sends a BACK keypress, which — when no soft keyboard is actually open —
+                  # pops the navigation stack (and eventually exits the app to the launcher). With the soft
+                  # keyboard suppressed there is nothing to hide, so the flows drop `hideKeyboard` entirely
+                  # and BACK is never spuriously fired. (run-maestro-flows.sh also sets
+                  # show_ime_with_hard_keyboard=0 as belt-and-suspenders.)
+                  enable-hardware-keyboard: true
                   # The emulator-runner executes each `script` LINE as its own `sh -c`, so the per-flow loop
                   # (reseed → run one flow, in isolation) lives in a committed script invoked in one line.
                   script: bash packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh

@@ -30,7 +30,6 @@ appId: io.commise.mobile
 # Type a query that matches exactly ONE recipe.
 - tapOn: 'Search recipes'
 - inputText: 'Asparagus'
-- hideKeyboard
 
 # The result set really narrowed to one row: the match is present and the count label now reads "1 recipe".
 # The non-match ("Lamb") is GONE from the DOM (assertNotVisible holds regardless of scroll position). The
@@ -46,7 +45,6 @@ appId: io.commise.mobile
 - tapOn: 'Search recipes'
 - eraseText
 - inputText: 'zzzznosuchrecipe'
-- hideKeyboard
 - assertVisible: 'No matching recipes'
 - assertNotVisible: 'No recipes yet'
 
@@ -54,7 +52,6 @@ appId: io.commise.mobile
 # from the query and never destroys the underlying cache.
 - tapOn: 'Search recipes'
 - eraseText
-- hideKeyboard
 - extendedWaitUntil:
       visible:
           text: '^3 recipes$'
@@ -73,7 +70,6 @@ appId: io.commise.mobile
 # delete.yaml removes the other public seed row, so the public feed's size is not stable across a suite run.
 - tapOn: 'Search public recipes'
 - inputText: 'zzzznosuchrecipe'
-- hideKeyboard
 - extendedWaitUntil:
       visible: 'No matching recipes'
       timeout: 40000
@@ -83,7 +79,6 @@ appId: io.commise.mobile
 - tapOn: 'Search public recipes'
 - eraseText
 - inputText: 'Risotto'
-- hideKeyboard
 - extendedWaitUntil:
       visible: 'Herb Risotto'
       timeout: 40000
@@ -94,7 +89,6 @@ appId: io.commise.mobile
 # public seeds exist. Clearing the term first returns to the full browse set the filter then narrows.
 - tapOn: 'Search public recipes'
 - eraseText
-- hideKeyboard
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000

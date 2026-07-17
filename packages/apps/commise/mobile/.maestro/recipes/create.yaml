@@ -26,7 +26,6 @@ appId: io.commise.mobile
 
 - tapOn: 'Title'
 - inputText: 'Maestro Weeknight Soup'
-- hideKeyboard
 
 # Add an ingredient. The IngredientPicker sits at the TOP of the editor (above the form), so scroll UP to
 # reach its search box. Type a name that is NOT in the seeded catalog (Flour/Sugar/Butter) so only the
@@ -39,7 +38,6 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Search ingredients'
 - inputText: 'Tomato'
-- hideKeyboard
 - scrollUntilVisible:
       element:
           text: 'Create .*Tomato.*'
@@ -64,7 +62,6 @@ appId: io.commise.mobile
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
-- hideKeyboard
 
 # Submit. The form is now valid (title + a resolved ingredient + a step + valid default times), so the create
 # succeeds and lands on the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's

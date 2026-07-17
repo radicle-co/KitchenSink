@@ -816,6 +816,9 @@ jobs:
               working-directory: packages/apps/commise/mobile
               env:
                   EXPO_PUBLIC_API_URL: http://10.0.2.2:3000
+                  # The app fetches the viewer PROFILE (viewerId → client-side ownership, tier) from the
+                  # identity service; this job runs a stub for it on :4000 (see the stub step below).
+                  EXPO_PUBLIC_IDENTITY_API_URL: http://10.0.2.2:4000
                   EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   # The release build runs the @sentry/react-native gradle hook, which uploads source maps
                   # via sentry-cli; there is no Sentry auth token in E2E, so disable the upload.
@@ -830,6 +833,19 @@ jobs:
                       android/app/src/main/AndroidManifest.xml
                   cd android && ./gradlew :app:assembleRelease --no-daemon \
                       -PenableProguardInReleaseBuilds=false -PenableShrinkResourcesInReleaseBuilds=false
+            # The app's client-side ownership (Edit/Delete/clone) + tier come from the identity service's
+            # profile endpoint, which this recipe-only job does not run — serve a fixed FREE profile whose
+            # user.id equals the seed owner + dev-bypass user (01J0K6…) so ownership/tier resolve. Runs in
+            # the background; the emulator reaches it at http://10.0.2.2:4000.
+            - name: Start profile stub
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  PORT=4000 node packages/apps/commise/mobile/tests/e2e/profile-stub-server.mjs > /tmp/profile-stub.log 2>&1 &
+                  for i in $(seq 1 15); do
+                      if curl -sf http://localhost:4000/v1/users/me > /dev/null; then echo "stub up"; break; fi
+                      sleep 1
+                  done
+                  curl -sf http://localhost:4000/v1/users/me || { echo "stub failed to start"; cat /tmp/profile-stub.log; exit 1; }
             # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
             # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
             # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but

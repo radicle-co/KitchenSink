@@ -12,8 +12,8 @@
  * history, collection detail/create/rename) is a full-screen push with its own back/cancel affordance.
  */
 import type { JSX } from 'react';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMessages } from '@commise/i18n/react';
@@ -107,6 +107,25 @@ export function RecipesScreen(): JSX.Element {
 
     const current = stack[stack.length - 1] ?? { id: 'list' };
     const screen = renderSurface(current, nav);
+
+    // Hardware back must navigate WITHIN the app's surface stack, not exit it: without this handler RN's
+    // default pops the single Android activity, so a back press (or a stray back event) from any pushed
+    // surface — recipe detail, editor, a collection — drops the user straight to the launcher. Return `true`
+    // to consume the event while there's a surface to pop; return `false` on the root so the OS default
+    // (leave the app) still applies from a top-level tab.
+    useEffect(() => {
+        const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (stack.length > 1) {
+                nav.back();
+
+                return true;
+            }
+
+            return false;
+        });
+
+        return () => subscription.remove();
+    }, [stack.length, nav]);
 
     // Apply the top safe-area inset so the tab bar + screen headings clear the status bar (without it the
     // top row renders UNDER the status bar — a visual defect, and the occluded nodes drop out of the

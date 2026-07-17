@@ -808,16 +808,34 @@ jobs:
               run: |
                   npx expo prebuild --platform android --no-install
                   cd android && ./gradlew :app:assembleDebug --no-daemon
+            # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
+            # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
+            # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but
+            # need the group/permissions opened for the emulator process.
+            - name: Enable KVM
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+                      | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+                  sudo udevadm control --reload-rules
+                  sudo udevadm trigger --name-match=kvm
             # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
             # emulator-runner `script` (the emulator is only up there). `adb reverse` also maps the
             # emulator's own localhost:3000 to the runner, a belt-and-suspenders alongside 10.0.2.2.
+            # A generous MAESTRO_DRIVER_STARTUP_TIMEOUT absorbs first-run driver-install latency.
             - name: Run Maestro flows on emulator
               if: steps.secrets.outcome == 'success'
               uses: reactivecircus/android-emulator-runner@v2
+              env:
+                  MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
               with:
                   api-level: 34
                   arch: x86_64
                   profile: pixel_6
+                  cores: 3
+                  ram-size: 4096M
+                  emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none
+                  disable-animations: true
                   script: |
                       adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/debug/app-debug.apk
                       adb reverse tcp:3000 tcp:3000 || true

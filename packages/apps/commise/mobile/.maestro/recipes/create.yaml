@@ -39,46 +39,76 @@ appId: io.commise.mobile
 - tapOn: 'Prep time (minutes)'
 - inputText: '10'
 
+# Cook sits at the bottom of the Basics card, right at the keyboard boundary — the default `100%` visibility
+# target overshoots or lands it behind the keyboard, so center it and accept partial visibility.
 - hideKeyboard
 - scrollUntilVisible:
       element: 'Cook time (minutes)'
       direction: DOWN
+      centerElement: true
+      visibilityPercentage: 40
+      timeout: 30000
 - tapOn: 'Cook time (minutes)'
 - inputText: '20'
 
+# Add an ingredient. The IngredientPicker sits at the TOP of the editor (above the form), so scroll UP to
+# reach its search box. Type a name that is NOT in the seeded catalog (Flour/Sugar/Butter) so only the
+# freeform "Create …" affordance shows — the food service that backs "Find nutrition"/disambiguation is not
+# run in this job, but the freeform create (POST /v1/ingredients) mints a real catalog id, which is exactly
+# what submit validation requires (every ingredient line must resolve to a catalog id).
 - hideKeyboard
 - scrollUntilVisible:
       element: 'Search ingredients'
-      direction: DOWN
-
-# Resolve an ingredient through the food typeahead (guarded: needs a seeded food match), then add a step.
+      direction: UP
+      centerElement: true
+      visibilityPercentage: 40
+      timeout: 30000
 - tapOn: 'Search ingredients'
-- inputText: 'salt'
-- runFlow:
-      when:
-          visible: 'Resolved'
-      commands:
-          - tapOn: 'Resolved'
-
-# Dismiss the keyboard and scroll the Steps section into view before adding one (the form scrolls).
+- inputText: 'Tomato'
 - hideKeyboard
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      centerElement: true
+      visibilityPercentage: 40
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+
+# The freeform create is async; the resolved line lands in the form below Basics. Scrolling to its name field
+# both confirms the create resolved (an unresolved form can't submit) and is the falsifiable checkpoint — if
+# the ingredient never resolved this scroll finds nothing and the flow fails here rather than passing empty.
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      centerElement: true
+      visibilityPercentage: 40
+      timeout: 30000
+
+# Add a step (the Steps section is below the ingredient rows).
 - scrollUntilVisible:
       element: 'Add step'
       direction: DOWN
+      centerElement: true
+      visibilityPercentage: 40
+      timeout: 30000
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
 - hideKeyboard
 
-# Submit. When the ingredient resolved, the create succeeds and lands on the new recipe's detail; the
-# assertion is guarded so a seed without the food still verifies the editor renders + accepts input.
+# Submit. The form is now valid (title + a resolved ingredient + a step), so the create succeeds and lands on
+# the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's inputText intermittently
+# duplicates the final typed character on this emulator ("…Soupp") — an input artifact, not an app bug.
 - scrollUntilVisible:
       element: 'Create recipe'
       direction: DOWN
-- assertVisible: 'Create recipe'
-- runFlow:
-      when:
-          visible: 'Resolved'
-      commands:
-          - tapOn: 'Create recipe'
-          - assertVisible: 'Maestro Weeknight Soup'
+      centerElement: true
+      visibilityPercentage: 40
+      timeout: 30000
+- tapOn: 'Create recipe'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Weeknight Soup.*'
+      timeout: 40000

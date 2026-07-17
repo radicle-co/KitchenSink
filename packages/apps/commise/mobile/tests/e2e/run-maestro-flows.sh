@@ -26,12 +26,18 @@ FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/search-na
 RC=0
 for f in $FLOWS; do
     echo "::group::maestro flow ${f}"
+    adb logcat -c || true # clear the ring buffer so a failing flow's dump is scoped to just this flow
     if ! node packages/apps/commise/mobile/tests/e2e/reseed.mjs; then
         echo "reseed failed before ${f}"
         RC=1
     fi
     if ! maestro test "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
         echo "FLOW FAILED: ${f}"
+        # Native crashes (app -> launcher) leave no trace in the Maestro log; dump the RN/runtime errors so
+        # the CI log shows the actual exception rather than only the downstream "element not visible".
+        echo "--- logcat (errors + RN JS + native crashes) for ${f} ---"
+        adb logcat -d -t 2000 '*:E' ReactNativeJS:V AndroidRuntime:E System.err:W 2>&1 | tail -120 || true
+        echo "--- end logcat for ${f} ---"
         RC=1
     fi
     echo "::endgroup::"

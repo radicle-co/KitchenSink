@@ -17,22 +17,24 @@ appId: io.commise.mobile
 - assertVisible: 'New recipe'
 
 # --- Client-side search over "My recipes" ---------------------------------------------------------------
-# Baseline: BOTH seeded recipes are listed. Asserting the pre-filter state is what makes the post-filter
-# assertion meaningful — without it, "Lamb is not visible" could just mean the list never loaded.
+# Baseline: the full seeded set is listed. The seed cards render a full-width 4:3 cover, so only ~1 fits the
+# viewport — asserting each row is VISIBLE would need scrolling and still can't put two on screen at once.
+# The COUNT label ("3 recipes"), rendered in the list header above the cards, is the fold-independent proof
+# the list loaded fully; the 3→1 transition after filtering is then the falsifiable core (a no-op filter
+# leaves it at "3 recipes" and fails). Anchored (`^…$`) because Maestro matches substrings.
 - extendedWaitUntil:
-      visible: 'Mediterranean Grilled Lamb'
+      visible:
+          text: '^3 recipes$'
       timeout: 40000
-- assertVisible: 'Asparagus with Green Sauce'
 
 # Type a query that matches exactly ONE recipe.
 - tapOn: 'Search recipes'
 - inputText: 'Asparagus'
 - hideKeyboard
 
-# The result set really narrowed: the match stays, the non-match is GONE, and the count label says "1 recipe"
-# (RecipeList renders `{count} recipe(s)` from the filtered rows). The assertNotVisible is the falsifiable
-# core — if the filter were a no-op the list would be unchanged and this fails. The count is anchored (`^…$`)
-# because Maestro matches substrings: an unanchored '1 recipe' would also be satisfied by '21 recipes'.
+# The result set really narrowed to one row: the match is present and the count label now reads "1 recipe".
+# The non-match ("Lamb") is GONE from the DOM (assertNotVisible holds regardless of scroll position). The
+# count 3→1 is the falsifiable core — if the filter were a no-op the count would stay "3 recipes".
 - assertVisible: 'Asparagus with Green Sauce'
 - assertNotVisible: 'Mediterranean Grilled Lamb'
 - assertVisible:
@@ -48,15 +50,15 @@ appId: io.commise.mobile
 - assertVisible: 'No matching recipes'
 - assertNotVisible: 'No recipes yet'
 
-# Clearing the query restores the full set — the round trip proves filtering is derived from the query and
-# never destroys the underlying cache.
+# Clearing the query restores the full set — the count returns to "3 recipes", proving filtering is derived
+# from the query and never destroys the underlying cache.
 - tapOn: 'Search recipes'
 - eraseText
 - hideKeyboard
 - extendedWaitUntil:
-      visible: 'Mediterranean Grilled Lamb'
+      visible:
+          text: '^3 recipes$'
       timeout: 20000
-- assertVisible: 'Asparagus with Green Sauce'
 
 # --- Navigation: cross to Discover, and search it server-side -------------------------------------------
 - tapOn: 'Discover'
@@ -97,9 +99,18 @@ appId: io.commise.mobile
       visible: 'Under 60 min'
       timeout: 40000
 # Herb Risotto is 35 min (≤ 60), so selecting the 60-minute bound must keep it — a filter that wrongly
-# dropped a matching recipe fails here. Tapping again clears the bound (the round trip proves it toggles).
+# dropped a matching recipe fails here. The card may sit below the fold under the tall covers, so scroll to
+# it rather than asserting blind. Scroll back up to the chip to clear the bound (the round trip proves it
+# toggles).
 - tapOn: 'Under 60 min'
-- assertVisible: 'Herb Risotto'
+- scrollUntilVisible:
+      element: 'Herb Risotto'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Under 60 min'
+      direction: UP
+      timeout: 20000
 - tapOn: 'Under 60 min'
 
 # --- Navigation: the third tab, and back to the first ---------------------------------------------------

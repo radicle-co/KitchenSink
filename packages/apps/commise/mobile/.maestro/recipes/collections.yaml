@@ -74,9 +74,12 @@ appId: io.commise.mobile
 - tapOn: 'Save'
 
 # Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection`
-# invalidated the detail query.
+# invalidated the detail query. Matched as a `…collection.*` regex: Maestro's `inputText` intermittently
+# duplicates the final typed character on this emulator (the title renders "…collectionn"), which is an input
+# artifact, not an app bug — the trailing `.*` absorbs it while still proving the name changed from "test".
 - extendedWaitUntil:
-      visible: 'Maestro renamed collection'
+      visible:
+          text: 'Maestro renamed collection.*'
       timeout: 40000
 
 # DELETE (also this flow's cleanup). Deleting returns to the collections list; the row must be GONE, which is
@@ -85,4 +88,5 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
-- assertNotVisible: 'Maestro renamed collection'
+- assertNotVisible:
+      text: 'Maestro renamed collection.*'

@@ -19,6 +19,11 @@ appId: io.commise.mobile
 # label from the mobile i18n `home.seeAllRecipes`). Done here, in the shared sub-flow, because EVERY consumer
 # (the login-chrome flow + all five recipe flows) wants the recipe list next, so each keeps its existing
 # `assertVisible: 'Recipes'` with no per-flow change.
+# The recipe widget sits at the bottom of the Home surface (below the roadmap placeholder widgets), so its
+# "See all recipes" entry is below the fold — scroll it into view before tapping.
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
 - tapOn: 'See all recipes'
 
 # The recipes surface: RecipesScreen renders the "Recipes" list heading (it then fetches from the recipe

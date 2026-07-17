@@ -23,7 +23,11 @@ appId: io.commise.mobile
 - assertVisible: "This Week's Meals"
 - assertVisible: 'Coming soon'
 
-# Tapping the recipe widget's entry point navigates into the recipes surface.
+# Tapping the recipe widget's entry point navigates into the recipes surface. It sits at the bottom of the
+# Home surface (below the roadmap placeholders), so scroll it into view first.
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

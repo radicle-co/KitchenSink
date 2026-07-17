@@ -23,14 +23,33 @@ appId: io.commise.mobile
 - tapOn: 'Title'
 - inputText: 'Maestro Weeknight Soup'
 
+# The Basics fields sit below the fold and the soft keyboard covers them, so dismiss it and scroll each
+# field into view before tapping — otherwise `tapOn` can't reach an element hidden behind the keyboard.
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Servings'
+      direction: DOWN
 - tapOn: 'Servings'
 - inputText: '4'
 
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Prep time (minutes)'
+      direction: DOWN
 - tapOn: 'Prep time (minutes)'
 - inputText: '10'
 
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Cook time (minutes)'
+      direction: DOWN
 - tapOn: 'Cook time (minutes)'
 - inputText: '20'
+
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: DOWN
 
 # Resolve an ingredient through the food typeahead (guarded: needs a seeded food match), then add a step.
 - tapOn: 'Search ingredients'

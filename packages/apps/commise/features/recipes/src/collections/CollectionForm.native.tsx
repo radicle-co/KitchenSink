@@ -40,6 +40,8 @@ export const CollectionForm: FC<CollectionFormProps> = ({
                 value={name}
                 editable={!submitting}
                 onChangeText={onChange}
+                autoCorrect={false}
+                autoComplete="off"
                 style={styles.input}
             />
             {hasError && (

@@ -769,13 +769,19 @@ jobs:
                   npx turbo run build --filter=@kitchensink/recipe-service --filter=@commise/mobile^...
                   docker build -f packages/services/recipe-service/Dockerfile -t recipe-maestro:ci .
             # Migrations + seed the catalog ingredients the create flows attach by id (T043b).
-            - name: Prepare recipe database
+            # Migrations + catalog ingredients (prepare-db), THEN the recipe seed (the 5 fixture recipes +
+            # a collection the flows reference, e.g. "Mediterranean Grilled Lamb"). The flows expect the
+            # signer to be the seed's FREE owner, so the dev-bypass user below is that owner's ULID.
+            - name: Prepare recipe database (migrate + seed)
               if: steps.secrets.outcome == 'success'
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_maestro
-              run: node packages/services/recipe-service/tests/load/prepare-db.mjs
+              run: |
+                  node packages/services/recipe-service/tests/load/prepare-db.mjs
+                  npm run seed --workspace=@kitchensink/recipe-service
             # Boot the service with the dev-auth bypass + raised rate limits (the flows all run as one dev
-            # user). Bound to the runner's localhost:3000; the emulator reaches it at http://10.0.2.2:3000.
+            # user = the seed's FREE owner, so they see the seeded recipes). Bound to the runner's
+            # localhost:3000; the emulator reaches it at http://10.0.2.2:3000.
             - name: Boot recipe-service (Docker, dev-bypass)
               if: steps.secrets.outcome == 'success'
               run: |
@@ -790,7 +796,7 @@ jobs:
                       -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
                       -e SQS_ENDPOINT=http://localhost:4566 \
                       -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
-                      -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
+                      -e RECIPE_DEV_AUTH_USER_ID=01J0K6000000000000000000K6 \
                       -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
                       -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
                       recipe-maestro:ci

@@ -808,25 +808,51 @@ jobs:
                       | sudo tee /etc/apt/sources.list.d/k6.list
                   sudo apt-get update
                   sudo apt-get install -y k6
-            - name: Build recipe-service
-              run: npm run build --workspace=@kitchensink/recipe-service
-            - name: Boot recipe-service
+            # Build the service AND its shared deps (turbo `^build`), so the Dockerfile can COPY their
+            # dist + prod.package.json. A plain `node dist/src/main.js` boot cannot resolve the workspace
+            # `@kitchensink/*` bare specifiers outside the image (the src-exports/.js tangle), so we boot the
+            # PROVEN Docker image instead — the same artifact prod runs.
+            - name: Build recipe-service (+ shared deps)
+              run: npx turbo run build --filter=@kitchensink/recipe-service
+            - name: Build recipe-service image
+              run: docker build -f packages/services/recipe-service/Dockerfile -t recipe-load:ci .
+            # Apply migrations + seed the catalog ingredients the load payloads attach by id. MANDATORY:
+            # since T043b every create validates each line's ingredientId, so without these every write 400s
+            # and trips the k6 failure-rate threshold.
+            - name: Prepare load database
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
-                  PORT: '3000'
+              run: node packages/services/recipe-service/tests/load/prepare-db.mjs
+            # Boot the image with the dev-auth bypass (RECIPE_DEV_AUTH_USER_ID) so the load needs no live
+            # Clerk token, and with the per-user rate limits raised — the whole load is ONE dev user, so the
+            # default RATE_LIMIT_* (120/30/60) would 429 under concurrency and fail the status checks. The
+            # SC-009 scenario exercises only reads + writes, so S3/SQS point at unused placeholders.
+            - name: Boot recipe-service (Docker, dev-bypass)
               run: |
-                  npm run start --workspace=@kitchensink/recipe-service &
-                  echo "SERVICE_PID=$!" >> "$GITHUB_ENV"
-                  # Wait for /health before generating load.
-                  for i in $(seq 1 30); do
+                  docker run -d --name recipe-load --network host \
+                      -e NODE_ENV=development \
+                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load \
+                      -e PORT=3000 \
+                      -e CLERK_JWT_KEY=load-test-placeholder-key \
+                      -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
+                      -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
+                      -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
+                      -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
+                      -e SQS_ENDPOINT=http://localhost:4566 \
+                      -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
+                      -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
+                      -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
+                      -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
+                      recipe-load:ci
+                  for i in $(seq 1 40); do
                       if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
                       sleep 2
                   done
+                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-load; exit 1; }
             - name: Run k6 load scripts
               working-directory: packages/services/recipe-service
               env:
                   RECIPE_API_BASE_URL: http://localhost:3000
-                  RECIPE_LOAD_TEST_TOKEN: ${{ secrets.RECIPE_LOAD_TEST_TOKEN }}
               run: |
                   k6 run --summary-export=k6-sc009-summary.json tests/load/sc009-read-write.load.js
                   k6 run --summary-export=k6-search-summary.json tests/load/search-latency.load.js

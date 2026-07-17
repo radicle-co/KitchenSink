@@ -1,11 +1,11 @@
 # Local Development Quickstart: Commise Recipe API
 
-**Branch**: `001-commise-recipe-app` | **Date**: 2026-04-18 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-commise-recipe-app` | **Date**: 2026-07-17 (refreshed for shipped v1 — T052) | **Spec**: [spec.md](./spec.md)
 **Related**: [plan.md](./plan.md) | [data-model.md](./data-model.md) | [research.md](./research.md)
 
-This guide gets the Commise Recipe Management API running locally in under 10 minutes. It covers infrastructure (PostgreSQL + LocalStack S3 via Docker Compose), environment configuration, migrations, seed data, and the most common dev commands.
+This guide gets the Commise Recipe backend running locally in under 10 minutes. It covers infrastructure (PostgreSQL + LocalStack S3/SQS via Docker Compose), environment configuration, migrations (0001–0011), seed data, the **photo processor flow** (presigned upload → confirm → sharp cover-thumbnail), the **background workers** (version-archive + account-erasure in `@kitchensink/recipe-workers`), the CI pipeline, and every test tier's commands.
 
-The photo-processing Lambda workspace is out of scope here. This guide focuses entirely on the NestJS API.
+Two backend workspaces make up the feature: the NestJS API (`@kitchensink/recipe-service`) and the async Lambda workers (`@kitchensink/recipe-workers`). Cover-thumbnail generation is **not** a separate worker — it runs synchronously inside the API's `PhotosService` (sharp/libvips) on photo confirm; see [Photo processor flow](#photo-processor-flow).
 
 ---
 
@@ -342,13 +342,28 @@ npm run test                                    # All workspaces
 npm run test --workspace=packages/services/recipe-service    # API only
 ```
 
+Unit + component tests (Vitest / React Testing Library) need no Docker. The web app runs two configs (`.tsx` DOM + `.native.tsx` react-native-web); features-recipes likewise.
+
 ### Integration Tests (requires Docker Compose running)
 
 ```bash
+# API — recipes/ingredients/collections/photos/versions/ratings against real PG + LocalStack S3
 npm run test:integration --workspace=packages/services/recipe-service
+
+# Workers — version-archive + account-erasure against real PG + LocalStack SQS/S3
+npm run test:integration --workspace=packages/services/recipe-workers
 ```
 
-Integration tests run against real PostgreSQL and LocalStack S3. Make sure `docker compose up -d` is running first.
+Integration tests run against real PostgreSQL and LocalStack (S3 + SQS). Make sure `docker compose up -d` is running first.
+
+### Service E2E Tests (booted NestJS app)
+
+```bash
+# Boots the assembled app against Docker Postgres + LocalStack (health, ingredients, ratings, throttle)
+npm run test:e2e --workspace=packages/services/recipe-service
+```
+
+These `describe.skipIf(!hasDatabaseUrl)` suites skip when no `DATABASE_URL` is set, and run in CI where it is.
 
 ### Web E2E Tests (Playwright)
 
@@ -356,9 +371,11 @@ Integration tests run against real PostgreSQL and LocalStack S3. Make sure `dock
 # Install Playwright browsers (first time only)
 npx playwright install --with-deps
 
-# Run E2E tests (starts API server automatically via globalSetup)
+# Run E2E tests (starts the web server automatically via globalSetup)
 npm run test:e2e --workspace=packages/apps/commise/web
 ```
+
+The authed specs (sign-in/up, recipe CRUD/rating/clone) drive a real Clerk session, so they need the sandbox Clerk dev-instance secrets (`CLERK_SECRET_KEY` + publishable key). Selectors are `getByRole`/`getByLabel` only.
 
 ### Mobile E2E Tests (Maestro)
 
@@ -366,30 +383,52 @@ npm run test:e2e --workspace=packages/apps/commise/web
 # Install Maestro CLI (first time only)
 curl -Ls "https://get.maestro.mobile.dev" | bash
 
-# Run flows against a running Expo dev build
-maestro test packages/apps/commise/mobile/tests/e2e/
+# Run the flows against a booted Android emulator / iOS simulator with the app installed
+maestro test packages/apps/commise/mobile/.maestro
 ```
 
-Maestro flows require a running iOS Simulator or Android Emulator with the Expo dev build installed.
+Flows live in `packages/apps/commise/mobile/.maestro/` (auth + recipes: create/edit/delete/rating/visibility/collections/conflict/discover-clone/list-detail/search/accessibility). They require the Expo debug build installed on a running emulator and a reachable recipe API (`EXPO_PUBLIC_API_URL`).
+
+### Load Tests (k6 — SC-009)
+
+```bash
+# 1. Install k6 (https://k6.io/docs/get-started/installation/), then prepare a dedicated load DB:
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load \
+  node packages/services/recipe-service/tests/load/prepare-db.mjs   # applies migrations + seeds catalog
+
+# 2. Boot the COMPILED service against that DB (dev-bypass auth so k6 needs no live Clerk token):
+npm run build --workspace=@kitchensink/recipe-service
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load PORT=3000 \
+  RECIPE_DEV_AUTH_USER_ID=01J000000000000000000LOAD0 \
+  npm run start --workspace=@kitchensink/recipe-service &
+
+# 3. Run the SC-009 read/write scenario (p95 ≤ 500ms threshold; a breach exits non-zero):
+RECIPE_API_BASE_URL=http://localhost:3000 \
+  k6 run packages/services/recipe-service/tests/load/sc009-read-write.load.js
+```
+
+`prepare-db.mjs` is mandatory: since T043b every recipe create validates each line's `ingredientId` against the catalog, so the seed ingredients must exist or every write 400s and trips the failure-rate threshold. The `search-latency` and `save-under-archive` scenarios live alongside it.
 
 ---
 
 ## CI/CD Pipeline
 
-The GitHub Actions workflow at `.github/workflows/ci.yml` runs automatically on every PR and push to `main`. The existing workflow already includes quality gates; tasks T090–T092 extend it with integration and E2E jobs:
+CI is a **reusable** workflow, `.github/workflows/_ci.yml`, invoked by two thin wrappers: `ci-pr.yml` (on `pull_request` → `stage: sandbox`) and `ci-main.yml` (on push to `main` → `stage: prod`). Both call `_ci.yml` with `secrets: inherit`.
 
-| Job                | What it runs                         | Service containers          | Status         |
-| ------------------ | ------------------------------------ | --------------------------- | -------------- |
-| `install`          | `npm ci` + cache                     | None                        | **Exists**     |
-| `lint`             | `turbo run lint`                     | None                        | **Exists**     |
-| `format`           | `format:check`                       | None                        | **Exists**     |
-| `typecheck`        | `turbo run typecheck`                | None                        | **Exists**     |
-| `test`             | `turbo run test` (Vitest unit tests) | None                        | **Exists**     |
-| `test-integration` | `turbo run test:integration`         | PostgreSQL 16, LocalStack 3 | **New (T090)** |
-| `test-e2e-web`     | Playwright E2E tests                 | PostgreSQL 16, LocalStack 3 | **New (T090)** |
-| `test-e2e-mobile`  | Maestro E2E flows                    | Emulator/Maestro Cloud      | **New (T090)** |
+| Job                              | What it runs                                                                  | Service containers      | Gate                            |
+| -------------------------------- | ----------------------------------------------------------------------------- | ----------------------- | ------------------------------- |
+| `install`                        | `npm ci` + dependency cache                                                   | —                       | every run                       |
+| `lint` / `format` / `typecheck`  | `turbo run lint` / `format:check` / `typecheck`                               | —                       | every run                       |
+| `test`                           | `turbo run test` (Vitest unit + component; builds `@commise/ui` via `^build`) | —                       | every run                       |
+| `Integration (recipe …)`         | recipe-service `test:integration`                                             | Postgres 16, LocalStack | every run                       |
+| `Integration (recipe-workers …)` | recipe-workers `test:integration`                                             | Postgres 16, LocalStack | every run                       |
+| `E2E (backend services)`         | recipe-service booted-app e2e                                                 | Postgres 16, LocalStack | every run                       |
+| `E2E (web — Playwright)`         | authed web flows (Clerk sandbox)                                              | —                       | every run                       |
+| `E2E (mobile — Vitest)`          | react-native-web mobile e2e                                                   | —                       | every run                       |
+| `E2E (mobile — Maestro)`         | real-device flows (emulator + Gradle APK)                                     | Android emulator        | **opt-in** `run_mobile_maestro` |
+| `Load test (recipe — k6)`        | SC-009 p95 ≤ 500ms threshold gate                                             | Postgres 16             | **opt-in** `run_load_test`      |
 
-All jobs must pass before a PR can merge. See `plan.md` § CI Pipeline for the full workflow structure.
+The two heavyweight jobs are gated **off by default** purely for cost/duration (an Android emulator + Gradle build; a multi-VU load run). A caller opts in by passing `run_mobile_maestro: true` / `run_load_test: true` to `_ci.yml`. The **`ci-full.yml`** workflow (manual `workflow_dispatch`) runs the complete pipeline with both flags enabled — use it to exercise every job end-to-end (T116). All non-opt-in jobs must pass before a PR merges.
 
 ### Frontend API Configuration
 
@@ -399,6 +438,40 @@ Frontend apps default to `http://localhost:4000` for API calls. Override via env
 - **Expo (mobile)**: Set `EXPO_PUBLIC_API_URL` in `.env` or EAS build environment
 
 For E2E tests, the API URL is set automatically by the test `globalSetup` to point at the local test server.
+
+---
+
+## Photo processor flow
+
+Recipe photos never pass through the API body — the client uploads directly to S3 and the API records + post-processes the object. All routes are under `POST|GET|PATCH|DELETE /v1/recipes/:recipeId/photos` (owner-gated; see `photos.controller.ts`):
+
+1. **Request an upload URL** — `POST …/photos/upload-url` `{ fileName, fileSize, contentType }` → `{ uploadUrl, key, expiresIn, maxBytes }`. The service pre-checks the 5 MB / 10-photo caps and returns a presigned S3 PUT.
+2. **PUT the bytes to S3** — the client `PUT`s the image straight to the `uploadUrl` (LocalStack `commise-photos` bucket locally). _LocalStack quirk:_ the S3 client is configured `requestChecksumCalculation: 'WHEN_REQUIRED'`, otherwise the presigned PUT fails an `x-amz-checksum-crc32` check under the aws-sdk v3 defaults.
+3. **Confirm** — `POST …/photos/confirm` `{ key, contentType }`. The service validates the object's **magic bytes** (jpeg/png/webp — the `file-type` library, not a hand-rolled sniff), records the `recipe_photos` row, and generates a **cover thumbnail**.
+4. **Cover thumbnail (synchronous, in-API)** — `photo-thumbnail.ts` resizes the first photo with **sharp/libvips** to `THUMBNAIL_MAX_PX` longest edge (default 400) at `THUMBNAIL_QUALITY` JPEG (default 80) and stores it under `thumbnail_key` (migration `0011`). If generation fails (e.g. an S3 5xx, or a `sharp` arch mismatch on a deployed task), it logs and **serves the original as the cover** — the cover projection resolves `COALESCE(thumbnail_key, s3_key)`, so the card degrades gracefully rather than 500-ing. The gallery always serves full-size originals; only the **cover** is a thumbnail.
+5. **Serve** — URLs are resolved against `CLOUDFRONT_URL` (a LocalStack stand-in locally).
+
+`sharp` is a native binary: it installs with a plain `npm i` for the local/Fargate `linux-x64` platform. On a deployed task the image build arch **must** match the task arch (`X86_64`) or every thumbnail falls back to the original (see release-readiness).
+
+---
+
+## Background workers (recipe-workers)
+
+The async side of the feature lives in `@kitchensink/recipe-workers` (raw AWS Lambda handlers, no NestJS) and runs against LocalStack SQS + S3 locally:
+
+- **version-archive** — drains the `recipe_version_pending_archives` outbox to S3 (`commise-versions`) and prunes to the last 10 in-DB versions. A sweeper re-drives stuck rows; a DLQ + CloudWatch alarms (backlog > 100 / oldest > 1h / any DLQ message) cover FR-007b-i.
+- **account-erasure** — SQS-triggered GDPR hard-delete of everything a user owns (rows + S3 objects), with a sweeper for stuck jobs and an **orphan-sweeper** backstop that deletes any archive object materialized under an already-erased owner (the archive-resurrection race).
+
+```bash
+# Unit + integration (integration needs Docker Postgres + LocalStack SQS/S3):
+npm run test --workspace=@kitchensink/recipe-workers
+npm run test:integration --workspace=@kitchensink/recipe-workers
+
+# Synthesize the CDK stack (queues, DLQs, 6 alarms, SNS topic) without deploying:
+npm run infra:synth --workspace=@kitchensink/recipe-workers
+```
+
+> The workers `test` script runs `npm run build` first, because the infra-synth test asserts against the esbuild bundle in `dist/`.
 
 ---
 

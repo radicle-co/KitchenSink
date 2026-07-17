@@ -1,0 +1,45 @@
+# CI — full pipeline (all jobs, on demand).
+#
+# The ordinary PR/main pipelines (`ci-pr.yml` / `ci-main.yml`) run every job EXCEPT the two heavyweight
+# tiers — the k6 SC-009 load gate and the Maestro mobile-emulator flows — which are gated off by default
+# purely for cost/duration. This workflow is the manual entry point that runs the COMPLETE pipeline end to
+# end (T116): it invokes the shared `_ci.yml` with both `run_load_test` and `run_mobile_maestro` enabled.
+#
+# Trigger: Actions → "CI — full (all jobs, on demand)" → Run workflow (pick a branch), or
+#   `gh workflow run ci-full.yml --ref <branch> [-f run_mobile_maestro=false] [-f run_load_test=false]`.
+#
+# NOTE (workflow_dispatch): a workflow is only dispatchable once it exists on the repository's DEFAULT
+# branch — so this file must be merged to `main` before the "Run workflow" button / `gh workflow run`
+# can target it (then you may still select any branch as the ref).
+name: CI — full (all jobs, on demand)
+
+on:
+    workflow_dispatch:
+        inputs:
+            stage:
+                description: Stage whose secrets to use
+                type: choice
+                options: [sandbox, prod]
+                default: sandbox
+            run_load_test:
+                description: Run the k6 SC-009 load gate
+                type: boolean
+                default: true
+            run_mobile_maestro:
+                description: Run the Maestro mobile-emulator flows
+                type: boolean
+                default: true
+
+# One full run at a time per ref.
+concurrency:
+    group: ci-full-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    ci:
+        uses: ./.github/workflows/_ci.yml
+        with:
+            stage: ${{ inputs.stage }}
+            run_load_test: ${{ inputs.run_load_test }}
+            run_mobile_maestro: ${{ inputs.run_mobile_maestro }}
+        secrets: inherit

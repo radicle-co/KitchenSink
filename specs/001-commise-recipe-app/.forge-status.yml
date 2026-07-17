@@ -151,6 +151,19 @@ phases:
           at: '2026-07-16'
           findings: { critical: 0, warning: 3, skipped: 2 }
           note: 'Phase 7 verify-full: PASS WITH WARNINGS, 0 CRITICAL. Every Must-Have FR/US traced end-to-end; contract + constitution clean. 3 doc-level warnings (W3 fixed; W1/W2 acknowledged as path-descriptive). Acknowledged to continue.'
+        - phase: release_readiness
+          decision: approved_with_conditions
+          at: '2026-07-16'
+          reviewed_sha: '69cbe10'
+          action_items: { must: 6, must_completed: 0, should: 2, nice_to_have: 1 }
+          conditions:
+              - 'Subscribe a pager/human to the per-stage recipe-workers alarm SNS topic before ship.'
+              - 'Instrument the SC-009 API SLI: ALB TargetResponseTime p95 (≤500ms) + HTTPCode_Target_5XX_Count alarms for the recipe-service target group.'
+              - 'Run osv-scanner (PR-diff) + syft SBOM in CI over the new deps (sharp, @aws-sdk/client-s3, @aws-sdk/client-sqs, @aws-sdk/rds-signer) — tools absent locally.'
+              - 'Confirm the sharp install arch matches the Fargate task arch.'
+              - 'Apply migrations 0010 + 0011 to the target-stage DB before the service deploy.'
+              - 'Run the authed E2E (Playwright + Maestro) + k6 SC-009 in CI (Clerk dev sign-in was down locally).'
+          note: 'Phase 9 CONDITIONALLY READY. Code/review/verify all clean; PR CI green (ci/Test fix, commit 69cbe10). All 6 MUST items are operational wiring, not code defects. Artifacts: release-readiness.md, flags/registry.yml, monitoring/{alerts.yml,slo.md,dashboard.json}, supply-chain/README.md.'
     task_log:
         - id: T000-prereq
           part: 'clerk-verify external_id→userId (shared verifier surface; optional field)'
@@ -460,8 +473,30 @@ phases:
         state: not-started
 
     release-readiness:
-        state: blocked
-        note: blocked until implementation is complete, traceability gaps are closed, execution results are ingested, and GR-001 release-audit conditions are satisfied.
+        state: completed
+        completed_at: '2026-07-16'
+        artifact: release-readiness.md
+        verdict: 'CONDITIONALLY READY'
+        flag_registry_path: flags/registry.yml
+        monitoring_paths:
+            - monitoring/alerts.yml
+            - monitoring/slo.md
+            - monitoring/dashboard.json
+        supply_chain_paths:
+            - supply-chain/README.md # osv-scanner + syft absent locally → MUST action items, not run
+        outcome: >
+            Phase 9 release-readiness (HEAD 69cbe10). Code-complete, review-clean (0 CRIT/HIGH),
+            verify-clean (0 CRIT), and the PR CI pipeline is GREEN — the previously-failing ci/Test job
+            was fixed (turbo test dependsOn ^build + @commise/features-recipes declares its undeclared
+            @commise/ui dep; 31/31 test tasks pass from a clean @commise/ui build). Verdict CONDITIONALLY
+            READY: 6 MUST items remain, all OPERATIONAL wiring (subscribe recipe-workers alarm SNS topic;
+            instrument API p95/5xx SLI on the ALB target group; run osv-scanner+syft in CI over the 4 new
+            deps; confirm sharp arch == Fargate arch; apply migrations 0010+0011; run authed E2E + k6 in
+            CI) — none is a code change. No provider feature flags (capability-gate + env levers instead).
+        must_action_items: 6
+        must_completed: 0
+        should_action_items: 2
+        nice_to_have: 1
 
     retrospective:
         state: not-applicable
@@ -489,13 +524,17 @@ contracts:
         - contracts/recipe.types.ts
         - contracts/config.types.ts
 
-next_action: release-readiness
-next_command: /speckit.product-forge.release-readiness
+next_action: spec-merge
+next_command: /speckit.product-forge.spec-merge
 next_session_brief: >
-    Phase 6 implement COMPLETE (2026-07-16). 227 tasks done; 3 honest residuals remain that are NOT
-    incomplete v1 code — T052 (backend quickstart runbook, doc polish), T116 (full GitHub Actions CI,
-    only runnable post-merge — every job is wired + verified locally), T150 (explicitly-deferred
-    cross-feature 001<->003 write-back DECISION, out of v1 scope).
+    Phase 9 release-readiness COMPLETE (2026-07-16) — verdict CONDITIONALLY READY, gate
+    approved_with_conditions. PR #73 CI is GREEN (fixed the ci/Test @commise/ui-resolution failure in
+    commit 69cbe10: turbo test dependsOn ^build + features-recipes declares @commise/ui). 6 MUST
+    conditions before prod ship are all OPERATIONAL wiring (SNS subscription, API p95/5xx SLI alarms,
+    osv-scanner+syft in CI, sharp arch check, apply migrations 0010+0011, run authed E2E+k6 in CI) —
+    none is a code change; see release-readiness.md. Lifecycle next step is Phase 10 spec-merge (fold
+    the shipped delta into the canonical spec). Open ledger residuals unchanged: T052 runbook, T116
+    post-merge CI, T150 deferred cross-feature decision.
 
     Tree clean and every tier green: typecheck 0 + lint 0 across all 8 packages; unit recipe-core 46 /
     recipe-service 624 / recipe-workers 158 / recipe-service-client 249 / features-core 123 /

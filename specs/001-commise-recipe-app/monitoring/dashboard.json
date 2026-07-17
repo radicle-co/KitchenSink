@@ -1,0 +1,136 @@
+{
+    "_comment": "CloudWatch dashboard body for feature 001-commise-recipe-app. Produced by Product Forge Phase 9 (2026-07-16). Read-only artifact — apply with `aws cloudwatch put-dashboard --dashboard-name kitchensink-recipe-{stage} --dashboard-body file://dashboard.json` after replacing {stage} and {region}. The four worker metrics are LIVE (emitted via EMF + alarmed). The ALB widgets are the SC-009 API-tier SLIs and depend on the recipe-service target group being wired (see slo.md gap #1).",
+    "widgets": [
+        {
+            "type": "text",
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 1,
+            "properties": { "markdown": "# Commise Recipe — {stage} · version-archive + account-erasure + API SLIs" }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "title": "Version-archive backlog (alarm > 100 / 15m)",
+                "view": "timeSeries",
+                "region": "{region}",
+                "stat": "Maximum",
+                "period": 300,
+                "metrics": [["Commise/RecipeArchive", "PendingArchiveBacklog", "Stage", "{stage}"]],
+                "annotations": { "horizontal": [{ "label": "backlog alarm", "value": 100 }] }
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 1,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "title": "Oldest pending archive age (alarm > 1h)",
+                "view": "timeSeries",
+                "region": "{region}",
+                "stat": "Maximum",
+                "period": 300,
+                "metrics": [["Commise/RecipeArchive", "OldestPendingArchiveAgeSeconds", "Stage", "{stage}"]],
+                "annotations": { "horizontal": [{ "label": "1h", "value": 3600 }] }
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "title": "Oldest erasure job age (alarm > 1h — GDPR)",
+                "view": "timeSeries",
+                "region": "{region}",
+                "stat": "Maximum",
+                "period": 300,
+                "metrics": [["Commise/RecipeErasure", "OldestErasureJobAgeSeconds", "Stage", "{stage}"]],
+                "annotations": { "horizontal": [{ "label": "1h", "value": 3600 }] }
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 7,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "title": "Archive orphans deleted under erased owner (alarm Sum > 0)",
+                "view": "timeSeries",
+                "region": "{region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [["Commise/RecipeErasure", "ArchiveOrphansDeleted", "Stage", "{stage}"]],
+                "annotations": { "horizontal": [{ "label": "any orphan is an incident", "value": 0 }] }
+            }
+        },
+        {
+            "type": "text",
+            "x": 0,
+            "y": 13,
+            "width": 24,
+            "height": 1,
+            "properties": {
+                "markdown": "## API SLIs (SC-009) — requires recipe-service ALB target group; see slo.md gap #1"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "title": "recipe-service p95 latency (SLO ≤ 500ms)",
+                "view": "timeSeries",
+                "region": "{region}",
+                "stat": "p95",
+                "period": 60,
+                "metrics": [
+                    [
+                        "AWS/ApplicationELB",
+                        "TargetResponseTime",
+                        "TargetGroup",
+                        "{recipe-target-group}",
+                        "LoadBalancer",
+                        "{shared-alb}"
+                    ]
+                ],
+                "annotations": { "horizontal": [{ "label": "SC-009 500ms", "value": 0.5 }] }
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 14,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "title": "recipe-service 5xx rate",
+                "view": "timeSeries",
+                "region": "{region}",
+                "stat": "Sum",
+                "period": 60,
+                "metrics": [
+                    [
+                        "AWS/ApplicationELB",
+                        "HTTPCode_Target_5XX_Count",
+                        "TargetGroup",
+                        "{recipe-target-group}",
+                        "LoadBalancer",
+                        "{shared-alb}"
+                    ]
+                ]
+            }
+        }
+    ]
+}

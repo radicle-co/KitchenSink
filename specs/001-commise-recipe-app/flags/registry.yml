@@ -1,0 +1,111 @@
+# Feature-flag / rollout-control registry — feature 001-commise-recipe-app
+# Produced by Product Forge Phase 9 (release-readiness), 2026-07-16.
+#
+# HONEST STATE: this feature ships NO provider-managed (LaunchDarkly / Unleash /
+# GrowthBook / Flagsmith) named flags — a codebase scan found none, and none were
+# introduced. Rollout is controlled by THREE mechanisms already in the code, each
+# documented below as a first-class control so the release has real levers:
+#
+#   1. An ambient feature-flag SEAM (`AppShellFeatureFlags.isEnabled(flag)`,
+#      ditox token `commise.appShell.featureFlags`) — available for future
+#      per-flag gating; currently has NO active flag keys (no `isEnabled('...')`
+#      call sites in feature code). Listed so ops knows the seam exists.
+#   2. Home-widget CAPABILITY gating — a widget renders its skeleton/gated state
+#      when its backing service capability is absent, and its real data when live.
+#      This is the ship-safe surface for the recipe widget (kill-switch-like: a
+#      dark backing service degrades to a skeleton, never a crash).
+#   3. Operational ENV levers on the recipe-service — per-user rate limits and
+#      admission toggles. These are the deploy-time knobs, not runtime flags.
+
+flags:
+    # ── 1. The generic flag seam (no active keys) ────────────────────────────────
+    - key: 'commise.appShell.featureFlags'
+      type: seam
+      feature: '001-commise-recipe-app'
+      default: null # interface only; resolves to the host's injected reader
+      owner: 'commise-web / commise-mobile'
+      description: >
+          Ambient AppShellFeatureFlags.isEnabled(flag) seam. No named flags are wired
+          for 001. Kept as an extension point; adding a flag means binding a concrete
+          reader at the composition root and gating on isEnabled('<key>').
+      rollout_plan: 'n/a — seam, not a flag'
+      kill_switch: false
+      experiment: false
+      cleanup_after: null # not dead code — an intentional seam
+
+    # ── 2. Home-widget capability gate (the recipe widget's ship-safe surface) ──
+    - key: 'home.widget.recipes.capability'
+      type: capability-gate
+      feature: '001-commise-recipe-app'
+      default: true # widget shows live data when the recipe service is reachable
+      owner: 'commise-web / commise-mobile'
+      description: >
+          The Home recipe widget renders its live recipes when the recipe-service
+          capability is present and its skeleton/gated placeholder otherwise. Curated
+          by curateHomeWidgets() over the injected HomeWidgetDescriptor set. This is
+          the effective kill-switch for the Home surface: a dark recipe-service
+          degrades the widget to a skeleton rather than failing the Home page.
+      rollout_plan: 'internal-first → GA (capability present in all stages on deploy)'
+      kill_switch: true
+      experiment: false
+      cleanup_after: null # permanent gating behavior, not a temporary flag
+
+    # ── 3. Operational env levers (recipe-service) ──────────────────────────────
+    - key: 'RATE_LIMIT_READ'
+      type: env-lever
+      feature: '001-commise-recipe-app'
+      default: 120 # requests / window / user
+      owner: 'recipe-service'
+      description: 'Per-user read throttle. Lower to shed read load; 0 is rejected (must be positive).'
+      rollout_plan: 'tune per stage via task env'
+      kill_switch: false
+      experiment: false
+      cleanup_after: null
+    - key: 'RATE_LIMIT_WRITE'
+      type: env-lever
+      feature: '001-commise-recipe-app'
+      default: 30
+      owner: 'recipe-service'
+      description: 'Per-user write throttle (create/update/delete).'
+      rollout_plan: 'tune per stage via task env'
+      kill_switch: false
+      experiment: false
+      cleanup_after: null
+    - key: 'RATE_LIMIT_SEARCH'
+      type: env-lever
+      feature: '001-commise-recipe-app'
+      default: 60
+      owner: 'recipe-service'
+      description: 'Per-user search throttle.'
+      rollout_plan: 'tune per stage via task env'
+      kill_switch: false
+      experiment: false
+      cleanup_after: null
+    - key: 'RATE_LIMIT_PHOTO_UPLOAD'
+      type: env-lever
+      feature: '001-commise-recipe-app'
+      default: 10
+      owner: 'recipe-service'
+      description: 'Per-user photo-upload throttle (presigned-URL issuance + finalize).'
+      rollout_plan: 'tune per stage via task env'
+      kill_switch: false
+      experiment: false
+      cleanup_after: null
+    - key: 'CLERK_ADMIT_NATIVE_CLIENT'
+      type: env-lever
+      feature: '001-commise-recipe-app'
+      default: false
+      owner: 'recipe-service'
+      description: >
+          Admits azp-less @clerk/expo native session tokens. Enabled only where the
+          mobile client must authenticate (see [[mobile-native-auth-and-local-e2e]]).
+          Treat as a security-relevant toggle, not a product flag.
+      rollout_plan: 'stage-scoped; default OFF'
+      kill_switch: false
+      experiment: false
+      cleanup_after: null
+
+# NOTE on the "premium capability" PRO badge (product decision this feature):
+# the PRO badge is DERIVED from a recipe's private visibility at render time — it
+# is NOT a stored flag or a gated capability, so it needs no registry entry and no
+# rollout control. It ships on with the card UI.

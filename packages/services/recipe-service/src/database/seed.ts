@@ -168,26 +168,6 @@ export async function seed(
             ],
         );
         recipes += res.rowCount ?? 0;
-
-        // Give each recipe two catalog-linked ingredients and two steps so it is a COMPLETE, editable record:
-        // the editor's validation requires >= 1 ingredient AND >= 1 step to save, so a recipe seeded without
-        // them cannot be edited at all (FR-001/FR-007). Gated on a FRESH insert (rowCount) to stay idempotent
-        // — a re-seed over existing recipes skips both the recipe and its children rather than duplicating.
-        if (res.rowCount) {
-            await pool.query(
-                `INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, sort_order, ingredient_name)
-                 VALUES ($1, $2, 1, 'cup', 0, 'Flour'),
-                        ($1, $3, 2, 'tbsp', 1, 'Butter')`,
-                [r.id, SEED_INGREDIENTS[0]?.id, SEED_INGREDIENTS[2]?.id],
-            );
-            await pool.query(
-                `INSERT INTO recipe_steps (recipe_id, step_number, instruction)
-                 VALUES ($1, 1, 'Combine the ingredients in a bowl.'),
-                        ($1, 2, 'Cook until done, then plate and serve.')
-                 ON CONFLICT (recipe_id, step_number) DO NOTHING`,
-                [r.id],
-            );
-        }
     }
 
     const col = await pool.query(

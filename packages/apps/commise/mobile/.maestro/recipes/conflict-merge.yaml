@@ -28,6 +28,39 @@ appId: io.commise.mobile
 - tapOn: 'Edit recipe'
 # Editor: the heading confirms edit mode ("Save changes" is reached by the scroll below, not asserted here).
 - assertVisible: 'Edit recipe'
+
+# The seed recipe carries no ingredients or steps, but the editor requires >= 1 of each to save. Add one of
+# each via the picker (freeform Create, exactly as the create flow) so the title edit can be saved.
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Combine everything and simmer.'
+
+# Change the title (the field is near the top, under the picker).
+- scrollUntilVisible:
+      element: 'Title'
+      direction: UP
+      timeout: 20000
 - tapOn: 'Title'
 - eraseText
 - inputText: 'Mediterranean Grilled Lamb (my edit)'

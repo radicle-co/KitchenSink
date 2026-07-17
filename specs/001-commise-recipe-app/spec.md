@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-commise-recipe-app`
 **Created**: 2026-04-14
-**Status**: Draft
+**Status**: Implemented — all lifecycle gates passed (code-review, verify, release-readiness); shipped to the feature branch on PR #73. Prod deploy is CONDITIONALLY READY, gated on the 6 operational conditions in [`release-readiness.md`](./release-readiness.md). This spec is canonical and reconciled with shipped behavior (CR-001 mockup parity folded in; Phase 10 spec-merge 2026-07-16 found no doc↔code drift).
 **Input**: User description: "Core recipe management for the Commise app — CRUD, search, versioning, sharing/cloning, collections, and platform parity across web and mobile."
 
 ## Dependencies

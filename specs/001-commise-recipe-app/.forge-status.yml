@@ -498,6 +498,21 @@ phases:
         should_action_items: 2
         nice_to_have: 1
 
+    spec_merge:
+        state: completed
+        completed_at: '2026-07-16'
+        archived: false # PR #73 not yet merged to main; no physical archive (this repo has no features/_archived convention — features live in place under specs/)
+        canonical_model: flat-per-feature # this repo uses specs/{NNN-slug}/spec.md, NOT the OpenSpec canonical specs/{domain}/spec.md + delta split; there is no separate canonical tree to fold into — the feature spec.md IS canonical
+        deltas_applied: 0 # no domain delta specs exist; CR-001 mockup-parity was already folded into spec.md during implementation
+        drift_reconciled: 0 # both Theme-G carriers empty: code-review.md "Suggested canonical-spec updates" = None; verify-report.md has no suggested-updates section (its Layer-10 warnings were tasks.md path-naming, not spec.md drift)
+        outcome: >
+            Phase 10 spec-merge (HEAD 2d270a2). This project uses a flat per-feature canonical spec model,
+            so the OpenSpec delta-fold is a structural no-op — spec.md is already the canonical source and
+            already reflects shipped reality (the CR-001 difficulty/rating/PRO-badge/skeleton clarifications
+            are in the Clarifications log + change-requests/CR-001-mockup-parity.md). No doc↔code drift to
+            reconcile (both carriers None). Sole change: spec.md front-matter Status Draft → Implemented,
+            with pointers to release-readiness.md and the no-drift finding. Not archived (PR unmerged).
+
     retrospective:
         state: not-applicable
 
@@ -524,26 +539,30 @@ contracts:
         - contracts/recipe.types.ts
         - contracts/config.types.ts
 
-next_action: spec-merge
-next_command: /speckit.product-forge.spec-merge
+next_action: merge-pr-and-satisfy-release-conditions
+next_command: 'gh pr merge 73 (after the 6 MUST release conditions); then deploy'
 next_session_brief: >
     Phase 9 release-readiness COMPLETE (2026-07-16) — verdict CONDITIONALLY READY, gate
     approved_with_conditions. PR #73 CI is GREEN (fixed the ci/Test @commise/ui-resolution failure in
     commit 69cbe10: turbo test dependsOn ^build + features-recipes declares @commise/ui). 6 MUST
     conditions before prod ship are all OPERATIONAL wiring (SNS subscription, API p95/5xx SLI alarms,
     osv-scanner+syft in CI, sharp arch check, apply migrations 0010+0011, run authed E2E+k6 in CI) —
-    none is a code change; see release-readiness.md. Lifecycle next step is Phase 10 spec-merge (fold
-    the shipped delta into the canonical spec). Open ledger residuals unchanged: T052 runbook, T116
-    post-merge CI, T150 deferred cross-feature decision.
+    none is a code change; see release-readiness.md. Phase 10 spec-merge COMPLETE (2026-07-16) — flat
+    per-feature canonical model, structural no-op: spec.md is already canonical + reconciled (CR-001
+    folded during impl), both Theme-G drift carriers empty; only change was spec.md Status Draft →
+    Implemented. Lifecycle is now at its end: retrospective is not-applicable, so the remaining steps are
+    OPERATIONAL — satisfy the 6 MUST release conditions, then merge PR #73 and deploy. Open ledger
+    residuals unchanged: T052 runbook, T116 post-merge CI, T150 deferred cross-feature decision.
 
     Tree clean and every tier green: typecheck 0 + lint 0 across all 8 packages; unit recipe-core 46 /
     recipe-service 624 / recipe-workers 158 / recipe-service-client 249 / features-core 123 /
     features-recipes 365 web + 203 native / web 282 / mobile 32 node + 134 native; integration
     recipe-service 103 + recipe-workers 23 (real Postgres 16 + LocalStack); e2e recipe-service 15.
 
-    NEXT: run /speckit.product-forge.code-review (Phase 6B) then /speckit.product-forge.verify-full
-    (Phase 7), then release-readiness. Before deploy, confirm the sharp thumbnail install-arch == Fargate
-    task-arch (ADR-adjacent CI note), and subscribe the per-stage recipe-workers alarm SNS topic (ops).
+    NEXT (all Product Forge phases done through spec-merge): satisfy the 6 MUST release conditions in
+    release-readiness.md, then `gh pr merge 73` and deploy. Before deploy, confirm the sharp thumbnail
+    install-arch == Fargate task-arch (ADR-adjacent CI note), and subscribe the per-stage recipe-workers
+    alarm SNS topic (ops).
 
     Local harness (unchanged): integration needs Docker Postgres + LocalStack. Port 5432 is
     kitchensink-e2e-postgres (the user's LIVE local data); the vitest global-setup DROPS the public

@@ -899,6 +899,11 @@ jobs:
                   path: ~/.maestro/tests
                   retention-days: 7
                   if-no-files-found: ignore
+            - name: Recipe-service error logs on failure
+              if: failure()
+              run: |
+                  echo "--- recipe-service: NestJS error/exception lines ---"
+                  docker logs recipe-maestro 2>&1 | grep -iE "error|exception|warn|400|422|500|Bad Request|Unprocessable|validation|ingredient|POST /v1/recipes" | tail -80 || true
             - name: Recipe-service logs on failure
               if: failure() && steps.secrets.outcome == 'success'
               run: docker logs recipe-maestro 2>&1 | tail -100 || true

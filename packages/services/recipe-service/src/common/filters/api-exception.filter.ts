@@ -1,7 +1,7 @@
-import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
+import { Catch, HttpException, HttpStatus, Logger, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 import { isRecipeError, RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { RecipeErrorCode as RecipeErrorCodeType } from '@kitchensink/recipe-core';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 /**
  * HTTP 423 Locked (WebDAV, RFC 4918). NestJS's `HttpStatus` enum does not define it, so it is
@@ -55,8 +55,13 @@ interface ApiErrorBody {
  */
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
+    private readonly logger = new Logger(ApiExceptionFilter.name);
+
     public catch(exception: unknown, host: ArgumentsHost): void {
-        const response = host.switchToHttp().getResponse<Response>();
+        const http = host.switchToHttp();
+        const response = http.getResponse<Response>();
+        const request = http.getRequest<Request>();
+        const route = `${request.method} ${request.originalUrl ?? request.url}`;
 
         if (isRecipeError(exception)) {
             const status = RECIPE_ERROR_STATUS[exception.code];
@@ -66,17 +71,30 @@ export class ApiExceptionFilter implements ExceptionFilter {
                 body.details = exception.details;
             }
 
+            // Domain errors are expected control-flow, so log at `warn` (with the code) for observability
+            // without treating a 4xx as a server fault.
+            this.logger.warn(`${route} -> ${status} ${exception.code}: ${exception.message}`);
             response.status(status).json(body);
 
             return;
         }
 
         if (exception instanceof HttpException) {
-            response.status(exception.getStatus()).json(exception.getResponse());
+            const status = exception.getStatus();
+            // Log framework exceptions (validation/auth/etc.) with the response body so a 4xx (e.g. a bad
+            // create payload) is diagnosable rather than a silent status on the wire.
+            this.logger.warn(`${route} -> ${status}: ${JSON.stringify(exception.getResponse())}`);
+            response.status(status).json(exception.getResponse());
 
             return;
         }
 
+        // Truly unexpected: log the full error (stack included) at `error` before collapsing to a generic 500
+        // that never leaks internals to the client.
+        this.logger.error(
+            `${route} -> 500 unhandled`,
+            exception instanceof Error ? exception.stack : String(exception),
+        );
         response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             code: 'INTERNAL_ERROR',
             message: 'Internal server error',

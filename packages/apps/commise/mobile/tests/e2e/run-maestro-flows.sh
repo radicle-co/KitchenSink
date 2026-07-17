@@ -33,10 +33,12 @@ for f in $FLOWS; do
     fi
     if ! maestro test "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
         echo "FLOW FAILED: ${f}"
-        # Native crashes (app -> launcher) leave no trace in the Maestro log; dump the RN/runtime errors so
-        # the CI log shows the actual exception rather than only the downstream "element not visible".
-        echo "--- logcat (errors + RN JS + native crashes) for ${f} ---"
-        adb logcat -d -t 2000 '*:E' ReactNativeJS:V AndroidRuntime:E System.err:W 2>&1 | tail -120 || true
+        # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
+        # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying
+        # tag (native SIGSEGV/abort via libc/DEBUG, Hermes, Java via AndroidRuntime/FATAL, and our own app tag)
+        # so the CI log shows the ACTUAL fault rather than only the downstream "element not visible".
+        echo "--- logcat (crash tags) for ${f} ---"
+        adb logcat -d -t 4000 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
         echo "--- end logcat for ${f} ---"
         RC=1
     fi

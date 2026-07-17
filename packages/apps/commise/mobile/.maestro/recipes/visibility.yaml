@@ -37,9 +37,13 @@ appId: io.commise.mobile
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
+# Scroll to the "Public" radio (a VISIBLE label) rather than the toggle's group label "Recipe visibility",
+# which is only an accessibility label on the radiogroup container and so isn't a matchable scroll target.
 - scrollUntilVisible:
-      element: 'Recipe visibility'
+      element:
+          text: '^Public$'
       direction: DOWN
+      timeout: 20000
 
 # The current visibility is reported through the radios' CHECKED state (not colour/position alone). The
 # recipe is seeded private, so private is checked and public is not. These are anchored (`^…$`) because the

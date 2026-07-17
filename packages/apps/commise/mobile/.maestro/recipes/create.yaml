@@ -1,18 +1,22 @@
 appId: io.commise.mobile
 ---
 # Recipe create happy path (US1, T067). Assumes an authenticated session (the auth login flow runs first
-# in CI ordering) and the app pointed at a seeded recipe/food API (EXPO_PUBLIC_API_URL). Drives the recipe
-# list -> new-recipe editor, fills the basics + resolves an ingredient via the food typeahead + adds a
-# step, then submits. The ingredient resolution is guarded on a seeded food match so the form-render +
-# input assertions still hold if the seed lacks the queried food. Mobile mirror of the web Playwright
-# recipe-create flow (cross-platform mandate).
+# in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_API_URL). Drives the recipe list
+# -> new-recipe editor, states a difficulty, resolves an ingredient via the freeform create, adds a step,
+# and submits — landing on the new recipe's detail. Mobile mirror of the web Playwright create flow.
+#
+# The editor's Basics card is a tall, single-screen form (Title … Cook time). servings/prep/cook keep their
+# valid defaults (1 / 0 / 0 — see defaultRecipeFormValues + validateRecipeForm), so this flow deliberately
+# does NOT touch them: a valid submit needs only a title, one resolved ingredient, and one step. That keeps
+# the flow off the fragile bottom-of-Basics scroll (Maestro cannot center a field near the end of a short
+# scroll range) and focused on the real user story.
 - runFlow: ../auth/signin.yaml
 
 # Recipe list surface, then into the create editor.
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
 
-# RecipeCreateScreen -> RecipeEditor: the "New recipe" heading + Basics fields + submit are present.
+# RecipeCreateScreen -> RecipeEditor: heading + Basics + the ingredient picker are present.
 - assertVisible: 'New recipe'
 - assertVisible: 'Title'
 
@@ -22,47 +26,17 @@ appId: io.commise.mobile
 
 - tapOn: 'Title'
 - inputText: 'Maestro Weeknight Soup'
-
-# The Basics fields sit below the fold and the soft keyboard covers them, so dismiss it and scroll each
-# field into view before tapping — otherwise `tapOn` can't reach an element hidden behind the keyboard.
 - hideKeyboard
-- scrollUntilVisible:
-      element: 'Servings'
-      direction: DOWN
-- tapOn: 'Servings'
-- inputText: '4'
-
-- hideKeyboard
-- scrollUntilVisible:
-      element: 'Prep time (minutes)'
-      direction: DOWN
-- tapOn: 'Prep time (minutes)'
-- inputText: '10'
-
-# Cook sits at the bottom of the Basics card, right at the keyboard boundary — the default `100%` visibility
-# target overshoots or lands it behind the keyboard, so center it and accept partial visibility.
-- hideKeyboard
-- scrollUntilVisible:
-      element: 'Cook time (minutes)'
-      direction: DOWN
-      centerElement: true
-      visibilityPercentage: 40
-      timeout: 30000
-- tapOn: 'Cook time (minutes)'
-- inputText: '20'
 
 # Add an ingredient. The IngredientPicker sits at the TOP of the editor (above the form), so scroll UP to
 # reach its search box. Type a name that is NOT in the seeded catalog (Flour/Sugar/Butter) so only the
 # freeform "Create …" affordance shows — the food service that backs "Find nutrition"/disambiguation is not
 # run in this job, but the freeform create (POST /v1/ingredients) mints a real catalog id, which is exactly
 # what submit validation requires (every ingredient line must resolve to a catalog id).
-- hideKeyboard
 - scrollUntilVisible:
       element: 'Search ingredients'
       direction: UP
-      centerElement: true
-      visibilityPercentage: 40
-      timeout: 30000
+      timeout: 20000
 - tapOn: 'Search ingredients'
 - inputText: 'Tomato'
 - hideKeyboard
@@ -70,43 +44,36 @@ appId: io.commise.mobile
       element:
           text: 'Create .*Tomato.*'
       direction: DOWN
-      centerElement: true
-      visibilityPercentage: 40
       timeout: 20000
 - tapOn:
       text: 'Create .*Tomato.*'
 
 # The freeform create is async; the resolved line lands in the form below Basics. Scrolling to its name field
-# both confirms the create resolved (an unresolved form can't submit) and is the falsifiable checkpoint — if
-# the ingredient never resolved this scroll finds nothing and the flow fails here rather than passing empty.
+# both waits for it and is the falsifiable checkpoint — if the ingredient never resolved this scroll finds
+# nothing and the flow fails here rather than passing empty (an unresolved form can't submit).
 - scrollUntilVisible:
       element: 'Ingredient 1 name'
       direction: DOWN
-      centerElement: true
-      visibilityPercentage: 40
       timeout: 30000
 
 # Add a step (the Steps section is below the ingredient rows).
 - scrollUntilVisible:
       element: 'Add step'
       direction: DOWN
-      centerElement: true
-      visibilityPercentage: 40
-      timeout: 30000
+      timeout: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
 - hideKeyboard
 
-# Submit. The form is now valid (title + a resolved ingredient + a step), so the create succeeds and lands on
-# the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's inputText intermittently
-# duplicates the final typed character on this emulator ("…Soupp") — an input artifact, not an app bug.
+# Submit. The form is now valid (title + a resolved ingredient + a step + valid default times), so the create
+# succeeds and lands on the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's
+# inputText intermittently duplicates the final typed character on this emulator ("…Soupp") — an input
+# artifact, not an app bug.
 - scrollUntilVisible:
       element: 'Create recipe'
       direction: DOWN
-      centerElement: true
-      visibilityPercentage: 40
-      timeout: 30000
+      timeout: 20000
 - tapOn: 'Create recipe'
 - extendedWaitUntil:
       visible:

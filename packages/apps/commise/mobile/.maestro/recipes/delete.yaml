@@ -20,12 +20,12 @@ appId: io.commise.mobile
           # RecipeDeleteDialog: destructive confirm (body warns it can't be undone). The dialog renders inline
           # below the trigger, which sits at the bottom of a long detail screen, so the confirm can be below
           # the fold — scroll to it ('Delete' is the confirm's exact text; the trigger/title are 'Delete
-          # recipe', which Maestro's full-string match won't confuse with 'Delete').
+          # recipe', which Maestro's full-string match won't confuse with 'Delete'). Plain scroll, NOT
+          # centered: the confirm is the last element in the scroll range, and centering it is impossible
+          # there (Maestro then reports "No visible element found").
           - scrollUntilVisible:
                 element: 'Delete'
                 direction: DOWN
-                centerElement: true
-                visibilityPercentage: 40
                 timeout: 20000
           - tapOn: 'Delete'
           # Back on the recipe list.

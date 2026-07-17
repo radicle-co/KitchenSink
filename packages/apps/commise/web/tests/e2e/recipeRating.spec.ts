@@ -42,12 +42,15 @@ test.describe('recipe rating (FR-013)', () => {
         // Sc6 — starts unrated (an honest "not yet rated", never a 0-star score).
         await expect(page.getByText('Not yet rated')).toBeVisible();
 
-        // Rate 4 stars → the community aggregate now includes it.
-        await page.getByRole('radio', { name: 'Rate 4 stars' }).check();
+        // Rate 4 stars → the community aggregate now includes it. `click` (not `check`): the star's checked
+        // state is controlled by the viewer's own rating, which only settles after the write succeeds (an
+        // optimistic bridge on `onSuccess`), so we assert the OUTCOME via the aggregate image below rather
+        // than a synchronous checked state.
+        await page.getByRole('radio', { name: 'Rate 4 stars' }).click();
         await expect(page.getByRole('img', { name: 'Rated 4.0 out of 5, 1 rating' })).toBeVisible();
 
         // Sc7 — re-rate 2: the count stays 1 and the average reflects 2 (a replace, not a second rating).
-        await page.getByRole('radio', { name: 'Rate 2 stars' }).check();
+        await page.getByRole('radio', { name: 'Rate 2 stars' }).click();
         await expect(page.getByRole('img', { name: 'Rated 2.0 out of 5, 1 rating' })).toBeVisible();
 
         // Sc10 — remove: the rating stops contributing, back to unrated.

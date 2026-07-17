@@ -63,7 +63,9 @@ test.describe('recipe CRUD (T079)', () => {
         await expect(page.getByRole('radio', { name: 'Not stated' })).toBeChecked();
         await expect(page.getByRole('radio', { name: 'Hard' })).not.toBeChecked();
 
-        // DELETE — confirm the destructive dialog, then land back on the list without the recipe.
+        // DELETE — the delete affordance lives on the recipe's detail page, not the editor, so return to it
+        // first; confirm the destructive dialog, then land back on the list without the recipe.
+        await page.goto(route(`/recipes/${createdId}`));
         await page.getByRole('button', { name: 'Delete recipe' }).click();
         await page.getByRole('button', { name: 'Delete', exact: true }).click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);

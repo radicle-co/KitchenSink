@@ -796,10 +796,13 @@ jobs:
                       sleep 2
                   done
                   curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-maestro; exit 1; }
-            # Build the debug APK. EXPO_PUBLIC_API_URL is baked at build time → the emulator host alias for
-            # the runner-local service. The debug build allows cleartext HTTP (Metro), so http://10.0.2.2
-            # is reachable. Clerk publishable key comes from the loaded secrets.
-            - name: Build Android debug APK
+            # Build a standalone RELEASE APK (JS bundle EMBEDDED). A debug APK loads its JS from a Metro
+            # bundler at runtime — absent in CI, so the app renders nothing. The release build bundles the
+            # JS in-APK (with EXPO_PUBLIC_* inlined at build time → the emulator host alias for the
+            # runner-local service), so it runs Metro-free. Expo prebuild signs `release` with the debug
+            # keystore by default, so the APK installs without any keystore setup. Minification is disabled
+            # to avoid proguard stripping something the E2E needs.
+            - name: Build Android release APK
               if: steps.secrets.outcome == 'success'
               working-directory: packages/apps/commise/mobile
               env:
@@ -807,7 +810,14 @@ jobs:
                   EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
               run: |
                   npx expo prebuild --platform android --no-install
-                  cd android && ./gradlew :app:assembleDebug --no-daemon
+                  # Allow cleartext HTTP so the release APK can reach the runner-local recipe service at
+                  # http://10.0.2.2:3000 (release blocks cleartext by default; debug allows it). This patch
+                  # lives only in the CI working copy — it is NOT committed, so prod builds from app.json
+                  # stay cleartext-free. (Clerk sign-in itself is HTTPS and unaffected.)
+                  sed -i 's/<application /<application android:usesCleartextTraffic="true" /' \
+                      android/app/src/main/AndroidManifest.xml
+                  cd android && ./gradlew :app:assembleRelease --no-daemon \
+                      -PenableProguardInReleaseBuilds=false -PenableShrinkResourcesInReleaseBuilds=false
             # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
             # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
             # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but
@@ -837,7 +847,7 @@ jobs:
                   emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none
                   disable-animations: true
                   script: |
-                      adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+                      adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
                       adb reverse tcp:3000 tcp:3000 || true
                       maestro test packages/apps/commise/mobile/.maestro
             - name: Upload Maestro artifacts

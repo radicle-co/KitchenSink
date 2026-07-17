@@ -9,26 +9,13 @@
  */
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
-import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RecipeWorkersStack } from '../lib/recipe-workers-stack.js';
 
-// The stack's `Code.fromAsset(dist)` throws if the esbuild bundle is absent (see recipe-workers-stack.ts).
-// `turbo run test` does not build first and no CI job builds recipe-workers before the test job, so on a
-// clean checkout (CI, or a freshly-cloned worktree) `dist/` is missing and every synth here would fail.
-// Build it once, guarded — a no-op when `dist/` already exists (the local dev loop), one fast esbuild pass
-// otherwise. Keeps this synth suite self-contained rather than depending on task ordering.
-const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-function ensureDistBuilt(): void {
-    if (existsSync(path.join(PKG_ROOT, 'dist'))) {
-        return;
-    }
-    execSync('npm run build', { cwd: PKG_ROOT, stdio: 'inherit' });
-}
+// NOTE: the stack's `Code.fromAsset(dist)` requires the esbuild bundle to exist. The `test` npm script
+// runs `npm run build` before vitest precisely so this synth suite has `dist/` on a clean checkout (CI /
+// fresh worktree) — building inside a beforeAll hook instead would exceed vitest's 10s hookTimeout.
 
 // Pre-seed the VPC lookup so `Vpc.fromLookup` resolves during synth instead of calling AWS.
 const VPC_LOOKUP_CONTEXT = {
@@ -61,7 +48,6 @@ const VPC_LOOKUP_CONTEXT = {
 };
 
 function synth(stage = 'sandbox'): Template {
-    ensureDistBuilt();
     const app = new App({ context: VPC_LOOKUP_CONTEXT });
     const stack = new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },

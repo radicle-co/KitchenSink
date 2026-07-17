@@ -9,7 +9,7 @@
         "infra:build": "tsc -p infra/tsconfig.json",
         "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
-        "test": "vitest run",
+        "test": "npm run build && vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint 'src/**/*.ts' '__tests__/**/*.ts'",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",

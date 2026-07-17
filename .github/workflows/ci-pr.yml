@@ -14,4 +14,9 @@ jobs:
         uses: ./.github/workflows/_ci.yml
         with:
             stage: sandbox
+            # TEMPORARY (revert after proving the k6 gate green in CI on this branch): ci-full.yml is only
+            # workflow_dispatch-able once on the default branch, so enable the SC-009 load gate here to
+            # demonstrate the fixed k6 job end-to-end on the PR. Do NOT leave this on — the heavy load run
+            # should stay opt-in (ci-full.yml / recipe-loadtest.yml) once merged.
+            run_load_test: true
         secrets: inherit

@@ -373,7 +373,7 @@ tracked by **T060**, not by this rubric.
 
 **Purpose**: Final compliance, validation, CI verification, and documentation updates.
 
-- [ ] T052 Update backend quickstart runbook for API, DB migrations, photo processor flow, CI setup, and test commands in `specs/001-commise-recipe-app/quickstart.md`
+- [x] T052 Update backend quickstart runbook for API, DB migrations, photo processor flow, CI setup, and test commands in `specs/001-commise-recipe-app/quickstart.md` — DONE (2026-07-17): rewrote quickstart.md for shipped v1 — added the photo processor flow (presigned upload → confirm → sharp cover-thumbnail, COALESCE fallback), the background workers (version-archive + account-erasure), all test tiers incl. k6/load with `prepare-db`, and the real CI structure (`_ci.yml` + `ci-pr`/`ci-main`/`ci-full`).
 - [x] T053 Align OpenAPI examples and response/error payloads with implemented API behavior in `specs/001-commise-recipe-app/contracts/api.openapi.yaml`
 
 ### Success Criteria Validation
@@ -384,7 +384,7 @@ tracked by **T060**, not by this rubric.
 
 ### CI Verification
 
-- [ ] T116 Run full GitHub Actions CI pipeline end-to-end and verify all jobs pass (quality, test-unit, test-integration, test-e2e-web, test-e2e-mobile)
+- [ ] T116 Run full GitHub Actions CI pipeline end-to-end and verify all jobs pass (quality, test-unit, test-integration, test-e2e-web, test-e2e-mobile) — PROGRESS (2026-07-17): the standard PR/main pipeline (quality, unit, integration [service + workers], service-e2e, web-Playwright, mobile-Vitest) is GREEN on every run. The two heavyweight tiers were gated off; both now have a real entry point via **`ci-full.yml`** (`workflow_dispatch`, both flags on). **k6 SC-009 gate: FIXED + validated** — the job never passed (booted via `npm run start` which can't resolve the workspace bare specifiers outside the image; no migrations/seed; single-user 429s). Rewrote it to build the proven Docker image + `prepare-db` + dev-bypass auth + raised rate limits; validated end-to-end locally (all 3 k6 scenarios 100% checks / 0% failed / p95 ≪ 500ms). **BLOCKERS to a full check-off:** (1) `ci-full.yml` (and `recipe-loadtest.yml`) are only `workflow_dispatch`-able once on the **default branch** — so the complete pipeline can be run+demonstrated green in CI only **after this branch merges**; (2) the **Maestro** real-device tier drives real Clerk **native** sign-in (no app-side bypass) against a deployed recipe API, so its reliable green needs the Clerk-native-in-emulator wiring + a reachable sandbox recipe deploy (the same deploy-automation gap in release-readiness.md). Check off after merge → dispatch `ci-full.yml` → k6 green + Maestro wired.
 - [x] T117 Verify test pyramid ratios: ≥70% unit / ≤20% integration / ≤10% E2E across all workspaces
 
 ### Constitution Compliance Checklist (I–VII)

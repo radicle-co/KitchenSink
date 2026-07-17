@@ -760,10 +760,13 @@ jobs:
                   java-version: '17'
             # Build the recipe service (+ shared deps) and the PROVEN Docker image — the reliable boot (a
             # plain `node` boot can't resolve the workspace bare specifiers outside the image).
-            - name: Build recipe-service image
+            # Build the recipe-service image AND the mobile app's dependency closure: the release JS bundle
+            # (built at APK-build time) imports `@commise/ui/tokens/*`, which resolves to that package's
+            # built `dist` — so its dist (and any other dist-exporting workspace dep) must exist first.
+            - name: Build recipe-service image + mobile deps
               if: steps.secrets.outcome == 'success'
               run: |
-                  npx turbo run build --filter=@kitchensink/recipe-service
+                  npx turbo run build --filter=@kitchensink/recipe-service --filter=@commise/mobile^...
                   docker build -f packages/services/recipe-service/Dockerfile -t recipe-maestro:ci .
             # Migrations + seed the catalog ingredients the create flows attach by id (T043b).
             - name: Prepare recipe database
@@ -808,6 +811,9 @@ jobs:
               env:
                   EXPO_PUBLIC_API_URL: http://10.0.2.2:3000
                   EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+                  # The release build runs the @sentry/react-native gradle hook, which uploads source maps
+                  # via sentry-cli; there is no Sentry auth token in E2E, so disable the upload.
+                  SENTRY_DISABLE_AUTO_UPLOAD: 'true'
               run: |
                   npx expo prebuild --platform android --no-install
                   # Allow cleartext HTTP so the release APK can reach the runner-local recipe service at

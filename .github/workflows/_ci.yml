@@ -874,32 +874,9 @@ jobs:
                   ram-size: 4096M
                   emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none
                   disable-animations: true
-                  script: |
-                      adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
-                      adb reverse tcp:3000 tcp:3000 || true
-                      # Disable the soft-keyboard spell checker/suggestions — they mangle Maestro inputText
-                      # (duplicated characters, e.g. "collectionn").
-                      adb shell settings put secure spell_checker_enabled 0 || true
-                      # Re-provision the sign-in user immediately before the flows. The shared user lives in
-                      # the sandbox Clerk instance, and the parallel web-E2E job's globalTeardown
-                      # (deleteAllE2EUsers) removes it ~45min before these flows run — so the early provision
-                      # step above is stale by now. This recreates it (idempotent) with a near-zero window.
-                      node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
-                      # Run each flow in ISOLATION: reset the recipe DB to the clean seed fixture before every
-                      # flow, so a flow never inherits the mutated state of the ones before it (create/clone
-                      # leave rows; that pollution pushed seed recipes below the fold and broke exact-count
-                      # assertions). Each flow relaunches the app, which refetches the reset data. Runs all
-                      # flows even if one fails, then fails the job if any did.
-                      export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
-                      FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/visibility recipes/discover-clone recipes/conflict-merge recipes/collections recipes/create recipes/accessibility recipes/delete"
-                      RC=0
-                      for f in $FLOWS; do
-                          echo "::group::maestro flow $f"
-                          node packages/apps/commise/mobile/tests/e2e/reseed.mjs || { echo "reseed failed for $f"; RC=1; }
-                          maestro test "packages/apps/commise/mobile/.maestro/$f.yaml" || RC=1
-                          echo "::endgroup::"
-                      done
-                      exit $RC
+                  # The emulator-runner executes each `script` LINE as its own `sh -c`, so the per-flow loop
+                  # (reseed → run one flow, in isolation) lives in a committed script invoked in one line.
+                  script: bash packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh
             - name: Upload Maestro artifacts
               if: failure() && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@v4

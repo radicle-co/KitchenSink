@@ -22,12 +22,11 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Delete recipe'
-# RecipeDeleteDialog: destructive confirm (body warns it can't be undone). The dialog renders inline below the
-# trigger, so the confirm is at the very foot — scroll to it. 'Delete' is the confirm's exact text; the
-# trigger/title are 'Delete recipe', which Maestro's full-string match won't confuse with 'Delete'.
-- scrollUntilVisible:
-      element: 'Delete'
-      direction: DOWN
+# RecipeDeleteDialog is a Modal overlay (centered above the screen), so its confirm is on screen without any
+# scrolling. 'Delete' is the confirm's exact text; the trigger/title are 'Delete recipe', which Maestro's
+# full-string match won't confuse with 'Delete'.
+- extendedWaitUntil:
+      visible: 'Delete'
       timeout: 20000
 - tapOn: 'Delete'
 # Back on the recipe list.

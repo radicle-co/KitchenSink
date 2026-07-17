@@ -37,7 +37,7 @@ import {
 import { RecipeVisibility, type RecipeVisibility as RecipeVisibilityType } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -154,7 +154,10 @@ export function RecipeDetailScreen({
     const selectedStars = resolveSelectedStars(ratingOverride, recipe.viewerRating);
 
     return (
-        <View style={styles.container}>
+        // ScrollView, not View: the detail (recipe body + rating + owner actions incl. the inline delete
+        // dialog, or the clone action) exceeds the viewport, so those foot-of-screen controls are otherwise
+        // unreachable on a device.
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {back}
             <RecipeDetailView recipe={recipe} />
 
@@ -226,12 +229,13 @@ export function RecipeDetailScreen({
                     onClone={() => cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })}
                 />
             )}
-        </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: palette.sand },
+    content: { paddingBottom: 48 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
     backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 15 },

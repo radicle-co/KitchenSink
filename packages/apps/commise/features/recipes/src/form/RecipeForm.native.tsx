@@ -12,7 +12,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC, ReactElement, ReactNode } from 'react';
-import { StyleSheet, Switch, Text, TextInput, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, TextInput, View, Pressable } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { computeTotalTime } from './model.js';
@@ -139,7 +139,16 @@ export const RecipeForm: FC<RecipeFormProps> = ({
     });
 
     return (
-        <View accessibilityLabel={headingText} style={styles.container}>
+        // A ScrollView, not a plain View: the form is taller than the viewport (Basics + ingredients + steps
+        // + submit), so without it the fields below the fold — including the submit button — are unreachable
+        // on a device. `keyboardShouldPersistTaps="handled"` lets a tap land on a button/field while the soft
+        // keyboard is still open instead of being swallowed by the dismiss.
+        <ScrollView
+            accessibilityLabel={headingText}
+            style={styles.scroll}
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+        >
             <Text accessibilityRole="header" style={styles.heading}>
                 {headingText}
             </Text>
@@ -340,14 +349,17 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                     <Text style={styles.ghostLabel}>{m.cancel}</Text>
                 </Pressable>
             </View>
-        </View>
+        </ScrollView>
     );
 };
 
 const border = 'rgba(178, 190, 195, 0.3)';
 
 const styles = StyleSheet.create({
-    container: { gap: 16, paddingHorizontal: 16, paddingVertical: 16 },
+    scroll: { flex: 1 },
+    // Extra bottom padding so the submit/cancel actions clear the device's gesture/navigation bar at the
+    // foot of the scroll.
+    container: { gap: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 48 },
     heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
     card: {
         backgroundColor: palette.white,

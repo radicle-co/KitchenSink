@@ -18,7 +18,7 @@ import {
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
 import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
@@ -92,7 +92,9 @@ export function RecipeEditor({
     }, []);
 
     return (
-        <View>
+        // flex:1 so the child RecipeForm's ScrollView inherits a bounded height and can actually scroll — the
+        // ingredient picker stays pinned above it as the form scrolls.
+        <View style={styles.container}>
             {submitError !== undefined && submitError.length > 0 && (
                 <Text accessibilityRole="alert">{submitError}</Text>
             )}
@@ -112,3 +114,7 @@ export function RecipeEditor({
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: { flex: 1 },
+});

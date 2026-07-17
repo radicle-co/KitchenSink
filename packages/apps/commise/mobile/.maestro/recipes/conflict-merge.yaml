@@ -12,39 +12,50 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
+# `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
+# The INNER conflict guard below stays conditional on purpose — a single-writer run has no conflict view.
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# The edit entry point is in the owner-action block at the foot of the (scrolling) detail.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+# Editor: the heading confirms edit mode ("Save changes" is reached by the scroll below, not asserted here).
+- assertVisible: 'Edit recipe'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (my edit)'
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Save changes'
+      direction: DOWN
+- tapOn: 'Save changes'
+# If a concurrent save landed first, the conflict view offers all three FR-007c resolutions.
 - runFlow:
       when:
-          visible: 'Mediterranean Grilled Lamb'
+          visible: 'This recipe changed while you were editing'
       commands:
-          - tapOn: 'Mediterranean Grilled Lamb'
-          - assertVisible: 'Edit recipe'
-          - tapOn: 'Edit recipe'
-          - assertVisible: 'Save changes'
-          - tapOn: 'Title'
-          - eraseText
-          - inputText: 'Mediterranean Grilled Lamb (my edit)'
-          - hideKeyboard
+          - assertVisible: 'Keep my version'
+          - assertVisible: 'Use the latest version'
+          - assertVisible: 'Merge field by field'
+          # Enter the per-field merge panel.
+          - tapOn: 'Merge field by field'
+          - assertVisible: 'Merge changes field by field'
+          # Pull one field from the latest saved version (my other fields stay on my draft by default),
+          # then save the merged result — it re-submits against the fresh server version.
+          - tapOn: 'Latest saved version'
           - scrollUntilVisible:
-                element: 'Save changes'
+                element: 'Save merged version'
                 direction: DOWN
-          - tapOn: 'Save changes'
-          # If a concurrent save landed first, the conflict view offers all three FR-007c resolutions.
-          - runFlow:
-                when:
-                    visible: 'This recipe changed while you were editing'
-                commands:
-                    - assertVisible: 'Keep my version'
-                    - assertVisible: 'Use the latest version'
-                    - assertVisible: 'Merge field by field'
-                    # Enter the per-field merge panel.
-                    - tapOn: 'Merge field by field'
-                    - assertVisible: 'Merge changes field by field'
-                    # Pull one field from the latest saved version (my other fields stay on my draft by default),
-                    # then save the merged result — it re-submits against the fresh server version.
-                    - tapOn: 'Latest saved version'
-                    - scrollUntilVisible:
-                          element: 'Save merged version'
-                          direction: DOWN
-                    - tapOn: 'Save merged version'
-          # Back on the detail with the user's title preserved by the merge.
-          - assertVisible: 'Mediterranean Grilled Lamb (my edit)'
+          - tapOn: 'Save merged version'
+# Back on the detail with the user's title preserved by the merge (regex tolerates the last-char input dup).
+- extendedWaitUntil:
+      visible:
+          text: 'Mediterranean Grilled Lamb .my edit.*'
+      timeout: 40000

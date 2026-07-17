@@ -8,7 +8,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatRecipeCount } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
@@ -59,8 +59,14 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             { one: discovery.countOne, other: discovery.countOther },
             locale,
         );
+        // ScrollView, not View: the full-bleed 4:3 cover cards mean only ~1 card fits, so without scrolling
+        // every discovered recipe past the first is unreachable. Header + search + filters stay pinned above.
         body = (
-            <View style={styles.cards}>
+            <ScrollView
+                style={styles.cardsScroll}
+                contentContainerStyle={styles.cards}
+                keyboardShouldPersistTaps="handled"
+            >
                 <Text style={styles.count}>{count}</Text>
                 {results.map((result) => {
                     const item = toRecipeDiscoveryItem(result);
@@ -75,7 +81,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                         />
                     );
                 })}
-            </View>
+            </ScrollView>
         );
     }
 
@@ -112,5 +118,6 @@ const styles = StyleSheet.create({
         color: palette.charcoal,
     },
     count: { fontSize: 13, fontWeight: '500', color: palette.slate },
-    cards: { gap: 12 },
+    cardsScroll: { flex: 1 },
+    cards: { gap: 12, paddingBottom: 24 },
 });

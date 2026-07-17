@@ -23,43 +23,54 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 
-- runFlow:
-      when:
-          visible: 'Mediterranean Grilled Lamb'
-      commands:
-          - tapOn: 'Mediterranean Grilled Lamb'
-          # Owner-only actions confirm we are the owner — the visibility control renders only for the owner,
-          # so without this the assertions below could vacuously pass on a non-owned detail.
-          - assertVisible: 'Edit recipe'
-          - scrollUntilVisible:
-                element: 'Recipe visibility'
-                direction: DOWN
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
+# than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
+# this the assertions below could vacuously pass on a non-owned detail. The owner block is at the foot of the
+# (scrolling) detail; the same scroll continues down to the visibility control.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Recipe visibility'
+      direction: DOWN
 
-          # The current visibility is reported through the radios' CHECKED state (not colour/position alone).
-          # The recipe is seeded private, so private is checked and public is not. These are anchored (`^…$`)
-          # because the disabled-reason copy below also contains the word "private". Falsifiable: invert the
-          # visibility->checked mapping and both assertions fail.
-          - assertVisible:
-                text: '^Private$'
-                checked: true
-          - assertVisible:
-                text: '^Public$'
-                checked: false
+# The current visibility is reported through the radios' CHECKED state (not colour/position alone). The
+# recipe is seeded private, so private is checked and public is not. These are anchored (`^…$`) because the
+# disabled-reason copy below also contains the word "private". Falsifiable: invert the visibility->checked
+# mapping and both assertions fail.
+- assertVisible:
+      text: '^Private$'
+      checked: true
+- assertVisible:
+      text: '^Public$'
+      checked: false
 
-          # C-004 tier gate: a free-tier owner cannot select private, and the control says why in TEXT rather
-          # than by appearance. Falsifiable: if the gate regressed to allow free accounts through, the option
-          # would report enabled and the reason would not render.
-          - assertVisible:
-                text: '^Private$'
-                enabled: false
-          - assertVisible: 'Upgrade to premium to make a recipe private.'
+# C-004 tier gate: a free-tier owner cannot select private, and the control says why in TEXT rather than by
+# appearance. Falsifiable: if the gate regressed to allow free accounts through, the option would report
+# enabled and the reason would not render.
+- assertVisible:
+      text: '^Private$'
+      enabled: false
+- assertVisible: 'Upgrade to premium to make a recipe private.'
 
-          # The gate is enforced in the press handler too, not only via `disabled` (RecipeVisibilityToggle
-          # deliberately re-checks `canGoPrivate` in `selectPrivate`). Tapping the gated option must be inert:
-          # no navigation, no mutation, state unchanged.
-          - tapOn:
-                text: '^Private$'
-          - assertVisible:
-                text: '^Private$'
-                checked: true
-          - assertVisible: 'Edit recipe'
+# The gate is enforced in the press handler too, not only via `disabled` (RecipeVisibilityToggle deliberately
+# re-checks `canGoPrivate` in `selectPrivate`). Tapping the gated option must be inert: no navigation, no
+# mutation, state unchanged.
+- tapOn:
+      text: '^Private$'
+- assertVisible:
+      text: '^Private$'
+      checked: true
+# Still on the owned detail (no navigation) — the owner action is now above the scrolled position, so scroll
+# back UP to it rather than asserting blind.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: UP
+      timeout: 10000

@@ -17,18 +17,30 @@ appId: io.commise.mobile
 - assertVisible: 'Discover recipes'
 - assertVisible: 'Search public recipes'
 
-# Open + clone the seeded PRO-owned public recipe (guarded on it being present).
-- runFlow:
-      when:
-          visible: 'Herb Risotto'
-      commands:
-          # Open the recipe's detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
-          # "Clone Herb Risotto" quick-clone button whose accessibility label also contains the title.
-          - tapOn:
-                text: '^Herb Risotto$'
-          # The detail of a public recipe the caller does not own exposes the clone action (US2).
-          - assertVisible: 'Clone'
-          - tapOn: 'Clone'
-          # A successful clone navigates to the caller-owned copy's detail — which now offers the owner-only
-          # Edit action the original (non-owned) detail did not, proving the clone + navigation happened.
-          - assertVisible: 'Edit recipe'
+# Open + clone the seeded PRO-owned public recipe. The seed is guaranteed present (the CI loop reseeds before
+# every flow), so scroll to it rather than a `when: visible` guard that would silently SKIP when the row is
+# below the fold (the Discover feed scrolls; only ~1 tall cover card fits at a time). Anchored (`^…$`) so it
+# selects the row's title, NOT the per-row "Clone Herb Risotto" quick-clone button whose label also contains
+# the title.
+- scrollUntilVisible:
+      element:
+          text: '^Herb Risotto$'
+      direction: DOWN
+      timeout: 20000
+# Open the recipe's detail.
+- tapOn:
+      text: '^Herb Risotto$'
+# The detail of a public recipe the caller does not own exposes the clone action (US2) — at the foot of the
+# scrolling detail, so scroll to it.
+- scrollUntilVisible:
+      element: 'Clone'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Clone'
+# A successful clone navigates to the caller-owned copy's detail — which now offers the owner-only Edit action
+# the original (non-owned) detail did not, proving the clone + navigation happened. It sits in the owner-action
+# block at the foot of the detail, so scroll to it.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000

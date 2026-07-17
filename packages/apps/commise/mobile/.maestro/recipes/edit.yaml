@@ -1,41 +1,51 @@
 appId: io.commise.mobile
 ---
 # Recipe edit happy path (US1, T067). Assumes an authenticated session (auth flow runs first in CI) and a
-# seeded recipe API. Drives list -> detail -> edit, changes the title, and saves. Guarded on the seeded
-# recipe so an empty library still passes the list-chrome assertion. Mobile mirror of the web Playwright
-# recipe-edit flow (cross-platform mandate).
+# seeded recipe API. Drives list -> detail -> edit, changes the title, and saves. Mobile mirror of the web
+# Playwright recipe-edit flow (cross-platform mandate).
+#
+# The seed is guaranteed present (the CI loop reseeds the DB before every flow), so the target recipe is
+# reached by scrolling to it rather than a `when: visible` guard that would silently SKIP the whole flow when
+# the recipe is below the fold (the list scrolls; only ~1 tall cover card fits the viewport at a time).
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 
-- runFlow:
-      when:
-          visible: 'Mediterranean Grilled Lamb'
-      commands:
-          - tapOn: 'Mediterranean Grilled Lamb'
-          # RecipeDetailScreen: the owner's edit entry point.
-          - assertVisible: 'Edit recipe'
-          - tapOn: 'Edit recipe'
-          # RecipeEditScreen -> RecipeEditor in edit mode.
-          - assertVisible: 'Edit recipe'
-          - assertVisible: 'Save changes'
-          - tapOn: 'Title'
-          - eraseText
-          - inputText: 'Mediterranean Grilled Lamb (edited)'
-          # Clear the stated difficulty (FR-001b): the edit form seeds the recipe's current difficulty, and
-          # choosing "Not stated" sends the three-state update's explicit clear (null), not an omit. The
-          # picker is below the title, so scroll it into view first.
-          - hideKeyboard
-          - scrollUntilVisible:
-                element: 'Difficulty'
-                direction: DOWN
-          - tapOn: 'Not stated'
-          # Dismiss the keyboard (it covers the submit button at the foot of the scrolling form) and scroll
-          # the submit into view before tapping it.
-          - hideKeyboard
-          - scrollUntilVisible:
-                element: 'Save changes'
-                direction: DOWN
-          - tapOn: 'Save changes'
-          # Back on the detail with the new title.
-          - assertVisible: 'Mediterranean Grilled Lamb (edited)'
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail,
+# which scrolls — reach it rather than asserting blind.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+# RecipeEditScreen -> RecipeEditor in edit mode: the heading confirms edit mode (the "Save changes" submit is
+# at the foot of the scrolling form and is reached by the scroll below, not asserted up front).
+- assertVisible: 'Edit recipe'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (edited)'
+# Clear the stated difficulty (FR-001b): the edit form seeds the recipe's current difficulty, and choosing
+# "Not stated" sends the three-state update's explicit clear (null), not an omit. The picker is below the
+# title, so scroll it into view first.
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Difficulty'
+      direction: DOWN
+- tapOn: 'Not stated'
+# Dismiss the keyboard (it covers the submit button at the foot of the scrolling form) and scroll the submit
+# into view before tapping it.
+- hideKeyboard
+- scrollUntilVisible:
+      element: 'Save changes'
+      direction: DOWN
+- tapOn: 'Save changes'
+# Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
+- extendedWaitUntil:
+      visible:
+          text: 'Mediterranean Grilled Lamb .edited.*'
+      timeout: 40000

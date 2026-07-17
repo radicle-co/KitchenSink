@@ -7,7 +7,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
@@ -50,13 +50,19 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     } else {
         const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
+        // ScrollView, not View: the full-bleed 4:3 cover cards mean only ~1 card fits the viewport, so without
+        // scrolling every recipe past the first is unreachable. The header + search stay pinned above it.
         body = (
-            <View style={styles.cards}>
+            <ScrollView
+                style={styles.cardsScroll}
+                contentContainerStyle={styles.cards}
+                keyboardShouldPersistTaps="handled"
+            >
                 <Text style={styles.count}>{count}</Text>
                 {recipes.map((recipe) => (
                     <RecipeListCard key={recipe.id} recipe={recipe} onSelect={onSelectRecipe} />
                 ))}
-            </View>
+            </ScrollView>
         );
     }
 
@@ -110,5 +116,6 @@ const styles = StyleSheet.create({
         color: palette.charcoal,
     },
     count: { fontSize: 13, fontWeight: '500', color: palette.slate },
-    cards: { gap: 12 },
+    cardsScroll: { flex: 1 },
+    cards: { gap: 12, paddingBottom: 24 },
 });

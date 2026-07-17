@@ -1,5 +1,12 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — web concurrent-edit conflict view (T070 / C-005 building block).
+ *
+ * `'use client'` is required: this leaf calls `useState` for the field-by-field merge mode, and it is
+ * re-exported through the package barrel into the Next.js App-Router server tree (`app/[locale]/page.tsx`),
+ * so without the directive `next build` fails the React Server Component boundary check (tsc/vitest do not
+ * enforce it — only the production build does). No-op for the mobile `.native.tsx` variant (Metro ignores it).
  *
  * Controlled, presentational conflict resolver for FR-007c. It presents the user's in-progress version and
  * the latest saved version side-by-side — each an accessible region with a heading and the key differing

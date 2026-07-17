@@ -34,9 +34,13 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
     };
 
     const pill = (active: boolean) =>
-        `cursor-pointer rounded-full px-4 py-1.5 text-body-sm font-medium transition ${
+        `relative cursor-pointer rounded-full px-4 py-1.5 text-body-sm font-medium transition ${
             active ? 'bg-card text-charcoal shadow-sm' : 'text-slate'
         }`;
+    // The radio is a transparent overlay filling its pill, so the semantic control is the click/tap target
+    // itself (directly actionable for pointer users + E2E via `getByRole('radio')`) with the pill label
+    // beneath — not a 1px `sr-only` point the label would overlay and pointer drivers could not reach.
+    const radioOverlay = 'absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed';
 
     return (
         <fieldset aria-label={messages.groupLabel} className="flex flex-col gap-2">
@@ -45,7 +49,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
                     <input
                         type="radio"
                         name={groupName}
-                        className="sr-only"
+                        className={radioOverlay}
                         checked={visibility === RecipeVisibility.PUBLIC}
                         onChange={() => onChange(RecipeVisibility.PUBLIC)}
                     />
@@ -59,7 +63,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
                     <input
                         type="radio"
                         name={groupName}
-                        className="sr-only"
+                        className={radioOverlay}
                         checked={visibility === RecipeVisibility.PRIVATE}
                         disabled={!canGoPrivate}
                         aria-describedby={showReason ? reasonId : undefined}

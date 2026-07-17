@@ -41,8 +41,18 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
         () =>
             new RecipeServiceClient({
                 baseUrl: process.env['NEXT_PUBLIC_API_URL'] ?? DEFAULT_API_URL,
-                token: async ({ forceRefresh } = {}) =>
-                    (await getTokenRef.current({ skipCache: forceRefresh === true })) ?? '',
+                token: async ({ forceRefresh } = {}) => {
+                    // `getToken` comes from Clerk's client `useAuth`, so it is only defined in the browser;
+                    // during SSR / pre-hydration it can be undefined. Any request issued before it is ready
+                    // is sent unauthenticated rather than throwing inside the request pipeline.
+                    const getToken = getTokenRef.current;
+
+                    if (typeof getToken !== 'function') {
+                        return '';
+                    }
+
+                    return (await getToken({ skipCache: forceRefresh === true })) ?? '';
+                },
             }),
     );
 

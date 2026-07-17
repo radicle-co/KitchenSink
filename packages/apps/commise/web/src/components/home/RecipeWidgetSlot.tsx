@@ -59,8 +59,17 @@ export function RecipeWidgetSlot(): JSX.Element {
 
     // One stable promise per client instance, so the widget's `<Suspense>` does not re-suspend on every
     // host re-render (a fresh promise each render would reset the boundary and flash the skeleton).
-    const recipesPromise = useMemo(
-        () => client.listRecipes({ pageSize: RECENT_RECIPE_LIMIT }).then((page) => page.data),
+    //
+    // `RecipeHomeWidget` is `ssr: false` and the viewer's Clerk token is client-only, so the fetch must not
+    // run during SSR: nothing renders the widget server-side to consume (and thus catch) the promise, so a
+    // server-side rejection — e.g. the token being unavailable — would surface as an *unhandled* rejection
+    // and the request would be wasted regardless. Resolve to empty on the server; the real fetch runs once,
+    // in the browser, where the widget actually mounts.
+    const recipesPromise = useMemo<Promise<readonly Recipe[]>>(
+        () =>
+            typeof window === 'undefined'
+                ? Promise.resolve<readonly Recipe[]>([])
+                : client.listRecipes({ pageSize: RECENT_RECIPE_LIMIT }).then((page) => page.data),
         [client],
     );
 

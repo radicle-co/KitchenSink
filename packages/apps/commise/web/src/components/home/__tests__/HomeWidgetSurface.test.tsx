@@ -83,7 +83,7 @@ const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0]): void => 
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
 describe('HomeWidgetSurface (web) — host composition', () => {
-    it('renders the time-of-day greeting header and the widget-surface region', () => {
+    it('renders the accessible page title, the time-of-day greeting header, and the widget-surface region', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -92,7 +92,10 @@ describe('HomeWidgetSurface (web) — host composition', () => {
             renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
         });
 
-        expect(screen.getByRole('heading', { name: 'Good afternoon, Chef!' })).toBeTruthy();
+        // The page's top-level <h1> is the accessible title (visually hidden); the greeting is an <h2>
+        // beneath it. Asserting the level-1 heading pins the a11y landmark the auth E2E lands on.
+        expect(screen.getByRole('heading', { level: 1, name: 'Welcome to Commise' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' })).toBeTruthy();
         expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
     });
 

@@ -113,14 +113,18 @@ export const RecipeRatingControl: FC<RecipeRatingControlProps> = ({
                                     <label
                                         key={value}
                                         aria-label={optionLabel}
-                                        className={`rounded p-0.5 transition motion-reduce:transition-none ${
+                                        className={`relative rounded p-0.5 transition motion-reduce:transition-none ${
                                             pending ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-110'
                                         }`}
                                     >
+                                        {/* Transparent overlay covering the star, so the radio itself is the
+                                            click/tap target (directly actionable for pointer users + E2E),
+                                            with the star rendered beneath — not a 1px `sr-only` point the
+                                            star would overlay and pointer drivers could not reach. */}
                                         <input
                                             type="radio"
                                             name={groupName}
-                                            className="sr-only"
+                                            className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
                                             aria-label={optionLabel}
                                             checked={selectedStars === value}
                                             disabled={pending}

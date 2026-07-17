@@ -47,7 +47,12 @@ const ghostButton = 'rounded-full px-4 py-2 text-body-sm font-medium text-slate 
 const removeButton = 'rounded-full px-3 py-1 text-body-sm font-medium text-error transition hover:bg-coral/10';
 const errorText = 'text-body-sm text-error';
 const difficultyChip =
-    'flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam-light';
+    'relative flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam-light';
+// The radio input is a transparent overlay covering its whole chip (not `sr-only`), so the semantic control
+// is itself the click/tap target — directly actionable for pointer users and E2E (`getByRole('radio')`),
+// while the visible chip text renders beneath. `sr-only` would shrink it to a 1px point the visible label
+// then overlays, which pointer-based drivers (Playwright) cannot reach.
+const difficultyRadioOverlay = 'absolute inset-0 cursor-pointer opacity-0';
 const difficultyChipSelected = 'border-seafoam bg-seafoam text-white';
 
 export const RecipeForm: FC<RecipeFormProps> = ({
@@ -278,7 +283,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                                         aria-label={option.label}
                                         checked={selected}
                                         onChange={() => onChange(setDifficulty(values, option.value))}
-                                        className="sr-only"
+                                        className={difficultyRadioOverlay}
                                     />
                                     <span>{option.label}</span>
                                 </label>

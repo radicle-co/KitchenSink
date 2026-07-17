@@ -112,6 +112,14 @@ export function HomeWidgetSurface({
             displayName={displayName}
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+                {/*
+                 * The authenticated Home's accessible page title (US-000 / FR-046). Visually hidden — the
+                 * mockup leads with the personalized time-of-day greeting, not an app-name banner — but
+                 * present so the page carries a proper top-level <h1> for assistive tech (the greeting is an
+                 * <h2> beneath it) and so "landed on Home" is a stable, non-temporal assertion for the auth
+                 * E2E (the greeting text is clock- and locale-dependent).
+                 */}
+                <h1 className="sr-only">{home.welcome}</h1>
                 <HomeGreeting />
 
                 <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>

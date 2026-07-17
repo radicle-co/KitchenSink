@@ -14,4 +14,7 @@ jobs:
         uses: ./.github/workflows/_ci.yml
         with:
             stage: sandbox
+            # TEMPORARY (revert once Maestro is green): ci-full.yml can only be workflow_dispatch-ed once on
+            # the default branch, so enable the Maestro mobile tier here to iterate it green on the PR.
+            run_mobile_maestro: true
         secrets: inherit

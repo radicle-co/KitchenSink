@@ -692,14 +692,30 @@ jobs:
     e2e-mobile-maestro:
         name: E2E (mobile — Maestro)
         runs-on: ubuntu-latest
-        needs: build
+        needs: [install]
         # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
-        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. Now fully wired — builds
-        # the Expo app to a debug APK (prebuild → Gradle), installs it on the booted emulator, and runs
-        # the flows. Still behind `run_mobile_maestro` (default false) purely for COST/DURATION (the
-        # emulator + Gradle build is a heavyweight job), not because it is unbuilt; a caller opts in with
-        # `run_mobile_maestro: true`.
+        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. SELF-CONTAINED: it boots
+        # the real recipe-service (the proven Docker image, dev-auth bypass) against a Postgres service on
+        # the runner, provisions the shared Clerk sign-in test user, builds the Expo debug APK pointed at
+        # the runner service via the emulator host alias (10.0.2.2), boots the emulator, installs the APK,
+        # and runs the flows. The app still does REAL Clerk sign-in (sandbox dev instance); the service
+        # ignores its token under the dev bypass, so no native-token verification is needed here.
+        # Behind `run_mobile_maestro` (default false) purely for COST/DURATION (emulator + Gradle build).
         if: ${{ inputs.run_mobile_maestro }}
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: recipe_maestro
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -716,33 +732,87 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # T092: install the Maestro CLI and expose it on PATH.
+            # Clerk dev-instance keys (publishable for the APK, secret for provisioning the test user).
+            - name: Load ${{ inputs.stage }} Clerk secrets
+              id: secrets
+              continue-on-error: true
+              uses: ./.github/actions/load-secrets
+              with:
+                  stage: ${{ inputs.stage }}
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
+            # Idempotently ensure the shared sign-in test user exists in the Clerk dev instance (the flow
+            # signs in with it; `+clerk_test` verifies with the fixed code 424242 — no real mailbox).
+            - name: Provision Clerk sign-in test user
+              if: steps.secrets.outcome == 'success'
+              run: node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
             - name: Install Maestro CLI
+              if: steps.secrets.outcome == 'success'
               run: |
                   curl -Ls https://get.maestro.mobile.dev | bash
                   echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-            - name: Maestro version
-              run: maestro --version
-            # JDK for the Android Gradle build.
             - name: Set up JDK 17
+              if: steps.secrets.outcome == 'success'
               uses: actions/setup-java@v4
               with:
                   distribution: temurin
                   java-version: '17'
-            # Build a debug APK from the Expo app: `expo prebuild` generates the native android/ project,
-            # then Gradle assembles the debug APK. EXPO_PUBLIC_API_URL is baked at build time, so it points
-            # at the seeded recipe API for this stage (repo var; falls back to the sandbox recipe host).
+            # Build the recipe service (+ shared deps) and the PROVEN Docker image — the reliable boot (a
+            # plain `node` boot can't resolve the workspace bare specifiers outside the image).
+            - name: Build recipe-service image
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  npx turbo run build --filter=@kitchensink/recipe-service
+                  docker build -f packages/services/recipe-service/Dockerfile -t recipe-maestro:ci .
+            # Migrations + seed the catalog ingredients the create flows attach by id (T043b).
+            - name: Prepare recipe database
+              if: steps.secrets.outcome == 'success'
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_maestro
+              run: node packages/services/recipe-service/tests/load/prepare-db.mjs
+            # Boot the service with the dev-auth bypass + raised rate limits (the flows all run as one dev
+            # user). Bound to the runner's localhost:3000; the emulator reaches it at http://10.0.2.2:3000.
+            - name: Boot recipe-service (Docker, dev-bypass)
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  docker run -d --name recipe-maestro --network host \
+                      -e NODE_ENV=development \
+                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro \
+                      -e PORT=3000 \
+                      -e CLERK_JWT_KEY=maestro-placeholder-key \
+                      -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
+                      -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
+                      -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
+                      -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
+                      -e SQS_ENDPOINT=http://localhost:4566 \
+                      -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
+                      -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
+                      -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
+                      -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
+                      recipe-maestro:ci
+                  for i in $(seq 1 40); do
+                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
+                      sleep 2
+                  done
+                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-maestro; exit 1; }
+            # Build the debug APK. EXPO_PUBLIC_API_URL is baked at build time → the emulator host alias for
+            # the runner-local service. The debug build allows cleartext HTTP (Metro), so http://10.0.2.2
+            # is reachable. Clerk publishable key comes from the loaded secrets.
             - name: Build Android debug APK
+              if: steps.secrets.outcome == 'success'
               working-directory: packages/apps/commise/mobile
               env:
-                  EXPO_PUBLIC_API_URL: ${{ vars.RECIPE_API_URL || 'https://recipe.sandbox.commise.app' }}
-                  EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+                  EXPO_PUBLIC_API_URL: http://10.0.2.2:3000
+                  EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
               run: |
                   npx expo prebuild --platform android --no-install
                   cd android && ./gradlew :app:assembleDebug --no-daemon
-            # Boot an Android emulator, install the freshly-built APK, and run the .maestro flows against
-            # it. Install + test run INSIDE the emulator-runner `script` (the emulator is only up there).
+            # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
+            # emulator-runner `script` (the emulator is only up there). `adb reverse` also maps the
+            # emulator's own localhost:3000 to the runner, a belt-and-suspenders alongside 10.0.2.2.
             - name: Run Maestro flows on emulator
+              if: steps.secrets.outcome == 'success'
               uses: reactivecircus/android-emulator-runner@v2
               with:
                   api-level: 34
@@ -750,15 +820,19 @@ jobs:
                   profile: pixel_6
                   script: |
                       adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+                      adb reverse tcp:3000 tcp:3000 || true
                       maestro test packages/apps/commise/mobile/.maestro
             - name: Upload Maestro artifacts
-              if: failure()
+              if: failure() && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@v4
               with:
                   name: maestro-report-${{ inputs.stage }}
                   path: ~/.maestro/tests
                   retention-days: 7
                   if-no-files-found: ignore
+            - name: Recipe-service logs on failure
+              if: failure() && steps.secrets.outcome == 'success'
+              run: docker logs recipe-maestro 2>&1 | tail -100 || true
 
     load-test:
         name: Load test (recipe — k6)

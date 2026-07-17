@@ -21,6 +21,7 @@
     "dependencies": {
         "@commise/features-core": "*",
         "@commise/i18n": "*",
+        "@commise/ui": "*",
         "@kitchensink/recipe-core": "*"
     },
     "peerDependencies": {

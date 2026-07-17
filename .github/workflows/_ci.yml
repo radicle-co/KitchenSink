@@ -855,6 +855,11 @@ jobs:
                   script: |
                       adb install -r packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
                       adb reverse tcp:3000 tcp:3000 || true
+                      # Re-provision the sign-in user immediately before the flows. The shared user lives in
+                      # the sandbox Clerk instance, and the parallel web-E2E job's globalTeardown
+                      # (deleteAllE2EUsers) removes it ~45min before these flows run — so the early provision
+                      # step above is stale by now. This recreates it (idempotent) with a near-zero window.
+                      node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
                       maestro test packages/apps/commise/mobile/.maestro
             - name: Upload Maestro artifacts
               if: failure() && steps.secrets.outcome == 'success'

@@ -46,8 +46,19 @@ The pipeline that was red is now green. Root cause of the failure and the fix:
 - **Verified:** wiped `@commise/ui/dist`, ran `turbo run test` — 31/31 test tasks
   pass green from a clean build; the task graph confirms
   `@commise/features-recipes#test → @commise/ui#build`.
-- **Result:** 23 checks pass, 0 fail; only the CI-only authed web-Playwright suite
-    - umbrella were still in-flight at report time (0 failures observed).
+- **Result:** the full pipeline is green — **25 checks pass, 0 fail** (4 legitimate
+  skips: Maestro mobile, k6 load, and two PR-close-only cleanup jobs).
+- **Authed web E2E (`ci / E2E (web — Playwright)`) — fixed to green.** It ran for the
+  first time (Clerk sandbox is CI-only) and exposed 6 real failures across three
+  root causes, all resolved: (a) the difficulty/rating/visibility custom radios were
+  `sr-only` inputs a visible overlay intercepted — made each a transparent full-size
+  overlay so the semantic input is the click target; (b) the authenticated Home had
+  no `<h1>` (the tested `home.welcome` was wired nowhere) — added it as the page's
+  visually-hidden title; (c) `RecipeWidgetSlot` fetched during SSR and leaked an
+  unhandled `getTokenRef.current is not a function` rejection (the widget is
+  `ssr:false`, the token client-only) — deferred the fetch to the browser + hardened
+  the token fn. Plus two E2E-only flow bugs (delete lives on the detail page, not the
+  editor; `.check()` → `.click()` for the async-controlled star).
 
 ## Rollout Plan
 
@@ -93,17 +104,23 @@ steps:
 
 ## Action Items Before Ship
 
-| #   | Category      | Action                                                                                                                                                                                                          | Priority | Status |
-| --- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------: | :----: |
-| 1   | Monitoring    | Subscribe a pager/human to the per-stage `recipe-workers` alarm SNS topic (topic exists; no subscription does)                                                                                                  |   MUST   |  TODO  |
-| 2   | Monitoring    | Instrument the API-tier SLI for SC-009 — alarm on recipe-service ALB `TargetResponseTime` (p95 ≤ 500ms) + `HTTPCode_Target_5XX_Count`; no app change required                                                   |   MUST   |  TODO  |
-| 3   | Security/SCA  | Run `osv-scanner` (PR-diff mode) + generate a `syft` SBOM in CI over the 4 new deps (`sharp`, `@aws-sdk/client-{s3,sqs}`, `@aws-sdk/rds-signer`) — tools absent locally, so gated as an action item, not passed |   MUST   |  TODO  |
-| 4   | Deployment    | Confirm the `sharp` install arch matches the Fargate task arch (degrades to serving the original image on mismatch, but confirm)                                                                                |   MUST   |  TODO  |
-| 5   | Deployment    | Apply migrations 0010 + 0011 to the target stage DB before the service deploy                                                                                                                                   |   MUST   |  TODO  |
-| 6   | Deployment    | Run the authed E2E (Playwright web + Maestro mobile) + k6 SC-009 in CI (Clerk dev sign-in was down locally; all specs exist and are CI-wired)                                                                   |   MUST   | IN CI  |
-| 7   | Documentation | Write the T052 backend quickstart runbook (open ledger residual — doc polish, not code)                                                                                                                         |  SHOULD  |  TODO  |
-| 8   | Security      | Add `actions/attest-build-provenance` to the release workflow                                                                                                                                                   |  SHOULD  |  TODO  |
-| 9   | Monitoring    | Long-horizon erasure SLA-window signal (belt-and-suspenders over the 1h stuck-job alarm)                                                                                                                        |   NICE   |  TODO  |
+> **Deployment footprint (verified via AWS, account 040663841500 / us-east-1, 2026-07-16).** A read-only audit of the live account materially sharpens the deploy items below:
+>
+> - **recipe-service** is deployed **only** as `kitchensink-recipe-service-pr-73` (a manual push — there is **no CI image-build step** for recipe-service; only food/identity have `buildx --platform linux/amd64`). Its deployed image is `amd64/linux` and the Fargate task is `X86_64` → **sharp arch matches**.
+> - **recipe-workers is NOT deployed to any environment.** No `kitchensink-recipe-workers-*` stack, no version-archive/account-erasure Lambdas, no archive/erasure SQS queues, and **no recipe alarm SNS topic** exist. The 6 alarms are defined in CDK but unprovisioned. The only live recipe Lambdas are the DB-bootstrap + migration custom resources.
+
+| #   | Category      | Action                                                                                                                                                                                                                                                                            | Priority | Status  |
+| --- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------: | :-----: |
+| 1   | Deployment    | **Deploy the `recipe-workers` stack** (deployed nowhere — no workers, queues, or alarms exist), then subscribe a pager/human to its per-stage alarm SNS topic                                                                                                                     |   MUST   |  TODO   |
+| 2   | Deployment    | Wire a **CI image-build + deploy for recipe-service** (mirror food/identity: `buildx --platform linux/amd64` → ECR → CDK), so deploys stop being manual and stay arch-correct                                                                                                     |   MUST   |  TODO   |
+| 3   | Monitoring    | Instrument the API-tier SLI for SC-009 — alarm on recipe-service ALB `TargetResponseTime` (p95 ≤ 500ms) + `HTTPCode_Target_5XX_Count`; no app change required                                                                                                                     |   MUST   |  TODO   |
+| 4   | Security/SCA  | Run `osv-scanner` (PR-diff mode) + a `syft` SBOM in CI over the 4 new deps (`sharp`, `@aws-sdk/client-{s3,sqs}`, `@aws-sdk/rds-signer`) — tools absent locally                                                                                                                    |   MUST   |  TODO   |
+| 5   | Deployment    | Apply migrations 0010 + 0011 to the target-stage DB before the service deploy (the `RecipeMigrationFunction` Lambda exists; DB is in-VPC)                                                                                                                                         |   MUST   |  TODO   |
+| ✅  | Deployment    | ~~Confirm `sharp` arch == Fargate task arch~~ — **VERIFIED** via AWS: deployed image `amd64/linux` == task `X86_64`                                                                                                                                                               |   MUST   |  DONE   |
+| ✅  | Testing       | ~~Run the authed web E2E in CI~~ — **DONE**: ran in CI, surfaced + fixed 6 real issues (clickable custom radios, Home `<h1>`, no SSR recipe fetch, two E2E flow bugs); `ci / E2E (web — Playwright)` now green. Maestro mobile + k6 SC-009 stay CI-skipped (device farm / opt-in) |   MUST   | PARTIAL |
+| 6   | Documentation | Write the T052 backend quickstart runbook (open ledger residual — doc polish, not code)                                                                                                                                                                                           |  SHOULD  |  TODO   |
+| 7   | Security      | Add `actions/attest-build-provenance` to the release workflow                                                                                                                                                                                                                     |  SHOULD  |  TODO   |
+| 8   | Monitoring    | Long-horizon erasure SLA-window signal (belt-and-suspenders over the 1h stuck-job alarm)                                                                                                                                                                                          |   NICE   |  TODO   |
 
 ## Ship Checklist
 

@@ -155,15 +155,25 @@ phases:
           decision: approved_with_conditions
           at: '2026-07-16'
           reviewed_sha: '69cbe10'
-          action_items: { must: 6, must_completed: 0, should: 2, nice_to_have: 1 }
+          action_items: { must: 5, must_completed: 1, should: 2, nice_to_have: 1 }
+          aws_verified_2026_07_16: >
+              Read-only audit of account 040663841500/us-east-1: recipe-service deployed ONLY as
+              kitchensink-recipe-service-pr-73 (manual — no CI image build for recipe-service; only
+              food/identity have buildx). Its image is amd64/linux and the task is X86_64 → sharp arch
+              VERIFIED matching (condition dropped). recipe-workers is NOT deployed anywhere: no stack, no
+              version-archive/erasure Lambdas, no queues, and no recipe alarm SNS topic — the 6 alarms are
+              CDK-defined but unprovisioned. So the alarm-subscription condition is reframed to "deploy the
+              workers stack first".
           conditions:
-              - 'Subscribe a pager/human to the per-stage recipe-workers alarm SNS topic before ship.'
+              - 'Deploy the recipe-workers stack (deployed nowhere — no workers/queues/alarms/topic exist), then subscribe a pager/human to its per-stage alarm SNS topic.'
+              - 'Wire a CI image-build + deploy for recipe-service (mirror food/identity buildx --platform linux/amd64 → ECR → CDK) so deploys are automated and stay arch-correct.'
               - 'Instrument the SC-009 API SLI: ALB TargetResponseTime p95 (≤500ms) + HTTPCode_Target_5XX_Count alarms for the recipe-service target group.'
               - 'Run osv-scanner (PR-diff) + syft SBOM in CI over the new deps (sharp, @aws-sdk/client-s3, @aws-sdk/client-sqs, @aws-sdk/rds-signer) — tools absent locally.'
-              - 'Confirm the sharp install arch matches the Fargate task arch.'
               - 'Apply migrations 0010 + 0011 to the target-stage DB before the service deploy.'
-              - 'Run the authed E2E (Playwright + Maestro) + k6 SC-009 in CI (Clerk dev sign-in was down locally).'
-          note: 'Phase 9 CONDITIONALLY READY. Code/review/verify all clean; PR CI green (ci/Test fix, commit 69cbe10). All 6 MUST items are operational wiring, not code defects. Artifacts: release-readiness.md, flags/registry.yml, monitoring/{alerts.yml,slo.md,dashboard.json}, supply-chain/README.md.'
+          conditions_resolved:
+              - 'sharp arch == Fargate task arch — VERIFIED via AWS (amd64/linux == X86_64).'
+              - 'Authed web E2E in CI — DONE: ran, surfaced + fixed 6 real issues, ci/E2E (web — Playwright) now green (Maestro mobile + k6 remain CI-skipped: device farm / opt-in).'
+          note: 'Phase 9 CONDITIONALLY READY. Code/review/verify all clean; full PR CI GREEN (25 pass, 0 fail) after the ci/Test @commise/ui fix AND the authed web-E2E fixes (clickable custom radios, Home <h1>, no-SSR-recipe-fetch, 2 E2E flow bugs). AWS audit sharpened the deploy items: sharp arch verified OK, but recipe-workers is deployed nowhere and recipe-service has no CI build. Artifacts: release-readiness.md, flags/registry.yml, monitoring/{alerts.yml,slo.md,dashboard.json}, supply-chain/README.md.'
     task_log:
         - id: T000-prereq
           part: 'clerk-verify external_id→userId (shared verifier surface; optional field)'

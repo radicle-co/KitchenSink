@@ -857,6 +857,20 @@ jobs:
                       | sudo tee /etc/udev/rules.d/99-kvm4all.rules
                   sudo udevadm control --reload-rules
                   sudo udevadm trigger --name-match=kvm
+            # The emulator-runner installs a ~3 GB x86_64 system image; once the recipe-service Docker image,
+            # mobile deps, and release APK are on disk the runner's ~14 GB budget is nearly spent, and the
+            # install can abort with "No space left on device" (the emulator then never boots). The APK is
+            # already built by this point, so reclaim the large toolchains this job never uses — but NOT
+            # Docker (the recipe-service container is live) nor the Android platform-tools/emulator/system
+            # images. This makes the emulator boot robust to runner-to-runner free-space variance.
+            - name: Free disk space for the emulator system image
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  df -h /
+                  sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift \
+                      /usr/local/share/powershell /opt/hostedtoolcache/CodeQL \
+                      /usr/local/lib/android/sdk/ndk || true
+                  df -h /
             # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
             # emulator-runner `script` (the emulator is only up there). `adb reverse` also maps the
             # emulator's own localhost:3000 to the runner, a belt-and-suspenders alongside 10.0.2.2.

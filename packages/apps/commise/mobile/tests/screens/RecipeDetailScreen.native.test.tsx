@@ -88,6 +88,23 @@ describe('RecipeDetailScreen — loading state', () => {
 
         expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
     });
+
+    it('keeps loading while the recipe is ready but the viewer profile is still in flight', () => {
+        // Regression guard for the owner-action pop-in: with the recipe resolved but the PROFILE query
+        // still loading, the screen must NOT paint the detail yet. Painting here would render it WITHOUT the
+        // owner-gated actions (edit/delete/visibility) and then pop them in when the profile lands — a layout
+        // shift that makes a fast (or automated) tapper race a moving target. The screen must stay loading
+        // until BOTH sources resolve. Fails against a gate that only checks the recipe query.
+        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+        useUserProfileMock.mockReturnValue({ isLoading: true, data: undefined } as unknown as ReturnType<
+            typeof useUserProfile
+        >);
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Weeknight Pasta' })).toBeNull();
+    });
 });
 
 describe('RecipeDetailScreen — error state', () => {

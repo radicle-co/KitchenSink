@@ -89,12 +89,6 @@ const MAX_LAST_ERROR_LENGTH = 1000;
 const s3 = new S3Client({});
 
 /**
- * Whether a value can be used to scope an erasure.
- *
- * The ONE definition of a usable owner id, shared by the message boundary and the S3 sweep so the two
- * can never disagree about what they are willing to act on. Pure.
- */
-/**
  * Presence guard used INSIDE the sweep ({@link eraseRecipeObjects}) as a last-ditch check: a non-blank
  * string keeps `ownerMediaPrefix` from collapsing to the bucket-wide `recipes/`. Its callers pass ids that
  * were already ULID-validated at the message boundary ({@link isAppUserUlid} in {@link parseErasureMessage})

@@ -130,7 +130,11 @@ export function RecipesScreen(): JSX.Element {
     // Apply the top safe-area inset so the tab bar + screen headings clear the status bar (without it the
     // top row renders UNDER the status bar — a visual defect, and the occluded nodes drop out of the
     // accessibility hierarchy, which also makes them invisible to screen readers and to Maestro E2E).
-    const containerStyle = [styles.container, { paddingTop: insets.top }];
+    // Apply BOTH safe-area insets. The top clears the status bar; the bottom clears the gesture/navigation
+    // bar. Without the bottom inset, the foot of a scroll (e.g. the recipe detail's owner actions) renders
+    // under the 3-button nav bar — the left-aligned "Delete recipe" action overlaps the nav bar's back
+    // button, so a tap there fires BACK (popping the detail) instead of opening the confirm.
+    const containerStyle = [styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }];
 
     if (isTab(current)) {
         return (

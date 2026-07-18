@@ -701,18 +701,38 @@ describe('handler', () => {
     });
 
     it('is a clean no-op over an already-erased owner (at-least-once replay)', async () => {
-        // No active job: the previous delivery already completed it.
+        // No ACTIVE job (the previous delivery already completed it), but the `completed` row still exists
+        // for this owner in THIS DB — so the interlock authorizes the idempotent replay.
         const replayControl = createFakeDb();
-        replayControl.enqueue({ rows: [] });
+        replayControl.enqueue({ rows: [] }); // claim: no active row
+        replayControl.enqueue({ rows: [{ exists: 1 }] }); // interlock: a (completed) row exists for the owner
         vi.mocked(getRecipeDbMock).mockReturnValue(replayControl.db as never);
 
         await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).resolves.toBeUndefined();
 
-        // The erasure still runs (it is idempotent, and the data work must never be gated on job
-        // bookkeeping) but nothing is marked completed a second time.
+        // The erasure still runs (it is idempotent — a completed owner's prefixes are already empty) but
+        // nothing is marked completed a second time.
+        expect(s3Send).toHaveBeenCalled();
         for (const statement of replayControl.statements()) {
             expect(statement.text).not.toMatch(/status = 'completed'/i);
         }
+    });
+
+    it('refuses to erase and issues NO destructive work when no job row exists for the owner in THIS DB', async () => {
+        // The interlock: a claim returns nothing AND no row of any status exists for the owner in this
+        // database. That is a MISROUTED message (e.g. a sandbox erasure drained by a pr-{N} worker), not a
+        // replay. Running the unconditional deletes here would hard-delete a non-requesting user's recipes
+        // and photos out of the wrong DB. The worker must refuse: no DELETE, no S3 sweep.
+        const misrouted = createFakeDb();
+        misrouted.enqueue({ rows: [] }); // claim: no active row
+        misrouted.enqueue({ rows: [] }); // interlock: NO row of any status for this owner in this DB
+        vi.mocked(getRecipeDbMock).mockReturnValue(misrouted.db as never);
+
+        await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).resolves.toBeUndefined();
+
+        expect(s3Send).not.toHaveBeenCalled();
+        expect(misrouted.statements().some((s) => /delete from recipes/i.test(s.text))).toBe(false);
+        expect(misrouted.statements().some((s) => /delete from collections/i.test(s.text))).toBe(false);
     });
 
     it('records last_error and rethrows when the S3 sweep fails, leaving the job non-terminal', async () => {
@@ -786,7 +806,20 @@ describe('handler', () => {
 
     it('processes every record in a multi-record batch', async () => {
         const multi = createFakeDb();
-        multi.enqueue({ rows: [{ id: 'job-1' }] }, { rows: [{ id: 'job-2' }] });
+        // The FakeDb serves ONE global results queue, so every statement between the two records' claims
+        // (record 1's four erase statements + its completed update) consumes a slot. Pad so BOTH records'
+        // claims land a job — otherwise record 2's claim reads empty and the U2 interlock (correctly)
+        // treats it as a misrouted message and skips it. In production each record's claim is independent.
+        const filler = { rows: [] };
+        multi.enqueue(
+            { rows: [{ id: 'job-1' }] }, // record 1 claim
+            filler, // erase: ratings
+            filler, // erase: clone-detach
+            filler, // erase: recipes
+            filler, // erase: collections
+            filler, // mark completed
+            { rows: [{ id: 'job-2' }] }, // record 2 claim
+        );
         vi.mocked(getRecipeDbMock).mockReturnValue(multi.db as never);
 
         await runHandler(makeErasureEvent({ ownerId: 'owner-1' }, { ownerId: 'owner-2' }));

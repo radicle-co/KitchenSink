@@ -172,6 +172,33 @@ export const claimErasureJob = async (
 };
 
 /**
+ * Does THIS database hold any `account_erasure_jobs` row for the owner, in any status?
+ *
+ * The bookkeeping interlock that gates {@link processRecord}'s destructive work. A {@link claimErasureJob}
+ * returning nothing is ambiguous: it means either a completed/failed **replay** (a row exists, just not in
+ * a claimable status) or a **misrouted** message (no row at all — e.g. a sandbox erasure drained by a
+ * `pr-{N}` worker, which the per-stage queue topology is supposed to prevent but must not be the SOLE
+ * guard). Only the misrouted case must skip erasure; the replay must still run its idempotent no-op. This
+ * existence check is what tells them apart, so a message can only ever destroy data the local DB has a
+ * record authorizing.
+ *
+ * @param db - The recipe database handle.
+ * @param ownerId - The owner the message wants erased.
+ * @returns True when a row for the owner exists in this database.
+ * @sideEffect Reads `account_erasure_jobs`.
+ */
+export const erasureJobExistsForOwner = async (
+    db: NodePgDatabase<Record<string, never>>,
+    ownerId: string,
+): Promise<boolean> => {
+    const result = await db.execute(sql`
+        SELECT 1 FROM account_erasure_jobs WHERE owner_id = ${ownerId} LIMIT 1
+    `);
+
+    return result.rows.length > 0;
+};
+
+/**
  * Mark a claimed job `completed` — the terminal, legally-meaningful state.
  *
  * Clears `last_error` so a job that failed once and then succeeded does not carry the old attempt's
@@ -388,11 +415,26 @@ const processRecord = async (record: SQSRecord, buckets: ErasureBuckets): Promis
 
     const job = await claimErasureJob(db, ownerId);
 
+    // Interlock (defense in depth behind the per-stage queue topology): the destructive work requires that
+    // THIS database hold a bookkeeping row for the owner. A claim (active row) authorizes it directly; a
+    // claim that returned nothing is authorized ONLY if a row still exists in another status (a
+    // completed/failed replay). Zero rows means the message was MISROUTED to the wrong database — refuse to
+    // delete a non-requesting user's data. This preserves idempotent completed-replay (which finds its row)
+    // while removing queue topology as the sole thing standing between a stray message and irreversible
+    // deletion.
+    if (!job && !(await erasureJobExistsForOwner(db, ownerId))) {
+        logger.warn('account-erasure-worker: no erasure job for owner in this database — refusing to erase', {
+            ownerId,
+        });
+
+        return;
+    }
+
     try {
-        // The data work is deliberately NOT gated on having claimed a job. Erasure is owner-scoped and
-        // idempotent, so running it unconditionally costs only a few zero-row statements and two empty
-        // prefix listings on a replay — and it guarantees no anomaly in the bookkeeping can let a
-        // message be acked without the erasure having been attempted.
+        // The data work past this interlock is deliberately NOT gated on having CLAIMED a job (only on a row
+        // existing): erasure is owner-scoped and idempotent, so a completed replay costs only a few zero-row
+        // statements and two empty prefix listings — and it guarantees no anomaly in the bookkeeping can let
+        // an authorized message be acked without the erasure having been attempted.
         await eraseRecipeRows(db, ownerId);
 
         const deletedMedia = await eraseRecipeObjects(s3, buckets.media, ownerId);

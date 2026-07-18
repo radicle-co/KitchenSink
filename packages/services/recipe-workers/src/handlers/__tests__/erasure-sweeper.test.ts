@@ -34,7 +34,13 @@ const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
 
 import { getRecipeDb as getRecipeDbMock } from '../../common/db.js';
-import { ERASURE_GIVE_UP_ATTEMPTS, handler, toErasureMessage, type StaleErasureJobRow } from '../erasure-sweeper.js';
+import {
+    ERASURE_GIVE_UP_AGE_SECONDS,
+    ERASURE_GIVE_UP_ATTEMPTS,
+    handler,
+    toErasureMessage,
+    type StaleErasureJobRow,
+} from '../erasure-sweeper.js';
 
 interface SendInput {
     QueueUrl: string;
@@ -47,6 +53,9 @@ function makeStaleJob(overrides: Partial<StaleErasureJobRow> = {}): StaleErasure
         id: 'job-1',
         owner_id: '01J0000000000000000000OWN0',
         attempts: 1,
+        // Old by default (2h) so an attempts-exhausted fixture is past the give-up age floor unless a test
+        // makes it young on purpose (the U5 cross-generation-counter guard).
+        age_seconds: 7200,
         ...overrides,
     };
 }
@@ -63,12 +72,14 @@ function dbWithStaleJobs(rows: StaleErasureJobRow[], ageSeconds = 0): { execute:
     const execute = vi.fn().mockImplementation(async (query: unknown) => {
         const text = JSON.stringify(query);
 
-        if (text.includes('age_seconds')) {
-            return { rows: [{ age_seconds: ageSeconds }] };
+        // The CLAIM query now also selects `age_seconds` per row, so route it FIRST by its own marker
+        // (`LIMIT`) before the oldest-age metric query (which is the other `age_seconds` statement).
+        if (text.includes('LIMIT')) {
+            return { rows };
         }
 
-        if (text.includes('SELECT')) {
-            return { rows };
+        if (text.includes('age_seconds')) {
+            return { rows: [{ age_seconds: ageSeconds }] };
         }
 
         return { rows: [] };
@@ -176,6 +187,35 @@ describe('erasure-sweeper handler — the give-up path (who writes `failed`)', (
         const update = executedSql(db.execute).find((text) => text.includes('failed'));
         expect(update).toBeDefined();
         expect(update).toContain('job-1');
+        expect(sqsSend).not.toHaveBeenCalled();
+    });
+
+    it('does NOT abandon an attempts-exhausted job that is still YOUNG — it re-dispatches (U5 counter guard)', async () => {
+        // The cross-generation counter bug: a fresh job re-POSTed after a failure can have its `attempts`
+        // inflated past the limit by the previous cycle's still-in-flight messages. Abandoning it on the
+        // counter alone would fail a request the user only just made. The age floor protects it: a young
+        // job (well under ERASURE_GIVE_UP_AGE_SECONDS) is re-dispatched to get its OWN real retries, even
+        // with an exhausted counter.
+        const db = dbWithStaleJobs([makeStaleJob({ attempts: ERASURE_GIVE_UP_ATTEMPTS + 5, age_seconds: 60 })]);
+        vi.mocked(getRecipeDbMock).mockReturnValue(db as never);
+
+        await handler();
+
+        expect(sqsSend).toHaveBeenCalledTimes(1); // re-dispatched, not abandoned
+        expect(executedSql(db.execute).find((text) => text.includes('failed'))).toBeUndefined();
+    });
+
+    it('abandons an attempts-exhausted job once it is ALSO past the give-up age floor', async () => {
+        // Both signals must agree: exhausted attempts AND old enough that those attempts are genuinely its
+        // own (a DLQ message + alarm already fired). age_seconds exactly at the floor abandons (>=).
+        const db = dbWithStaleJobs([
+            makeStaleJob({ attempts: ERASURE_GIVE_UP_ATTEMPTS, age_seconds: ERASURE_GIVE_UP_AGE_SECONDS }),
+        ]);
+        vi.mocked(getRecipeDbMock).mockReturnValue(db as never);
+
+        await handler();
+
+        expect(executedSql(db.execute).find((text) => text.includes('failed'))).toBeDefined();
         expect(sqsSend).not.toHaveBeenCalled();
     });
 

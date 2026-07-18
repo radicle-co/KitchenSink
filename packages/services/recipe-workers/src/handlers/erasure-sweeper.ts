@@ -38,6 +38,12 @@ export type StaleErasureJobRow = {
     readonly owner_id: string;
     /** Claims so far. The worker increments this on every claim, including the ones that then died. */
     readonly attempts: number;
+    /**
+     * Seconds since THIS job row was created. Per-job and immune to cross-generation counter inflation, so
+     * it is the give-up age floor (see {@link ERASURE_GIVE_UP_ATTEMPTS}): a fresh job re-POSTed after a
+     * failure has its own `created_at`, so its age reflects only its own time stuck.
+     */
+    readonly age_seconds: number;
 };
 
 const sqs = new SQSClient({});
@@ -71,6 +77,24 @@ const STALE_AFTER = '15 minutes';
  */
 export const ERASURE_GIVE_UP_ATTEMPTS = 10;
 
+/**
+ * The give-up AGE floor (seconds): a job is abandoned only once it is BOTH attempts-exhausted AND this old.
+ *
+ * `attempts` alone is not a safe give-up trigger, because it is not per-job. The message carries only
+ * `ownerId` (by design — {@link toErasureMessage}), so `claimErasureJob` increments the counter on whatever
+ * row is active for the owner. After a job fails and the user re-POSTs, a FRESH row is created; the old
+ * cycle's still-in-flight messages then redeliver and claim the fresh row, inflating ITS `attempts` for work
+ * that has nothing to do with it. On `attempts` alone, that fresh job could cross {@link
+ * ERASURE_GIVE_UP_ATTEMPTS} after only a few of its OWN real attempts and be abandoned prematurely.
+ *
+ * The fix is a floor on the job's OWN age (`created_at`), which no cross-generation message can move: a job
+ * is abandoned only after both signals agree. 1 hour matches the wall-clock the attempts arithmetic was
+ * meant to represent (two full DLQ cycles), and — crucially — comfortably exceeds one `maxReceiveCount`
+ * DLQ cycle (~30 min), so the "a `failed` job always has a DLQ message + alarm behind it" invariant holds:
+ * a job this old with exhausted attempts has genuinely burned its retries.
+ */
+export const ERASURE_GIVE_UP_AGE_SECONDS = 3600;
+
 /** Alarm threshold's unit: the age metric is seconds, emitted every tick (0 when idle). */
 const ERASURE_METRIC_NAMESPACE = 'Commise/RecipeErasure';
 
@@ -101,7 +125,7 @@ export function toErasureMessage(row: StaleErasureJobRow, requestedAt: string): 
  */
 export async function claimStaleErasureJobs(db: NodePgDatabase<Record<string, never>>): Promise<StaleErasureJobRow[]> {
     const result = await db.execute<StaleErasureJobRow>(sql`
-        SELECT id, owner_id, attempts
+        SELECT id, owner_id, attempts, EXTRACT(EPOCH FROM (now() - created_at))::int AS age_seconds
         FROM account_erasure_jobs
         WHERE status IN ('queued', 'running')
           AND updated_at <= now() - interval '${sql.raw(STALE_AFTER)}'
@@ -238,7 +262,11 @@ export const handler = async (): Promise<void> => {
         // strand another owner's right-to-erasure request. A job that errors here keeps its row and the
         // next tick picks it up again — the row-as-truth design is what makes that safe.
         try {
-            if (job.attempts >= ERASURE_GIVE_UP_ATTEMPTS) {
+            // Give up only when BOTH signals agree: the counter is exhausted AND the job's OWN age is past
+            // the floor. `attempts` alone is not per-job (see ERASURE_GIVE_UP_AGE_SECONDS), so a fresh
+            // re-POSTed job whose counter was inflated by a prior cycle's stale messages is re-dispatched to
+            // earn its own retries rather than abandoned prematurely.
+            if (job.attempts >= ERASURE_GIVE_UP_ATTEMPTS && job.age_seconds >= ERASURE_GIVE_UP_AGE_SECONDS) {
                 await abandonExhaustedJob(db, job);
                 abandoned += 1;
                 logger.error('erasure-sweeper: abandoned an erasure job after exhausting its attempts', {

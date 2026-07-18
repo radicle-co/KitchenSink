@@ -113,7 +113,14 @@ export function RecipeDetailScreen({
             </Pressable>
         ) : null;
 
-    if (query.isLoading) {
+    // Wait for BOTH the recipe AND the viewer profile before rendering the detail. Owner-gated UI
+    // (edit/delete/visibility actions) and the rating mode are derived from `profile` (the viewer id +
+    // tier); if we rendered as soon as the recipe resolved, the profile would still be in flight, the
+    // owner actions would be absent, and then POP IN when it lands — shifting the layout mid-interaction.
+    // Gating on `profile.isLoading` too makes the owner-gated surface deterministic on first paint (no
+    // flicker). A signed-out viewer's profile query is disabled, so its `isLoading` is false and this
+    // never hangs for a guest reading a public recipe.
+    if (query.isLoading || profile.isLoading) {
         return (
             <View accessibilityLabel={t.detailLoading} style={styles.center}>
                 <ActivityIndicator />

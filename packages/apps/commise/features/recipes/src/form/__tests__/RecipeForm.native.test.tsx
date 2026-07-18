@@ -11,6 +11,11 @@ import { fireEvent } from '@testing-library/dom';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
+// The native leaf renders its button glyphs via `@expo/vector-icons` (Feather), which needs the Expo font
+// runtime — absent under jsdom. Stub it to a decorative no-op; the Button primitive hides the icon from the
+// accessibility tree regardless, so what Feather draws is irrelevant to these behavioural/a11y assertions.
+vi.mock('@expo/vector-icons', () => ({ Feather: () => null }));
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeForm } from '../RecipeForm.native.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../model.js';
@@ -363,5 +368,28 @@ describe('RecipeForm (native) — submit + cancel', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeForm (native) — every action button carries a decorative icon (mockup parity)', () => {
+    // Mirrors the web leaf: each action button keeps its exact accessible name (so Maestro's visible-text
+    // taps and the create/edit contracts are unchanged) and renders its icon inside an accessibility-hidden
+    // wrapper (the shared Button primitive), so the label alone is the accessible name.
+    const actionButtonNames = [
+        'Add ingredient',
+        'Add step',
+        'Remove ingredient 1',
+        'Remove step 1',
+        'Create recipe',
+        'Cancel',
+    ] as const;
+
+    it.each(actionButtonNames)('renders "%s" with an accessibility-hidden icon slot', (name) => {
+        renderForm();
+
+        const button = screen.getByRole('button', { name });
+        // The Button wraps the caller's icon in an `aria-hidden` element, so the glyph never contributes to
+        // the accessible name — present here regardless of what Feather draws.
+        expect(button.querySelector('[aria-hidden="true"]')).not.toBeNull();
     });
 });

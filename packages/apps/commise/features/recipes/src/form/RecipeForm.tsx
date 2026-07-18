@@ -14,10 +14,12 @@
  *
  * Photo upload (wireframe step 4) is intentionally OUT OF SCOPE here — a later increment adds it.
  */
+import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
 import { fillTemplate } from '../list/model.js';
+import { CheckIcon, PlusIcon, TrashIcon, XIcon } from './icons.js';
 import { computeTotalTime } from './model.js';
 import { recipeFormMessages } from './messages.js';
 import {
@@ -41,10 +43,6 @@ const fieldLabel = 'text-body-sm font-medium text-slate';
 const field =
     'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light';
 const rowField = `${field} min-w-0 flex-1`;
-const primaryButton =
-    'rounded-full bg-seafoam px-6 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:opacity-60';
-const ghostButton = 'rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl';
-const removeButton = 'rounded-full px-3 py-1 text-body-sm font-medium text-error transition hover:bg-coral/10';
 const errorText = 'text-body-sm text-error';
 const difficultyChip =
     'relative flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam-light';
@@ -106,13 +104,13 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                         {resolutionStatusLabel(m, line.resolutionStatus)}
                     </span>
                 )}
-                <button
-                    type="button"
-                    onClick={() => onChange(removeIngredientAt(values, index))}
-                    className={removeButton}
+                <Button
+                    variant="destructive"
+                    icon={<TrashIcon />}
+                    onPress={() => onChange(removeIngredientAt(values, index))}
                 >
                     {fillTemplate(m.removeIngredient, { number })}
-                </button>
+                </Button>
             </li>
         );
     });
@@ -147,9 +145,13 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                     }}
                     className={`${field} w-28`}
                 />
-                <button type="button" onClick={() => onChange(removeStepAt(values, index))} className={removeButton}>
+                <Button
+                    variant="destructive"
+                    icon={<TrashIcon />}
+                    onPress={() => onChange(removeStepAt(values, index))}
+                >
                     {fillTemplate(m.removeStep, { number })}
-                </button>
+                </Button>
             </li>
         );
     });
@@ -321,13 +323,11 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 ) : (
                     <ul className="flex flex-col gap-3">{ingredientRows}</ul>
                 )}
-                <button
-                    type="button"
-                    onClick={() => onChange(addIngredient(values))}
-                    className={`${ghostButton} self-start`}
-                >
-                    {m.addIngredient}
-                </button>
+                <div className="self-start">
+                    <Button variant="secondary" icon={<PlusIcon />} onPress={() => onChange(addIngredient(values))}>
+                        {m.addIngredient}
+                    </Button>
+                </div>
             </section>
 
             <section aria-label={m.stepsHeading} className={sectionCard}>
@@ -342,9 +342,11 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 ) : (
                     <ol className="flex flex-col gap-3">{stepRows}</ol>
                 )}
-                <button type="button" onClick={() => onChange(addStep(values))} className={`${ghostButton} self-start`}>
-                    {m.addStep}
-                </button>
+                <div className="self-start">
+                    <Button variant="secondary" icon={<PlusIcon />} onPress={() => onChange(addStep(values))}>
+                        {m.addStep}
+                    </Button>
+                </div>
             </section>
 
             <label className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-sm">
@@ -361,12 +363,12 @@ export const RecipeForm: FC<RecipeFormProps> = ({
             </label>
 
             <div className="flex items-center gap-3">
-                <button type="submit" disabled={submitting} aria-busy={submitting} className={primaryButton}>
+                <Button type="submit" icon={<CheckIcon />} busy={submitting}>
                     {submitLabel}
-                </button>
-                <button type="button" onClick={onCancel} className={ghostButton}>
+                </Button>
+                <Button variant="secondary" icon={<XIcon />} onPress={onCancel}>
                     {m.cancel}
-                </button>
+                </Button>
             </div>
         </form>
     );

@@ -9,8 +9,10 @@
  *
  * Photo upload (wireframe step 4) is intentionally OUT OF SCOPE here — a later increment adds it.
  */
+import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Feather } from '@expo/vector-icons';
 import type { FC, ReactElement, ReactNode } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, TextInput, View, Pressable } from 'react-native';
 
@@ -88,14 +90,13 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                         {resolutionStatusLabel(m, line.resolutionStatus)}
                     </Text>
                 )}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={fillTemplate(m.removeIngredient, { number })}
+                <Button
+                    variant="destructive"
+                    icon={<Feather name="trash-2" size={16} color={palette.error} />}
                     onPress={() => onChange(removeIngredientAt(values, index))}
-                    style={styles.removeButton}
                 >
-                    <Text style={styles.removeLabel}>{fillTemplate(m.removeIngredient, { number })}</Text>
-                </Pressable>
+                    {fillTemplate(m.removeIngredient, { number })}
+                </Button>
             </View>
         );
     });
@@ -126,14 +127,13 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                     }}
                     style={[styles.input, styles.rowNarrow]}
                 />
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={fillTemplate(m.removeStep, { number })}
+                <Button
+                    variant="destructive"
+                    icon={<Feather name="trash-2" size={16} color={palette.error} />}
                     onPress={() => onChange(removeStepAt(values, index))}
-                    style={styles.removeButton}
                 >
-                    <Text style={styles.removeLabel}>{fillTemplate(m.removeStep, { number })}</Text>
-                </Pressable>
+                    {fillTemplate(m.removeStep, { number })}
+                </Button>
             </View>
         );
     });
@@ -289,14 +289,15 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                     </Text>
                 )}
                 {ingredientRows.length === 0 ? <Text style={styles.emptyText}>{m.noIngredients}</Text> : ingredientRows}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={m.addIngredient}
-                    onPress={() => onChange(addIngredient(values))}
-                    style={styles.ghostButton}
-                >
-                    <Text style={styles.ghostLabel}>{m.addIngredient}</Text>
-                </Pressable>
+                <View style={styles.addAction}>
+                    <Button
+                        variant="secondary"
+                        icon={<Feather name="plus" size={16} color={palette.charcoal} />}
+                        onPress={() => onChange(addIngredient(values))}
+                    >
+                        {m.addIngredient}
+                    </Button>
+                </View>
             </View>
 
             <View accessibilityLabel={m.stepsHeading} style={styles.card}>
@@ -309,14 +310,15 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                     </Text>
                 )}
                 {stepRows.length === 0 ? <Text style={styles.emptyText}>{m.noSteps}</Text> : stepRows}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={m.addStep}
-                    onPress={() => onChange(addStep(values))}
-                    style={styles.ghostButton}
-                >
-                    <Text style={styles.ghostLabel}>{m.addStep}</Text>
-                </Pressable>
+                <View style={styles.addAction}>
+                    <Button
+                        variant="secondary"
+                        icon={<Feather name="plus" size={16} color={palette.charcoal} />}
+                        onPress={() => onChange(addStep(values))}
+                    >
+                        {m.addStep}
+                    </Button>
+                </View>
             </View>
 
             <View style={styles.switchRow}>
@@ -330,24 +332,20 @@ export const RecipeForm: FC<RecipeFormProps> = ({
             </View>
 
             <View style={styles.actions}>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={submitLabel}
-                    accessibilityState={{ disabled: submitting, busy: submitting }}
-                    disabled={submitting}
+                <Button
+                    icon={<Feather name="check" size={16} color={palette.white} />}
+                    busy={submitting}
                     onPress={onSubmit}
-                    style={[styles.primaryButton, submitting && styles.primaryButtonBusy]}
                 >
-                    <Text style={styles.primaryLabel}>{submitLabel}</Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={m.cancel}
+                    {submitLabel}
+                </Button>
+                <Button
+                    variant="secondary"
+                    icon={<Feather name="x" size={16} color={palette.charcoal} />}
                     onPress={onCancel}
-                    style={styles.ghostButton}
                 >
-                    <Text style={styles.ghostLabel}>{m.cancel}</Text>
-                </Pressable>
+                    {m.cancel}
+                </Button>
             </View>
         </ScrollView>
     );
@@ -411,8 +409,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     statusBadge: { fontSize: 11, color: palette.slate },
-    removeButton: { paddingVertical: 6, paddingHorizontal: 10 },
-    removeLabel: { color: palette.error, fontSize: 13, fontWeight: '500' },
     error: { color: palette.error, fontSize: 13 },
     emptyText: { color: palette.slate, fontSize: 13 },
     totalTime: { color: palette.slate, fontSize: 13 },
@@ -428,9 +424,6 @@ const styles = StyleSheet.create({
     },
     switchLabel: { fontSize: 16, color: palette.charcoal },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    primaryButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 24 },
-    primaryButtonBusy: { opacity: 0.6 },
-    primaryLabel: { color: palette.white, fontWeight: '600', fontSize: 15 },
-    ghostButton: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
-    ghostLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
+    // Keeps an "add ingredient / add step" button at content width + left-aligned inside the stretch column.
+    addAction: { alignSelf: 'flex-start' },
 });

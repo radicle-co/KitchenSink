@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
         '@commise/features-account',
         '@commise/features-recipes',
         '@commise/features-core',
+        // The design-system `Button` (and future @commise/ui components) ship as raw `./src` .tsx so the
+        // bundler platform-resolves the `.native` leaf — Next must transpile it, not treat it as opaque.
+        '@commise/ui',
         '@commise/i18n',
         '@kitchensink/recipe-service-client',
         '@kitchensink/recipe-core',

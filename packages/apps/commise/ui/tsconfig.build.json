@@ -1,0 +1,6 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    "comment": "Build emits ONLY the token/clerk `.` artifact to dist. The `./button` component export ships as raw src (bundler-transpiled by consumers, like the feature packages), so button/ + tests are excluded from emit.",
+    "exclude": ["node_modules", "dist", "src/button", "src/**/__tests__", "src/**/*.test.ts", "src/**/*.test.tsx"]
+}

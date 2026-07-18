@@ -396,3 +396,43 @@ describe('RecipeForm (web) — submit + cancel', () => {
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('RecipeForm (web) — every action button carries an icon and a real surface (mockup parity)', () => {
+    // The mockups pair every button with an icon and give it a visible surface; the old form rendered its
+    // add/remove/cancel actions as naked text. Each action button must (1) keep its exact accessible name —
+    // so Playwright/RTL name selection and the create/edit contracts are unchanged — (2) render a decorative
+    // icon hidden from the accessibility tree, and (3) sit on a real button surface (not bare text).
+    const actionButtonNames = [
+        'Add ingredient',
+        'Add step',
+        'Remove ingredient 1',
+        'Remove step 1',
+        'Create recipe',
+        'Cancel',
+    ] as const;
+
+    it.each(actionButtonNames)('renders "%s" with a decorative, accessibility-hidden icon', (name) => {
+        renderForm();
+
+        const button = screen.getByRole('button', { name });
+        const icon = button.querySelector('svg');
+        expect(icon).not.toBeNull();
+        // The glyph is decorative: hidden from assistive tech so the label alone is the accessible name.
+        expect(icon?.closest('[aria-hidden="true"]')).not.toBeNull();
+    });
+
+    it('gives each action button a real visible surface (a fill or a border), never naked text', () => {
+        renderForm();
+
+        // Secondary actions read as buttons via a border.
+        for (const name of ['Add ingredient', 'Add step', 'Cancel'] as const) {
+            expect(screen.getByRole('button', { name }).className).toContain('border');
+        }
+        // Destructive remove actions are error-toned.
+        for (const name of ['Remove ingredient 1', 'Remove step 1'] as const) {
+            expect(screen.getByRole('button', { name }).className).toContain('error');
+        }
+        // The primary submit is a filled seafoam CTA.
+        expect(screen.getByRole('button', { name: 'Create recipe' }).className).toContain('seafoam');
+    });
+});

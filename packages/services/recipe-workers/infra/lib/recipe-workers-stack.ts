@@ -94,7 +94,7 @@ const ERASURE_METRIC_NAMESPACE = 'Commise/RecipeErasure';
  * literal `erasure-orphan-sweeper.ts` publishes (`ORPHAN_METRIC_NAME`) — the same knowledge on either
  * side of the Lambda boundary, so an alarm whose name disagrees with the emitter watches a dead metric.
  */
-const ORPHAN_METRIC_NAME = 'ArchiveOrphansDeleted';
+const ORPHAN_METRIC_NAME = 'ErasureOrphansDeleted';
 
 export interface RecipeWorkersStackProps extends StackProps {
     readonly stage: string;
@@ -271,23 +271,28 @@ export class RecipeWorkersStack extends Stack {
         grantRdsIam(erasureSweeperRole);
         this.erasureQueue.grantSendMessages(erasureSweeperRole);
 
-        // erasure-orphan sweeper: the archive-resurrection backstop. Reads `account_erasure_jobs` for
-        // recently-COMPLETED owners and deletes any snapshot a late version-archive PUT orphaned under
-        // their archive prefix. Least-privilege (ARCH-IT-7): List + Delete on the ARCHIVE bucket ONLY —
-        // never the media bucket (the worker erases it synchronously and nothing writes fresh media for a
-        // completed owner), never GetObject (it lists and deletes, it does not read bodies), and never any
-        // SQS (it neither produces nor consumes). This is the archive worker's PUT reconciled, nothing more.
+        // erasure-orphan sweeper: the resurrection backstop across BOTH object buckets. Reads
+        // `account_erasure_jobs` for recently-COMPLETED owners and deletes any object a late write orphaned
+        // under their prefix — a version-archive PUT in the ARCHIVE bucket, or a photo-upload presigned PUT
+        // in the MEDIA bucket (a presigned URL minted just before erasure can be redeemed after the worker's
+        // synchronous media sweep). Least-privilege (ARCH-IT-7): List + Delete on BOTH buckets — never
+        // GetObject (it lists and deletes, it does not read bodies), and never any SQS (it neither produces
+        // nor consumes).
         const orphanSweeperRole = makeRole(
             'ErasureOrphanSweeperRole',
-            'Least-privilege role for the erasure-orphan (archive-resurrection backstop) sweeper Lambda',
+            'Least-privilege role for the erasure-orphan (resurrection backstop) sweeper Lambda',
         );
         grantRdsIam(orphanSweeperRole);
         // `s3:ListBucket` is a BUCKET-level action (ListObjectsV2), so it is granted on the bucket ARN
         // directly rather than via grantRead (which would also hand over GetObject the sweeper never uses).
         orphanSweeperRole.addToPolicy(
-            new iam.PolicyStatement({ actions: ['s3:ListBucket'], resources: [archiveBucket.bucketArn] }),
+            new iam.PolicyStatement({
+                actions: ['s3:ListBucket'],
+                resources: [archiveBucket.bucketArn, mediaBucket.bucketArn],
+            }),
         );
         archiveBucket.grantDelete(orphanSweeperRole);
+        mediaBucket.grantDelete(orphanSweeperRole);
 
         // ── functions ──────────────────────────────────────────────────────────────────────────────
         const runtime = lambda.Runtime.NODEJS_22_X;
@@ -408,9 +413,9 @@ export class RecipeWorkersStack extends Stack {
             targets: [new events_targets.LambdaFunction(erasureSweeperFn)],
         });
 
-        // The archive-resurrection backstop. Reconciles the archive bucket against recently-completed
-        // erasure owners; STAGE is set here (NOT commonDbEnv) because only this sweeper emits the
-        // orphans-deleted metric, and its EMF `Stage` dimension must equal the alarm's below.
+        // The resurrection backstop. Reconciles BOTH object buckets against recently-completed erasure
+        // owners; STAGE is set here (NOT commonDbEnv) because only this sweeper emits the orphans-deleted
+        // metric, and its EMF `Stage` dimension must equal the alarm's below.
         const orphanSweeperFn = new lambda.Function(this, 'ErasureOrphanSweeperFunction', {
             runtime,
             architecture,
@@ -422,7 +427,12 @@ export class RecipeWorkersStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(60),
             memorySize: 256,
-            environment: { ...commonDbEnv, RECIPE_ARCHIVE_BUCKET: props.archiveBucketName, STAGE: props.stage },
+            environment: {
+                ...commonDbEnv,
+                RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
+                RECIPE_MEDIA_BUCKET: props.mediaBucketName,
+                STAGE: props.stage,
+            },
             logGroup,
         });
 

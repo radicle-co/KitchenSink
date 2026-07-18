@@ -425,20 +425,29 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         });
     });
 
-    it('sets STAGE on the orphan sweeper so its metric lands on the dimension the alarm watches', () => {
-        // Same trap the archive sweeper's STAGE bug taught: the sweeper emits ArchiveOrphansDeleted under
+    it('sets STAGE + both bucket names on the orphan sweeper so it reconciles both and its metric lands on the alarm dimension', () => {
+        // Same trap the archive sweeper's STAGE bug taught: the sweeper emits ErasureOrphansDeleted under
         // `Stage=process.env['STAGE'] ?? 'unknown'` and the alarm below watches `Stage={stage}`. Unset
-        // STAGE ⇒ metric under `unknown`, alarm watches `sandbox`, alarm never fires.
+        // STAGE ⇒ metric under `unknown`, alarm watches `sandbox`, alarm never fires. And it now needs BOTH
+        // bucket names — a missing media bucket would make it require-throw (its own guard) rather than
+        // silently leave media orphans.
         template.hasResourceProperties('AWS::Lambda::Function', {
             Handler: 'handlers/erasure-orphan-sweeper.handler',
-            Environment: Match.objectLike({ Variables: Match.objectLike({ STAGE: 'sandbox' }) }),
+            Environment: Match.objectLike({
+                Variables: Match.objectLike({
+                    STAGE: 'sandbox',
+                    RECIPE_ARCHIVE_BUCKET: 'commise-versions-sandbox',
+                    RECIPE_MEDIA_BUCKET: 'commise-photos-sandbox',
+                }),
+            }),
         });
     });
 
-    it('grants the orphan sweeper List + Delete on the ARCHIVE bucket only — never media, GetObject, or SQS', () => {
-        // ARCH-IT-7 least privilege for a DESTRUCTIVE reconciler. It lists and deletes archive orphans; it
-        // has no reason to read object bodies, touch the media bucket (erased synchronously by the worker),
-        // or produce/consume any queue. A wider grant would let a bug in this path delete beyond its remit.
+    it('grants the orphan sweeper List + Delete on BOTH object buckets — never GetObject, PutObject, or SQS', () => {
+        // ARCH-IT-7 least privilege for a DESTRUCTIVE reconciler. It lists and deletes orphans a late write
+        // left in EITHER bucket (archive: version-archive PUT; media: presigned photo PUT), but has no reason
+        // to read object bodies, write, or produce/consume any queue. A wider grant would let a bug in this
+        // path delete beyond its remit.
         const policies = Object.values(template.findResources('AWS::IAM::Policy'));
         const sweeperPolicy = policies.find((policy) => {
             const serialized = JSON.stringify(policy);
@@ -447,15 +456,17 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
                 serialized.includes('s3:ListBucket') &&
                 serialized.includes('s3:DeleteObject') &&
                 serialized.includes('commise-versions-sandbox') &&
-                // the archive-worker also has PutObject on this bucket; the orphan sweeper must not.
+                serialized.includes('commise-photos-sandbox') &&
+                // neither the archive nor media worker's PutObject belongs to the orphan sweeper.
                 !serialized.includes('s3:PutObject')
             );
         });
         const serialized = JSON.stringify(sweeperPolicy);
 
-        expect(sweeperPolicy, 'a List+Delete-on-archive, no-Put policy must exist').toBeDefined();
-        // Never the media bucket.
-        expect(serialized).not.toContain('commise-photos-sandbox');
+        expect(sweeperPolicy, 'a List+Delete-on-both-buckets, no-Put policy must exist').toBeDefined();
+        // Both buckets are covered (media is the presigned-PUT resurrection fix).
+        expect(serialized).toContain('commise-versions-sandbox');
+        expect(serialized).toContain('commise-photos-sandbox');
         // Never GetObject (it lists and deletes, it does not read bodies).
         expect(serialized).not.toContain('s3:GetObject');
         // Never any SQS — it is neither a producer nor a consumer.
@@ -486,7 +497,7 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         // a single caught orphan pages; notBreaching so an idle (0) or missing tick does not.
         template.hasResourceProperties('AWS::CloudWatch::Alarm', {
             AlarmName: 'kitchensink-recipe-erasure-orphan-sandbox',
-            MetricName: 'ArchiveOrphansDeleted',
+            MetricName: 'ErasureOrphansDeleted',
             Namespace: 'Commise/RecipeErasure',
             Threshold: 0,
             ComparisonOperator: 'GreaterThanThreshold',

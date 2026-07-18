@@ -20,13 +20,17 @@ import { eraseRecipeObjects } from './account-erasure-worker.js';
  * `recipes/{ownerId}/` prefix — user data surviving a right-to-erasure request. This sweeper finds and
  * deletes exactly those objects.
  *
- * **Why `completed`-only, and why the ARCHIVE bucket only.** Once an owner's erasure job is `completed`,
- * the erasure worker has already deleted every DB row and swept BOTH buckets, so that owner's archive
- * prefix MUST be empty forever after. Anything under it is therefore an orphan and is safe to delete. An
- * owner still `queued`/`running`/`failed` has NOT had a successful sweep, so their archive prefix may
- * legitimately still hold data — sweeping them would be data loss, not reconciliation. And it is the
- * ARCHIVE bucket alone that a late version-archive PUT can dirty: the erasure worker sweeps the media
- * bucket synchronously, and nothing writes fresh media for a `completed` owner.
+ * **Why `completed`-only, and why BOTH buckets.** Once an owner's erasure job is `completed`, the erasure
+ * worker has already deleted every DB row and swept both buckets, so that owner's prefix MUST be empty
+ * forever after. Anything under it is therefore an orphan and is safe to delete. An owner still
+ * `queued`/`running`/`failed` has NOT had a successful sweep, so their prefix may legitimately still hold
+ * data — sweeping them would be data loss, not reconciliation. **Both** object buckets can be dirtied
+ * after a completed sweep: the ARCHIVE bucket by a late version-archive PUT (the read→PUT window above),
+ * and — the correction this file now carries — the MEDIA bucket by a **photo-upload presigned PUT**. A
+ * presigned URL is minted for the CLIENT and stays valid for its TTL (default 900s); one minted just
+ * before erasure can be redeemed AFTER the worker's synchronous media sweep, landing an object under an
+ * erased owner's media prefix. (The prior assumption that "nothing writes fresh media for a completed
+ * owner" was false — the presigned URL is exactly such a writer.) So this sweeper reconciles both.
  *
  * **Why a bounded recent look-back, not "all completed owners".** A racing PUT can only land within one
  * archive-worker invocation of the erasure's sweep — the worker loads the row, checks erasure, and PUTs
@@ -51,19 +55,26 @@ export const SWEEP_BATCH_SIZE = 100;
 /**
  * How far back to look for `completed` erasure owners.
  *
- * Sized off the failure it reconciles, not a feeling: an orphan can only appear within one
- * archive-worker invocation (≤60s) of an erasure's archive sweep (see the module header), so a window of
- * hours is already vast margin over the seconds in which an orphan can actually materialise. 24h buys
- * ~24 hourly re-sweeps of every freshly-completed owner — enough that a PUT landing just after one tick's
- * listing is caught by the next — while keeping the scan off the unbounded all-time `completed` set.
+ * Sized off the failures it reconciles, not a feeling. The archive orphan appears within one
+ * archive-worker invocation (≤60s) of an erasure's archive sweep. The MEDIA orphan appears within a
+ * photo-upload presigned URL's TTL of erasure — a URL minted just before erasure can be redeemed up to
+ * `PRESIGNED_URL_EXPIRY_SECONDS` (recipe-service config, default 900s = 15m) after the synchronous media
+ * sweep. This 24h window is a vast margin over BOTH — and, load-bearing, it MUST stay comfortably greater
+ * than the presign TTL so a URL redeemed at the end of its life is still inside a completed owner's
+ * look-back and caught on the next tick. If that config ever raised the TTL toward a day, this constant
+ * must rise with it. 24h buys ~24 hourly re-sweeps of every freshly-completed owner.
  */
 const COMPLETED_LOOKBACK = '24 hours';
 
 /** Shares the erasure namespace: an archive object surviving erasure is an erasure-compliance fact. */
 const ORPHAN_METRIC_NAMESPACE = 'Commise/RecipeErasure';
 
-/** The metric name the resurrection-caught alarm watches. Mirrored by the infra alarm — one knowledge. */
-export const ORPHAN_METRIC_NAME = 'ArchiveOrphansDeleted';
+/**
+ * The metric name the resurrection-caught alarm watches. Mirrored by the infra alarm — one knowledge.
+ * Bucket-neutral: it counts orphans reclaimed across BOTH the archive and media buckets, so a nonzero
+ * value means a resurrection was caught in either.
+ */
+export const ORPHAN_METRIC_NAME = 'ErasureOrphansDeleted';
 
 const s3 = new S3Client({});
 
@@ -122,15 +133,18 @@ export function emitOrphansDeletedMetric(stage: string, orphansDeleted: number):
 }
 
 /**
- * Reconcile the archive bucket against recently-`completed` erasure owners, deleting any orphaned
- * snapshot a late version-archive PUT left behind.
+ * Reconcile BOTH object buckets against recently-`completed` erasure owners, deleting any orphan a late
+ * write left behind — a version-archive PUT in the archive bucket, or a photo-upload presigned PUT in the
+ * media bucket.
  *
- * @throws {MissingConfigError} When `RECIPE_ARCHIVE_BUCKET` is unset — reconciling "no bucket" would
- *   report a clean tick while every orphan survived.
+ * @throws {MissingConfigError} When `RECIPE_ARCHIVE_BUCKET` or `RECIPE_MEDIA_BUCKET` is unset —
+ *   reconciling "no bucket" would report a clean tick while every orphan in it survived.
  * @sideEffect Reads `account_erasure_jobs`, lists+deletes S3 objects, emits one EMF line.
  */
 export const handler = async (): Promise<void> => {
-    const archiveBucket = requireEnv('RECIPE_ARCHIVE_BUCKET');
+    // Both buckets are required up front: an unset media bucket would silently leave every media orphan
+    // in place while the tick reported clean — the exact false-erasure this sweeper exists to prevent.
+    const buckets = [requireEnv('RECIPE_ARCHIVE_BUCKET'), requireEnv('RECIPE_MEDIA_BUCKET')];
     const db = getRecipeDb();
 
     const owners = await readRecentlyCompletedOwners(db);
@@ -138,32 +152,36 @@ export const handler = async (): Promise<void> => {
     let orphansDeleted = 0;
 
     for (const ownerId of owners) {
-        // Per-owner, never per-batch: one erased owner's S3 failure must not strand another owner's
-        // reconciliation. The owner keeps its `completed` row and stays inside the look-back window, so
-        // the next tick re-attempts it — the same row-as-truth durability the other sweepers rely on.
-        try {
-            // Reuse the erasure worker's authoritative prefix-sweep (list → batch-delete → count) rather
-            // than re-implementing it: it IS the same operation, keyed under the same `ownerMediaPrefix`
-            // (ARCH-BE-3), and it already surfaces per-key S3 delete failures instead of papering over them.
-            orphansDeleted += await eraseRecipeObjects(s3, archiveBucket, ownerId);
-        } catch (error) {
-            logger.error('erasure-orphan-sweeper: could not reconcile a completed owner’s archive prefix', {
-                ownerId,
-                bucket: archiveBucket,
-                error: error instanceof Error ? error.message : String(error),
-            });
+        for (const bucket of buckets) {
+            // Per-(owner, bucket), never per-batch: one erased owner's S3 failure in one bucket must not
+            // strand another owner's — or even the same owner's other bucket's — reconciliation. The owner
+            // keeps its `completed` row and stays inside the look-back window, so the next tick re-attempts
+            // it — the same row-as-truth durability the other sweepers rely on.
+            try {
+                // Reuse the erasure worker's authoritative prefix-sweep (list → batch-delete → count) rather
+                // than re-implementing it: it IS the same operation, keyed under the same `ownerMediaPrefix`
+                // (ARCH-BE-3) in both buckets, and it already surfaces per-key S3 delete failures instead of
+                // papering over them.
+                orphansDeleted += await eraseRecipeObjects(s3, bucket, ownerId);
+            } catch (error) {
+                logger.error('erasure-orphan-sweeper: could not reconcile a completed owner’s prefix', {
+                    ownerId,
+                    bucket,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
         }
     }
 
     emitOrphansDeletedMetric(process.env['STAGE'] ?? 'unknown', orphansDeleted);
 
     if (orphansDeleted > 0) {
-        // A real resurrection fired: the sub-millisecond guard window was actually hit and this backstop
+        // A real resurrection fired: a late write landed under an erased owner's prefix and this backstop
         // caught it. Loud on purpose — it is both the remediation and the evidence the race is non-zero.
-        logger.warn('erasure-orphan-sweeper deleted archive orphans under erased owners', {
+        logger.warn('erasure-orphan-sweeper deleted orphans under erased owners', {
             orphansDeleted,
             ownersScanned: owners.length,
-            bucket: archiveBucket,
+            buckets,
         });
     } else {
         logger.info('erasure-orphan-sweeper swept clean', { ownersScanned: owners.length });

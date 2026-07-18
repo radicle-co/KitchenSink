@@ -170,7 +170,10 @@ function createFakeDb(): FakeDbControl {
     };
 }
 
-const OWNER = '01J0000000000000000000OWN0';
+// Real app-user ids are ULIDs (identity mints them via ulidx); the erasure message boundary now enforces
+// that, so every owner id that flows through parseErasureMessage/handler must be a VALID 26-char ULID.
+const OWNER = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
+const OWNER_2 = '01JQ8N2X4RBV6WK3ZT5Y7A9C1Q';
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -193,9 +196,9 @@ describe('ownerMediaPrefix', () => {
 
 describe('parseErasureMessage', () => {
     it('shapes a valid SQS body into a typed erasure message', () => {
-        const record = makeErasureRecord({ ownerId: '01JOWNER', requestedAt: '2026-07-10T12:00:00.000Z' });
+        const record = makeErasureRecord({ ownerId: OWNER, requestedAt: '2026-07-10T12:00:00.000Z' });
 
-        expect(parseErasureMessage(record)).toEqual({ ownerId: '01JOWNER', requestedAt: '2026-07-10T12:00:00.000Z' });
+        expect(parseErasureMessage(record)).toEqual({ ownerId: OWNER, requestedAt: '2026-07-10T12:00:00.000Z' });
     });
 
     it('throws when the body is not valid JSON (poison message surfaces, not silently swallowed)', () => {
@@ -214,6 +217,17 @@ describe('parseErasureMessage', () => {
         ['blank', { ownerId: '' }],
         ['whitespace only', { ownerId: '   ' }],
         ['not a string', { ownerId: 12345 }],
+        // Defense in depth (U3): the owner id feeds the S3 prefix and the SQL predicate, so the message
+        // boundary rejects anything that is not a strict ULID — the format identity actually mints. A
+        // hostile or malformed id can never reach the sweep. (Not exploitable today — the trailing-slash
+        // prefix already contains the blast radius — but this hardens the most destructive path against any
+        // future, less-trustworthy producer.)
+        ['a path traversal', { ownerId: '..' }],
+        ['the bucket prefix itself', { ownerId: 'recipes/' }],
+        ['a leading slash', { ownerId: '/01JQ8N2X4RBV6WK3ZT5Y7A9C0P' }],
+        ['a non-ULID slug', { ownerId: 'owner-1' }],
+        ['a ULID with an invalid Crockford char (O)', { ownerId: '01J0000000000000000000OWN0' }],
+        ['too short to be a ULID', { ownerId: '01JQ8N2X4R' }],
     ])('rejects a message whose ownerId is %s rather than reporting a false erasure', (_label, body) => {
         const record = makeSqsRecord(JSON.stringify({ requestedAt: '2026-07-10T12:00:00.000Z', ...body }));
 
@@ -713,6 +727,7 @@ describe('handler', () => {
         // The erasure still runs (it is idempotent — a completed owner's prefixes are already empty) but
         // nothing is marked completed a second time.
         expect(s3Send).toHaveBeenCalled();
+
         for (const statement of replayControl.statements()) {
             expect(statement.text).not.toMatch(/status = 'completed'/i);
         }
@@ -797,9 +812,7 @@ describe('handler', () => {
         s3Send.mockReset();
         s3Send.mockRejectedValue(new Error('S3 down'));
 
-        await expect(runHandler(makeErasureEvent({ ownerId: 'owner-1' }, { ownerId: 'owner-2' }))).rejects.toThrow(
-            'S3 down',
-        );
+        await expect(runHandler(makeErasureEvent({ ownerId: OWNER }, { ownerId: OWNER_2 }))).rejects.toThrow('S3 down');
         // Second record must not have been processed after the first threw.
         expect(getRecipeDbMock).toHaveBeenCalledTimes(1);
     });
@@ -822,9 +835,14 @@ describe('handler', () => {
         );
         vi.mocked(getRecipeDbMock).mockReturnValue(multi.db as never);
 
-        await runHandler(makeErasureEvent({ ownerId: 'owner-1' }, { ownerId: 'owner-2' }));
+        await runHandler(makeErasureEvent({ ownerId: OWNER }, { ownerId: OWNER_2 }));
 
         const prefixes = s3Send.mock.calls.map((call) => listInput(call[0]).Prefix);
-        expect(prefixes).toEqual(['recipes/owner-1/', 'recipes/owner-1/', 'recipes/owner-2/', 'recipes/owner-2/']);
+        expect(prefixes).toEqual([
+            `recipes/${OWNER}/`,
+            `recipes/${OWNER}/`,
+            `recipes/${OWNER_2}/`,
+            `recipes/${OWNER_2}/`,
+        ]);
     });
 });

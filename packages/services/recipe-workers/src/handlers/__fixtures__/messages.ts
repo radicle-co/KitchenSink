@@ -27,9 +27,10 @@ export const makeSqsRecord = (body: string, overrides: Partial<SQSRecord> = {}):
     ...overrides,
 });
 
-/** A typed account-erasure message with sensible defaults. */
+/** A typed account-erasure message with sensible defaults. The default owner is a VALID ULID — the format
+ * identity mints and the erasure message boundary now enforces (U3). */
 export const makeErasureMessage = (overrides: Partial<AccountErasureMessage> = {}): AccountErasureMessage => ({
-    ownerId: '01J0000000000000000000OWN0',
+    ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P',
     requestedAt: '2026-07-10T00:00:00.000Z',
     ...overrides,
 });

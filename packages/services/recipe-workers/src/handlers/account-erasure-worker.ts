@@ -4,6 +4,7 @@ import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/c
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ownerMediaPrefix, type AccountErasureMessage } from '@kitchensink/recipe-core';
 import { sql } from 'drizzle-orm';
+import { isValid as isValidUlid } from 'ulidx';
 
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
@@ -93,7 +94,22 @@ const s3 = new S3Client({});
  * The ONE definition of a usable owner id, shared by the message boundary and the S3 sweep so the two
  * can never disagree about what they are willing to act on. Pure.
  */
+/**
+ * Presence guard used INSIDE the sweep ({@link eraseRecipeObjects}) as a last-ditch check: a non-blank
+ * string keeps `ownerMediaPrefix` from collapsing to the bucket-wide `recipes/`. Its callers pass ids that
+ * were already ULID-validated at the message boundary ({@link isAppUserUlid} in {@link parseErasureMessage})
+ * or read straight from the DB, so this is the interior belt to the boundary's braces.
+ */
 const isValidOwnerId = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
+
+/**
+ * Strict owner-id guard for the untrusted MESSAGE boundary: the id must be a valid ULID — the exact format
+ * identity mints (via `ulidx`). Because this id feeds both the S3 prefix and the SQL predicate on the most
+ * destructive path in the system, the boundary refuses anything malformed (path fragments, slugs, wrong
+ * length, non-Crockford chars) before it can reach the sweep. Library-first: reuses `ulidx`'s own validator
+ * rather than a hand-rolled regex, so it stays in lockstep with how the ids are generated.
+ */
+const isAppUserUlid = (value: unknown): value is string => typeof value === 'string' && isValidUlid(value);
 
 /**
  * Parse and shape an SQS record body into a typed erasure message.
@@ -117,10 +133,8 @@ const isValidOwnerId = (value: unknown): value is string => typeof value === 'st
 export const parseErasureMessage = (record: SQSRecord): AccountErasureMessage => {
     const body = JSON.parse(record.body) as Partial<AccountErasureMessage>;
 
-    if (!isValidOwnerId(body.ownerId)) {
-        throw new InvalidErasureMessageError(
-            `ownerId must be a non-empty string, received ${JSON.stringify(body.ownerId)}`,
-        );
+    if (!isAppUserUlid(body.ownerId)) {
+        throw new InvalidErasureMessageError(`ownerId must be a valid ULID, received ${JSON.stringify(body.ownerId)}`);
     }
 
     return { ownerId: body.ownerId, requestedAt: String(body.requestedAt) };

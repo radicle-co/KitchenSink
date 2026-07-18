@@ -149,8 +149,9 @@ export const loadVersionSnapshot = async (
  * **This is risk-reduction, NOT a proof.** The check reads the DB and the PUT writes S3 — two systems,
  * not one atomic step. An erasure that begins after this read and completes its prefix sweep before the
  * ensuing PUT can still leave an orphan. The window is now sub-millisecond (read immediately precedes
- * the PUT) but non-zero. The true backstop is a periodic orphan-sweep that reconciles archive objects
- * against erased owners; that does not yet exist and is owed (see the module TODO / report).
+ * the PUT) but non-zero. The true backstop is the periodic `erasure-orphan-sweeper`, which reconciles
+ * recently-completed owners' prefixes in BOTH object buckets (archive here, plus media for the analogous
+ * presigned-photo-PUT race) and deletes any object a late write orphaned.
  *
  * A transient failure here MUST propagate, not be swallowed: it throws, the version row is untouched,
  * and SQS redelivers — a DB blip must never be read as "no erasure" and let a suppressed PUT through, nor

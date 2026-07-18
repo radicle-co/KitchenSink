@@ -22,11 +22,12 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Delete recipe'
-# The confirm is a native Android Alert (Alert.alert) that overlays the screen, so its 'Delete' button is on
-# screen without any scrolling. 'Delete' is the confirm button's exact text; the trigger/title are 'Delete
-# recipe', which Maestro's full-string match won't confuse with 'Delete'.
-- extendedWaitUntil:
-      visible: 'Delete'
+# RecipeDeleteDialog (shared with web) renders inline below the trigger; the detail scrolls, so scroll to the
+# confirm. 'Delete' is the confirm's exact text; the trigger/title are 'Delete recipe', which Maestro's
+# full-string match won't confuse with 'Delete'.
+- scrollUntilVisible:
+      element: 'Delete'
+      direction: DOWN
       timeout: 20000
 - tapOn: 'Delete'
 # Back on the recipe list.

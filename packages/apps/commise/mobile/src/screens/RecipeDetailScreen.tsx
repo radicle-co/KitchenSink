@@ -14,12 +14,11 @@
  */
 import {
     RecipeCloneAction,
+    RecipeDeleteDialog,
     RecipeDetailView,
     RecipeRatingControl,
     RecipeVisibilityToggle,
-    fillTemplate,
     ratingModeFor,
-    recipeActionMessages,
     resolveSelectedStars,
     type RatingSelectionOverride,
     type RecipeRatingError,
@@ -38,7 +37,7 @@ import {
 import { RecipeVisibility, type RecipeVisibility as RecipeVisibilityType } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -74,7 +73,6 @@ export function RecipeDetailScreen({
     onCloned,
 }: RecipeDetailScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
-    const { deleteDialog } = useMessages(recipeActionMessages);
     const query = useRecipe(recipeId);
     const profile = useUserProfile();
     const deleteRecipe = useDeleteRecipe();
@@ -82,6 +80,7 @@ export function RecipeDetailScreen({
     const cloneRecipe = useCloneRecipe();
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
+    const [deleteOpen, setDeleteOpen] = useState(false);
     // The viewer's OPTIMISTIC rating action this session, or undefined to defer to the server. The detail's
     // `viewerRating` (the viewer's own prior rating) is the source of truth and pre-selects on load; this only
     // bridges the write→refetch gap so the stars don't flicker back before the refetch lands. See
@@ -207,24 +206,18 @@ export function RecipeDetailScreen({
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={t.deleteAction}
-                        // A native Alert, not a custom Modal/inline dialog: the destructive confirm is a
-                        // standard Android dialog that overlays the screen and owns its own back handling, so
-                        // it is always reachable regardless of scroll position and doesn't fight the surface
-                        // stack's back navigation.
-                        onPress={() =>
-                            Alert.alert(deleteDialog.title, fillTemplate(deleteDialog.body, { title: recipe.title }), [
-                                { text: deleteDialog.cancel, style: 'cancel' },
-                                {
-                                    text: deleteDialog.confirm,
-                                    style: 'destructive',
-                                    onPress: () => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() }),
-                                },
-                            ])
-                        }
+                        onPress={() => setDeleteOpen(true)}
                         style={styles.deleteAction}
                     >
                         <Text style={styles.deleteActionLabel}>{t.deleteAction}</Text>
                     </Pressable>
+                    <RecipeDeleteDialog
+                        recipeTitle={recipe.title}
+                        open={deleteOpen}
+                        deleting={deleteRecipe.isPending}
+                        onConfirm={() => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() })}
+                        onCancel={() => setDeleteOpen(false)}
+                    />
                 </View>
             )}
 

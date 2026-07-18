@@ -8,7 +8,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeActionMessages } from './messages.js';
@@ -23,52 +23,42 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
 }) => {
     const { deleteDialog } = useMessages(recipeActionMessages);
 
-    // A Modal, not inline content: a destructive confirm must overlay the screen (centered, above the detail's
-    // scroll) rather than render at the foot of a scrolling list where it can sit below the fold / behind the
-    // navigation bar and never be reached. `visible={open}` renders nothing while closed.
+    if (!open) {
+        return null;
+    }
+
     return (
-        <Modal visible={open} transparent animationType="fade" onRequestClose={onCancel}>
-            <View style={styles.backdrop}>
-                <View accessibilityRole="alert" accessibilityLabel={deleteDialog.title} style={styles.card}>
-                    <Text accessibilityRole="header" style={styles.title}>
-                        {deleteDialog.title}
-                    </Text>
-                    <Text style={styles.body}>{fillTemplate(deleteDialog.body, { title: recipeTitle })}</Text>
-                    <View style={styles.actions}>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={deleteDialog.cancel}
-                            onPress={onCancel}
-                            style={styles.cancelButton}
-                        >
-                            <Text style={styles.cancelLabel}>{deleteDialog.cancel}</Text>
-                        </Pressable>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={deleteDialog.confirm}
-                            aria-busy={deleting || undefined}
-                            disabled={deleting}
-                            onPress={onConfirm}
-                            style={[styles.confirmButton, deleting && styles.confirmButtonBusy]}
-                        >
-                            <Text style={styles.confirmLabel}>{deleteDialog.confirm}</Text>
-                        </Pressable>
-                    </View>
-                    {deleting && <Text style={styles.body}>{deleteDialog.deletingLabel}</Text>}
-                </View>
+        <View accessibilityRole="alert" accessibilityLabel={deleteDialog.title} style={styles.card}>
+            <Text accessibilityRole="header" style={styles.title}>
+                {deleteDialog.title}
+            </Text>
+            <Text style={styles.body}>{fillTemplate(deleteDialog.body, { title: recipeTitle })}</Text>
+            <View style={styles.actions}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={deleteDialog.cancel}
+                    onPress={onCancel}
+                    style={styles.cancelButton}
+                >
+                    <Text style={styles.cancelLabel}>{deleteDialog.cancel}</Text>
+                </Pressable>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={deleteDialog.confirm}
+                    aria-busy={deleting || undefined}
+                    disabled={deleting}
+                    onPress={onConfirm}
+                    style={[styles.confirmButton, deleting && styles.confirmButtonBusy]}
+                >
+                    <Text style={styles.confirmLabel}>{deleteDialog.confirm}</Text>
+                </Pressable>
             </View>
-        </Modal>
+            {deleting && <Text style={styles.body}>{deleteDialog.deletingLabel}</Text>}
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    backdrop: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        backgroundColor: 'rgba(45, 52, 54, 0.45)',
-    },
     card: {
         backgroundColor: palette.white,
         borderRadius: 16,

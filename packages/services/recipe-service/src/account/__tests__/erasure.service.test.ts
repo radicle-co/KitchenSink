@@ -23,9 +23,9 @@
  *     → `describe('the insert race on idx_erasure_jobs_active_owner')`
  *   - **FR-038 (owner scoping)** — every DAL/queue call is keyed on the caller's own `ownerId`.
  *     → asserted throughout
- *   - **T134 (confirmation phrase)** — validated only when provided; a wrong phrase rejects BEFORE any
- *     row is written or message sent.
- *     → `describe('the optional confirmation phrase')`
+ *   - **T134 / U7 (confirmation phrase)** — REQUIRED: an absent, empty, or wrong phrase rejects with 400
+ *     BEFORE any row is written or message sent.
+ *     → `describe('the required confirmation phrase (U7)')`
  *   - **D7 / T136b (durability)** — the ROW is the durable record and the message is derived, so a failed
  *     enqueue must not fail the request nor roll the row back (the cron sweeper re-drains it).
  *     → `describe('a failed enqueue')`
@@ -37,13 +37,16 @@ import { ACCOUNT_ALREADY_ERASED_CODE } from '@kitchensink/recipe-core';
 import type { ErasureJobsDal } from '../dal/erasure-jobs.dal.js';
 import type { ErasureQueuePort } from '../erasure.queue.js';
 import { ErasureService, MAX_ERASURE_REQUEST_ATTEMPTS } from '../erasure.service.js';
-import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '../dto/erasure.dto.js';
+import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, type ErasureRequestDto } from '../dto/erasure.dto.js';
 import { makeActiveErasureJob } from '../__fixtures__/erasure.fixtures.js';
 
 type DalMock = { [K in keyof ErasureJobsDal]: ReturnType<typeof vi.fn> };
 type QueueMock = { [K in keyof ErasureQueuePort]: ReturnType<typeof vi.fn> };
 
 const OWNER = 'owner-1';
+// The confirmation phrase is REQUIRED (U7). Every happy-path request must carry the exact phrase; tests
+// that specifically exercise a missing/wrong phrase pass their own body.
+const CONFIRMED = { confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE };
 const NOW = '2026-07-16T12:00:00.000Z';
 const NEW_JOB_ID = '00000000-0000-4000-8000-00000000new1';
 const EXISTING_JOB_ID = '00000000-0000-4000-8000-000000000ex1';
@@ -84,14 +87,14 @@ afterEach(() => {
 
 describe('a first erasure request', () => {
     it('inserts a queued job for the caller and returns 202 with the new job id', async () => {
-        const result = await service.requestErasure(OWNER);
+        const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER);
         expect(result).toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
     });
 
     it('enqueues exactly one message carrying the owner and the request time', async () => {
-        await service.requestErasure(OWNER);
+        await service.requestErasure(OWNER, CONFIRMED);
 
         expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW });
     });
@@ -109,7 +112,7 @@ describe('a first erasure request', () => {
             return Promise.resolve();
         });
 
-        await service.requestErasure(OWNER);
+        await service.requestErasure(OWNER, CONFIRMED);
 
         expect(order).toEqual(['insert', 'enqueue']);
     });
@@ -121,7 +124,7 @@ describe('a duplicate request while a job is in flight', () => {
         dal.insertQueuedJob.mockResolvedValue(undefined);
         dal.findActiveJob.mockResolvedValue(makeActiveErasureJob({ id: EXISTING_JOB_ID, status: 'queued' }));
 
-        const result = await service.requestErasure(OWNER);
+        const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(result).toEqual({ jobId: EXISTING_JOB_ID, status: 'queued' });
         expect(result.jobId).not.toBe(NEW_JOB_ID);
@@ -132,7 +135,7 @@ describe('a duplicate request while a job is in flight', () => {
         dal.insertQueuedJob.mockResolvedValue(undefined);
         dal.findActiveJob.mockResolvedValue(makeActiveErasureJob({ id: EXISTING_JOB_ID, status: 'running' }));
 
-        const result = await service.requestErasure(OWNER);
+        const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(result).toEqual({ jobId: EXISTING_JOB_ID, status: 'running' });
         expect(queue.enqueue).not.toHaveBeenCalled();
@@ -142,7 +145,7 @@ describe('a duplicate request while a job is in flight', () => {
         dal.insertQueuedJob.mockResolvedValue(undefined);
         dal.findActiveJob.mockResolvedValue(makeActiveErasureJob());
 
-        await service.requestErasure(OWNER);
+        await service.requestErasure(OWNER, CONFIRMED);
 
         expect(dal.findActiveJob).toHaveBeenCalledExactlyOnceWith(OWNER);
     });
@@ -152,7 +155,7 @@ describe('a request after a completed job', () => {
     it('rejects with 410 ALREADY_ERASED', async () => {
         dal.hasCompletedJob.mockResolvedValue(true);
 
-        const error = await service.requestErasure(OWNER).catch((caught: unknown) => caught);
+        const error = await service.requestErasure(OWNER, CONFIRMED).catch((caught: unknown) => caught);
 
         expect(error).toBeInstanceOf(GoneException);
         expect((error as GoneException).getStatus()).toBe(410);
@@ -165,7 +168,7 @@ describe('a request after a completed job', () => {
     it('never writes a row or enqueues a message for an already-erased account', async () => {
         dal.hasCompletedJob.mockResolvedValue(true);
 
-        await service.requestErasure(OWNER).catch(() => undefined);
+        await service.requestErasure(OWNER, CONFIRMED).catch(() => undefined);
 
         expect(dal.insertQueuedJob).not.toHaveBeenCalled();
         expect(queue.enqueue).not.toHaveBeenCalled();
@@ -174,7 +177,7 @@ describe('a request after a completed job', () => {
     it('checks the completed state for the caller own owner id', async () => {
         dal.hasCompletedJob.mockResolvedValue(true);
 
-        await service.requestErasure(OWNER).catch(() => undefined);
+        await service.requestErasure(OWNER, CONFIRMED).catch(() => undefined);
 
         expect(dal.hasCompletedJob).toHaveBeenCalledExactlyOnceWith(OWNER);
     });
@@ -186,7 +189,7 @@ describe('a request after a failed job', () => {
         dal.hasCompletedJob.mockResolvedValue(false);
         dal.insertQueuedJob.mockResolvedValue(NEW_JOB_ID);
 
-        const result = await service.requestErasure(OWNER);
+        const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(result).toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
         expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW });
@@ -203,7 +206,7 @@ describe('the insert race on idx_erasure_jobs_active_owner', () => {
         dal.insertQueuedJob.mockResolvedValue(undefined);
         dal.findActiveJob.mockResolvedValue(makeActiveErasureJob({ id: EXISTING_JOB_ID, status: 'queued' }));
 
-        await expect(service.requestErasure(OWNER)).resolves.toEqual({
+        await expect(service.requestErasure(OWNER, CONFIRMED)).resolves.toEqual({
             jobId: EXISTING_JOB_ID,
             status: 'queued',
         });
@@ -214,7 +217,7 @@ describe('the insert race on idx_erasure_jobs_active_owner', () => {
         dal.insertQueuedJob.mockResolvedValueOnce(undefined);
         dal.findActiveJob.mockResolvedValueOnce(undefined);
 
-        const error = await service.requestErasure(OWNER).catch((caught: unknown) => caught);
+        const error = await service.requestErasure(OWNER, CONFIRMED).catch((caught: unknown) => caught);
 
         expect(error).toBeInstanceOf(GoneException);
         expect(queue.enqueue).not.toHaveBeenCalled();
@@ -225,7 +228,7 @@ describe('the insert race on idx_erasure_jobs_active_owner', () => {
         dal.insertQueuedJob.mockResolvedValueOnce(undefined).mockResolvedValueOnce(NEW_JOB_ID);
         dal.findActiveJob.mockResolvedValueOnce(undefined);
 
-        const result = await service.requestErasure(OWNER);
+        const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(result).toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
         expect(dal.insertQueuedJob).toHaveBeenCalledTimes(2);
@@ -237,7 +240,7 @@ describe('the insert race on idx_erasure_jobs_active_owner', () => {
         dal.insertQueuedJob.mockResolvedValue(undefined);
         dal.findActiveJob.mockResolvedValue(undefined);
 
-        const error = await service.requestErasure(OWNER).catch((caught: unknown) => caught);
+        const error = await service.requestErasure(OWNER, CONFIRMED).catch((caught: unknown) => caught);
 
         expect(error).toBeInstanceOf(ServiceUnavailableException);
         expect(dal.insertQueuedJob).toHaveBeenCalledTimes(MAX_ERASURE_REQUEST_ATTEMPTS);
@@ -245,13 +248,23 @@ describe('the insert race on idx_erasure_jobs_active_owner', () => {
     });
 });
 
-describe('the optional confirmation phrase', () => {
-    it('proceeds when the body is absent entirely', async () => {
-        await expect(service.requestErasure(OWNER)).resolves.toMatchObject({ status: 'queued' });
+describe('the required confirmation phrase (U7)', () => {
+    it('REJECTS with 400 when the body is absent entirely — the phrase is required, no intent gate is fatal', async () => {
+        // The most dangerous no-op: a request with no body at all cannot slip past the intent gate and
+        // trigger irreversible erasure. The service enforces it directly (a request with no body bypasses
+        // the DTO pipe), so nothing is written or enqueued.
+        const error = await service.requestErasure(OWNER).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(dal.insertQueuedJob).not.toHaveBeenCalled();
+        expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
-    it('proceeds when the body carries no phrase', async () => {
-        await expect(service.requestErasure(OWNER, {})).resolves.toMatchObject({ status: 'queued' });
+    it('REJECTS with 400 when the body carries no phrase', async () => {
+        await expect(service.requestErasure(OWNER, {} as ErasureRequestDto)).rejects.toBeInstanceOf(
+            BadRequestException,
+        );
+        expect(dal.insertQueuedJob).not.toHaveBeenCalled();
     });
 
     it('proceeds when the provided phrase matches', async () => {
@@ -313,17 +326,20 @@ describe('a failed enqueue', () => {
     });
 
     it('still returns 202 — the row is the durable record and the sweeper re-drains it', async () => {
-        await expect(service.requestErasure(OWNER)).resolves.toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
+        await expect(service.requestErasure(OWNER, CONFIRMED)).resolves.toEqual({
+            jobId: NEW_JOB_ID,
+            status: 'queued',
+        });
     });
 
     it('keeps the queued row written (it is never rolled back on an enqueue failure)', async () => {
-        await service.requestErasure(OWNER);
+        await service.requestErasure(OWNER, CONFIRMED);
 
         expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER);
     });
 
     it('reports the failure to the operator, naming the job left for the sweeper', async () => {
-        await service.requestErasure(OWNER);
+        await service.requestErasure(OWNER, CONFIRMED);
 
         expect(logged).toHaveBeenCalledOnce();
         expect(String(logged.mock.calls[0]?.[0])).toContain(NEW_JOB_ID);
@@ -332,7 +348,7 @@ describe('a failed enqueue', () => {
     it('does not leak the SQS failure detail to the caller', async () => {
         queue.enqueue.mockRejectedValue(new Error('SQS unavailable: secret-queue-arn'));
 
-        const result = await service.requestErasure(OWNER);
+        const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(JSON.stringify(result)).not.toContain('secret-queue-arn');
     });

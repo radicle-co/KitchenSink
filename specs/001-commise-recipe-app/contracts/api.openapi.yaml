@@ -995,7 +995,7 @@ paths:
                 job a fresh retry is accepted (202 with a new job id).
             operationId: requestAccountErasure
             requestBody:
-                required: false
+                required: true
                 content:
                     application/json:
                         schema:
@@ -1011,8 +1011,8 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErasureRequestAcceptedResponse'
-                # Only reachable when the client chooses to send a `confirmationPhrase` and it does
-                # not match; an absent phrase is not an error (see the ErasureRequest schema).
+                # The confirmation phrase is REQUIRED (U7): a missing, empty, or non-matching phrase
+                # returns 400 before any job is enqueued (see the ErasureRequest schema).
                 '400':
                     $ref: '#/components/responses/BadRequest'
                 '401':
@@ -2136,12 +2136,16 @@ components:
 
         ErasureRequest:
             type: object
+            required: [confirmationPhrase]
             properties:
                 confirmationPhrase:
                     type: string
+                    minLength: 1
+                    maxLength: 100
                     description: |
-                        Optional client-supplied confirmation phrase (e.g. "ERASE MY DATA").
-                        When provided the server validates it before queuing the job.
+                        REQUIRED exact-match confirmation phrase ("ERASE MY DATA"). Erasure is
+                        irreversible, so the server rejects a missing, empty, or non-matching phrase
+                        with 400 before queuing the job (surrounding whitespace tolerated, case is not).
 
         ErasureRequestAcceptedResponse:
             type: object

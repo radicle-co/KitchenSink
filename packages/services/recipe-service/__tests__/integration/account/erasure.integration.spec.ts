@@ -15,12 +15,10 @@
  *   * C-007 "after a completed job → 410 ALREADY_ERASED"
  *     → `describe('POST /v1/account/erasure over the wire')`
  *       → 'answers 410 with the contract ALREADY_ERASED body once a prior job completed'
- *   * `ErasureRequest.confirmationPhrase` "validated when provided" → 400
+ *   * `ErasureRequest.confirmationPhrase` REQUIRED (U7) — a mismatched, empty, or absent phrase → 400
  *     → `describe('POST /v1/account/erasure over the wire')`
  *       → 'answers 400 for a mismatched confirmation phrase without recording a job'
- *   * `requestBody.required: false` — an absent body is not an error
- *     → `describe('POST /v1/account/erasure over the wire')`
- *       → 'accepts a request with no body and no content-type'
+ *       → 'REJECTS a request with no body and no content-type with 400 — the phrase is required (U7)'
  *
  * **Scope — what this tier is FOR, and what it deliberately leaves alone.** The unit tier
  * (`src/account/__tests__/*`) already pins the C-007 outcome map, the phrase rules, the enqueue
@@ -75,6 +73,8 @@ const OWNER = '01JERASUREHTTP0OWNER00000A';
  * connection starvation — which would quietly turn this into a sequential test that still passed.
  */
 const CONCURRENT_REQUESTS = 4;
+/** The required confirmation body (U7) every happy-path request must carry to be accepted. */
+const CONFIRMED = { confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE };
 
 /** The `202` body shape (`ErasureRequestAcceptedResponse`). */
 interface AcceptedBody {
@@ -195,7 +195,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
 
     describe('POST /v1/account/erasure over the wire', () => {
         it('answers 202 — not the POST default 201 — and durably records a queued job', async () => {
-            const response = await postErasure({});
+            const response = await postErasure(CONFIRMED);
 
             // 202 is a contract term, and it is ONLY observable here: the unit tier calls the controller
             // method directly and never sees a status, so a dropped `@HttpCode` would ship green there.
@@ -210,7 +210,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
         });
 
         it('sends exactly one real erasure message carrying the authenticated owner', async () => {
-            await postErasure({});
+            await postErasure(CONFIRMED);
 
             const messages = await drainQueue();
 
@@ -224,7 +224,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
         it('answers 410 with the contract ALREADY_ERASED body once a prior job completed', async () => {
             await db.insert(accountErasureJobs).values({ ownerId: OWNER, status: 'completed' });
 
-            const response = await postErasure({});
+            const response = await postErasure(CONFIRMED);
 
             expect(response.status).toBe(410);
             expect(response.headers.get('content-type')).toContain('application/json');
@@ -252,14 +252,18 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
             expect(await drainQueue()).toHaveLength(0);
         });
 
-        it('accepts a request with no body and no content-type', async () => {
-            // `requestBody.required: false`. This is an Express/Nest body-parsing fact — with no
-            // content-type there is no parsed body at all, and the DTO + ValidationPipe must tolerate it.
-            // A unit test passing `undefined` to the controller cannot observe the parser.
+        it('REJECTS a request with no body and no content-type with 400 — the phrase is required (U7)', async () => {
+            // The most dangerous path: with no content-type there is no parsed body, so the DTO pipe has
+            // nothing to validate — the request would slip past the pipe entirely. Only the SERVICE-level
+            // gate (ErasureService requires the phrase) catches it, so a no-body request must 400 and
+            // enqueue nothing. This is exactly the "irreversible erasure with no intent gate" the
+            // confirmation requirement closes; a unit test passing `undefined` to the controller cannot
+            // observe the real parser + pipe interaction.
             const response = await postErasure();
 
-            expect(response.status).toBe(202);
-            expect(((await response.json()) as AcceptedBody).status).toBe('queued');
+            expect(response.status).toBe(400);
+            expect(await readJobs()).toHaveLength(0);
+            expect(await drainQueue()).toHaveLength(0);
         });
 
         it('accepts the exact confirmation phrase and enqueues', async () => {
@@ -283,7 +287,9 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
             // exist, and every caller must be told the same job id. A serialised run therefore never
             // makes this test WRONG, only weaker; an overlapped run additionally proves the index
             // arbitrates. The deterministic proof that the index itself is real is the sibling test.
-            const responses = await Promise.all(Array.from({ length: CONCURRENT_REQUESTS }, () => postErasure({})));
+            const responses = await Promise.all(
+                Array.from({ length: CONCURRENT_REQUESTS }, () => postErasure(CONFIRMED)),
+            );
 
             expect(responses.map((response) => response.status)).toEqual(
                 Array.from({ length: CONCURRENT_REQUESTS }, () => 202),
@@ -306,7 +312,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
         });
 
         it('are arbitrated by idx_erasure_jobs_active_owner, not by application code', async () => {
-            const first = await postErasure({});
+            const first = await postErasure(CONFIRMED);
             expect(first.status).toBe(202);
 
             // The deterministic half of the concurrency story. The test above cannot force an overlap, so

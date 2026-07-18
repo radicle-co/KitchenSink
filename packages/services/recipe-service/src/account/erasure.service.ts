@@ -137,26 +137,23 @@ export class ErasureService {
 }
 
 /**
- * Reject a supplied confirmation phrase that does not match {@link ACCOUNT_ERASURE_CONFIRMATION_PHRASE}.
+ * Require an exact-match confirmation phrase before an irreversible erasure (U7 — owner decision
+ * 2026-07-18: the phrase is REQUIRED, not optional).
  *
- * Per the contract the phrase is optional — "when provided the server validates it" — so an absent field
- * is not an error. An EMPTY string is: a client that sent the key meant to confirm and got it wrong,
- * and silently erasing an account on a blank confirmation is the opposite of what the field is for.
+ * An absent or empty phrase is rejected: erasure is unrecoverable, so it must never proceed without a
+ * deliberate intent gate. The service enforces this directly rather than relying on the DTO pipe alone,
+ * because a request sent with NO body at all bypasses the pipe entirely — the service always runs, so the
+ * gate lives here too.
  *
  * Surrounding whitespace is tolerated (a paste artefact, not a different intent) but case is not: the
- * phrase gates an irreversible, unrecoverable action, and the value of a confirmation ritual is that it
- * is deliberate. The rejection deliberately does NOT echo the expected phrase — a confirmation a client
- * can learn by guessing once is not a confirmation.
+ * value of a confirmation ritual is that it is deliberate. The rejection deliberately does NOT echo the
+ * expected phrase — a confirmation a client can learn by guessing once is not a confirmation.
  *
  * @param phrase - The client-supplied phrase, if any.
- * @throws {BadRequestException} (→ 400) when a phrase is present and does not match. Pure otherwise.
+ * @throws {BadRequestException} (→ 400) when the phrase is absent, empty, or does not match. Pure otherwise.
  */
 function assertConfirmationPhrase(phrase: string | undefined): void {
-    if (phrase === undefined) {
-        return;
-    }
-
-    if (phrase.trim() !== ACCOUNT_ERASURE_CONFIRMATION_PHRASE) {
+    if (phrase === undefined || phrase.trim() !== ACCOUNT_ERASURE_CONFIRMATION_PHRASE) {
         throw new BadRequestException('The confirmation phrase does not match.');
     }
 }

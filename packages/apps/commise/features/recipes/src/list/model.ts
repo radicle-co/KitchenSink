@@ -97,4 +97,24 @@ export interface RecipeListViewProps {
     readonly onSelectRecipe: (id: string) => void;
     readonly onCreateRecipe: () => void;
     readonly onRetry: () => void;
+    /** Optional My/Community source tabs (L5). Absent → no tab control (e.g. mobile uses shell tabs). */
+    readonly tab?: RecipeListTabControl;
+    /** Optional quick-filter chip row (L4). Absent → no chips. */
+    readonly filters?: RecipeListFilterControl;
+}
+
+/** Which recipe source the list shows (L5). */
+export type RecipeListTab = 'mine' | 'community';
+
+/** The My/Community source-tab control (L5) — the active tab plus a change callback. */
+export interface RecipeListTabControl {
+    readonly active: RecipeListTab;
+    readonly onChange: (tab: RecipeListTab) => void;
+}
+
+/** The quick-filter chip control (L4): the available facet values, the active subset, and a toggle. */
+export interface RecipeListFilterControl {
+    readonly available: readonly string[];
+    readonly active: readonly string[];
+    readonly onToggle: (value: string) => void;
 }

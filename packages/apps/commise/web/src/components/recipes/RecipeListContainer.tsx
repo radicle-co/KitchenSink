@@ -43,23 +43,36 @@ function toListStatus(isLoading: boolean, isError: boolean): RecipeListStatus {
 export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) => {
     const router = useRouter();
     const [searchValue, setSearchValue] = useState('');
+    const [activeTags, setActiveTags] = useState<readonly string[]>([]);
     const query = useRecipes();
 
     const status = toListStatus(query.isLoading, query.isError);
 
-    // Derive the visible rows from the query cache (never copied into local state) and narrow them by the
-    // search term. `useRecipes` has no server-side query param, so search filters the loaded page here;
-    // full-text search across the whole library is a follow-up via `useSearchRecipes` (see notes).
+    // All loaded rows, projected from the query cache (never copied into local state).
+    const allItems = useMemo<readonly RecipeListItem[]>(
+        () => (query.data?.data ?? []).map(toRecipeListItem),
+        [query.data],
+    );
+
+    // The quick-filter facets (L4): the sorted union of tags across the loaded library, so the chip row
+    // reflects what the caller actually has. Derived from the FULL set so a chip doesn't vanish when its own
+    // filter empties the visible rows.
+    const availableTags = useMemo(
+        () => [...new Set(allItems.flatMap((item) => item.tags))].sort((a, b) => a.localeCompare(b)),
+        [allItems],
+    );
+
+    // Narrow by the search term (client-side — `useRecipes` has no server query param) AND by every active
+    // tag chip (a row must carry ALL selected tags).
     const recipes = useMemo<readonly RecipeListItem[]>(() => {
-        const items = (query.data?.data ?? []).map(toRecipeListItem);
         const term = searchValue.trim().toLowerCase();
 
-        if (term.length === 0) {
-            return items;
-        }
-
-        return items.filter((item) => item.title.toLowerCase().includes(term));
-    }, [query.data, searchValue]);
+        return allItems.filter(
+            (item) =>
+                (term.length === 0 || item.title.toLowerCase().includes(term)) &&
+                activeTags.every((tag) => item.tags.includes(tag)),
+        );
+    }, [allItems, searchValue, activeTags]);
 
     return (
         <RecipeList
@@ -70,6 +83,24 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
             onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
             onRetry={() => void query.refetch()}
+            // L5: "My Recipes" is this list; "Community" browses public recipes on the discover surface (the
+            // same model the mobile shell uses — functional parity, not identical chrome).
+            tab={{
+                active: 'mine',
+                onChange: (next) => {
+                    if (next === 'community') {
+                        router.push(`/${locale}/discover` as Route);
+                    }
+                },
+            }}
+            filters={{
+                available: availableTags,
+                active: activeTags,
+                onToggle: (tag) =>
+                    setActiveTags((current) =>
+                        current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag],
+                    ),
+            }}
         />
     );
 };

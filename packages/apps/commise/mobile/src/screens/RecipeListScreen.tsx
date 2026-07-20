@@ -28,23 +28,30 @@ const noop = (): void => undefined;
  */
 export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
+    const [activeTags, setActiveTags] = useState<readonly string[]>([]);
     const query = useRecipes();
 
     const status: RecipeListStatus = query.isError ? 'error' : query.isLoading ? 'loading' : 'ready';
 
-    // Derive the rows from the query cache (never copy server data into local state) and filter the loaded
-    // page by title client-side. Server-side text search (`useSearchRecipes`) is the follow-up when search
-    // needs to reach beyond the current page.
+    // Derive the rows from the query cache (never copy server data into local state).
+    const allItems = useMemo(() => (query.data ? query.data.data.map(toRecipeListItem) : []), [query.data]);
+
+    // Quick-filter facets (L4): the sorted union of the loaded library's tags (parity with the web container).
+    const availableTags = useMemo(
+        () => [...new Set(allItems.flatMap((item) => item.tags))].sort((a, b) => a.localeCompare(b)),
+        [allItems],
+    );
+
+    // Filter the loaded page by the title term AND every active tag chip (a row must carry ALL selected tags).
     const recipes = useMemo(() => {
-        const items = query.data ? query.data.data.map(toRecipeListItem) : [];
         const term = searchValue.trim().toLowerCase();
 
-        if (term.length === 0) {
-            return items;
-        }
-
-        return items.filter((item) => item.title.toLowerCase().includes(term));
-    }, [query.data, searchValue]);
+        return allItems.filter(
+            (item) =>
+                (term.length === 0 || item.title.toLowerCase().includes(term)) &&
+                activeTags.every((tag) => item.tags.includes(tag)),
+        );
+    }, [allItems, searchValue, activeTags]);
 
     return (
         <RecipeList
@@ -55,6 +62,15 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             onSelectRecipe={onSelectRecipe}
             onCreateRecipe={onCreateRecipe ?? noop}
             onRetry={() => void query.refetch()}
+            // Community switching is the shell's Discover tab on mobile, so no in-list tab here (L5 parity).
+            filters={{
+                available: availableTags,
+                active: activeTags,
+                onToggle: (tag) =>
+                    setActiveTags((current) =>
+                        current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag],
+                    ),
+            }}
         />
     );
 }

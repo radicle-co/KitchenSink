@@ -4,7 +4,7 @@
  * retry) — plus search filtering and navigation on select/create. The recipe hook + Next router are
  * mocked, so no backend or QueryClient is needed.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -150,5 +150,47 @@ describe('RecipeListContainer', () => {
 
         expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).not.toBeInTheDocument();
+    });
+
+    it('navigates to the discover surface when the Community tab is chosen (L5)', async () => {
+        const user = userEvent.setup();
+        useRecipesMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
+            refetch: refetchMock,
+        });
+
+        render(<RecipeListContainer locale="en" />);
+
+        await user.click(screen.getByRole('tab', { name: 'Community' }));
+
+        expect(pushMock).toHaveBeenCalledWith('/en/discover');
+    });
+
+    it('derives quick-filter chips from the loaded tags and filters by an active chip (L4)', async () => {
+        const user = userEvent.setup();
+        useRecipesMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeRecipesPage([
+                makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta', tags: ['quick'] }),
+                makeRecipe({ id: 'rec_2', title: 'Sunday Roast', tags: ['weekend'] }),
+            ]),
+            refetch: refetchMock,
+        });
+
+        render(<RecipeListContainer locale="en" />);
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        // Both tags surface as chips (sorted union of the loaded library's tags).
+        expect(within(chips).getByRole('button', { name: 'quick' })).toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: 'weekend' })).toBeInTheDocument();
+
+        await user.click(within(chips).getByRole('button', { name: 'quick' }));
+
+        // Only the recipe carrying the active tag remains.
+        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Sunday Roast' })).not.toBeInTheDocument();
     });
 });

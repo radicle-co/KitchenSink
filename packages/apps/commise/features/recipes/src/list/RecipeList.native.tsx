@@ -21,9 +21,12 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     onSelectRecipe,
     onCreateRecipe,
     onRetry,
+    tab,
+    filters,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
+    const onCommunity = tab?.active === 'community';
 
     let body: ReactElement;
 
@@ -42,12 +45,14 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         // Empty ≠ no-match: an active search that filtered every row out is NOT "no recipes yet" (the caller
         // has recipes) — it's a no-match. Distinguishing them keeps the empty-state copy honest.
         const searching = searchValue.trim().length > 0;
+        const emptyTitle = onCommunity ? list.emptyCommunityTitle : list.emptyTitle;
+        const emptyBody = onCommunity ? list.emptyCommunityBody : list.emptyBody;
         body = (
             <View style={styles.emptyBody}>
-                <Text>{searching ? list.noMatchTitle : list.emptyTitle}</Text>
-                <Text>{searching ? list.noMatchBody : list.emptyBody}</Text>
-                {!searching && (
-                    // Empty-state CTA — the SOLE create control here; the floating FAB is suppressed on empty.
+                <Text>{searching ? list.noMatchTitle : emptyTitle}</Text>
+                <Text>{searching ? list.noMatchBody : emptyBody}</Text>
+                {!searching && !onCommunity && (
+                    // Empty-state CTA — the SOLE create control here; the FAB is suppressed on empty/community.
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={list.emptyCreateCta}
@@ -78,8 +83,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     }
 
     // FAB is the persistent create control (L1), pinned OUTSIDE the header, present across loading / error /
-    // populated; suppressed only in the true empty state where the empty CTA is the single create affordance.
+    // populated; suppressed in the true empty state (the empty CTA is the create control) AND on Community (L5).
     const isEmpty = status === 'ready' && recipes.length === 0 && searchValue.trim().length === 0;
+    const showFab = !isEmpty && !onCommunity;
 
     return (
         <View accessibilityLabel={list.heading} style={styles.container}>
@@ -88,6 +94,29 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                     {list.heading}
                 </Text>
             </View>
+
+            {tab !== undefined && (
+                <View accessibilityRole="tablist" accessibilityLabel={list.tabsLabel} style={styles.tabs}>
+                    {(['mine', 'community'] as const).map((value) => {
+                        const selected = tab.active === value;
+
+                        return (
+                            <Pressable
+                                key={value}
+                                accessibilityRole="tab"
+                                accessibilityState={{ selected }}
+                                onPress={() => tab.onChange(value)}
+                                style={[styles.tab, selected && styles.tabSelected]}
+                            >
+                                <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
+                                    {value === 'mine' ? list.tabMine : list.tabCommunity}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+            )}
+
             <TextInput
                 accessibilityLabel={list.searchLabel}
                 placeholder={list.searchPlaceholder}
@@ -96,9 +125,30 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 onChangeText={onSearchChange}
                 style={styles.search}
             />
+
+            {filters !== undefined && filters.available.length > 0 && (
+                <View accessibilityLabel={list.filtersLabel} style={styles.chips}>
+                    {filters.available.map((value) => {
+                        const active = filters.active.includes(value);
+
+                        return (
+                            <Pressable
+                                key={value}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                onPress={() => filters.onToggle(value)}
+                                style={[styles.chip, active && styles.chipActive]}
+                            >
+                                <Text style={active ? styles.chipLabelActive : styles.chipLabel}>{value}</Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+            )}
+
             {body}
 
-            {!isEmpty && (
+            {showFab && (
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={list.createCta}
@@ -124,6 +174,16 @@ const styles = StyleSheet.create({
     },
     createLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     emptyBody: { gap: 12, alignItems: 'flex-start' },
+    tabs: { flexDirection: 'row', gap: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(178, 190, 195, 0.3)' },
+    tab: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tabSelected: { borderBottomColor: palette.seafoam },
+    tabLabel: { fontSize: 14, fontWeight: '600', color: palette.slate },
+    tabLabelSelected: { color: palette.seafoam },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: palette.pearl },
+    chipActive: { backgroundColor: palette.seafoam },
+    chipLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
+    chipLabelActive: { fontSize: 14, fontWeight: '500', color: palette.white },
     fab: {
         position: 'absolute',
         right: 16,

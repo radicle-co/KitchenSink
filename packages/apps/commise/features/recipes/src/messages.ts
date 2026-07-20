@@ -28,10 +28,22 @@ export interface RecipeListMessages {
     readonly emptyTitle: string;
     /** Body copy of the empty state. */
     readonly emptyBody: string;
+    /** Heading of the Community-tab empty state (no community recipes) — distinct from the owner's empty. */
+    readonly emptyCommunityTitle: string;
+    /** Body copy of the Community-tab empty state. */
+    readonly emptyCommunityBody: string;
     /** Heading of the no-match state (the caller HAS recipes, but none match the active search). */
     readonly noMatchTitle: string;
     /** Body copy of the no-match state. */
     readonly noMatchBody: string;
+    /** Label of the "My Recipes" source tab (L5). */
+    readonly tabMine: string;
+    /** Label of the "Community" source tab (L5). */
+    readonly tabCommunity: string;
+    /** Accessible name for the source-tab control. */
+    readonly tabsLabel: string;
+    /** Accessible name for the quick-filter chip row (L4). */
+    readonly filtersLabel: string;
     /** Label of the create-recipe call to action (the pinned FAB). */
     readonly createCta: string;
     /** Label of the empty-state create call to action (the sole create control when the list is empty). */
@@ -176,10 +188,16 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             loadingLabel: 'Loading recipes',
             emptyTitle: 'No recipes yet',
             emptyBody: 'Create your first recipe to see it here.',
+            emptyCommunityTitle: 'No community recipes',
+            emptyCommunityBody: 'There are no public recipes to explore yet. Check back soon.',
             noMatchTitle: 'No matching recipes',
             noMatchBody: 'No recipes match your search. Try a different term.',
             createCta: 'New recipe',
             emptyCreateCta: 'Create your first recipe',
+            tabMine: 'My Recipes',
+            tabCommunity: 'Community',
+            tabsLabel: 'Recipe source',
+            filtersLabel: 'Quick filters',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
         },

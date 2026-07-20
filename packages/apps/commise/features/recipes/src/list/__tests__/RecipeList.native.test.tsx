@@ -99,6 +99,54 @@ describe('RecipeList (native) — create FAB (L1)', () => {
     });
 });
 
+describe('RecipeList (native) — source tabs (L5)', () => {
+    it('renders no tab control when no tab prop is given', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        expect(screen.queryByText('Community')).toBeNull();
+    });
+
+    it('renders My Recipes / Community tabs and reports a change upward', () => {
+        const onChange = vi.fn();
+        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange } });
+
+        expect(screen.getByText('My Recipes')).toBeTruthy();
+        fireEvent.click(screen.getByText('Community'));
+
+        expect(onChange).toHaveBeenCalledWith('community');
+    });
+
+    it('shows the Community empty copy and NO FAB on the Community tab', () => {
+        renderList({ status: 'ready', recipes: [], tab: { active: 'community', onChange: noop } });
+
+        expect(screen.getByText('No community recipes')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+    });
+});
+
+describe('RecipeList (native) — quick-filter chips (L4)', () => {
+    it('renders no chip row when no filters prop is given', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        expect(screen.queryByLabelText('Quick filters')).toBeNull();
+    });
+
+    it('renders a chip per available facet and reports a toggle upward', () => {
+        const onToggle = vi.fn();
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['vegetarian', 'quick'], active: ['quick'], onToggle },
+        });
+
+        expect(screen.getByLabelText('Quick filters')).toBeTruthy();
+        fireEvent.click(screen.getByText('vegetarian'));
+
+        expect(onToggle).toHaveBeenCalledWith('vegetarian');
+    });
+});
+
 describe('RecipeList (native) — loading state', () => {
     it('shows the loading label and no recipe rows', () => {
         renderList({ status: 'loading' });

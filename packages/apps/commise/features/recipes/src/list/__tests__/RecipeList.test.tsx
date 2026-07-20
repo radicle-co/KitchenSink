@@ -109,6 +109,86 @@ describe('RecipeList (web) — create FAB (L1)', () => {
     });
 });
 
+describe('RecipeList (web) — source tabs (L5)', () => {
+    it('renders no tab control when no tab prop is given (backward compatible)', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        expect(screen.queryByRole('tablist')).toBeNull();
+    });
+
+    it('renders My Recipes / Community tabs with the active one selected', () => {
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            tab: { active: 'mine', onChange: noop },
+        });
+
+        expect(screen.getByRole('tab', { name: 'My Recipes' }).getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByRole('tab', { name: 'Community' }).getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('reports a tab change upward', () => {
+        const onChange = vi.fn();
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            tab: { active: 'mine', onChange },
+        });
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
+
+        expect(onChange).toHaveBeenCalledWith('community');
+    });
+
+    it('shows the distinct Community empty copy and NO FAB on the Community tab', () => {
+        renderList({
+            status: 'ready',
+            recipes: [],
+            tab: { active: 'community', onChange: noop },
+        });
+
+        expect(screen.getByText('No community recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes yet')).toBeNull();
+        // FAB is My-Recipes-only — you never create into the community list.
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+    });
+});
+
+describe('RecipeList (web) — quick-filter chips (L4)', () => {
+    it('renders no chip row when no filters prop is given (backward compatible)', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
+    });
+
+    it('renders one chip per available facet, marking active ones pressed', () => {
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['vegetarian', 'quick'], active: ['quick'], onToggle: noop },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        expect(within(chips).getByRole('button', { name: 'vegetarian' }).getAttribute('aria-pressed')).toBe('false');
+        expect(within(chips).getByRole('button', { name: 'quick' }).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('reports a chip toggle upward with the facet value', () => {
+        const onToggle = vi.fn();
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['vegetarian'], active: [], onToggle },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        fireEvent.click(within(chips).getByRole('button', { name: 'vegetarian' }));
+
+        expect(onToggle).toHaveBeenCalledWith('vegetarian');
+    });
+});
+
 describe('RecipeList (web) — loading state', () => {
     it('shows a busy status and no recipe rows', () => {
         renderList({ status: 'loading' });

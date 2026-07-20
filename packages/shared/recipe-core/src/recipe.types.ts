@@ -116,6 +116,10 @@ export const RecipeSearchSortBy = {
     RELEVANCE: 'relevance',
     RECENT: 'recent',
     TITLE: 'title',
+    /** Most-cloned first (W8-a.9 / FR — popularity) — ordered by how many recipes were cloned from it. */
+    MOST_CLONED: 'most-cloned',
+    /** Quickest first (W8-a.9) — ascending total time (prep + cook + inactive). */
+    QUICKEST: 'quickest',
 } as const;
 
 /**
@@ -130,6 +134,8 @@ export const recipeSearchSortBySchema = z.enum([
     RecipeSearchSortBy.RELEVANCE,
     RecipeSearchSortBy.RECENT,
     RecipeSearchSortBy.TITLE,
+    RecipeSearchSortBy.MOST_CLONED,
+    RecipeSearchSortBy.QUICKEST,
 ]);
 
 /**

@@ -270,6 +270,13 @@ const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined
     // Relevance (default): rank-first when a query is present, otherwise newest-first.
     [RecipeSearchSortBy.RELEVANCE]: (query) =>
         query === undefined ? sql`created_at DESC` : sql`rank DESC, created_at DESC`,
+    // Quickest (W8-a.9): ascending total time; NULLS never occur (total_time is NOT NULL), created_at tiebreak.
+    [RecipeSearchSortBy.QUICKEST]: () => sql`total_time_minutes ASC, created_at DESC`,
+    // Most-cloned (W8-a.9): order by the number of recipes cloned FROM this one — a correlated COUNT over
+    // `cloned_from_id` (already indexed by idx_recipes_cloned_from). created_at is the tiebreak so the common
+    // all-zero case (nothing cloned yet) still pages deterministically newest-first.
+    [RecipeSearchSortBy.MOST_CLONED]: () =>
+        sql`(SELECT count(*) FROM recipes clones WHERE clones.cloned_from_id = recipes.id) DESC, created_at DESC`,
 };
 
 /** The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure. */

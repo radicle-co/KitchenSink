@@ -15,8 +15,12 @@ import type { RecipeSearchParams, RecipeSearchSortBy as RecipeSearchSortByType }
 
 import { MAX_SEARCH_PAGE_SIZE } from '../dal/search.dal.js';
 
-/** The `sortBy` values accepted on the wire. */
-const SEARCH_SORT_BY = [RecipeSearchSortBy.RELEVANCE, RecipeSearchSortBy.RECENT, RecipeSearchSortBy.TITLE] as const;
+/**
+ * The `sortBy` values accepted on the wire — derived from the shared {@link RecipeSearchSortBy} value object
+ * (single source), so a new search sort (W8-a.9 added `most-cloned` + `quickest`) is admitted by adding it to
+ * the enum, with no second list to keep in lockstep here.
+ */
+const SEARCH_SORT_BY = Object.values(RecipeSearchSortBy);
 
 /** Normalize a repeated-or-CSV query param into a trimmed, non-empty `string[]` (or `undefined`). Pure. */
 function toStringArray(value: unknown): string[] | undefined {

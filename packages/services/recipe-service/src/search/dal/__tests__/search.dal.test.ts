@@ -359,4 +359,28 @@ describe('SearchDal.search', () => {
 
         expect(pageSql).toContain('created_at DESC');
     });
+
+    it('orders by ascending total time when sortBy=quickest (W8-a.9)', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({ query: 'pasta', sortBy: RecipeSearchSortBy.QUICKEST }));
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        expect(pageSql).toContain('total_time_minutes ASC');
+        expect(pageSql).toContain('created_at DESC'); // stable tiebreak
+    });
+
+    it('orders by the clone-count correlated subquery when sortBy=most-cloned (W8-a.9)', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({ query: 'pasta', sortBy: RecipeSearchSortBy.MOST_CLONED }));
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        // Popularity = how many recipes were cloned FROM this one, over the indexed cloned_from_id.
+        expect(pageSql).toContain('count(*)');
+        expect(pageSql).toContain('cloned_from_id');
+        expect(pageSql).toContain('created_at DESC'); // the all-zero (nothing cloned) case stays deterministic
+    });
 });

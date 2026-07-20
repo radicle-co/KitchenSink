@@ -8,6 +8,8 @@ import {
     recipeSchema,
     recipeStatusSchema,
     recipeVersionSchema,
+    RecipeSearchSortBy,
+    recipeSearchSortBySchema,
     RecipeErrorCode,
     recipeRatingSchema,
     setRecipeRatingInputSchema,
@@ -237,6 +239,22 @@ describe('recipeVersionSchema — deviceLabel attribution (W8-a.6)', () => {
 
     it('rejects a deviceLabel past the 80-char bound (unbounded free text is not persisted)', () => {
         expect(recipeVersionSchema.safeParse(makeVersion({ deviceLabel: 'x'.repeat(81) })).success).toBe(false);
+    });
+});
+
+describe('recipeSearchSortBySchema (W8-a.9 — most-cloned + quickest added)', () => {
+    it('exposes exactly the five supported search sorts', () => {
+        expect(Object.values(RecipeSearchSortBy).sort()).toEqual(
+            ['most-cloned', 'quickest', 'recent', 'relevance', 'title'].sort(),
+        );
+    });
+
+    it('accepts every enum value and rejects an unknown sort', () => {
+        for (const value of Object.values(RecipeSearchSortBy)) {
+            expect(recipeSearchSortBySchema.parse(value)).toBe(value);
+        }
+
+        expect(recipeSearchSortBySchema.safeParse('popular').success).toBe(false);
     });
 });
 

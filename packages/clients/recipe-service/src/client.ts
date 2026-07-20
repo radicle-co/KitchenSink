@@ -13,7 +13,18 @@
  *   (`NEXT_PUBLIC_API_BASE_URL` on web, `EXPO_PUBLIC_API_URL` on mobile) and injects it, exactly like
  *   `FoodServiceClient`.
  */
-import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
+import {
+    IDENTITY_SYNC_PENDING_CODE,
+    collectionSchema,
+    ingredientSchema,
+    paginatedResponseSchema,
+    recipeDetailSchema,
+    recipePhotoSchema,
+    recipeSchema,
+    recipeVersionSchema,
+    restoreVersionResponseSchema,
+} from '@kitchensink/recipe-core';
+import { z } from 'zod';
 import type {
     Collection,
     CreateRecipeInput,
@@ -132,17 +143,40 @@ function stripLeadingSlash(path: string): string {
     return path.replace(/^\/+/, '');
 }
 
+/** Parse `text` as JSON, or return `undefined` when it is not valid JSON (never throws). */
+function safeJson(text: string): unknown {
+    try {
+        return JSON.parse(text);
+    } catch {
+        return undefined;
+    }
+}
+
 /**
  * Normalize a `fetch`/ky {@link Response} (a success response, or the one carried by a thrown
  * {@link HTTPError}) into a {@link RawResponse}: its status plus the parsed JSON body, or an `undefined`
  * body for an empty/`204` response.
+ *
+ * A **2xx** body must be JSON per the wire contract, so it is parsed strictly — a malformed one is a real
+ * fault that must surface (and the typed methods then validate its shape via the response schema). A
+ * **non-2xx** (error) body, however, is often NOT JSON: the shared internet-facing ALB emits an
+ * HTML/plaintext page for `502`/`503`/`504` during every deploy, and many `500`s return a stack trace.
+ * Parsing that strictly used to throw a raw `SyntaxError` that escaped `toError` entirely — so `is*`
+ * guards returned `false` and consumers crashed generically instead of seeing a recoverable
+ * service-unavailable state. Soften the error-body parse so `toError` maps by status (B16).
  *
  * @sideEffect Reads (consumes) the response body stream.
  */
 async function normalizeResponse(response: Response): Promise<RawResponse> {
     const text = await response.text();
 
-    return { status: response.status, body: text.length > 0 ? JSON.parse(text) : undefined };
+    if (text.length === 0) {
+        return { status: response.status, body: undefined };
+    }
+
+    const body = response.ok ? JSON.parse(text) : safeJson(text);
+
+    return { status: response.status, body };
 }
 
 export class RecipeServiceClient {
@@ -203,11 +237,7 @@ export class RecipeServiceClient {
     public async createRecipe(input: CreateRecipeInput): Promise<RecipeDetail> {
         const res = await this.send('POST', '/v1/recipes', input);
 
-        if (res.status === 201) {
-            return res.body as RecipeDetail;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 201, recipeDetailSchema);
     }
 
     /**
@@ -225,11 +255,7 @@ export class RecipeServiceClient {
             sortBy: params.sortBy,
         });
 
-        if (res.status === 200) {
-            return res.body as PaginatedResponse<Recipe>;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, paginatedResponseSchema(recipeSchema));
     }
 
     /**
@@ -243,11 +269,7 @@ export class RecipeServiceClient {
     public async getRecipeById(id: string): Promise<RecipeDetail> {
         const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}`);
 
-        if (res.status === 200) {
-            return res.body as RecipeDetail;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
@@ -262,11 +284,7 @@ export class RecipeServiceClient {
     public async updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDetail> {
         const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}`, input);
 
-        if (res.status === 200) {
-            return res.body as RecipeDetail;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
@@ -279,11 +297,7 @@ export class RecipeServiceClient {
     public async deleteRecipe(id: string): Promise<void> {
         const res = await this.send('DELETE', `/v1/recipes/${encodeURIComponent(id)}`);
 
-        if (res.status === 204) {
-            return;
-        }
-
-        throw this.toError(res);
+        return this.expectNoContent(res, 204);
     }
 
     /**
@@ -297,11 +311,7 @@ export class RecipeServiceClient {
     public async cloneRecipe(id: string): Promise<RecipeDetail> {
         const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/clone`);
 
-        if (res.status === 201) {
-            return res.body as RecipeDetail;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 201, recipeDetailSchema);
     }
 
     /**
@@ -316,11 +326,7 @@ export class RecipeServiceClient {
     public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeDetail> {
         const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}/visibility`, { visibility });
 
-        if (res.status === 200) {
-            return res.body as RecipeDetail;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
@@ -340,11 +346,7 @@ export class RecipeServiceClient {
     public async setRecipeRating(id: string, input: SetRecipeRatingInput): Promise<RecipeDetail> {
         const res = await this.send('PUT', `/v1/recipes/${encodeURIComponent(id)}/rating`, input);
 
-        if (res.status === 200) {
-            return res.body as RecipeDetail;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
@@ -359,11 +361,7 @@ export class RecipeServiceClient {
     public async deleteRecipeRating(id: string): Promise<void> {
         const res = await this.send('DELETE', `/v1/recipes/${encodeURIComponent(id)}/rating`);
 
-        if (res.status === 204) {
-            return;
-        }
-
-        throw this.toError(res);
+        return this.expectNoContent(res, 204);
     }
 
     // ─── Ingredients ────────────────────────────────────────────────────────────────────────────
@@ -380,11 +378,7 @@ export class RecipeServiceClient {
     public async searchIngredients(query: string, limit?: number): Promise<readonly Ingredient[]> {
         const res = await this.send('GET', '/v1/ingredients/search', undefined, { q: query, limit });
 
-        if (res.status === 200) {
-            return res.body as readonly Ingredient[];
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, z.array(ingredientSchema));
     }
 
     /**
@@ -398,11 +392,7 @@ export class RecipeServiceClient {
     public async createIngredient(name: string): Promise<Ingredient> {
         const res = await this.send('POST', '/v1/ingredients', { name });
 
-        if (res.status === 201) {
-            return res.body as Ingredient;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 201, ingredientSchema);
     }
 
     /**
@@ -421,11 +411,7 @@ export class RecipeServiceClient {
     public async addIngredientByName(name: string): Promise<Ingredient> {
         const res = await this.send('POST', '/v1/ingredients/by-name', { name });
 
-        if (res.status === 202) {
-            return res.body as Ingredient;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 202, ingredientSchema);
     }
 
     /**
@@ -443,11 +429,7 @@ export class RecipeServiceClient {
     public async getIngredientStatus(id: string): Promise<Ingredient> {
         const res = await this.send('GET', `/v1/ingredients/${encodeURIComponent(id)}/status`);
 
-        if (res.status === 200) {
-            return res.body as Ingredient;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, ingredientSchema);
     }
 
     /**
@@ -461,11 +443,7 @@ export class RecipeServiceClient {
     public async getIngredientCandidates(id: string): Promise<readonly IngredientCandidate[]> {
         const res = await this.send('GET', `/v1/ingredients/${encodeURIComponent(id)}/candidates`);
 
-        if (res.status === 200) {
-            return res.body as readonly IngredientCandidate[];
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<readonly IngredientCandidate[]>(res, 200);
     }
 
     /**
@@ -483,11 +461,7 @@ export class RecipeServiceClient {
     public async resolveIngredient(id: string, candidateIds: readonly string[]): Promise<Ingredient> {
         const res = await this.send('POST', `/v1/ingredients/${encodeURIComponent(id)}/resolve`, { candidateIds });
 
-        if (res.status === 200) {
-            return res.body as Ingredient;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, ingredientSchema);
     }
 
     // ─── Versions ───────────────────────────────────────────────────────────────────────────────
@@ -503,11 +477,7 @@ export class RecipeServiceClient {
     public async listRecipeVersions(id: string): Promise<readonly RecipeVersion[]> {
         const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}/versions`);
 
-        if (res.status === 200) {
-            return res.body as readonly RecipeVersion[];
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, z.array(recipeVersionSchema));
     }
 
     /**
@@ -525,11 +495,7 @@ export class RecipeServiceClient {
             `/v1/recipes/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNumber))}`,
         );
 
-        if (res.status === 200) {
-            return res.body as RecipeVersion;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, recipeVersionSchema);
     }
 
     /**
@@ -547,11 +513,7 @@ export class RecipeServiceClient {
             `/v1/recipes/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNumber))}/restore`,
         );
 
-        if (res.status === 200) {
-            return res.body as RestoreVersionResponse;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, restoreVersionResponseSchema);
     }
 
     // ─── Photos ─────────────────────────────────────────────────────────────────────────────────
@@ -568,11 +530,7 @@ export class RecipeServiceClient {
     public async createPhotoUploadUrl(id: string, request: PhotoUploadUrlRequest): Promise<UploadUrlResponse> {
         const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/photos/upload-url`, request);
 
-        if (res.status === 200) {
-            return res.body as UploadUrlResponse;
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<UploadUrlResponse>(res, 200);
     }
 
     /**
@@ -587,11 +545,7 @@ export class RecipeServiceClient {
     public async confirmPhotoUpload(id: string, request: PhotoConfirmRequest): Promise<RecipePhoto> {
         const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/photos/confirm`, request);
 
-        if (res.status === 201) {
-            return res.body as RecipePhoto;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 201, recipePhotoSchema);
     }
 
     /**
@@ -605,11 +559,7 @@ export class RecipeServiceClient {
     public async listRecipePhotos(id: string): Promise<readonly RecipePhoto[]> {
         const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}/photos`);
 
-        if (res.status === 200) {
-            return res.body as readonly RecipePhoto[];
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, z.array(recipePhotoSchema));
     }
 
     /**
@@ -626,11 +576,7 @@ export class RecipeServiceClient {
             `/v1/recipes/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}`,
         );
 
-        if (res.status === 204) {
-            return;
-        }
-
-        throw this.toError(res);
+        return this.expectNoContent(res, 204);
     }
 
     /**
@@ -645,11 +591,7 @@ export class RecipeServiceClient {
     public async reorderRecipePhotos(id: string, photoIds: readonly string[]): Promise<readonly RecipePhoto[]> {
         const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}/photos/reorder`, { photoIds });
 
-        if (res.status === 200) {
-            return res.body as readonly RecipePhoto[];
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, z.array(recipePhotoSchema));
     }
 
     // ─── Collections ────────────────────────────────────────────────────────────────────────────
@@ -665,11 +607,7 @@ export class RecipeServiceClient {
     public async createCollection(request: CreateCollectionRequest): Promise<Collection> {
         const res = await this.send('POST', '/v1/collections', request);
 
-        if (res.status === 201) {
-            return res.body as Collection;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 201, collectionSchema);
     }
 
     /**
@@ -686,11 +624,7 @@ export class RecipeServiceClient {
             pageSize: params.pageSize,
         });
 
-        if (res.status === 200) {
-            return res.body as PaginatedResponse<Collection>;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, paginatedResponseSchema(collectionSchema));
     }
 
     /**
@@ -704,11 +638,7 @@ export class RecipeServiceClient {
     public async getCollectionById(id: string): Promise<CollectionWithRecipes> {
         const res = await this.send('GET', `/v1/collections/${encodeURIComponent(id)}`);
 
-        if (res.status === 200) {
-            return res.body as CollectionWithRecipes;
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<CollectionWithRecipes>(res, 200);
     }
 
     /**
@@ -723,11 +653,7 @@ export class RecipeServiceClient {
     public async updateCollection(id: string, request: UpdateCollectionRequest): Promise<Collection> {
         const res = await this.send('PATCH', `/v1/collections/${encodeURIComponent(id)}`, request);
 
-        if (res.status === 200) {
-            return res.body as Collection;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 200, collectionSchema);
     }
 
     /**
@@ -740,11 +666,7 @@ export class RecipeServiceClient {
     public async deleteCollection(id: string): Promise<void> {
         const res = await this.send('DELETE', `/v1/collections/${encodeURIComponent(id)}`);
 
-        if (res.status === 204) {
-            return;
-        }
-
-        throw this.toError(res);
+        return this.expectNoContent(res, 204);
     }
 
     /**
@@ -759,11 +681,7 @@ export class RecipeServiceClient {
     public async addRecipeToCollection(id: string, recipeId: string): Promise<CollectionRecipeMembership> {
         const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/recipes`, { recipeId });
 
-        if (res.status === 201) {
-            return res.body as CollectionRecipeMembership;
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<CollectionRecipeMembership>(res, 201);
     }
 
     /**
@@ -780,11 +698,7 @@ export class RecipeServiceClient {
             `/v1/collections/${encodeURIComponent(id)}/recipes/${encodeURIComponent(recipeId)}`,
         );
 
-        if (res.status === 204) {
-            return;
-        }
-
-        throw this.toError(res);
+        return this.expectNoContent(res, 204);
     }
 
     /**
@@ -799,11 +713,7 @@ export class RecipeServiceClient {
     public async cloneCollection(id: string, request?: CloneCollectionRequest): Promise<Collection> {
         const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/clone`, request);
 
-        if (res.status === 201) {
-            return res.body as Collection;
-        }
-
-        throw this.toError(res);
+        return this.expect(res, 201, collectionSchema);
     }
 
     /**
@@ -817,11 +727,7 @@ export class RecipeServiceClient {
     public async pullCollectionFromSource(id: string): Promise<PullFromSourceResponse> {
         const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/pull-from-source`);
 
-        if (res.status === 200) {
-            return res.body as PullFromSourceResponse;
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<PullFromSourceResponse>(res, 200);
     }
 
     // ─── Search & account ───────────────────────────────────────────────────────────────────────
@@ -848,11 +754,7 @@ export class RecipeServiceClient {
             sortBy: params.sortBy,
         });
 
-        if (res.status === 200) {
-            return res.body as RecipeSearchResponse;
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<RecipeSearchResponse>(res, 200);
     }
 
     /**
@@ -866,11 +768,7 @@ export class RecipeServiceClient {
     public async requestAccountErasure(request?: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
         const res = await this.send('POST', '/v1/account/erasure', request);
 
-        if (res.status === 202) {
-            return res.body as ErasureRequestAcceptedResponse;
-        }
-
-        throw this.toError(res);
+        return this.expectUnvalidated<ErasureRequestAcceptedResponse>(res, 202);
     }
 
     // ─── Transport ──────────────────────────────────────────────────────────────────────────────
@@ -950,6 +848,49 @@ export class RecipeServiceClient {
         }
 
         return typeof this.token === 'function' ? this.token({ forceRefresh }) : this.token;
+    }
+
+    /**
+     * On the expected success `status`, **parse** the body with `schema` and return the validated value;
+     * otherwise throw the typed error for the status. This is parse-don't-validate at the wire boundary
+     * (DA1): the transport returns *validated domain values*, not `as`-casts, so a server response that
+     * has drifted from `@kitchensink/recipe-core` fails loudly here at the edge (a typed parse error)
+     * instead of surfacing as a mystery `undefined` deep in a component. The `as T` bridges the schema's
+     * inferred output to the hand-written DTO interface — safe because `schema.parse` already validated
+     * the runtime shape. Collapses the ~25 repeated `if (status) return body as T; throw toError` blocks
+     * into one place (P6).
+     *
+     * @throws the typed error (via {@link toError}) on any non-`status` response, or a `ZodError` when the
+     *   `status` body fails the schema.
+     */
+    private expect<T>(res: RawResponse, status: number, schema: z.ZodType): T {
+        if (res.status === status) {
+            return schema.parse(res.body) as T;
+        }
+
+        throw this.toError(res);
+    }
+
+    /**
+     * Like {@link expect}, but for a client-local wire envelope (`./types.js`) that has no
+     * `@kitchensink/recipe-core` schema yet — returns the body as `T` unparsed. (Follow-up: give the
+     * envelopes client-local zod schemas so these boundaries are parsed too — see DA1 follow-up.)
+     */
+    private expectUnvalidated<T>(res: RawResponse, status: number): T {
+        if (res.status === status) {
+            return res.body as T;
+        }
+
+        throw this.toError(res);
+    }
+
+    /** Like {@link expect}, for a no-content (`204`/void) success — throws the typed error otherwise. */
+    private expectNoContent(res: RawResponse, status: number): void {
+        if (res.status === status) {
+            return;
+        }
+
+        throw this.toError(res);
     }
 
     /** Map a non-success response to the typed error for its status (per the OpenAPI contract). */

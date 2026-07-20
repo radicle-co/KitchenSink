@@ -15,7 +15,7 @@ import {
     UnexpectedResponseError,
     isRecipeServiceClientError,
 } from '../index.js';
-import { makePaginatedResponse } from '../__fixtures__/recipes.js';
+import { makePaginatedResponse, makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { callsOf, rejectingFetch, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
@@ -75,7 +75,7 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
         const fetchMock = sequenceFetch([
             { status: 401, body: SYNC_PENDING },
             { status: 401, body: SYNC_PENDING },
-            { status: 200, body: { id: 'rec_1' } },
+            { status: 200, body: makeRecipeDetail({ id: 'rec_1' }) },
         ]);
         const client = new RecipeServiceClient({ baseUrl: BASE, token: getToken, fetch: fetchMock, sleep });
 
@@ -88,7 +88,7 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
         const { sleep } = recordingSleep();
         const fetchMock = sequenceFetch([
             { status: 401, body: SYNC_PENDING },
-            { status: 201, body: { id: 'rec_new' } },
+            { status: 201, body: makeRecipeDetail({ id: 'rec_new' }) },
         ]);
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep });
         const input = {
@@ -114,7 +114,7 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
         const { sleep, waits } = recordingSleep();
         const fetchMock = sequenceFetch([
             { status: 409, body: { code: 'VERSION_CONFLICT', details: { currentVersion: 2 } } },
-            { status: 200, body: { id: 'rec_1' } },
+            { status: 200, body: makeRecipeDetail({ id: 'rec_1' }) },
         ]);
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep });
 
@@ -124,7 +124,7 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
     });
 
     it('does not retry a successful first response (happy path issues exactly one request)', async () => {
-        const fetchMock = stubFetch(200, { id: 'rec_1' });
+        const fetchMock = stubFetch(200, makeRecipeDetail({ id: 'rec_1' }));
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
 
         await client.getRecipeById('rec_1');
@@ -135,7 +135,7 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
 
 describe('RecipeServiceClient — async token source', () => {
     it('awaits an async token callback and attaches the resolved bearer token', async () => {
-        const fetchMock = stubFetch(200, { id: 'rec_1' });
+        const fetchMock = stubFetch(200, makeRecipeDetail({ id: 'rec_1' }));
         const getToken = vi.fn(async () => Promise.resolve('async-tok'));
         const client = new RecipeServiceClient({ baseUrl: BASE, token: getToken, fetch: fetchMock });
 
@@ -164,14 +164,46 @@ describe('RecipeServiceClient — status → error mapping edges', () => {
         expect((error as ForbiddenError).message).toBe('Forbidden');
         expect((error as ForbiddenError).code).toBeUndefined();
     });
+
+    it('maps a non-2xx response with a NON-JSON body (e.g. an ALB 502 HTML page) to a typed error, not a raw SyntaxError', async () => {
+        // The shared internet-facing ALB emits an HTML/plaintext body for 502/503/504 during every
+        // deploy; JSON.parse-ing it used to throw a raw SyntaxError that bypassed the typed-error map.
+        const html502 = vi.fn(
+            async () => new Response('<html><body>502 Bad Gateway</body></html>', { status: 502 }),
+        ) as unknown as typeof fetch;
+        const client = new RecipeServiceClient({ baseUrl: BASE, fetch: html502 });
+
+        const error = await client.getRecipeById('rec_1').catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(UnexpectedResponseError);
+        expect((error as UnexpectedResponseError).status).toBe(502);
+        expect(isRecipeServiceClientError(error)).toBe(true);
+    });
 });
 
 describe('RecipeServiceClient — degenerate response bodies', () => {
-    it('returns undefined for an empty 200 body (no JSON to parse)', async () => {
+    it('rejects an empty 200 body for a schema-backed endpoint (parse, not cast — DA1)', async () => {
+        // A 200 with no body violates the wire contract (getRecipeById MUST return a recipe). The old
+        // cast silently returned `undefined` — a mystery that surfaced deep in a component; the schema
+        // now fails loudly at the boundary instead. (204/void endpoints go through expectNoContent and
+        // are unaffected — see the 204-delete test.)
         const emptyOk = vi.fn(async () => new Response(undefined, { status: 200 })) as unknown as typeof fetch;
         const client = new RecipeServiceClient({ baseUrl: BASE, fetch: emptyOk });
 
-        await expect(client.getRecipeById('rec_1')).resolves.toBeUndefined();
+        await expect(client.getRecipeById('rec_1')).rejects.toThrow();
+    });
+
+    it('rejects a 2xx body that is valid JSON but violates the schema shape (DA1 validates shape, not just JSON)', async () => {
+        // The exact failure DA1 exists to catch: a server that drifted from @kitchensink/recipe-core
+        // sends a well-formed JSON object with the wrong shape (here: missing required fields, and an
+        // out-of-range averageRating). The old `as RecipeDetail` cast let it through to crash a component
+        // deep downstream; the schema now rejects it at the boundary.
+        const driftedShape = vi.fn(
+            async () => new Response(JSON.stringify({ id: 'rec_1', averageRating: 99 }), { status: 200 }),
+        ) as unknown as typeof fetch;
+        const client = new RecipeServiceClient({ baseUrl: BASE, fetch: driftedShape });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toThrow();
     });
 
     it('propagates a parse error (not a client error) when a 2xx body is malformed JSON', async () => {

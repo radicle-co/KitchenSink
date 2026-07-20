@@ -22,6 +22,7 @@ import {
     isGoneError,
     isVersionConflictError,
 } from '../index.js';
+import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { callsOf, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
@@ -31,7 +32,7 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
     const SYNC_PENDING = { code: IDENTITY_SYNC_PENDING_CODE, message: 'identity not yet available' };
 
     it('retries a 401 IDENTITY_SYNC_PENDING with a force-refreshed token, then succeeds', async () => {
-        const recipe = { id: 'rec_1', ownerId: 'usr_1', title: 'Soup' };
+        const recipe = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
         const fetchMock = sequenceFetch([
             { status: 401, body: SYNC_PENDING },
             { status: 200, body: recipe },
@@ -96,7 +97,7 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
 
 describe('RecipeServiceClient — request build + token attach', () => {
     it('POSTs create-recipe to the right URL with a JSON body and a literal bearer token', async () => {
-        const created = { id: 'rec_1', ownerId: 'usr_1', title: 'Soup' };
+        const created = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
         const fetchMock = stubFetch(201, created);
         const client = new RecipeServiceClient({ baseUrl: `${BASE}/`, token: 'tok-123', fetch: fetchMock });
 
@@ -235,7 +236,7 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
     });
 
     it('PATCH update sends the body and returns the updated recipe on 200', async () => {
-        const updated = { id: 'rec_1', title: 'New', currentVersion: 6 };
+        const updated = makeRecipeDetail({ id: 'rec_1', title: 'New', currentVersion: 6 });
         const fetchMock = stubFetch(200, updated);
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock });
 

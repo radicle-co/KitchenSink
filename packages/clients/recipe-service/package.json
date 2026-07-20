@@ -21,7 +21,8 @@
     "dependencies": {
         "@kitchensink/recipe-core": "*",
         "@tanstack/react-query": "^5.62.0",
-        "ky": "^1.7.5"
+        "ky": "^1.7.5",
+        "zod": "^4.4.3"
     },
     "peerDependencies": {
         "react": "^19.0.0"

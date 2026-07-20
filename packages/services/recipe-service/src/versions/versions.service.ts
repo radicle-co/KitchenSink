@@ -21,6 +21,7 @@ import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
 import { PendingArchivesDal } from './dal/pending-archives.dal.js';
+import { VERSION_ARCHIVE_READER, type VersionArchiveReader } from './version-archive.storage.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner, recipeNotFound } from '../recipes/recipe.error.js';
 import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
@@ -97,6 +98,7 @@ export class VersionsService {
         // `forwardRef(() => RecipesService)` (lazy arrow, evaluated later) still resolves the real instance.
         @Inject(forwardRef(() => RecipesService)) private readonly recipes: Pick<RecipesService, 'getById' | 'update'>,
         @Inject(PendingArchivesDal) private readonly pendingArchives: PendingArchivesDal,
+        @Inject(VERSION_ARCHIVE_READER) private readonly archiveReader: VersionArchiveReader,
     ) {}
 
     /**
@@ -131,15 +133,26 @@ export class VersionsService {
      * public recipe). Versions are addressed by number, not the internal row id.
      */
     public async get(ownerId: string, recipeId: string, versionNumber: number): Promise<RecipeVersion> {
-        await this.recipes.getById(ownerId, recipeId);
+        const recipe = await this.recipes.getById(ownerId, recipeId);
 
         const row = await this.dal.findByRecipeAndVersion(recipeId, versionNumber);
 
-        if (!row) {
-            throw recipeNotFound(recipeId);
+        if (row) {
+            return toRecipeVersion(row);
         }
 
-        return toRecipeVersion(row);
+        // W8-a.7: the version was pruned past the DB retention window → read it back TRANSPARENTLY from the
+        // S3 archive, keyed under the recipe OWNER's prefix (where the archive worker wrote it). The user
+        // never sees S3; Preview/Compare therefore work for ALL versions, not just the last-10 DB window.
+        const archived = await this.archiveReader.read(
+            recipeVersionArchiveKey({ ownerId: recipe.ownerId, recipeId, versionNumber }),
+        );
+
+        if (archived) {
+            return archived;
+        }
+
+        throw recipeNotFound(recipeId);
     }
 
     /**
@@ -159,11 +172,23 @@ export class VersionsService {
 
         const target = await this.dal.findByRecipeAndVersion(recipeId, versionNumber);
 
-        if (!target) {
-            throw recipeNotFound(recipeId);
-        }
+        // W8-a.7: restore works for ALL versions — an evicted target's snapshot is read from the S3 archive
+        // (same transparent fallback as `get`), so a user can restore a version older than the DB window.
+        let snapshot: RecipeSnapshot;
 
-        const snapshot = target.snapshot as RecipeSnapshot;
+        if (target) {
+            snapshot = target.snapshot as RecipeSnapshot;
+        } else {
+            const archived = await this.archiveReader.read(
+                recipeVersionArchiveKey({ ownerId: current.ownerId, recipeId, versionNumber }),
+            );
+
+            if (!archived) {
+                throw recipeNotFound(recipeId);
+            }
+
+            snapshot = archived.snapshot;
+        }
 
         // recordSnapshot:false — the restore records its OWN version below (with baseVersion + a restore
         // summary), so the update must not also auto-snapshot, or the restore would write two versions at
@@ -208,13 +233,13 @@ export class VersionsService {
             versionNumber: updated.currentVersion,
             snapshot: { ...snapshot, version: updated.currentVersion },
             createdBy: ownerId,
-            baseVersion: target.versionNumber,
-            changeSummary: `Restored from version ${target.versionNumber}`,
+            baseVersion: versionNumber,
+            changeSummary: `Restored from version ${versionNumber}`,
         });
 
         return {
             recipe: updated,
-            restoredFromVersion: target.versionNumber,
+            restoredFromVersion: versionNumber,
             currentVersion: updated.currentVersion,
         };
     }

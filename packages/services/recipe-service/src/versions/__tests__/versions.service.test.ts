@@ -18,6 +18,7 @@ import type { Mock } from 'vitest';
 import { VersionsService, versionArchiveKey } from '../versions.service.js';
 import type { VersionsDal } from '../dal/versions.dal.js';
 import type { PendingArchivesDal, EnqueueArchiveInput } from '../dal/pending-archives.dal.js';
+import type { VersionArchiveReader } from '../version-archive.storage.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import { makeVersionRow } from '../../__fixtures__/index.js';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
@@ -61,8 +62,13 @@ function fakeDal(overrides: Partial<VersionsDal> = {}): VersionsDal {
 /** The recipes service is unused by the snapshot/retention paths under test. */
 const NOOP_RECIPES = {} as unknown as RecipesService;
 
+/** A version-archive reader that finds nothing (the default — DB-hit paths never consult S3). Override per test. */
+function noArchive(read: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined)): VersionArchiveReader {
+    return { read } as unknown as VersionArchiveReader;
+}
+
 function makeService(dal: VersionsDal, pending: FakePendingArchives = fakePendingArchives()): VersionsService {
-    return new VersionsService(dal, NOOP_RECIPES, pending as unknown as PendingArchivesDal);
+    return new VersionsService(dal, NOOP_RECIPES, pending as unknown as PendingArchivesDal, noArchive());
 }
 
 describe('VersionsService.createSnapshot', () => {
@@ -229,7 +235,12 @@ describe('VersionsService.restore', () => {
             createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
         });
         const recipes = fakeRecipes();
-        const service = new VersionsService(dal, recipes, fakePendingArchives() as unknown as PendingArchivesDal);
+        const service = new VersionsService(
+            dal,
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
 
         const result = await service.restore(OWNER, RECIPE_ID, 3);
 
@@ -267,7 +278,12 @@ describe('VersionsService.restore', () => {
         const recipes = fakeRecipes({
             getById: vi.fn().mockResolvedValue({ ownerId: 'someone-else', currentVersion: 5 }),
         });
-        const service = new VersionsService(dal, recipes, fakePendingArchives() as unknown as PendingArchivesDal);
+        const service = new VersionsService(
+            dal,
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
 
         await expect(service.restore(OWNER, RECIPE_ID, 3)).rejects.toBeDefined();
         expect(recipes.update).not.toHaveBeenCalled();
@@ -275,7 +291,12 @@ describe('VersionsService.restore', () => {
 
     it('throws RECIPE_NOT_FOUND (404) when the recipe has no version with that number', async () => {
         const dal = fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) });
-        const service = new VersionsService(dal, fakeRecipes(), fakePendingArchives() as unknown as PendingArchivesDal);
+        const service = new VersionsService(
+            dal,
+            fakeRecipes(),
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
 
         await expect(service.restore(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
         expect(dal.createSnapshot).not.toHaveBeenCalled();
@@ -296,6 +317,7 @@ describe('VersionsService.get', () => {
             fakeDal({ findByRecipeAndVersion }),
             recipes,
             fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
         );
 
         const result = await service.get(OWNER, RECIPE_ID, 2);
@@ -312,6 +334,43 @@ describe('VersionsService.get', () => {
             fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) }),
             recipes,
             fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
+
+        await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
+    });
+
+    it('falls back to the S3 archive when the version is evicted past the DB window (W8-a.7)', async () => {
+        // The DB has pruned v2, but the archive reader finds it — get returns it transparently (no 404).
+        const archived = makeVersionRow({ id: 'v-arch', recipeId: RECIPE_ID, versionNumber: 2 });
+        const archivedVersion = { ...archived, createdAt: archived.createdAt.toISOString() };
+        const recipes = {
+            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, currentVersion: 12 }),
+        } as unknown as RecipesService;
+        const read = vi.fn().mockResolvedValue(archivedVersion);
+        const service = new VersionsService(
+            fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) }),
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(read),
+        );
+
+        const result = await service.get(OWNER, RECIPE_ID, 2);
+
+        expect(result.versionNumber).toBe(2);
+        // Keyed under the recipe OWNER's archive prefix (where the worker wrote it).
+        expect(read).toHaveBeenCalledWith(expect.stringContaining(`${OWNER}/${RECIPE_ID}/versions/2.json`));
+    });
+
+    it('404s only when BOTH the DB and the S3 archive miss (W8-a.7)', async () => {
+        const recipes = {
+            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, currentVersion: 12 }),
+        } as unknown as RecipesService;
+        const service = new VersionsService(
+            fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(undefined) }),
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(vi.fn().mockResolvedValue(undefined)),
         );
 
         await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
@@ -326,6 +385,7 @@ describe('VersionsService.get', () => {
             fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(row) }),
             recipes,
             fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
         );
 
         const result = await service.get(OWNER, RECIPE_ID, 3);
@@ -342,6 +402,7 @@ describe('VersionsService.get', () => {
             fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(row) }),
             recipes,
             fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
         );
 
         const result = await service.get(OWNER, RECIPE_ID, 4);

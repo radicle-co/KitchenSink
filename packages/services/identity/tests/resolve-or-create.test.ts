@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { noopHandleSyncPublisher } from '../src/users/handle-sync.publisher.js';
 
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(),
@@ -39,7 +40,7 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
 
         const { UsersService } = await import('../src/users/users.service.js');
 
-        usersService = new UsersService(mockDb, {} as never, {} as never);
+        usersService = new UsersService(mockDb, {} as never, {} as never, noopHandleSyncPublisher);
     });
 
     it('returns context for a complete existing user (no writes)', async () => {

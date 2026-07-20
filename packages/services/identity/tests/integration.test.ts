@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { noopHandleSyncPublisher } from '../src/users/handle-sync.publisher.js';
 
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(),
@@ -88,7 +89,7 @@ describe('UsersService', () => {
 
         const { UsersService } = await import('../src/users/users.service.js');
 
-        usersService = new UsersService(mockDb, mockSqs, mockResolver);
+        usersService = new UsersService(mockDb, mockSqs, mockResolver, noopHandleSyncPublisher);
     });
 
     it('getUserMe returns aggregated profile', async () => {

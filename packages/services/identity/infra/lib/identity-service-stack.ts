@@ -103,6 +103,13 @@ export class IdentityServiceStack extends Stack {
             Fn.importValue(`kitchensink-data-${stage}:DeletionQueueArn`),
         );
 
+        // The global handle-sync topic (W8-a.2): identity publishes a rename here on PATCH /v1/users/me.
+        const handleSyncTopic = sns.Topic.fromTopicArn(
+            this,
+            'ImportedHandleSyncTopic',
+            Fn.importValue(`kitchensink-data-${stage}:HandleSyncTopicArn`),
+        );
+
         const mediaBucket = s3.Bucket.fromBucketName(
             this,
             'ImportedMediaBucket',
@@ -150,6 +157,7 @@ export class IdentityServiceStack extends Stack {
         authSecretKey.grantRead(taskRole);
         migrationPlanSecret.grantRead(taskRole);
         deletionQueue.grantConsumeMessages(taskRole);
+        handleSyncTopic.grantPublish(taskRole);
         mediaBucket.grantReadWrite(taskRole);
         archiveBucket.grantReadWrite(taskRole);
 
@@ -184,6 +192,7 @@ export class IdentityServiceStack extends Stack {
                 DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
                 DB_NAME: Fn.importValue(`kitchensink-data-${stage}:DatabaseName`),
                 DELETION_QUEUE_URL: deletionQueue.queueUrl,
+                HANDLE_SYNC_TOPIC_ARN: handleSyncTopic.topicArn,
                 MEDIA_BUCKET_NAME: mediaBucket.bucketName,
                 ARCHIVE_BUCKET_NAME: archiveBucket.bucketName,
                 AUTH_SECRET_ARN: authSecretKey.secretArn,

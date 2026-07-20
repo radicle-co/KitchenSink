@@ -2,7 +2,9 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
-import { deriveDisplayName } from '@kitchensink/identity-core';
+import { buildHandleSyncMessage, deriveDisplayName } from '@kitchensink/identity-core';
+
+import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handle-sync.publisher.js';
 
 import { users, accounts, profiles } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
@@ -27,6 +29,7 @@ export class UsersService {
         @Inject(DrizzleProvider) private readonly db: NodePgDatabase,
         private readonly sqs: SqsService,
         private readonly resolver: ResolveUserService,
+        @Inject(HANDLE_SYNC_PUBLISHER) private readonly handleSync: HandleSyncPublisher,
     ) {}
 
     /** Dependency bundle for the shared provisioning routine (KTD2: schema-injected, db cast per repo convention). */
@@ -197,6 +200,20 @@ export class UsersService {
 
         const [updatedProfile] = await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
         const [updatedAccount] = await this.db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1);
+
+        // Handle-sync (W8-a.2): a displayName change publishes to the global topic so the recipe service
+        // corrects the denormalized author/editor handles. `sourceTimestamp` is the profiles.updatedAt
+        // (`now`) written above — the single monotonic clock shared with the webhook route. Best-effort: a
+        // failed publish must NOT fail the rename (the reconciliation/backfill backstops a missed event).
+        if (input.displayName !== undefined) {
+            try {
+                await this.handleSync.publish(
+                    buildHandleSyncMessage(userId, updatedProfile?.displayName ?? '', now.toISOString()),
+                );
+            } catch (error) {
+                this.logger.error('handle-sync publish failed (rename still succeeded)', { userId, error });
+            }
+        }
 
         return {
             user: {

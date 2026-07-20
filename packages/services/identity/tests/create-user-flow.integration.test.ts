@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { users, accounts, profiles } from '../src/database/index.js';
 import { UserDAO } from '../src/database/dao/index.js';
 import { UsersService } from '../src/users/users.service.js';
+import { noopHandleSyncPublisher } from '../src/users/handle-sync.publisher.js';
 import type { VerifiedClerkClaims } from '../src/auth/clerk-auth.service.js';
 
 /**
@@ -59,7 +60,7 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
         // No schema option: the test uses explicit table operations (not relational `db.query.*`),
         // and this keeps the type aligned with UsersService's bare NodePgDatabase parameter.
         db = drizzle(pool);
-        usersService = new UsersService(db, {} as never, {} as never);
+        usersService = new UsersService(db, {} as never, {} as never, noopHandleSyncPublisher);
     });
 
     afterAll(async () => {

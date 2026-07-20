@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, type NestMiddleware } from '@nestjs/
 import type { Request, Response, NextFunction } from 'express';
 import * as Sentry from '@sentry/nestjs';
 
-import type { AuthorizerContext } from '../../types/index.js';
+import type { AuthorizerContext, UserId } from '../../types/index.js';
 import { ClerkAuthService } from '../clerk-auth.service.js';
 import { UsersService } from '../../users/users.service.js';
 import { createServiceLogger } from '../../observability/sentry-logging.js';
@@ -29,6 +29,38 @@ function extractBearerToken(authorization: string | undefined): string | undefin
     return match ? match[1]!.trim() : undefined;
 }
 
+/**
+ * Resolve the non-production dev-bypass `AuthorizerContext`, or `undefined`. Reads env at call time so
+ * it is disabled the instant `NODE_ENV` is `production`, regardless of `IDENTITY_DEV_AUTH_USER_ID`. This
+ * mirrors the recipe-service dev bypass (`RECIPE_DEV_AUTH_USER_ID`): it lets in-process e2e tests
+ * exercise authenticated routes without minting a real Clerk session token AND without the read-through
+ * DB provisioning, by injecting a fixed synthetic principal. The synthetic `clerkUserId` is deliberately
+ * distinct from `userId` so the bypass never conflates the app-user ULID with a Clerk trace identifier.
+ *
+ * @returns The synthetic dev principal when enabled outside production, else `undefined`.
+ * @sideEffect Reads `process.env` (`NODE_ENV`, `IDENTITY_DEV_AUTH_USER_ID`).
+ */
+function resolveDevBypass(): AuthorizerContext | undefined {
+    if (process.env['NODE_ENV'] === 'production') {
+        return undefined;
+    }
+
+    const devUserId = process.env['IDENTITY_DEV_AUTH_USER_ID'];
+
+    if (!devUserId) {
+        return undefined;
+    }
+
+    return {
+        userId: devUserId as UserId,
+        email: 'dev-bypass@example.test',
+        clerkUserId: `dev-bypass:${devUserId}`,
+        scopes: [],
+        permissions: [],
+        tokenType: 'user',
+    };
+}
+
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
     constructor(
@@ -40,6 +72,19 @@ export class AuthMiddleware implements NestMiddleware {
         const path = getPath(req);
 
         if (PUBLIC_PATHS.has(path) || PUBLIC_PATHS.has(req.path)) {
+            next();
+
+            return;
+        }
+
+        // Local/e2e-only shortcut; hard-disabled in production by resolveDevBypass(). When set, it
+        // authenticates the request as a fixed synthetic principal with NO Clerk verify and NO DB
+        // read-through provisioning — the intended way to drive authenticated routes in in-process
+        // e2e without minting real session tokens (mirrors recipe-service's RECIPE_DEV_AUTH_USER_ID).
+        const devUser = resolveDevBypass();
+
+        if (devUser) {
+            req.user = devUser;
             next();
 
             return;

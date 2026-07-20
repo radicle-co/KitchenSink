@@ -29,7 +29,9 @@ describe('AccountDeleteForm', () => {
 
     it('calls DELETE /v1/users/me and signs out via IdP after confirmation', async () => {
         const user = userEvent.setup();
-        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202, json: vi.fn() });
+        // DELETE /v1/users/me returns a real 202 Accepted with an EMPTY body. A faithful Response (not a
+        // hand-stubbed `{ json }`) is what proves the fix: reading an empty 202 must resolve so signOut runs.
+        const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
         global.fetch = fetchMock;
 
         render(<AccountDeleteForm accessToken="test-token" userId="user-123" />);

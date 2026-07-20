@@ -82,4 +82,33 @@ describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', ()
         });
         expect(put.status).toBe(404);
     });
+
+    it('PUT on a PUBLIC DRAFT is 404 AND leaves the rating aggregate unmutated (W8-a.3/.10)', async () => {
+        // A free-tier draft is visibility='public'; a stranger must not be able to rate an unpublished
+        // recipe — and, crucially, the attempt must not touch its rating aggregate (the single place a
+        // regression could make average_rating/rating_count semantically wrong on an invisible row).
+        const { rows } = await pool.query<{ id: string }>(
+            `INSERT INTO recipes (owner_id, title, visibility, status, servings, prep_time_minutes, cook_time_minutes, total_time_minutes)
+             VALUES ($1, 'E2E draft', 'public', 'draft', 2, 5, 10, 15) RETURNING id`,
+            [OTHER_OWNER],
+        );
+        const draftId = rows[0]!.id;
+
+        const put = await fetch(`${booted.baseUrl}/v1/recipes/${draftId}/rating`, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ stars: 5 }),
+        });
+        expect(put.status).toBe(404);
+
+        // The aggregate is untouched: no rating row, still no average and a zero count.
+        const agg = await pool.query<{ rating_count: number; average_rating: string | null }>(
+            'SELECT rating_count, average_rating FROM recipes WHERE id = $1',
+            [draftId],
+        );
+        expect(Number(agg.rows[0]!.rating_count)).toBe(0);
+        expect(agg.rows[0]!.average_rating).toBeNull();
+        const ratingRows = await pool.query('SELECT 1 FROM recipe_ratings WHERE recipe_id = $1', [draftId]);
+        expect(ratingRows.rowCount).toBe(0);
+    });
 });

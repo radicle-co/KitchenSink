@@ -343,6 +343,11 @@ export const eraseRecipeRows = async (db: NodePgDatabase<Record<string, never>>,
         await tx.execute(sql`DELETE FROM recipes WHERE owner_id = ${ownerId}`);
 
         await tx.execute(sql`DELETE FROM collections WHERE owner_id = ${ownerId}`);
+
+        // The FOURTH owner-scoped root (W8-a.2 / W8-a.10): the author_handles read model is keyed by
+        // user_id and has NO FK to recipes/collections, so nothing cascades it — it must be swept
+        // explicitly, or an erased user's display name would survive right-to-erasure in this table.
+        await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
     });
 };
 

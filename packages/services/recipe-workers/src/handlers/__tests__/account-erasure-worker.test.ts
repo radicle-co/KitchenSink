@@ -341,6 +341,20 @@ describe('eraseRecipeRows', () => {
         expect(del?.params).toEqual([OWNER]);
     });
 
+    it('deletes the author_handles read-model row (the FOURTH owner-scoped root — W8-a.2/.10)', async () => {
+        const control = createFakeDb();
+
+        await eraseRecipeRows(control.db, OWNER);
+
+        // author_handles is keyed by user_id with NO FK to recipes/collections, so nothing cascades it —
+        // omit this and an erased user's display name survives right-to-erasure in the read model.
+        const del = control.statements().find((s) => /delete from author_handles/i.test(s.text));
+
+        expect(del).toBeDefined();
+        expect(del?.text).toMatch(/delete from author_handles where user_id = \$\d/i);
+        expect(del?.params).toEqual([OWNER]);
+    });
+
     it('never deletes from the shared global ingredients table', async () => {
         const control = createFakeDb();
 
@@ -830,6 +844,7 @@ describe('handler', () => {
             filler, // erase: clone-detach
             filler, // erase: recipes
             filler, // erase: collections
+            filler, // erase: author_handles (W8-a.10)
             filler, // mark completed
             { rows: [{ id: 'job-2' }] }, // record 2 claim
         );

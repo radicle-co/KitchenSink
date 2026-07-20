@@ -9,10 +9,11 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC, ReactNode } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
+import { PhotoCarousel } from './PhotoCarousel.native.js';
 import { formatQuantity, type RecipeDetailViewProps } from './model.js';
 
 /** One label/value cell in the stats or nutrition strip. */
@@ -62,21 +63,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                 <Stat label={detail.servingsLabel} value={String(recipe.servings)} />
             </View>
 
-            {recipe.photos.length > 0 && (
-                <View accessibilityLabel={detail.photosLabel} style={styles.photoRow}>
-                    {recipe.photos.map((photo, index) => (
-                        <Image
-                            key={photo.id}
-                            source={{ uri: photo.url }}
-                            style={styles.photo}
-                            accessibilityLabel={fillTemplate(detail.photoAlt, {
-                                title: recipe.title,
-                                index: index + 1,
-                            })}
-                        />
-                    ))}
-                </View>
-            )}
+            <PhotoCarousel photos={recipe.photos} title={recipe.title} />
 
             <Text accessibilityRole="header" style={styles.sectionHeading}>
                 {detail.ingredientsHeading}
@@ -165,8 +152,6 @@ const styles = StyleSheet.create({
     statCell: { flex: 1, alignItems: 'center', gap: 4 },
     statValue: { fontSize: 18, fontWeight: '700', color: palette.charcoal },
     statLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
-    photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    photo: { width: 96, height: 96, borderRadius: 12 },
     sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     card: { backgroundColor: palette.white, borderRadius: 16, borderWidth: 1, borderColor: cardBorder, padding: 8 },
     ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8 },

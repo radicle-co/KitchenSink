@@ -54,6 +54,14 @@ export interface RecipeDetailMessages {
     readonly photosLabel: string;
     /** Photo alt-text template (contains `{title}` and `{index}`). */
     readonly photoAlt: string;
+    /** Accessible name for the carousel's slide-activation button (contains `{title}` and `{index}`). */
+    readonly photoOpen: string;
+    /** Accessible name for the carousel's dot-navigation strip. */
+    readonly photoDotsLabel: string;
+    /** Accessible name for a single navigation dot (contains `{title}` and `{index}`). */
+    readonly photoDot: string;
+    /** Accessible name for the lightbox close control. */
+    readonly lightboxClose: string;
     /** Heading for the ingredients section. */
     readonly ingredientsHeading: string;
     /** Badge shown on a user-entered (freeform) ingredient. */
@@ -151,6 +159,10 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             servingsLabel: 'Serves',
             photosLabel: 'Recipe photos',
             photoAlt: '{title} photo {index}',
+            photoOpen: 'Open {title} photo {index} full screen',
+            photoDotsLabel: 'Photo navigation',
+            photoDot: 'Go to {title} photo {index}',
+            lightboxClose: 'Close photo',
             ingredientsHeading: 'Ingredients',
             userEnteredBadge: 'Custom',
             instructionsHeading: 'Instructions',

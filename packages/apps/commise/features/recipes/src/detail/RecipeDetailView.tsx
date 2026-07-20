@@ -14,6 +14,7 @@ import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
+import { PhotoCarousel } from './PhotoCarousel.js';
 import { formatQuantity, type RecipeDetailViewProps } from './model.js';
 
 const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4';
@@ -66,19 +67,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                 </div>
             </dl>
 
-            {recipe.photos.length > 0 && (
-                <ul aria-label={detail.photosLabel} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {recipe.photos.map((photo, index) => (
-                        <li key={photo.id} className="overflow-hidden rounded-xl">
-                            <img
-                                src={photo.url}
-                                alt={fillTemplate(detail.photoAlt, { title: recipe.title, index: index + 1 })}
-                                className="aspect-square w-full object-cover"
-                            />
-                        </li>
-                    ))}
-                </ul>
-            )}
+            <PhotoCarousel photos={recipe.photos} title={recipe.title} />
 
             <section aria-label={detail.ingredientsHeading} className="flex flex-col gap-3">
                 <h2 className="font-display text-heading-lg font-semibold text-charcoal">

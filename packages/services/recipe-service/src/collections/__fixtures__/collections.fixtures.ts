@@ -58,6 +58,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         dietaryFlags: [],
         tags: [],
         hasPartialNutrition: false,
+        leadCaloriesPerServing: null,
         currentVersion: 1,
         ingredientNamesText: 'flour water salt',
         searchVector: null,

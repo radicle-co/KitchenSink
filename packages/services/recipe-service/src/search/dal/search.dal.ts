@@ -59,8 +59,8 @@ const RECIPE_COLUMNS = sql`
     recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
     recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
-    recipes.current_version, recipes.ingredient_names_text, recipes.deleted_at, recipes.created_at,
-    recipes.updated_at`;
+    recipes.lead_calories_per_serving, recipes.current_version, recipes.ingredient_names_text,
+    recipes.deleted_at, recipes.created_at, recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
 export interface RecipeSearchFilters {
@@ -129,6 +129,7 @@ interface RawRecipeSearchRow {
     dietary_flags: string[];
     tags: string[];
     has_partial_nutrition: boolean;
+    lead_calories_per_serving: string | null;
     current_version: number;
     ingredient_names_text: string;
     deleted_at: Date | string | null;
@@ -194,6 +195,11 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
         dietaryFlags: row.dietary_flags,
         tags: row.tags,
         hasPartialNutrition: row.has_partial_nutrition,
+        // Denormalized headline per-serving calories (W8-a.1) — search cards read it here (no N+1);
+        // OMITTED when NULL (no accounted nutrition), never a misleading 0.
+        ...(row.lead_calories_per_serving !== null
+            ? { leadCaloriesPerServing: Number(row.lead_calories_per_serving) }
+            : {}),
         currentVersion: row.current_version,
         // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
         ...(row.average_rating !== null ? { averageRating: Number(row.average_rating) } : {}),

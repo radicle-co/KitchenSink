@@ -17,7 +17,13 @@ import type { RecipeNutrition, RecipePhoto, RecipeSnapshot } from '@kitchensink/
 import { VersionsService } from '../versions/versions.service.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolveCoverUrl, resolvePhotoView } from '../photos/photo-view.js';
-import { computeRecipeNutrition, type NutritionLine } from './domain/nutrition.js';
+import {
+    computeRecipeNutrition,
+    leadCaloriesPerServing,
+    toNutritionLine,
+    type LineMeasure,
+    type NutritionLine,
+} from './domain/nutrition.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
@@ -143,6 +149,11 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
         ...(recipe.clonedFromId !== null ? { clonedFromId: recipe.clonedFromId } : {}),
         hasSubstantiveEdit: recipe.hasSubstantiveEdit,
         hasPartialNutrition: recipe.hasPartialNutrition,
+        // Denormalized headline per-serving calories (W8-a.1) — a `numeric` column surfaced as a string|null;
+        // OMITTED (not `0`) when NULL (no accounted nutrition), so a card renders no misleading calorie badge.
+        ...(recipe.leadCaloriesPerServing !== null
+            ? { leadCaloriesPerServing: Number(recipe.leadCaloriesPerServing) }
+            : {}),
         // Composed from the `recipe_ingredients` junction (persisted atomically with the recipe), in
         // author order (`sortOrder`). Empty only when the recipe genuinely has no ingredient lines.
         ingredients: ingredients.map(toIngredientResponse),
@@ -201,6 +212,35 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
         ...(row.userProteinG !== null ? { userProteinG: Number(row.userProteinG) } : {}),
         ...(row.userCarbsG !== null ? { userCarbsG: Number(row.userCarbsG) } : {}),
         ...(row.userFatG !== null ? { userFatG: Number(row.userFatG) } : {}),
+    };
+}
+
+/**
+ * Map a persisted `recipe_ingredients` row to the nutrition line-assembler input (W8-a.1), coercing the
+ * `numeric` columns (surfaced as strings) to numbers and `null` to absent. Pure.
+ */
+function rowToMeasureInput(row: RecipeIngredientRow): LineMeasure & { ingredientId: string } {
+    return {
+        ingredientId: row.ingredientId,
+        quantity: Number(row.quantity),
+        unit: row.unit,
+        ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
+        ...(row.userProteinG !== null ? { userProteinG: Number(row.userProteinG) } : {}),
+        ...(row.userCarbsG !== null ? { userCarbsG: Number(row.userCarbsG) } : {}),
+        ...(row.userFatG !== null ? { userFatG: Number(row.userFatG) } : {}),
+    };
+}
+
+/** Map a resolved (pre-persist) ingredient line to the nutrition line-assembler input (W8-a.1). Pure. */
+function resolvedToMeasureInput(line: ResolvedIngredientLine): LineMeasure & { ingredientId: string } {
+    return {
+        ingredientId: line.ingredientId,
+        quantity: line.quantity,
+        unit: line.unit,
+        ...(line.userCalories !== undefined ? { userCalories: line.userCalories } : {}),
+        ...(line.userProteinG !== undefined ? { userProteinG: line.userProteinG } : {}),
+        ...(line.userCarbsG !== undefined ? { userCarbsG: line.userCarbsG } : {}),
+        ...(line.userFatG !== undefined ? { userFatG: line.userFatG } : {}),
     };
 }
 
@@ -349,28 +389,38 @@ export class RecipesService {
      * The catalog nutrition is batch-loaded for the recipe's ingredient ids in one query.
      */
     private async computeDetailNutrition(aggregate: RecipeAggregate): Promise<RecipeNutrition> {
-        const ids = [...new Set(aggregate.ingredients.map((row) => row.ingredientId))];
-        const catalog = new Map((await this.ingredientsDal.findByIds(ids)).map((ing) => [ing.id, ing]));
-
-        const lines: NutritionLine[] = aggregate.ingredients.map((row) => {
-            const ingredient = catalog.get(row.ingredientId);
-
-            return {
-                quantity: Number(row.quantity),
-                unit: row.unit,
-                ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
-                ...(row.userProteinG !== null ? { userProteinG: Number(row.userProteinG) } : {}),
-                ...(row.userCarbsG !== null ? { userCarbsG: Number(row.userCarbsG) } : {}),
-                ...(row.userFatG !== null ? { userFatG: Number(row.userFatG) } : {}),
-                ...(ingredient?.caloriesPer100g !== undefined ? { caloriesPer100g: ingredient.caloriesPer100g } : {}),
-                ...(ingredient?.proteinGPer100g !== undefined ? { proteinGPer100g: ingredient.proteinGPer100g } : {}),
-                ...(ingredient?.carbsGPer100g !== undefined ? { carbsGPer100g: ingredient.carbsGPer100g } : {}),
-                ...(ingredient?.fatGPer100g !== undefined ? { fatGPer100g: ingredient.fatGPer100g } : {}),
-                ...(ingredient?.portions !== undefined ? { portions: ingredient.portions } : {}),
-            };
-        });
+        const lines = await this.assembleNutritionLines(aggregate.ingredients.map(rowToMeasureInput));
 
         return computeRecipeNutrition(lines, aggregate.recipe.servings);
+    }
+
+    /**
+     * Batch-load the catalog per-100g nutrition for a set of recipe lines (ONE query by ingredient id) and
+     * assemble each into a {@link NutritionLine} via the single {@link toNutritionLine} line-assembler. Shared
+     * by the detail read ({@link computeDetailNutrition}) and the write-time lead-calorie denormalization
+     * ({@link leadCaloriesFor}), so both are built from identical catalog inputs.
+     */
+    private async assembleNutritionLines(
+        lines: readonly (LineMeasure & { ingredientId: string })[],
+    ): Promise<NutritionLine[]> {
+        const ids = [...new Set(lines.map((line) => line.ingredientId))];
+        const catalog = new Map((await this.ingredientsDal.findByIds(ids)).map((ing) => [ing.id, ing]));
+
+        return lines.map(({ ingredientId, ...measure }) => toNutritionLine(measure, catalog.get(ingredientId)));
+    }
+
+    /**
+     * The denormalized headline per-serving calories (W8-a.1) for a recipe's effective ingredient lines, at
+     * WRITE time — stored on the row so the LIST / SEARCH / collection-embed base projections show calories
+     * without an N+1. Built from the SAME line-assembler + aggregator as the detail read, so the stored value
+     * equals the detail's live `nutrition.calories`. ABSENT (`undefined`) when the recipe has no accounted
+     * nutrition — create then omits the field (column NULL); update writes `null` to CLEAR a stale value.
+     */
+    private async leadCaloriesFor(
+        lines: readonly (LineMeasure & { ingredientId: string })[],
+        servings: number,
+    ): Promise<number | undefined> {
+        return leadCaloriesPerServing(await this.assembleNutritionLines(lines), servings);
     }
 
     /**
@@ -449,6 +499,7 @@ export class RecipesService {
         }
 
         const ingredients = await this.resolveIngredientLines(dto.ingredients);
+        const leadCalories = await this.leadCaloriesFor(ingredients.map(resolvedToMeasureInput), dto.servings);
 
         const aggregate = await this.dal.create({
             ownerId: principal.userId,
@@ -466,6 +517,9 @@ export class RecipesService {
             tags: dto.tags ?? [],
             dietaryFlags: dto.dietaryFlags ?? [],
             ingredientNamesText: buildIngredientNamesText(ingredients),
+            // Denormalized headline per-serving calories (W8-a.1) — recomputed from the resolved lines so the
+            // list/search/collection-embed cards render calories without an N+1. Absent → column stays NULL.
+            ...(leadCalories !== undefined ? { leadCaloriesPerServing: leadCalories } : {}),
             ingredients,
             steps: dto.steps.map(toStepInput),
         });
@@ -588,6 +642,20 @@ export class RecipesService {
         const ingredients =
             dto.ingredients !== undefined ? await this.resolveIngredientLines(dto.ingredients) : undefined;
 
+        // Recompute the denormalized lead calories (W8-a.1) whenever EITHER input to the per-serving figure
+        // changes — the ingredient lines OR the serving count (a servings-only edit rescales every line).
+        // When neither changes, the column is left untouched. A recompute that yields no accounted nutrition
+        // writes `null` to CLEAR a now-stale value (e.g. the last nutrition-bearing ingredient was removed).
+        const recomputeLead = ingredients !== undefined || dto.servings !== undefined;
+        const leadCalories = recomputeLead
+            ? ((await this.leadCaloriesFor(
+                  ingredients !== undefined
+                      ? ingredients.map(resolvedToMeasureInput)
+                      : existing.ingredients.map(rowToMeasureInput),
+                  dto.servings ?? existing.recipe.servings,
+              )) ?? null)
+            : undefined;
+
         // C-004 / FR-005: a change to ingredients/steps flips `hasSubstantiveEdit` to true (once true, it
         // stays true — never reset). Only newly-substantive edits are persisted; the import provenance
         // columns are never touched here, so imported lineage survives the version bump (T139).
@@ -615,6 +683,9 @@ export class RecipesService {
             ...(ingredients !== undefined
                 ? { ingredientNamesText: buildIngredientNamesText(ingredients), ingredients }
                 : {}),
+            // Denormalized lead calories (W8-a.1): written (value or `null`-to-clear) only when an input
+            // changed; omitted otherwise so an unrelated patch leaves the stored figure untouched.
+            ...(recomputeLead ? { leadCaloriesPerServing: leadCalories } : {}),
             ...(dto.steps !== undefined ? { steps: dto.steps.map(toStepInput) } : {}),
             ...(newlySubstantive ? { hasSubstantiveEdit: true } : {}),
         });
@@ -682,6 +753,13 @@ export class RecipesService {
         // still credits provenance. An imported source already carries its attribution; keep it verbatim.
         const attribution = source.recipe.sourceAttribution ?? `Cloned from ${source.recipe.ownerId}`;
 
+        // The clone carries the source's lines + servings unchanged, so its lead calories (W8-a.1) recompute
+        // to the same figure — recomputed here (not copied) to keep the single write-time derivation.
+        const leadCalories = await this.leadCaloriesFor(
+            source.ingredients.map(rowToMeasureInput),
+            source.recipe.servings,
+        );
+
         const created = await this.dal.create({
             ownerId,
             title: source.recipe.title,
@@ -700,6 +778,7 @@ export class RecipesService {
             clonedFromId: source.recipe.id,
             hasSubstantiveEdit: false,
             ingredientNamesText: source.recipe.ingredientNamesText,
+            ...(leadCalories !== undefined ? { leadCaloriesPerServing: leadCalories } : {}),
             ingredients: source.ingredients.map(toResolvedIngredientLine),
             steps: source.steps.map(toStepInputFromRow),
         });

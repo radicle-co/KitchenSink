@@ -137,6 +137,16 @@ export interface Recipe {
     dietaryFlags: string[];
     tags: string[];
     hasPartialNutrition: boolean;
+    /**
+     * Headline per-serving calories for card display (FR-007 / W8-a.1) — a DENORMALIZED value recomputed at
+     * write time from the recipe's ingredient lines (single source: the service's `leadCaloriesPerServing`),
+     * so the LIST, SEARCH, and collection-embed projections render it WITHOUT the N+1 a full nutrition read
+     * would cost. On detail it agrees with `nutrition.calories`.
+     *
+     * ABSENT when the recipe has no accounted nutrition — never reported as `0` (which would read as a
+     * genuine zero-calorie figure), mirroring {@link averageRating}.
+     */
+    leadCaloriesPerServing?: number;
     currentVersion: number;
     /**
      * Mean of this recipe's ratings, 1–5 (FR-013a). READ-ONLY — maintained by a database trigger and
@@ -228,6 +238,8 @@ export const recipeSchema = z.object({
     dietaryFlags: z.array(z.string().min(1)),
     tags: z.array(z.string().min(1)),
     hasPartialNutrition: z.boolean(),
+    // Denormalized headline per-serving calories (W8-a.1); absent (not 0) when no accounted nutrition.
+    leadCaloriesPerServing: nonNegativeNumberSchema.optional(),
     currentVersion: positiveIntSchema,
     // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.
     averageRating: z.number().finite().min(1).max(5).optional(),

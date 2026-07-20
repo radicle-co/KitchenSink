@@ -99,6 +99,13 @@ export const recipes = pgTable(
 
         hasPartialNutrition: boolean('has_partial_nutrition').notNull().default(false),
 
+        // Denormalized headline per-serving calories (W8-a.1, 0012 migration) — recomputed on every write
+        // from the ingredient lines (recipes/domain/nutrition.ts leadCaloriesPerServing) so the LIST /
+        // SEARCH / collection-embed base projections avoid an N+1. NULL exactly when the recipe has no
+        // accounted nutrition (the projection then omits the field — never a misleading 0, as with
+        // average_rating). numeric(8,1) matches the aggregator's one-decimal wire precision.
+        leadCaloriesPerServing: numeric('lead_calories_per_serving', { precision: 8, scale: 1 }),
+
         currentVersion: integer('current_version').notNull().default(1),
 
         ingredientNamesText: text('ingredient_names_text').notNull().default(''),

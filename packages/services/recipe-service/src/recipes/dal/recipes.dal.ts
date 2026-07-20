@@ -64,6 +64,12 @@ export interface CreateRecipeInput {
     hasSubstantiveEdit?: boolean;
     /** Denormalized, space-joined ingredient names — the recipe-owned column that feeds search. */
     ingredientNamesText: string;
+    /**
+     * Denormalized headline per-serving calories (W8-a.1), recomputed by the service from the resolved
+     * lines. OMITTED when the recipe has no accounted nutrition, so the column stays NULL (the projection
+     * then omits the field — never a misleading 0). No `null` on create (clearing is an update-only concern).
+     */
+    leadCaloriesPerServing?: number;
     /** Resolved `recipe_ingredients` link rows, persisted in the same transaction as the recipe. */
     ingredients: ResolvedIngredientLine[];
     steps: StepInput[];
@@ -96,6 +102,12 @@ export interface UpdateRecipeInput {
     tags?: string[];
     dietaryFlags?: string[];
     ingredientNamesText?: string;
+    /**
+     * Denormalized headline per-serving calories (W8-a.1). `undefined` (absent) leaves the stored value
+     * UNCHANGED; a number SETS it; explicit `null` CLEARS it to NULL (the recipe lost all accounted
+     * nutrition). The service recomputes and passes this only when an input (lines/servings) changed.
+     */
+    leadCaloriesPerServing?: number | null;
     /**
      * Flip the substantive-edit flag (C-004 / FR-005). The service sets this to `true` on a
      * content (ingredients/steps) change; it is monotonic (never reset to `false` on update).
@@ -183,6 +195,11 @@ export class RecipesDal {
                     tags: input.tags,
                     dietaryFlags: input.dietaryFlags,
                     ingredientNamesText: input.ingredientNamesText,
+                    // Denormalized lead calories (W8-a.1) — the `numeric` column takes a string; omitted when
+                    // absent so it defaults NULL (recipe has no accounted nutrition).
+                    ...(input.leadCaloriesPerServing !== undefined
+                        ? { leadCaloriesPerServing: input.leadCaloriesPerServing.toString() }
+                        : {}),
                     // Provenance is only present when cloning; omit otherwise so the column defaults apply.
                     ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
                     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
@@ -349,6 +366,17 @@ export class RecipesDal {
                     ...(input.dietaryFlags !== undefined ? { dietaryFlags: input.dietaryFlags } : {}),
                     ...(input.ingredientNamesText !== undefined
                         ? { ingredientNamesText: input.ingredientNamesText }
+                        : {}),
+                    // Denormalized lead calories (W8-a.1), three-state like difficulty: absent → unchanged;
+                    // a number → set (numeric column takes a string); explicit `null` → cleared to NULL when
+                    // the recipe lost all accounted nutrition. `!== undefined` keeps clear distinct from unchanged.
+                    ...(input.leadCaloriesPerServing !== undefined
+                        ? {
+                              leadCaloriesPerServing:
+                                  input.leadCaloriesPerServing === null
+                                      ? null
+                                      : input.leadCaloriesPerServing.toString(),
+                          }
                         : {}),
                     ...(input.hasSubstantiveEdit !== undefined ? { hasSubstantiveEdit: input.hasSubstantiveEdit } : {}),
                     currentVersion: sql`${recipes.currentVersion} + 1`,

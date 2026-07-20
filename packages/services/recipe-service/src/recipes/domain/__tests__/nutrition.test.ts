@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { computeRecipeNutrition, type NutritionLine } from '../nutrition.js';
+import { computeRecipeNutrition, leadCaloriesPerServing, toNutritionLine, type NutritionLine } from '../nutrition.js';
 
 describe('computeRecipeNutrition', () => {
     it('sums a user-entered override line (absolute) and divides by servings', () => {
@@ -120,5 +120,84 @@ describe('computeRecipeNutrition', () => {
             fatG: 0,
             isComplete: true,
         });
+    });
+});
+
+/**
+ * {@link leadCaloriesPerServing} is the denormalization source (W8-a.1) for the card's headline calorie
+ * number on the base `Recipe` projection — recomputed at write time so list/search/collection-embed avoid
+ * an N+1. It is the calorie term of {@link computeRecipeNutrition} (single source), ABSENT when the recipe
+ * has no accounted nutrition — mirroring `averageRating`, a card must never show a misleading `0` where the
+ * real meaning is "no data".
+ */
+describe('leadCaloriesPerServing', () => {
+    it('is the per-serving calorie term of the aggregate (single source)', () => {
+        const lines: NutritionLine[] = [
+            { quantity: 1, unit: 'scoop', userCalories: 200, userProteinG: 30, userCarbsG: 10, userFatG: 5 },
+        ];
+
+        expect(leadCaloriesPerServing(lines, 2)).toBe(100);
+        // exactly the calorie term — never diverges from the detail nutrition
+        expect(leadCaloriesPerServing(lines, 2)).toBe(computeRecipeNutrition(lines, 2).calories);
+    });
+
+    it('is ABSENT (undefined) for a recipe with no ingredient lines — never a misleading 0', () => {
+        expect(leadCaloriesPerServing([], 4)).toBeUndefined();
+    });
+
+    it('is ABSENT when every line is unaccountable (nothing resolved) — omit, do not show 0', () => {
+        const lines: NutritionLine[] = [
+            { quantity: 1, unit: 'clove', caloriesPer100g: 50 }, // non-mass unit → excluded
+            { quantity: 1, unit: 'pinch' }, // freeform, no nutrition
+        ];
+
+        expect(leadCaloriesPerServing(lines, 1)).toBeUndefined();
+    });
+
+    it('is PRESENT when at least one line contributes, even if the mix is incomplete', () => {
+        const lines: NutritionLine[] = [
+            { quantity: 100, unit: 'g', caloriesPer100g: 100 }, // accounted
+            { quantity: 1, unit: 'clove', caloriesPer100g: 50 }, // excluded
+        ];
+
+        expect(leadCaloriesPerServing(lines, 1)).toBe(100);
+    });
+});
+
+/**
+ * {@link toNutritionLine} is the SINGLE line-assembler both the detail read and the write-time lead-calorie
+ * denormalization route through — proving a card's stored calories and the detail's live calories are built
+ * from identical inputs (the correctness property W8-a.1 depends on).
+ */
+describe('toNutritionLine', () => {
+    it('carries only defined fields (absent macro stays absent, never 0)', () => {
+        const line = toNutritionLine({ quantity: 2, unit: 'g' }, undefined);
+
+        expect(line).toEqual({ quantity: 2, unit: 'g' });
+    });
+
+    it('merges the measure + user override + catalog per-100g + portions', () => {
+        const line = toNutritionLine(
+            { quantity: 50, unit: 'g', userCalories: 10 },
+            { caloriesPer100g: 200, proteinGPer100g: 5, portions: [{ unit: 'cup', gramsPerUnit: 120 }] },
+        );
+
+        expect(line).toEqual({
+            quantity: 50,
+            unit: 'g',
+            userCalories: 10,
+            caloriesPer100g: 200,
+            proteinGPer100g: 5,
+            portions: [{ unit: 'cup', gramsPerUnit: 120 }],
+        });
+    });
+
+    it('composes with the aggregator: assembled lines feed leadCaloriesPerServing consistently', () => {
+        const assembled = [
+            toNutritionLine({ quantity: 100, unit: 'g' }, { caloriesPer100g: 100 }),
+            toNutritionLine({ quantity: 1, unit: 'clove' }, { caloriesPer100g: 50 }), // non-mass → excluded
+        ];
+
+        expect(leadCaloriesPerServing(assembled, 1)).toBe(100);
     });
 });

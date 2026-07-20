@@ -52,6 +52,12 @@ export interface RecipeResponse {
     clonedFromId?: string;
     hasSubstantiveEdit: boolean;
     hasPartialNutrition: boolean;
+    /**
+     * Denormalized headline per-serving calories (W8-a.1) — recomputed at write time so list/search/
+     * collection-embed cards render calories without an N+1. ABSENT (never `0`) when the recipe has no
+     * accounted nutrition, mirroring {@link averageRating}. On detail it agrees with `nutrition.calories`.
+     */
+    leadCaloriesPerServing?: number;
     ingredients: RecipeIngredientResponse[];
     steps: RecipeStepResponse[];
     servings: number;

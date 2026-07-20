@@ -178,6 +178,16 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
         delete withoutCount['ratingCount'];
         expect(recipeSchema.safeParse(withoutCount).success).toBe(false);
     });
+
+    it('accepts the denormalized leadCaloriesPerServing (W8-a.1) and tolerates its absence', () => {
+        expect(recipeSchema.parse(makeRecipe({ leadCaloriesPerServing: 320 })).leadCaloriesPerServing).toBe(320);
+        // Absent (not 0) when the recipe has no accounted nutrition — a card must not show a misleading 0.
+        expect(recipeSchema.parse(makeRecipe()).leadCaloriesPerServing).toBeUndefined();
+    });
+
+    it('rejects a negative leadCaloriesPerServing (calories are non-negative)', () => {
+        expect(recipeSchema.safeParse(makeRecipe({ leadCaloriesPerServing: -1 })).success).toBe(false);
+    });
 });
 
 describe('updateRecipeInputSchema — three-state difficulty', () => {

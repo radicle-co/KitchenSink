@@ -471,6 +471,103 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
     });
 });
 
+describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
+    /** The recorded arg the service handed the DAL for a create/update call. */
+    function dalCallArg(fn: unknown, index: number): Record<string, unknown> {
+        return (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][index] as Record<string, unknown>;
+    }
+
+    /** A create DTO with one user-override line (200 cal), so nutrition is accountable without a catalog. */
+    const CREATE_WITH_CALORIES: CreateRecipeDto = {
+        ...CREATE_DTO,
+        servings: 2,
+        ingredients: [
+            { ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1, userCalories: 200 },
+        ],
+    };
+
+    it('recomputes lead calories at write time and forwards it to the DAL create (200 cal / 2 servings = 100)', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: '100' })) });
+
+        await newService(dal).create(principal(), CREATE_WITH_CALORIES);
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ leadCaloriesPerServing: 100 }));
+    });
+
+    it('OMITS the lead-calories key on create when the recipe has no accounted nutrition (column stays NULL)', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        // CREATE_DTO's single line has no userCalories and the catalog resolves no per-100g → nothing accounted.
+        await newService(dal).create(principal(), CREATE_DTO);
+
+        expect(dalCallArg(dal.create, 0)).not.toHaveProperty('leadCaloriesPerServing');
+    });
+
+    it('maps a persisted lead-calories value into the wire response (numeric string → number)', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: '150' })) });
+
+        const response = await newService(dal).create(principal(), CREATE_WITH_CALORIES);
+
+        expect(response.leadCaloriesPerServing).toBe(150);
+    });
+
+    it('OMITS lead calories from the response (never 0) when the column is NULL', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: null })) });
+
+        const response = await newService(dal).create(principal(), CREATE_DTO);
+
+        expect(response.leadCaloriesPerServing).toBeUndefined();
+    });
+
+    it('recomputes lead calories on a servings-ONLY update (rescaling the existing lines)', async () => {
+        // Existing recipe: one 200-cal user-override line. A servings-only edit (no ingredients in the patch)
+        // must recompute the per-serving figure from the EXISTING lines against the new servings: 200/4 = 50.
+        const existing: RecipeAggregate = {
+            ...aggregate({ currentVersion: 1, servings: 2 }),
+            ingredients: [makeRecipeIngredientRow({ userCalories: '200' })],
+        };
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(existing),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, servings: 4 });
+
+        expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBe(50);
+    });
+
+    it('does NOT touch the lead-calories column on an update that changes neither lines nor servings', async () => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, title: 'Renamed' });
+
+        expect(dalCallArg(dal.update, 1)).not.toHaveProperty('leadCaloriesPerServing');
+    });
+
+    it('CLEARS lead calories (null) when an update removes the last accounted nutrition', async () => {
+        // Existing recipe has an accounted line; the patch replaces ingredients with a no-nutrition line →
+        // the recompute yields nothing accountable and must write `null` to clear the stale stored value.
+        const existing: RecipeAggregate = {
+            ...aggregate({ currentVersion: 1 }),
+            ingredients: [makeRecipeIngredientRow({ userCalories: '200' })],
+        };
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(existing),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(OWNER, 'r-1', {
+            expectedVersion: 1,
+            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1 }],
+        });
+
+        expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBeNull();
+    });
+});
+
 describe('RecipesService.update', () => {
     const patch: UpdateRecipeDto = { expectedVersion: 1, title: 'Renamed' };
 

@@ -100,6 +100,9 @@ function toRecipe(row: RecipeRow): Recipe {
         ...recipe,
         ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
         ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
+        // Denormalized headline per-serving calories (W8-a.1) — the collection-embed card reads it here
+        // (no N+1 nutrition read); OMITTED when NULL, never a misleading 0.
+        ...(row.leadCaloriesPerServing !== null ? { leadCaloriesPerServing: Number(row.leadCaloriesPerServing) } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),

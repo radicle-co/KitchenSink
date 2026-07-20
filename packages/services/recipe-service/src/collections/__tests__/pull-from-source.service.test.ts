@@ -24,7 +24,7 @@ import { NotFoundException } from '@nestjs/common';
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
-import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
+import { makeCollectionRow, makeMembershipRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
     [K in keyof CollectionsDal]: ReturnType<typeof vi.fn>;
@@ -42,6 +42,7 @@ function makeDal(): DalMock {
         findMembership: vi.fn(),
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
+        previewMembershipIds: vi.fn(),
     };
 }
 
@@ -76,11 +77,12 @@ function wireFindById(dal: DalMock, cloneRow = clone()): void {
     });
 }
 
-/** Wire the two viewer-scoped membership reads: the clone's current set, then the source's. */
+/**
+ * Wire the coherent read-only membership read the commit + preview use (W8-a.8): the clone's current id set
+ * and the source's, viewer-scoped, returned from ONE read-only transaction.
+ */
 function wireListRecipes(dal: DalMock, cloneRecipes: string[], sourceRecipes: string[]): void {
-    dal.listRecipes.mockImplementation(async (collectionId: string) =>
-        (collectionId === CLONE_ID ? cloneRecipes : sourceRecipes).map((id) => makeRecipeRow({ id })),
-    );
+    dal.previewMembershipIds.mockResolvedValue({ cloneIds: cloneRecipes, sourceIds: sourceRecipes });
 }
 
 describe('CollectionsService.pullFromSource', () => {
@@ -110,7 +112,7 @@ describe('CollectionsService.pullFromSource', () => {
 
         // Same access rule as clone-time: the viewer is the cloner, so a source recipe that is private
         // to SOURCE_OWNER is never pulled into the cloner's collection.
-        expect(dal.listRecipes).toHaveBeenCalledWith(SOURCE_ID, CLONER);
+        expect(dal.previewMembershipIds).toHaveBeenCalledWith(CLONE_ID, SOURCE_ID, CLONER);
     });
 
     it('does NOT remove recipes the source owner has since removed from the source', async () => {
@@ -201,6 +203,77 @@ describe('CollectionsService.pullFromSource', () => {
         );
 
         expect(error).toBeDefined();
+        expect(dal.addRecipe).not.toHaveBeenCalled();
+    });
+});
+
+describe('CollectionsService.previewPull (W8-a.8 — read-only preview)', () => {
+    it('returns the added/removed/unchanged diff WITHOUT mutating', async () => {
+        const dal = makeDal();
+        wireFindById(dal);
+        // clone: rec-a rec-c ; source: rec-a rec-b → add rec-b; rec-a unchanged; rec-c is clone-only.
+        wireListRecipes(dal, ['rec-a', 'rec-c'], ['rec-a', 'rec-b']);
+        const service = makeService(dal);
+
+        const diff = await service.previewPull(CLONER, CLONE_ID);
+
+        expect(diff).toEqual({ added: ['rec-b'], removed: ['rec-c'], unchanged: ['rec-a'] });
+        // A preview NEVER writes.
+        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.removeRecipe).not.toHaveBeenCalled();
+        // It reads through the read-only-transaction membership read, viewer-scoped to the cloner.
+        expect(dal.previewMembershipIds).toHaveBeenCalledWith(CLONE_ID, SOURCE_ID, CLONER);
+    });
+});
+
+describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7)', () => {
+    it('applies when the echoed previewed diff still matches the live diff', async () => {
+        const dal = makeDal();
+        wireFindById(dal);
+        wireListRecipes(dal, ['rec-a'], ['rec-a', 'rec-b']);
+        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' }));
+        const service = makeService(dal);
+
+        const previewed = { added: ['rec-b'], removed: [], unchanged: ['rec-a'] };
+        const result = await service.pullFromSource(CLONER, CLONE_ID, previewed);
+
+        expect(dal.addRecipe).toHaveBeenCalledExactlyOnceWith(CLONE_ID, 'rec-b', 'pull');
+        expect(result.addedRecipeIds).toEqual(['rec-b']);
+    });
+
+    it('409s PULL_DRIFT (never writing) when the caller removed a recipe from their OWN clone since preview', async () => {
+        const dal = makeDal();
+        wireFindById(dal);
+        // Live state: the cloner has since DELETED rec-a from their clone, so it is now empty; source still has it.
+        // A source-only marker would still "match" and silently re-add rec-a — the exact bug decision 7 closes.
+        wireListRecipes(dal, [], ['rec-a']);
+        const service = makeService(dal);
+
+        // What the user previewed earlier: rec-a was unchanged (present in both), nothing to add.
+        const stalePreview = { added: [], removed: [], unchanged: ['rec-a'] };
+        const error = await service.pullFromSource(CLONER, CLONE_ID, stalePreview).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(isRecipeDomainError(error)).toBe(true);
+        expect(isRecipeDomainError(error) && error.code).toBe('PULL_DRIFT');
+        // The fresh diff (rec-a now in `added`) rides the error so the client re-previews.
+        expect(isRecipeDomainError(error) && (error.details as { diff: { added: string[] } }).diff.added).toEqual([
+            'rec-a',
+        ]);
+        // And it did NOT silently re-add the recipe the user just deleted.
+        expect(dal.addRecipe).not.toHaveBeenCalled();
+    });
+
+    it('409s PULL_DRIFT when the SOURCE drifted (gained a recipe) since the preview', async () => {
+        const dal = makeDal();
+        wireFindById(dal);
+        wireListRecipes(dal, [], ['rec-a', 'rec-b']); // source now has an extra rec-b vs the preview
+        const service = makeService(dal);
+
+        const stalePreview = { added: ['rec-a'], removed: [], unchanged: [] };
+        await expect(service.pullFromSource(CLONER, CLONE_ID, stalePreview)).rejects.toBeDefined();
         expect(dal.addRecipe).not.toHaveBeenCalled();
     });
 });

@@ -47,6 +47,21 @@ export const pageQuerySchema = z.object({
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+/** The three-way pull diff shape a client echoes back on commit (W8-a.8). */
+export const pullDiffSchema = z.object({
+    added: z.array(z.string()),
+    removed: z.array(z.string()),
+    unchanged: z.array(z.string()),
+});
+
+/**
+ * Body of `POST :id/pull-from-source` (W8-a.8): OPTIONAL `previewedDiff` — the diff the client saw in the
+ * preview, echoed back as the drift baseline. Absent → apply directly (no drift guard, back-compatible).
+ */
+export const pullCommitSchema = z.object({
+    previewedDiff: pullDiffSchema.optional(),
+});
+
 /** Parsed create body. */
 export type CreateCollectionBody = z.infer<typeof createCollectionSchema>;
 /** Parsed update body. */

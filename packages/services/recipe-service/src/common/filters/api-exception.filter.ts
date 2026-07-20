@@ -27,6 +27,9 @@ export const RECIPE_ERROR_STATUS: Record<RecipeErrorCodeType, number> = {
     [RecipeErrorCode.ARCHIVE_PENDING]: HttpStatus.CONFLICT,
     [RecipeErrorCode.ARCHIVE_DLQ]: HttpStatus.INTERNAL_SERVER_ERROR,
     [RecipeErrorCode.COLLECTION_NOT_CLONED]: HttpStatus.BAD_REQUEST,
+    // A pull-from-source drift (W8-a.8) is an optimistic-concurrency conflict — the previewed set no longer
+    // matches; the client re-previews with the fresh diff carried in `details`.
+    [RecipeErrorCode.PULL_DRIFT]: HttpStatus.CONFLICT,
     [RecipeErrorCode.ERASURE_IN_PROGRESS]: HTTP_STATUS_LOCKED,
     [RecipeErrorCode.UNKNOWN_INGREDIENT]: HttpStatus.BAD_REQUEST,
     // Rating your OWN recipe is a 403, not a 404: the caller demonstrably already knows the recipe

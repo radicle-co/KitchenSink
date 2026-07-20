@@ -1108,6 +1108,13 @@ export const RecipeErrorCode = {
     ARCHIVE_PENDING: 'ARCHIVE_PENDING',
     ARCHIVE_DLQ: 'ARCHIVE_DLQ',
     COLLECTION_NOT_CLONED: 'COLLECTION_NOT_CLONED',
+    /**
+     * A pull-from-source commit was rejected because the diff drifted since the client's preview (W8-a.8 /
+     * decision 7) — the source membership OR the caller's own clone membership changed. A 409; `details`
+     * carries the fresh `{ added, removed, unchanged }` so the client can re-preview rather than silently
+     * applying a different set than the user confirmed.
+     */
+    PULL_DRIFT: 'PULL_DRIFT',
     ERASURE_IN_PROGRESS: 'ERASURE_IN_PROGRESS',
     UNKNOWN_INGREDIENT: 'UNKNOWN_INGREDIENT',
     /**
@@ -1150,6 +1157,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.ARCHIVE_PENDING,
     RecipeErrorCode.ARCHIVE_DLQ,
     RecipeErrorCode.COLLECTION_NOT_CLONED,
+    RecipeErrorCode.PULL_DRIFT,
     RecipeErrorCode.ERASURE_IN_PROGRESS,
     RecipeErrorCode.UNKNOWN_INGREDIENT,
     RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,

@@ -34,8 +34,10 @@ import {
     collectionNotClonedError,
     collectionNotOwnedError,
     invalidVisibilityError,
+    pullDriftError,
     recipeNotFoundError,
 } from './collections.errors.js';
+import { computePullDiff, pullDiffsAgree, type PullDiff } from './domain/pull-diff.js';
 import type {
     CloneCollectionInput,
     CollectionRecipeMembershipResponse,
@@ -309,7 +311,61 @@ export class CollectionsService {
      *   COLLECTION_NOT_CLONED (400) when it has no source, or its source no longer exists.
      * @sideEffect Inserts `recipe_collections` rows for newly-pulled recipes.
      */
-    public async pullFromSource(ownerId: string, collectionId: string): Promise<PullFromSourceResult> {
+    public async pullFromSource(
+        ownerId: string,
+        collectionId: string,
+        previewedDiff?: PullDiff,
+    ): Promise<PullFromSourceResult> {
+        const { collection, sourceCollectionId } = await this.resolvePullContext(ownerId, collectionId);
+
+        // Read BOTH memberships in one read-only, coherent snapshot and derive the diff via the SAME pure fn
+        // the preview used — so the "what will change" the caller confirmed is computed identically here.
+        const { cloneIds, sourceIds } = await this.dal.previewMembershipIds(collectionId, sourceCollectionId, ownerId);
+        const diff = computePullDiff(sourceIds, cloneIds);
+
+        // Decision 7 drift guard: if the caller echoed the diff they previewed and it no longer matches the
+        // live one — because the SOURCE drifted OR the caller changed their OWN clone membership since the
+        // preview — do NOT silently apply a different set. Return 409 with the fresh diff so the UI re-previews.
+        if (previewedDiff !== undefined && !pullDiffsAgree(previewedDiff, diff)) {
+            throw pullDriftError(collectionId, diff);
+        }
+
+        // `addRecipe` is idempotent (ON CONFLICT DO NOTHING), so a benign concurrent double-submit is safe.
+        for (const recipeId of diff.added) {
+            await this.dal.addRecipe(collectionId, recipeId, RecipeCollectionAddedVia.PULL);
+        }
+
+        return {
+            collection: toCollectionResponse(collection, cloneIds.length + diff.added.length),
+            addedRecipeIds: diff.added,
+        };
+    }
+
+    /**
+     * Compute the read-only pull PREVIEW (W8-a.8 / decision 7): the `{ added, removed, unchanged }` diff the
+     * client shows before committing. Runs entirely through the DAL's READ-ONLY transaction and the shared
+     * pure {@link computePullDiff}, so it CANNOT mutate and is derived identically to the commit. The client
+     * echoes this diff back on commit as the drift baseline.
+     */
+    public async previewPull(ownerId: string, collectionId: string): Promise<PullDiff> {
+        const { sourceCollectionId } = await this.resolvePullContext(ownerId, collectionId);
+
+        const { cloneIds, sourceIds } = await this.dal.previewMembershipIds(collectionId, sourceCollectionId, ownerId);
+
+        return computePullDiff(sourceIds, cloneIds);
+    }
+
+    /**
+     * Resolve the owner-gated collection + its live source id for a pull (preview or commit). Shared so both
+     * enforce the identical ownership + source-exists preconditions.
+     *
+     * @throws NotFoundException / NOT_OWNER (via requireOwned); COLLECTION_NOT_CLONED (400) when the
+     *   collection has no source, or the source no longer exists.
+     */
+    private async resolvePullContext(
+        ownerId: string,
+        collectionId: string,
+    ): Promise<{ collection: CollectionRow; sourceCollectionId: string }> {
         const collection = await this.requireOwned(ownerId, collectionId);
 
         if (!collection.sourceCollectionId) {
@@ -324,23 +380,7 @@ export class CollectionsService {
             throw collectionNotClonedError(collectionId);
         }
 
-        // Both reads are viewer-scoped to the CLONER — same access rule as clone time.
-        const [current, fromSource] = await Promise.all([
-            this.dal.listRecipes(collectionId, ownerId),
-            this.dal.listRecipes(collection.sourceCollectionId, ownerId),
-        ]);
-
-        const present = new Set(current.map((recipe) => recipe.id));
-        const incoming = fromSource.filter((recipe) => !present.has(recipe.id));
-
-        for (const recipe of incoming) {
-            await this.dal.addRecipe(collectionId, recipe.id, RecipeCollectionAddedVia.PULL);
-        }
-
-        return {
-            collection: toCollectionResponse(collection, current.length + incoming.length),
-            addedRecipeIds: incoming.map((recipe) => recipe.id),
-        };
+        return { collection, sourceCollectionId: collection.sourceCollectionId };
     }
 
     /** Resolve a collection and assert the caller owns it; 404 if missing, NOT_OWNER (403) if not owned. */

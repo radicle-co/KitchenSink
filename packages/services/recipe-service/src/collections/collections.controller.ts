@@ -32,8 +32,10 @@ import {
     cloneCollectionSchema,
     createCollectionSchema,
     pageQuerySchema,
+    pullCommitSchema,
     updateCollectionSchema,
 } from './collections.schemas.js';
+import type { PullDiff } from './domain/pull-diff.js';
 import type {
     CollectionRecipeMembershipResponse,
     CollectionResponse,
@@ -150,8 +152,24 @@ export class CollectionsController {
     }
 
     /**
-     * Pull new recipes from a clone's source (FR-011) — 200 with the collection + the ids this pull
-     * added. Opt-in per invocation: nothing reconciles until the owner asks.
+     * PREVIEW a pull without mutating (W8-a.8 / decision 7) — 200 with the `{ added, removed, unchanged }`
+     * diff the client shows before committing, then echoes back on commit as the drift baseline. A distinct,
+     * read-only endpoint (the service runs it in a READ-ONLY transaction) rather than a `?dryRun` flag on the
+     * mutating handler — so a preview is structurally incapable of writing.
+     */
+    @Post(':id/pull-from-source/preview')
+    @HttpCode(200)
+    public async previewPull(@Req() req: AuthenticatedRequest, @Param('id') id: string): Promise<PullDiff> {
+        const owner = this.requirePrincipal(req);
+
+        return this.collections.previewPull(owner.userId, id);
+    }
+
+    /**
+     * Pull new recipes from a clone's source (FR-011 / W8-a.8) — 200 with the collection + the ids this pull
+     * added. Opt-in per invocation: nothing reconciles until the owner asks. When the body echoes the
+     * `previewedDiff`, the server re-derives the diff live and returns 409 PULL_DRIFT (with the fresh diff)
+     * if it changed — so the user never silently gets a different set than they confirmed.
      */
     @Post(':id/pull-from-source')
     @HttpCode(200)
@@ -159,10 +177,12 @@ export class CollectionsController {
     public async pullFromSource(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
+        @Body() body: unknown,
     ): Promise<PullFromSourceResult> {
         const owner = this.requirePrincipal(req);
+        const { previewedDiff } = parseOrThrow(pullCommitSchema, body ?? {});
 
-        return this.collections.pullFromSource(owner.userId, id);
+        return this.collections.pullFromSource(owner.userId, id, previewedDiff);
     }
 
     /** Remove a recipe from an owned collection. */

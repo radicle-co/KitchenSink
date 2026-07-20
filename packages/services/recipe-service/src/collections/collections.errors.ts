@@ -16,6 +16,7 @@
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipeDomainError } from '../recipes/recipe.error.js';
+import type { PullDiff } from './domain/pull-diff.js';
 
 /** The caller does not own the collection (→ 403). */
 export const collectionNotOwnedError = (collectionId: string): RecipeDomainError =>
@@ -44,4 +45,16 @@ export const collectionNotClonedError = (collectionId: string): RecipeDomainErro
         RecipeErrorCode.COLLECTION_NOT_CLONED,
         'This collection was not cloned from a source, so there is nothing to pull from.',
         { collectionId },
+    );
+
+/**
+ * A pull-from-source commit drifted since the client's preview (W8-a.8 / decision 7) — the source OR the
+ * caller's own clone membership changed, so the previewed diff no longer matches (→ 409). The FRESH diff
+ * rides `details` so the client re-previews rather than silently applying a set the user did not confirm.
+ */
+export const pullDriftError = (collectionId: string, freshDiff: PullDiff): RecipeDomainError =>
+    new RecipeDomainError(
+        RecipeErrorCode.PULL_DRIFT,
+        'The source changed since you previewed this pull. Review the updated changes before applying.',
+        { collectionId, diff: freshDiff },
     );

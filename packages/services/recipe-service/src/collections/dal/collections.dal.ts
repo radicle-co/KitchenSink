@@ -15,7 +15,7 @@
  * only to its `recipe_collections` junction rows (FK `ON DELETE CASCADE`), never to the `recipes`.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, getTableColumns } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, sql } from 'drizzle-orm';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../../database/database.module.js';
 import {
@@ -219,14 +219,54 @@ export class CollectionsDal {
             .select(getTableColumns(recipes))
             .from(recipeCollections)
             .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
-            .where(
-                and(
-                    eq(recipeCollections.collectionId, collectionId),
-                    activeRecipe(),
-                    viewableBy(viewerId),
-                    publishedOrOwnedBy(viewerId),
-                ),
-            )
+            .where(this.membershipPredicate(collectionId, viewerId))
             .orderBy(recipeCollections.addedAt);
+    }
+
+    /**
+     * Read the clone + source membership id sets for a pull PREVIEW (W8-a.8) in ONE explicit READ-ONLY
+     * transaction. `SET TRANSACTION READ ONLY` gives a single coherent snapshot for both reads AND makes any
+     * accidental write inside the block abort at the database — so the preview endpoint is structurally
+     * incapable of mutating (the "make illegal states unrepresentable" guarantee, verified by a test that a
+     * write inside this tx throws). Ids are viewer-scoped by the SAME predicate as {@link listRecipes}, so a
+     * source recipe gone private/draft/deleted is already absent (no disclosure).
+     */
+    public async previewMembershipIds(
+        cloneId: string,
+        sourceId: string,
+        viewerId: string,
+    ): Promise<{ readonly cloneIds: string[]; readonly sourceIds: string[] }> {
+        return this.db.transaction(async (tx) => {
+            await tx.execute(sql`SET TRANSACTION READ ONLY`);
+
+            // Sequential (not Promise.all): a single transaction runs on one connection, so its statements
+            // must not be pipelined concurrently.
+            const cloneRows = await tx
+                .select({ id: recipes.id })
+                .from(recipeCollections)
+                .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
+                .where(this.membershipPredicate(cloneId, viewerId));
+            const sourceRows = await tx
+                .select({ id: recipes.id })
+                .from(recipeCollections)
+                .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
+                .where(this.membershipPredicate(sourceId, viewerId));
+
+            return { cloneIds: cloneRows.map((r) => r.id), sourceIds: sourceRows.map((r) => r.id) };
+        });
+    }
+
+    /**
+     * The viewer-scoped collection-membership predicate (C-007 tombstone + the W8-a.3 read boundary). The
+     * RULE lives once in the predicate helpers ({@link activeRecipe}/{@link viewableBy}/{@link publishedOrOwnedBy});
+     * this composes them for `listRecipes` and the preview read so both enforce the identical scope. Pure.
+     */
+    private membershipPredicate(collectionId: string, viewerId: string) {
+        return and(
+            eq(recipeCollections.collectionId, collectionId),
+            activeRecipe(),
+            viewableBy(viewerId),
+            publishedOrOwnedBy(viewerId),
+        );
     }
 }

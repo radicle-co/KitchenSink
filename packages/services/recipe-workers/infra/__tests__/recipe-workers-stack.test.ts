@@ -62,6 +62,7 @@ function synth(stage = 'sandbox'): Template {
         dbInstanceIdentifier: 'kitchensink-db-sandbox',
         archiveBucketName: 'commise-versions-sandbox',
         mediaBucketName: 'commise-photos-sandbox',
+        handleSyncTopicArn: 'arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox',
     });
 
     return Template.fromStack(stack);
@@ -96,7 +97,7 @@ describe('RecipeWorkersStack', () => {
         // these are precisely the DB-bound NAT consumers ADR-0004 documents.
         const functions = template.findResources('AWS::Lambda::Function');
         const names = Object.keys(functions);
-        expect(names).toHaveLength(5);
+        expect(names).toHaveLength(6);
 
         for (const name of names) {
             expect(functions[name]?.Properties?.VpcConfig, `${name} must be VPC-attached`).toBeDefined();
@@ -107,6 +108,23 @@ describe('RecipeWorkersStack', () => {
     it('subscribes the archive worker to the queue one message at a time', () => {
         template.hasResourceProperties('AWS::Lambda::EventSourceMapping', {
             BatchSize: 1,
+        });
+    });
+
+    it('creates a per-stack handle-sync queue subscribed to the global topic + its consumer (W8-a.2)', () => {
+        // Per-stack queue (SNS fan-out), so a rename reaches every preview/base consumer — not one shared queue.
+        template.hasResourceProperties('AWS::SQS::Queue', {
+            QueueName: 'kitchensink-recipe-handle-sync-sandbox',
+            SqsManagedSseEnabled: true,
+        });
+        // The queue is subscribed to the imported global topic (its ARN carried in the subscription).
+        template.hasResourceProperties('AWS::SNS::Subscription', {
+            Protocol: 'sqs',
+            TopicArn: 'arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox',
+        });
+        // The consumer Lambda reports partial-batch failures so SQS retries only the failed rename.
+        template.hasResourceProperties('AWS::Lambda::EventSourceMapping', {
+            FunctionResponseTypes: ['ReportBatchItemFailures'],
         });
     });
 
@@ -487,9 +505,9 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         // would both change its trigger semantics and demand a consume grant it deliberately lacks.
         const mappings = Object.values(template.findResources('AWS::Lambda::EventSourceMapping'));
 
-        // Only the two queue workers (archive + erasure) have event-source mappings; adding the orphan
-        // sweeper must not have introduced a third.
-        expect(mappings).toHaveLength(2);
+        // The three queue workers (archive + erasure + handle-sync) have event-source mappings; the orphan
+        // sweeper (EventBridge-scheduled) must not have introduced another.
+        expect(mappings).toHaveLength(3);
     });
 
     it('alarms when the sweeper deletes any orphan — the resurrection race actually fired', () => {

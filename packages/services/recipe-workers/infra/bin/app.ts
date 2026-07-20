@@ -51,6 +51,8 @@ new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
     dbInstanceIdentifier: requireEnv('RECIPE_DB_INSTANCE_ID'),
     archiveBucketName: requireEnv('RECIPE_ARCHIVE_BUCKET'),
     mediaBucketName: requireEnv('RECIPE_MEDIA_BUCKET'),
+    // The global handle-sync SNS topic ARN (W8-a.2), exported by DataStack; wired in by CI like the buckets.
+    handleSyncTopicArn: requireEnv('HANDLE_SYNC_TOPIC_ARN'),
 });
 
 app.synth();

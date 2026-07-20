@@ -15,6 +15,7 @@ import {
     aws_rds as rds,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
     aws_sqs as sqs,
     custom_resources as cr,
 } from 'aws-cdk-lib';
@@ -33,6 +34,14 @@ export interface DataStackProps extends StackProps {
 export class DataStack extends Stack {
     public readonly database: rds.DatabaseInstance;
     public readonly deletionQueue: sqs.Queue;
+    /**
+     * The handle-sync SNS topic (W8-a.2 / decision 6). Owned by GLOBAL infra (never swept by per-PR
+     * cleanup): the identity service (`PATCH /v1/users/me`) and the Clerk `user.updated` webhook both
+     * publish `{ userId, displayName, sourceTimestamp }` here, and each recipe-workers deployment subscribes
+     * its OWN per-stack SQS queue — SNS fan-out, not one shared queue (which would deliver each rename to
+     * exactly one of N preview consumers). Its ARN is exported for the producer + subscriber stacks.
+     */
+    public readonly handleSyncTopic: sns.Topic;
     public readonly deletionDlq: sqs.Queue;
     public readonly mediaBucket: s3.Bucket;
     public readonly archiveBucket: s3.Bucket;
@@ -259,6 +268,14 @@ export class DataStack extends Stack {
             },
         });
 
+        // Handle-sync fan-out topic (W8-a.2). A plain topic: the payload is transient and non-secret at the
+        // topic; the PII (a display name) is bounded by each subscriber SQS queue's retention + SSE. Named
+        // per-stage but tagged Environment=global (prod/sandbox baseline only, never pr-{N}).
+        this.handleSyncTopic = new sns.Topic(this, 'HandleSyncTopic', {
+            topicName: `kitchensink-handle-sync-${stageTag}`,
+            displayName: 'Recipe author/editor handle sync',
+        });
+
         this.mediaBucket = new s3.Bucket(this, 'MediaBucket', {
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             enforceSSL: true,
@@ -283,6 +300,10 @@ export class DataStack extends Stack {
             autoDeleteObjects: true,
         });
 
+        new CfnOutput(this, 'HandleSyncTopicArn', {
+            value: this.handleSyncTopic.topicArn,
+            exportName: `${this.stackName}:HandleSyncTopicArn`,
+        });
         new CfnOutput(this, 'DatabaseEndpoint', {
             value: this.database.dbInstanceEndpointAddress,
             exportName: `${this.stackName}:DatabaseEndpoint`,

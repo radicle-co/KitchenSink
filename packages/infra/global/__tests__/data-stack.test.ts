@@ -22,6 +22,16 @@ const dataTemplate = (stage: string): Template => {
     return Template.fromStack(data);
 };
 
+describe('DataStack handle-sync topic (W8-a.2)', () => {
+    it('creates the global handle-sync SNS topic + exports its ARN for producers/subscribers', () => {
+        const template = dataTemplate('sandbox');
+        template.hasResourceProperties('AWS::SNS::Topic', {
+            TopicName: 'kitchensink-handle-sync-sandbox',
+        });
+        template.hasOutput('HandleSyncTopicArn', {});
+    });
+});
+
 describe('DataStack per-stage RDS instance class (ADR-0007)', () => {
     it('prod stays on db.t4g.small (unchanged sizing → no prod diff)', () => {
         dataTemplate('prod').hasResourceProperties('AWS::RDS::DBInstance', {

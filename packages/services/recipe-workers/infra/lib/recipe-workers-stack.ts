@@ -14,6 +14,7 @@ import {
     aws_logs as logs,
     aws_s3 as s3,
     aws_sns as sns,
+    aws_sns_subscriptions as sns_subscriptions,
     aws_sqs as sqs,
     aws_ssm as ssm,
 } from 'aws-cdk-lib';
@@ -108,6 +109,8 @@ export interface RecipeWorkersStackProps extends StackProps {
     readonly dbInstanceIdentifier: string;
     readonly archiveBucketName: string;
     readonly mediaBucketName: string;
+    /** ARN of the global handle-sync SNS topic (W8-a.2) this deployment subscribes its OWN queue to. */
+    readonly handleSyncTopicArn: string;
 }
 
 /**
@@ -140,6 +143,8 @@ export class RecipeWorkersStack extends Stack {
     public readonly archiveDlq: sqs.Queue;
     public readonly erasureQueue: sqs.Queue;
     public readonly erasureDlq: sqs.Queue;
+    public readonly handleSyncQueue: sqs.Queue;
+    public readonly handleSyncDlq: sqs.Queue;
 
     public constructor(scope: Construct, id: string, props: RecipeWorkersStackProps) {
         super(scope, id, props);
@@ -379,6 +384,55 @@ export class RecipeWorkersStack extends Stack {
         // failure, so a larger batch would leave later records unattempted and could blow the 5-minute
         // timeout outright.
         erasureFn.addEventSource(new lambda_event_sources.SqsEventSource(this.erasureQueue, { batchSize: 1 }));
+
+        // ── handle-sync: per-stack SQS queue subscribed to the GLOBAL topic + its consumer (W8-a.2) ──────
+        // Each deployment subscribes its OWN queue (SNS fan-out), so a rename reaches EVERY preview/base
+        // consumer — one shared queue would deliver each rename to exactly one of N previews, leaving the
+        // rest stale. The queue is tagged with the stack's Environment (pr-{N} queues are swept on close;
+        // prod/sandbox-baseline are global). Subscription is NOT raw-delivery — the worker unwraps the SNS
+        // envelope. SQS-managed SSE bounds the display-name PII at rest (the topic is a transient pass-through).
+        this.handleSyncDlq = new sqs.Queue(this, 'HandleSyncDlq', {
+            queueName: `kitchensink-recipe-handle-sync-dlq-${props.stage}`,
+            encryption: sqs.QueueEncryption.SQS_MANAGED,
+            retentionPeriod: Duration.days(14),
+            visibilityTimeout: Duration.seconds(60),
+        });
+        this.handleSyncQueue = new sqs.Queue(this, 'HandleSyncQueue', {
+            queueName: `kitchensink-recipe-handle-sync-${props.stage}`,
+            encryption: sqs.QueueEncryption.SQS_MANAGED,
+            retentionPeriod: Duration.days(4),
+            visibilityTimeout: Duration.seconds(60),
+            deadLetterQueue: { queue: this.handleSyncDlq, maxReceiveCount: 5 },
+        });
+
+        const handleSyncTopic = sns.Topic.fromTopicArn(this, 'ImportedHandleSyncTopic', props.handleSyncTopicArn);
+        handleSyncTopic.addSubscription(new sns_subscriptions.SqsSubscription(this.handleSyncQueue));
+
+        const handleSyncRole = makeRole('HandleSyncWorkerRole', 'Least-privilege role for the handle-sync Lambda');
+        grantRdsIam(handleSyncRole);
+        this.handleSyncQueue.grantConsumeMessages(handleSyncRole);
+
+        const handleSyncFn = new lambda.Function(this, 'HandleSyncWorkerFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/handle-sync-worker.handler',
+            code: lambda.Code.fromAsset(DIST_PATH),
+            role: handleSyncRole,
+            vpc,
+            vpcSubnets,
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(60),
+            memorySize: 256,
+            environment: { ...commonDbEnv },
+            logGroup,
+        });
+        // Partial-batch responses: the handler returns batchItemFailures, so SQS retries only failed renames.
+        handleSyncFn.addEventSource(
+            new lambda_event_sources.SqsEventSource(this.handleSyncQueue, {
+                batchSize: 10,
+                reportBatchItemFailures: true,
+            }),
+        );
 
         // The erasure durability backstop. `ErasureService` enqueues eagerly on request, so this sweep is
         // NOT the latency path — it is what recovers a job whose send failed (SQS outage), whose message

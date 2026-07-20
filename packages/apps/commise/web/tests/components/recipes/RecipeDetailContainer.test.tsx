@@ -215,6 +215,44 @@ describe('RecipeDetailContainer', () => {
         });
     });
 
+    describe('detail entry points (W2/D1 dead-end + D7 clone gating)', () => {
+        it('gives the OWNER Edit + Version-history links and NO Clone control', () => {
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            // D1: the web detail was a dead end — the owner could not reach the editor or the version history.
+            expect(screen.getByRole('link', { name: 'Edit recipe' })).toHaveAttribute('href', '/en/recipes/rec_1/edit');
+            expect(screen.getByRole('link', { name: 'Version history' })).toHaveAttribute(
+                'href',
+                '/en/recipes/rec_1/versions',
+            );
+            // D7: an owner never clones their own recipe — the control is ABSENT, not merely disabled.
+            expect(screen.queryByRole('button', { name: 'Clone' })).not.toBeInTheDocument();
+        });
+
+        it('gives a NON-OWNER viewer of a public recipe Clone, and NO Edit/History links (D7 parity)', () => {
+            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            expect(screen.getByRole('button', { name: 'Clone' })).toBeInTheDocument();
+            expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('link', { name: 'Version history' })).not.toBeInTheDocument();
+        });
+    });
+
     describe('visibility (T074) — owner only, premium-gated', () => {
         it('sets visibility to public when the owner selects the public option', async () => {
             const user = userEvent.setup();
@@ -317,6 +355,8 @@ describe('RecipeDetailContainer', () => {
         });
 
         it('disables the clone action for a non-public recipe', () => {
+            // The clone control only renders for a non-owner (D7); a private source keeps it disabled.
+            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
             useRecipeMock.mockReturnValue({
                 isLoading: false,
                 isError: false,
@@ -330,6 +370,7 @@ describe('RecipeDetailContainer', () => {
         });
 
         it('marks the clone action busy while the clone mutation is in flight', () => {
+            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
             useCloneRecipeMock.mockReturnValue({ mutate: cloneMutateMock, isPending: true });
             useRecipeMock.mockReturnValue({
                 isLoading: false,

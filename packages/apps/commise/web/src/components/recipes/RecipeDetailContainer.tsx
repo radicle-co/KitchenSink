@@ -45,6 +45,7 @@ import {
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type FC } from 'react';
 
@@ -181,6 +182,10 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
 
             {isOwner && (
                 <>
+                    {/* W2/D1: the web detail was a dead end — restore the owner's entry points to the editor
+                        and the version history (mirrors mobile's RecipeDetailScreen header). */}
+                    <Link href={`/${locale}/recipes/${id}/edit` as Route}>{recipes.actions.editAction}</Link>
+                    <Link href={`/${locale}/recipes/${id}/versions` as Route}>{recipes.actions.versionHistory}</Link>
                     <RecipeVisibilityToggle
                         visibility={recipe.visibility}
                         canGoPrivate={canGoPrivate}
@@ -204,16 +209,20 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                 </>
             )}
 
-            <RecipeCloneAction
-                canClone={isPublic}
-                sourceAttribution={recipe.sourceAttribution}
-                cloning={cloneRecipe.isPending}
-                onClone={() =>
-                    cloneRecipe.mutate(id, {
-                        onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}` as Route),
-                    })
-                }
-            />
+            {/* W2/D7: an owner never clones their OWN recipe — the orchestration layer omits the control
+                entirely (absent, not a disabled button), matching mobile's `isPublic && !isOwner` gate. */}
+            {!isOwner && (
+                <RecipeCloneAction
+                    canClone={isPublic}
+                    sourceAttribution={recipe.sourceAttribution}
+                    cloning={cloneRecipe.isPending}
+                    onClone={() =>
+                        cloneRecipe.mutate(id, {
+                            onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}` as Route),
+                        })
+                    }
+                />
+            )}
         </>
     );
 };

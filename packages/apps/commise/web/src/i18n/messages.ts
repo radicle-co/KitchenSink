@@ -117,6 +117,10 @@ export interface WebMessages {
          * trigger that opens the shared dialog, and the premium gate reason for the visibility toggle.
          */
         readonly actions: {
+            /** Label of the owner-only link to the recipe editor (W2/D1 — restores the web detail entry point). */
+            readonly editAction: string;
+            /** Label of the owner-only link to the recipe's version history (W2/D1). */
+            readonly versionHistory: string;
             /** Label of the owner-only control that opens the delete-confirmation dialog. */
             readonly deleteAction: string;
             /** Reason shown when the private visibility option is gated off (no premium signal available). */
@@ -291,6 +295,8 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 retry: 'Try again',
             },
             actions: {
+                editAction: 'Edit recipe',
+                versionHistory: 'Version history',
                 deleteAction: 'Delete recipe',
                 premiumRequired: 'Upgrade to premium to make a recipe private.',
             },

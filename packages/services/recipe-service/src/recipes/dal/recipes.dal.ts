@@ -9,7 +9,7 @@
  *
  * @sideEffect Every method reads and/or writes Postgres via the injected Drizzle client.
  */
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
@@ -21,6 +21,7 @@ import {
 } from '../../database/schema/index.js';
 import type { RecipeDifficulty, RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
+import { activeRecipe } from './recipe-predicates.js';
 import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipe-ingredients.dal.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
@@ -212,7 +213,7 @@ export class RecipesDal {
         const [recipe] = await this.db
             .select()
             .from(recipes)
-            .where(and(eq(recipes.id, id), isNull(recipes.deletedAt)))
+            .where(and(eq(recipes.id, id), activeRecipe()))
             .limit(1);
 
         if (!recipe) {
@@ -232,7 +233,7 @@ export class RecipesDal {
      */
     public async findAll(options: FindAllOptions): Promise<FindAllResult> {
         const { ownerId, page, pageSize, sortBy } = options;
-        const where = and(eq(recipes.ownerId, ownerId), isNull(recipes.deletedAt));
+        const where = and(eq(recipes.ownerId, ownerId), activeRecipe());
         const offset = (page - 1) * pageSize;
 
         const orderBy =
@@ -357,13 +358,7 @@ export class RecipesDal {
                 // `expectedVersion`. A concurrent update that already bumped it makes this match 0 rows,
                 // which the service turns into VERSION_CONFLICT — closing the lost-update race a separate
                 // read-then-check leaves open.
-                .where(
-                    and(
-                        eq(recipes.id, id),
-                        isNull(recipes.deletedAt),
-                        eq(recipes.currentVersion, input.expectedVersion),
-                    ),
-                )
+                .where(and(eq(recipes.id, id), activeRecipe(), eq(recipes.currentVersion, input.expectedVersion)))
                 .returning();
 
             if (!recipe) {
@@ -401,7 +396,7 @@ export class RecipesDal {
         const deleted = await this.db
             .update(recipes)
             .set({ deletedAt: now, updatedAt: now })
-            .where(and(eq(recipes.id, id), isNull(recipes.deletedAt)))
+            .where(and(eq(recipes.id, id), activeRecipe()))
             .returning({ id: recipes.id });
 
         return deleted.length > 0;
@@ -419,7 +414,7 @@ export class RecipesDal {
         const [recipe] = await this.db
             .update(recipes)
             .set({ visibility, updatedAt: new Date() })
-            .where(and(eq(recipes.id, id), isNull(recipes.deletedAt)))
+            .where(and(eq(recipes.id, id), activeRecipe()))
             .returning();
 
         if (!recipe) {

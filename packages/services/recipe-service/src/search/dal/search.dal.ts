@@ -32,6 +32,7 @@ import type {
 } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
+import { activeRecipe, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 import { resolveCdnUrl } from '../../photos/photo-view.js';
 
 /** Default page size when the caller does not specify one (mirrors the list endpoint's default). */
@@ -387,10 +388,7 @@ export class SearchDal {
 
     /** Build the AND-joined visibility + filter predicate shared by all three reads. */
     private buildWhere(filters: RecipeSearchFilters): SQL {
-        const conditions: SQL[] = [
-            sql`deleted_at IS NULL`,
-            sql`(visibility = 'public' OR owner_id = ${filters.ownerId})`,
-        ];
+        const conditions: SQL[] = [activeRecipe(), viewableBy(filters.ownerId)];
 
         if (filters.query !== undefined) {
             conditions.push(sql`search_vector @@ plainto_tsquery('english', ${filters.query})`);

@@ -10,10 +10,12 @@
  *   3. **Facet aggregation** — a rank-sampling CTE (`LIMIT` sample) unnests `dietary_flags` + `tags`
  *      into grouped counts, returned alongside the page and the unpaged total.
  *
- * Query *shape* is asserted by flattening the static text of the `SQL` handed to `db.execute` (the
- * bound params are opaque, exactly as in production), so the tests pin the SQL contract without a DB.
+ * Query *shape* is asserted by compiling the `SQL` handed to `db.execute` through the production Postgres
+ * dialect (bound values render as `$n` params, exactly as at runtime), so the tests pin the real emitted
+ * SQL contract — including centrally-defined read-predicate columns — without a database.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/client.js';
@@ -37,23 +39,17 @@ function makeDb(): { db: RecipeDrizzle; execute: ReturnType<typeof vi.fn> } {
     return { db, execute };
 }
 
-/** Flatten the static SQL text of a drizzle `SQL` (params render empty — same as production). */
+const dialect = new PgDialect();
+
+/**
+ * Compile the `SQL` handed to `db.execute` to its real Postgres text via the production dialect — the same
+ * rendering path Drizzle uses at runtime. This faithfully resolves embedded column references (e.g. the
+ * centralized `activeRecipe()` / `viewableBy()` read-predicates render as `"recipes"."deleted_at"` etc.)
+ * and parameterizes bound values as `$n`, so the shape assertions pin the actual emitted SQL rather than a
+ * lossy flatten that silently drops non-string chunks.
+ */
 function sqlText(value: unknown): string {
-    if (value === null || typeof value !== 'object') {
-        return '';
-    }
-
-    const record = value as Record<string, unknown>;
-
-    if (Array.isArray(record['queryChunks'])) {
-        return (record['queryChunks'] as unknown[]).map(sqlText).join('');
-    }
-
-    if (Array.isArray(record['value'])) {
-        return (record['value'] as unknown[]).filter((chunk) => typeof chunk === 'string').join('');
-    }
-
-    return '';
+    return dialect.sqlToQuery(value as Parameters<PgDialect['sqlToQuery']>[0]).sql;
 }
 
 const OWNER = '01J000000000000000000FREE0';
@@ -246,9 +242,11 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('ts_rank');
         expect(pageSql).toContain("plainto_tsquery('english'");
         expect(pageSql).toContain('search_vector @@');
-        expect(pageSql).toContain('deleted_at IS NULL');
-        expect(pageSql).toContain("visibility = 'public'");
-        expect(pageSql).toContain('owner_id =');
+        // Read-scoping via the centralized predicates (S-R3): tombstone + (public OR owner). The `'public'`
+        // literal and the viewer id are bound params ($n), so we pin the qualified columns and operators.
+        expect(pageSql).toContain('"deleted_at" is null');
+        expect(pageSql).toContain('"visibility" =');
+        expect(pageSql).toContain('"owner_id" =');
         expect(pageSql).toContain('LIMIT');
         expect(pageSql).toContain('OFFSET');
     });
@@ -261,9 +259,9 @@ describe('SearchDal.search', () => {
         const pageSql = sqlText(execute.mock.calls[0]![0]);
 
         expect(pageSql).not.toContain('plainto_tsquery');
-        // Still scoped by visibility + tombstone predicate.
-        expect(pageSql).toContain('deleted_at IS NULL');
-        expect(pageSql).toContain("visibility = 'public'");
+        // Still scoped by visibility + tombstone predicate (S-R3 centralized read-predicates).
+        expect(pageSql).toContain('"deleted_at" is null');
+        expect(pageSql).toContain('"visibility" =');
     });
 
     it('adds cuisine, dietary-flag, tag, time, and ingredient predicates when present', async () => {

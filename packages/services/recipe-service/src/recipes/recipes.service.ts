@@ -670,7 +670,10 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        if (source.recipe.ownerId !== ownerId && source.recipe.visibility !== 'public') {
+        // Clone read-scoping (FR-011): a non-owner may clone only a public recipe; an owner may clone their
+        // own (even private). Routes through the single in-memory visibility predicate — the SQL twin of the
+        // `viewableBy` DAL predicate — so the rule lives in exactly one place per representation.
+        if (!isRecipeViewableBy(source.recipe, ownerId)) {
             throw notOwner(id);
         }
 

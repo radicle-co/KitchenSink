@@ -15,7 +15,7 @@
  * only to its `recipe_collections` junction rows (FK `ON DELETE CASCADE`), never to the `recipes`.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, getTableColumns, isNull, or } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns } from 'drizzle-orm';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../../database/database.module.js';
 import {
@@ -26,6 +26,7 @@ import {
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
+import { activeRecipe, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
 export interface CreateCollectionRow {
@@ -144,7 +145,7 @@ export class CollectionsDal {
         const rows = await this.db
             .select()
             .from(recipes)
-            .where(and(eq(recipes.id, recipeId), isNull(recipes.deletedAt)))
+            .where(and(eq(recipes.id, recipeId), activeRecipe()))
             .limit(1);
 
         return rows[0];
@@ -215,13 +216,7 @@ export class CollectionsDal {
             .select(getTableColumns(recipes))
             .from(recipeCollections)
             .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
-            .where(
-                and(
-                    eq(recipeCollections.collectionId, collectionId),
-                    isNull(recipes.deletedAt),
-                    or(eq(recipes.visibility, 'public'), eq(recipes.ownerId, viewerId)),
-                ),
-            )
+            .where(and(eq(recipeCollections.collectionId, collectionId), activeRecipe(), viewableBy(viewerId)))
             .orderBy(recipeCollections.addedAt);
     }
 }

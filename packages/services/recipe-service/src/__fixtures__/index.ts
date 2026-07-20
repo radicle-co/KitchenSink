@@ -48,6 +48,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         tags: ['dinner'],
         hasPartialNutrition: false,
         leadCaloriesPerServing: null,
+        authorHandle: null,
         currentVersion: 1,
         ingredientNamesText: 'flour water salt',
         searchVector: null,
@@ -102,6 +103,7 @@ export function makeVersionRow(overrides: Partial<RecipeVersionRow> = {}): Recip
         createdBy: '01J000000000000000000FREE0',
         changeSummary: null,
         deviceLabel: null,
+        editorHandle: null,
         createdAt: BASE_DATE,
         ...overrides,
     };

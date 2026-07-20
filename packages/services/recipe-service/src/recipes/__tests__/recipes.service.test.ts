@@ -197,6 +197,35 @@ describe('RecipesService.create', () => {
         expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ deviceLabel: 'Pixel 8' }));
     });
 
+    it('denormalizes the author handle from the token claims onto the recipe + version (W8-a.2)', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        // A principal carrying first/last-name claims → deriveDisplayName → "Ada Lovelace".
+        await service.create(principal({ firstName: 'Ada', lastName: 'Lovelace' }), CREATE_DTO);
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ authorHandle: 'Ada Lovelace' }));
+        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Ada Lovelace' }));
+    });
+
+    it('omits the author handle when the claims yield no derivable name (→ column NULL) (W8-a.2)', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        // The default principal carries no first/last name.
+        await newService(dal).create(principal(), CREATE_DTO);
+
+        const createArg = (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+        expect(createArg).not.toHaveProperty('authorHandle');
+    });
+
     it('does NOT put a deviceLabel key on the snapshot when the write omits it (device stays unknown)', async () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });

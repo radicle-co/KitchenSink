@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
+import { deriveDisplayName } from '@kitchensink/identity-core';
 
 import { users, accounts, profiles } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
@@ -67,7 +68,9 @@ export class UsersService {
      * @sideEffect creates user/account/profile rows on first request for a new identity.
      */
     async resolveOrCreateFromClaims(claims: VerifiedClerkClaims): Promise<AuthorizerContext> {
-        const displayName = [claims.firstName, claims.lastName].filter(Boolean).join(' ').trim();
+        // The ONE display-name rule (W8-a.2 / decision 6), shared with the recipe write-time handle fallback
+        // via @kitchensink/identity-core — so both services derive the "@handle" identically, no divergence.
+        const displayName = deriveDisplayName(claims);
         const realEmail = claims.email;
 
         // One query: fetch the user AND whether its account + profile already exist (the hot-path

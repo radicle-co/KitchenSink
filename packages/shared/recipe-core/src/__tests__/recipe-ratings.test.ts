@@ -196,6 +196,11 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
         expect(recipeSchema.safeParse(makeRecipe({ leadCaloriesPerServing: -1 })).success).toBe(false);
     });
 
+    it('accepts the denormalized authorHandle (W8-a.2) and tolerates its absence', () => {
+        expect(recipeSchema.parse(makeRecipe({ authorHandle: 'Ada Lovelace' })).authorHandle).toBe('Ada Lovelace');
+        expect(recipeSchema.parse(makeRecipe()).authorHandle).toBeUndefined();
+    });
+
     it('requires a valid status (W8-a.3) — draft|published only, never absent', () => {
         expect(recipeSchema.parse(makeRecipe({ status: RecipeStatus.DRAFT })).status).toBe('draft');
         expect(recipeSchema.parse(makeRecipe({ status: RecipeStatus.PUBLISHED })).status).toBe('published');
@@ -239,6 +244,13 @@ describe('recipeVersionSchema — deviceLabel attribution (W8-a.6)', () => {
 
     it('rejects a deviceLabel past the 80-char bound (unbounded free text is not persisted)', () => {
         expect(recipeVersionSchema.safeParse(makeVersion({ deviceLabel: 'x'.repeat(81) })).success).toBe(false);
+    });
+
+    it('accepts the denormalized editorHandle (W8-a.2) and tolerates its absence', () => {
+        expect(recipeVersionSchema.parse(makeVersion({ editorHandle: 'Ada Lovelace' })).editorHandle).toBe(
+            'Ada Lovelace',
+        );
+        expect(recipeVersionSchema.parse(makeVersion()).editorHandle).toBeUndefined();
     });
 });
 

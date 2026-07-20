@@ -10,6 +10,7 @@ import {
     recipeIngredients,
     recipePhotos,
     recipeRatings,
+    authorHandles,
     recipeVersions,
     recipeVersionPendingArchives,
     collections,
@@ -104,6 +105,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             tags: { type: 'text[]', notNull: true },
             has_partial_nutrition: { type: 'boolean', notNull: true },
             lead_calories_per_serving: { type: 'numeric(8,1)', notNull: false },
+            author_handle: { type: 'text', notNull: false },
             status: { type: 'text', notNull: true },
             current_version: { type: 'integer', notNull: true },
             ingredient_names_text: { type: 'text', notNull: true },
@@ -203,7 +205,17 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             created_by: { type: 'varchar(255)', notNull: true },
             change_summary: { type: 'text', notNull: false },
             device_label: { type: 'text', notNull: false },
+            editor_handle: { type: 'text', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
+        });
+    });
+
+    it('author_handles (W8-a.2 read model)', () => {
+        expect(getTableName(authorHandles)).toBe('author_handles');
+        expectColumns(authorHandles, {
+            user_id: { type: 'varchar(255)', notNull: true },
+            display_name: { type: 'text', notNull: true },
+            source_timestamp: { type: 'timestamp with time zone', notNull: true },
         });
     });
 

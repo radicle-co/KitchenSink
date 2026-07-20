@@ -31,6 +31,7 @@
         "@kitchensink/clerk-verify": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/identity-core": "*",
         "@nestjs/common": "^11.0.0",
         "@nestjs/config": "^4.0.0",
         "@nestjs/core": "^11.0.0",

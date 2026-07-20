@@ -52,6 +52,10 @@ export const recipeVersions = pgTable(
         // with no default: a device is not knowable retroactively, so historical rows stay NULL and the UI
         // renders "unknown device" rather than fabricating attribution. User-controlled → escaped at render.
         deviceLabel: text('device_label'),
+        // The version editor's denormalized display-name (W8-a.2 / decision 6). A mutable COLUMN, NOT a
+        // snapshot field (a handle frozen in the immutable snapshot could never be corrected by rename-sync).
+        // NULLABLE; kept current by the handle-sync consumer's fan-out. The editor is `created_by` (the ULID).
+        editorHandle: text('editor_handle'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [

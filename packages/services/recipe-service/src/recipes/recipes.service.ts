@@ -12,6 +12,7 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { deriveDisplayName } from '@kitchensink/identity-core';
 import type { RecipeNutrition, RecipePhoto, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
 
 import { VersionsService } from '../versions/versions.service.js';
@@ -157,6 +158,9 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
         ...(recipe.leadCaloriesPerServing !== null
             ? { leadCaloriesPerServing: Number(recipe.leadCaloriesPerServing) }
             : {}),
+        // Denormalized author handle (W8-a.2) — the "by @handle" cards render; OMITTED when NULL (no handle
+        // known yet), so the UI falls back to a neutral label rather than a fabricated name.
+        ...(recipe.authorHandle !== null ? { authorHandle: recipe.authorHandle } : {}),
         // Composed from the `recipe_ingredients` junction (persisted atomically with the recipe), in
         // author order (`sortOrder`). Empty only when the recipe genuinely has no ingredient lines.
         ingredients: ingredients.map(toIngredientResponse),
@@ -469,6 +473,7 @@ export class RecipesService {
         ownerId: string,
         changeSummary: string,
         deviceLabel?: string,
+        editorHandle?: string,
     ): Promise<void> {
         try {
             await this.versions.createSnapshot({
@@ -479,6 +484,8 @@ export class RecipesService {
                 changeSummary,
                 // Device attribution (W8-a.6) — from the write request; omitted (→ NULL) on clone/restore.
                 ...(deviceLabel !== undefined ? { deviceLabel } : {}),
+                // Editor handle (W8-a.2) — the version editor's denormalized display name; omitted → NULL.
+                ...(editorHandle !== undefined ? { editorHandle } : {}),
             });
         } catch (error) {
             // The recipe is saved; a version-history hiccup is non-fatal to the write. Surface it for
@@ -510,6 +517,9 @@ export class RecipesService {
 
         const ingredients = await this.resolveIngredientLines(dto.ingredients);
         const leadCalories = await this.leadCaloriesFor(ingredients.map(resolvedToMeasureInput), dto.servings);
+        // Denormalized author handle (W8-a.2 / decision 6): the initial value from the token claims via the
+        // ONE shared rule. The handle-sync consumer keeps every owned recipe/version current thereafter.
+        const authorHandle = deriveDisplayName(principal) || undefined;
 
         const aggregate = await this.dal.create({
             ownerId: principal.userId,
@@ -532,11 +542,13 @@ export class RecipesService {
             // Denormalized headline per-serving calories (W8-a.1) — recomputed from the resolved lines so the
             // list/search/collection-embed cards render calories without an N+1. Absent → column stays NULL.
             ...(leadCalories !== undefined ? { leadCaloriesPerServing: leadCalories } : {}),
+            // Denormalized author handle (W8-a.2) — absent → column stays NULL until the fan-out fills it.
+            ...(authorHandle !== undefined ? { authorHandle } : {}),
             ingredients,
             steps: dto.steps.map(toStepInput),
         });
 
-        await this.recordSnapshot(aggregate, principal.userId, 'Created', dto.deviceLabel);
+        await this.recordSnapshot(aggregate, principal.userId, 'Created', dto.deviceLabel, authorHandle);
 
         // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
         return this.toDetailResponse(aggregate, []);

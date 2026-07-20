@@ -60,7 +60,7 @@ const RECIPE_COLUMNS = sql`
     recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
     recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
-    recipes.lead_calories_per_serving, recipes.current_version, recipes.ingredient_names_text,
+    recipes.lead_calories_per_serving, recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
     recipes.deleted_at, recipes.created_at, recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
@@ -141,6 +141,7 @@ interface RawRecipeSearchRow {
     tags: string[];
     has_partial_nutrition: boolean;
     lead_calories_per_serving: string | null;
+    author_handle: string | null;
     current_version: number;
     ingredient_names_text: string;
     deleted_at: Date | string | null;
@@ -214,6 +215,8 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
         ...(row.lead_calories_per_serving !== null
             ? { leadCaloriesPerServing: Number(row.lead_calories_per_serving) }
             : {}),
+        // Denormalized author handle (W8-a.2) — search cards read it here; OMITTED when NULL.
+        ...(row.author_handle !== null ? { authorHandle: row.author_handle } : {}),
         currentVersion: row.current_version,
         // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
         ...(row.average_rating !== null ? { averageRating: Number(row.average_rating) } : {}),

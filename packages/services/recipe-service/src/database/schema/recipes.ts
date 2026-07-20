@@ -110,6 +110,12 @@ export const recipes = pgTable(
         // average_rating). numeric(8,1) matches the aggregator's one-decimal wire precision.
         leadCaloriesPerServing: numeric('lead_calories_per_serving', { precision: 8, scale: 1 }),
 
+        // Denormalized author display-name (W8-a.2 / decision 6 / 0015 migration) — profiles.displayName
+        // written at create/clone time so cards render "by @handle" without a cross-service call. NULLABLE:
+        // a pre-feature row has none until its next write / the backfill; kept current by the handle-sync
+        // consumer's fan-out. The owner_id ULID stays the join/authz key — never the handle.
+        authorHandle: text('author_handle'),
+
         currentVersion: integer('current_version').notNull().default(1),
 
         ingredientNamesText: text('ingredient_names_text').notNull().default(''),

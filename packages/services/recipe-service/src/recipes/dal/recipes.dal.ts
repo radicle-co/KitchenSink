@@ -72,6 +72,12 @@ export interface CreateRecipeInput {
     /** Denormalized, space-joined ingredient names — the recipe-owned column that feeds search. */
     ingredientNamesText: string;
     /**
+     * The author's denormalized display name (W8-a.2) — the initial value from `deriveDisplayName(claims)`
+     * (or the `author_handles` read model). OMITTED when nothing is derivable; the handle-sync fan-out /
+     * backfill fills it later. Kept current thereafter by the consumer.
+     */
+    authorHandle?: string;
+    /**
      * Denormalized headline per-serving calories (W8-a.1), recomputed by the service from the resolved
      * lines. OMITTED when the recipe has no accounted nutrition, so the column stays NULL (the projection
      * then omits the field — never a misleading 0). No `null` on create (clearing is an update-only concern).
@@ -209,6 +215,8 @@ export class RecipesDal {
                     tags: input.tags,
                     dietaryFlags: input.dietaryFlags,
                     ingredientNamesText: input.ingredientNamesText,
+                    // Denormalized author handle (W8-a.2) — omitted → NULL until the fan-out/backfill fills it.
+                    ...(input.authorHandle !== undefined ? { authorHandle: input.authorHandle } : {}),
                     // Denormalized lead calories (W8-a.1) — the `numeric` column takes a string; omitted when
                     // absent so it defaults NULL (recipe has no accounted nutrition).
                     ...(input.leadCaloriesPerServing !== undefined

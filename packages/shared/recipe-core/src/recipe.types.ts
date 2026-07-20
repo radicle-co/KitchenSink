@@ -183,6 +183,13 @@ export interface Recipe {
      * genuine zero-calorie figure), mirroring {@link averageRating}.
      */
     leadCaloriesPerServing?: number;
+    /**
+     * The recipe author's display name (W8-a.2 / decision 6) — the "by @handle" cards render. DENORMALIZED
+     * from the identity service's `profiles.displayName` at write time (no cross-service read); kept current
+     * by the handle-sync fan-out. ABSENT for a pre-feature recipe until its next write / the backfill — the
+     * UI falls back to a neutral label rather than fabricating. Never an authz/join key; `ownerId` stays that.
+     */
+    authorHandle?: string;
     currentVersion: number;
     /**
      * Mean of this recipe's ratings, 1–5 (FR-013a). READ-ONLY — maintained by a database trigger and
@@ -278,6 +285,7 @@ export const recipeSchema = z.object({
     hasPartialNutrition: z.boolean(),
     // Denormalized headline per-serving calories (W8-a.1); absent (not 0) when no accounted nutrition.
     leadCaloriesPerServing: nonNegativeNumberSchema.optional(),
+    authorHandle: z.string().min(1).optional(),
     currentVersion: positiveIntSchema,
     // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.
     averageRating: z.number().finite().min(1).max(5).optional(),
@@ -655,6 +663,13 @@ export interface RecipeVersion {
     createdBy: string;
     changeSummary?: string;
     /**
+     * The version editor's display name (W8-a.2 / decision 6) — the "by @handle" the version-history
+     * attribution renders. DENORMALIZED from `profiles.displayName` at write time and kept current by the
+     * handle-sync fan-out (a mutable column, NOT frozen in the snapshot). ABSENT for a pre-feature version;
+     * the editor is `createdBy` (the ULID), always the authoritative identity.
+     */
+    editorHandle?: string;
+    /**
      * The device that authored this version (W8-a.6 / FR-007b) — bounded free text captured from the write
      * request. ABSENT for versions written before the field existed (or when the client sent none); the UI
      * renders "unknown device" rather than a fabricated value. User-controlled → ALWAYS escaped at render
@@ -678,6 +693,7 @@ export const recipeVersionSchema = z.object({
     changeSummary: z.string().min(1).optional(),
     // Device attribution (W8-a.6) — bounded free text; absent for pre-feature versions / when unsent.
     deviceLabel: z.string().min(1).max(80).optional(),
+    editorHandle: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
 });
 

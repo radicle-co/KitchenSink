@@ -74,6 +74,8 @@ export interface RecipeDetailMessages {
     readonly nutritionHeading: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
     readonly nutritionPartial: string;
+    /** Always-present standing note explaining the nutrition source + the Custom marker (D8). */
+    readonly nutritionSourceNote: string;
     /** Label for calories. */
     readonly caloriesLabel: string;
     /** Label for protein. */
@@ -179,6 +181,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             stepTimer: '{seconds}s timer',
             nutritionHeading: 'Nutrition (per serving)',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
+            nutritionSourceNote: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.',
             caloriesLabel: 'Calories',
             proteinLabel: 'Protein',
             carbsLabel: 'Carbs',

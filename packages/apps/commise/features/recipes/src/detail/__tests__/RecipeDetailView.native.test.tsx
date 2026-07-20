@@ -96,6 +96,14 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
     });
 
+    it('always shows the standing USDA-source note, even when nutrition is complete (D8)', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })} />);
+
+        expect(
+            screen.getByText('Nutrition includes USDA database items; user-entered ingredients are marked Custom.'),
+        ).toBeTruthy();
+    });
+
     it('renders the photo gallery only when the recipe has photos', () => {
         const { unmount } = render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [makePhoto()] })} />);
         expect(screen.getByLabelText('Recipe photos')).toBeTruthy();

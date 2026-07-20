@@ -160,6 +160,19 @@ describe('RecipeDetailView (web) — nutrition', () => {
 
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
     });
+
+    it('always shows the standing USDA-source note, distinct from the incomplete warning (D8)', () => {
+        // Present even when nutrition IS complete (the incomplete warning is not) — it explains the source
+        // and the Custom marker as a standing fact, not an estimate.
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })} />);
+
+        const nutrition = screen.getByRole('region', { name: 'Nutrition (per serving)' });
+        expect(
+            within(nutrition).getByText(
+                'Nutrition includes USDA database items; user-entered ingredients are marked Custom.',
+            ),
+        ).toBeTruthy();
+    });
 });
 
 describe('RecipeDetailView (web) — photos', () => {

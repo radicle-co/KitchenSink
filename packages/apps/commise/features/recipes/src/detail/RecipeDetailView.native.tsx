@@ -121,6 +121,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                 />
             </View>
             {!recipe.nutrition.isComplete && <Text style={styles.description}>{detail.nutritionPartial}</Text>}
+            <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
 
             <View accessibilityLabel={detail.badgesLabel} style={styles.badgeRow}>
                 {recipe.currentVersion > 1 && (
@@ -157,6 +158,7 @@ const styles = StyleSheet.create({
     badgeCoral: { backgroundColor: 'rgba(232, 145, 122, 0.15)', color: palette.coral },
     badgeNeutral: { backgroundColor: palette.pearl, color: palette.slate },
     description: { fontSize: 16, lineHeight: 24, color: palette.slate },
+    sourceNote: { fontSize: 11, lineHeight: 16, color: palette.slate },
     statStrip: {
         flexDirection: 'row',
         backgroundColor: palette.white,

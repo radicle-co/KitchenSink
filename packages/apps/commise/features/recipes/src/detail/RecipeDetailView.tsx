@@ -148,6 +148,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                     </div>
                 </dl>
                 {!recipe.nutrition.isComplete && <p className="text-body-sm text-slate">{detail.nutritionPartial}</p>}
+                <p className="text-caption text-slate">{detail.nutritionSourceNote}</p>
             </section>
 
             <footer role="group" aria-label={detail.badgesLabel} className="flex flex-wrap items-center gap-2">

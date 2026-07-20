@@ -134,6 +134,18 @@ export interface RecipeCardMessages {
     readonly unrated: string;
     /** Accessible label for the cover-image placeholder shown when a recipe has no photo. */
     readonly noPhotoLabel: string;
+    /** Calorie-line template (contains `{calories}`), e.g. "420 cal" (CR-002). */
+    readonly caloriesLabel: string;
+    /** Visible version-badge text, shown only past v1 (contains `{version}`). */
+    readonly versionBadge: string;
+    /** Accessible name for the version badge (contains `{version}`). */
+    readonly versionLabel: string;
+    /** Visibility-badge text for a public recipe. */
+    readonly visibilityPublic: string;
+    /** Visibility-badge text for a private recipe. */
+    readonly visibilityPrivate: string;
+    /** Badge shown on the owner's own draft — REPLACES the visibility badge (never "Public" on a draft). */
+    readonly draftBadge: string;
 }
 
 /** The shape of the recipe feature's shared copy. */
@@ -216,6 +228,12 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             ratingCountOther: '{count} ratings',
             unrated: 'Not yet rated',
             noPhotoLabel: 'No photo yet',
+            caloriesLabel: '{calories} cal',
+            versionBadge: 'v{version}',
+            versionLabel: 'Version {version}',
+            visibilityPublic: 'Public',
+            visibilityPrivate: 'Private',
+            draftBadge: 'Draft',
         },
     },
 };

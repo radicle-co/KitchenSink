@@ -9,7 +9,7 @@
  * drift on projection, difficulty tone, star rounding, or number/plural formatting.
  */
 import type { Locale } from '@commise/i18n';
-import { RecipeDifficulty, type Recipe } from '@kitchensink/recipe-core';
+import { RecipeDifficulty, RecipeStatus, RecipeVisibility, type Recipe } from '@kitchensink/recipe-core';
 
 /**
  * The subset of a {@link Recipe} a card renders. Optional fields carry the domain's ABSENT states straight
@@ -41,6 +41,23 @@ export interface RecipeCardModel {
     readonly coverPhotoUrl?: string;
     /** ISO 8601 timestamp of the recipe's last update (drives the widget/list recency sort). */
     readonly updatedAt: string;
+    /** Author-stated cuisine (CR-002). ABSENT → the card renders no cuisine chip. */
+    readonly cuisine?: string;
+    /** Lead calories per serving (W8-a.1). ABSENT → the card renders no calorie line. */
+    readonly leadCaloriesPerServing?: number;
+    /** Free-text tags (CR-002). Empty → the card renders no tag row. */
+    readonly tags: readonly string[];
+    /** Current version number (CR-002). The version badge renders only past v1. */
+    readonly currentVersion: number;
+    /** Visibility (CR-002) — drives the Public/Private badge (unless the recipe is a draft). */
+    readonly visibility: RecipeVisibility;
+    /**
+     * Publication status. A `draft` renders a "Draft" badge that REPLACES the visibility badge (a free-tier
+     * draft carries `visibility='public'` while being community-invisible — showing "Public" would mislead).
+     * Required for the draft-presentation spec that Task 1.2's tests pin, though the plan's Step-1 field list
+     * omitted it — carried here so the badge layer never has to re-derive draftness.
+     */
+    readonly status: RecipeStatus;
 }
 
 /**
@@ -61,6 +78,12 @@ export const toRecipeCardModel = (recipe: Recipe): RecipeCardModel => ({
     usesPremiumCapability: recipe.usesPremiumCapability,
     ...(recipe.coverPhotoUrl !== undefined ? { coverPhotoUrl: recipe.coverPhotoUrl } : {}),
     updatedAt: recipe.updatedAt,
+    ...(recipe.cuisine !== undefined ? { cuisine: recipe.cuisine } : {}),
+    ...(recipe.leadCaloriesPerServing !== undefined ? { leadCaloriesPerServing: recipe.leadCaloriesPerServing } : {}),
+    tags: recipe.tags,
+    currentVersion: recipe.currentVersion,
+    visibility: recipe.visibility,
+    status: recipe.status,
 });
 
 /**
@@ -112,6 +135,18 @@ export const toStarFills = (averageRating: number): readonly boolean[] => {
  */
 export const formatAverageRating = (averageRating: number, locale: Locale): string =>
     new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(averageRating);
+
+/**
+ * Format lead calories per serving to a whole-number, locale-grouped string (e.g. `"1,020"`) via
+ * {@link Intl.NumberFormat} — never string concatenation. The card wraps it in the localized `{calories} cal`
+ * template. Only ever called for a recipe that HAS calories; an absent value renders no line. Pure.
+ *
+ * @param calories - The lead calories per serving.
+ * @param locale - The active BCP-47 locale.
+ * @returns The formatted integer calorie count.
+ */
+export const formatCalories = (calories: number, locale: Locale): string =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(calories);
 
 /** The singular/plural templates for the rating-count label (each may contain `{count}`). */
 export interface RatingCountLabels {

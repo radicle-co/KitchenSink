@@ -1,30 +1,35 @@
 /**
- * @module @commise/features-recipes/card — web mockup-parity recipe card.
+ * @module @commise/features-recipes/card — web mockup-parity recipe card (compound component, W9-f P7).
  *
- * The single card used by BOTH the Home "Recent recipes" widget and the recipe list (the mockup draws them
- * identically): a 4:3 cover with a top-corner PRO badge, the title, a time · servings · difficulty meta row,
- * and a 5-star rating. Presentational — it holds no state and fetches nothing. When `onSelect` is given the
- * card is an actionable button (the list); without it, a non-interactive article (the widget).
+ * The single card used across the Home "Recent recipes" widget, the recipe list, and — as they land — the
+ * search results and collection member rows. It is a COMPOUND COMPONENT: `RecipeCard` (Root) carries the
+ * view-model in context and renders the shell (an actionable button when `onSelect` is given, else a
+ * non-interactive article); the parts — `RecipeCard.Cover / .Title / .Meta / .Badges / .Rating / .Tags` —
+ * each read that context, so every surface composes its OWN arrangement without a widening prop bag. Passing
+ * no children renders the default full arrangement (the merged list/widget card), so a plain
+ * `<RecipeCard recipe onSelect />` still works.
  *
  * Design rules encoded here (do not "simplify" them away):
- * - ABSENT difficulty renders NO pill — never a default (FR-001b).
+ * - ABSENT difficulty / cuisine / calories / tags render NOTHING — never a default (FR-001b, CR-002).
  * - The PRO badge is driven by the materialized `usesPremiumCapability` flag — never re-derived (FR-003a).
- * - The stars are DISPLAY-ONLY here: these are the viewer's own recent/owned recipes, which they cannot rate
- *   (a 403); an unrated recipe shows an honest "not yet rated" state, never a fabricated 0-star score. The
- *   interactive rating control lives on the detail view of a recipe the viewer does NOT own.
+ * - A DRAFT renders a "Draft" badge that REPLACES the visibility badge — never "Public" on a draft, which a
+ *   free-tier draft (visibility='public', community-invisible) would make a lie.
+ * - The version badge renders only past v1.
+ * - The stars are DISPLAY-ONLY here (these are recipes the viewer owns / can't rate); an unrated recipe shows
+ *   an honest "not yet rated", never a fabricated 0-star score. The interactive control lives on the detail.
  * - The cover is the FULL-SIZE original (up to 5 MB) painted into a small tile (FOLLOW-UP-CR-001-A).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { FC } from 'react';
+import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import { createContext, useContext, type FC, type ReactNode } from 'react';
 
-import { RecipeDifficulty } from '@kitchensink/recipe-core';
-
-import { recipeMessages, type RecipeCardMessages } from '../messages.js';
+import { recipeMessages } from '../messages.js';
 import { formatDurationMinutes } from '../list/model.js';
 import {
     STAR_COUNT,
     difficultyTone,
     formatAverageRating,
+    formatCalories,
     formatRatingCount,
     toStarFills,
     type DifficultyTone,
@@ -36,6 +41,22 @@ export interface RecipeCardProps {
     readonly recipe: RecipeCardModel;
     /** When provided, the card is an actionable button that reports the recipe id (the list card). */
     readonly onSelect?: (id: string) => void;
+    /** Custom arrangement of `RecipeCard.*` parts. Omit for the default merged card (list/widget). */
+    readonly children?: ReactNode;
+}
+
+/** The card's view-model, carried to the parts so no surface has to thread props through the arrangement. */
+const RecipeCardContext = createContext<RecipeCardModel | null>(null);
+
+/** Read the card view-model from the nearest {@link RecipeCard}. Throws if a part is rendered outside one. */
+function useCardModel(): RecipeCardModel {
+    const model = useContext(RecipeCardContext);
+
+    if (model === null) {
+        throw new Error('RecipeCard.* parts must be rendered inside a <RecipeCard>.');
+    }
+
+    return model;
 }
 
 /** Difficulty pill tone → Tailwind classes (warning is a light tone, so it needs dark text for contrast). */
@@ -82,9 +103,134 @@ const Star: FC<{ filled: boolean }> = ({ filled }) => (
     </svg>
 );
 
-/** The star rating row: display-only. Rated → a labelled star group; unrated → an honest "not yet rated". */
-const RatingRow: FC<{ recipe: RecipeCardModel; card: RecipeCardMessages }> = ({ recipe, card }) => {
+/** The cover tile: the 4:3 cover photo (or a labelled placeholder) with the corner PRO badge. */
+const CardCover: FC = () => {
+    const { card } = useMessages(recipeMessages);
+    const recipe = useCardModel();
+
+    return (
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-pearl">
+            {recipe.coverPhotoUrl !== undefined ? (
+                // FOLLOW-UP-CR-001-A: full-size original into a thumbnail-sized tile (no derived variants).
+                <img src={recipe.coverPhotoUrl} alt={recipe.title} className="h-full w-full object-cover" />
+            ) : (
+                <div
+                    role="img"
+                    aria-label={card.noPhotoLabel}
+                    className="flex h-full w-full items-center justify-center text-mist"
+                >
+                    <svg aria-hidden="true" className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                    </svg>
+                </div>
+            )}
+            {recipe.usesPremiumCapability && (
+                <span
+                    aria-label={card.proBadgeLabel}
+                    className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-white"
+                >
+                    {card.proBadge}
+                </span>
+            )}
+        </div>
+    );
+};
+
+/** The recipe title (clamped to two lines). */
+const CardTitle: FC = () => {
+    const recipe = useCardModel();
+
+    return <h3 className="line-clamp-2 font-display text-heading-md font-semibold text-charcoal">{recipe.title}</h3>;
+};
+
+/** The meta row: total time · servings · difficulty · cuisine · calories (each rendered only when present). */
+const CardMeta: FC = () => {
+    const { list, card } = useMessages(recipeMessages);
     const locale = useLocale();
+    const recipe = useCardModel();
+    const duration = formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes);
+    const difficultyLabel: Record<RecipeDifficulty, string> = {
+        [RecipeDifficulty.EASY]: card.difficultyEasy,
+        [RecipeDifficulty.MEDIUM]: card.difficultyMedium,
+        [RecipeDifficulty.HARD]: card.difficultyHard,
+    };
+
+    return (
+        <div className="flex flex-wrap items-center gap-3 text-body-sm text-slate">
+            <span
+                aria-label={card.timeLabel.replace('{minutes}', String(recipe.totalTimeMinutes))}
+                className="flex items-center gap-1"
+            >
+                <ClockIcon />
+                {duration}
+            </span>
+            <span
+                aria-label={card.servingsLabel.replace('{count}', String(recipe.servings))}
+                className="flex items-center gap-1"
+            >
+                <PeopleIcon />
+                {recipe.servings}
+            </span>
+            {recipe.leadCaloriesPerServing !== undefined && (
+                <span>
+                    {card.caloriesLabel.replace('{calories}', formatCalories(recipe.leadCaloriesPerServing, locale))}
+                </span>
+            )}
+            {recipe.difficulty !== undefined && (
+                <span
+                    className={`rounded-full px-2 py-0.5 text-caption font-semibold ${TONE_CLASS[difficultyTone(recipe.difficulty)]}`}
+                >
+                    {difficultyLabel[recipe.difficulty]}
+                </span>
+            )}
+            {recipe.cuisine !== undefined && (
+                <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-seafoam">
+                    {recipe.cuisine}
+                </span>
+            )}
+        </div>
+    );
+};
+
+/** The status badges: version (past v1) + a Draft badge OR the visibility badge (never both). */
+const CardBadges: FC = () => {
+    const { card } = useMessages(recipeMessages);
+    const recipe = useCardModel();
+    const isDraft = recipe.status === RecipeStatus.DRAFT;
+
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            {recipe.currentVersion > 1 && (
+                <span
+                    aria-label={card.versionLabel.replace('{version}', String(recipe.currentVersion))}
+                    className="rounded-full bg-pearl px-2 py-0.5 text-caption font-medium text-slate"
+                >
+                    {card.versionBadge.replace('{version}', String(recipe.currentVersion))}
+                </span>
+            )}
+            {isDraft ? (
+                <span className="rounded-full bg-warning px-2 py-0.5 text-caption font-semibold text-charcoal">
+                    {card.draftBadge}
+                </span>
+            ) : (
+                <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-seafoam">
+                    {recipe.visibility === RecipeVisibility.PUBLIC ? card.visibilityPublic : card.visibilityPrivate}
+                </span>
+            )}
+        </div>
+    );
+};
+
+/** The star rating row: display-only. Rated → a labelled star group; unrated → an honest "not yet rated". */
+const CardRating: FC = () => {
+    const { card } = useMessages(recipeMessages);
+    const locale = useLocale();
+    const recipe = useCardModel();
 
     if (recipe.averageRating === undefined || recipe.ratingCount === 0) {
         return <span className="text-body-sm text-slate">{card.unrated}</span>;
@@ -109,114 +255,78 @@ const RatingRow: FC<{ recipe: RecipeCardModel; card: RecipeCardMessages }> = ({ 
     );
 };
 
-/** The card's inner content — identical whether the card is a button (list) or an article (widget). */
-const CardBody: FC<{ recipe: RecipeCardModel; card: RecipeCardMessages }> = ({ recipe, card }) => {
-    const { list } = useMessages(recipeMessages);
-    const duration = formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes);
-    const difficultyLabel: Record<RecipeDifficulty, string> = {
-        [RecipeDifficulty.EASY]: card.difficultyEasy,
-        [RecipeDifficulty.MEDIUM]: card.difficultyMedium,
-        [RecipeDifficulty.HARD]: card.difficultyHard,
-    };
+/** The tag chips (rendered only when the recipe has tags). */
+const CardTags: FC = () => {
+    const recipe = useCardModel();
+
+    if (recipe.tags.length === 0) {
+        return null;
+    }
 
     return (
-        <>
-            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-pearl">
-                {recipe.coverPhotoUrl !== undefined ? (
-                    // FOLLOW-UP-CR-001-A: full-size original into a thumbnail-sized tile (no derived variants).
-                    <img src={recipe.coverPhotoUrl} alt={recipe.title} className="h-full w-full object-cover" />
-                ) : (
-                    <div
-                        role="img"
-                        aria-label={card.noPhotoLabel}
-                        className="flex h-full w-full items-center justify-center text-mist"
-                    >
-                        <svg
-                            aria-hidden="true"
-                            className="h-10 w-10"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                            />
-                        </svg>
-                    </div>
-                )}
-                {recipe.usesPremiumCapability && (
-                    <span
-                        aria-label={card.proBadgeLabel}
-                        className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-white"
-                    >
-                        {card.proBadge}
-                    </span>
-                )}
-            </div>
-            <div className="flex flex-col gap-2 p-4">
-                <h3 className="font-display text-heading-md font-semibold text-charcoal line-clamp-2">
-                    {recipe.title}
-                </h3>
-                <div className="flex items-center gap-3 text-body-sm text-slate">
-                    <span
-                        aria-label={card.timeLabel.replace('{minutes}', String(recipe.totalTimeMinutes))}
-                        className="flex items-center gap-1"
-                    >
-                        <ClockIcon />
-                        {duration}
-                    </span>
-                    <span
-                        aria-label={card.servingsLabel.replace('{count}', String(recipe.servings))}
-                        className="flex items-center gap-1"
-                    >
-                        <PeopleIcon />
-                        {recipe.servings}
-                    </span>
-                    {recipe.difficulty !== undefined && (
-                        <span
-                            className={`rounded-full px-2 py-0.5 text-caption font-semibold ${TONE_CLASS[difficultyTone(recipe.difficulty)]}`}
-                        >
-                            {difficultyLabel[recipe.difficulty]}
-                        </span>
-                    )}
-                </div>
-                <RatingRow recipe={recipe} card={card} />
-            </div>
-        </>
+        <ul className="flex flex-wrap gap-1.5">
+            {recipe.tags.map((tag) => (
+                <li key={tag} className="rounded-full bg-coral/10 px-2 py-0.5 text-caption font-medium text-coral">
+                    {tag}
+                </li>
+            ))}
+        </ul>
     );
 };
+
+/** The default merged arrangement rendered when a consumer passes no custom children (list + widget card). */
+const DefaultCardContent: FC = () => (
+    <>
+        <CardCover />
+        <div className="flex flex-col gap-2 p-4">
+            <CardTitle />
+            <CardMeta />
+            <CardBadges />
+            <CardRating />
+            <CardTags />
+        </div>
+    </>
+);
 
 const CARD_SHELL =
     'block overflow-hidden rounded-2xl bg-card text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md';
 
 /**
- * The shared recipe card. `onSelect` present → an actionable button (list); absent → a non-interactive
- * article (the Home widget). Either way the outer element is named by the recipe title.
+ * The shared recipe card (compound-component Root). `onSelect` present → an actionable button (list); absent
+ * → a non-interactive article (the Home widget). Either way the outer element is named by the recipe title,
+ * and the view-model is provided to the `RecipeCard.*` parts via context.
  */
-export const RecipeCard: FC<RecipeCardProps> = ({ recipe, onSelect }) => {
-    const { card } = useMessages(recipeMessages);
-
-    if (onSelect === undefined) {
-        return (
-            <article aria-label={recipe.title} className={CARD_SHELL}>
-                <CardBody recipe={recipe} card={card} />
-            </article>
-        );
-    }
+const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
+    const content = children ?? <DefaultCardContent />;
 
     return (
-        <article aria-label={recipe.title}>
-            <button
-                type="button"
-                aria-label={recipe.title}
-                onClick={() => onSelect(recipe.id)}
-                className={`${CARD_SHELL} w-full`}
-            >
-                <CardBody recipe={recipe} card={card} />
-            </button>
-        </article>
+        <RecipeCardContext.Provider value={recipe}>
+            {onSelect === undefined ? (
+                <article aria-label={recipe.title} className={CARD_SHELL}>
+                    {content}
+                </article>
+            ) : (
+                <article aria-label={recipe.title}>
+                    <button
+                        type="button"
+                        aria-label={recipe.title}
+                        onClick={() => onSelect(recipe.id)}
+                        className={`${CARD_SHELL} w-full`}
+                    >
+                        {content}
+                    </button>
+                </article>
+            )}
+        </RecipeCardContext.Provider>
     );
 };
+
+/** The compound card: `<RecipeCard>` plus its `.Cover/.Title/.Meta/.Badges/.Rating/.Tags` parts. */
+export const RecipeCard = Object.assign(RecipeCardRoot, {
+    Cover: CardCover,
+    Title: CardTitle,
+    Meta: CardMeta,
+    Badges: CardBadges,
+    Rating: CardRating,
+    Tags: CardTags,
+});

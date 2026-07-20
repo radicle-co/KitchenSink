@@ -46,7 +46,8 @@ describe('toRecipeSummary', () => {
 
         expect(summary).not.toHaveProperty('ownerId');
         expect(summary).not.toHaveProperty('description');
-        expect(summary).not.toHaveProperty('visibility');
+        // visibility/status ARE card fields now (they drive the merged-card badges); ingredients are not.
+        expect(summary).not.toHaveProperty('ingredients');
     });
 });
 

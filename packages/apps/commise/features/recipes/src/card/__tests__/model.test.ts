@@ -44,7 +44,39 @@ describe('toRecipeCardModel', () => {
             usesPremiumCapability: true,
             coverPhotoUrl: 'https://cdn.commise.app/r/42.jpg',
             updatedAt: '2026-05-01T12:00:00.000Z',
+            // Merged-card fields (CR-002); the fixture leaves cuisine/calories absent so they are omitted.
+            tags: [],
+            currentVersion: 1,
+            visibility: 'private',
+            status: 'published',
         });
+    });
+
+    it('projects the merged-card fields (cuisine, calories, tags, version, visibility, status)', () => {
+        const recipe = makeRecipe({
+            cuisine: 'Mediterranean',
+            leadCaloriesPerServing: 420,
+            tags: ['grill', 'summer'],
+            currentVersion: 12,
+            visibility: 'public',
+            status: 'draft',
+        });
+
+        expect(toRecipeCardModel(recipe)).toMatchObject({
+            cuisine: 'Mediterranean',
+            leadCaloriesPerServing: 420,
+            tags: ['grill', 'summer'],
+            currentVersion: 12,
+            visibility: 'public',
+            status: 'draft',
+        });
+    });
+
+    it('omits cuisine and calories entirely when the recipe has neither (never a default)', () => {
+        const model = toRecipeCardModel(makeRecipe({ cuisine: undefined, leadCaloriesPerServing: undefined }));
+
+        expect(model).not.toHaveProperty('cuisine');
+        expect(model).not.toHaveProperty('leadCaloriesPerServing');
     });
 
     it('omits difficulty entirely when the author stated none (never a default)', () => {
@@ -72,12 +104,13 @@ describe('toRecipeCardModel', () => {
         expect(toRecipeCardModel(makeRecipe({ usesPremiumCapability: true })).usesPremiumCapability).toBe(true);
     });
 
-    it('does not leak Recipe fields outside the card view-model', () => {
+    it('does not leak non-card Recipe fields outside the view-model', () => {
         const model = toRecipeCardModel(makeRecipe({ ownerId: 'usr_secret', description: 'private notes' }));
 
+        // ownerId/description are not card concerns; visibility/status ARE (they drive the merged-card badges).
         expect(model).not.toHaveProperty('ownerId');
         expect(model).not.toHaveProperty('description');
-        expect(model).not.toHaveProperty('visibility');
+        expect(model).not.toHaveProperty('ingredients');
     });
 });
 

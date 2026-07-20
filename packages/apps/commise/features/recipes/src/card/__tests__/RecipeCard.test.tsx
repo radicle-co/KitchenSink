@@ -126,3 +126,57 @@ describe('RecipeCard (web)', () => {
         expect(within(region).getByText('35 min')).toBeTruthy();
     });
 });
+
+describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
+    it('renders the cuisine when present, and nothing when absent', () => {
+        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
+        expect(screen.getByText('Mediterranean')).toBeTruthy();
+
+        cleanup();
+        renderCard(<RecipeCard recipe={model({ cuisine: undefined, title: 'No Cuisine' })} />);
+        expect(screen.queryByText('Mediterranean')).toBeNull();
+    });
+
+    it('renders the localized calorie line when present, and none when absent', () => {
+        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: 420 })} />);
+        expect(screen.getByText('420 cal')).toBeTruthy();
+
+        cleanup();
+        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: undefined, title: 'No Cal' })} />);
+        expect(screen.queryByText(/cal$/)).toBeNull();
+    });
+
+    it('renders each tag as a chip', () => {
+        renderCard(<RecipeCard recipe={model({ tags: ['grill', 'summer'] })} />);
+
+        expect(screen.getByText('grill')).toBeTruthy();
+        expect(screen.getByText('summer')).toBeTruthy();
+    });
+
+    it('shows the version badge past v1 (with an accessible name), and hides it at v1', () => {
+        renderCard(<RecipeCard recipe={model({ currentVersion: 12 })} />);
+        expect(screen.getByLabelText('Version 12').textContent).toBe('v12');
+
+        cleanup();
+        renderCard(<RecipeCard recipe={model({ currentVersion: 1 })} />);
+        expect(screen.queryByLabelText('Version 1')).toBeNull();
+    });
+
+    it('shows a visibility badge (Public / Private) for a published recipe', () => {
+        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'published' })} />);
+        expect(screen.getByText('Public')).toBeTruthy();
+
+        cleanup();
+        renderCard(<RecipeCard recipe={model({ visibility: 'private', status: 'published' })} />);
+        expect(screen.getByText('Private')).toBeTruthy();
+    });
+
+    it('shows a Draft badge that REPLACES the visibility badge for a draft (never "Public" on a draft)', () => {
+        // A free-tier draft carries visibility='public' but is community-invisible — showing "Public" misleads.
+        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'draft' })} />);
+
+        expect(screen.getByText('Draft')).toBeTruthy();
+        expect(screen.queryByText('Public')).toBeNull();
+        expect(screen.queryByText('Private')).toBeNull();
+    });
+});

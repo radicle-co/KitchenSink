@@ -21,7 +21,7 @@ function fakeService(overrides: Partial<SearchService> = {}): SearchService {
 
 const RESPONSE = {
     results: [],
-    facets: { dietaryFlags: [], tags: [] },
+    facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
     total: 0,
     page: 1,
     pageSize: 20,

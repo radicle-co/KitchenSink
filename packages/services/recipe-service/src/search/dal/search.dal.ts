@@ -93,6 +93,15 @@ export interface RecipeSearchFilters {
 export interface RecipeSearchFacets {
     readonly dietaryFlags: RecipeFacetCount[];
     readonly tags: RecipeFacetCount[];
+    /** Distinct cuisines in the match sample (W8-a.9), most-common first. NULL cuisines are excluded. */
+    readonly cuisine: RecipeFacetCount[];
+    /**
+     * Total-time buckets over the match sample (W8-a.9), keyed by the stable bucket ids in
+     * {@link TOTAL_TIME_BUCKETS} (`0-15` | `16-30` | `31-60` | `61+`) — mutually exclusive so the counts
+     * sum to the sample size. The `totalTime` dimension is the one the `quickest` sort and the `maxTotalTime`
+     * filter also key on; the client maps each id to display copy ("Under 15 min", …).
+     */
+    readonly totalTime: RecipeFacetCount[];
 }
 
 /** What {@link SearchDal.search} returns: the ranked page, its facets, and the unpaged total. */
@@ -286,10 +295,27 @@ function orderByExpr(sortBy: RecipeSearchSortBy, query: string | undefined): SQL
     return builder(query);
 }
 
-/** Fold raw facet rows into the two grouped buckets. Pure. */
+/** Stable total-time facet bucket ids (W8-a.9), ascending. The client maps each id to display copy. */
+export const TOTAL_TIME_BUCKETS = ['0-15', '16-30', '31-60', '61+'] as const;
+
+/**
+ * The SQL `CASE` mapping `total_time_minutes` → a {@link TOTAL_TIME_BUCKETS} id — the SINGLE source for the
+ * bucket boundaries, embedded in both the facet SELECT and its GROUP BY so they cannot drift. Mutually
+ * exclusive (each row lands in exactly one bucket), so the bucket counts sum to the sample size.
+ */
+const totalTimeBucketExpr = sql`CASE
+    WHEN total_time_minutes <= 15 THEN '0-15'
+    WHEN total_time_minutes <= 30 THEN '16-30'
+    WHEN total_time_minutes <= 60 THEN '31-60'
+    ELSE '61+'
+END`;
+
+/** Fold raw facet rows into the grouped buckets (dietary flag, tag, cuisine, total-time). Pure. */
 function groupFacets(rows: RawFacetRow[]): RecipeSearchFacets {
     const dietaryFlags: RecipeFacetCount[] = [];
     const tags: RecipeFacetCount[] = [];
+    const cuisine: RecipeFacetCount[] = [];
+    const totalTime: RecipeFacetCount[] = [];
 
     for (const row of rows) {
         const bucket: RecipeFacetCount = { value: row.value, count: Number(row.count) };
@@ -298,10 +324,14 @@ function groupFacets(rows: RawFacetRow[]): RecipeSearchFacets {
             dietaryFlags.push(bucket);
         } else if (row.facet === 'tags') {
             tags.push(bucket);
+        } else if (row.facet === 'cuisine') {
+            cuisine.push(bucket);
+        } else if (row.facet === 'total_time') {
+            totalTime.push(bucket);
         }
     }
 
-    return { dietaryFlags, tags };
+    return { dietaryFlags, tags, cuisine, totalTime };
 }
 
 export class SearchDal {
@@ -363,7 +393,7 @@ export class SearchDal {
 
         const facetResult = await this.db.execute<RawFacetRow>(sql`
             WITH matched AS (
-                SELECT dietary_flags, tags, ${rank} AS rank
+                SELECT dietary_flags, tags, cuisine, total_time_minutes, ${rank} AS rank
                 FROM recipes
                 WHERE ${where}
                 -- Total-order tiebreak (created_at DESC, then the id PK): without it the sample is an
@@ -381,6 +411,17 @@ export class SearchDal {
             SELECT 'tags' AS facet, tag AS value, count(*)::int AS count
             FROM matched, unnest(matched.tags) AS tag
             GROUP BY tag
+            UNION ALL
+            -- Cuisine (W8-a.9): distinct non-null cuisines in the sample.
+            SELECT 'cuisine' AS facet, cuisine AS value, count(*)::int AS count
+            FROM matched
+            WHERE cuisine IS NOT NULL
+            GROUP BY cuisine
+            UNION ALL
+            -- Total-time buckets (W8-a.9): the SAME CASE in SELECT + GROUP BY (single source, no drift).
+            SELECT 'total_time' AS facet, ${totalTimeBucketExpr} AS value, count(*)::int AS count
+            FROM matched
+            GROUP BY ${totalTimeBucketExpr}
             ORDER BY facet ASC, count DESC, value ASC
         `);
 

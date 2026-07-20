@@ -302,6 +302,12 @@ describe('SearchDal.search', () => {
         expect(facetSql).toContain('tags');
         expect(facetSql).toContain('count(*)');
         expect(facetSql).toContain(String(FACET_SAMPLE_SIZE)); // the rank sample ceiling
+        // W8-a.9 facet dimensions: cuisine (non-null scalar) + total-time buckets (mutually-exclusive CASE).
+        expect(facetSql).toContain("'cuisine'");
+        expect(facetSql).toContain('cuisine IS NOT NULL');
+        expect(facetSql).toContain("'total_time'");
+        expect(facetSql).toContain('total_time_minutes <= 15');
+        expect(facetSql).toContain("'61+'");
     });
 
     it('returns mapped results with rank, grouped facets, and the unpaged total', async () => {
@@ -315,6 +321,9 @@ describe('SearchDal.search', () => {
                 makeRawFacetRow({ facet: 'dietary_flags', value: 'vegetarian', count: 2 }),
                 makeRawFacetRow({ facet: 'tags', value: 'dinner', count: 5 }),
                 makeRawFacetRow({ facet: 'tags', value: 'quick', count: 3 }),
+                makeRawFacetRow({ facet: 'cuisine', value: 'italian', count: 4 }),
+                makeRawFacetRow({ facet: 'total_time', value: '16-30', count: 6 }),
+                makeRawFacetRow({ facet: 'total_time', value: '61+', count: 1 }),
             ],
         });
 
@@ -328,6 +337,12 @@ describe('SearchDal.search', () => {
             { value: 'dinner', count: 5 },
             { value: 'quick', count: 3 },
         ]);
+        // W8-a.9: the new facet dimensions fold into their own buckets.
+        expect(result.facets.cuisine).toEqual([{ value: 'italian', count: 4 }]);
+        expect(result.facets.totalTime).toEqual([
+            { value: '16-30', count: 6 },
+            { value: '61+', count: 1 },
+        ]);
     });
 
     it('handles an empty result set (no rows, zero total, empty facets)', async () => {
@@ -337,7 +352,7 @@ describe('SearchDal.search', () => {
 
         expect(result.results).toEqual([]);
         expect(result.total).toBe(0);
-        expect(result.facets).toEqual({ dietaryFlags: [], tags: [] });
+        expect(result.facets).toEqual({ dietaryFlags: [], tags: [], cuisine: [], totalTime: [] });
     });
 
     it('orders by title when sortBy=title', async () => {

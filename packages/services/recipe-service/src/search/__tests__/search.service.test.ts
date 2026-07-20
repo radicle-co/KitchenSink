@@ -18,7 +18,7 @@ const OWNER = '01J000000000000000000FREE0';
 function dalResult(overrides: Partial<RecipeSearchDalResult> = {}): RecipeSearchDalResult {
     return {
         results: [makeSearchResult()],
-        facets: { dietaryFlags: [{ value: 'vegetarian', count: 1 }], tags: [] },
+        facets: { dietaryFlags: [{ value: 'vegetarian', count: 1 }], tags: [], cuisine: [], totalTime: [] },
         total: 1,
         ...overrides,
     };

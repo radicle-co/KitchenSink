@@ -10,7 +10,7 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
@@ -25,24 +25,42 @@ const Stat: FC<{ label: string; value: ReactNode }> = ({ label, value }) => (
     </View>
 );
 
-export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
+export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
+    recipe,
+    checkedIngredients,
+    onToggleIngredient,
+    checkedSteps,
+    onToggleStep,
+    onFilterByTag,
+}) => {
     const { list, detail } = useMessages(recipeMessages);
-    const badges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags, ...recipe.tags];
+    // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
+    const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
 
     return (
         <View accessibilityLabel={recipe.title} style={styles.container}>
             <Text accessibilityRole="header" style={styles.title}>
                 {recipe.title}
             </Text>
-            {badges.length > 0 && (
+            {(staticBadges.length > 0 || recipe.tags.length > 0) && (
                 <View style={styles.badgeRow}>
-                    {badges.map((badge, index) => (
+                    {staticBadges.map((badge, index) => (
                         <Text
                             key={badge}
                             style={[styles.badge, index % 2 === 0 ? styles.badgeSeafoam : styles.badgeCoral]}
                         >
                             {badge}
                         </Text>
+                    ))}
+                    {recipe.tags.map((tag) => (
+                        <Pressable
+                            key={tag}
+                            accessibilityRole="button"
+                            accessibilityLabel={fillTemplate(detail.tagFilterLabel, { tag })}
+                            onPress={() => onFilterByTag?.(tag)}
+                        >
+                            <Text style={[styles.badge, styles.badgeCoral]}>{tag}</Text>
+                        </Pressable>
                     ))}
                 </View>
             )}
@@ -70,36 +88,63 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                 {detail.ingredientsHeading}
             </Text>
             <View style={styles.card}>
-                {recipe.ingredients.map((ingredient) => (
-                    <View key={ingredient.ingredientId} style={styles.ingredientRow}>
-                        <View style={styles.checkbox} />
-                        <Text style={styles.ingredientQty}>{formatQuantity(ingredient.quantity, ingredient.unit)}</Text>
-                        <Text style={styles.ingredientName}>{ingredient.name}</Text>
-                        {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                            <Text style={styles.ingredientNotes}>{ingredient.notes}</Text>
-                        )}
-                        {ingredient.isUserEntered && <Text style={styles.userBadge}>{detail.userEnteredBadge}</Text>}
-                    </View>
-                ))}
+                {recipe.ingredients.map((ingredient) => {
+                    const qty = formatQuantity(ingredient.quantity, ingredient.unit);
+                    const checked = checkedIngredients?.has(ingredient.ingredientId) ?? false;
+
+                    return (
+                        <View key={ingredient.ingredientId} style={styles.ingredientRow}>
+                            <Pressable
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked }}
+                                accessibilityLabel={`${qty} ${ingredient.name}`.trim()}
+                                onPress={() => onToggleIngredient?.(ingredient.ingredientId)}
+                                style={[styles.checkbox, checked && styles.checkboxChecked]}
+                            >
+                                {checked && <Text style={styles.checkMark}>✓</Text>}
+                            </Pressable>
+                            <Text style={styles.ingredientQty}>{qty}</Text>
+                            <Text style={styles.ingredientName}>{ingredient.name}</Text>
+                            {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
+                                <Text style={styles.ingredientNotes}>{ingredient.notes}</Text>
+                            )}
+                            {ingredient.isUserEntered && (
+                                <Text style={styles.userBadge}>{detail.userEnteredBadge}</Text>
+                            )}
+                        </View>
+                    );
+                })}
             </View>
 
             <Text accessibilityRole="header" style={styles.sectionHeading}>
                 {detail.instructionsHeading}
             </Text>
             <View style={styles.stepList}>
-                {recipe.steps.map((step) => (
-                    <View key={step.stepNumber} style={styles.stepRow}>
-                        <Text style={styles.stepMarker}>{step.stepNumber}</Text>
-                        <View style={styles.stepBody}>
-                            <Text style={styles.stepText}>{step.instruction}</Text>
-                            {step.timerSeconds !== undefined && (
-                                <Text style={styles.stepTimer}>
-                                    {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
-                                </Text>
-                            )}
+                {recipe.steps.map((step) => {
+                    const done = checkedSteps?.has(step.stepNumber) ?? false;
+
+                    return (
+                        <View key={step.stepNumber} style={styles.stepRow}>
+                            <Pressable
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: done }}
+                                accessibilityLabel={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
+                                onPress={() => onToggleStep?.(step.stepNumber)}
+                                style={[styles.stepMarker, done && styles.stepMarkerDone]}
+                            >
+                                <Text style={styles.stepMarkerLabel}>{done ? '✓' : step.stepNumber}</Text>
+                            </Pressable>
+                            <View style={styles.stepBody}>
+                                <Text style={[styles.stepText, done && styles.stepTextDone]}>{step.instruction}</Text>
+                                {step.timerSeconds !== undefined && (
+                                    <Text style={styles.stepTimer}>
+                                        {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
+                                    </Text>
+                                )}
+                            </View>
                         </View>
-                    </View>
-                ))}
+                    );
+                })}
             </View>
 
             <Text accessibilityRole="header" style={styles.sectionHeading}>
@@ -173,7 +218,17 @@ const styles = StyleSheet.create({
     sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     card: { backgroundColor: palette.white, borderRadius: 16, borderWidth: 1, borderColor: cardBorder, padding: 8 },
     ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8 },
-    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: palette.mist },
+    checkbox: {
+        width: 18,
+        height: 18,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: palette.mist,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkboxChecked: { backgroundColor: palette.seafoam, borderColor: palette.seafoam },
+    checkMark: { fontSize: 12, color: palette.white },
     ingredientQty: { fontWeight: '600', color: palette.charcoal },
     ingredientName: { color: palette.charcoal },
     ingredientNotes: { fontSize: 13, color: palette.slate },
@@ -185,13 +240,14 @@ const styles = StyleSheet.create({
         height: 32,
         borderRadius: 999,
         backgroundColor: palette.seafoam,
-        color: palette.white,
-        textAlign: 'center',
-        lineHeight: 32,
-        fontWeight: '600',
+        alignItems: 'center',
+        justifyContent: 'center',
         overflow: 'hidden',
     },
+    stepMarkerDone: { backgroundColor: palette.seafoam },
+    stepMarkerLabel: { color: palette.white, fontWeight: '600' },
     stepBody: { flex: 1, gap: 2 },
     stepText: { fontSize: 15, lineHeight: 22, color: palette.charcoal },
+    stepTextDone: { textDecorationLine: 'line-through', opacity: 0.6 },
     stepTimer: { fontSize: 13, fontWeight: '500', color: palette.seafoam },
 });

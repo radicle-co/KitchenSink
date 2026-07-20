@@ -212,6 +212,18 @@ describe('RecipeDetailScreen — owner actions', () => {
         expect(onViewVersions).toHaveBeenCalledWith('rec_1');
     });
 
+    it('invokes onFilterByTag when a tag chip is tapped (D6)', () => {
+        useRecipeMock.mockReturnValue(
+            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private', tags: ['grill'] }) }),
+        );
+        const onFilterByTag = vi.fn();
+
+        render(<RecipeDetailScreen recipeId="rec_1" onFilterByTag={onFilterByTag} />);
+        fireEvent.click(screen.getByLabelText('Find recipes tagged grill'));
+
+        expect(onFilterByTag).toHaveBeenCalledWith('grill');
+    });
+
     it('confirms and runs a delete, then navigates away', () => {
         const mutate = vi.fn((_id: string, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
         useDeleteRecipeMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>({ mutate: mutate as never }));

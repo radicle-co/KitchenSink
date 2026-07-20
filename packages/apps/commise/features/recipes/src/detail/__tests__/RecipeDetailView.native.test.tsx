@@ -3,11 +3,18 @@
  * the web leaf across every content branch — header, meta, ingredients (incl. user-entered), instructions,
  * nutrition (complete vs partial), and photos (present vs absent) — so the two platform renders can't drift.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
-import { makeIngredientView, makeNutrition, makePhoto, makeRecipeDetail } from '../../__fixtures__/index.js';
+import {
+    makeIngredientView,
+    makeNutrition,
+    makePhoto,
+    makeRecipeDetail,
+    makeStepView,
+} from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
@@ -111,6 +118,70 @@ describe('RecipeDetailView (native)', () => {
 
         render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [] })} />);
         expect(screen.queryByLabelText('Recipe photos')).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (native) — interactivity (D4/D5/D6)', () => {
+    it('renders each ingredient as a checkbox reflecting the checked set (D5)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' }),
+                        makeIngredientView({ ingredientId: 'ing_2', name: 'Garlic' }),
+                    ],
+                })}
+                checkedIngredients={new Set(['ing_1'])}
+            />,
+        );
+
+        // react-native-web renders role="checkbox" but not aria-checked, so assert the checked ✓ affordance.
+        expect(screen.getByLabelText(/Olive oil/).getAttribute('role')).toBe('checkbox');
+        expect(within(screen.getByLabelText(/Olive oil/)).queryByText('✓')).not.toBeNull();
+        expect(within(screen.getByLabelText(/Garlic/)).queryByText('✓')).toBeNull();
+    });
+
+    it('invokes onToggleIngredient when an ingredient checkbox is pressed (D5)', async () => {
+        const onToggleIngredient = vi.fn();
+        const user = userEvent.setup();
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ ingredientId: 'ing_9', name: 'Salt' })],
+                })}
+                onToggleIngredient={onToggleIngredient}
+            />,
+        );
+
+        await user.click(screen.getByLabelText(/Salt/));
+
+        expect(onToggleIngredient).toHaveBeenCalledWith('ing_9');
+    });
+
+    it('renders a per-step checkbox and toggles it (D4)', async () => {
+        const onToggleStep = vi.fn();
+        const user = userEvent.setup();
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
+                checkedSteps={new Set()}
+                onToggleStep={onToggleStep}
+            />,
+        );
+
+        await user.click(screen.getByLabelText('Mark step 1 complete'));
+
+        expect(onToggleStep).toHaveBeenCalledWith(1);
+    });
+
+    it('invokes onFilterByTag when a tag chip is pressed (D6)', async () => {
+        const onFilterByTag = vi.fn();
+        const user = userEvent.setup();
+        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} onFilterByTag={onFilterByTag} />);
+
+        await user.click(screen.getByLabelText('Find recipes tagged grill'));
+
+        expect(onFilterByTag).toHaveBeenCalledWith('grill');
     });
 });
 

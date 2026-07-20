@@ -37,7 +37,7 @@ type TabId = 'list' | 'discovery' | 'collections';
 /** One entry on the navigation stack — the screen to render plus its params. */
 type Surface =
     | { readonly id: 'list' }
-    | { readonly id: 'discovery' }
+    | { readonly id: 'discovery'; readonly tags?: readonly string[] }
     | { readonly id: 'collections' }
     | { readonly id: 'detail'; readonly recipeId: string }
     | { readonly id: 'create' }
@@ -167,7 +167,13 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 />
             );
         case 'discovery':
-            return <RecipeDiscoveryScreen onSelectRecipe={(recipeId) => nav.push({ id: 'detail', recipeId })} />;
+            return (
+                <RecipeDiscoveryScreen
+                    // A tag deep-link (D6) resets the stack to this tab carrying the tag as a preset filter.
+                    initialFilters={surface.tags ? { tags: [...surface.tags] } : undefined}
+                    onSelectRecipe={(recipeId) => nav.push({ id: 'detail', recipeId })}
+                />
+            );
         case 'collections':
             return (
                 <CollectionsScreen
@@ -184,6 +190,8 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                     onViewVersions={(recipeId) => nav.push({ id: 'versions', recipeId })}
                     onDeleted={() => nav.selectTab('list')}
                     onCloned={(recipeId) => nav.push({ id: 'detail', recipeId })}
+                    // D6: reset to the discovery tab pre-filtered by the tapped tag (the visibility-scoped search).
+                    onFilterByTag={(tag) => nav.reset([{ id: 'discovery', tags: [tag] }])}
                 />
             );
         case 'create':

@@ -28,8 +28,10 @@ import {
     RecipeDetailView,
     RecipeRatingControl,
     RecipeVisibilityToggle,
+    filtersToQueryString,
     ratingModeFor,
     resolveSelectedStars,
+    useCookingProgress,
     type RatingSelectionOverride,
     type RecipeRatingError,
 } from '@commise/features-recipes';
@@ -90,6 +92,9 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     const cloneRecipe = useCloneRecipe();
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
+    // D4/D5: session-scoped cooking progress lives in the orchestration layer (survives navigate-away-and-back);
+    // the presentational view receives the checked sets + toggles as props.
+    const cooking = useCookingProgress(id);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     // The viewer's OPTIMISTIC rating action this session, or undefined to defer to the server. The detail's
     // `viewerRating` (the viewer's own prior rating) is the source of truth and pre-selects on load; this only
@@ -165,7 +170,18 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
 
     return (
         <>
-            <RecipeDetailView recipe={recipe} />
+            <RecipeDetailView
+                recipe={recipe}
+                checkedIngredients={cooking.checkedIngredients}
+                onToggleIngredient={cooking.toggleIngredient}
+                checkedSteps={cooking.checkedSteps}
+                onToggleStep={cooking.toggleStep}
+                onFilterByTag={(tag) =>
+                    // D6: deep-link to the SAME visibility-scoped search the discover page runs; reuse its
+                    // canonical query encoder so the tag round-trips exactly (no new unfiltered tag endpoint).
+                    router.push(`/${locale}/discover?${filtersToQueryString({ tags: [tag] }, '')}` as Route)
+                }
+            />
 
             <RecipeRatingControl
                 mode={ratingMode}

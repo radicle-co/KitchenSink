@@ -215,6 +215,43 @@ describe('RecipeDetailContainer', () => {
         });
     });
 
+    describe('interactivity wiring (W2/D4/D5/D6)', () => {
+        it('deep-links a tapped tag to the visibility-scoped discover search (D6)', async () => {
+            const user = userEvent.setup();
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, tags: ['grill'] }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            await user.click(screen.getByRole('button', { name: 'Find recipes tagged grill' }));
+
+            expect(pushMock).toHaveBeenCalledWith('/en/discover?tags=grill');
+        });
+
+        it('connects the cooking-progress hook to the view so an ingredient checkbox toggles (D5)', async () => {
+            const user = userEvent.setup();
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_cook', ownerId: OWNER_ID }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_cook" />);
+
+            const box = screen.getAllByRole('checkbox')[0];
+            const before = box.getAttribute('aria-checked');
+            await user.click(box);
+
+            // The container passes the store-backed toggle through; the checkbox reflects the flipped state.
+            expect(box.getAttribute('aria-checked')).not.toBe(before);
+        });
+    });
+
     describe('detail entry points (W2/D1 dead-end + D7 clone gating)', () => {
         it('gives the OWNER Edit + Version-history links and NO Clone control', () => {
             useRecipeMock.mockReturnValue({

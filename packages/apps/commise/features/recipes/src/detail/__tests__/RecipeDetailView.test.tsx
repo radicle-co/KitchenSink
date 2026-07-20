@@ -5,8 +5,9 @@
  * instructions (ordered, optional timer), nutrition (complete vs partial/estimated), and photos (present
  * vs absent) — asserting on role/name/text so a missing section or a dropped branch fails.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import {
@@ -190,6 +191,84 @@ describe('RecipeDetailView (web) — photos', () => {
         render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [] })} />);
 
         expect(screen.queryByRole('img')).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
+    it('renders each ingredient as a real checkbox reflecting the checked set (D5)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' }),
+                        makeIngredientView({ ingredientId: 'ing_2', name: 'Garlic' }),
+                    ],
+                })}
+                checkedIngredients={new Set(['ing_1'])}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: /Olive oil/ }).getAttribute('aria-checked')).toBe('true');
+        expect(screen.getByRole('checkbox', { name: /Garlic/ }).getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('invokes onToggleIngredient with the ingredient id when its checkbox is activated (D5)', async () => {
+        const onToggleIngredient = vi.fn();
+        const user = userEvent.setup();
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ ingredientId: 'ing_9', name: 'Salt' })],
+                })}
+                onToggleIngredient={onToggleIngredient}
+            />,
+        );
+
+        await user.click(screen.getByRole('checkbox', { name: /Salt/ }));
+
+        expect(onToggleIngredient).toHaveBeenCalledWith('ing_9');
+    });
+
+    it('renders a per-step completion checkbox and toggles it (D4)', async () => {
+        const onToggleStep = vi.fn();
+        const user = userEvent.setup();
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
+                checkedSteps={new Set()}
+                onToggleStep={onToggleStep}
+            />,
+        );
+
+        const stepBox = screen.getByRole('checkbox', { name: 'Mark step 1 complete' });
+        expect(stepBox.getAttribute('aria-checked')).toBe('false');
+
+        await user.click(stepBox);
+
+        expect(onToggleStep).toHaveBeenCalledWith(1);
+    });
+
+    it('reflects a checked step from the checked set (D4)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 2, instruction: 'Sear.' })] })}
+                checkedSteps={new Set([2])}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: 'Mark step 2 complete' }).getAttribute('aria-checked')).toBe(
+            'true',
+        );
+    });
+
+    it('renders tags as tappable chips that invoke onFilterByTag (D6)', async () => {
+        const onFilterByTag = vi.fn();
+        const user = userEvent.setup();
+        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} onFilterByTag={onFilterByTag} />);
+
+        await user.click(screen.getByRole('button', { name: 'Find recipes tagged grill' }));
+
+        expect(onFilterByTag).toHaveBeenCalledWith('grill');
     });
 });
 

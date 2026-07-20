@@ -20,6 +20,7 @@ import {
     RecipeVisibilityToggle,
     ratingModeFor,
     resolveSelectedStars,
+    useCookingProgress,
     type RatingSelectionOverride,
     type RecipeRatingError,
 } from '@commise/features-recipes';
@@ -56,6 +57,8 @@ export interface RecipeDetailScreenProps {
     readonly onDeleted?: () => void;
     /** Invoked with the new recipe's id after a successful clone. */
     readonly onCloned?: (recipeId: string) => void;
+    /** Invoked with a tag when the viewer taps a tag chip to filter search (D6). */
+    readonly onFilterByTag?: (tag: string) => void;
 }
 
 /**
@@ -71,9 +74,13 @@ export function RecipeDetailScreen({
     onViewVersions,
     onDeleted,
     onCloned,
+    onFilterByTag,
 }: RecipeDetailScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
     const query = useRecipe(recipeId);
+    // D4/D5: session-scoped cooking progress (survives navigate-away-and-back) lives in the orchestration
+    // layer; the presentational view receives the checked sets + toggles as props.
+    const cooking = useCookingProgress(recipeId);
     const profile = useUserProfile();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
@@ -166,7 +173,14 @@ export function RecipeDetailScreen({
         // unreachable on a device.
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {back}
-            <RecipeDetailView recipe={recipe} />
+            <RecipeDetailView
+                recipe={recipe}
+                checkedIngredients={cooking.checkedIngredients}
+                onToggleIngredient={cooking.toggleIngredient}
+                checkedSteps={cooking.checkedSteps}
+                onToggleStep={cooking.toggleStep}
+                onFilterByTag={onFilterByTag}
+            />
 
             <RecipeRatingControl
                 mode={ratingMode}

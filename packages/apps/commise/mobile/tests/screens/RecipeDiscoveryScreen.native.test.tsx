@@ -67,6 +67,17 @@ describe('RecipeDiscoveryScreen — loading and error', () => {
     });
 });
 
+describe('RecipeDiscoveryScreen — initial filters (D6 tag deep-link)', () => {
+    it('runs the first search pre-filtered by the initial tag', () => {
+        useSearchRecipesMock.mockReturnValue(searchResult());
+
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} initialFilters={{ tags: ['grill'] }} />);
+
+        // Still the SAME visibility-scoped search hook — the preset tag only seeds its params.
+        expect(useSearchRecipesMock).toHaveBeenCalledWith(expect.objectContaining({ tags: ['grill'] }));
+    });
+});
+
 describe('RecipeDiscoveryScreen — populated', () => {
     beforeEach(() => {
         useSearchRecipesMock.mockReturnValue(

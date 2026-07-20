@@ -70,6 +70,10 @@ export interface RecipeDetailMessages {
     readonly instructionsHeading: string;
     /** Timer template for a step (contains `{seconds}`). */
     readonly stepTimer: string;
+    /** Accessible name for a step's completion checkbox (contains `{step}`). */
+    readonly stepToggleLabel: string;
+    /** Accessible name for a tappable tag chip that filters search (contains `{tag}`). */
+    readonly tagFilterLabel: string;
     /** Heading for the nutrition section. */
     readonly nutritionHeading: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
@@ -179,6 +183,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             userEnteredBadge: 'Custom',
             instructionsHeading: 'Instructions',
             stepTimer: '{seconds}s timer',
+            stepToggleLabel: 'Mark step {step} complete',
+            tagFilterLabel: 'Find recipes tagged {tag}',
             nutritionHeading: 'Nutrition (per serving)',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
             nutritionSourceNote: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.',

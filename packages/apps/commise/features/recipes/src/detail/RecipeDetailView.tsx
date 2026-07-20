@@ -22,17 +22,25 @@ const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:g
 const statValue = 'font-display text-2xl font-bold text-charcoal';
 const statLabel = 'text-caption uppercase tracking-wide text-slate';
 
-export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
+export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
+    recipe,
+    checkedIngredients,
+    onToggleIngredient,
+    checkedSteps,
+    onToggleStep,
+    onFilterByTag,
+}) => {
     const { list, detail } = useMessages(recipeMessages);
-    const badges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags, ...recipe.tags];
+    // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
+    const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
 
     return (
         <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
             <header className="flex flex-col gap-4">
                 <h1 className="font-display text-4xl font-bold leading-tight text-charcoal">{recipe.title}</h1>
-                {badges.length > 0 && (
+                {(staticBadges.length > 0 || recipe.tags.length > 0) && (
                     <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
-                        {badges.map((badge, index) => (
+                        {staticBadges.map((badge, index) => (
                             <li
                                 key={badge}
                                 className={`rounded-full px-3 py-1 text-body-sm font-medium ${
@@ -40,6 +48,18 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                                 }`}
                             >
                                 {badge}
+                            </li>
+                        ))}
+                        {recipe.tags.map((tag) => (
+                            <li key={tag}>
+                                <button
+                                    type="button"
+                                    aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
+                                    onClick={() => onFilterByTag?.(tag)}
+                                    className="rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-coral transition hover:bg-coral/25"
+                                >
+                                    {tag}
+                                </button>
                             </li>
                         ))}
                     </ul>
@@ -75,23 +95,37 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                     {detail.ingredientsHeading}
                 </h2>
                 <ul className="flex flex-col divide-y divide-border rounded-2xl bg-card p-2 shadow-sm">
-                    {recipe.ingredients.map((ingredient) => (
-                        <li key={ingredient.ingredientId} className="flex items-center gap-3 px-3 py-3">
-                            <span aria-hidden className="size-5 shrink-0 rounded border-2 border-mist" />
-                            <span className="font-medium text-charcoal">
-                                {formatQuantity(ingredient.quantity, ingredient.unit)}
-                            </span>{' '}
-                            <span className="text-charcoal">{ingredient.name}</span>
-                            {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                                <span className="text-body-sm text-slate">{ingredient.notes}</span>
-                            )}
-                            {ingredient.isUserEntered && (
-                                <span className="ml-auto rounded-full bg-pearl px-2 py-0.5 text-caption text-slate">
-                                    {detail.userEnteredBadge}
-                                </span>
-                            )}
-                        </li>
-                    ))}
+                    {recipe.ingredients.map((ingredient) => {
+                        const label = formatQuantity(ingredient.quantity, ingredient.unit);
+                        const checked = checkedIngredients?.has(ingredient.ingredientId) ?? false;
+
+                        return (
+                            <li key={ingredient.ingredientId} className="flex items-center gap-3 px-3 py-3">
+                                <button
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={checked}
+                                    aria-label={`${label} ${ingredient.name}`.trim()}
+                                    onClick={() => onToggleIngredient?.(ingredient.ingredientId)}
+                                    className={`flex size-5 shrink-0 items-center justify-center rounded border-2 transition ${
+                                        checked ? 'border-seafoam bg-seafoam text-white' : 'border-mist bg-transparent'
+                                    }`}
+                                >
+                                    {checked && <span aria-hidden>✓</span>}
+                                </button>
+                                <span className="font-medium text-charcoal">{label}</span>{' '}
+                                <span className="text-charcoal">{ingredient.name}</span>
+                                {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
+                                    <span className="text-body-sm text-slate">{ingredient.notes}</span>
+                                )}
+                                {ingredient.isUserEntered && (
+                                    <span className="ml-auto rounded-full bg-pearl px-2 py-0.5 text-caption text-slate">
+                                        {detail.userEnteredBadge}
+                                    </span>
+                                )}
+                            </li>
+                        );
+                    })}
                 </ul>
             </section>
 
@@ -100,24 +134,38 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                     {detail.instructionsHeading}
                 </h2>
                 <ol className="flex flex-col gap-4">
-                    {recipe.steps.map((step) => (
-                        <li key={step.stepNumber} className="flex items-start gap-4">
-                            <span
-                                aria-hidden
-                                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-seafoam text-body-sm font-semibold text-white"
-                            >
-                                {step.stepNumber}
-                            </span>
-                            <div className="flex flex-col gap-1 pt-1">
-                                <span className="leading-relaxed text-charcoal">{step.instruction}</span>
-                                {step.timerSeconds !== undefined && (
-                                    <span className="text-body-sm font-medium text-seafoam">
-                                        {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
+                    {recipe.steps.map((step) => {
+                        const done = checkedSteps?.has(step.stepNumber) ?? false;
+
+                        return (
+                            <li key={step.stepNumber} className="flex items-start gap-4">
+                                <button
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={done}
+                                    aria-label={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
+                                    onClick={() => onToggleStep?.(step.stepNumber)}
+                                    className={`flex size-8 shrink-0 items-center justify-center rounded-full text-body-sm font-semibold transition ${
+                                        done ? 'bg-seafoam text-white' : 'border-2 border-seafoam text-seafoam'
+                                    }`}
+                                >
+                                    {done ? <span aria-hidden>✓</span> : step.stepNumber}
+                                </button>
+                                <div className="flex flex-col gap-1 pt-1">
+                                    <span
+                                        className={`leading-relaxed text-charcoal ${done ? 'line-through opacity-60' : ''}`}
+                                    >
+                                        {step.instruction}
                                     </span>
-                                )}
-                            </div>
-                        </li>
-                    ))}
+                                    {step.timerSeconds !== undefined && (
+                                        <span className="text-body-sm font-medium text-seafoam">
+                                            {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
+                                        </span>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
                 </ol>
             </section>
 

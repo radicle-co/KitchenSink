@@ -28,17 +28,23 @@ import { useState } from 'react';
 export interface RecipeDiscoveryScreenProps {
     /** Invoked with a recipe id when a discovery row is activated (the navigator opens its detail). */
     readonly onSelectRecipe: (id: string) => void;
+    /**
+     * Filters to pre-apply on first mount — e.g. a tag deep-link from a recipe detail (D6). Defaults to no
+     * filters. This still runs through the SAME visibility-scoped `useSearchRecipes`, so a deep-linked tag
+     * never surfaces a recipe the viewer couldn't otherwise see.
+     */
+    readonly initialFilters?: RecipeFilterState;
 }
 
 /**
  * The public-discovery screen.
  *
- * @param props - The selection callback the navigator wires to detail navigation.
+ * @param props - The selection callback the navigator wires to detail navigation, plus optional preset filters.
  * @returns The discovery browse/search/filter view with per-row clone.
  */
-export function RecipeDiscoveryScreen({ onSelectRecipe }: RecipeDiscoveryScreenProps): JSX.Element {
+export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: RecipeDiscoveryScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
-    const [filters, setFilters] = useState<RecipeFilterState>(EMPTY_RECIPE_FILTERS);
+    const [filters, setFilters] = useState<RecipeFilterState>(initialFilters ?? EMPTY_RECIPE_FILTERS);
 
     const search = useSearchRecipes(filtersToSearchParams(filters, searchValue));
     const clone = useCloneRecipe();

@@ -4,7 +4,7 @@
  * interaction contracts, so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
@@ -55,11 +55,45 @@ describe('RecipeList (native) — chrome', () => {
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
-    it('reports create requests upward', () => {
+    it('reports create requests upward from the FAB', () => {
         const onCreateRecipe = vi.fn();
-        renderList({ onCreateRecipe });
+        renderList({ status: 'ready', recipes: threeRecipes, onCreateRecipe });
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeList (native) — create FAB (L1)', () => {
+    it('renders the create control as a FAB OUTSIDE the header row', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        const header = screen.getByRole('heading', { name: 'Recipes' }).parentElement as HTMLElement;
+        expect(within(header).queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    it('keeps the FAB present across loading, error, and populated states', () => {
+        for (const state of ['loading', 'error', 'ready'] as const) {
+            cleanup();
+            renderList({ status: state, recipes: state === 'ready' ? threeRecipes : [] });
+            expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+        }
+    });
+
+    it('suppresses the FAB in the empty state, where the empty CTA is the sole create control', () => {
+        renderList({ status: 'ready', recipes: [] });
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+    });
+
+    it('wires the empty-state CTA to the create handler', () => {
+        const onCreateRecipe = vi.fn();
+        renderList({ status: 'ready', recipes: [], onCreateRecipe });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Create your first recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });

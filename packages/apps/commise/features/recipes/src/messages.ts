@@ -32,8 +32,10 @@ export interface RecipeListMessages {
     readonly noMatchTitle: string;
     /** Body copy of the no-match state. */
     readonly noMatchBody: string;
-    /** Label of the create-recipe call to action. */
+    /** Label of the create-recipe call to action (the pinned FAB). */
     readonly createCta: string;
+    /** Label of the empty-state create call to action (the sole create control when the list is empty). */
+    readonly emptyCreateCta: string;
     /** Message shown when the list fails to load. */
     readonly errorTitle: string;
     /** Label of the retry action in the error state. */
@@ -165,6 +167,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             noMatchTitle: 'No matching recipes',
             noMatchBody: 'No recipes match your search. Try a different term.',
             createCta: 'New recipe',
+            emptyCreateCta: 'Create your first recipe',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
         },

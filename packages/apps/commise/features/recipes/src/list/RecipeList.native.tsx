@@ -43,9 +43,20 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         // has recipes) — it's a no-match. Distinguishing them keeps the empty-state copy honest.
         const searching = searchValue.trim().length > 0;
         body = (
-            <View>
+            <View style={styles.emptyBody}>
                 <Text>{searching ? list.noMatchTitle : list.emptyTitle}</Text>
                 <Text>{searching ? list.noMatchBody : list.emptyBody}</Text>
+                {!searching && (
+                    // Empty-state CTA — the SOLE create control here; the floating FAB is suppressed on empty.
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={list.emptyCreateCta}
+                        onPress={onCreateRecipe}
+                        style={styles.createButton}
+                    >
+                        <Text style={styles.createLabel}>{list.emptyCreateCta}</Text>
+                    </Pressable>
+                )}
             </View>
         );
     } else {
@@ -66,20 +77,16 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     }
 
+    // FAB is the persistent create control (L1), pinned OUTSIDE the header, present across loading / error /
+    // populated; suppressed only in the true empty state where the empty CTA is the single create affordance.
+    const isEmpty = status === 'ready' && recipes.length === 0 && searchValue.trim().length === 0;
+
     return (
         <View accessibilityLabel={list.heading} style={styles.container}>
             <View style={styles.headerRow}>
                 <Text accessibilityRole="header" style={styles.heading}>
                     {list.heading}
                 </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={list.createCta}
-                    onPress={onCreateRecipe}
-                    style={styles.createButton}
-                >
-                    <Text style={styles.createLabel}>{list.createCta}</Text>
-                </Pressable>
             </View>
             <TextInput
                 accessibilityLabel={list.searchLabel}
@@ -90,6 +97,17 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 style={styles.search}
             />
             {body}
+
+            {!isEmpty && (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={list.createCta}
+                    onPress={onCreateRecipe}
+                    style={styles.fab}
+                >
+                    <Text style={styles.fabLabel}>+</Text>
+                </Pressable>
+            )}
         </View>
     );
 };
@@ -105,6 +123,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
     },
     createLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    emptyBody: { gap: 12, alignItems: 'flex-start' },
+    fab: {
+        position: 'absolute',
+        right: 16,
+        bottom: 24,
+        width: 56,
+        height: 56,
+        borderRadius: 999,
+        backgroundColor: palette.seafoam,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: palette.charcoal,
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 4,
+    },
+    fabLabel: { color: palette.white, fontSize: 28, fontWeight: '700', lineHeight: 32 },
     search: {
         backgroundColor: palette.white,
         borderRadius: 999,

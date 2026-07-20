@@ -21,8 +21,9 @@ test.describe('recipe CRUD (T079)', () => {
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
 
-        // CREATE — fill the form, resolve an ingredient via the typeahead, add a step, submit.
-        await page.getByRole('button', { name: 'New recipe' }).click();
+        // CREATE — the create control is the pinned FAB ("New recipe") when the library has recipes, or the
+        // empty-state CTA ("Create your first recipe") when it is empty (L1: only one create control per state).
+        await page.getByRole('button', { name: /New recipe|Create your first recipe/ }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
         await page.getByLabel('Title').fill('E2E Ratatouille');

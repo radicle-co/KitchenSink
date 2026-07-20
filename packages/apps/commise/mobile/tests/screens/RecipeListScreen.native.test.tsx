@@ -57,7 +57,8 @@ describe('RecipeListScreen — chrome', () => {
         const onCreateRecipe = vi.fn();
 
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={onCreateRecipe} />);
-        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        // Empty library → the create control is the empty-state CTA (the FAB is suppressed on empty; L1).
+        fireEvent.click(screen.getByRole('button', { name: 'Create your first recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });

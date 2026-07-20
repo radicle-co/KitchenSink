@@ -62,11 +62,48 @@ describe('RecipeList (web) — chrome', () => {
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
-    it('reports create requests upward', () => {
+    it('reports create requests upward from the FAB', () => {
         const onCreateRecipe = vi.fn();
-        renderList({ onCreateRecipe });
+        renderList({ status: 'ready', recipes: threeRecipes, onCreateRecipe });
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeList (web) — create FAB (L1)', () => {
+    it('renders the create control as a pinned FAB OUTSIDE the header', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        const fab = screen.getByRole('button', { name: 'New recipe' });
+        // Position isn't queryable in jsdom; assert the pinned-FAB class contract + that it is not chrome.
+        expect(fab.className).toContain('fixed');
+        expect(fab.closest('header')).toBeNull();
+    });
+
+    it('keeps the FAB present across loading, error, and populated states', () => {
+        for (const state of ['loading', 'error', 'ready'] as const) {
+            cleanup();
+            renderList({ status: state, recipes: state === 'ready' ? threeRecipes : [] });
+            expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+        }
+    });
+
+    it('suppresses the FAB in the empty state, where the empty-state CTA is the sole create control', () => {
+        renderList({ status: 'ready', recipes: [] });
+
+        // Exactly ONE create affordance on empty — the empty CTA, not a second floating FAB.
+        const createButtons = screen.getAllByRole('button', { name: /Create your first recipe|New recipe/ });
+        expect(createButtons).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+    });
+
+    it('wires the empty-state CTA to the create handler', () => {
+        const onCreateRecipe = vi.fn();
+        renderList({ status: 'ready', recipes: [], onCreateRecipe });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Create your first recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });

@@ -51,9 +51,20 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         // has recipes) — it's a no-match. Distinguishing them keeps the empty-state copy honest.
         const searching = searchValue.trim().length > 0;
         body = (
-            <div>
+            <div className="flex flex-col items-start gap-3">
                 <p>{searching ? list.noMatchTitle : list.emptyTitle}</p>
                 <p>{searching ? list.noMatchBody : list.emptyBody}</p>
+                {!searching && (
+                    // Empty-state CTA — the SOLE create control here (the floating FAB is suppressed on empty
+                    // so there are never two competing create affordances). See `showFab` below.
+                    <button
+                        type="button"
+                        onClick={onCreateRecipe}
+                        className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
+                    >
+                        {list.emptyCreateCta}
+                    </button>
+                )}
             </div>
         );
     } else {
@@ -72,17 +83,15 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     }
 
+    // The FAB is the persistent create control (L1) — pinned, OUTSIDE the header, present across loading /
+    // error / populated. It is suppressed only in the true empty state (no recipes, not searching), where the
+    // empty-state CTA is the single create affordance — otherwise two create controls would compete.
+    const isEmpty = status === 'ready' && recipes.length === 0 && searchValue.trim().length === 0;
+
     return (
         <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
             <header className="flex items-center justify-between gap-4">
                 <h1 className="font-display text-display-md font-bold text-charcoal">{list.heading}</h1>
-                <button
-                    type="button"
-                    onClick={onCreateRecipe}
-                    className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
-                >
-                    {list.createCta}
-                </button>
             </header>
             <input
                 type="search"
@@ -93,6 +102,20 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
             />
             {body}
+
+            {!isEmpty && (
+                <button
+                    type="button"
+                    aria-label={list.createCta}
+                    onClick={onCreateRecipe}
+                    // Bottom offset is DERIVED, not hardcoded: it clears the narrow-breakpoint bottom nav (Task
+                    // 1.5) plus the device safe-area inset, and drops to the base offset once the nav becomes a
+                    // desktop sidebar at the shared `lg` cutover.
+                    className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-2xl font-bold text-white shadow-lg transition hover:bg-ocean-dark lg:bottom-8"
+                >
+                    <span aria-hidden="true">+</span>
+                </button>
+            )}
         </section>
     );
 };

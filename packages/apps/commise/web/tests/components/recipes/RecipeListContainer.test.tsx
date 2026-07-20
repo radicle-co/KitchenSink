@@ -99,12 +99,29 @@ describe('RecipeListContainer', () => {
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_42');
     });
 
-    it('navigates to the create route from the create call to action', async () => {
+    it('navigates to the create route from the empty-state create CTA', async () => {
         const user = userEvent.setup();
         useRecipesMock.mockReturnValue({
             isLoading: false,
             isError: false,
             data: makeRecipesPage([]),
+            refetch: refetchMock,
+        });
+
+        render(<RecipeListContainer locale="en" />);
+
+        // Empty list → the create control is the empty-state CTA (the FAB is suppressed on empty; L1).
+        await user.click(screen.getByRole('button', { name: 'Create your first recipe' }));
+
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
+    });
+
+    it('navigates to the create route from the pinned FAB when the list is populated', async () => {
+        const user = userEvent.setup();
+        useRecipesMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
             refetch: refetchMock,
         });
 

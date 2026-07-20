@@ -54,6 +54,7 @@ const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
     servings: 2,
     difficulty: 'medium',
     visibility: 'private',
+    status: 'published',
     sourceType: 'user_created',
     hasSubstantiveEdit: false,
     dietaryFlags: [],

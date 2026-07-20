@@ -28,11 +28,12 @@ import type {
     RecipeFacetCount,
     RecipeSearchResult,
     RecipeSourceType,
+    RecipeStatus,
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
-import { activeRecipe, viewableBy } from '../../recipes/dal/recipe-predicates.js';
+import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 import { resolveCdnUrl } from '../../photos/photo-view.js';
 
 /** Default page size when the caller does not specify one (mirrors the list endpoint's default). */
@@ -56,7 +57,7 @@ export const FACET_SAMPLE_SIZE = 200;
 const RECIPE_COLUMNS = sql`
     recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
     recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty,
-    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.source_type,
+    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
     recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
     recipes.lead_calories_per_serving, recipes.current_version, recipes.ingredient_names_text,
@@ -120,6 +121,7 @@ interface RawRecipeSearchRow {
     average_rating: string | null;
     rating_count: number;
     visibility: string;
+    status: string;
     source_type: string;
     source_url: string | null;
     source_attribution: string | null;
@@ -186,6 +188,9 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
         servings: row.servings,
         ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
         visibility,
+        // Publication status (W8-a.3). buildWhere already excludes other users' drafts, so a non-owner only
+        // ever sees `published`; the owner's own drafts DO appear in their search and must report `draft`.
+        status: row.status as RecipeStatus,
         sourceType,
         ...(row.source_url !== null ? { sourceUrl: row.source_url } : {}),
         ...(row.source_attribution !== null ? { sourceAttribution: row.source_attribution } : {}),
@@ -394,7 +399,8 @@ export class SearchDal {
 
     /** Build the AND-joined visibility + filter predicate shared by all three reads. */
     private buildWhere(filters: RecipeSearchFilters): SQL {
-        const conditions: SQL[] = [activeRecipe(), viewableBy(filters.ownerId)];
+        // W8-a.3 draft boundary: a public DRAFT must not surface in search to anyone but its owner.
+        const conditions: SQL[] = [activeRecipe(), viewableBy(filters.ownerId), publishedOrOwnedBy(filters.ownerId)];
 
         if (filters.query !== undefined) {
             conditions.push(sql`search_vector @@ plainto_tsquery('english', ${filters.query})`);

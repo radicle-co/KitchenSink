@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 
 import {
     RecipeDifficulty,
+    RecipeStatus,
     recipeDetailSchema,
     recipeDifficultySchema,
     recipeSchema,
+    recipeStatusSchema,
     RecipeErrorCode,
     recipeRatingSchema,
     setRecipeRatingInputSchema,
@@ -27,6 +29,7 @@ function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         totalTimeMinutes: 15,
         servings: 2,
         visibility: RecipeVisibility.PUBLIC,
+        status: RecipeStatus.PUBLISHED,
         sourceType: RecipeSourceType.USER_CREATED,
         hasSubstantiveEdit: false,
         dietaryFlags: [],
@@ -99,6 +102,7 @@ describe('RecipeDifficulty', () => {
         for (const value of Object.values(RecipeDifficulty)) {
             expect(recipeDifficultySchema.parse(value)).toBe(value);
         }
+
         expect(recipeDifficultySchema.safeParse('trivial').success).toBe(false);
         expect(recipeDifficultySchema.safeParse('EASY').success).toBe(false);
     });
@@ -187,6 +191,16 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
 
     it('rejects a negative leadCaloriesPerServing (calories are non-negative)', () => {
         expect(recipeSchema.safeParse(makeRecipe({ leadCaloriesPerServing: -1 })).success).toBe(false);
+    });
+
+    it('requires a valid status (W8-a.3) — draft|published only, never absent', () => {
+        expect(recipeSchema.parse(makeRecipe({ status: RecipeStatus.DRAFT })).status).toBe('draft');
+        expect(recipeSchema.parse(makeRecipe({ status: RecipeStatus.PUBLISHED })).status).toBe('published');
+        // status is NOT optional — a recipe always has one (the projection maps a NOT NULL column).
+        const withoutStatus = { ...makeRecipe() } as Record<string, unknown>;
+        delete withoutStatus['status'];
+        expect(recipeSchema.safeParse(withoutStatus).success).toBe(false);
+        expect(recipeStatusSchema.safeParse('archived').success).toBe(false);
     });
 });
 

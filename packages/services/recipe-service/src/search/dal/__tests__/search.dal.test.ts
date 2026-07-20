@@ -242,10 +242,11 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('ts_rank');
         expect(pageSql).toContain("plainto_tsquery('english'");
         expect(pageSql).toContain('search_vector @@');
-        // Read-scoping via the centralized predicates (S-R3): tombstone + (public OR owner). The `'public'`
-        // literal and the viewer id are bound params ($n), so we pin the qualified columns and operators.
+        // Read-scoping via the centralized predicates (S-R3 + W8-a.3): tombstone + (public OR owner) +
+        // (published OR owner). Bound literals are $n params, so we pin the qualified columns + operators.
         expect(pageSql).toContain('"deleted_at" is null');
         expect(pageSql).toContain('"visibility" =');
+        expect(pageSql).toContain('"status" ='); // W8-a.3: a public DRAFT must not surface in search
         expect(pageSql).toContain('"owner_id" =');
         expect(pageSql).toContain('LIMIT');
         expect(pageSql).toContain('OFFSET');

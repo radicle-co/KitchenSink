@@ -7,6 +7,7 @@
 import {
     RecipeDifficulty,
     RecipeSourceType,
+    RecipeStatus,
     RecipeVisibility,
     usesPremiumCapability,
     type Collection,
@@ -40,6 +41,7 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         servings: 4,
         difficulty: RecipeDifficulty.MEDIUM,
         visibility: RecipeVisibility.PRIVATE,
+        status: RecipeStatus.PUBLISHED,
         sourceType: RecipeSourceType.USER_CREATED,
         hasSubstantiveEdit: false,
         dietaryFlags: [],

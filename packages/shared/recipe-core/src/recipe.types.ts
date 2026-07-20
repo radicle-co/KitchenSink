@@ -40,6 +40,28 @@ export type RecipeVisibility = (typeof RecipeVisibility)[keyof typeof RecipeVisi
 export const recipeVisibilitySchema = z.enum([RecipeVisibility.PUBLIC, RecipeVisibility.PRIVATE]);
 
 /**
+ * Publication status of a recipe (W8-a.3 / decision 5). ORTHOGONAL to {@link RecipeVisibility}: a `draft`
+ * is visible ONLY to its owner regardless of visibility (a free-tier draft is `public`, so the visibility
+ * check alone would leak it). This is a SECURITY boundary — a draft is absent from every non-owner read
+ * path and is not rateable (404, like a tombstone). Every existing recipe is `published` (the honest,
+ * load-bearing default).
+ */
+export const RecipeStatus = {
+    DRAFT: 'draft',
+    PUBLISHED: 'published',
+} as const;
+
+/**
+ * Publication state for a recipe.
+ */
+export type RecipeStatus = (typeof RecipeStatus)[keyof typeof RecipeStatus];
+
+/**
+ * Runtime validator for {@link RecipeStatus}.
+ */
+export const recipeStatusSchema = z.enum([RecipeStatus.DRAFT, RecipeStatus.PUBLISHED]);
+
+/**
  * Allowed recipe source types.
  */
 export const RecipeSourceType = {
@@ -128,6 +150,14 @@ export interface Recipe {
      */
     difficulty?: RecipeDifficulty;
     visibility: RecipeVisibility;
+    /**
+     * Publication status (W8-a.3 / decision 5). `draft` recipes are owner-only regardless of `visibility`
+     * and are excluded from every non-owner read path (search, list, community, collection-embed) and from
+     * rating — a SECURITY boundary, not a display flag. Every recipe has a status (NOT NULL, default
+     * `published`). On the owner's own list a `draft` renders a "Draft" badge that REPLACES the visibility
+     * badge (never "Public" on a draft, which would mislead).
+     */
+    status: RecipeStatus;
     sourceType: RecipeSourceType;
     sourceUrl?: string;
     sourceAttribution?: string;
@@ -229,6 +259,8 @@ export const recipeSchema = z.object({
     servings: positiveIntSchema,
     difficulty: recipeDifficultySchema.optional(),
     visibility: recipeVisibilitySchema,
+    // Publication status (W8-a.3) — NOT NULL, default 'published'; a draft is owner-only (security boundary).
+    status: recipeStatusSchema,
     sourceType: recipeSourceTypeSchema,
     sourceUrl: z.string().url().optional(),
     sourceAttribution: z.string().min(1).optional(),

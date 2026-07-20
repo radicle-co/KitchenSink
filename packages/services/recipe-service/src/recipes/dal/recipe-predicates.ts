@@ -6,9 +6,9 @@
  * These are the SQL twin of the in-memory {@link ../domain/recipe-visibility.ts | isRecipeViewableBy}:
  * the same rule expressed two ways because one filters rows in Postgres and the other decides an
  * already-loaded row. Keeping both here-and-there in lockstep by comment was the drift hazard this module
- * removes — {@link viewableBy} is now the one place the visibility rule lives in SQL, and {@link readableBy}
- * the one place W8-a.3 will AND-in the draft-status term, collapsing that change from ~6 hand-edits across
- * two dialects to one.
+ * removes — {@link viewableBy} is now the one place the visibility rule lives in SQL, {@link publishedOrOwnedBy}
+ * the one place the W8-a.3 draft-status boundary lives, and {@link readableBy} the one place the three read
+ * terms (tombstone + visibility + draft) are AND-ed together.
  *
  * The conditions reference the `recipes` table columns (qualified), so they compose into both a Drizzle
  * `.where(...)` and a raw `sql\`... WHERE ${cond}\`` template (every search read is `FROM recipes`).
@@ -36,12 +36,26 @@ export function viewableBy(viewerId: string): SQL {
 }
 
 /**
- * The composed read predicate: {@link activeRecipe} AND {@link viewableBy} — a non-owner sees only
- * public, non-tombstoned recipes; an owner also sees their own. This is the single condition W8-a.3 will
- * extend with the draft-status term (`status = 'published' OR owner_id = :viewer`).
+ * Draft-status read boundary (W8-a.3 — a SECURITY rule, decision 5): the recipe is `published`, OR it is
+ * owned by `viewerId`. ORTHOGONAL to {@link viewableBy}: a `draft` is owner-only REGARDLESS of visibility
+ * (a free-tier draft is `visibility='public'`, so the visibility term alone would leak it). `'published'`
+ * is an inlined constant; only the viewer id is a bound parameter.
+ *
+ * @param viewerId - The requesting principal's app-user ULID.
+ */
+export function publishedOrOwnedBy(viewerId: string): SQL {
+    // `or` with two defined conditions is always defined.
+    return or(eq(recipes.status, 'published'), eq(recipes.ownerId, viewerId)) as SQL;
+}
+
+/**
+ * The composed read predicate: {@link activeRecipe} AND {@link viewableBy} AND {@link publishedOrOwnedBy} —
+ * a non-owner sees only public, published, non-tombstoned recipes; an owner also sees their own (private
+ * and/or draft). This is the single place the three read terms are AND-ed together; a new read path should
+ * consume THIS rather than re-listing the terms.
  *
  * @param viewerId - The requesting principal's app-user ULID.
  */
 export function readableBy(viewerId: string): SQL {
-    return and(activeRecipe(), viewableBy(viewerId)) as SQL;
+    return and(activeRecipe(), viewableBy(viewerId), publishedOrOwnedBy(viewerId)) as SQL;
 }

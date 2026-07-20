@@ -80,6 +80,10 @@ export const recipes = pgTable(
         ratingCount: integer('rating_count').notNull().default(0),
 
         visibility: text('visibility').notNull().default('public'),
+        // Publication status (W8-a.3 / 0013 migration) — a SECURITY boundary orthogonal to visibility and
+        // deleted_at. A draft is owner-only regardless of visibility; NOT NULL default 'published' (every
+        // existing row genuinely is published). Domain constrained by recipes_status_check below.
+        status: text('status').notNull().default('published'),
         sourceType: text('source_type').notNull().default('user_created'),
         sourceUrl: text('source_url'),
         sourceAttribution: text('source_attribution'),
@@ -126,6 +130,8 @@ export const recipes = pgTable(
         check('recipes_servings_positive', sql`${table.servings} > 0`),
         // Difficulty: NULL passes (NULL IN (...) is NULL, not false), so this enforces the enum on stated values.
         check('recipes_difficulty_check', sql`${table.difficulty} IN ('easy', 'medium', 'hard')`),
+        // Publication status (W8-a.3) — NOT NULL, so this enforces the full draft|published domain.
+        check('recipes_status_check', sql`${table.status} IN ('draft', 'published')`),
         check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),
         check(
             'recipes_average_rating_range',

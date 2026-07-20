@@ -13,6 +13,7 @@ import type {
     RecipeNutrition,
     RecipePhoto,
     RecipeSourceType,
+    RecipeStatus,
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
@@ -46,6 +47,11 @@ export interface RecipeResponse {
     description?: string;
     cuisine?: string;
     visibility: RecipeVisibility;
+    /**
+     * Publication status (W8-a.3). A `draft` is owner-only (excluded from every non-owner read path); the
+     * owner's own list renders a "Draft" badge off this. Always present (NOT NULL column, default published).
+     */
+    status: RecipeStatus;
     sourceType: RecipeSourceType;
     sourceUrl?: string;
     sourceAttribution?: string;

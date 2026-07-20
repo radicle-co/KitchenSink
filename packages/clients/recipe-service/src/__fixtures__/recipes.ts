@@ -37,6 +37,7 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         totalTimeMinutes: 30,
         servings: 4,
         visibility: 'private',
+        status: 'published',
         sourceType: 'user_created',
         hasSubstantiveEdit: false,
         dietaryFlags: ['vegan'],

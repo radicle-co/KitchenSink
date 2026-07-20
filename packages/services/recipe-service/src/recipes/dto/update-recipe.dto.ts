@@ -18,9 +18,14 @@ import {
     Min,
     ValidateNested,
 } from 'class-validator';
-import type { RecipeDifficulty } from '@kitchensink/recipe-core';
+import type { RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
 
-import { CreateRecipeStepInputDto, RECIPE_DIFFICULTIES, RecipeIngredientInputDto } from './create-recipe.dto.js';
+import {
+    CreateRecipeStepInputDto,
+    RECIPE_DIFFICULTIES,
+    RECIPE_STATUSES,
+    RecipeIngredientInputDto,
+} from './create-recipe.dto.js';
 
 /** Body of `PATCH /v1/recipes/{id}`. */
 export class UpdateRecipeDto {
@@ -58,6 +63,15 @@ export class UpdateRecipeDto {
     @IsOptional()
     @IsIn(RECIPE_DIFFICULTIES)
     difficulty?: RecipeDifficulty | null;
+
+    /**
+     * Publication status (W8-a.3). OPTIONAL: absent leaves it unchanged; `published` is the wizard's Publish
+     * action, `draft` re-drafts. Unlike visibility (dedicated endpoint), status transitions ride the normal
+     * update. The publish-readiness gate (all required fields valid) is the wizard's concern (W3).
+     */
+    @IsOptional()
+    @IsIn(RECIPE_STATUSES)
+    status?: RecipeStatus;
 
     @IsOptional()
     @IsArray()

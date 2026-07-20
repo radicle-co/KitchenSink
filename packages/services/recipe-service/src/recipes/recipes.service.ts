@@ -37,7 +37,7 @@ import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { RecipeSourceType, RecipeVisibility, usesPremiumCapability } from '@kitchensink/recipe-core';
-import type { RecipeDifficulty } from '@kitchensink/recipe-core';
+import type { RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 
@@ -143,6 +143,9 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
         // no badge. The DB CHECK guarantees any non-null value is one of easy|medium|hard.
         ...(recipe.difficulty !== null ? { difficulty: recipe.difficulty as RecipeDifficulty } : {}),
         visibility: recipe.visibility as RecipeVisibility,
+        // Publication status (W8-a.3) — always present (NOT NULL column). The owner's own list renders a
+        // "Draft" badge off this; non-owner read paths never receive a draft row (predicate-filtered).
+        status: recipe.status as RecipeStatus,
         sourceType: recipe.sourceType as RecipeSourceType,
         ...(recipe.sourceUrl !== null ? { sourceUrl: recipe.sourceUrl } : {}),
         ...(recipe.sourceAttribution !== null ? { sourceAttribution: recipe.sourceAttribution } : {}),
@@ -514,6 +517,8 @@ export class RecipesService {
             // Author-stated difficulty (FR-001b) — persisted only when the author stated one; omitted
             // otherwise so the row stays "not stated" (NULL). Never defaulted.
             ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
+            // Publication status (W8-a.3) — omitted → DB default 'published'; Save-Draft sends 'draft'.
+            ...(dto.status !== undefined ? { status: dto.status } : {}),
             tags: dto.tags ?? [],
             dietaryFlags: dto.dietaryFlags ?? [],
             ingredientNamesText: buildIngredientNamesText(ingredients),
@@ -574,8 +579,10 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
+        // W8-a.4 (IDOR): a recipe the caller can't see (private/draft, not owned) is 404 — indistinguishable
+        // from a missing id — not 403, which would confirm the id exists. getById is the hottest such path.
         if (!isRecipeViewableBy(aggregate.recipe, ownerId)) {
-            throw notOwner(id);
+            throw recipeNotFound(id);
         }
 
         // The viewer's OWN rating (FR-013) for `viewerRating`, scoped to (recipe, this viewer) so it can
@@ -676,6 +683,9 @@ export class RecipesService {
             // value sets it, explicit `null` clears it. The DAL is what distinguishes the three — the DTO
             // preserved absent-vs-null, and forwarding the raw value keeps that distinction intact.
             difficulty: dto.difficulty,
+            // Publication status (W8-a.3) — passed straight through: absent leaves it unchanged, a value
+            // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
+            status: dto.status,
             tags: dto.tags,
             dietaryFlags: dto.dietaryFlags,
             // Rebuild the search text from the RESOLVED catalog lines (not dto.ingredients) so the index
@@ -741,11 +751,12 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        // Clone read-scoping (FR-011): a non-owner may clone only a public recipe; an owner may clone their
-        // own (even private). Routes through the single in-memory visibility predicate — the SQL twin of the
-        // `viewableBy` DAL predicate — so the rule lives in exactly one place per representation.
+        // Clone read-scoping (FR-011 / W8-a.3+.4): a non-owner may clone only a public, PUBLISHED recipe; an
+        // owner may clone their own (even private/draft). Routes through the single in-memory viewability
+        // predicate (the twin of the `readableBy` DAL predicate). An unreadable source (private/draft, not
+        // owned) returns 404 — indistinguishable from a missing id (IDOR), not 403.
         if (!isRecipeViewableBy(source.recipe, ownerId)) {
-            throw notOwner(id);
+            throw recipeNotFound(id);
         }
 
         const sourceType = source.recipe.sourceType as RecipeSourceType;
@@ -833,6 +844,15 @@ export class RecipesService {
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */
     private assertOwner(ownerId: string, recipe: RecipeRow): void {
+        // W8-a.4 (IDOR): a recipe the caller cannot even SEE (private/draft, not owned) returns 404 —
+        // indistinguishable from a missing id — closing the existence oracle a bare owner check (403) opens
+        // on `update`/`delete`/`setVisibility` (all reachable via a leaked clonedFromId/collection/version
+        // reference). A recipe the caller CAN see but does not OWN (public, other-owner) still returns 403:
+        // you can see it, you just can't modify it — not an oracle.
+        if (!isRecipeViewableBy(recipe, ownerId)) {
+            throw recipeNotFound(recipe.id);
+        }
+
         if (recipe.ownerId !== ownerId) {
             throw notOwner(recipe.id);
         }

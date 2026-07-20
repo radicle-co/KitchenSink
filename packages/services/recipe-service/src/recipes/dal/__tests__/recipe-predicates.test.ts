@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
-import { activeRecipe, readableBy, viewableBy } from '../recipe-predicates.js';
+import { activeRecipe, publishedOrOwnedBy, readableBy, viewableBy } from '../recipe-predicates.js';
 
 const dialect = new PgDialect();
 
@@ -34,14 +34,26 @@ describe('recipe read predicates (S-R3)', () => {
         expect(params).toContain('01HVIEWER0000000000000000');
     });
 
-    it('readableBy() composes active AND viewable (tombstone + visibility)', () => {
+    it('publishedOrOwnedBy() is "published OR owned by the viewer" (W8-a.3 draft boundary)', () => {
+        const { sql, params } = compile(publishedOrOwnedBy('01HVIEWER0000000000000000'));
+
+        expect(sql).toContain('"status" =');
+        expect(sql).toContain(' or ');
+        expect(sql).toContain('"owner_id" =');
+        // 'published' is bound as a param alongside the viewer id — nothing is string-spliced.
+        expect(params).toEqual(['published', '01HVIEWER0000000000000000']);
+    });
+
+    it('readableBy() composes tombstone AND visibility AND draft-status (the full read boundary)', () => {
         const { sql, params } = compile(readableBy('01HVIEWER0000000000000000'));
 
         expect(sql).toContain('"deleted_at" is null');
         expect(sql).toContain(' and ');
         expect(sql).toContain('"visibility" =');
+        expect(sql).toContain('"status" ='); // draft rows are excluded from non-owner reads (W8-a.3)
         expect(sql).toContain('"owner_id" =');
         expect(params).toContain('01HVIEWER0000000000000000');
+        expect(params).toContain('published');
     });
 
     it('binds both operands as parameters (no SQL-injection surface: public literal + viewer id)', () => {

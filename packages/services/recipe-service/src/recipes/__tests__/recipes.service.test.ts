@@ -321,11 +321,13 @@ describe('RecipesService.getById', () => {
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
-    it('throws NOT_OWNER when a non-owner reads a private recipe', async () => {
+    it('throws RECIPE_NOT_FOUND (404, not 403) when a non-owner reads a private recipe (W8-a.4 IDOR)', async () => {
+        // A private recipe the caller can't see is indistinguishable from a missing id — a 403 here would
+        // confirm the id exists (an existence oracle). getById is the hottest such path.
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })) });
         const error = await catchError(newService(dal).getById(OTHER, 'r-1'));
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('allows a non-owner to read a public recipe', async () => {
@@ -565,6 +567,82 @@ describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
         });
 
         expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBeNull();
+    });
+});
+
+describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDOR)', () => {
+    /** A public DRAFT owned by `owner` — the leak class the status term closes (public, but owner-only). */
+    function publicDraft(owner = OWNER): RecipeAggregate {
+        return aggregate({ ownerId: owner, visibility: 'public', status: 'draft', currentVersion: 1 });
+    }
+
+    it('a non-owner CANNOT read a public draft — 404 (indistinguishable from a missing id)', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+        const error = await catchError(newService(dal).getById(OTHER, 'r-1'));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+
+    it('the OWNER sees their own draft, and the projection reports status=draft', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+
+        const response = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(response.status).toBe('draft');
+    });
+
+    it('a non-owner CANNOT clone a public draft — 404, never creating', async () => {
+        const create = vi.fn();
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)), create });
+
+        const error = await catchError(newService(dal).clone(OTHER, 'r-1'));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['update', (s: RecipesService) => s.update(OTHER, 'r-1', { expectedVersion: 1, title: 'x' })],
+        ['delete', (s: RecipesService) => s.delete(OTHER, 'r-1')],
+        [
+            'setVisibility',
+            (s: RecipesService) => s.setVisibility(principal({ userId: OTHER }), 'r-1', RecipeVisibility.PRIVATE),
+        ],
+    ])('a non-owner mutation (%s) on a public draft returns 404, not 403 (no existence oracle)', async (_l, act) => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+
+        const error = await catchError(act(newService(dal)));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+
+    it('a viewable-but-not-owned recipe (public, published) still returns 403 on a mutation (not an oracle)', async () => {
+        // W8-a.4: seeing ≠ owning. You can see a public published recipe you don't own, so a modify attempt
+        // is a legitimate 403 — the id is not secret. Only the UNSEEABLE case is masked as 404.
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ ownerId: OWNER })) });
+
+        const error = await catchError(newService(dal).delete(OTHER, 'r-1'));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
+    });
+
+    it('Save-Draft: create forwards status=draft to the DAL', async () => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(publicDraft(OWNER)) });
+
+        await newService(dal).create(principal(), { ...CREATE_DTO, status: 'draft' });
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
+    });
+
+    it('Publish: an owner update forwards status=published to the DAL', async () => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(publicDraft(OWNER)),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, status: 'published' });
+
+        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }));
     });
 });
 
@@ -1099,7 +1177,8 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         );
     });
 
-    it('rejects a non-owner cloning a PRIVATE recipe (NOT_OWNER), never creating', async () => {
+    it('rejects a non-owner cloning a PRIVATE recipe with 404 (W8-a.4 IDOR), never creating', async () => {
+        // An unreadable source is 404 — indistinguishable from a missing id, not a 403 that confirms it exists.
         const source: RecipeAggregate = {
             recipe: makeRecipeRow({ id: 'src', ownerId: OTHER, visibility: 'private', sourceType: 'user_created' }),
             steps: [],
@@ -1110,7 +1189,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
 
         const error = await catchError(newService(dal).clone(OWNER, 'src'));
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         expect(create).not.toHaveBeenCalled();
     });
 

@@ -104,6 +104,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             tags: { type: 'text[]', notNull: true },
             has_partial_nutrition: { type: 'boolean', notNull: true },
             lead_calories_per_serving: { type: 'numeric(8,1)', notNull: false },
+            status: { type: 'text', notNull: true },
             current_version: { type: 'integer', notNull: true },
             ingredient_names_text: { type: 'text', notNull: true },
             search_vector: { type: 'tsvector', notNull: false },

@@ -26,7 +26,7 @@ import {
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
-import { activeRecipe, viewableBy } from '../../recipes/dal/recipe-predicates.js';
+import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
 export interface CreateCollectionRow {
@@ -206,17 +206,27 @@ export class CollectionsDal {
      * List the recipes in a collection VIEWABLE BY `viewerId`, oldest membership first. Two filters:
      *  - EXCLUDING tombstoned recipes (C-007): the `INNER JOIN` + `deleted_at IS NULL` drops soft-deleted
      *    recipes even though their junction rows remain.
-     *  - EXCLUDING recipes the viewer may not see: `visibility = 'public' OR owner_id = viewerId`. This
-     *    is the authoritative half of the membership-IDOR guard — a recipe that was public when added but
-     *    later went private (which add-time validation cannot catch) is filtered out here at read time.
-     *    Keep this predicate in lockstep with `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
+     *  - EXCLUDING recipes the viewer may not see: `visibility = 'public' OR owner_id = viewerId` AND the
+     *    W8-a.3 draft term `status = 'published' OR owner_id = viewerId`. This is the authoritative half of
+     *    the membership-IDOR guard — a recipe that was public when added but later went private OR became a
+     *    draft (which add-time validation cannot catch) is filtered out here at read time. This ONE read
+     *    serves three callers (the `CollectionWithRecipes` embed, `cloneCollection`'s clone-seed, and
+     *    `pullFromSource`/preview), so patching this predicate covers all three. Keep it in lockstep with
+     *    `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
      */
     public async listRecipes(collectionId: string, viewerId: string): Promise<RecipeRow[]> {
         return this.db
             .select(getTableColumns(recipes))
             .from(recipeCollections)
             .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
-            .where(and(eq(recipeCollections.collectionId, collectionId), activeRecipe(), viewableBy(viewerId)))
+            .where(
+                and(
+                    eq(recipeCollections.collectionId, collectionId),
+                    activeRecipe(),
+                    viewableBy(viewerId),
+                    publishedOrOwnedBy(viewerId),
+                ),
+            )
             .orderBy(recipeCollections.addedAt);
     }
 }

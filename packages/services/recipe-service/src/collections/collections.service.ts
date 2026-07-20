@@ -18,6 +18,7 @@ import {
     usesPremiumCapability,
     type PaginatedResponse,
     type Recipe,
+    type RecipeStatus,
     type RecipeDifficulty,
 } from '@kitchensink/recipe-core';
 
@@ -77,6 +78,8 @@ function toRecipe(row: RecipeRow): Recipe {
         totalTimeMinutes: row.totalTimeMinutes ?? 0,
         servings: row.servings,
         visibility: row.visibility as RecipeVisibility,
+        // Publication status (W8-a.3) — always present; listRecipes already excludes other users' drafts.
+        status: row.status as RecipeStatus,
         sourceType: row.sourceType as RecipeSourceType,
         hasSubstantiveEdit: row.hasSubstantiveEdit,
         dietaryFlags: row.dietaryFlags,

@@ -28,13 +28,14 @@ const RATER = '01JRATER00000000000000000A';
 const OWNER = '01JOWNER00000000000000000B';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 
-/** A recipe aggregate with a controllable owner + visibility (steps/ingredients irrelevant to authz). */
-function aggregate(overrides: Partial<{ ownerId: string; visibility: string }> = {}): RecipeAggregate {
+/** A recipe aggregate with a controllable owner + visibility + status (steps/ingredients irrelevant to authz). */
+function aggregate(overrides: Partial<{ ownerId: string; visibility: string; status: string }> = {}): RecipeAggregate {
     return {
         recipe: makeRecipeRow({
             id: RECIPE_ID,
             ownerId: overrides.ownerId ?? OWNER,
             visibility: overrides.visibility ?? 'public',
+            status: overrides.status ?? 'published',
         }),
         steps: [],
         ingredients: [],
@@ -113,6 +114,19 @@ describe('RatingsService.setRating', () => {
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(privateNotMine.ratingsDal.upsert).not.toHaveBeenCalled();
+    });
+
+    it('404s (RECIPE_NOT_FOUND) for a PUBLIC DRAFT the caller does not own, and never writes a rating (W8-a.3/.10)', async () => {
+        // A draft is not rateable: a free-tier draft is visibility='public', so without the status term the
+        // viewability check would admit it and a stranger could rate an unpublished recipe (mutating the
+        // aggregate on an invisible row). It MUST 404 like a tombstone, and the rating write MUST NOT run.
+        const publicDraftNotMine = makeHarness(aggregate({ ownerId: OWNER, visibility: 'public', status: 'draft' }));
+
+        await expectDomainError(
+            publicDraftNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            RecipeErrorCode.RECIPE_NOT_FOUND,
+        );
+        expect(publicDraftNotMine.ratingsDal.upsert).not.toHaveBeenCalled();
     });
 
     it('403s (CANNOT_RATE_OWN_RECIPE) when the caller owns the recipe, and never writes a rating', async () => {

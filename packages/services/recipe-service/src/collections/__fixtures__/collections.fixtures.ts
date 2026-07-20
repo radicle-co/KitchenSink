@@ -49,6 +49,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         averageRating: null,
         ratingCount: 0,
         visibility: 'public',
+        status: 'published',
         sourceType: 'user_created',
         sourceUrl: null,
         sourceAttribution: null,

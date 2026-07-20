@@ -23,10 +23,13 @@ import {
     ValidateIf,
     ValidateNested,
 } from 'class-validator';
-import { RecipeDifficulty, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** The allowed visibility literals, derived from the shared `RecipeVisibility` value object. */
 const RECIPE_VISIBILITIES = Object.values(RecipeVisibility);
+
+/** The allowed status literals (`draft`/`published`), derived from the shared `RecipeStatus` value object. */
+export const RECIPE_STATUSES = Object.values(RecipeStatus);
 
 /**
  * The allowed difficulty literals (`easy`/`medium`/`hard`), derived from the shared `RecipeDifficulty`
@@ -123,6 +126,14 @@ export class CreateRecipeDto {
     @IsOptional()
     @IsIn(RECIPE_VISIBILITIES)
     visibility?: RecipeVisibility;
+
+    /**
+     * Publication status (W8-a.3). OPTIONAL, defaults to `published` when omitted — the wizard's Save-Draft
+     * sends `draft`; a normal create publishes. A `draft` is owner-only regardless of visibility.
+     */
+    @IsOptional()
+    @IsIn(RECIPE_STATUSES)
+    status?: RecipeStatus;
 
     @IsArray()
     @ArrayMinSize(1)

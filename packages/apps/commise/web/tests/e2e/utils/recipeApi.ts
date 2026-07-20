@@ -8,6 +8,7 @@ import {
     type RecipeDetail,
     type RecipeDifficulty,
     type RecipeFacetCount,
+    type RecipeStatus,
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type {
@@ -133,6 +134,7 @@ function makeRecipe(over: Partial<Recipe> = {}): Recipe {
         totalTimeMinutes: 30,
         servings: 4,
         visibility: 'public' as RecipeVisibility,
+        status: 'published' as RecipeStatus,
         sourceType: 'user_created' as const,
         hasSubstantiveEdit: false,
         dietaryFlags: [],

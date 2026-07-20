@@ -125,11 +125,11 @@ describe('RecipesService.clone', () => {
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
-    it('throws NOT_OWNER when a non-owner clones a PRIVATE recipe', async () => {
+    it('throws RECIPE_NOT_FOUND (404, not 403) when a non-owner clones a PRIVATE recipe (W8-a.4 IDOR)', async () => {
         const { dal } = fakeDal(sourceAggregate({ visibility: 'private', ownerId: SOURCE_OWNER }));
         const error = await catchError(service(dal).clone(CLONER, 'src-1'));
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('lets the OWNER clone their own private recipe', async () => {

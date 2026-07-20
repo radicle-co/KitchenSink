@@ -37,6 +37,8 @@ export interface CreateSnapshotInput {
     /** The version this snapshot was based on (enables 3-way merge conflict detection). */
     baseVersion?: number;
     changeSummary?: string;
+    /** Device that authored this version (W8-a.6) — bounded free text from the write request; omitted → NULL. */
+    deviceLabel?: string;
     /** S3 archive key, when the snapshot is written with its archive already in place. */
     s3Key?: string;
 }
@@ -61,6 +63,7 @@ export class VersionsDal {
                 s3Key: input.s3Key ?? null,
                 createdBy: input.createdBy,
                 changeSummary: input.changeSummary ?? null,
+                deviceLabel: input.deviceLabel ?? null,
             })
             .returning();
 

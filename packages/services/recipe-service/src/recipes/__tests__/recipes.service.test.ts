@@ -179,6 +179,41 @@ describe('RecipesService.create', () => {
         );
     });
 
+    it('forwards the write-request deviceLabel onto the version snapshot (W8-a.6)', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        await service.create(principal(), { ...CREATE_DTO, deviceLabel: 'Pixel 8' });
+
+        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ deviceLabel: 'Pixel 8' }));
+    });
+
+    it('does NOT put a deviceLabel key on the snapshot when the write omits it (device stays unknown)', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        await service.create(principal(), CREATE_DTO);
+
+        const snapshotArg = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+        expect(snapshotArg).not.toHaveProperty('deviceLabel');
+    });
+
     it('captures the FULL recipe content in the snapshot (faithful for restore)', async () => {
         const recipe = makeRecipeRow({
             id: 'r-9',

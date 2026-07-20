@@ -101,6 +101,7 @@ export function makeVersionRow(overrides: Partial<RecipeVersionRow> = {}): Recip
         s3Key: null,
         createdBy: '01J000000000000000000FREE0',
         changeSummary: null,
+        deviceLabel: null,
         createdAt: BASE_DATE,
         ...overrides,
     };

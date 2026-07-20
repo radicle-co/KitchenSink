@@ -47,6 +47,11 @@ export const recipeVersions = pgTable(
         // App-user ULID (from token claim); no FK, no local users table (D2).
         createdBy: varchar('created_by', { length: 255 }).notNull(),
         changeSummary: text('change_summary'),
+        // Device that authored this version (W8-a.6 / FR-007b) — bounded free text captured from the write
+        // request. A mutable COLUMN, deliberately NOT a field inside the immutable `snapshot` JSONB. NULLABLE
+        // with no default: a device is not knowable retroactively, so historical rows stay NULL and the UI
+        // renders "unknown device" rather than fabricating attribution. User-controlled → escaped at render.
+        deviceLabel: text('device_label'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [

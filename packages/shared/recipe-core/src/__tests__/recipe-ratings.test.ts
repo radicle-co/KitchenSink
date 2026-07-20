@@ -7,6 +7,7 @@ import {
     recipeDifficultySchema,
     recipeSchema,
     recipeStatusSchema,
+    recipeVersionSchema,
     RecipeErrorCode,
     recipeRatingSchema,
     setRecipeRatingInputSchema,
@@ -201,6 +202,41 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
         delete withoutStatus['status'];
         expect(recipeSchema.safeParse(withoutStatus).success).toBe(false);
         expect(recipeStatusSchema.safeParse('archived').success).toBe(false);
+    });
+});
+
+describe('recipeVersionSchema — deviceLabel attribution (W8-a.6)', () => {
+    /** A minimal, schema-valid `RecipeVersion` the cases layer deviceLabel onto. */
+    function makeVersion(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            id: 'ver-1',
+            recipeId: 'rec-1',
+            versionNumber: 1,
+            snapshot: {
+                version: 1,
+                title: 'Snapshot',
+                description: '',
+                steps: [],
+                ingredients: [],
+                servings: 1,
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 0,
+            },
+            createdBy: '01JOWNER0000000000000000AA',
+            createdAt: '2026-07-16T00:00:00.000Z',
+            ...overrides,
+        };
+    }
+
+    it('accepts a bounded deviceLabel and tolerates its absence (unknown device)', () => {
+        expect(recipeVersionSchema.parse(makeVersion({ deviceLabel: "Brandon's iPhone" })).deviceLabel).toBe(
+            "Brandon's iPhone",
+        );
+        expect(recipeVersionSchema.parse(makeVersion()).deviceLabel).toBeUndefined();
+    });
+
+    it('rejects a deviceLabel past the 80-char bound (unbounded free text is not persisted)', () => {
+        expect(recipeVersionSchema.safeParse(makeVersion({ deviceLabel: 'x'.repeat(81) })).success).toBe(false);
     });
 });
 

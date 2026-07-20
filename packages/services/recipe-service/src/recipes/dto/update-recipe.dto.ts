@@ -14,6 +14,7 @@ import {
     IsInt,
     IsOptional,
     IsString,
+    Matches,
     MaxLength,
     Min,
     ValidateNested,
@@ -22,6 +23,8 @@ import type { RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
 
 import {
     CreateRecipeStepInputDto,
+    DEVICE_LABEL_MAX_LENGTH,
+    DEVICE_LABEL_PATTERN,
     RECIPE_DIFFICULTIES,
     RECIPE_STATUSES,
     RecipeIngredientInputDto,
@@ -72,6 +75,16 @@ export class UpdateRecipeDto {
     @IsOptional()
     @IsIn(RECIPE_STATUSES)
     status?: RecipeStatus;
+
+    /**
+     * Device that authored this version (W8-a.6) — OPTIONAL, recorded on the version snapshot this update
+     * writes. Same length + charset cap as create; user-controlled, always escaped at render.
+     */
+    @IsOptional()
+    @IsString()
+    @MaxLength(DEVICE_LABEL_MAX_LENGTH)
+    @Matches(DEVICE_LABEL_PATTERN)
+    deviceLabel?: string;
 
     @IsOptional()
     @IsArray()

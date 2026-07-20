@@ -464,7 +464,12 @@ export class RecipesService {
      *
      * @sideEffect Inserts a `recipe_versions` row and runs retention (archive + prune) via VersionsService.
      */
-    private async recordSnapshot(aggregate: RecipeAggregate, ownerId: string, changeSummary: string): Promise<void> {
+    private async recordSnapshot(
+        aggregate: RecipeAggregate,
+        ownerId: string,
+        changeSummary: string,
+        deviceLabel?: string,
+    ): Promise<void> {
         try {
             await this.versions.createSnapshot({
                 recipeId: aggregate.recipe.id,
@@ -472,6 +477,8 @@ export class RecipesService {
                 snapshot: aggregateToSnapshot(aggregate),
                 createdBy: ownerId,
                 changeSummary,
+                // Device attribution (W8-a.6) — from the write request; omitted (→ NULL) on clone/restore.
+                ...(deviceLabel !== undefined ? { deviceLabel } : {}),
             });
         } catch (error) {
             // The recipe is saved; a version-history hiccup is non-fatal to the write. Surface it for
@@ -529,7 +536,7 @@ export class RecipesService {
             steps: dto.steps.map(toStepInput),
         });
 
-        await this.recordSnapshot(aggregate, principal.userId, 'Created');
+        await this.recordSnapshot(aggregate, principal.userId, 'Created', dto.deviceLabel);
 
         // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
         return this.toDetailResponse(aggregate, []);
@@ -714,7 +721,7 @@ export class RecipesService {
         }
 
         if (options.recordSnapshot !== false) {
-            await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated');
+            await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated', dto.deviceLabel);
         }
 
         return this.toDetailResponse(updated, await this.loadPhotoRows(id));

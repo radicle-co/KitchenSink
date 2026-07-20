@@ -648,6 +648,13 @@ export interface RecipeVersion {
     s3Key?: string;
     createdBy: string;
     changeSummary?: string;
+    /**
+     * The device that authored this version (W8-a.6 / FR-007b) — bounded free text captured from the write
+     * request. ABSENT for versions written before the field existed (or when the client sent none); the UI
+     * renders "unknown device" rather than a fabricated value. User-controlled → ALWAYS escaped at render
+     * (both the version-history attribution and the conflict banner), never `dangerouslySetInnerHTML`.
+     */
+    deviceLabel?: string;
     createdAt: IsoDateTimeString;
 }
 
@@ -663,6 +670,8 @@ export const recipeVersionSchema = z.object({
     s3Key: z.string().min(1).optional(),
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
+    // Device attribution (W8-a.6) — bounded free text; absent for pre-feature versions / when unsent.
+    deviceLabel: z.string().min(1).max(80).optional(),
     createdAt: isoDateTimeStringSchema,
 });
 

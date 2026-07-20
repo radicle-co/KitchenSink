@@ -202,6 +202,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             s3_key: { type: 'text', notNull: false },
             created_by: { type: 'varchar(255)', notNull: true },
             change_summary: { type: 'text', notNull: false },
+            device_label: { type: 'text', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });

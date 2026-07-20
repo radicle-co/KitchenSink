@@ -17,6 +17,7 @@ import {
     IsOptional,
     IsString,
     IsUUID,
+    Matches,
     Max,
     MaxLength,
     Min,
@@ -30,6 +31,16 @@ const RECIPE_VISIBILITIES = Object.values(RecipeVisibility);
 
 /** The allowed status literals (`draft`/`published`), derived from the shared `RecipeStatus` value object. */
 export const RECIPE_STATUSES = Object.values(RecipeStatus);
+
+/** Max length of the device-label free text (W8-a.6). Bounded so a version row can't carry unbounded text. */
+export const DEVICE_LABEL_MAX_LENGTH = 80;
+
+/**
+ * Allowed device-label charset (W8-a.6): letters, digits, spaces, and a small set of name punctuation
+ * (`. , ' ( ) -`). Excludes control characters and markup delimiters — defense in depth over the render-time
+ * escaping that is the actual XSS control. Covers real device names ("Brandon's iPhone", "MacBook Pro (Work)").
+ */
+export const DEVICE_LABEL_PATTERN = /^[\p{L}\p{N} .,'()-]+$/u;
 
 /**
  * The allowed difficulty literals (`easy`/`medium`/`hard`), derived from the shared `RecipeDifficulty`
@@ -134,6 +145,18 @@ export class CreateRecipeDto {
     @IsOptional()
     @IsIn(RECIPE_STATUSES)
     status?: RecipeStatus;
+
+    /**
+     * Device that authored this version (W8-a.6 / FR-007b) — OPTIONAL bounded free text recorded on the
+     * version snapshot. Length- AND charset-capped ({@link DEVICE_LABEL_MAX_LENGTH} / {@link DEVICE_LABEL_PATTERN}):
+     * it is user-controlled and surfaced in the version history + conflict banner, so the input is bounded
+     * here and ALWAYS escaped at render (defense in depth — the cap is not the XSS control, escaping is).
+     */
+    @IsOptional()
+    @IsString()
+    @MaxLength(DEVICE_LABEL_MAX_LENGTH)
+    @Matches(DEVICE_LABEL_PATTERN)
+    deviceLabel?: string;
 
     @IsArray()
     @ArrayMinSize(1)

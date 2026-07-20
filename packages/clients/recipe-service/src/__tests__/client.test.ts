@@ -221,6 +221,52 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
         expect(isVersionConflictError(error)).toBe(true);
         expect((error as VersionConflictError).currentVersion).toBe(7);
         expect((error as VersionConflictError).conflictingVersion).toBe(5);
+        // A bare (un-enriched) body leaves the snapshot sides undefined.
+        expect((error as VersionConflictError).server).toBeUndefined();
+        expect((error as VersionConflictError).base).toBeUndefined();
+    });
+
+    it('409 → VersionConflictError carrying the ENRICHED server + base snapshots (W8-a.5)', async () => {
+        const side = (versionNumber: number, title: string, deviceLabel?: string) => ({
+            versionNumber,
+            ...(deviceLabel !== undefined ? { deviceLabel } : {}),
+            updatedAt: '2026-07-19T00:00:00.000Z',
+            snapshot: {
+                version: versionNumber,
+                title,
+                description: '',
+                steps: [],
+                ingredients: [],
+                servings: 2,
+                prepTimeMinutes: 1,
+                cookTimeMinutes: 1,
+            },
+        });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(409, {
+                code: 'VERSION_CONFLICT',
+                message: 'Recipe version conflict',
+                details: {
+                    currentVersion: 7,
+                    conflictingVersion: 5,
+                    server: side(7, 'Server title', 'Pixel 8'),
+                    base: side(5, 'Base title'),
+                },
+            }),
+        });
+
+        const error = await client
+            .updateRecipe('rec_1', { expectedVersion: 5, title: 'New' })
+            .catch((caught: unknown) => caught);
+
+        expect(isVersionConflictError(error)).toBe(true);
+        const conflict = error as VersionConflictError;
+        expect(conflict.server?.versionNumber).toBe(7);
+        expect(conflict.server?.snapshot.title).toBe('Server title');
+        expect(conflict.server?.deviceLabel).toBe('Pixel 8');
+        expect(conflict.base?.versionNumber).toBe(5);
+        expect(conflict.base?.snapshot.title).toBe('Base title');
     });
 
     it('410 → GoneError (account already erased)', async () => {

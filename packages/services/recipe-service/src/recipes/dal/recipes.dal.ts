@@ -14,10 +14,12 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
     recipeSteps,
+    recipeVersions,
     recipes,
     type RecipeIngredientRow,
     type RecipeRow,
     type RecipeStepRow,
+    type RecipeVersionRow,
 } from '../../database/schema/index.js';
 import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
@@ -253,6 +255,60 @@ export class RecipesDal {
         const ingredients = await this.linkDal.loadByRecipeIds(this.db, [recipe.id]);
 
         return { recipe, steps, ingredients };
+    }
+
+    /**
+     * Read the material for an enriched `409 VERSION_CONFLICT` (W8-a.5) in ONE REPEATABLE READ transaction,
+     * so the current server aggregate and the two version rows are read from a single coherent snapshot — a
+     * third concurrent writer cannot make the returned `server` a version ahead of the `currentVersion` this
+     * reports. Returns the current aggregate plus the `recipe_versions` rows for the client's `expectedVersion`
+     * (the conflict base — absent when evicted past the DB retention window) and the current version (whose
+     * `device_label` labels the server side).
+     *
+     * @returns The conflict material, or `undefined` when the recipe is missing/tombstoned (→ a 404, not a 409).
+     * @sideEffect Read-only (reads `recipes`, `recipe_steps`, `recipe_ingredients`, `recipe_versions`).
+     */
+    public async readConflict(
+        id: string,
+        expectedVersion: number,
+    ): Promise<
+        { current: RecipeAggregate; baseVersion?: RecipeVersionRow; serverVersion?: RecipeVersionRow } | undefined
+    > {
+        return this.db.transaction(async (tx) => {
+            await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`);
+
+            const [recipe] = await tx
+                .select()
+                .from(recipes)
+                .where(and(eq(recipes.id, id), activeRecipe()))
+                .limit(1);
+
+            if (!recipe) {
+                return undefined;
+            }
+
+            const steps = await this.loadSteps(tx, [recipe.id]);
+            const ingredients = await this.linkDal.loadByRecipeIds(tx, [recipe.id]);
+
+            const versionRows = await tx
+                .select()
+                .from(recipeVersions)
+                .where(
+                    and(
+                        eq(recipeVersions.recipeId, id),
+                        inArray(recipeVersions.versionNumber, [expectedVersion, recipe.currentVersion]),
+                    ),
+                );
+
+            const baseVersion = versionRows.find((row) => row.versionNumber === expectedVersion);
+            const serverVersion = versionRows.find((row) => row.versionNumber === recipe.currentVersion);
+
+            return {
+                current: { recipe, steps, ingredients },
+                ...(baseVersion !== undefined ? { baseVersion } : {}),
+                ...(serverVersion !== undefined ? { serverVersion } : {}),
+            };
+        });
     }
 
     /**

@@ -23,6 +23,7 @@ import {
     recipeSchema,
     recipeVersionSchema,
     restoreVersionResponseSchema,
+    versionConflictDetailsSchema,
 } from '@kitchensink/recipe-core';
 import { z } from 'zod';
 import type {
@@ -927,15 +928,23 @@ function isIdentitySyncPending(res: RawResponse): boolean {
     return body?.code === IDENTITY_SYNC_PENDING_CODE;
 }
 
-/** Build a {@link VersionConflictError} from an `ErrorResponse` body, extracting the version `details`. */
+/**
+ * Build a {@link VersionConflictError} from an `ErrorResponse` body, extracting the version `details`. When
+ * the body carries the enriched W8-a.5 shape (server + optional base snapshots), those are parsed via
+ * `versionConflictDetailsSchema` and attached so the conflict UI can 3-way merge without re-fetching; a bare
+ * `{ currentVersion, conflictingVersion }` body still yields the numbers with `server`/`base` left undefined.
+ */
 function toVersionConflict(body: { message?: string; details?: Record<string, unknown> }): VersionConflictError {
     const details: Record<string, unknown> = body.details ?? {};
     const current = details['currentVersion'];
     const conflicting = details['conflictingVersion'];
 
+    const enriched = versionConflictDetailsSchema.safeParse(details);
+
     return new VersionConflictError(
         typeof current === 'number' ? current : undefined,
         typeof conflicting === 'number' ? conflicting : undefined,
         body.message,
+        enriched.success ? { server: enriched.data.server, base: enriched.data.base } : undefined,
     );
 }

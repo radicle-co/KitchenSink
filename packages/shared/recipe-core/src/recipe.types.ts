@@ -682,6 +682,62 @@ export const recipeVersionSchema = z.object({
 });
 
 /**
+ * One side of a version conflict (W8-a.5) — a full content snapshot at a version, plus its identifying
+ * metadata. Used for BOTH the `base` (the version the client edited from) and the `server` (the current
+ * winning version) so the conflict UI can 3-way merge without a second round-trip.
+ */
+export interface VersionConflictSide {
+    /** The version number this snapshot is at. */
+    versionNumber: number;
+    /** The device that authored this version (W8-a.6), when known. */
+    deviceLabel?: string;
+    /** When this version was written (ISO-8601). */
+    updatedAt: IsoDateTimeString;
+    /** The full recipe content at this version. */
+    snapshot: RecipeSnapshot;
+}
+
+/**
+ * Runtime validator for {@link VersionConflictSide}.
+ */
+export const versionConflictSideSchema = z.object({
+    versionNumber: positiveIntSchema,
+    deviceLabel: z.string().min(1).max(80).optional(),
+    updatedAt: isoDateTimeStringSchema,
+    snapshot: recipeSnapshotSchema,
+});
+
+/**
+ * The `details` payload of a `409 VERSION_CONFLICT` (W8-a.5 / FR-007c). Beyond the two version NUMBERS,
+ * it carries the `server` (current winning) snapshot and — when still within the DB retention window — the
+ * `base` (the version the client edited from), read COHERENTLY with the rejected optimistic-concurrency
+ * guard so a third concurrent writer cannot make `server` a version ahead of the one the guard compared
+ * against. `currentVersion` is the concurrency token the resolve write echoes back as `expectedVersion`;
+ * `base` is present so the OQ-1 in-editor rebase needs no extra fetch. A NON-owner update never produces
+ * this body — it gets a plain 404 (W8-a.4).
+ */
+export interface VersionConflictDetails {
+    /** The recipe's current (winning) version — the token the resolve CAS echoes as `expectedVersion`. */
+    currentVersion: number;
+    /** The stale version the client based its edit on (its `expectedVersion`). */
+    conflictingVersion: number;
+    /** The current winning version's snapshot + metadata. */
+    server: VersionConflictSide;
+    /** The version the client edited from, when still retained in the DB window (else absent → S3 via W8-a.7). */
+    base?: VersionConflictSide;
+}
+
+/**
+ * Runtime validator for {@link VersionConflictDetails}.
+ */
+export const versionConflictDetailsSchema = z.object({
+    currentVersion: positiveIntSchema,
+    conflictingVersion: positiveIntSchema,
+    server: versionConflictSideSchema,
+    base: versionConflictSideSchema.optional(),
+});
+
+/**
  * Response to a version restore (`POST /v1/recipes/{id}/versions/{versionNumber}/restore`): the recipe
  * after the restore, the version it was restored FROM, and the recipe's new current version number.
  */

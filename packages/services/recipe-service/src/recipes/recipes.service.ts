@@ -12,7 +12,7 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import type { RecipeNutrition, RecipePhoto, RecipeSnapshot } from '@kitchensink/recipe-core';
+import type { RecipeNutrition, RecipePhoto, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
 
 import { VersionsService } from '../versions/versions.service.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
@@ -648,8 +648,11 @@ export class RecipesService {
 
         this.assertOwner(ownerId, existing.recipe);
 
+        // Fast pre-check: the client is already stale at read time (the common conflict). Raise the SAME
+        // enriched 409 (W8-a.5) the CAS-miss path does, so every conflict — whether caught here or in the
+        // race window below — carries the server + base snapshots.
         if (existing.recipe.currentVersion !== dto.expectedVersion) {
-            throw versionConflict(existing.recipe.currentVersion, dto.expectedVersion);
+            return this.raiseVersionConflict(id, dto.expectedVersion);
         }
 
         // Resolve replacement ingredient links only when the patch carries them (absent → links untouched).
@@ -709,15 +712,9 @@ export class RecipesService {
 
         if (!updated) {
             // The CAS matched 0 rows: either the row was tombstoned, or a concurrent update advanced the
-            // version between our read and our write (the lost-update race). Re-read to tell them apart so
-            // the loser of a concurrent edit gets a truthful 409 VERSION_CONFLICT, not a misleading 404.
-            const current = await this.dal.findById(id);
-
-            if (current) {
-                throw versionConflict(current.recipe.currentVersion, dto.expectedVersion);
-            }
-
-            throw recipeNotFound(id);
+            // version between our read and our write (the lost-update race). Raise the enriched 409 (or a
+            // 404 if the row is genuinely gone). `return` narrows `updated` to defined below.
+            return this.raiseVersionConflict(id, dto.expectedVersion);
         }
 
         if (options.recordSnapshot !== false) {
@@ -850,6 +847,44 @@ export class RecipesService {
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */
+    /**
+     * Assemble and throw the enriched `409 VERSION_CONFLICT` (W8-a.5) — or a `404` when the recipe is gone —
+     * from the coherent {@link RecipesDal.readConflict} read. The ONE place both the fast pre-check and the
+     * CAS-miss produce a conflict, so every 409 carries the same `{ server, base? }` snapshots read from a
+     * single snapshot (a third writer can't make `server` a version ahead of the reported `currentVersion`).
+     * Owner-only by construction: only the owner-gated update path calls it (a non-owner already got 404).
+     */
+    private async raiseVersionConflict(id: string, expectedVersion: number): Promise<never> {
+        const conflict = await this.dal.readConflict(id, expectedVersion);
+
+        if (!conflict) {
+            throw recipeNotFound(id);
+        }
+
+        const server: VersionConflictSide = {
+            versionNumber: conflict.current.recipe.currentVersion,
+            ...(conflict.serverVersion?.deviceLabel != null ? { deviceLabel: conflict.serverVersion.deviceLabel } : {}),
+            updatedAt: conflict.current.recipe.updatedAt.toISOString(),
+            snapshot: aggregateToSnapshot(conflict.current),
+        };
+        const base: VersionConflictSide | undefined =
+            conflict.baseVersion !== undefined
+                ? {
+                      versionNumber: conflict.baseVersion.versionNumber,
+                      ...(conflict.baseVersion.deviceLabel != null
+                          ? { deviceLabel: conflict.baseVersion.deviceLabel }
+                          : {}),
+                      updatedAt: conflict.baseVersion.createdAt.toISOString(),
+                      snapshot: conflict.baseVersion.snapshot as RecipeSnapshot,
+                  }
+                : undefined;
+
+        throw versionConflict(conflict.current.recipe.currentVersion, expectedVersion, {
+            server,
+            ...(base !== undefined ? { base } : {}),
+        });
+    }
+
     private assertOwner(ownerId: string, recipe: RecipeRow): void {
         // W8-a.4 (IDOR): a recipe the caller cannot even SEE (private/draft, not owned) returns 404 —
         // indistinguishable from a missing id — closing the existence oracle a bare owner check (403) opens

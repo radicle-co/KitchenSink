@@ -6,7 +6,7 @@
  * global `ApiExceptionFilter` recognizes it via `isRecipeError` and maps `code` → HTTP status +
  * `{ code, message, details? }` envelope, so throwing this class is all a service/DAL needs to do.
  */
-import { RecipeErrorCode, type RecipeError } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, type RecipeError, type VersionConflictSide } from '@kitchensink/recipe-core';
 
 /** A thrown recipe-domain error carrying a machine-readable {@link RecipeErrorCode}. */
 export class RecipeDomainError extends Error implements RecipeError {
@@ -78,12 +78,22 @@ export function cannotRateOwnRecipe(id: string): RecipeDomainError {
 
 /**
  * `VERSION_CONFLICT` — the client's `expectedVersion` no longer matches the stored `currentVersion`
- * (optimistic-concurrency loss, T033). `details` carries both versions for the 409 payload.
+ * (optimistic-concurrency loss, T033). `details` always carries both version numbers; when `sides` is
+ * supplied (W8-a.5, the owner-gated update path) it additionally carries the `server` (current winning)
+ * snapshot and, when still retained, the `base` snapshot — read coherently — so the conflict UI can
+ * 3-way merge without a second round-trip. `currentVersion` is the concurrency token the resolve echoes.
  */
-export function versionConflict(currentVersion: number, conflictingVersion: number): RecipeDomainError {
+export function versionConflict(
+    currentVersion: number,
+    conflictingVersion: number,
+    sides?: { server: VersionConflictSide; base?: VersionConflictSide },
+): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.VERSION_CONFLICT, 'Recipe version conflict', {
         currentVersion,
         conflictingVersion,
+        ...(sides !== undefined
+            ? { server: sides.server, ...(sides.base !== undefined ? { base: sides.base } : {}) }
+            : {}),
     });
 }
 

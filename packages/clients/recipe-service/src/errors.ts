@@ -14,6 +14,7 @@
  * `@kitchensink/recipe-core`); it is passed through verbatim as a `string` because the wire also emits
  * transport-level codes (`UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `ALREADY_ERASED`) outside that enum.
  */
+import type { VersionConflictSide } from '@kitchensink/recipe-core';
 
 /** Base class for all recipe-service client errors. Carries the originating HTTP status + domain code. */
 export class RecipeServiceClientError extends Error {
@@ -102,12 +103,29 @@ export class VersionConflictError extends RecipeServiceClientError {
     public readonly currentVersion: number | undefined;
     /** The stale `expectedVersion` the caller sent. */
     public readonly conflictingVersion: number | undefined;
+    /**
+     * The current winning version's snapshot + metadata (W8-a.5) — present when the server sent the
+     * enriched body (the owner-gated update path), so the conflict UI can 3-way merge without re-fetching.
+     */
+    public readonly server: VersionConflictSide | undefined;
+    /**
+     * The version the caller edited from (W8-a.5) — present when still retained in the DB window; absent
+     * when evicted (the caller can fall back to its own local base, or fetch via the versions endpoint).
+     */
+    public readonly base: VersionConflictSide | undefined;
 
-    public constructor(currentVersion?: number, conflictingVersion?: number, message = 'Recipe version conflict') {
+    public constructor(
+        currentVersion?: number,
+        conflictingVersion?: number,
+        message = 'Recipe version conflict',
+        sides?: { server?: VersionConflictSide; base?: VersionConflictSide },
+    ) {
         super(message, 409, 'VERSION_CONFLICT');
         this.name = 'VersionConflictError';
         this.currentVersion = currentVersion;
         this.conflictingVersion = conflictingVersion;
+        this.server = sides?.server;
+        this.base = sides?.base;
         Object.setPrototypeOf(this, VersionConflictError.prototype);
     }
 }

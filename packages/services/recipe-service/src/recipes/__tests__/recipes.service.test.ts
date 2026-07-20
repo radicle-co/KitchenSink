@@ -66,6 +66,7 @@ function fakeDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
         findAll: vi.fn(),
         update: vi.fn(),
         softDelete: vi.fn(),
+        readConflict: vi.fn(),
         ...overrides,
     } as unknown as RecipesDal;
 }
@@ -698,16 +699,98 @@ describe('RecipesService.update', () => {
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
 
-    it('throws VERSION_CONFLICT with the current version when expectedVersion is stale (T033)', async () => {
-        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 5 })) });
+    it('throws an ENRICHED VERSION_CONFLICT (server + base snapshots) when expectedVersion is stale (T033/W8-a.5)', async () => {
+        const current = aggregate({ currentVersion: 5, title: 'Server title' });
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(current),
+            // The coherent conflict read: current server aggregate + the base version (v3) the client edited from.
+            readConflict: vi.fn().mockResolvedValue({
+                current,
+                baseVersion: {
+                    versionNumber: 3,
+                    deviceLabel: 'Pixel 8',
+                    createdAt: new Date('2026-07-19T00:00:00.000Z'),
+                    snapshot: {
+                        version: 3,
+                        title: 'Base title',
+                        description: '',
+                        steps: [],
+                        ingredients: [],
+                        servings: 2,
+                        prepTimeMinutes: 1,
+                        cookTimeMinutes: 1,
+                    },
+                },
+            }),
+        });
+
         const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error)).toBe(true);
-
         if (isRecipeDomainError(error)) {
             expect(error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
-            expect(error.details).toEqual({ currentVersion: 5, conflictingVersion: 3 });
+            const details = error.details as {
+                currentVersion: number;
+                conflictingVersion: number;
+                server: { versionNumber: number; snapshot: { title: string } };
+                base?: { versionNumber: number; deviceLabel?: string; snapshot: { title: string } };
+            };
+            expect(details.currentVersion).toBe(5);
+            expect(details.conflictingVersion).toBe(3);
+            // W8-a.5: the server side carries the current winning snapshot; the base side the version edited from.
+            expect(details.server.versionNumber).toBe(5);
+            expect(details.server.snapshot.title).toBe('Server title');
+            expect(details.base?.versionNumber).toBe(3);
+            expect(details.base?.deviceLabel).toBe('Pixel 8');
+            expect(details.base?.snapshot.title).toBe('Base title');
+            // The pre-check reads the conflict material coherently, keyed on the client's expectedVersion.
+            expect(dal.readConflict).toHaveBeenCalledWith('r-1', 3);
         }
+    });
+
+    it('omits the base side when the edited-from version is evicted past the DB window (W8-a.5)', async () => {
+        const current = aggregate({ currentVersion: 5 });
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(current),
+            readConflict: vi.fn().mockResolvedValue({ current }), // no baseVersion row retained
+        });
+
+        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+
+        if (isRecipeDomainError(error)) {
+            const details = error.details as { server: unknown; base?: unknown };
+            expect(details.server).toBeDefined();
+            expect(details.base).toBeUndefined();
+        }
+    });
+
+    it('a CAS-miss race (pre-check passes, update matches 0 rows) also raises the enriched conflict (W8-a.5)', async () => {
+        const current = aggregate({ currentVersion: 4 });
+        const dal = fakeDal({
+            // Pre-check passes: findById still shows v3 (the client's expectedVersion) at read time...
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 3 })),
+            update: vi.fn().mockResolvedValue(undefined), // ...but the CAS lost the race → 0 rows
+            readConflict: vi.fn().mockResolvedValue({ current }),
+        });
+
+        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
+        expect((isRecipeDomainError(error) && (error.details as { currentVersion: number }).currentVersion) || 0).toBe(
+            4,
+        );
+    });
+
+    it('a CAS-miss where the row is genuinely GONE raises 404, not a conflict (W8-a.5)', async () => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 3 })),
+            update: vi.fn().mockResolvedValue(undefined),
+            readConflict: vi.fn().mockResolvedValue(undefined), // recipe vanished (tombstoned) since the pre-check
+        });
+
+        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('updates when the version matches and returns the bumped recipe', async () => {

@@ -9,6 +9,7 @@
         "./types/*": "./src/types/*.ts",
         "./database/schema": "./src/database/schema/index.ts",
         "./database/dao": "./src/database/dao/index.ts",
+        "./users/handle-sync-publisher": "./src/users/handle-sync.publisher.ts",
         "./database/ulid": "./src/database/ulid.ts"
     },
     "scripts": {

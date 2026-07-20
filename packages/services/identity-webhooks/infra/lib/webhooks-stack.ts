@@ -19,6 +19,7 @@ import {
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
     aws_sqs as sqs,
     aws_ssm as ssm,
 } from 'aws-cdk-lib';
@@ -113,6 +114,14 @@ export class WebhooksStack extends Stack {
         const runtime = lambda.Runtime.NODEJS_22_X;
         const architecture = lambda.Architecture.X86_64;
         const identityStage = deployStage === 'prod' ? 'prod' : 'sandbox';
+
+        // The global handle-sync topic (W8-a.2): the user.updated webhook publishes a rename here. Imported
+        // from the DataStack export (per-stage global — prod/sandbox baseline).
+        const handleSyncTopic = sns.Topic.fromTopicArn(
+            this,
+            'ImportedHandleSyncTopic',
+            Fn.importValue(`kitchensink-data-${identityStage}:HandleSyncTopicArn`),
+        );
         const ssmValue = (service: 'clerk' | 'sentry', key: string): string =>
             ssm.StringParameter.valueForStringParameter(this, ssmParamPath(identityStage, service, key));
 
@@ -193,6 +202,7 @@ export class WebhooksStack extends Stack {
         dbCredentialsSecret.grantRead(webhookRole);
         authSecretKey.grantRead(webhookRole);
         deletionQueue.grantSendMessages(webhookRole);
+        handleSyncTopic.grantPublish(webhookRole);
 
         // deletion-worker (handlers/deletion-worker.ts): reads the DB creds (getDb) and drains the SQS
         // deletion queue. It does NOT import identityClient, so it never reads the auth secret; it does
@@ -242,6 +252,8 @@ export class WebhooksStack extends Stack {
                 // runtime GetSecretValue on the auth secret that the role can't read → AccessDenied →
                 // every user.created 502s.
                 ...clerkBackendEnv,
+                // The handle-sync topic the user.updated route publishes renames to (W8-a.2).
+                HANDLE_SYNC_TOPIC_ARN: handleSyncTopic.topicArn,
                 // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
                 // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
                 // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a

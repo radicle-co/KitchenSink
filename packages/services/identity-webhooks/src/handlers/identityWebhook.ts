@@ -7,6 +7,11 @@ import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/iden
 import { profiles, users } from '@kitchensink/identity-service/database/schema';
 import type { UserRow } from '@kitchensink/identity-service/database/schema';
 import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
+import { buildHandleSyncMessage } from '@kitchensink/identity-core';
+import {
+    createSnsHandleSyncPublisher,
+    noopHandleSyncPublisher,
+} from '@kitchensink/identity-service/users/handle-sync-publisher';
 
 import { setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
@@ -28,6 +33,25 @@ interface IdentityUserData {
 const getPrimaryEmail = (data: IdentityUserData): string | undefined => data.email_addresses?.[0]?.email_address;
 
 const buildDisplayName = (data: IdentityUserData): string => `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
+
+/**
+ * The handle-sync producer for this Lambda (W8-a.2) — SNS-backed when `HANDLE_SYNC_TOPIC_ARN` is set, else
+ * a no-op. Created once at module scope (reused across warm invocations), sharing the recipe/identity
+ * publisher impl so all three routes agree on the wire shape.
+ */
+const handleSyncPublisher = ((): ReturnType<typeof createSnsHandleSyncPublisher> => {
+    const topicArn = process.env['HANDLE_SYNC_TOPIC_ARN'];
+
+    if (topicArn === undefined || topicArn === '') {
+        return noopHandleSyncPublisher;
+    }
+
+    return createSnsHandleSyncPublisher({
+        topicArn,
+        region: process.env['AWS_REGION'] ?? 'us-east-1',
+        ...(process.env['SNS_ENDPOINT'] !== undefined ? { endpoint: process.env['SNS_ENDPOINT'] } : {}),
+    });
+})();
 
 const sqsClient = new SQSClient({});
 
@@ -153,6 +177,23 @@ const handleUserUpdated = async (
                 updatedAt: now,
             })
             .where(eq(profiles.userId, existing.id));
+    }
+
+    // Handle-sync (W8-a.2): the SECOND producer route. When the display NAME changed, publish to the global
+    // topic so the recipe service corrects its denormalized author/editor handles. sourceTimestamp is the
+    // `now` written in the profiles update above — the SAME single monotonic clock the PATCH route uses, so
+    // the consumer's guard orders webhook and PATCH renames coherently. Best-effort: a failed publish is
+    // logged, never fails the webhook (the reconciliation/backfill backstops a missed event).
+    if (displayName !== existing.name) {
+        try {
+            await handleSyncPublisher.publish(buildHandleSyncMessage(existing.id, displayName, now.toISOString()));
+        } catch (error) {
+            logger.error('identity-webhook: handle-sync publish failed (user.updated still processed)', {
+                requestId,
+                userId: existing.id,
+                error,
+            });
+        }
     }
 
     emitMetric('UserUpdatedWebhook', 1, { identityId: data.id });

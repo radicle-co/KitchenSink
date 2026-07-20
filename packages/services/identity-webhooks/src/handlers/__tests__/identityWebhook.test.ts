@@ -1,6 +1,13 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { handleSyncPublish } = vi.hoisted(() => ({ handleSyncPublish: vi.fn() }));
+vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', () => ({
+    createSnsHandleSyncPublisher: vi.fn(),
+    // No HANDLE_SYNC_TOPIC_ARN in tests → the handler uses the no-op; its publish is the spy we assert.
+    noopHandleSyncPublisher: { publish: handleSyncPublish },
+}));
+
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
 vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
@@ -264,6 +271,11 @@ describe('identity-webhook handler', () => {
             expect.objectContaining({ email: 'updated@example.com', updatedAt: expect.any(Date) }),
         );
         expect(whereUser).toHaveBeenCalledWith(expect.anything());
+        // W8-a.2: the display name changed (John Doe → Jane Doe), so the webhook publishes a handle-sync
+        // rename carrying the app-user ULID (not the Clerk id) + the new name.
+        expect(handleSyncPublish).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'usr_ulid', displayName: 'Jane Doe' }),
+        );
     });
 
     it('user.deleted -> enqueues SQS deletion message', async () => {

@@ -582,3 +582,29 @@ added, renumbered, and split, so they no longer sum to `Actual`.
 > checkboxes) and the per-phase rows had drifted in both directions (Phase 1 +3, Phase 2 +1, Phase 3 −3,
 > Phase 5 −4), which happened to net to the same figure. Two errors cancelling is why it went unnoticed.
 > Raw checkbox count and real task count are now both **187**.
+
+---
+
+## Reconciliation & remediation program (T171+, appended 2026-07-18)
+
+The mockup-parity reconciliation + adversarial-review remediation program. This is the **index**; the
+authoritative, fully-specified register (50 wireframe drifts, the W9 frontend / W10 backend / W11 test
+remediation items, the P1–P9 pattern prescriptions, delivery/release-gating, and the child-plan register)
+lives in **`docs/superpowers/plans/2026-07-18-001-mockup-parity-reconciliation.md`** — execute from the
+MASTER PROGRAM ORDER there.
+
+- [ ] **T171** W0 — spec reconciliation: `recipe-list.md` merged-card + draft-presentation note (done); CR-002 (list-card merge), CR-003 (collections FR-010/011), CR-004 (versions/conflict FR-007b/c); this register.
+- [x] **T172** S-I1 — activate global DTO validation via `APP_PIPE` (identity) + remove the inert `ValidationPipe` token (food-service). _Shipped._
+- [x] **T173** S-I2 — delete the dead `POST /v1/users/upsert` endpoint + drop it from the identity OpenAPI contract. _Shipped._
+- [ ] **T174** Transport pass — B16 (client safe-JSON on error bodies), B26 (web `apiClient` 202/empty-body), DA1 (parse-don't-validate at the wire boundary), P6 (`expect` helper).
+- [ ] **T175** S-R3 — Specification-to-SQL predicate module (before W8-a.3).
+- [ ] **T176** W8-a — shared contract & data (calories, handle + sync, draft status, read-path 404, enriched-409, deviceLabel, S3-fallback, pull-preview, sort/facets, erasure assertion), each with its own e2e + k6.
+- [ ] **T177** W1/W2/W4 — list (FAB, merged card, chips, tabs, responsive nav), detail (dead-end + carousel + badges + interactivity), search (cards, facet registry, sort, paginate).
+- [ ] **T178** Child plan CP-1 — W3 recipe-edit wizard (statechart + compound `Wizard`).
+- [ ] **T179** Child plan CP-2 — W5 collections (pull-preview / clone / visibility).
+- [ ] **T180** Child plan CP-3 — W6 version history (preview / compare / diff).
+- [ ] **T181** Child plan CP-4 — W7 conflict resolution (changed-only diff + A/B/C; X5-min ships earlier as a ship-gate item).
+- [ ] **T182** Child plans CP-5/CP-6 — W9 cache/policy seam (DA2, T1, P4+DA6, P5, DA3/DA4, B1) and headless-hook seams (B4, P1–P3, T3/T4, B24).
+- [ ] **T183** Child plans CP-7/CP-8 — W10 identity (S-I3–S-I7) and recipe-service (S-R1/S-R2, S-R4–S-R8) remediation.
+- [ ] **T184** Child plan CP-9 — quality remainder (B6–B23, B25, DA5, DA8–DA10, T2, T5–T7).
+- [ ] **T185** W8-b — test-coverage consolidation & audit; `verify-report.md` / `release-audit-report.md` fully mapped (program-DONE = merge point of PR #73).

@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Delete, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
@@ -8,14 +8,10 @@ import { PatchUserMeBodyDto, DeleteUserMeResponseDto } from './dto/user.dto.js';
 export class UsersController {
     constructor(private readonly usersService: UsersService) {}
 
-    @Post('upsert')
-    @HttpCode(HttpStatus.OK)
-    async upsertUser(
-        @CurrentAuthorizerContext() ctx: AuthorizerContext,
-        @Body() body: { identityId: string; email: string; name?: string; picture?: string },
-    ): Promise<{ id: string; created: boolean }> {
-        return this.usersService.upsertUser(ctx, body);
-    }
+    // NOTE (S-I2): the former `POST /v1/users/upsert` was removed — it had no callers (the read-through
+    // auth middleware and the webhook provisioning path both go through the service/DAO directly), took
+    // an unvalidated inline body, and ignored its authorizer context, i.e. dead attack surface on an
+    // internet-facing service. `UsersService.upsertUser` is retained (covered by integration.test.ts).
 
     @Get('me')
     async getUserMe(@CurrentAuthorizerContext() ctx: AuthorizerContext) {

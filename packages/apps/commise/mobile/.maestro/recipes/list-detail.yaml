@@ -22,5 +22,13 @@ appId: io.commise.mobile
           - assertVisible: 'Ingredients'
           - assertVisible: 'Instructions'
           - assertVisible: 'Nutrition (per serving)'
+          # W2/D8 — the standing USDA-source note is always present (distinct from the estimate warning).
+          - assertVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+          # W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash).
+          - runFlow:
+                when:
+                    visible: 'Mark step 1 complete'
+                commands:
+                    - tapOn: 'Mark step 1 complete'
           - tapOn: 'Back'
           - assertVisible: 'Recipes'

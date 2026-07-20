@@ -48,10 +48,19 @@ test.describe('recipe CRUD (T079)', () => {
         const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0];
         expect(createdId).toBeTruthy();
 
-        // EDIT — the edit form seeds from the recipe (already valid). The difficulty stated at create must have
-        // round-tripped, so Hard is pre-selected. Change the title and CLEAR the difficulty ("Not stated"),
-        // then save — the three-state update sends an explicit clear, not an omit.
-        await page.goto(route(`/recipes/${createdId}/edit`));
+        // W2/D1 — the detail is no longer a dead end: the owner's version-history entry point is reachable.
+        await expect(page.getByRole('link', { name: 'Version history' })).toBeVisible();
+        // W2/D5 — ingredient checkboxes are real, trackable controls (not decorative).
+        const saltCheckbox = page.getByRole('checkbox', { name: /Salt/ });
+        await saltCheckbox.click();
+        await expect(saltCheckbox).toBeChecked();
+
+        // EDIT — reach the editor through the RESTORED Edit entry point (W2/D1), not a raw URL. The edit form
+        // seeds from the recipe (already valid); the difficulty stated at create round-tripped, so Hard is
+        // pre-selected. Change the title and CLEAR the difficulty ("Not stated"), then save — the three-state
+        // update sends an explicit clear, not an omit.
+        await page.getByRole('link', { name: 'Edit recipe' }).click();
+        await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}/edit`));
         await expect(page.getByRole('radio', { name: 'Hard' })).toBeChecked();
         await page.getByLabel('Title').fill('E2E Ratatouille (edited)');
         await page.getByRole('radio', { name: 'Not stated' }).click();

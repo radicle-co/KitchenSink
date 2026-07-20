@@ -8,6 +8,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -120,6 +121,20 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                 />
             </View>
             {!recipe.nutrition.isComplete && <Text style={styles.description}>{detail.nutritionPartial}</Text>}
+
+            <View accessibilityLabel={detail.badgesLabel} style={styles.badgeRow}>
+                {recipe.currentVersion > 1 && (
+                    <Text
+                        accessibilityLabel={fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}
+                        style={[styles.badge, styles.badgeNeutral]}
+                    >
+                        {fillTemplate(detail.versionBadge, { version: recipe.currentVersion })}
+                    </Text>
+                )}
+                <Text style={[styles.badge, styles.badgeSeafoam]}>
+                    {recipe.visibility === RecipeVisibility.PUBLIC ? detail.visibilityPublic : detail.visibilityPrivate}
+                </Text>
+            </View>
         </View>
     );
 };
@@ -140,6 +155,7 @@ const styles = StyleSheet.create({
     },
     badgeSeafoam: { backgroundColor: 'rgba(61, 139, 133, 0.1)', color: palette.seafoam },
     badgeCoral: { backgroundColor: 'rgba(232, 145, 122, 0.15)', color: palette.coral },
+    badgeNeutral: { backgroundColor: palette.pearl, color: palette.slate },
     description: { fontSize: 16, lineHeight: 24, color: palette.slate },
     statStrip: {
         flexDirection: 'row',

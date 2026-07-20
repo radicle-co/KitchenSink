@@ -84,6 +84,16 @@ export interface RecipeDetailMessages {
     readonly fatLabel: string;
     /** Grams unit template (contains `{grams}`). */
     readonly gramsUnit: string;
+    /** Visible version-badge text, shown only past v1 (contains `{version}`). */
+    readonly versionBadge: string;
+    /** Accessible name for the version badge (contains `{version}`). */
+    readonly versionLabel: string;
+    /** Visibility-badge text for a public recipe. */
+    readonly visibilityPublic: string;
+    /** Visibility-badge text for a private recipe. */
+    readonly visibilityPrivate: string;
+    /** Accessible name for the badges footer region. */
+    readonly badgesLabel: string;
 }
 
 /**
@@ -174,6 +184,11 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             carbsLabel: 'Carbs',
             fatLabel: 'Fat',
             gramsUnit: '{grams} g',
+            versionBadge: 'v{version}',
+            versionLabel: 'Version {version}',
+            visibilityPublic: 'Public',
+            visibilityPrivate: 'Private',
+            badgesLabel: 'Recipe status',
         },
         card: {
             proBadge: 'PRO',

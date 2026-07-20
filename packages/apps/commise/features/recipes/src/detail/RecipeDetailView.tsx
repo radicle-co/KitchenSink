@@ -10,6 +10,7 @@
  * markers, and a nutrition grid — all via `@commise/ui` design tokens exposed as Tailwind v4 utilities.
  */
 import { useMessages } from '@commise/i18n/react';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -148,6 +149,20 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({ recipe }) => {
                 </dl>
                 {!recipe.nutrition.isComplete && <p className="text-body-sm text-slate">{detail.nutritionPartial}</p>}
             </section>
+
+            <footer role="group" aria-label={detail.badgesLabel} className="flex flex-wrap items-center gap-2">
+                {recipe.currentVersion > 1 && (
+                    <span
+                        aria-label={fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}
+                        className="rounded-full bg-pearl px-3 py-1 text-caption font-medium text-slate"
+                    >
+                        {fillTemplate(detail.versionBadge, { version: recipe.currentVersion })}
+                    </span>
+                )}
+                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-seafoam">
+                    {recipe.visibility === RecipeVisibility.PUBLIC ? detail.visibilityPublic : detail.visibilityPrivate}
+                </span>
+            </footer>
         </article>
     );
 };

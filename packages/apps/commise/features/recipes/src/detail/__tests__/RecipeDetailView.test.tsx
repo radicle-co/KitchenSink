@@ -7,6 +7,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import {
     makeIngredientView,
@@ -176,5 +177,31 @@ describe('RecipeDetailView (web) — photos', () => {
         render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [] })} />);
 
         expect(screen.queryByRole('img')).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (web) — version + visibility badges (D3)', () => {
+    it('shows the current-version badge when the recipe is past v1', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 3 })} />);
+
+        expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
+    });
+
+    it('omits the version badge at v1 (nothing to signal)', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 1 })} />);
+
+        expect(screen.queryByLabelText('Version 1')).toBeNull();
+    });
+
+    it('shows a Public badge for a public recipe', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })} />);
+
+        expect(within(screen.getByRole('group', { name: 'Recipe status' })).getByText('Public')).toBeTruthy();
+    });
+
+    it('shows a Private badge for a private recipe', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })} />);
+
+        expect(within(screen.getByRole('group', { name: 'Recipe status' })).getByText('Private')).toBeTruthy();
     });
 });

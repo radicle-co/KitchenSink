@@ -4,7 +4,8 @@
  * nutrition (complete vs partial), and photos (present vs absent) — so the two platform renders can't drift.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { makeIngredientView, makeNutrition, makePhoto, makeRecipeDetail } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -102,5 +103,32 @@ describe('RecipeDetailView (native)', () => {
 
         render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [] })} />);
         expect(screen.queryByLabelText('Recipe photos')).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (native) — version + visibility badges (D3)', () => {
+    it('shows the current-version badge when past v1', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 3 })} />);
+
+        expect(screen.getByLabelText('Version 3')).toBeTruthy();
+        expect(screen.getByText('v3')).toBeTruthy();
+    });
+
+    it('omits the version badge at v1', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 1 })} />);
+
+        expect(screen.queryByLabelText('Version 1')).toBeNull();
+    });
+
+    it('shows a Public badge for a public recipe', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })} />);
+
+        expect(within(screen.getByLabelText('Recipe status')).getByText('Public')).toBeTruthy();
+    });
+
+    it('shows a Private badge for a private recipe', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })} />);
+
+        expect(within(screen.getByLabelText('Recipe status')).getByText('Private')).toBeTruthy();
     });
 });

@@ -21,6 +21,8 @@ export interface DiscoveryMessages {
     readonly countOne: string;
     /** Plural result-count template (contains `{count}`). */
     readonly countOther: string;
+    /** Query-echo results header when a search term is active (contains `{count}` and `{query}`) — S5. */
+    readonly resultsForQuery: string;
     /** Accessible label for the loading state. */
     readonly loadingLabel: string;
     /** Heading of the browse-empty state (no public recipes to show at all). */
@@ -54,6 +56,7 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         searchPlaceholder: 'Search public recipes...',
         countOne: '{count} recipe',
         countOther: '{count} recipes',
+        resultsForQuery: 'Showing {count} for “{query}”',
         loadingLabel: 'Loading recipes',
         emptyTitle: 'No recipes found',
         emptyBody: 'Try a different search to discover public recipes.',

@@ -9,7 +9,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
-import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
 import { toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
@@ -67,9 +67,12 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             { one: discovery.countOne, other: discovery.countOther },
             locale,
         );
+        // S5 — echo the active query in the results header; a bare browse shows just the count.
+        const query = searchValue.trim();
+        const header = query.length > 0 ? fillTemplate(discovery.resultsForQuery, { count, query }) : count;
         body = (
             <div className="flex flex-col gap-4">
-                <p className="text-body-sm font-medium text-slate">{count}</p>
+                <p className="text-body-sm font-medium text-slate">{header}</p>
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {results.map((result) => {
                         const item = toRecipeDiscoveryItem(result);

@@ -109,10 +109,16 @@ describe('RecipeDiscoveryList (native) — no-match state', () => {
 });
 
 describe('RecipeDiscoveryList (native) — populated state', () => {
-    it('renders a pluralized result count', () => {
+    it('renders a pluralized result count when browsing (no query)', () => {
         renderDiscovery({ status: 'ready', results: threeResults });
 
         expect(screen.getByText('3 recipes')).toBeTruthy();
+    });
+
+    it('echoes the active query in the results header (S5)', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: 'pasta' });
+
+        expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
     });
 
     it('renders one row per result and reports selection upward', () => {

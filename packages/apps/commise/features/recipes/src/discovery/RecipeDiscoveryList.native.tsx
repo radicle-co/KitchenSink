@@ -10,7 +10,7 @@ import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
 import { toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
@@ -59,6 +59,9 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             { one: discovery.countOne, other: discovery.countOther },
             locale,
         );
+        // S5 — echo the active query in the results header; a bare browse shows just the count.
+        const query = searchValue.trim();
+        const header = query.length > 0 ? fillTemplate(discovery.resultsForQuery, { count, query }) : count;
         // ScrollView, not View: the full-bleed 4:3 cover cards mean only ~1 card fits, so without scrolling
         // every discovered recipe past the first is unreachable. Header + search + filters stay pinned above.
         body = (
@@ -67,7 +70,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 contentContainerStyle={styles.cards}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.count}>{count}</Text>
+                <Text style={styles.count}>{header}</Text>
                 {results.map((result) => {
                     const item = toRecipeDiscoveryItem(result);
 

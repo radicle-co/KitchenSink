@@ -22,6 +22,8 @@ import {
     filtersToQueryString,
     filtersToSearchParams,
     hasActiveFilters,
+    setCuisine,
+    setMaxPrepTime,
     setMaxTotalTime,
     toggleFacetValue,
 } from '../model.js';
@@ -120,6 +122,31 @@ describe('setMaxTotalTime', () => {
     });
 });
 
+describe('setMaxPrepTime (S2)', () => {
+    it('sets and clears the prep bound', () => {
+        expect(setMaxPrepTime(EMPTY_RECIPE_FILTERS, 15).maxPrepTime).toBe(15);
+        expect('maxPrepTime' in setMaxPrepTime({ maxPrepTime: 15 }, undefined)).toBe(false);
+    });
+});
+
+describe('setCuisine (S2)', () => {
+    it('sets a single cuisine', () => {
+        expect(setCuisine(EMPTY_RECIPE_FILTERS, 'Thai').cuisine).toBe('Thai');
+    });
+
+    it('toggles off when the same cuisine is set again (single-select with an off state)', () => {
+        expect('cuisine' in setCuisine({ cuisine: 'Thai' }, 'Thai')).toBe(false);
+    });
+
+    it('replaces the cuisine when a different one is set (single, not multi)', () => {
+        expect(setCuisine({ cuisine: 'Thai' }, 'Italian').cuisine).toBe('Italian');
+    });
+
+    it('clears with undefined', () => {
+        expect('cuisine' in setCuisine({ cuisine: 'Thai' }, undefined)).toBe(false);
+    });
+});
+
 describe('countActiveFilters / hasActiveFilters', () => {
     it('counts nothing for the empty state', () => {
         expect(countActiveFilters(EMPTY_RECIPE_FILTERS)).toBe(0);
@@ -131,6 +158,10 @@ describe('countActiveFilters / hasActiveFilters', () => {
 
         expect(countActiveFilters(state)).toBe(4);
         expect(hasActiveFilters(state)).toBe(true);
+    });
+
+    it('counts cuisine + prep + total each as one (S2)', () => {
+        expect(countActiveFilters({ cuisine: 'Thai', maxPrepTime: 15, maxTotalTime: 30 })).toBe(3);
     });
 
     it('treats a time bound alone as active', () => {
@@ -165,6 +196,13 @@ describe('filtersToSearchParams', () => {
             maxTotalTime: 30,
         });
     });
+
+    it('forwards cuisine + prep bound (S2)', () => {
+        expect(filtersToSearchParams({ cuisine: 'Thai', maxPrepTime: 15 }, '')).toEqual({
+            cuisine: 'Thai',
+            maxPrepTime: 15,
+        });
+    });
 });
 
 describe('filtersToQueryString / filtersFromQueryString', () => {
@@ -173,6 +211,17 @@ describe('filtersToQueryString / filtersFromQueryString', () => {
         const parsed = filtersFromQueryString(filtersToQueryString(state, 'lamb'));
 
         expect(parsed).toEqual({ filters: state, query: 'lamb' });
+    });
+
+    it('round-trips cuisine + prep + total (S2)', () => {
+        const state: RecipeFilterState = { cuisine: 'Thai', maxPrepTime: 15, maxTotalTime: 60 };
+        const parsed = filtersFromQueryString(filtersToQueryString(state, ''));
+
+        expect(parsed).toEqual({ filters: state, query: '' });
+    });
+
+    it('rejects an off-ladder prep bound from a hand-edited URL (S2)', () => {
+        expect(filtersFromQueryString('maxPrepTime=17').filters).toEqual(EMPTY_RECIPE_FILTERS);
     });
 
     it('round-trips the empty state to an empty query string', () => {

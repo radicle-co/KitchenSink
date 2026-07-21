@@ -34,6 +34,15 @@ export type FacetDimension = 'dietaryFlags' | 'tags';
 export interface RecipeFilterState {
     readonly dietaryFlags?: readonly string[];
     readonly tags?: readonly string[];
+    /**
+     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchParams.cuisine` is a
+     * string, not an array), so this is single-select — never a multi-value array — even though the UI draws
+     * cuisine as a facet group.
+     */
+    readonly cuisine?: string;
+    /** Max prep-time bound in minutes (S2), on the {@link TIME_BUCKETS_MINUTES} ladder. */
+    readonly maxPrepTime?: number;
+    /** Max total-time bound in minutes, on the {@link TIME_BUCKETS_MINUTES} ladder. */
     readonly maxTotalTime?: number;
 }
 
@@ -41,14 +50,23 @@ export interface RecipeFilterState {
 type FilterDraft = {
     dietaryFlags?: readonly string[];
     tags?: readonly string[];
+    cuisine?: string;
+    maxPrepTime?: number;
     maxTotalTime?: number;
 };
 
 /** The canonical empty filter state — no dimension selected, no time bound. Frozen (shared singleton). */
 export const EMPTY_RECIPE_FILTERS: RecipeFilterState = Object.freeze({});
 
-/** The total-time "under N minutes" bucket ladder the bar offers (minutes). A bound, not a facet value list. */
-export const TOTAL_TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
+/**
+ * The "under N minutes" bucket ladder the bar offers for BOTH prep and total time (minutes) — a bound, not a
+ * facet value list. NOTE: the search API has NO cook-time filter (`maxPrepTime` + `maxTotalTime` only), so
+ * the bar offers Prep and Total time, never a phantom "Cook time".
+ */
+export const TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
+
+/** @deprecated Use {@link TIME_BUCKETS_MINUTES}. Kept as an alias so existing importers don't break. */
+export const TOTAL_TIME_BUCKETS_MINUTES: readonly number[] = TIME_BUCKETS_MINUTES;
 
 /**
  * The facet counts the bar consumes — structurally the service's `RecipeSearchFacets` wire shape, but
@@ -58,6 +76,8 @@ export const TOTAL_TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
 export interface RecipeFacets {
     readonly dietaryFlags?: readonly RecipeFacetCount[];
     readonly tags?: readonly RecipeFacetCount[];
+    /** Distinct cuisines in the match sample (W8-a.9) — drives the single-select Cuisine group (S2). */
+    readonly cuisine?: readonly RecipeFacetCount[];
 }
 
 /**
@@ -157,13 +177,57 @@ export function setMaxTotalTime(state: RecipeFilterState, minutes: number | unde
 }
 
 /**
- * Count the active filters: each selected value across every dimension, plus the time bound as one. Pure.
+ * Set (or clear) the max-prep-time bound (S2). Clearing omits the key entirely. Pure.
+ *
+ * @param state - The current filter state.
+ * @param minutes - The bound in minutes, or `undefined` to clear it.
+ * @returns The next filter state.
+ */
+export function setMaxPrepTime(state: RecipeFilterState, minutes: number | undefined): RecipeFilterState {
+    if (minutes === undefined) {
+        const draft: FilterDraft = { ...state };
+        delete draft.maxPrepTime;
+
+        return draft;
+    }
+
+    return { ...state, maxPrepTime: minutes };
+}
+
+/**
+ * Set (or clear) the single cuisine filter (S2). Selecting the already-selected cuisine clears it (a toggle),
+ * so the single-select group has an "off" state. Clearing omits the key entirely. Pure.
+ *
+ * @param state - The current filter state.
+ * @param cuisine - The cuisine to select, or `undefined` to clear.
+ * @returns The next filter state.
+ */
+export function setCuisine(state: RecipeFilterState, cuisine: string | undefined): RecipeFilterState {
+    if (cuisine === undefined || state.cuisine === cuisine) {
+        const draft: FilterDraft = { ...state };
+        delete draft.cuisine;
+
+        return draft;
+    }
+
+    return { ...state, cuisine };
+}
+
+/**
+ * Count the active filters: each selected value across every dimension, plus each single-value bound (cuisine,
+ * prep, total) as one. Pure.
  *
  * @param state - The filter state.
  * @returns The number of active filters.
  */
 export function countActiveFilters(state: RecipeFilterState): number {
-    return (state.dietaryFlags?.length ?? 0) + (state.tags?.length ?? 0) + (state.maxTotalTime !== undefined ? 1 : 0);
+    return (
+        (state.dietaryFlags?.length ?? 0) +
+        (state.tags?.length ?? 0) +
+        (state.cuisine !== undefined ? 1 : 0) +
+        (state.maxPrepTime !== undefined ? 1 : 0) +
+        (state.maxTotalTime !== undefined ? 1 : 0)
+    );
 }
 
 /**
@@ -210,6 +274,14 @@ export function filtersToSearchParams(state: RecipeFilterState, query: string): 
         params.tags = [...state.tags];
     }
 
+    if (state.cuisine !== undefined) {
+        params.cuisine = state.cuisine;
+    }
+
+    if (state.maxPrepTime !== undefined) {
+        params.maxPrepTime = state.maxPrepTime;
+    }
+
     if (state.maxTotalTime !== undefined) {
         params.maxTotalTime = state.maxTotalTime;
     }
@@ -239,6 +311,14 @@ export function filtersToQueryString(state: RecipeFilterState, query: string): s
 
     for (const value of state.tags ?? []) {
         params.append('tags', value);
+    }
+
+    if (state.cuisine !== undefined) {
+        params.append('cuisine', state.cuisine);
+    }
+
+    if (state.maxPrepTime !== undefined) {
+        params.append('maxPrepTime', String(state.maxPrepTime));
     }
 
     if (state.maxTotalTime !== undefined) {
@@ -274,17 +354,39 @@ export function filtersFromQueryString(queryString: string): { filters: RecipeFi
         filters.tags = tags;
     }
 
-    const rawMax = params.get('maxTotalTime');
+    const cuisine = params.get('cuisine');
 
-    if (rawMax !== null) {
-        const minutes = Number(rawMax);
+    if (cuisine !== null && cuisine.length > 0) {
+        filters.cuisine = cuisine;
+    }
 
-        if (Number.isInteger(minutes) && TOTAL_TIME_BUCKETS_MINUTES.includes(minutes)) {
-            filters.maxTotalTime = minutes;
-        }
+    const prep = timeBucketFromParam(params.get('maxPrepTime'));
+
+    if (prep !== undefined) {
+        filters.maxPrepTime = prep;
+    }
+
+    const total = timeBucketFromParam(params.get('maxTotalTime'));
+
+    if (total !== undefined) {
+        filters.maxTotalTime = total;
     }
 
     return { filters, query };
+}
+
+/**
+ * Parse a raw URL time-bound param to a valid bucket, or `undefined`. Hostile-input safe: a non-numeric or
+ * off-ladder value is ignored (never forwarded as `NaN` or an arbitrary bound). Pure.
+ */
+function timeBucketFromParam(raw: string | null): number | undefined {
+    if (raw === null) {
+        return undefined;
+    }
+
+    const minutes = Number(raw);
+
+    return Number.isInteger(minutes) && TIME_BUCKETS_MINUTES.includes(minutes) ? minutes : undefined;
 }
 
 /**

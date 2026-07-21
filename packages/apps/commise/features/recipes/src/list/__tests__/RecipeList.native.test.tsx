@@ -160,6 +160,21 @@ describe('RecipeList (native) — quick-filter chips (L4)', () => {
     });
 });
 
+describe('RecipeList (native) — pull-to-refresh (L8)', () => {
+    it('still renders the populated rows when a refresh control is wired (RefreshControl is a no-op in jsdom)', () => {
+        // The pull gesture + spinner are a device/Maestro concern (react-native-web renders RefreshControl
+        // inertly). This guards that wiring the control does not break the list body.
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            refresh: { refreshing: true, onRefresh: noop },
+        });
+
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+        expect(screen.getByText('3 recipes')).toBeTruthy();
+    });
+});
+
 describe('RecipeList (native) — loading state', () => {
     it('shows the loading label and no recipe rows', () => {
         renderList({ status: 'loading' });

@@ -7,7 +7,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
@@ -23,6 +23,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     onRetry,
     tab,
     filters,
+    refresh,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -73,6 +74,12 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 style={styles.cardsScroll}
                 contentContainerStyle={styles.cards}
                 keyboardShouldPersistTaps="handled"
+                // Pull-to-refresh (L8): bound to the query refetch by the container; absent on web (no gesture).
+                refreshControl={
+                    refresh !== undefined ? (
+                        <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
+                    ) : undefined
+                }
             >
                 <Text style={styles.count}>{count}</Text>
                 {recipes.map((recipe) => (

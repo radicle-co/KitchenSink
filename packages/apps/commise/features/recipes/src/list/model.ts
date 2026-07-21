@@ -101,6 +101,14 @@ export interface RecipeListViewProps {
     readonly tab?: RecipeListTabControl;
     /** Optional quick-filter chip row (L4). Absent → no chips. */
     readonly filters?: RecipeListFilterControl;
+    /** Optional pull-to-refresh (L8) — mobile only; the web leaf ignores it (no web pull gesture). */
+    readonly refresh?: RecipeListRefreshControl;
+}
+
+/** Pull-to-refresh control (L8): whether a refresh is in flight, and the refetch to run on pull. */
+export interface RecipeListRefreshControl {
+    readonly refreshing: boolean;
+    readonly onRefresh: () => void;
 }
 
 /** Which recipe source the list shows (L5). */

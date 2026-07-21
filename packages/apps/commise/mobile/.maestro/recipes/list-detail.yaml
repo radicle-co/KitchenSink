@@ -11,6 +11,12 @@ appId: io.commise.mobile
 - assertVisible: 'Search recipes'
 - assertVisible: 'New recipe'
 
+# W1/L8 — pull-to-refresh: a downward swipe on the list triggers the RefreshControl (smoke: the list
+# survives the gesture and its chrome is still present afterwards).
+- swipe:
+      direction: DOWN
+- assertVisible: 'Recipes'
+
 # Drive list -> detail on the first seeded recipe, then return. Guarded by `when: visible` so an empty
 # library (no seed) still passes the chrome assertions above without failing the whole flow.
 - runFlow:

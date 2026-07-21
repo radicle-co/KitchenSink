@@ -75,6 +75,8 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             onSelectRecipe={onSelectRecipe}
             onCreateRecipe={onCreateRecipe ?? noop}
             onRetry={() => void query.refetch()}
+            // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the query.
+            refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
             // Community switching is the shell's Discover tab on mobile, so no in-list tab here (L5 parity).
             filters={{
                 available: availableFacets,

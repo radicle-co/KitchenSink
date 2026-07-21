@@ -20,6 +20,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { LocaleProvider } from '@commise/i18n/react';
+import * as Sentry from '@sentry/nextjs';
 import { createContainer, type Container } from 'ditox';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
@@ -34,6 +35,7 @@ const { profileRef } = vi.hoisted(() => ({
     },
 }));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => profileRef.current }));
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 const { HomeWidgetSurface } = await import('../HomeWidgetSurface');
 const { useHomeNudge } = await import('../SubscriptionNudge');
@@ -134,6 +136,24 @@ describe('HomeWidgetSurface (web) — host composition', () => {
 
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
         expect(screen.queryByText('mystery')).toBeNull();
+    });
+
+    it('reports a widget render failure to Sentry and shows a fallback, not a blank (B23)', () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const Boom: FC = () => {
+            throw new Error('widget boom');
+        };
+
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: Boom },
+        });
+
+        // The throw is caught → a localized fallback replaces the silent null, and the error is reported.
+        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+        expect(vi.mocked(Sentry.captureException)).toHaveBeenCalled();
+
+        consoleError.mockRestore();
     });
 
     it('shows the subscription nudge at most once per session across repeated gated taps', async () => {

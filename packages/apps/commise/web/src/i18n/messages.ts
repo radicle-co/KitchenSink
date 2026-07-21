@@ -79,6 +79,8 @@ export interface WebMessages {
             readonly regionLabel: string;
             /** Accessible label + text of the recipe widget's "see all" entry point into the recipes surface. */
             readonly seeAllRecipes: string;
+            /** Fallback shown when a live Home widget throws (B23) — replaces the silent `null`. */
+            readonly widgetError: string;
         };
         /**
          * Copy for the once-per-session subscription upgrade nudge shown when a free-tier viewer taps a
@@ -279,6 +281,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             surface: {
                 regionLabel: 'Home',
                 seeAllRecipes: 'See all recipes',
+                widgetError: 'This section couldn’t load.',
             },
             nudge: {
                 title: 'Unlock Commise Pro',

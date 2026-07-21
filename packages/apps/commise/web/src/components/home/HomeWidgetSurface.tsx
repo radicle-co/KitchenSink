@@ -30,6 +30,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import * as Sentry from '@sentry/nextjs';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -64,6 +65,16 @@ export interface HomeWidgetSurfaceProps {
 const DEFAULT_RENDERERS: Readonly<Record<HomeWidgetId, ComponentType>> = {
     [RECIPE_HOME_WIDGET_ID]: RecipeWidgetSlot,
 };
+
+/**
+ * Report a Home-widget render failure to Sentry (B23). A widget's `ErrorBoundary` must never swallow the
+ * throw silently — an unlogged blank widget is undebuggable.
+ *
+ * @sideEffect Captures the error in Sentry.
+ */
+function captureWidgetError(error: unknown): void {
+    Sentry.captureException(error);
+}
 
 /**
  * The Home widget surface.
@@ -111,10 +122,16 @@ export function HomeWidgetSurface({
                             const Bespoke = renderers[descriptor.id];
 
                             // A widget with a bespoke host slot (the live recipe widget, which needs its data
-                            // prop wired) renders through that slot.
+                            // prop wired) renders through that slot. B23 — a render throw / chunk-load reject is
+                            // reported to Sentry (never swallowed) and shows a small localized fallback instead
+                            // of vanishing.
                             if (Bespoke !== undefined) {
                                 return (
-                                    <ErrorBoundary key={descriptor.id} fallback={null}>
+                                    <ErrorBoundary
+                                        key={descriptor.id}
+                                        onError={captureWidgetError}
+                                        fallback={<p className="text-body-sm text-slate">{home.surface.widgetError}</p>}
+                                    >
                                         <Suspense fallback={null}>
                                             <Bespoke />
                                         </Suspense>
@@ -123,10 +140,11 @@ export function HomeWidgetSurface({
                             }
 
                             // A roadmap placeholder renders through its own loader seam — no bespoke slot, no
-                            // second id list in the host.
+                            // second id list in the host. Its fallback stays null (nothing user-facing to lose),
+                            // but a throw is still reported (B23), never silent.
                             if (isPlaceholderHomeWidget(descriptor)) {
                                 return (
-                                    <ErrorBoundary key={descriptor.id} fallback={null}>
+                                    <ErrorBoundary key={descriptor.id} onError={captureWidgetError} fallback={null}>
                                         <Suspense fallback={null}>
                                             <RoadmapWidgetSlot descriptor={descriptor} />
                                         </Suspense>

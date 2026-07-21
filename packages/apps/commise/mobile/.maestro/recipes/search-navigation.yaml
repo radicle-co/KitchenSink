@@ -83,19 +83,30 @@ appId: io.commise.mobile
       visible: 'Herb Risotto'
       timeout: 40000
 
+# --- W4/S3 sort controls -------------------------------------------------------------------------------
+# The sort control (Relevance / Newest / Most cloned / Quickest) is always present on Discover. Choosing a
+# sort re-runs the visibility-scoped search; a smoke that the control renders and accepts a change.
+- assertVisible: 'Relevance'
+- assertVisible: 'Quickest'
+- tapOn: 'Quickest'
+- extendedWaitUntil:
+      visible: 'Herb Risotto'
+      timeout: 40000
+
 # --- FR-006 filter bar (facet-driven) ------------------------------------------------------------------
-# The filter bar renders under the search box on Discover. The "Max total time" ladder is always present
-# (it is a bound, not a facet value list), so it is the deterministic control to exercise regardless of which
-# public seeds exist. Clearing the term first returns to the full browse set the filter then narrows.
+# The filter bar renders under the search box on Discover. The Prep-time and Total-time bucket ladders are
+# always present (they are bounds, not facet value lists) — the first "Under 60 min" is the Prep ladder
+# (W4/S2 orders Dietary · Cuisine · Tags · Prep · Total). Clearing the term first returns to the full browse
+# set the filter then narrows.
 - tapOn: 'Search public recipes'
 - eraseText
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
-# Herb Risotto is 35 min (≤ 60), so selecting the 60-minute bound must keep it — a filter that wrongly
-# dropped a matching recipe fails here. The card may sit below the fold under the tall covers, so scroll to
-# it rather than asserting blind. Scroll back up to the chip to clear the bound (the round trip proves it
-# toggles).
+# Herb Risotto is 35 min total (and ≤ 60 prep), so selecting a 60-minute bound must keep it — a filter that
+# wrongly dropped a matching recipe fails here. The card may sit below the fold under the tall covers, so
+# scroll to it rather than asserting blind. Scroll back up to the chip to clear the bound (the round trip
+# proves it toggles).
 - tapOn: 'Under 60 min'
 - scrollUntilVisible:
       element: 'Herb Risotto'

@@ -118,6 +118,31 @@ test.describe('recipe search (T110)', () => {
         await expect(page).toHaveURL(/dietaryFlags=vegan/);
     });
 
+    test('echoes the query in the results header and re-sorts on demand (W4/S3+S5)', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({ id: 'rec_paella', ownerId: 'usr_other', title: 'Seafood Paella' }),
+                makeRecipeDetail({ id: 'rec_pasta', ownerId: 'usr_other', title: 'Weeknight Pasta' }),
+            ],
+        });
+
+        await page.goto(route('/discover'));
+
+        // S5 — an active query names the result set it is FOR (not just a bare count).
+        await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('paella');
+        await expect(page.getByText('Showing 1 recipe for “paella”')).toBeVisible();
+
+        // S3 — the sort control is a single-select radiogroup; choosing Quickest moves the selection there.
+        const sort = page.getByRole('radiogroup', { name: 'Sort by' });
+        await expect(sort.getByRole('radio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'true');
+        await sort.getByRole('radio', { name: 'Quickest' }).click();
+        await expect(sort.getByRole('radio', { name: 'Quickest' })).toHaveAttribute('aria-checked', 'true');
+        await expect(sort.getByRole('radio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'false');
+    });
+
     test('narrows the caller’s own recipe list to the term', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);

@@ -59,6 +59,34 @@ describe('RecipeRatingControl (native)', () => {
         expect(screen.getAllByRole('radio')).toHaveLength(5);
     });
 
+    it('gives each star a ≥44×44 touch target (B10, WCAG 2.5.5)', () => {
+        renderControl();
+
+        // react-native-web compiles `minWidth`/`minHeight` to atomic CSS classes, so look up the class whose
+        // rule sets 44px and assert every star carries it (jsdom can't compute a class-driven value inline).
+        const rules = Array.from(document.styleSheets).flatMap((sheet) => {
+            try {
+                return Array.from(sheet.cssRules) as CSSStyleRule[];
+            } catch {
+                return [];
+            }
+        });
+        const classFor = (declaration: string): string | undefined =>
+            rules
+                .find((rule) => (rule.cssText ?? '').replace(/\s+/g, '').includes(declaration))
+                ?.selectorText.replace(/^\./, '');
+
+        const minWidthClass = classFor('min-width:44px');
+        const minHeightClass = classFor('min-height:44px');
+        expect(minWidthClass).toBeTruthy();
+        expect(minHeightClass).toBeTruthy();
+
+        for (const star of screen.getAllByRole('radio')) {
+            expect(star.classList.contains(minWidthClass as string)).toBe(true);
+            expect(star.classList.contains(minHeightClass as string)).toBe(true);
+        }
+    });
+
     it('reports the SELECTED star value upward (mutation lens: exact value)', () => {
         const onRate = vi.fn();
         renderControl({ onRate });

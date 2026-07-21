@@ -29,9 +29,11 @@ export const semantic = {
     ring: palette['seafoam-light'],
 } as const;
 
+// Each nutrition series gets a DISTINCT hue (B25a): calories + protein were byte-identical
+// (`seafoam-light`), which renders two indistinguishable lines/bars.
 export const chart = {
-    calories: palette['seafoam-light'],
-    protein: palette['seafoam-light'],
+    calories: palette.seafoam,
+    protein: palette.warning,
     carbs: palette.sky,
     fat: palette.coral,
     fiber: palette.success,

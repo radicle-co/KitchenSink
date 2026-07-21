@@ -94,7 +94,7 @@ export const RecipeRatingControl: FC<RecipeRatingControlProps> = ({
                                     aria-checked={selectedStars === value}
                                     disabled={pending}
                                     onPress={() => onRate(value)}
-                                    style={pending ? styles.optionDisabled : undefined}
+                                    style={[styles.starOption, pending ? styles.optionDisabled : null]}
                                 >
                                     <Text style={filled ? styles.rateStarFilled : styles.rateStarEmpty}>★</Text>
                                 </Pressable>
@@ -138,6 +138,8 @@ const styles = StyleSheet.create({
     rateHeading: { fontSize: 14, fontWeight: '500', color: palette.charcoal },
     rateStarFilled: { fontSize: 30, color: palette.warning },
     rateStarEmpty: { fontSize: 30, color: palette.mist },
+    // B10 — a ≥44×44 touch target around the 30px glyph (WCAG 2.5.5 / Apple + Android minimums).
+    starOption: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     optionDisabled: { opacity: 0.6 },
     removeLabel: { fontSize: 14, fontWeight: '600', color: palette.error },
     status: { fontSize: 13, color: palette.slate },

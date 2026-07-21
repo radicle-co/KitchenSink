@@ -28,30 +28,21 @@ import {
     type HomeWidgetCurationContext,
     type HomeWidgetId,
 } from '@commise/features-core';
-import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
+import { useMessages } from '@commise/i18n/react';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
+import { AppShell, LIVE_CAPABILITIES } from '@/components/app/AppShell';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
-import { HomeChrome } from './chrome/HomeChrome';
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { HomeNudgeContext, SubscriptionNudge, useOncePerSessionNudge } from './SubscriptionNudge';
-
-/** The active destination this surface represents in the Home navigation. */
-const HOME_NAV_ACTIVE_ID = 'home' as const;
-
-/**
- * Capabilities whose backing service is live in Home v1. Only the recipe service ships now; each feature
- * (005–009) adds its capability here when it deploys, and `curateHomeWidgets` then reveals its widget.
- */
-const LIVE_CAPABILITIES: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILITY];
 
 /**
  * Map an identity subscription tier (`free` | `premium`) onto the Home-widget tier ladder (`free` | `pro`).
@@ -85,12 +76,10 @@ export function HomeWidgetSurface({
     renderers = DEFAULT_RENDERERS,
 }: HomeWidgetSurfaceProps = {}): JSX.Element {
     const { home } = useMessages(webMessages);
-    const locale = useLocale();
     const profile = useUserProfile();
     const nudge = useOncePerSessionNudge();
 
     const tier = profile.data?.account.subscriptionTier;
-    const displayName = profile.data?.user.displayName;
 
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {
@@ -104,13 +93,7 @@ export function HomeWidgetSurface({
     }, [container, tier]);
 
     return (
-        <HomeChrome
-            chrome={home.chrome}
-            locale={locale}
-            liveCapabilities={LIVE_CAPABILITIES}
-            activeId={HOME_NAV_ACTIVE_ID}
-            displayName={displayName}
-        >
+        <AppShell activeId="home">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
                 {/*
                  * The authenticated Home's accessible page title (US-000 / FR-046). Visually hidden — the
@@ -160,6 +143,6 @@ export function HomeWidgetSurface({
 
                 <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />
             </div>
-        </HomeChrome>
+        </AppShell>
     );
 }

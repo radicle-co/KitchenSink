@@ -3,7 +3,7 @@
 /**
  * @module home/chrome/HomeTabBar — the mobile bottom tab bar (web; US-000 / FR-046).
  *
- * The fixed bottom navigation from the mockup, shown only below the `md` breakpoint (the desktop sidebar
+ * The fixed bottom navigation from the mockup, shown only below the `lg` breakpoint (the desktop sidebar
  * takes over above it). It is the COMPACT rendering of the same shared nav model the sidebar renders — icon
  * over a short label — so the two can never list different destinations.
  *
@@ -38,7 +38,7 @@ export interface HomeTabBarProps {
  * The mobile bottom tab bar.
  *
  * @param props - The chrome copy, locale, live capabilities, and active destination.
- * @returns The fixed bottom navigation (hidden at `md`+).
+ * @returns The fixed bottom navigation (hidden at `lg`+).
  */
 export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeTabBarProps): JSX.Element {
     const destinations = resolveHomeNav(liveCapabilities);
@@ -46,7 +46,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeT
     return (
         <nav
             aria-label={chrome.tabNavLabel}
-            className="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center justify-around border-t border-white/30 bg-gradient-to-t from-white/90 to-white/80 px-2 backdrop-blur-[24px] md:hidden"
+            className="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center justify-around border-t border-white/30 bg-gradient-to-t from-white/90 to-white/80 px-2 backdrop-blur-[24px] lg:hidden"
         >
             {destinations.map((item) => {
                 const label = chrome.destinations[item.id];

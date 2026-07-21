@@ -75,8 +75,9 @@ export function HomeChrome({
                     onOpenNav={() => setMobileNavOpen(true)}
                 />
 
-                {/* pb-20 clears the fixed mobile tab bar; it collapses to pb-0 once the tab bar is hidden. */}
-                <main className="flex-1 px-4 pb-20 pt-6 md:px-6 md:pb-6">{children}</main>
+                {/* pb-20 clears the fixed bottom tab bar; it collapses once the tab bar is hidden at `lg`
+                    (the shared desktop-vs-narrow cutover — sidebar above it, bottom nav below). */}
+                <main className="flex-1 px-4 pb-20 pt-6 md:px-6 lg:pb-6">{children}</main>
             </div>
 
             <HomeTabBar chrome={chrome} locale={locale} liveCapabilities={liveCapabilities} activeId={activeId} />

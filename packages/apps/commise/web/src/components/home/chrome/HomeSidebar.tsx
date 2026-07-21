@@ -4,7 +4,7 @@
  * @module home/chrome/HomeSidebar — the desktop navigation sidebar (web; US-000 / FR-046).
  *
  * The glass rail from the Home mockup: logo + wordmark, the six navigation destinations, and a collapse
- * control. It is `hidden` below the `md` breakpoint (the mobile tab bar takes over there), so it is the
+ * control. It is `hidden` below the `lg` breakpoint (the mobile tab bar takes over there), so it is the
  * DESKTOP rendering of the shared nav model — the tab bar is the same model rendered differently.
  *
  * ## The two decisions that matter here
@@ -50,7 +50,7 @@ export interface HomeSidebarProps {
  * The desktop navigation sidebar.
  *
  * @param props - The chrome copy, locale, live capabilities, active destination, and collapse state/handler.
- * @returns The glass navigation rail (hidden below `md`).
+ * @returns The glass navigation rail (hidden below `lg`).
  */
 export function HomeSidebar({
     chrome,
@@ -64,7 +64,7 @@ export function HomeSidebar({
 
     return (
         <div
-            className={`hidden h-screen flex-col border-r border-white/20 bg-gradient-to-b from-white/[0.12] to-white/[0.08] backdrop-blur-[24px] transition-all duration-200 md:flex ${
+            className={`hidden h-screen flex-col border-r border-white/20 bg-gradient-to-b from-white/[0.12] to-white/[0.08] backdrop-blur-[24px] transition-all duration-200 lg:flex ${
                 collapsed ? 'w-20' : 'w-64'
             }`}
         >

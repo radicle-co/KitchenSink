@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
+import { AppShell } from '@/components/app/AppShell';
 import { RecipeListContainer } from '@/components/recipes/RecipeListContainer';
 
 export const dynamic = 'force-dynamic';
@@ -23,5 +24,11 @@ export default async function RecipesPage({
         redirect(`/${locale}/sign-in` as Route);
     }
 
-    return <RecipeListContainer locale={locale} />;
+    // L9: the list renders inside the shared app nav shell (sidebar on desktop, bottom nav on narrow) with
+    // its own active destination — the same chrome Home uses, so navigation is consistent across the app.
+    return (
+        <AppShell activeId="recipes">
+            <RecipeListContainer locale={locale} />
+        </AppShell>
+    );
 }

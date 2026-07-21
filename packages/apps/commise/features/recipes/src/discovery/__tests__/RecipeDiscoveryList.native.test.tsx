@@ -121,6 +121,27 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
     });
 
+    it('composes the compound card fields — author handle, cuisine, calories (S1)', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: [
+                makeSearchResult({
+                    id: 'rec_x',
+                    title: 'Ribollita',
+                    authorHandle: 'tuscan_cook',
+                    cuisine: 'Tuscan',
+                    leadCaloriesPerServing: 320,
+                }),
+            ],
+        });
+
+        expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
+        expect(screen.getByText('Tuscan')).toBeTruthy();
+        expect(screen.getByText('320 cal')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Clone Ribollita' })).toBeTruthy();
+    });
+
     it('renders the sort options and reports a change (S3)', () => {
         const onChange = vi.fn();
         renderDiscovery({

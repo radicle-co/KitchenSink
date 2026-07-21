@@ -197,6 +197,31 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         // The middle result carries no attribution — nothing rendered for it.
         expect(screen.queryByText(/From undefined/)).toBeNull();
     });
+
+    it('composes the compound card fields — author handle, cuisine, calories, visibility (S1)', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: [
+                makeSearchResult({
+                    id: 'rec_x',
+                    title: 'Ribollita',
+                    authorHandle: 'tuscan_cook',
+                    cuisine: 'Tuscan',
+                    leadCaloriesPerServing: 320,
+                    visibility: 'public',
+                    status: 'published',
+                }),
+            ],
+        });
+
+        expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
+        expect(screen.getByText('Tuscan')).toBeTruthy();
+        expect(screen.getByText('320 cal')).toBeTruthy();
+        expect(screen.getByText('Public')).toBeTruthy();
+        // Still selectable by title and cloneable — the compound composition keeps the row contract.
+        expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Clone Ribollita' })).toBeTruthy();
+    });
 });
 
 describe('RecipeDiscoveryList (web) — clone', () => {

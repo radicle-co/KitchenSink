@@ -12,10 +12,11 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
+import { toRecipeCardModel } from '../card/model.js';
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
-import { DISCOVERY_SORTS, toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
+import { DISCOVERY_SORTS, type RecipeDiscoveryListProps } from './model.js';
 
 /** Visible label for each discovery sort option (S3). */
 const sortLabel = (sort: RecipeSearchSortBy, m: DiscoveryMessages): string => {
@@ -90,19 +91,17 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 keyboardShouldPersistTaps="handled"
             >
                 <Text style={styles.count}>{header}</Text>
-                {results.map((result) => {
-                    const item = toRecipeDiscoveryItem(result);
-
-                    return (
-                        <RecipeDiscoveryCard
-                            key={item.id}
-                            recipe={item}
-                            isCloning={cloningId === item.id}
-                            onSelect={onSelectRecipe}
-                            onClone={onClone}
-                        />
-                    );
-                })}
+                {results.map((result) => (
+                    <RecipeDiscoveryCard
+                        key={result.recipe.id}
+                        recipe={toRecipeCardModel(result.recipe)}
+                        authorHandle={result.recipe.authorHandle}
+                        sourceAttribution={result.recipe.sourceAttribution}
+                        isCloning={cloningId === result.recipe.id}
+                        onSelect={onSelectRecipe}
+                        onClone={onClone}
+                    />
+                ))}
             </ScrollView>
         );
     }

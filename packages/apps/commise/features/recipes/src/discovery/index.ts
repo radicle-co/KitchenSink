@@ -7,12 +7,12 @@
 export { RecipeDiscoveryList } from './RecipeDiscoveryList.js';
 export { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
 
-export { toRecipeDiscoveryItem } from './model.js';
+export { DISCOVERY_SORTS } from './model.js';
 export type {
     RecipeDiscoveryCardProps,
-    RecipeDiscoveryItem,
     RecipeDiscoveryListProps,
     RecipeDiscoveryStatus,
+    RecipeDiscoverySortControl,
 } from './model.js';
 
 export { discoveryMessages } from './messages.js';

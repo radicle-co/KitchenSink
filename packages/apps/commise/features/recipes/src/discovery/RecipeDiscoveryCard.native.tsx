@@ -1,63 +1,77 @@
 /**
- * @module @commise/features-recipes — native public-discovery card (T076 building block).
+ * @module @commise/features-recipes — native public-discovery result card (T076 / W4 S1).
  *
- * The React Native leaf of {@link import('./RecipeDiscoveryCard.js').RecipeDiscoveryCard} — same contract,
- * RN primitives. Accessible button named by the recipe title, the source attribution when present, and a
- * Clone action that busies (accessibilityState busy/disabled) while this row's clone is in flight.
+ * The React Native leaf of {@link import('./RecipeDiscoveryCard.js').RecipeDiscoveryCard}: the same P7
+ * composition of the shared {@link RecipeCard} compound parts — tappable cover + title, `by @handle` author
+ * attribution (and imported source when present), cuisine/time/calorie meta, visibility badge, rating,
+ * tags — plus the Clone action. Same contract as the web leaf so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { RecipeCard } from '../card/index.js';
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
 import type { RecipeDiscoveryCardProps } from './model.js';
 
 /**
- * A single public-recipe row on React Native, styled to the Commise design language: a white rounded card
- * with a display title, muted source attribution, and a coral Clone action.
+ * A single public-recipe search result on React Native.
  *
- * @param props - The discovery view-model, the per-row clone-busy flag, and the selection/clone callbacks.
+ * @param props - The card view-model, author handle / source attribution, the per-row clone-busy flag, and
+ *   the selection/clone callbacks.
  */
-export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({ recipe, isCloning, onSelect, onClone }) => {
+export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
+    recipe,
+    authorHandle,
+    sourceAttribution,
+    isCloning,
+    onSelect,
+    onClone,
+}) => {
     const discovery = useMessages(discoveryMessages);
     const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
 
     return (
-        <View style={styles.card}>
+        <RecipeCard recipe={recipe}>
             <Pressable accessibilityRole="button" accessibilityLabel={recipe.title} onPress={() => onSelect(recipe.id)}>
-                <Text style={styles.title}>{recipe.title}</Text>
+                <RecipeCard.Cover />
+                <View style={styles.titleWrap}>
+                    <RecipeCard.Title />
+                </View>
             </Pressable>
-            {recipe.sourceAttribution !== undefined ? (
-                <Text style={styles.attribution}>
-                    {fillTemplate(discovery.attribution, { source: recipe.sourceAttribution })}
-                </Text>
-            ) : null}
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={cloneLabel}
-                accessibilityState={{ busy: isCloning, disabled: isCloning }}
-                disabled={isCloning}
-                onPress={() => onClone(recipe.id)}
-                style={[styles.cloneButton, isCloning && styles.cloneButtonBusy]}
-            >
-                <Text style={styles.cloneLabel}>{isCloning ? discovery.cloning : discovery.clone}</Text>
-            </Pressable>
-        </View>
+            <View style={styles.body}>
+                {authorHandle !== undefined && (
+                    <Text style={styles.attribution}>{fillTemplate(discovery.byAuthor, { handle: authorHandle })}</Text>
+                )}
+                {sourceAttribution !== undefined && (
+                    <Text style={styles.attribution}>
+                        {fillTemplate(discovery.attribution, { source: sourceAttribution })}
+                    </Text>
+                )}
+                <RecipeCard.Meta />
+                <RecipeCard.Badges />
+                <RecipeCard.Rating />
+                <RecipeCard.Tags />
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={cloneLabel}
+                    accessibilityState={{ busy: isCloning, disabled: isCloning }}
+                    disabled={isCloning}
+                    onPress={() => onClone(recipe.id)}
+                    style={[styles.cloneButton, isCloning && styles.cloneButtonBusy]}
+                >
+                    <Text style={styles.cloneLabel}>{isCloning ? discovery.cloning : discovery.clone}</Text>
+                </Pressable>
+            </View>
+        </RecipeCard>
     );
 };
 
 const styles = StyleSheet.create({
-    card: {
-        backgroundColor: palette.white,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
-        padding: 18,
-        gap: 10,
-    },
-    title: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    titleWrap: { paddingHorizontal: 16, paddingTop: 16 },
+    body: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, gap: 8 },
     attribution: { fontSize: 13, color: palette.slate },
     cloneButton: {
         alignSelf: 'flex-start',
@@ -65,6 +79,7 @@ const styles = StyleSheet.create({
         borderRadius: 999,
         paddingVertical: 8,
         paddingHorizontal: 16,
+        marginTop: 4,
     },
     cloneButtonBusy: { opacity: 0.6 },
     cloneLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },

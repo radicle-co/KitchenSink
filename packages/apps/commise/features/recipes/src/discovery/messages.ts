@@ -49,6 +49,8 @@ export interface DiscoveryMessages {
     readonly retry: string;
     /** Source-provenance template shown on a row (contains `{source}`). */
     readonly attribution: string;
+    /** Author-handle attribution shown on a search result card (contains `{handle}`) — S1. */
+    readonly byAuthor: string;
     /** Visible label of the idle clone action. */
     readonly clone: string;
     /** Visible label of the clone action while its clone is in flight. */
@@ -80,6 +82,7 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         errorTitle: 'We couldn’t load recipes.',
         retry: 'Try again',
         attribution: 'From {source}',
+        byAuthor: 'by @{handle}',
         clone: 'Clone',
         cloning: 'Cloning',
         cloneLabel: 'Clone {title}',

@@ -10,6 +10,8 @@ import type { ReactNode } from 'react';
 
 import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
+import type { RecipeCardModel } from '../card/model.js';
+
 /**
  * The sort options the discovery UI offers (S3), in display order — a subset of {@link RecipeSearchSortBy}
  * (the `title` sort is a library concern, not a discovery one). Backed by W8-a.9 (`most-cloned`, `quickest`).
@@ -34,37 +36,21 @@ export interface RecipeDiscoverySortControl {
 export type RecipeDiscoveryStatus = 'loading' | 'error' | 'ready';
 
 /**
- * Minimal view-model for one public-recipe row in discovery — the subset of a {@link RecipeSearchResult}
- * the row renders. `sourceAttribution` is present only when the recipe carries provenance (an imported
- * recipe); a user-created public recipe has none.
+ * Props for a single public-recipe search result card (S1). It composes the shared {@link RecipeCard}
+ * compound parts (P7's search surface) from a {@link RecipeCardModel} — photo, title, cuisine/time/calorie
+ * meta, visibility badge, rating, tags — rather than widening a flat discovery prop bag. `authorHandle`
+ * (`by @handle`, W8-a.2) and `sourceAttribution` (imported provenance) are the two search-specific extras.
  */
-export interface RecipeDiscoveryItem {
-    readonly id: string;
-    readonly title: string;
-    /** Human-readable provenance (e.g. `Serious Eats`) — surfaced as attribution when present. */
-    readonly sourceAttribution?: string;
-}
-
-/**
- * Project a {@link RecipeSearchResult} envelope down to the {@link RecipeDiscoveryItem} the row renders.
- * `sourceAttribution` is omitted (never set to `undefined`) when absent, so the property stays optional in
- * the exact sense. Pure.
- *
- * @param result - The search-result envelope (`{ recipe, rank? }`).
- * @returns The discovery-row view-model subset.
- */
-export const toRecipeDiscoveryItem = (result: RecipeSearchResult): RecipeDiscoveryItem => {
-    const { id, title, sourceAttribution } = result.recipe;
-
-    return sourceAttribution === undefined ? { id, title } : { id, title, sourceAttribution };
-};
-
-/** Props for a single public-recipe row in discovery. */
 export interface RecipeDiscoveryCardProps {
-    readonly recipe: RecipeDiscoveryItem;
+    /** The card view-model projected from the search hit's recipe (drives the compound RecipeCard parts). */
+    readonly recipe: RecipeCardModel;
+    /** The author's handle (`by @handle`), when the recipe carries one. */
+    readonly authorHandle?: string;
+    /** Human-readable provenance (e.g. `Serious Eats`) for an imported recipe, when present. */
+    readonly sourceAttribution?: string;
     /** Whether THIS row's clone is in flight (drives the busy/disabled clone action). */
     readonly isCloning: boolean;
-    /** Invoked with the recipe id when the row (title) is activated. */
+    /** Invoked with the recipe id when the card (cover/title) is activated. */
     readonly onSelect: (id: string) => void;
     /** Invoked with the recipe id when the row's clone action is activated. */
     readonly onClone: (id: string) => void;

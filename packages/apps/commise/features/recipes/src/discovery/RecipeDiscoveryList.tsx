@@ -11,10 +11,11 @@ import type { FC, ReactElement } from 'react';
 
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
+import { toRecipeCardModel } from '../card/model.js';
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
-import { DISCOVERY_SORTS, toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
+import { DISCOVERY_SORTS, type RecipeDiscoveryListProps } from './model.js';
 
 /** Visible label for each discovery sort option (S3). */
 const sortLabel = (sort: RecipeSearchSortBy, m: DiscoveryMessages): string => {
@@ -93,20 +94,18 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             <div className="flex flex-col gap-4">
                 <p className="text-body-sm font-medium text-slate">{header}</p>
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {results.map((result) => {
-                        const item = toRecipeDiscoveryItem(result);
-
-                        return (
-                            <li key={item.id}>
-                                <RecipeDiscoveryCard
-                                    recipe={item}
-                                    isCloning={cloningId === item.id}
-                                    onSelect={onSelectRecipe}
-                                    onClone={onClone}
-                                />
-                            </li>
-                        );
-                    })}
+                    {results.map((result) => (
+                        <li key={result.recipe.id}>
+                            <RecipeDiscoveryCard
+                                recipe={toRecipeCardModel(result.recipe)}
+                                authorHandle={result.recipe.authorHandle}
+                                sourceAttribution={result.recipe.sourceAttribution}
+                                isCloning={cloningId === result.recipe.id}
+                                onSelect={onSelectRecipe}
+                                onClone={onClone}
+                            />
+                        </li>
+                    ))}
                 </ul>
             </div>
         );

@@ -170,6 +170,28 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
     });
 
+    it('renders a Load more button that fetches the next page when more pages exist (S4)', () => {
+        const onLoadMore = vi.fn();
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            loadMore: { hasMore: true, loading: false, onLoadMore },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+        expect(onLoadMore).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides the Load more button on the last page (no infinite scroll) (S4)', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            loadMore: { hasMore: false, loading: false, onLoadMore: vi.fn() },
+        });
+
+        expect(screen.queryByRole('button', { name: /Load more|Loading/ })).toBeNull();
+    });
+
     it('renders one row per result in a list structure', () => {
         renderDiscovery({ status: 'ready', results: threeResults });
 

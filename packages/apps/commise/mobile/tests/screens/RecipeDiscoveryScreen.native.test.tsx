@@ -7,29 +7,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { useCloneRecipe, useSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeDiscoveryScreen } from '../../src/screens/RecipeDiscoveryScreen.js';
 import { makeRecipeSearchResult, makeSearchResponse } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useSearchRecipes: vi.fn(),
+    useInfiniteSearchRecipes: vi.fn(),
     useCloneRecipe: vi.fn(),
 }));
 
-const useSearchRecipesMock = vi.mocked(useSearchRecipes);
+const useSearchRecipesMock = vi.mocked(useInfiniteSearchRecipes);
 const useCloneRecipeMock = vi.mocked(useCloneRecipe);
 
+/**
+ * Build a paginated-search hook double from a flat `data` response — the screen reads `data.pages`,
+ * `hasNextPage`, and `fetchNextPage` (S4), so wrap the response as a single page.
+ */
 function searchResult(
-    overrides: Partial<ReturnType<typeof useSearchRecipes>> = {},
-): ReturnType<typeof useSearchRecipes> {
+    overrides: { readonly data?: ReturnType<typeof makeSearchResponse> } & Record<string, unknown> = {},
+): ReturnType<typeof useInfiniteSearchRecipes> {
+    const { data, ...rest } = overrides;
+
     return {
         isLoading: false,
         isError: false,
-        data: undefined,
+        data: data === undefined ? undefined : { pages: [data] },
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
         refetch: vi.fn(),
-        ...overrides,
-    } as unknown as ReturnType<typeof useSearchRecipes>;
+        ...rest,
+    } as unknown as ReturnType<typeof useInfiniteSearchRecipes>;
 }
 
 function cloneMutation(overrides: Partial<ReturnType<typeof useCloneRecipe>> = {}): ReturnType<typeof useCloneRecipe> {

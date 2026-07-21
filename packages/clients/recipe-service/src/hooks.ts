@@ -12,7 +12,7 @@
  * which also owns the `QueryClientProvider`). Import them from the package subpath so a non-React
  * consumer of the plain client never pulls React in.
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, createElement, useContext } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -206,6 +206,26 @@ export function useSearchRecipes(params: RecipeSearchParams = {}) {
     return useQuery({
         queryKey: recipeServiceKeys.recipeSearch(params),
         queryFn: () => client.searchRecipes(params),
+    });
+}
+
+/**
+ * `GET /v1/search/recipes` — the same ranked, faceted, visibility-scoped search as {@link useSearchRecipes},
+ * but PAGINATED for a "Load more" flow (W4/S4): each fetched page appends to `data.pages`, and
+ * `hasNextPage`/`fetchNextPage` drive the load-more control. The next page is `page + 1` while the last page
+ * reported `hasMore`; once it does not, `getNextPageParam` returns `undefined` and the control disappears.
+ * Facets come from the first page (they describe the whole result set, not one page).
+ *
+ * @param params - The search criteria (query/filters/sort). The `page` field is managed by the pager.
+ */
+export function useInfiniteSearchRecipes(params: RecipeSearchParams = {}) {
+    const client = useRecipeServiceClient();
+
+    return useInfiniteQuery({
+        queryKey: recipeServiceKeys.recipeSearch(params),
+        queryFn: ({ pageParam }) => client.searchRecipes({ ...params, page: pageParam }),
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
     });
 }
 

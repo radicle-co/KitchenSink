@@ -24,7 +24,7 @@ import {
     type RecipeFilterState,
 } from '@commise/features-recipes';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import { useCloneRecipe, useSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -68,11 +68,16 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     // `sortBy` but is not part of the shareable URL criteria (those are the filters + query).
     const [sortBy, setSortBy] = useState<RecipeSearchSortBy>(RecipeSearchSortBy.RELEVANCE);
 
-    const search = useSearchRecipes({ ...filtersToSearchParams(filters, query), sortBy });
+    const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, query), sortBy });
     const clone = useCloneRecipe();
 
     const status = toDiscoveryStatus(search.isLoading, search.isError);
     const cloningId = clone.isPending ? clone.variables : null;
+
+    // S4 — flatten the fetched pages into one result list; facets describe the whole set, so read them from
+    // the first page. `hasNextPage`/`fetchNextPage` drive the "Load more" control.
+    const results = search.data?.pages.flatMap((page) => page.results) ?? [];
+    const facets = search.data?.pages[0]?.facets ?? {};
 
     // Write the next criteria to the URL via the Next-integrated history API (no server round-trip per
     // keystroke, unlike router.replace on this force-dynamic page). `useSearchParams()` re-renders in response.
@@ -87,7 +92,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     return (
         <RecipeDiscoveryList
             status={status}
-            results={search.data?.results ?? []}
+            results={results}
             searchValue={query}
             onSearchChange={(value) => applyCriteria(filters, value)}
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
@@ -100,9 +105,14 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
             sort={{ active: sortBy, onChange: setSortBy }}
+            loadMore={{
+                hasMore: search.hasNextPage,
+                loading: search.isFetchingNextPage,
+                onLoadMore: () => void search.fetchNextPage(),
+            }}
             filterSlot={
                 <RecipeFilterBar
-                    facets={search.data?.facets ?? {}}
+                    facets={facets}
                     filters={filters}
                     onToggleFacet={(dimension: FacetDimension, value: string) =>
                         applyCriteria(toggleFacetValue(filters, dimension, value), query)

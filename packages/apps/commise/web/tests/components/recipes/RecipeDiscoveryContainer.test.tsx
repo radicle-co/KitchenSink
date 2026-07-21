@@ -14,20 +14,35 @@ import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryCo
 import { makeSearchResponse, makeSearchResult } from './__fixtures__/discoveryFixtures';
 import { makeRecipe, makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { useSearchRecipesMock, useCloneRecipeMock, pushMock, refetchMock, cloneMutateMock, nav } = vi.hoisted(() => ({
-    useSearchRecipesMock: vi.fn(),
-    useCloneRecipeMock: vi.fn(),
-    pushMock: vi.fn(),
-    refetchMock: vi.fn(),
-    cloneMutateMock: vi.fn(),
-    // The container reads the search criteria from the URL. `nav.params` is the current query; a test sets it
-    // to simulate a shared/reloaded filtered link, and criteria writes go through `window.history.replaceState`
-    // (spied per-test), which in the real app updates `useSearchParams()` reactively.
-    nav: { params: new URLSearchParams(), pathname: '/en/discover' },
-}));
+const { useSearchRecipesMock, useCloneRecipeMock, pushMock, refetchMock, fetchNextPageMock, cloneMutateMock, nav } =
+    vi.hoisted(() => ({
+        useSearchRecipesMock: vi.fn(),
+        useCloneRecipeMock: vi.fn(),
+        pushMock: vi.fn(),
+        refetchMock: vi.fn(),
+        fetchNextPageMock: vi.fn(),
+        cloneMutateMock: vi.fn(),
+        // The container reads the search criteria from the URL. `nav.params` is the current query; a test sets
+        // it to simulate a shared/reloaded filtered link, and criteria writes go through
+        // `window.history.replaceState` (spied per-test), which updates `useSearchParams()` reactively.
+        nav: { params: new URLSearchParams(), pathname: '/en/discover' },
+    }));
 
+// The container now uses the PAGINATED search hook (S4). Adapt the flat mock (`{ data: response }`) into the
+// infinite-query shape (`{ data: { pages: [response] }, hasNextPage, fetchNextPage, … }`) so the existing
+// per-test `useSearchRecipesMock.mockReturnValue(...)` calls stay unchanged.
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useSearchRecipes: useSearchRecipesMock,
+    useInfiniteSearchRecipes: (...args: unknown[]) => {
+        const flat = useSearchRecipesMock(...args) as { data?: { hasMore?: boolean } } & Record<string, unknown>;
+
+        return {
+            ...flat,
+            data: flat.data === undefined ? undefined : { pages: [flat.data] },
+            hasNextPage: flat.data?.hasMore ?? false,
+            isFetchingNextPage: false,
+            fetchNextPage: fetchNextPageMock,
+        };
+    },
     useCloneRecipe: useCloneRecipeMock,
 }));
 

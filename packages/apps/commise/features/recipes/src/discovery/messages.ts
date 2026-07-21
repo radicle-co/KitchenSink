@@ -23,6 +23,10 @@ export interface DiscoveryMessages {
     readonly countOther: string;
     /** Query-echo results header when a search term is active (contains `{count}` and `{query}`) — S5. */
     readonly resultsForQuery: string;
+    /** Visible label for the load-more button (S4). */
+    readonly loadMore: string;
+    /** Visible label for the load-more button while the next page is loading (S4). */
+    readonly loadingMore: string;
     /** Accessible name for the sort control (S3). */
     readonly sortLabel: string;
     /** Visible label for the Relevance sort. */
@@ -69,6 +73,8 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         countOne: '{count} recipe',
         countOther: '{count} recipes',
         resultsForQuery: 'Showing {count} for “{query}”',
+        loadMore: 'Load more',
+        loadingMore: 'Loading…',
         sortLabel: 'Sort by',
         sortRelevance: 'Relevance',
         sortNewest: 'Newest',

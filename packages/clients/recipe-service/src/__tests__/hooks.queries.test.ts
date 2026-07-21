@@ -34,6 +34,7 @@ import {
     useRecipes,
     useSearchIngredients,
     useSearchRecipes,
+    useInfiniteSearchRecipes,
 } from '../hooks.js';
 import {
     makeCollection,
@@ -584,6 +585,40 @@ describe('useSearchRecipes', () => {
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+    });
+});
+
+describe('useInfiniteSearchRecipes', () => {
+    it('fetches the first page (page 1) with the given params', async () => {
+        const client = makeGuardedClient();
+        const searchRecipes = vi
+            .spyOn(client, 'searchRecipes')
+            .mockResolvedValue(makeRecipeSearchResponse({ hasMore: false, page: 1 }));
+
+        const { result } = renderRecipeHook(() => useInfiniteSearchRecipes({ query: 'pie' }), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(searchRecipes).toHaveBeenCalledWith({ query: 'pie', page: 1 });
+    });
+
+    it('offers a next page while the last page reports hasMore', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeRecipeSearchResponse({ hasMore: true, page: 1 }));
+
+        const { result } = renderRecipeHook(() => useInfiniteSearchRecipes(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.hasNextPage).toBe(true);
+    });
+
+    it('stops paging when the last page reports no more (no infinite scroll)', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeRecipeSearchResponse({ hasMore: false, page: 1 }));
+
+        const { result } = renderRecipeHook(() => useInfiniteSearchRecipes(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.hasNextPage).toBe(false);
     });
 });
 

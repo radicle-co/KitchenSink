@@ -142,6 +142,26 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         expect(screen.getByRole('button', { name: 'Clone Ribollita' })).toBeTruthy();
     });
 
+    it('renders a Load more button that fetches the next page, hidden on the last page (S4)', () => {
+        const onLoadMore = vi.fn();
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            loadMore: { hasMore: true, loading: false, onLoadMore },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+        expect(onLoadMore).toHaveBeenCalledTimes(1);
+        cleanup();
+
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            loadMore: { hasMore: false, loading: false, onLoadMore: vi.fn() },
+        });
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+
     it('renders the sort options and reports a change (S3)', () => {
         const onChange = vi.fn();
         renderDiscovery({

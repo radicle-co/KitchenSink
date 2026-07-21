@@ -21,7 +21,7 @@ import {
     type RecipeFilterState,
 } from '@commise/features-recipes';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import { useSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
+import { useInfiniteSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
 
@@ -48,16 +48,20 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
     const [filters, setFilters] = useState<RecipeFilterState>(initialFilters ?? EMPTY_RECIPE_FILTERS);
     const [sortBy, setSortBy] = useState<RecipeSearchSortBy>(RecipeSearchSortBy.RELEVANCE);
 
-    const search = useSearchRecipes({ ...filtersToSearchParams(filters, searchValue), sortBy });
+    const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, searchValue), sortBy });
     const clone = useCloneRecipe();
 
     const status: RecipeDiscoveryStatus = search.isError ? 'error' : search.isLoading ? 'loading' : 'ready';
     const cloningId = clone.isPending ? (clone.variables ?? null) : null;
 
+    // S4 — flatten the fetched pages; facets describe the whole set (read from the first page).
+    const results = search.data?.pages.flatMap((page) => page.results) ?? [];
+    const facets = search.data?.pages[0]?.facets ?? {};
+
     return (
         <RecipeDiscoveryList
             status={status}
-            results={search.data?.results ?? []}
+            results={results}
             searchValue={searchValue}
             onSearchChange={setSearchValue}
             onSelectRecipe={onSelectRecipe}
@@ -66,9 +70,14 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
             sort={{ active: sortBy, onChange: setSortBy }}
+            loadMore={{
+                hasMore: search.hasNextPage,
+                loading: search.isFetchingNextPage,
+                onLoadMore: () => void search.fetchNextPage(),
+            }}
             filterSlot={
                 <RecipeFilterBar
-                    facets={search.data?.facets ?? {}}
+                    facets={facets}
                     filters={filters}
                     onToggleFacet={(dimension: FacetDimension, value: string) =>
                         setFilters((current) => toggleFacetValue(current, dimension, value))

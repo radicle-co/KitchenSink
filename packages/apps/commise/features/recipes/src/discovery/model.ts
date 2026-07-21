@@ -86,4 +86,17 @@ export interface RecipeDiscoveryListProps {
     readonly filterSlot?: ReactNode;
     /** Optional sort control (S3). Absent → no sort UI (e.g. a surface that only browses). */
     readonly sort?: RecipeDiscoverySortControl;
+    /** Optional load-more pager (S4). Absent → no pagination control. */
+    readonly loadMore?: RecipeDiscoveryLoadMoreControl;
+}
+
+/**
+ * The load-more pager (S4): whether another page exists, whether the next page is in flight, and the
+ * fetch-next callback. The view renders a "Load more" button only while {@link hasMore}; it vanishes at the
+ * last page ("no infinite scroll").
+ */
+export interface RecipeDiscoveryLoadMoreControl {
+    readonly hasMore: boolean;
+    readonly loading: boolean;
+    readonly onLoadMore: () => void;
 }

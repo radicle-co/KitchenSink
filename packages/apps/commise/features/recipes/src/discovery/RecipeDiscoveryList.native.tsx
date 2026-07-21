@@ -46,6 +46,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     hasActiveFilters = false,
     filterSlot,
     sort,
+    loadMore,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -102,6 +103,20 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                         onClone={onClone}
                     />
                 ))}
+                {loadMore?.hasMore === true && (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={loadMore.loading ? discovery.loadingMore : discovery.loadMore}
+                        accessibilityState={{ busy: loadMore.loading, disabled: loadMore.loading }}
+                        disabled={loadMore.loading}
+                        onPress={loadMore.onLoadMore}
+                        style={[styles.loadMore, loadMore.loading && styles.loadMoreBusy]}
+                    >
+                        <Text style={styles.loadMoreLabel}>
+                            {loadMore.loading ? discovery.loadingMore : discovery.loadMore}
+                        </Text>
+                    </Pressable>
+                )}
             </ScrollView>
         );
     }
@@ -165,6 +180,16 @@ const styles = StyleSheet.create({
     sortChipActive: { backgroundColor: palette.charcoal },
     sortLabelText: { fontSize: 14, fontWeight: '500', color: palette.slate },
     sortLabelActive: { fontSize: 14, fontWeight: '500', color: palette.white },
+    loadMore: {
+        alignSelf: 'center',
+        backgroundColor: palette.pearl,
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 24,
+        marginTop: 8,
+    },
+    loadMoreBusy: { opacity: 0.6 },
+    loadMoreLabel: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
     cardsScroll: { flex: 1 },
     cards: { gap: 12, paddingBottom: 24 },
 });

@@ -54,6 +54,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     hasActiveFilters = false,
     filterSlot,
     sort,
+    loadMore,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -107,6 +108,18 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                         </li>
                     ))}
                 </ul>
+                {loadMore?.hasMore === true && (
+                    // S4 — explicit "Load more" (no infinite scroll); it vanishes once the last page is reached.
+                    <button
+                        type="button"
+                        onClick={loadMore.onLoadMore}
+                        disabled={loadMore.loading}
+                        aria-busy={loadMore.loading || undefined}
+                        className="self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 disabled:opacity-60"
+                    >
+                        {loadMore.loading ? discovery.loadingMore : discovery.loadMore}
+                    </button>
+                )}
             </div>
         );
     }

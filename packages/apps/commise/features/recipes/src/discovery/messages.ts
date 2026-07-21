@@ -23,6 +23,16 @@ export interface DiscoveryMessages {
     readonly countOther: string;
     /** Query-echo results header when a search term is active (contains `{count}` and `{query}`) — S5. */
     readonly resultsForQuery: string;
+    /** Accessible name for the sort control (S3). */
+    readonly sortLabel: string;
+    /** Visible label for the Relevance sort. */
+    readonly sortRelevance: string;
+    /** Visible label for the Newest (recent) sort. */
+    readonly sortNewest: string;
+    /** Visible label for the Most-cloned sort. */
+    readonly sortMostCloned: string;
+    /** Visible label for the Quickest sort. */
+    readonly sortQuickest: string;
     /** Accessible label for the loading state. */
     readonly loadingLabel: string;
     /** Heading of the browse-empty state (no public recipes to show at all). */
@@ -57,6 +67,11 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         countOne: '{count} recipe',
         countOther: '{count} recipes',
         resultsForQuery: 'Showing {count} for “{query}”',
+        sortLabel: 'Sort by',
+        sortRelevance: 'Relevance',
+        sortNewest: 'Newest',
+        sortMostCloned: 'Most cloned',
+        sortQuickest: 'Quickest',
         loadingLabel: 'Loading recipes',
         emptyTitle: 'No recipes found',
         emptyBody: 'Try a different search to discover public recipes.',

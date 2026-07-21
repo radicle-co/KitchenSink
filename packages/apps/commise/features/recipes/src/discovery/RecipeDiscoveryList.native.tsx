@@ -10,10 +10,28 @@ import { palette } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
+
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
-import { discoveryMessages } from './messages.js';
+import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
-import { toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
+import { DISCOVERY_SORTS, toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
+
+/** Visible label for each discovery sort option (S3). */
+const sortLabel = (sort: RecipeSearchSortBy, m: DiscoveryMessages): string => {
+    switch (sort) {
+        case RecipeSearchSortBy.RELEVANCE:
+            return m.sortRelevance;
+        case RecipeSearchSortBy.RECENT:
+            return m.sortNewest;
+        case RecipeSearchSortBy.MOST_CLONED:
+            return m.sortMostCloned;
+        case RecipeSearchSortBy.QUICKEST:
+            return m.sortQuickest;
+        default:
+            return m.sortRelevance;
+    }
+};
 
 export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     status,
@@ -26,6 +44,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     cloningId,
     hasActiveFilters = false,
     filterSlot,
+    sort,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -102,6 +121,27 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 style={styles.search}
             />
             {filterSlot}
+            {sort !== undefined && (
+                <View accessibilityRole="radiogroup" accessibilityLabel={discovery.sortLabel} style={styles.sortRow}>
+                    {DISCOVERY_SORTS.map((option) => {
+                        const checked = sort.active === option;
+
+                        return (
+                            <Pressable
+                                key={option}
+                                accessibilityRole="radio"
+                                accessibilityState={{ checked }}
+                                onPress={() => sort.onChange(option)}
+                                style={[styles.sortChip, checked && styles.sortChipActive]}
+                            >
+                                <Text style={checked ? styles.sortLabelActive : styles.sortLabelText}>
+                                    {sortLabel(option, discovery)}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+            )}
             {body}
         </View>
     );
@@ -121,6 +161,11 @@ const styles = StyleSheet.create({
         color: palette.charcoal,
     },
     count: { fontSize: 13, fontWeight: '500', color: palette.slate },
+    sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    sortChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: palette.pearl },
+    sortChipActive: { backgroundColor: palette.charcoal },
+    sortLabelText: { fontSize: 14, fontWeight: '500', color: palette.slate },
+    sortLabelActive: { fontSize: 14, fontWeight: '500', color: palette.white },
     cardsScroll: { flex: 1 },
     cards: { gap: 12, paddingBottom: 24 },
 });

@@ -20,6 +20,7 @@ import {
     type RecipeDiscoveryStatus,
     type RecipeFilterState,
 } from '@commise/features-recipes';
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -45,8 +46,9 @@ export interface RecipeDiscoveryScreenProps {
 export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: RecipeDiscoveryScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
     const [filters, setFilters] = useState<RecipeFilterState>(initialFilters ?? EMPTY_RECIPE_FILTERS);
+    const [sortBy, setSortBy] = useState<RecipeSearchSortBy>(RecipeSearchSortBy.RELEVANCE);
 
-    const search = useSearchRecipes(filtersToSearchParams(filters, searchValue));
+    const search = useSearchRecipes({ ...filtersToSearchParams(filters, searchValue), sortBy });
     const clone = useCloneRecipe();
 
     const status: RecipeDiscoveryStatus = search.isError ? 'error' : search.isLoading ? 'loading' : 'ready';
@@ -63,6 +65,7 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
             onRetry={() => void search.refetch()}
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
+            sort={{ active: sortBy, onChange: setSortBy }}
             filterSlot={
                 <RecipeFilterBar
                     facets={search.data?.facets ?? {}}

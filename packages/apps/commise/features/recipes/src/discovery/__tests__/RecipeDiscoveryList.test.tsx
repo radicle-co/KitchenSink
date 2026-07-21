@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
+import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeDiscoveryList } from '../RecipeDiscoveryList.js';
@@ -146,6 +146,28 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         renderDiscovery({ status: 'ready', results: threeResults, searchValue: 'pasta' });
 
         expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
+    });
+
+    it('renders the sort control with the active option checked and reports a change (S3)', () => {
+        const onChange = vi.fn();
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            sort: { active: RecipeSearchSortBy.RELEVANCE, onChange },
+        });
+
+        const group = screen.getByRole('radiogroup', { name: 'Sort by' });
+        expect(within(group).getByRole('radio', { name: 'Relevance' }).getAttribute('aria-checked')).toBe('true');
+        expect(within(group).getByRole('radio', { name: 'Quickest' }).getAttribute('aria-checked')).toBe('false');
+
+        fireEvent.click(within(group).getByRole('radio', { name: 'Quickest' }));
+        expect(onChange).toHaveBeenCalledWith('quickest');
+    });
+
+    it('renders no sort control when no sort prop is given', () => {
+        renderDiscovery({ status: 'ready', results: threeResults });
+
+        expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
     });
 
     it('renders one row per result in a list structure', () => {

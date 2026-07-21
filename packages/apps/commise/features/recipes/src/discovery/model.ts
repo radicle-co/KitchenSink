@@ -8,7 +8,24 @@
  */
 import type { ReactNode } from 'react';
 
-import type { RecipeSearchResult } from '@kitchensink/recipe-core';
+import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe-core';
+
+/**
+ * The sort options the discovery UI offers (S3), in display order — a subset of {@link RecipeSearchSortBy}
+ * (the `title` sort is a library concern, not a discovery one). Backed by W8-a.9 (`most-cloned`, `quickest`).
+ */
+export const DISCOVERY_SORTS: readonly RecipeSearchSortBy[] = [
+    RecipeSearchSortBy.RELEVANCE,
+    RecipeSearchSortBy.RECENT,
+    RecipeSearchSortBy.MOST_CLONED,
+    RecipeSearchSortBy.QUICKEST,
+];
+
+/** The sort control (S3): the active sort and a change callback. Absent → the view renders no sort control. */
+export interface RecipeDiscoverySortControl {
+    readonly active: RecipeSearchSortBy;
+    readonly onChange: (sort: RecipeSearchSortBy) => void;
+}
 
 /**
  * The three top-level states the discovery view renders. `ready` further splits into empty vs populated on
@@ -81,4 +98,6 @@ export interface RecipeDiscoveryListProps {
      * box, above the results. The view stays presentational and unaware of filter semantics.
      */
     readonly filterSlot?: ReactNode;
+    /** Optional sort control (S3). Absent → no sort UI (e.g. a surface that only browses). */
+    readonly sort?: RecipeDiscoverySortControl;
 }

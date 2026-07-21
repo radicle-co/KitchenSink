@@ -150,7 +150,8 @@ describe('RecipeDiscoveryContainer', () => {
 
         render(<RecipeDiscoveryContainer locale="en" />);
 
-        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({});
+        // The default sort (relevance, S3) rides along with the search params.
+        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ sortBy: 'relevance' });
     });
 
     it('projects the filters from the URL onto the search params and the pressed chips', () => {
@@ -165,8 +166,25 @@ describe('RecipeDiscoveryContainer', () => {
 
         render(<RecipeDiscoveryContainer locale="en" />);
 
-        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ dietaryFlags: ['vegan'] });
+        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ dietaryFlags: ['vegan'], sortBy: 'relevance' });
         expect(screen.getByRole('button', { name: 'vegan, 2 recipes' }).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('re-runs the search with the chosen sort (S3)', async () => {
+        const user = userEvent.setup();
+        useSearchRecipesMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            data: makeSearchResponse([]),
+            refetch: refetchMock,
+        });
+        mockClone();
+
+        render(<RecipeDiscoveryContainer locale="en" />);
+
+        await user.click(screen.getByRole('radio', { name: 'Quickest' }));
+
+        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ sortBy: 'quickest' });
     });
 
     it('writes a toggled facet to the URL', async () => {

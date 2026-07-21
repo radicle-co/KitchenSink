@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
+import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -119,6 +119,20 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         renderDiscovery({ status: 'ready', results: threeResults, searchValue: 'pasta' });
 
         expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
+    });
+
+    it('renders the sort options and reports a change (S3)', () => {
+        const onChange = vi.fn();
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            sort: { active: RecipeSearchSortBy.RELEVANCE, onChange },
+        });
+
+        expect(screen.getByText('Relevance')).toBeTruthy();
+        fireEvent.click(screen.getByText('Quickest'));
+
+        expect(onChange).toHaveBeenCalledWith('quickest');
     });
 
     it('renders one row per result and reports selection upward', () => {

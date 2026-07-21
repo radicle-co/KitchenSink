@@ -9,10 +9,28 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
+
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
-import { discoveryMessages } from './messages.js';
+import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
-import { toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
+import { DISCOVERY_SORTS, toRecipeDiscoveryItem, type RecipeDiscoveryListProps } from './model.js';
+
+/** Visible label for each discovery sort option (S3). */
+const sortLabel = (sort: RecipeSearchSortBy, m: DiscoveryMessages): string => {
+    switch (sort) {
+        case RecipeSearchSortBy.RELEVANCE:
+            return m.sortRelevance;
+        case RecipeSearchSortBy.RECENT:
+            return m.sortNewest;
+        case RecipeSearchSortBy.MOST_CLONED:
+            return m.sortMostCloned;
+        case RecipeSearchSortBy.QUICKEST:
+            return m.sortQuickest;
+        default:
+            return m.sortRelevance;
+    }
+};
 
 /** The loading placeholder — a busy status region with inert skeleton rows (hidden from assistive tech). */
 const LoadingBody: FC<{ label: string }> = ({ label }) => (
@@ -34,6 +52,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     cloningId,
     hasActiveFilters = false,
     filterSlot,
+    sort,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -107,6 +126,28 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
             />
             {filterSlot}
+            {sort !== undefined && (
+                <div role="radiogroup" aria-label={discovery.sortLabel} className="flex flex-wrap gap-2">
+                    {DISCOVERY_SORTS.map((option) => {
+                        const checked = sort.active === option;
+
+                        return (
+                            <button
+                                key={option}
+                                type="button"
+                                role="radio"
+                                aria-checked={checked}
+                                onClick={() => sort.onChange(option)}
+                                className={`rounded-full px-3 py-1 text-body-sm font-medium transition ${
+                                    checked ? 'bg-charcoal text-white' : 'bg-pearl text-slate hover:bg-mist/40'
+                                }`}
+                            >
+                                {sortLabel(option, discovery)}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
             {body}
         </section>
     );

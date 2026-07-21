@@ -23,10 +23,11 @@ import {
     toggleFacetValue,
     type RecipeFilterState,
 } from '@commise/features-recipes';
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useCloneRecipe, useSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import type { FC } from 'react';
 
 /** Props for {@link RecipeDiscoveryContainer}. */
@@ -63,7 +64,11 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     // the view in lockstep with a shared/reloaded link and the back button.
     const { filters, query } = filtersFromQueryString(searchParams.toString());
 
-    const search = useSearchRecipes(filtersToSearchParams(filters, query));
+    // Sort is a view preference (S3), kept in local state — it re-runs the visibility-scoped search with a new
+    // `sortBy` but is not part of the shareable URL criteria (those are the filters + query).
+    const [sortBy, setSortBy] = useState<RecipeSearchSortBy>(RecipeSearchSortBy.RELEVANCE);
+
+    const search = useSearchRecipes({ ...filtersToSearchParams(filters, query), sortBy });
     const clone = useCloneRecipe();
 
     const status = toDiscoveryStatus(search.isLoading, search.isError);
@@ -94,6 +99,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             onRetry={() => void search.refetch()}
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
+            sort={{ active: sortBy, onChange: setSortBy }}
             filterSlot={
                 <RecipeFilterBar
                     facets={search.data?.facets ?? {}}

@@ -1,40 +1,57 @@
 /**
- * @module @commise/features-recipes — native recipe filter bar (FR-006 building block).
+ * @module @commise/features-recipes — native recipe filter bar (FR-006 / W4 S2).
  *
- * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — same controlled,
- * presentational, facet-driven contract, rendered with RN primitives. Each chip is a `Pressable` with
- * `accessibilityRole="button"`; its selected state is exposed both as the native `selected` trait
- * (`accessibilityState`) and as `aria-pressed` (the attribute react-native-web surfaces to the DOM, which the
- * native component tests assert on), so screen readers on-device and the test harness agree.
+ * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — the same P9
+ * descriptor-driven contract (facets are DATA dispatched through a `kind → renderer` map), rendered with RN
+ * primitives. Dietary + Tags are multi-select chips, Cuisine is single-select (the search API filters by ONE
+ * cuisine), and Prep-time + Total-time are bucket ladders (there is no cook-time filter). Each chip is a
+ * `Pressable` exposing its selected state as both the native `selected` trait and `aria-pressed` (what
+ * react-native-web surfaces to the DOM for the tests), so on-device readers and the harness agree.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import type { FC } from 'react';
+import type { FC, ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
-import { filterMessages } from './messages.js';
+import { filterMessages, type FilterMessages } from './messages.js';
 import {
+    TIME_BUCKETS_MINUTES,
     buildFacetChips,
     countActiveFilters,
     formatFacetChipName,
     hasActiveFilters,
-    TOTAL_TIME_BUCKETS_MINUTES,
     type FacetDimension,
     type RecipeFacetChip,
     type RecipeFilterBarProps,
 } from './model.js';
 
-const FACET_GROUPS: readonly { readonly dimension: FacetDimension; readonly labelKey: 'dietaryLabel' | 'tagsLabel' }[] =
-    [
-        { dimension: 'dietaryFlags', labelKey: 'dietaryLabel' },
-        { dimension: 'tags', labelKey: 'tagsLabel' },
-    ];
+/** The kinds of facet the render map knows how to draw. */
+type FacetKind = 'multiChip' | 'singleChip' | 'timeBucket';
+
+/** One facet, expressed as DATA (P9). The render map dispatches on {@link kind}. */
+interface FacetDescriptor {
+    readonly id: string;
+    readonly kind: FacetKind;
+    readonly labelKey: keyof FilterMessages;
+    readonly dimension?: FacetDimension;
+    readonly timeField?: 'maxPrepTime' | 'maxTotalTime';
+}
+
+const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
+    { id: 'dietaryFlags', kind: 'multiChip', dimension: 'dietaryFlags', labelKey: 'dietaryLabel' },
+    { id: 'cuisine', kind: 'singleChip', labelKey: 'cuisineLabel' },
+    { id: 'tags', kind: 'multiChip', dimension: 'tags', labelKey: 'tagsLabel' },
+    { id: 'maxPrepTime', kind: 'timeBucket', timeField: 'maxPrepTime', labelKey: 'maxPrepTimeLabel' },
+    { id: 'maxTotalTime', kind: 'timeBucket', timeField: 'maxTotalTime', labelKey: 'maxTotalTimeLabel' },
+];
 
 export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     facets,
     filters,
     onToggleFacet,
+    onSetCuisine,
+    onSetMaxPrepTime,
     onSetMaxTotalTime,
     onClearAll,
 }) => {
@@ -42,67 +59,89 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     const locale = useLocale();
     const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
 
-    const renderChip = (chip: RecipeFacetChip, dimension: FacetDimension) => {
-        const name = formatFacetChipName(chip, countLabels, locale);
+    const chipButton = (chip: RecipeFacetChip, onSelect: () => void): ReactElement => (
+        <Pressable
+            key={chip.value}
+            accessibilityRole="button"
+            accessibilityLabel={formatFacetChipName(chip, countLabels, locale)}
+            accessibilityState={{ selected: chip.selected }}
+            aria-pressed={chip.selected}
+            onPress={onSelect}
+            style={[styles.chip, chip.selected ? styles.chipSelected : styles.chipUnselected]}
+        >
+            <Text style={chip.selected ? styles.chipTextSelected : styles.chipText}>
+                {chip.count === undefined ? chip.value : `${chip.value} ${chip.count}`}
+            </Text>
+        </Pressable>
+    );
 
-        return (
-            <Pressable
-                key={chip.value}
-                accessibilityRole="button"
-                accessibilityLabel={name}
-                accessibilityState={{ selected: chip.selected }}
-                aria-pressed={chip.selected}
-                onPress={() => onToggleFacet(dimension, chip.value)}
-                style={[styles.chip, chip.selected ? styles.chipSelected : styles.chipUnselected]}
-            >
-                <Text style={chip.selected ? styles.chipTextSelected : styles.chipText}>
-                    {chip.count === undefined ? chip.value : `${chip.value} ${chip.count}`}
-                </Text>
-            </Pressable>
-        );
+    const timeButton = (minutes: number, active: boolean, onPress: () => void): ReactElement => (
+        <Pressable
+            key={minutes}
+            accessibilityRole="button"
+            accessibilityLabel={fillTemplate(m.timeBucket, { minutes })}
+            accessibilityState={{ selected: active }}
+            aria-pressed={active}
+            onPress={onPress}
+            style={[styles.chip, active ? styles.chipSelected : styles.chipUnselected]}
+        >
+            <Text style={active ? styles.chipTextSelected : styles.chipText}>
+                {fillTemplate(m.timeBucket, { minutes })}
+            </Text>
+        </Pressable>
+    );
+
+    const group = (label: string, children: readonly ReactElement[]): ReactElement => (
+        <View role="group" aria-label={label} style={styles.group}>
+            <Text style={styles.groupLabel}>{label}</Text>
+            <View style={styles.chipRow}>{children}</View>
+        </View>
+    );
+
+    const renderers: Record<FacetKind, (descriptor: FacetDescriptor) => ReactElement | null> = {
+        multiChip: ({ dimension, labelKey }) => {
+            const chips = buildFacetChips(facets[dimension as 'dietaryFlags' | 'tags'], filters[dimension!] ?? []);
+
+            if (chips.length === 0) {
+                return null;
+            }
+
+            return group(
+                m[labelKey],
+                chips.map((chip) => chipButton(chip, () => onToggleFacet(dimension!, chip.value))),
+            );
+        },
+        singleChip: ({ labelKey }) => {
+            const chips = buildFacetChips(facets.cuisine, filters.cuisine !== undefined ? [filters.cuisine] : []);
+
+            if (chips.length === 0) {
+                return null;
+            }
+
+            return group(
+                m[labelKey],
+                chips.map((chip) => chipButton(chip, () => onSetCuisine(chip.value))),
+            );
+        },
+        timeBucket: ({ timeField, labelKey }) => {
+            const set = timeField === 'maxPrepTime' ? onSetMaxPrepTime : onSetMaxTotalTime;
+
+            return group(
+                m[labelKey],
+                TIME_BUCKETS_MINUTES.map((minutes) => {
+                    const active = filters[timeField!] === minutes;
+
+                    return timeButton(minutes, active, () => set(active ? undefined : minutes));
+                }),
+            );
+        },
     };
 
     return (
         <View role="group" aria-label={m.barLabel} style={styles.container}>
-            {FACET_GROUPS.map(({ dimension, labelKey }) => {
-                const chips = buildFacetChips(facets[dimension], filters[dimension] ?? []);
-
-                if (chips.length === 0) {
-                    return null;
-                }
-
-                return (
-                    <View key={dimension} role="group" aria-label={m[labelKey]} style={styles.group}>
-                        <Text style={styles.groupLabel}>{m[labelKey]}</Text>
-                        <View style={styles.chipRow}>{chips.map((chip) => renderChip(chip, dimension))}</View>
-                    </View>
-                );
-            })}
-
-            <View role="group" aria-label={m.maxTotalTimeLabel} style={styles.group}>
-                <Text style={styles.groupLabel}>{m.maxTotalTimeLabel}</Text>
-                <View style={styles.chipRow}>
-                    {TOTAL_TIME_BUCKETS_MINUTES.map((minutes) => {
-                        const active = filters.maxTotalTime === minutes;
-
-                        return (
-                            <Pressable
-                                key={minutes}
-                                accessibilityRole="button"
-                                accessibilityLabel={fillTemplate(m.timeBucket, { minutes })}
-                                accessibilityState={{ selected: active }}
-                                aria-pressed={active}
-                                onPress={() => onSetMaxTotalTime(active ? undefined : minutes)}
-                                style={[styles.chip, active ? styles.chipSelected : styles.chipUnselected]}
-                            >
-                                <Text style={active ? styles.chipTextSelected : styles.chipText}>
-                                    {fillTemplate(m.timeBucket, { minutes })}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
-            </View>
+            {FACET_DESCRIPTORS.map((descriptor) => (
+                <View key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</View>
+            ))}
 
             {hasActiveFilters(filters) && (
                 <Pressable

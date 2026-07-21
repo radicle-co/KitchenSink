@@ -9,6 +9,7 @@ export { RecipeFilterBar } from './RecipeFilterBar.js';
 
 export {
     EMPTY_RECIPE_FILTERS,
+    TIME_BUCKETS_MINUTES,
     TOTAL_TIME_BUCKETS_MINUTES,
     buildFacetChips,
     clearRecipeFilters,
@@ -18,6 +19,8 @@ export {
     filtersToSearchParams,
     formatFacetChipName,
     hasActiveFilters,
+    setCuisine,
+    setMaxPrepTime,
     setMaxTotalTime,
     toggleFacetValue,
 } from './model.js';

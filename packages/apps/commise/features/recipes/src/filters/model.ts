@@ -419,8 +419,12 @@ export interface RecipeFilterBarProps {
     readonly facets: RecipeFacets;
     /** The active filter state (drives selected/pressed chips and the clear-all summary). */
     readonly filters: RecipeFilterState;
-    /** Toggle a facet value within a dimension. */
+    /** Toggle a facet value within a multi-select dimension (dietary, tags). */
     readonly onToggleFacet: (dimension: FacetDimension, value: string) => void;
+    /** Set the single-select cuisine, or clear it by re-selecting the active one / passing `undefined` (S2). */
+    readonly onSetCuisine: (cuisine: string | undefined) => void;
+    /** Set the max-prep-time bound, or clear it with `undefined` (S2). */
+    readonly onSetMaxPrepTime: (minutes: number | undefined) => void;
     /** Set the max-total-time bound, or clear it with `undefined`. */
     readonly onSetMaxTotalTime: (minutes: number | undefined) => void;
     /** Clear every active filter. */

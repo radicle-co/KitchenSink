@@ -24,6 +24,8 @@ function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
         facets: {},
         filters: EMPTY_RECIPE_FILTERS,
         onToggleFacet: noop,
+        onSetCuisine: noop,
+        onSetMaxPrepTime: noop,
         onSetMaxTotalTime: noop,
         onClearAll: noop,
         ...overrides,
@@ -48,15 +50,17 @@ describe('RecipeFilterBar (native) — structure', () => {
         expect(screen.getByRole('group', { name: 'Filter recipes' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Dietary' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Tags' })).toBeTruthy();
-        expect(screen.getByRole('group', { name: 'Max total time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Prep time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Total time' })).toBeTruthy();
     });
 
-    it('renders the time ladder even with no facets', () => {
+    it('renders the time ladders even with no facets', () => {
         renderBar({ facets: {} });
 
-        expect(screen.getByRole('button', { name: 'Under 15 min' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Under 30 min' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Under 60 min' })).toBeTruthy();
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        expect(total.getByRole('button', { name: 'Under 15 min' })).toBeTruthy();
+        expect(total.getByRole('button', { name: 'Under 30 min' })).toBeTruthy();
+        expect(total.getByRole('button', { name: 'Under 60 min' })).toBeTruthy();
     });
 
     it('omits a facet dimension when the server returns none and none is selected', () => {
@@ -119,15 +123,17 @@ describe('RecipeFilterBar (native) — time ladder', () => {
     it('presses only the active bound', () => {
         renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 } });
 
-        expect(screen.getByRole('button', { name: 'Under 30 min' }).getAttribute('aria-pressed')).toBe('true');
-        expect(screen.getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('false');
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        expect(total.getByRole('button', { name: 'Under 30 min' }).getAttribute('aria-pressed')).toBe('true');
+        expect(total.getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('false');
     });
 
     it('sets the bound when an inactive bucket is pressed', () => {
         const onSetMaxTotalTime = vi.fn();
         renderBar({ onSetMaxTotalTime });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Under 30 min' }));
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        fireEvent.click(total.getByRole('button', { name: 'Under 30 min' }));
 
         expect(onSetMaxTotalTime).toHaveBeenCalledWith(30);
     });
@@ -136,9 +142,30 @@ describe('RecipeFilterBar (native) — time ladder', () => {
         const onSetMaxTotalTime = vi.fn();
         renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, onSetMaxTotalTime });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Under 30 min' }));
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        fireEvent.click(total.getByRole('button', { name: 'Under 30 min' }));
 
         expect(onSetMaxTotalTime).toHaveBeenCalledWith(undefined);
+    });
+
+    it('sets a prep bound from the Prep time ladder (S2)', () => {
+        const onSetMaxPrepTime = vi.fn();
+        renderBar({ onSetMaxPrepTime });
+
+        const prep = within(screen.getByRole('group', { name: 'Prep time' }));
+        fireEvent.click(prep.getByRole('button', { name: 'Under 15 min' }));
+
+        expect(onSetMaxPrepTime).toHaveBeenCalledWith(15);
+    });
+
+    it('renders the single-select Cuisine group and reports a selection (S2)', () => {
+        const onSetCuisine = vi.fn();
+        renderBar({ facets: { cuisine: [{ value: 'Thai', count: 5 }] }, onSetCuisine });
+
+        const cuisine = within(screen.getByRole('group', { name: 'Cuisine' }));
+        fireEvent.click(cuisine.getByRole('button', { name: /Thai/ }));
+
+        expect(onSetCuisine).toHaveBeenCalledWith('Thai');
     });
 });
 

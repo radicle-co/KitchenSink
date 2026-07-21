@@ -13,6 +13,8 @@ import {
     clearRecipeFilters,
     filtersToSearchParams,
     hasActiveFilters,
+    setCuisine,
+    setMaxPrepTime,
     setMaxTotalTime,
     toggleFacetValue,
     EMPTY_RECIPE_FILTERS,
@@ -82,6 +84,8 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
                     onToggleFacet={(dimension: FacetDimension, value: string) =>
                         setFilters((current) => toggleFacetValue(current, dimension, value))
                     }
+                    onSetCuisine={(cuisine) => setFilters((current) => setCuisine(current, cuisine))}
+                    onSetMaxPrepTime={(minutes) => setFilters((current) => setMaxPrepTime(current, minutes))}
                     onSetMaxTotalTime={(minutes) => setFilters((current) => setMaxTotalTime(current, minutes))}
                     onClearAll={() => setFilters(clearRecipeFilters())}
                 />

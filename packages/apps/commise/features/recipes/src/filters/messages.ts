@@ -16,6 +16,10 @@ export interface FilterMessages {
     readonly dietaryLabel: string;
     /** Group label for the tag facet. */
     readonly tagsLabel: string;
+    /** Group label for the single-select Cuisine facet (S2). */
+    readonly cuisineLabel: string;
+    /** Group label for the max-prep-time bound (S2). */
+    readonly maxPrepTimeLabel: string;
     /** Group label for the max-total-time bound. */
     readonly maxTotalTimeLabel: string;
     /** Time-bucket button template (contains `{minutes}`). */
@@ -35,7 +39,9 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         barLabel: 'Filter recipes',
         dietaryLabel: 'Dietary',
         tagsLabel: 'Tags',
-        maxTotalTimeLabel: 'Max total time',
+        cuisineLabel: 'Cuisine',
+        maxPrepTimeLabel: 'Prep time',
+        maxTotalTimeLabel: 'Total time',
         timeBucket: 'Under {minutes} min',
         chipCountOne: '{count} recipe',
         chipCountOther: '{count} recipes',

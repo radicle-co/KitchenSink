@@ -169,7 +169,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </Field>
                 {errors?.title !== undefined && (
                     <Text accessibilityRole="alert" style={styles.error}>
-                        {errors.title}
+                        {m.errors[errors.title]}
                     </Text>
                 )}
                 <Field label={m.descriptionLabel}>
@@ -248,7 +248,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </Field>
                 {errors?.servings !== undefined && (
                     <Text accessibilityRole="alert" style={styles.error}>
-                        {errors.servings}
+                        {m.errors[errors.servings]}
                     </Text>
                 )}
                 <Field label={m.prepTimeLabel}>
@@ -271,7 +271,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </Field>
                 {errors?.times !== undefined && (
                     <Text accessibilityRole="alert" style={styles.error}>
-                        {errors.times}
+                        {m.errors[errors.times]}
                     </Text>
                 )}
                 <Text style={styles.totalTime}>
@@ -285,7 +285,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </Text>
                 {errors?.ingredients !== undefined && (
                     <Text accessibilityRole="alert" style={styles.error}>
-                        {errors.ingredients}
+                        {m.errors[errors.ingredients]}
                     </Text>
                 )}
                 {ingredientRows.length === 0 ? <Text style={styles.emptyText}>{m.noIngredients}</Text> : ingredientRows}
@@ -306,7 +306,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </Text>
                 {errors?.steps !== undefined && (
                     <Text accessibilityRole="alert" style={styles.error}>
-                        {errors.steps}
+                        {m.errors[errors.steps]}
                     </Text>
                 )}
                 {stepRows.length === 0 ? <Text style={styles.emptyText}>{m.noSteps}</Text> : stepRows}

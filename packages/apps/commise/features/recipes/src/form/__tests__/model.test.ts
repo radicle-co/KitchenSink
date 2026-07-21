@@ -238,25 +238,25 @@ describe('validateRecipeForm', () => {
         expect(validateRecipeForm(filledValues())).toEqual({});
     });
 
-    it('requires a title', () => {
-        expect(validateRecipeForm(filledValues({ title: '   ' })).title).toBeDefined();
+    it('requires a title (returns the locale-agnostic code, not English copy)', () => {
+        expect(validateRecipeForm(filledValues({ title: '   ' })).title).toBe('titleRequired');
     });
 
     it('requires at least one ingredient and one step', () => {
-        expect(validateRecipeForm(filledValues({ ingredients: [] })).ingredients).toBeDefined();
-        expect(validateRecipeForm(filledValues({ steps: [] })).steps).toBeDefined();
+        expect(validateRecipeForm(filledValues({ ingredients: [] })).ingredients).toBe('ingredientsEmpty');
+        expect(validateRecipeForm(filledValues({ steps: [] })).steps).toBe('stepsRequired');
     });
 
     it('flags an ingredient line that has not resolved to a catalog id', () => {
         const errors = validateRecipeForm(
             filledValues({ ingredients: [{ ingredientId: null, name: 'Kale', quantity: 1 }] }),
         );
-        expect(errors.ingredients).toBeDefined();
+        expect(errors.ingredients).toBe('ingredientsUnresolved');
     });
 
     it('requires positive servings and non-negative times', () => {
-        expect(validateRecipeForm(filledValues({ servings: 0 })).servings).toBeDefined();
-        expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBeDefined();
+        expect(validateRecipeForm(filledValues({ servings: 0 })).servings).toBe('servingsPositive');
+        expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBe('timesNonNegative');
     });
 });
 

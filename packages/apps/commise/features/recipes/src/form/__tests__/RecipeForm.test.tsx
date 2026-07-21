@@ -320,11 +320,11 @@ describe('RecipeForm (web) — validation errors', () => {
     it('surfaces every provided field error', () => {
         renderForm({
             errors: {
-                title: 'A title is required.',
-                ingredients: 'Add at least one ingredient.',
-                steps: 'Add at least one instruction step.',
-                servings: 'Servings must be greater than zero.',
-                times: 'Times cannot be negative.',
+                title: 'titleRequired',
+                ingredients: 'ingredientsEmpty',
+                steps: 'stepsRequired',
+                servings: 'servingsPositive',
+                times: 'timesNonNegative',
             },
         });
 
@@ -428,10 +428,12 @@ describe('RecipeForm (web) — every action button carries an icon and a real su
         for (const name of ['Add ingredient', 'Add step', 'Cancel'] as const) {
             expect(screen.getByRole('button', { name }).className).toContain('border');
         }
+
         // Destructive remove actions are error-toned.
         for (const name of ['Remove ingredient 1', 'Remove step 1'] as const) {
             expect(screen.getByRole('button', { name }).className).toContain('error');
         }
+
         // The primary submit is a filled seafoam CTA.
         expect(screen.getByRole('button', { name: 'Create recipe' }).className).toContain('seafoam');
     });

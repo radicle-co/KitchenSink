@@ -242,19 +242,32 @@ export const setIngredientStatusById = (
     return changed ? { ...values, ingredients } : values;
 };
 
-/** Field-level validation errors (a message per invalid field; absent when valid). */
+/**
+ * A validation-error CODE (not user copy) — the discriminant a leaf resolves to localized text via
+ * `recipeFormMessages.errors` (B20). Returning codes keeps `validateRecipeForm` pure and locale-free; the
+ * form components own the copy, mirroring the rating model's discriminant pattern.
+ */
+export type RecipeFormErrorCode =
+    | 'titleRequired'
+    | 'ingredientsEmpty'
+    | 'ingredientsUnresolved'
+    | 'stepsRequired'
+    | 'servingsPositive'
+    | 'timesNonNegative';
+
+/** Field-level validation errors (an error CODE per invalid field; absent when valid). */
 export interface RecipeFormErrors {
-    title?: string;
-    ingredients?: string;
-    steps?: string;
-    servings?: string;
-    times?: string;
+    title?: RecipeFormErrorCode;
+    ingredients?: RecipeFormErrorCode;
+    steps?: RecipeFormErrorCode;
+    servings?: RecipeFormErrorCode;
+    times?: RecipeFormErrorCode;
 }
 
 /**
  * Validate the form for submission: title present, ≥1 ingredient with EVERY line resolved to a catalog id
  * and a positive quantity, ≥1 step with a non-empty instruction, positive servings, non-negative times.
- * Pure — returns an errors object (empty when valid).
+ * Pure and locale-free — returns error CODES (the leaf resolves copy). Empty object when submittable.
  *
  * @param values - The editor's form values.
  * @returns The {@link RecipeFormErrors} (empty object when the form is submittable).
@@ -263,25 +276,25 @@ export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors =
     const errors: RecipeFormErrors = {};
 
     if (values.title.trim() === '') {
-        errors.title = 'A title is required.';
+        errors.title = 'titleRequired';
     }
 
     if (values.ingredients.length === 0) {
-        errors.ingredients = 'Add at least one ingredient.';
+        errors.ingredients = 'ingredientsEmpty';
     } else if (values.ingredients.some((line) => line.ingredientId === null || line.quantity <= 0)) {
-        errors.ingredients = 'Every ingredient needs a resolved item and a quantity greater than zero.';
+        errors.ingredients = 'ingredientsUnresolved';
     }
 
     if (values.steps.length === 0 || values.steps.some((step) => step.instruction.trim() === '')) {
-        errors.steps = 'Add at least one instruction step.';
+        errors.steps = 'stepsRequired';
     }
 
     if (values.servings <= 0) {
-        errors.servings = 'Servings must be greater than zero.';
+        errors.servings = 'servingsPositive';
     }
 
     if (values.prepTimeMinutes < 0 || values.cookTimeMinutes < 0) {
-        errors.times = 'Times cannot be negative.';
+        errors.times = 'timesNonNegative';
     }
 
     return errors;

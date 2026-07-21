@@ -182,7 +182,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </label>
                 {errors?.title !== undefined && (
                     <p className={errorText} role="alert">
-                        {errors.title}
+                        {m.errors[errors.title]}
                     </p>
                 )}
                 <label className="flex flex-col gap-1">
@@ -295,12 +295,12 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 </div>
                 {errors?.servings !== undefined && (
                     <p className={errorText} role="alert">
-                        {errors.servings}
+                        {m.errors[errors.servings]}
                     </p>
                 )}
                 {errors?.times !== undefined && (
                     <p className={errorText} role="alert">
-                        {errors.times}
+                        {m.errors[errors.times]}
                     </p>
                 )}
                 <p className="text-body-sm text-slate">
@@ -315,7 +315,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 <h2 className={sectionHeading}>{m.ingredientsHeading}</h2>
                 {errors?.ingredients !== undefined && (
                     <p className={errorText} role="alert">
-                        {errors.ingredients}
+                        {m.errors[errors.ingredients]}
                     </p>
                 )}
                 {ingredientRows.length === 0 ? (
@@ -334,7 +334,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
                 <h2 className={sectionHeading}>{m.stepsHeading}</h2>
                 {errors?.steps !== undefined && (
                     <p className={errorText} role="alert">
-                        {errors.steps}
+                        {m.errors[errors.steps]}
                     </p>
                 )}
                 {stepRows.length === 0 ? (

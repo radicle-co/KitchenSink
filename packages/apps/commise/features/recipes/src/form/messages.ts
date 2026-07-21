@@ -100,6 +100,16 @@ export interface RecipeFormMessages {
 
     /** Accessible label for the private-visibility toggle. */
     readonly visibilityLabel: string;
+
+    /** Localized copy for each {@link import('./model.js').RecipeFormErrorCode} validation error (B20). */
+    readonly errors: {
+        readonly titleRequired: string;
+        readonly ingredientsEmpty: string;
+        readonly ingredientsUnresolved: string;
+        readonly stepsRequired: string;
+        readonly servingsPositive: string;
+        readonly timesNonNegative: string;
+    };
 }
 
 export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
@@ -152,5 +162,14 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         noSteps: 'No steps yet. Add your first step.',
 
         visibilityLabel: 'Private recipe',
+
+        errors: {
+            titleRequired: 'A title is required.',
+            ingredientsEmpty: 'Add at least one ingredient.',
+            ingredientsUnresolved: 'Every ingredient needs a resolved item and a quantity greater than zero.',
+            stepsRequired: 'Add at least one instruction step.',
+            servingsPositive: 'Servings must be greater than zero.',
+            timesNonNegative: 'Times cannot be negative.',
+        },
     },
 };

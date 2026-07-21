@@ -137,13 +137,26 @@ describe('RecipeList (native) — quick-filter chips (L4)', () => {
         renderList({
             status: 'ready',
             recipes: threeRecipes,
-            filters: { available: ['vegetarian', 'quick'], active: ['quick'], onToggle },
+            filters: { available: ['Vegetarian', 'Italian'], active: ['Italian'], onToggle, onClear: noop },
         });
 
         expect(screen.getByLabelText('Quick filters')).toBeTruthy();
-        fireEvent.click(screen.getByText('vegetarian'));
+        fireEvent.click(screen.getByText('Vegetarian'));
 
-        expect(onToggle).toHaveBeenCalledWith('vegetarian');
+        expect(onToggle).toHaveBeenCalledWith('Vegetarian');
+    });
+
+    it('renders a leading "All" chip that clears the filters', () => {
+        const onClear = vi.fn();
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['Vegetarian'], active: ['Vegetarian'], onToggle: noop, onClear },
+        });
+
+        fireEvent.click(screen.getByText('All'));
+
+        expect(onClear).toHaveBeenCalledTimes(1);
     });
 });
 

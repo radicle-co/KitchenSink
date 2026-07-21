@@ -136,6 +136,19 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
             {filters !== undefined && filters.available.length > 0 && (
                 <div role="group" aria-label={list.filtersLabel} className="flex flex-wrap gap-2">
+                    {/* Leading "All" chip (mockup L4) resets every quick-filter; pressed when nothing is active. */}
+                    <button
+                        type="button"
+                        aria-pressed={filters.active.length === 0}
+                        onClick={filters.onClear}
+                        className={`rounded-full px-3 py-1 text-body-sm font-medium transition ${
+                            filters.active.length === 0
+                                ? 'bg-seafoam text-white'
+                                : 'bg-pearl text-slate hover:bg-mist/40'
+                        }`}
+                    >
+                        {list.filterAll}
+                    </button>
                     {filters.available.map((value) => {
                         const active = filters.active.includes(value);
 

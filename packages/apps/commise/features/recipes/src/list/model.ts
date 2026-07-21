@@ -112,9 +112,15 @@ export interface RecipeListTabControl {
     readonly onChange: (tab: RecipeListTab) => void;
 }
 
-/** The quick-filter chip control (L4): the available facet values, the active subset, and a toggle. */
+/**
+ * The quick-filter chip control (L4): the available real facet values (dietary flags + cuisine present in the
+ * library), the active subset, a per-facet toggle, and a clear-all. A leading "All" chip (pressed when nothing
+ * is active) resets via {@link onClear}. The mockup's Favorites / AI-Generated chips are intentionally NOT
+ * modelled — the product has no favorites feature and no AI-generated source, so they would be dead controls.
+ */
 export interface RecipeListFilterControl {
     readonly available: readonly string[];
     readonly active: readonly string[];
     readonly onToggle: (value: string) => void;
+    readonly onClear: () => void;
 }

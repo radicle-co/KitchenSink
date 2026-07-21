@@ -43,36 +43,47 @@ function toListStatus(isLoading: boolean, isError: boolean): RecipeListStatus {
 export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) => {
     const router = useRouter();
     const [searchValue, setSearchValue] = useState('');
-    const [activeTags, setActiveTags] = useState<readonly string[]>([]);
+    const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
     const query = useRecipes();
 
     const status = toListStatus(query.isLoading, query.isError);
 
-    // All loaded rows, projected from the query cache (never copied into local state).
-    const allItems = useMemo<readonly RecipeListItem[]>(
-        () => (query.data?.data ?? []).map(toRecipeListItem),
-        [query.data],
-    );
+    // The raw loaded rows from the query cache (never copied into local state). Filtering runs on these
+    // because the quick-filter facets read `dietaryFlags` + `cuisine`, which live on the DTO but not the card
+    // view-model — no need to bloat the card model just to filter.
+    const rawRecipes = useMemo(() => query.data?.data ?? [], [query.data]);
 
-    // The quick-filter facets (L4): the sorted union of tags across the loaded library, so the chip row
-    // reflects what the caller actually has. Derived from the FULL set so a chip doesn't vanish when its own
-    // filter empties the visible rows.
-    const availableTags = useMemo(
-        () => [...new Set(allItems.flatMap((item) => item.tags))].sort((a, b) => a.localeCompare(b)),
-        [allItems],
-    );
+    // Quick-filter facets (L4): the sorted union of the library's REAL filter dimensions — dietary flags +
+    // cuisine (the same dimensions `/discover` facets on). The mockup's Favorites / AI-Generated chips are
+    // deliberately omitted: the product has no favorites feature and no AI-generated source, so they would be
+    // dead controls. Derived from the FULL set so a chip never vanishes when its own filter empties the rows.
+    const availableFacets = useMemo(() => {
+        const facets = new Set<string>();
+
+        for (const recipe of rawRecipes) {
+            recipe.dietaryFlags.forEach((flag) => facets.add(flag));
+
+            if (recipe.cuisine !== undefined) {
+                facets.add(recipe.cuisine);
+            }
+        }
+
+        return [...facets].sort((a, b) => a.localeCompare(b));
+    }, [rawRecipes]);
 
     // Narrow by the search term (client-side — `useRecipes` has no server query param) AND by every active
-    // tag chip (a row must carry ALL selected tags).
+    // facet chip (a row must satisfy ALL selected facets, matching a dietary flag OR the cuisine).
     const recipes = useMemo<readonly RecipeListItem[]>(() => {
         const term = searchValue.trim().toLowerCase();
 
-        return allItems.filter(
-            (item) =>
-                (term.length === 0 || item.title.toLowerCase().includes(term)) &&
-                activeTags.every((tag) => item.tags.includes(tag)),
-        );
-    }, [allItems, searchValue, activeTags]);
+        return rawRecipes
+            .filter(
+                (recipe) =>
+                    (term.length === 0 || recipe.title.toLowerCase().includes(term)) &&
+                    activeFacets.every((facet) => recipe.dietaryFlags.includes(facet) || recipe.cuisine === facet),
+            )
+            .map(toRecipeListItem);
+    }, [rawRecipes, searchValue, activeFacets]);
 
     return (
         <RecipeList
@@ -94,12 +105,13 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
                 },
             }}
             filters={{
-                available: availableTags,
-                active: activeTags,
-                onToggle: (tag) =>
-                    setActiveTags((current) =>
-                        current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag],
+                available: availableFacets,
+                active: activeFacets,
+                onToggle: (facet) =>
+                    setActiveFacets((current) =>
+                        current.includes(facet) ? current.filter((value) => value !== facet) : [...current, facet],
                     ),
+                onClear: () => setActiveFacets([]),
             }}
         />
     );

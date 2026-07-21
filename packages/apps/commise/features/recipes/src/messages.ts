@@ -44,6 +44,8 @@ export interface RecipeListMessages {
     readonly tabsLabel: string;
     /** Accessible name for the quick-filter chip row (L4). */
     readonly filtersLabel: string;
+    /** Label of the leading "All" chip that clears every active quick-filter (L4). */
+    readonly filterAll: string;
     /** Label of the create-recipe call to action (the pinned FAB). */
     readonly createCta: string;
     /** Label of the empty-state create call to action (the sole create control when the list is empty). */
@@ -198,6 +200,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             tabCommunity: 'Community',
             tabsLabel: 'Recipe source',
             filtersLabel: 'Quick filters',
+            filterAll: 'All',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
         },

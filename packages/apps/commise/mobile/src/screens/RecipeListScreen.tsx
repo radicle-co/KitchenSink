@@ -28,30 +28,43 @@ const noop = (): void => undefined;
  */
 export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
-    const [activeTags, setActiveTags] = useState<readonly string[]>([]);
+    const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
     const query = useRecipes();
 
     const status: RecipeListStatus = query.isError ? 'error' : query.isLoading ? 'loading' : 'ready';
 
-    // Derive the rows from the query cache (never copy server data into local state).
-    const allItems = useMemo(() => (query.data ? query.data.data.map(toRecipeListItem) : []), [query.data]);
+    // The raw loaded rows (never copy server data into local state). Facets read `dietaryFlags` + `cuisine`
+    // from the DTO, so filtering runs on the raw rows before projecting to card view-models.
+    const rawRecipes = useMemo(() => (query.data ? query.data.data : []), [query.data]);
 
-    // Quick-filter facets (L4): the sorted union of the loaded library's tags (parity with the web container).
-    const availableTags = useMemo(
-        () => [...new Set(allItems.flatMap((item) => item.tags))].sort((a, b) => a.localeCompare(b)),
-        [allItems],
-    );
+    // Quick-filter facets (L4): the sorted union of the library's REAL dimensions — dietary flags + cuisine
+    // (parity with the web container). Favorites / AI-Generated from the mockup are omitted (no backing data).
+    const availableFacets = useMemo(() => {
+        const facets = new Set<string>();
 
-    // Filter the loaded page by the title term AND every active tag chip (a row must carry ALL selected tags).
+        for (const recipe of rawRecipes) {
+            recipe.dietaryFlags.forEach((flag) => facets.add(flag));
+
+            if (recipe.cuisine !== undefined) {
+                facets.add(recipe.cuisine);
+            }
+        }
+
+        return [...facets].sort((a, b) => a.localeCompare(b));
+    }, [rawRecipes]);
+
+    // Filter by the title term AND every active facet chip (a row must satisfy ALL — dietary flag OR cuisine).
     const recipes = useMemo(() => {
         const term = searchValue.trim().toLowerCase();
 
-        return allItems.filter(
-            (item) =>
-                (term.length === 0 || item.title.toLowerCase().includes(term)) &&
-                activeTags.every((tag) => item.tags.includes(tag)),
-        );
-    }, [allItems, searchValue, activeTags]);
+        return rawRecipes
+            .filter(
+                (recipe) =>
+                    (term.length === 0 || recipe.title.toLowerCase().includes(term)) &&
+                    activeFacets.every((facet) => recipe.dietaryFlags.includes(facet) || recipe.cuisine === facet),
+            )
+            .map(toRecipeListItem);
+    }, [rawRecipes, searchValue, activeFacets]);
 
     return (
         <RecipeList
@@ -64,12 +77,13 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             onRetry={() => void query.refetch()}
             // Community switching is the shell's Discover tab on mobile, so no in-list tab here (L5 parity).
             filters={{
-                available: availableTags,
-                active: activeTags,
-                onToggle: (tag) =>
-                    setActiveTags((current) =>
-                        current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag],
+                available: availableFacets,
+                active: activeFacets,
+                onToggle: (facet) =>
+                    setActiveFacets((current) =>
+                        current.includes(facet) ? current.filter((value) => value !== facet) : [...current, facet],
                     ),
+                onClear: () => setActiveFacets([]),
             }}
         />
     );

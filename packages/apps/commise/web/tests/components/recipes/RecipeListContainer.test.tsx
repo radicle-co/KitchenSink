@@ -168,14 +168,14 @@ describe('RecipeListContainer', () => {
         expect(pushMock).toHaveBeenCalledWith('/en/discover');
     });
 
-    it('derives quick-filter chips from the loaded tags and filters by an active chip (L4)', async () => {
+    it('derives quick-filter chips from the loaded dietary flags + cuisine and filters by one (L4)', async () => {
         const user = userEvent.setup();
         useRecipesMock.mockReturnValue({
             isLoading: false,
             isError: false,
             data: makeRecipesPage([
-                makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta', tags: ['quick'] }),
-                makeRecipe({ id: 'rec_2', title: 'Sunday Roast', tags: ['weekend'] }),
+                makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta', dietaryFlags: ['Vegetarian'], cuisine: 'Italian' }),
+                makeRecipe({ id: 'rec_2', title: 'Sunday Roast', dietaryFlags: [], cuisine: 'British' }),
             ]),
             refetch: refetchMock,
         });
@@ -183,14 +183,19 @@ describe('RecipeListContainer', () => {
         render(<RecipeListContainer locale="en" />);
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        // Both tags surface as chips (sorted union of the loaded library's tags).
-        expect(within(chips).getByRole('button', { name: 'quick' })).toBeInTheDocument();
-        expect(within(chips).getByRole('button', { name: 'weekend' })).toBeInTheDocument();
+        // Real facet dimensions surface as chips (dietary flags + cuisines), not free-form tags.
+        expect(within(chips).getByRole('button', { name: 'Vegetarian' })).toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: 'Italian' })).toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: 'British' })).toBeInTheDocument();
 
-        await user.click(within(chips).getByRole('button', { name: 'quick' }));
+        await user.click(within(chips).getByRole('button', { name: 'Vegetarian' }));
 
-        // Only the recipe carrying the active tag remains.
+        // Only the recipe carrying the active facet remains.
         expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Sunday Roast' })).not.toBeInTheDocument();
+
+        // "All" clears the filter and restores every row.
+        await user.click(within(chips).getByRole('button', { name: 'All' }));
+        expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
     });
 });

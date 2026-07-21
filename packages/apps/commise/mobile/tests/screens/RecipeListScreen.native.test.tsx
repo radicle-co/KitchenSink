@@ -145,20 +145,25 @@ describe('RecipeListScreen — search', () => {
 });
 
 describe('RecipeListScreen — quick-filter chips (L4)', () => {
-    it('derives chips from the loaded tags and filters the rows by an active chip', () => {
+    it('derives chips from the loaded dietary flags + cuisine and filters by an active chip', () => {
         useRecipesMock.mockReturnValue(
             listResult({
                 data: makeRecipePage([
-                    makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta', tags: ['quick'] }),
-                    makeRecipe({ id: 'rec_2', title: 'Sunday Roast', tags: ['weekend'] }),
+                    makeRecipe({
+                        id: 'rec_1',
+                        title: 'Weeknight Pasta',
+                        dietaryFlags: ['Vegetarian'],
+                        cuisine: 'Italian',
+                    }),
+                    makeRecipe({ id: 'rec_2', title: 'Sunday Roast', dietaryFlags: [], cuisine: 'British' }),
                 ]),
             }),
         );
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
-        // Both tags surface as chips; tapping one narrows the visible rows to recipes carrying it.
-        fireEvent.click(screen.getByText('quick'));
+        // Real facet dimensions surface as chips; tapping one narrows the rows to recipes matching it.
+        fireEvent.click(screen.getByText('Vegetarian'));
 
         expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Sunday Roast' })).toBeNull();

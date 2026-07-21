@@ -166,12 +166,39 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         renderList({
             status: 'ready',
             recipes: threeRecipes,
-            filters: { available: ['vegetarian', 'quick'], active: ['quick'], onToggle: noop },
+            filters: { available: ['Vegetarian', 'Italian'], active: ['Italian'], onToggle: noop, onClear: noop },
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        expect(within(chips).getByRole('button', { name: 'vegetarian' }).getAttribute('aria-pressed')).toBe('false');
-        expect(within(chips).getByRole('button', { name: 'quick' }).getAttribute('aria-pressed')).toBe('true');
+        expect(within(chips).getByRole('button', { name: 'Vegetarian' }).getAttribute('aria-pressed')).toBe('false');
+        expect(within(chips).getByRole('button', { name: 'Italian' }).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('renders a leading "All" chip, pressed only when no facet is active, that clears the filters', () => {
+        const onClear = vi.fn();
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['Vegetarian'], active: ['Vegetarian'], onToggle: noop, onClear },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        // A facet is active, so "All" is NOT pressed.
+        expect(within(chips).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('false');
+
+        fireEvent.click(within(chips).getByRole('button', { name: 'All' }));
+        expect(onClear).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks "All" pressed when no facet is active', () => {
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['Vegetarian'], active: [], onToggle: noop, onClear: noop },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        expect(within(chips).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
     });
 
     it('reports a chip toggle upward with the facet value', () => {
@@ -179,13 +206,13 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         renderList({
             status: 'ready',
             recipes: threeRecipes,
-            filters: { available: ['vegetarian'], active: [], onToggle },
+            filters: { available: ['Vegetarian'], active: [], onToggle, onClear: noop },
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        fireEvent.click(within(chips).getByRole('button', { name: 'vegetarian' }));
+        fireEvent.click(within(chips).getByRole('button', { name: 'Vegetarian' }));
 
-        expect(onToggle).toHaveBeenCalledWith('vegetarian');
+        expect(onToggle).toHaveBeenCalledWith('Vegetarian');
     });
 });
 

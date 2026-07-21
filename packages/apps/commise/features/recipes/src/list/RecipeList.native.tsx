@@ -128,6 +128,17 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
             {filters !== undefined && filters.available.length > 0 && (
                 <View accessibilityLabel={list.filtersLabel} style={styles.chips}>
+                    {/* Leading "All" chip (mockup L4) resets every quick-filter; active when nothing is selected. */}
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: filters.active.length === 0 }}
+                        onPress={filters.onClear}
+                        style={[styles.chip, filters.active.length === 0 && styles.chipActive]}
+                    >
+                        <Text style={filters.active.length === 0 ? styles.chipLabelActive : styles.chipLabel}>
+                            {list.filterAll}
+                        </Text>
+                    </Pressable>
                     {filters.available.map((value) => {
                         const active = filters.active.includes(value);
 

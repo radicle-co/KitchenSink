@@ -1,24 +1,17 @@
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useUserProfile, useUpdateProfile } from '../hooks/useUserProfile';
 import { SuspensionBanner } from '../components/SuspensionBanner';
 import { mobileMessages } from '../i18n/messages';
 
+/** The loaded profile query data (non-undefined). */
+type ProfileData = NonNullable<ReturnType<typeof useUserProfile>['data']>;
+
 export function ProfileScreen(): JSX.Element {
     const { profile: t } = useMessages(mobileMessages);
     const { data, isLoading, error } = useUserProfile();
-    const updateProfile = useUpdateProfile();
-    const [displayName, setDisplayName] = useState('');
-    const [avatarUrl, setAvatarUrl] = useState('');
-
-    useEffect(() => {
-        if (data?.user) {
-            setDisplayName(data.user.displayName ?? '');
-            setAvatarUrl(data.user.avatarUrl ?? '');
-        }
-    }, [data]);
 
     if (isLoading) {
         return (
@@ -36,9 +29,22 @@ export function ProfileScreen(): JSX.Element {
         );
     }
 
+    // B1 — seed the edit form ONCE from the cache via the `useState` initializer (no clobber `useEffect`).
+    // `key={data.user.id}` remounts the form only when the profile IDENTITY changes, so a background refetch
+    // or a post-save invalidation of the SAME profile never overwrites unsaved edits.
+    return <ProfileEditForm key={data.user.id} profile={data} />;
+}
+
+/** The controlled edit form, seeded once from the cached profile on mount. */
+function ProfileEditForm({ profile }: { readonly profile: ProfileData }): JSX.Element {
+    const { profile: t } = useMessages(mobileMessages);
+    const updateProfile = useUpdateProfile();
+    const [displayName, setDisplayName] = useState(profile.user.displayName ?? '');
+    const [avatarUrl, setAvatarUrl] = useState(profile.user.avatarUrl ?? '');
+
     return (
         <View style={styles.container}>
-            <SuspensionBanner status={data.user.status} />
+            <SuspensionBanner status={profile.user.status} />
             <Text style={styles.label}>{t.displayName}</Text>
             <TextInput style={styles.input} value={displayName} onChangeText={setDisplayName} />
             <Text style={styles.label}>{t.avatarUrl}</Text>

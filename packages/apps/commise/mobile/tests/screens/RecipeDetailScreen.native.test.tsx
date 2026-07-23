@@ -352,4 +352,18 @@ describe('RecipeDetailScreen — clone', () => {
         expect(mutate).toHaveBeenCalledWith('rec_1', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(onCloned).toHaveBeenCalledWith('rec_clone');
     });
+
+    it('does NOT render Clone for the viewer’s OWN public recipe (D7 parity — matches web)', () => {
+        // D7: the shared `canClone` predicate excludes the owner even on a PUBLIC recipe. Regression guard for
+        // the drift this task fixes — web previously ignored ownership here while mobile checked it; now both
+        // platforms read the SAME predicate, so an inverted/dropped ownership check fails this test.
+        useRecipeMock.mockReturnValue(
+            detailResult({ data: makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: 'public' }) }),
+        );
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
+    });
 });

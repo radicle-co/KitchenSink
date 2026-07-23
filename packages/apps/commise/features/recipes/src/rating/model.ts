@@ -9,6 +9,7 @@
  * the card shows, so it has exactly one representation (§3 DRY).
  */
 import type { Locale } from '@commise/i18n';
+import { isOwner, makeViewer } from '@kitchensink/recipe-core';
 
 import { STAR_COUNT } from '../card/model.js';
 
@@ -78,9 +79,18 @@ export interface RecipeRatingInputProps extends RecipeRatingAggregate {
 export const STAR_VALUES: readonly number[] = Array.from({ length: STAR_COUNT }, (_value, index) => index + 1);
 
 /**
- * Decide whether the viewer may rate a recipe or owns it (Sc8). A viewer owns the recipe when their id is
- * known AND equals the owner id; every other case — a different id, or an unknown id — falls through to
- * `rate`, so an absent viewer id can never masquerade as the owner and hide the input on every recipe. Pure.
+ * Decide whether the viewer may rate a recipe or owns it (Sc8), delegating the ownership check to the
+ * shared `isOwner` policy predicate (`@kitchensink/recipe-core`, P4) — the SAME predicate `canClone` builds
+ * on, so this control's own-recipe gate and the clone gate can never diverge on what "owns" means. A viewer
+ * owns the recipe when their id is known AND equals the owner id; every other case — a different id, or an
+ * unknown id — falls through to `rate`, so an absent viewer id can never masquerade as the owner and hide
+ * the input on every recipe. Pure.
+ *
+ * Deliberately built on `isOwner`, not the shared `canRate` predicate: `canRate` additionally requires a
+ * KNOWN viewer id (it is a write-authorization gate — an anonymous viewer cannot submit a rating), whereas
+ * this is a UI-mode selector whose fail-safe default for an unresolved viewer id is `'rate'` (show the
+ * affordance; the backend enforces the real write gate). Using `canRate` directly here would invert that
+ * fail-safe and mask the interactive input for an unresolved viewer instead of showing it.
  *
  * This is the security-relevant branch, so it lives here as one testable unit rather than inline in two
  * platform leaves: the own-recipe gate must fail a unit test if inverted, not silently offer self-rating.
@@ -89,7 +99,7 @@ export const STAR_VALUES: readonly number[] = Array.from({ length: STAR_COUNT },
  * @returns `'own'` when the viewer is the owner, else `'rate'`.
  */
 export const ratingModeFor = (params: { viewerId?: string; ownerId: string }): RecipeRatingMode =>
-    params.viewerId !== undefined && params.viewerId === params.ownerId ? 'own' : 'rate';
+    isOwner({ ownerId: params.ownerId }, makeViewer({ id: params.viewerId })) ? 'own' : 'rate';
 
 /**
  * The viewer's most recent rating action THIS session, or `undefined` to defer entirely to the server.

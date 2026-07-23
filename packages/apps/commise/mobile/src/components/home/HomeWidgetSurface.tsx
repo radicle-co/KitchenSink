@@ -28,6 +28,7 @@ import {
 import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { makeViewer, type Tier } from '@kitchensink/recipe-core';
 import type { Container } from 'ditox';
 import { useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -54,13 +55,16 @@ const LIVE_CAPABILITIES: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILITY];
 const HOME_NAV_ACTIVE_ID: HomeNavItemId = 'home';
 
 /**
- * Map an identity subscription tier (`free` | `premium`) onto the Home-widget tier ladder (`free` | `pro`).
+ * Map the shared {@link Tier} authority (`@kitchensink/recipe-core`, P4 — `free` | `premium`) onto the
+ * Home-widget tier ladder (`free` | `pro`). The two vocabularies differ by origin (identity/access-policy vs.
+ * the widget ladder), so this mapper still exists, but it now sources `'premium'` from the ONE `Tier`
+ * authority instead of re-deriving its own "is this tier premium" check against a raw string.
  *
- * @param subscriptionTier - The identity subscription tier, if known.
+ * @param tier - The viewer's shared `Tier`.
  * @returns The corresponding Home-widget tier.
  */
-function toWidgetTier(subscriptionTier: string | undefined): string {
-    return subscriptionTier === 'premium' ? 'pro' : 'free';
+function toWidgetTier(tier: Tier): string {
+    return tier === 'premium' ? 'pro' : 'free';
 }
 
 /** Props for {@link HomeWidgetSurface}. `container`/`renderers` are injectable seams for tests. */
@@ -92,7 +96,8 @@ export function HomeWidgetSurface({
     const nudge = useOncePerSessionNudge();
     const insets = useSafeAreaInsets();
 
-    const tier = profile.data?.account.subscriptionTier;
+    // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
+    const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
     const displayName = profile.data?.user.displayName;
 
     // The v1 bespoke render map: only the recipe widget has a slot (it needs `onSeeAllRecipes` threaded in).

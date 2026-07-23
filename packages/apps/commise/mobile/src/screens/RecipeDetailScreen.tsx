@@ -8,8 +8,12 @@
  *   private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.
  * - The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.
  *
- * Ownership and tier come from `useUserProfile` (the viewer's app id + subscription tier); every mutation is
- * owned here and reported upward so the navigator can route (back to the list after delete, to the new
+ * A single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the
+ * viewer's app-user id + subscription tier); every ownership/clone/tier gate above reads from that ONE
+ * `Viewer` through the shared `isOwner`/`canClone`/`canGoPrivate` policy predicates — the SAME predicates
+ * the web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,
+ * where the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation
+ * is owned here and reported upward so the navigator can route (back to the list after delete, to the new
  * recipe after clone). Remote state stays in the query cache — this screen derives its view state from it.
  */
 import {
@@ -36,7 +40,7 @@ import {
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
-import { RecipeVisibility, type RecipeVisibility as RecipeVisibilityType } from '@kitchensink/recipe-core';
+import { canClone, canGoPrivate, isOwner, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -150,11 +154,19 @@ export function RecipeDetailScreen({
 
     const recipe = query.data;
     const viewerId = profile.data?.user.id;
-    const isOwner = viewerId !== undefined && recipe.ownerId === viewerId;
-    const canGoPrivate = profile.data?.account.subscriptionTier === 'premium';
-    const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
-    const changeVisibility = (next: RecipeVisibilityType): void =>
-        setVisibility.mutate({ id: recipeId, visibility: next });
+    // P4: ONE Viewer value object, built from this platform's identity signals (the profile's app-user id +
+    // subscription tier), feeds every gate below through the shared policy predicates — the SAME predicates
+    // the web detail container evaluates (D7).
+    const viewer = makeViewer({ id: viewerId, subscriptionTier: profile.data?.account.subscriptionTier });
+    const viewerIsOwner = isOwner(recipe, viewer);
+    // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate web now
+    // evaluates, closing the drift where web ignored ownership and mobile checked it.
+    const viewerCanClone = canClone(recipe, viewer);
+    // C-004: making a recipe private is a premium capability, gated on the viewer's subscription tier — the
+    // same signal the web detail container uses. Fails safe (OFF) while the profile loads or is absent
+    // (`makeViewer` maps an absent/unrecognized tier to `'free'`).
+    const viewerCanGoPrivate = canGoPrivate(viewer);
+    const changeVisibility = (next: RecipeVisibility): void => setVisibility.mutate({ id: recipeId, visibility: next });
 
     // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8) — ownership is the only
     // client-side gate; the backend enforces the rest (Sc8 403, Sc9 not-found). A write's error maps to the
@@ -212,7 +224,7 @@ export function RecipeDetailScreen({
                 />
             )}
 
-            {isOwner && (
+            {viewerIsOwner && (
                 <View style={styles.ownerActions}>
                     <Pressable
                         accessibilityRole="button"
@@ -232,8 +244,8 @@ export function RecipeDetailScreen({
                     </Pressable>
                     <RecipeVisibilityToggle
                         visibility={recipe.visibility}
-                        canGoPrivate={canGoPrivate}
-                        disabledReason={canGoPrivate ? undefined : t.visibilityUpgradeReason}
+                        canGoPrivate={viewerCanGoPrivate}
+                        disabledReason={viewerCanGoPrivate ? undefined : t.visibilityUpgradeReason}
                         // B17 — a failed toggle snaps back to the query's value; surface an honest reason so
                         // the change doesn't fail silently. Cleared on the next attempt (and on recipe switch).
                         error={setVisibility.error !== null && setVisibility.error !== undefined}
@@ -260,9 +272,11 @@ export function RecipeDetailScreen({
                 </View>
             )}
 
-            {isPublic && !isOwner && (
+            {/* D7: `canClone` (P4) already combines "public" + "not the owner" — the SAME predicate the web
+                container evaluates, so the two platforms can no longer disagree on this gate. */}
+            {viewerCanClone && (
                 <RecipeCloneAction
-                    canClone
+                    canClone={viewerCanClone}
                     {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}
                     cloning={cloneRecipe.isPending}
                     onClone={() => cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })}

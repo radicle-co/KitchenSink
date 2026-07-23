@@ -13,13 +13,14 @@
  * invalidate the relevant caches; the container only wires the blocks' callbacks to them and handles
  * post-success navigation.
  *
- * Ownership is decided by comparing the recipe's `ownerId` (the app-user ULID) to the viewer's `external_id`
- * session claim — the SAME claim the recipe service uses as the owner key (see `@kitchensink/recipe-core`,
- * `IDENTITY_SYNC_PENDING_CODE`). Making a recipe private is a premium capability (C-004), gated on the
- * viewer's `account.subscriptionTier` read via `useUserProfile` — the SAME tier signal the mobile detail
- * screen gates on, so both platforms behave identically (CODING_STANDARDS §14). Free-tier owners see the
- * private option disabled with a localized upgrade reason; the tier read fails safe (gated OFF) while the
- * profile is still loading or absent.
+ * A single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`
+ * key — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service
+ * uses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every
+ * ownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/
+ * `canGoPrivate` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two
+ * platforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web
+ * ignored ownership while mobile checked it). Free-tier owners see the private option disabled with a
+ * localized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.
  */
 import { useAuth } from '@clerk/nextjs';
 import {
@@ -37,7 +38,7 @@ import {
     type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -147,12 +148,18 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
 
     const recipe = query.data;
     const viewerId = readViewerId(sessionClaims);
-    const isOwner = viewerId !== undefined && viewerId === recipe.ownerId;
-    const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
-
+    // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim
+    // + the profile's subscription tier), feeds every gate below through the shared policy predicates — the
+    // SAME predicates the mobile detail screen evaluates (D7).
+    const viewer = makeViewer({ id: viewerId, subscriptionTier: profile.data?.account.subscriptionTier });
+    const viewerIsOwner = isOwner(recipe, viewer);
+    // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate mobile now
+    // evaluates, closing the drift where web ignored ownership and mobile checked it.
+    const viewerCanClone = canClone(recipe, viewer);
     // C-004: making a recipe private is a premium capability, gated on the viewer's subscription tier — the
-    // same signal the mobile detail screen uses. Fails safe (OFF) while the profile loads or is absent.
-    const canGoPrivate = profile.data?.account.subscriptionTier === 'premium';
+    // same signal the mobile detail screen uses. Fails safe (OFF) while the profile loads or is absent
+    // (`makeViewer` maps an absent/unrecognized tier to `'free'`).
+    const viewerCanGoPrivate = canGoPrivate(viewer);
 
     // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8). The read-through user
     // resolution guarantees the recipe is one the viewer can see, so ownership is the only client-side gate;
@@ -207,7 +214,7 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                 />
             )}
 
-            {isOwner && (
+            {viewerIsOwner && (
                 <>
                     {/* W2/D1: the web detail was a dead end — restore the owner's entry points to the editor
                         and the version history (mirrors mobile's RecipeDetailScreen header). */}
@@ -215,7 +222,7 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                     <Link href={`/${locale}/recipes/${id}/versions` as Route}>{recipes.actions.versionHistory}</Link>
                     <RecipeVisibilityToggle
                         visibility={recipe.visibility}
-                        canGoPrivate={canGoPrivate}
+                        canGoPrivate={viewerCanGoPrivate}
                         disabledReason={recipes.actions.premiumRequired}
                         // B17 — a failed toggle snaps back to the query's value; surface an honest reason so
                         // the change doesn't fail silently. Cleared on the next attempt (and on recipe switch).
@@ -243,10 +250,11 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
             )}
 
             {/* W2/D7: an owner never clones their OWN recipe — the orchestration layer omits the control
-                entirely (absent, not a disabled button), matching mobile's `isPublic && !isOwner` gate. */}
-            {!isOwner && (
+                entirely (absent, not a disabled button). `canClone` already excludes the owner (P4); the
+                outer guard additionally hides the control for the owner rather than merely disabling it. */}
+            {!viewerIsOwner && (
                 <RecipeCloneAction
-                    canClone={isPublic}
+                    canClone={viewerCanClone}
                     sourceAttribution={recipe.sourceAttribution}
                     cloning={cloneRecipe.isPending}
                     onClone={() =>

@@ -30,6 +30,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { makeViewer, type Tier } from '@kitchensink/recipe-core';
 import * as Sentry from '@sentry/nextjs';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
@@ -46,11 +47,13 @@ import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { HomeNudgeContext, SubscriptionNudge, useOncePerSessionNudge } from './SubscriptionNudge';
 
 /**
- * Map an identity subscription tier (`free` | `premium`) onto the Home-widget tier ladder (`free` | `pro`).
- * The two vocabularies differ by origin (identity vs. the widget ladder); an absent tier is treated as free.
+ * Map the shared {@link Tier} authority (`@kitchensink/recipe-core`, P4 — `free` | `premium`) onto the
+ * Home-widget tier ladder (`free` | `pro`). The two vocabularies differ by origin (identity/access-policy vs.
+ * the widget ladder), so this mapper still exists, but it now sources `'premium'` from the ONE `Tier`
+ * authority instead of re-deriving its own "is this tier premium" check against a raw string.
  */
-function toWidgetTier(subscriptionTier: string | undefined): string {
-    return subscriptionTier === 'premium' ? 'pro' : 'free';
+function toWidgetTier(tier: Tier): string {
+    return tier === 'premium' ? 'pro' : 'free';
 }
 
 /** Props for {@link HomeWidgetSurface}. Both are injectable seams for tests; production uses the defaults. */
@@ -90,7 +93,8 @@ export function HomeWidgetSurface({
     const profile = useUserProfile();
     const nudge = useOncePerSessionNudge();
 
-    const tier = profile.data?.account.subscriptionTier;
+    // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
+    const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
 
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {

@@ -61,6 +61,14 @@ export interface CollectionListViewProps {
  * Props for the collection-detail view — a presentational render of a loaded {@link CollectionWithRecipes}
  * (header + member recipe rows). Fetch states (loading/error) belong to the composing app, not here.
  */
+/**
+ * Which honest error a failed collection mutation surfaces (localized copy lives in the block, keyed by this
+ * discriminant — the B17 code pattern, so the composing container never reaches into the block's dictionary).
+ * - `delete` — deleting the collection failed (the action looked frozen before B17).
+ * - `remove` — removing a member recipe failed.
+ */
+export type CollectionDetailError = 'delete' | 'remove';
+
 export interface CollectionDetailViewProps {
     readonly collection: CollectionWithRecipes;
     /** Invoked with a recipe id when a member row is activated. */
@@ -73,6 +81,8 @@ export interface CollectionDetailViewProps {
     readonly onRename: () => void;
     /** Invoked when the delete action is activated. */
     readonly onDelete: () => void;
+    /** An honest error from the last delete/remove attempt to surface, or ABSENT for none (B17). */
+    readonly error?: CollectionDetailError;
 }
 
 /**

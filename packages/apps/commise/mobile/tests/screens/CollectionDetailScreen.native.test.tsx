@@ -137,4 +137,43 @@ describe('CollectionDetailScreen — populated', () => {
         expect(mutate).toHaveBeenCalledWith('col_1', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(onDeleted).toHaveBeenCalledTimes(1);
     });
+
+    describe('mutation failure (B17: no frozen no-op)', () => {
+        it('surfaces the delete-failed copy when the delete mutation errored', () => {
+            useDeleteCollectionMock.mockReturnValue(
+                mutation<ReturnType<typeof useDeleteCollection>>({ error: new Error('network down') as never }),
+            );
+
+            render(<CollectionDetailScreen {...props} />);
+
+            expect(screen.getByText('We couldn’t delete this collection. Please try again.')).toBeTruthy();
+        });
+
+        it('surfaces the remove-failed copy when the remove mutation errored', () => {
+            useRemoveRecipeFromCollectionMock.mockReturnValue(
+                mutation<ReturnType<typeof useRemoveRecipeFromCollection>>({
+                    error: new Error('network down') as never,
+                }),
+            );
+
+            render(<CollectionDetailScreen {...props} />);
+
+            expect(screen.getByText('We couldn’t remove that recipe. Please try again.')).toBeTruthy();
+        });
+
+        it('prefers the delete error over a concurrent remove error', () => {
+            useDeleteCollectionMock.mockReturnValue(
+                mutation<ReturnType<typeof useDeleteCollection>>({ error: new Error('delete failed') as never }),
+            );
+            useRemoveRecipeFromCollectionMock.mockReturnValue(
+                mutation<ReturnType<typeof useRemoveRecipeFromCollection>>({
+                    error: new Error('remove failed') as never,
+                }),
+            );
+
+            render(<CollectionDetailScreen {...props} />);
+
+            expect(screen.getByText('We couldn’t delete this collection. Please try again.')).toBeTruthy();
+        });
+    });
 });

@@ -6,7 +6,7 @@
  * navigates back to the collections list. Renders localized loading and error states until the collection
  * resolves — the presentational block assumes a loaded collection.
  */
-import { CollectionDetail } from '@commise/features-recipes';
+import { CollectionDetail, type CollectionDetailError } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import {
     useCollection,
@@ -78,11 +78,22 @@ export function CollectionDetailScreen({
 
     const collection = query.data;
 
+    // B17 — a failed delete/remove must never look frozen. Surface an honest code for whichever mutation
+    // errored; delete takes precedence over remove (it is the more consequential, whole-collection action).
+    // Each mutation resets its own error on the next attempt, so the banner clears when the viewer retries.
+    const mutationError: CollectionDetailError | undefined =
+        deleteCollection.error !== null && deleteCollection.error !== undefined
+            ? 'delete'
+            : removeRecipe.error !== null && removeRecipe.error !== undefined
+              ? 'remove'
+              : undefined;
+
     return (
         <View style={styles.container}>
             {back}
             <CollectionDetail
                 collection={collection}
+                error={mutationError}
                 onSelectRecipe={onSelectRecipe}
                 onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id: collectionId, recipeId })}
                 onAddRecipe={onAddRecipe}

@@ -10,6 +10,7 @@ export { CollectionForm } from './CollectionForm.js';
 export { CollectionRecipePicker } from './CollectionRecipePicker.js';
 
 export type {
+    CollectionDetailError,
     CollectionDetailViewProps,
     CollectionFormMode,
     CollectionFormProps,

@@ -9,7 +9,7 @@
  * (rename → the rename form; select a member → the recipe route). Remote state stays in TanStack Query — the
  * view is derived from the query, never copied into local state.
  */
-import { CollectionDetail } from '@commise/features-recipes';
+import { CollectionDetail, type CollectionDetailError } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
@@ -69,9 +69,20 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
         return <div role="status" aria-label={collections.detail.loadingLabel} />;
     }
 
+    // B17 — a failed delete/remove must never look frozen. Surface an honest code for whichever mutation
+    // errored; delete takes precedence over remove (it is the more consequential, whole-collection action).
+    // Each mutation resets its own error on the next attempt, so the banner clears when the viewer retries.
+    const mutationError: CollectionDetailError | undefined =
+        deleteCollection.error !== null && deleteCollection.error !== undefined
+            ? 'delete'
+            : removeRecipe.error !== null && removeRecipe.error !== undefined
+              ? 'remove'
+              : undefined;
+
     return (
         <CollectionDetail
             collection={query.data}
+            error={mutationError}
             onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
             onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
             onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}

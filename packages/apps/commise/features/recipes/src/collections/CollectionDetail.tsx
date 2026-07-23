@@ -19,9 +19,13 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     onAddRecipe,
     onRename,
     onDelete,
+    error,
 }) => {
     const { detail } = useMessages(collectionMessages);
     const recipes = collection.recipes ?? [];
+    // B17 — a failed delete/remove is a mandated UI state, never a frozen no-op. Resolve the container's error
+    // code to localized copy here so the block stays self-contained on its own copy.
+    const errorMessage = error === undefined ? undefined : error === 'delete' ? detail.deleteError : detail.removeError;
 
     return (
         <section aria-label={collection.name} className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
@@ -46,6 +50,11 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                         {detail.deleteCta}
                     </button>
                 </div>
+                {errorMessage !== undefined && (
+                    <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error">
+                        {errorMessage}
+                    </p>
+                )}
             </header>
 
             <section aria-label={detail.membersHeading} className="flex flex-col gap-3">

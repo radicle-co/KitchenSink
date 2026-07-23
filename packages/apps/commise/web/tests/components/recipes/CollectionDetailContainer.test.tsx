@@ -15,18 +15,23 @@ import { CollectionDetailContainer } from '@/components/recipes/CollectionDetail
 
 import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
 
-const { useCollectionMock, removeMutate, deleteMutate, pushMock, refetchMock } = vi.hoisted(() => ({
-    useCollectionMock: vi.fn(),
-    removeMutate: vi.fn(),
-    deleteMutate: vi.fn(),
-    pushMock: vi.fn(),
-    refetchMock: vi.fn(),
-}));
+const { useCollectionMock, removeMutate, deleteMutate, pushMock, refetchMock, removeError, deleteError } = vi.hoisted(
+    () => ({
+        useCollectionMock: vi.fn(),
+        removeMutate: vi.fn(),
+        deleteMutate: vi.fn(),
+        pushMock: vi.fn(),
+        refetchMock: vi.fn(),
+        // Mutable holders for each mutation's `error`, so a test can inject a failed state (B17).
+        removeError: { current: null as unknown },
+        deleteError: { current: null as unknown },
+    }),
+);
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCollection: useCollectionMock,
-    useRemoveRecipeFromCollection: () => ({ mutate: removeMutate }),
-    useDeleteCollection: () => ({ mutate: deleteMutate }),
+    useRemoveRecipeFromCollection: () => ({ mutate: removeMutate, error: removeError.current }),
+    useDeleteCollection: () => ({ mutate: deleteMutate, error: deleteError.current }),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -35,6 +40,8 @@ vi.mock('next/navigation', () => ({
 
 afterEach(() => {
     vi.clearAllMocks();
+    removeError.current = null;
+    deleteError.current = null;
 });
 
 describe('CollectionDetailContainer', () => {
@@ -163,5 +170,52 @@ describe('CollectionDetailContainer', () => {
 
         expect(screen.getByText(/couldn.t find that collection/i)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    });
+
+    describe('mutation failure (B17: no frozen no-op)', () => {
+        function mockReady(): void {
+            useCollectionMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeCollectionWithRecipes({ id: 'col_9' }),
+                refetch: refetchMock,
+            });
+        }
+
+        it('surfaces the delete-failed banner when the delete mutation errored', () => {
+            deleteError.current = new Error('network down');
+            mockReady();
+
+            render(<CollectionDetailContainer id="col_9" locale="en" />);
+
+            expect(screen.getByRole('alert').textContent).toBe('We couldn’t delete this collection. Please try again.');
+        });
+
+        it('surfaces the remove-failed banner when the remove mutation errored', () => {
+            removeError.current = new Error('network down');
+            mockReady();
+
+            render(<CollectionDetailContainer id="col_9" locale="en" />);
+
+            expect(screen.getByRole('alert').textContent).toBe('We couldn’t remove that recipe. Please try again.');
+        });
+
+        it('prefers the delete error over a concurrent remove error', () => {
+            deleteError.current = new Error('delete failed');
+            removeError.current = new Error('remove failed');
+            mockReady();
+
+            render(<CollectionDetailContainer id="col_9" locale="en" />);
+
+            expect(screen.getByRole('alert').textContent).toBe('We couldn’t delete this collection. Please try again.');
+        });
+
+        it('shows no banner when neither mutation has errored', () => {
+            mockReady();
+
+            render(<CollectionDetailContainer id="col_9" locale="en" />);
+
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        });
     });
 });

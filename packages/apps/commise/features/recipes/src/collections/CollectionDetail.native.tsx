@@ -22,9 +22,13 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     onAddRecipe,
     onRename,
     onDelete,
+    error,
 }) => {
     const { detail } = useMessages(collectionMessages);
     const recipes = collection.recipes ?? [];
+    // B17 — a failed delete/remove is a mandated UI state, never a frozen no-op. Resolve the container's error
+    // code to localized copy here so the block stays self-contained on its own copy.
+    const errorMessage = error === undefined ? undefined : error === 'delete' ? detail.deleteError : detail.removeError;
 
     return (
         <View accessibilityLabel={collection.name} style={styles.container}>
@@ -33,6 +37,11 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
             </Text>
             {collection.description !== undefined && collection.description.length > 0 && (
                 <Text style={styles.description}>{collection.description}</Text>
+            )}
+            {errorMessage !== undefined && (
+                <Text accessibilityRole="alert" style={styles.errorBanner}>
+                    {errorMessage}
+                </Text>
             )}
             <View style={styles.headerActions}>
                 <Pressable
@@ -115,6 +124,7 @@ const styles = StyleSheet.create({
     textButton: { paddingVertical: 6, paddingHorizontal: 10 },
     renameLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
     deleteLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },
+    errorBanner: { fontSize: 13, color: palette.error },
     card: {
         backgroundColor: palette.white,
         borderRadius: 16,

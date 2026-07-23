@@ -42,6 +42,10 @@ export interface CollectionDetailMessages {
     readonly renameCta: string;
     /** Label of the delete action. */
     readonly deleteCta: string;
+    /** Error shown when deleting the collection fails (B17). */
+    readonly deleteError: string;
+    /** Error shown when removing a member recipe fails (B17). */
+    readonly removeError: string;
 }
 
 /**
@@ -136,6 +140,8 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             addRecipeCta: 'Add a recipe',
             renameCta: 'Rename',
             deleteCta: 'Delete',
+            deleteError: 'We couldn’t delete this collection. Please try again.',
+            removeError: 'We couldn’t remove that recipe. Please try again.',
         },
         picker: {
             heading: 'Add recipes to {name}',

@@ -110,3 +110,23 @@ describe('CollectionDetail (native) — empty state', () => {
         expect(screen.getByText('No recipes in this collection yet')).toBeTruthy();
     });
 });
+
+describe('CollectionDetail (native) — mutation error (B17: no frozen no-op)', () => {
+    it('surfaces the delete-failed copy when a delete errored', () => {
+        renderDetail({ error: 'delete' });
+
+        expect(screen.getByText('We couldn’t delete this collection. Please try again.')).toBeTruthy();
+    });
+
+    it('surfaces the remove-failed copy when a member removal errored', () => {
+        renderDetail({ error: 'remove' });
+
+        expect(screen.getByText('We couldn’t remove that recipe. Please try again.')).toBeTruthy();
+    });
+
+    it('shows no error text when the last mutation did not fail', () => {
+        renderDetail({ error: undefined });
+
+        expect(screen.queryByText(/couldn’t/)).toBeNull();
+    });
+});

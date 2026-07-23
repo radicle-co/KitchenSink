@@ -8,7 +8,8 @@
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 import { palette } from '@commise/ui';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { photoMessages } from './messages.js';
@@ -50,6 +51,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 <Image
                                     source={{ uri: photo.url }}
                                     accessibilityLabel={fillTemplate(m.photoAlt, { index: index + 1 })}
+                                    cachePolicy="memory-disk"
                                     style={styles.photo}
                                 />
                                 <Pressable

@@ -13,8 +13,9 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
+import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
@@ -48,7 +49,12 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                         onPress={() => setActiveIndex(index)}
                         style={[styles.slide, { width }]}
                     >
-                        <Image source={{ uri: photo.url }} accessibilityLabel={altFor(index)} style={styles.image} />
+                        <Image
+                            source={{ uri: photo.url }}
+                            accessibilityLabel={altFor(index)}
+                            cachePolicy="memory-disk"
+                            style={styles.image}
+                        />
                     </Pressable>
                 ))}
             </ScrollView>
@@ -71,7 +77,8 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                         <Image
                             source={{ uri: activePhoto.url }}
                             accessibilityLabel={altFor(activeIndex)}
-                            resizeMode="contain"
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
                             style={styles.lightboxImage}
                         />
                         <Pressable

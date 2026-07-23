@@ -27,16 +27,21 @@
     },
     "peerDependencies": {
         "@expo/vector-icons": ">=14.0.0",
+        "expo-image": ">=2.0.0",
         "react": "^19.0.0",
         "react-native": ">=0.79.0"
     },
     "peerDependenciesMeta": {
         "@expo/vector-icons": {
             "optional": true
+        },
+        "expo-image": {
+            "optional": true
         }
     },
     "devDependencies": {
         "@expo/vector-icons": "^14.1.0",
+        "expo-image": "~57.0.1",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

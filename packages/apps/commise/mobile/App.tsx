@@ -38,6 +38,7 @@ import { TamaguiProvider } from 'tamagui';
 import { AuthGate } from './src/components/AuthGate';
 import { LocaleProvider } from './src/i18n/LocaleProvider';
 import { initSentry } from './src/observability/sentry';
+import { installFocusManager, installOnlineManager } from './src/query/connectivity';
 import { RecipeServiceGate } from './src/providers/RecipeServiceGate';
 import { AppRoot as RootNavigator } from './src/screens/AppRoot';
 import { tokenCache } from './src/storage/tokenCache';
@@ -46,6 +47,11 @@ import tamaguiConfig from './tamagui.config';
 const sentryInitialized = initSentry();
 
 const queryClient = new QueryClient();
+
+// B21 — React Native has no window-focus or `navigator.onLine`, so without this TanStack's refetch-on-focus
+// and refetch-on-reconnect (and the offline mutation-pause) are dead. Wire the global managers ONCE at start.
+installOnlineManager();
+installFocusManager();
 
 const publishableKey = process.env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY;
 

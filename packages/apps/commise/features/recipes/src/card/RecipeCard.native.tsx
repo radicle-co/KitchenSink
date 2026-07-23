@@ -13,7 +13,8 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { formatDurationMinutes } from '../list/model.js';
@@ -68,6 +69,7 @@ const CardCover: FC = () => {
                 <Image
                     accessibilityLabel={recipe.title}
                     source={{ uri: recipe.coverPhotoUrl }}
+                    cachePolicy="memory-disk"
                     style={styles.coverImage}
                 />
             ) : (

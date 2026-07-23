@@ -52,6 +52,9 @@ export default defineConfig({
     resolve: {
         alias: {
             'react-native': 'react-native-web',
+            // `expo-image` is a native module with no jsdom runtime; the native leaves that adopt it for
+            // disk-cached remote images (B11) render through a react-native-web stub under these tests.
+            'expo-image': path.resolve(import.meta.dirname, 'test-utils/expoImageStub.tsx'),
         },
     },
 });

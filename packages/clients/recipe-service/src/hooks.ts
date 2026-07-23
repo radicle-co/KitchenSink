@@ -326,8 +326,7 @@ export function useUpdateRecipe() {
     return useMutation({
         mutationFn: (vars: { id: string; input: UpdateRecipeInput }) => client.updateRecipe(vars.id, vars.input),
         onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            invalidateEditedRecipeRows(queryClient);
         },
     });
 }
@@ -340,8 +339,7 @@ export function useDeleteRecipe() {
     return useMutation({
         mutationFn: (id: string) => client.deleteRecipe(id),
         onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            invalidateEditedRecipeRows(queryClient);
         },
     });
 }
@@ -369,8 +367,7 @@ export function useSetRecipeVisibility() {
         mutationFn: (vars: { id: string; visibility: RecipeVisibility }) =>
             client.setRecipeVisibility(vars.id, vars.visibility),
         onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            invalidateEditedRecipeRows(queryClient);
         },
     });
 }
@@ -399,6 +396,29 @@ function invalidateRecipeProjections(queryClient: ReturnType<typeof useQueryClie
     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+    // DA2 — a `CollectionWithRecipes.recipes` entry embeds the full `Recipe` projection, so a write that
+    // changes this recipe's title/cover/rating leaves every cached collection that embeds it stale. The
+    // client has no index of which collections embed this recipe, so it stales the whole `collections`
+    // prefix. (Direction note: this is recipe-write → embed; the reverse, membership-write narrowness, is
+    // deliberately NOT widened — only collection mutations touch a specific `collection(id)`.)
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
+}
+
+/**
+ * Invalidate the broad set an EDIT to an existing recipe stales: every recipe query (`recipes`), the
+ * recipe-search namespace (`recipeSearches`), and — DA2 — every collection embed (`collections`). Used by the
+ * library-wide edit writes (update/delete/visibility) that do not know which single recipe id changed a row
+ * (delete/visibility target one recipe, but the existing broad-invalidation contract stales all recipe rows;
+ * this preserves that and only ADDS the collection embeds). `create`/`clone` mint a NEW recipe that is a
+ * member of no collection, so they keep their narrower recipes+search invalidation.
+ *
+ * @param queryClient - The query client whose cache to invalidate.
+ * @sideEffect Marks the three regions stale on the query cache.
+ */
+function invalidateEditedRecipeRows(queryClient: ReturnType<typeof useQueryClient>): void {
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
 }
 
 /**

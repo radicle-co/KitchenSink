@@ -98,12 +98,28 @@ const RECIPE_A_SUBTREE_PROBES: readonly CacheProbeName[] = ['recipeA', 'recipeAV
 const RECIPE_WRITE_PROBES: readonly CacheProbeName[] = [...ALL_RECIPE_PROBES, 'recipeSearch'];
 
 /**
+ * What a recipe-row write that EDITS an existing recipe (update / delete / visibility) must stale (DA2):
+ * every `RECIPE_WRITE_PROBES` region PLUS every collection — a `CollectionWithRecipes.recipes` entry embeds
+ * the full `Recipe` projection, so an edited title, a changed visibility, or a soft-deleted (now-vanished)
+ * member is stale in every cached collection until the `collections` prefix is invalidated. `create`/`clone`
+ * are excluded: they mint a NEW recipe that is a member of no collection, so no embed changes.
+ */
+const RECIPE_EMBED_WRITE_PROBES: readonly CacheProbeName[] = [...RECIPE_WRITE_PROBES, ...ALL_COLLECTION_PROBES];
+
+/**
  * What restoring a version of recipe A stales: A's own subtree (detail/versions/photos), every recipe list
  * (a restore rewrites `title` and bumps `currentVersion`, both of which list rows render), and the search
  * cache (the restore rebuilds the row's search text). Recipe B is untouched — a restore is scoped to one
  * recipe, so unlike the blanket `recipes` writes above this one stays keyed off the mutation's variables.
  */
-const RESTORE_PROBES: readonly CacheProbeName[] = [...RECIPE_A_SUBTREE_PROBES, 'recipeList', 'recipeSearch'];
+const RESTORE_PROBES: readonly CacheProbeName[] = [
+    ...RECIPE_A_SUBTREE_PROBES,
+    'recipeList',
+    'recipeSearch',
+    // DA2 — a restore rewrites `title`, which every collection embed of recipe A renders. The client cannot
+    // know which collections embed A, so it stales the whole `collections` prefix (collectionB included).
+    ...ALL_COLLECTION_PROBES,
+];
 
 /**
  * What rating recipe A stales — identical shape to a restore, and for the same reason: a rating changes
@@ -111,7 +127,13 @@ const RESTORE_PROBES: readonly CacheProbeName[] = [...RECIPE_A_SUBTREE_PROBES, '
  * on A's detail, on every list row, AND on every search result. So it stales A's own subtree, every list,
  * and search — keyed off the mutation's variables, so recipe B (untouched) stays cached.
  */
-const RATING_PROBES: readonly CacheProbeName[] = [...RECIPE_A_SUBTREE_PROBES, 'recipeList', 'recipeSearch'];
+const RATING_PROBES: readonly CacheProbeName[] = [
+    ...RECIPE_A_SUBTREE_PROBES,
+    'recipeList',
+    'recipeSearch',
+    // DA2 — a rating changes `averageRating`/`ratingCount`, which every collection embed of recipe A renders.
+    ...ALL_COLLECTION_PROBES,
+];
 
 /**
  * What a photo write (confirm / delete / reorder) on recipe A stales — the SAME shape as a restore/rating,
@@ -122,7 +144,13 @@ const RATING_PROBES: readonly CacheProbeName[] = [...RECIPE_A_SUBTREE_PROBES, 'r
  * every list, and search — keyed off the mutation's variables, so recipe B (untouched) stays cached. A
  * deleted or reordered cover left on the grid/search is a genuine broken-image staleness bug, not a cost.
  */
-const PHOTO_PROBES: readonly CacheProbeName[] = [...RECIPE_A_SUBTREE_PROBES, 'recipeList', 'recipeSearch'];
+const PHOTO_PROBES: readonly CacheProbeName[] = [
+    ...RECIPE_A_SUBTREE_PROBES,
+    'recipeList',
+    'recipeSearch',
+    // DA2 — a photo write changes `coverPhotoUrl`, which every collection embed of recipe A renders.
+    ...ALL_COLLECTION_PROBES,
+];
 
 /**
  * A minimal valid `CreateRecipeInput`. The times are required by the contract, so they are spelled out
@@ -223,7 +251,7 @@ describe('useUpdateRecipe', () => {
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { expectedVersion: 1, title: 'New' } }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(RECIPE_WRITE_PROBES));
+        expect(probes()).toEqual(expectedProbes(RECIPE_EMBED_WRITE_PROBES));
     });
 
     it('surfaces a 409 version conflict and invalidates nothing (the stale write must not evict cache)', async () => {
@@ -259,18 +287,20 @@ describe('useDeleteRecipe', () => {
         act(() => result.current.mutate(PROBE_RECIPE_ID));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(RECIPE_WRITE_PROBES));
+        expect(probes()).toEqual(expectedProbes(RECIPE_EMBED_WRITE_PROBES));
     });
 
-    it('leaves collection caches untouched (characterizes today: a deleted recipe can linger in a collection)', async () => {
+    it('stales collection caches so a deleted recipe leaves its collections (DA2)', async () => {
         const { result, client, probes } = renderMutation(() => useDeleteRecipe());
         vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
 
         act(() => result.current.mutate(PROBE_RECIPE_ID));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).not.toContain('collectionA');
-        expect(probes()).not.toContain('collectionList');
+        // DA2 — a soft-deleted recipe is embedded in CollectionWithRecipes.recipes; the write must stale the
+        // collections prefix so the vanished member does not linger on a mounted collection view.
+        expect(probes()).toContain('collectionA');
+        expect(probes()).toContain('collectionList');
     });
 
     it('surfaces a 403 when the caller is not the owner, and invalidates nothing', async () => {
@@ -347,7 +377,7 @@ describe('useSetRecipeVisibility', () => {
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, visibility: 'private' }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(RECIPE_WRITE_PROBES));
+        expect(probes()).toEqual(expectedProbes(RECIPE_EMBED_WRITE_PROBES));
     });
 
     it('surfaces a 403 (free tier cannot make a recipe private) and invalidates nothing', async () => {

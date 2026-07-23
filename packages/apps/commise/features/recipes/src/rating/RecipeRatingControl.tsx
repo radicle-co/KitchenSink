@@ -20,8 +20,9 @@
  * The recipe detail projection returns the viewer's OWN prior rating as `RecipeDetail.viewerRating`, which the
  * composing app feeds in as `selectedStars` — so a returning viewer's stars are PRE-SELECTED and the remove
  * affordance is revealed on load. The read-only stars the viewer SEES remain the COMMUNITY `average` by design
- * (not "your rating"); `selectedStars` is only the rate INPUT's state. See `resolveSelectedStars` for how the
- * app keeps the server value authoritative once loaded.
+ * (not "your rating"); `selectedStars` is only the rate INPUT's state. DA4 — the app's `useSetRecipeRating` /
+ * `useDeleteRecipeRating` hooks patch `viewerRating` in the query cache optimistically (`onMutate`), so this
+ * value never flickers back to the pre-write value before the refetch lands.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useId, type FC, type ReactNode } from 'react';

@@ -96,14 +96,6 @@ beforeEach(() => {
         },
     );
 
-    // Rating mutations invoke `onSuccess` synchronously so the container's selection wiring is exercised.
-    setRatingMutateMock.mockImplementation((_vars: unknown, options?: { onSuccess?: () => void }) =>
-        options?.onSuccess?.(),
-    );
-    deleteRatingMutateMock.mockImplementation((_id: string, options?: { onSuccess?: () => void }) =>
-        options?.onSuccess?.(),
-    );
-
     // `error: null` + a no-op `reset` mirror an idle TanStack mutation — the container reads both `.error`
     // (B17 banners) and calls `.reset()` on a recipe-id change (leak scrub).
     useDeleteRecipeMock.mockReturnValue({ mutate: deleteMutateMock, isPending: false, error: null, reset: vi.fn() });
@@ -474,13 +466,23 @@ describe('RecipeDetailContainer', () => {
     });
 
     describe('rating (FR-013) — non-owner viewer', () => {
-        /** A public recipe owned by someone else, so the viewer may rate it. */
-        function renderRateable() {
+        /**
+         * A public recipe owned by someone else, so the viewer may rate it. DA4 — the optimistic pre-select
+         * now lives in the (mocked) `useSetRecipeRating`/`useDeleteRecipeRating` hooks, not the container, so
+         * `recipeOverrides.viewerRating` is how a test seeds "the viewer already rated N" straight off the
+         * detail the mocked `useRecipe` returns.
+         */
+        function renderRateable(recipeOverrides: Partial<ReturnType<typeof makeRecipeDetail>> = {}) {
             useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
             useRecipeMock.mockReturnValue({
                 isLoading: false,
                 isError: false,
-                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                data: makeRecipeDetail({
+                    id: 'rec_1',
+                    ownerId: OWNER_ID,
+                    visibility: RecipeVisibility.PUBLIC,
+                    ...recipeOverrides,
+                }),
                 refetch: refetchMock,
             });
             render(<RecipeDetailContainer id="rec_1" />);
@@ -492,7 +494,7 @@ describe('RecipeDetailContainer', () => {
 
             await user.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
 
-            expect(setRatingMutateMock).toHaveBeenCalledWith({ id: 'rec_1', input: { stars: 4 } }, expect.any(Object));
+            expect(setRatingMutateMock).toHaveBeenCalledWith({ id: 'rec_1', input: { stars: 4 } });
         });
 
         it('re-rates to a new value, replacing the prior rating (Sc7)', async () => {
@@ -502,22 +504,26 @@ describe('RecipeDetailContainer', () => {
             await user.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
             await user.click(screen.getByRole('radio', { name: 'Rate 2 stars' }));
 
-            expect(setRatingMutateMock).toHaveBeenLastCalledWith(
-                { id: 'rec_1', input: { stars: 2 } },
-                expect.any(Object),
-            );
+            expect(setRatingMutateMock).toHaveBeenLastCalledWith({ id: 'rec_1', input: { stars: 2 } });
         });
 
-        it('reveals remove after rating and wires it to THIS recipe id (Sc10, mutation lens)', async () => {
-            const user = userEvent.setup();
+        it('does not reveal remove before the viewer has rated (no server viewerRating yet)', () => {
             renderRateable();
 
-            // The remove affordance appears only once a rating is placed this session.
             expect(screen.queryByRole('button', { name: 'Remove my rating' })).not.toBeInTheDocument();
-            await user.click(screen.getByRole('radio', { name: 'Rate 3 stars' }));
+        });
+
+        it('pre-selects from the server viewerRating, reveals remove, and wires it to THIS recipe id (Sc10, FR-013)', async () => {
+            // DA4 — the optimistic hook layer keeps `recipe.viewerRating` fresh the instant a rate/remove
+            // succeeds; the container itself no longer tracks any local selection, so this asserts the SAME
+            // pre-select + reveal behavior straight off the (mocked) detail's `viewerRating`.
+            const user = userEvent.setup();
+            renderRateable({ viewerRating: 3 });
+
+            expect(screen.getByRole('radio', { name: 'Rate 3 stars', checked: true })).toBeInTheDocument();
             await user.click(screen.getByRole('button', { name: 'Remove my rating' }));
 
-            expect(deleteRatingMutateMock).toHaveBeenCalledWith('rec_1', expect.any(Object));
+            expect(deleteRatingMutateMock).toHaveBeenCalledWith('rec_1');
         });
 
         it('surfaces a not-found rating write as "not available", never "forbidden" (Sc9)', () => {

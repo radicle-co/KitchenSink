@@ -27,7 +27,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, waitFor } from '@testing-library/react';
 
-import type { CreateRecipeInput } from '@kitchensink/recipe-core';
+import type { CreateRecipeInput, RecipeDetail } from '@kitchensink/recipe-core';
 
 import { BadRequestError, ForbiddenError, GoneError, NotFoundError, VersionConflictError } from '../errors.js';
 import {
@@ -571,28 +571,99 @@ describe('useSetRecipeRating', () => {
         expect(probes()).toContain('recipeSearch');
     });
 
-    it('surfaces a 403 (rating your own recipe) and invalidates nothing', async () => {
+    it('surfaces a 403 (rating your own recipe), rolls back the optimistic write, and still reconciles on settle (DA4)', async () => {
+        // DA4 — `onSettled` reconciles with the server regardless of outcome: a rollback is only a best-effort
+        // local restore, so the final invalidation is what actually guarantees the cache matches server truth.
         const error = new ForbiddenError('Cannot rate your own recipe', 'CANNOT_RATE_OWN_RECIPE');
-        const { result, client, probes } = renderMutation(() => useSetRecipeRating());
+        const { result, client, queryClient, probes } = renderMutation(() => useSetRecipeRating());
+        queryClient.setQueryData(
+            recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+            makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: undefined }),
+        );
         vi.spyOn(client, 'setRecipeRating').mockRejectedValue(error);
 
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { stars: 5 } }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
-        expect(probes()).toEqual([]);
+        expect(
+            queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+        ).toBeUndefined();
+        expect(probes()).toEqual(expectedProbes(RATING_PROBES));
     });
 
-    it('surfaces a 404 (rating a recipe the caller cannot see) and invalidates nothing', async () => {
+    it('surfaces a 404 (rating a recipe the caller cannot see), rolls back the optimistic write, and still reconciles on settle (DA4)', async () => {
         const error = new NotFoundError('Recipe not found', 'RECIPE_NOT_FOUND');
-        const { result, client, probes } = renderMutation(() => useSetRecipeRating());
+        const { result, client, queryClient, probes } = renderMutation(() => useSetRecipeRating());
+        queryClient.setQueryData(
+            recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+            makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: undefined }),
+        );
         vi.spyOn(client, 'setRecipeRating').mockRejectedValue(error);
 
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { stars: 5 } }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
-        expect(probes()).toEqual([]);
+        expect(
+            queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+        ).toBeUndefined();
+        expect(probes()).toEqual(expectedProbes(RATING_PROBES));
+    });
+
+    describe('optimistic update (DA4)', () => {
+        it('sets the cached viewerRating immediately, before the write resolves', async () => {
+            const { result, client, queryClient } = renderMutation(() => useSetRecipeRating());
+            queryClient.setQueryData(
+                recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+                makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: undefined }),
+            );
+            let resolveSetRecipeRating: (value: RecipeDetail) => void = () => {
+                throw new Error('resolveSetRecipeRating was not assigned');
+            };
+            const pending = new Promise<RecipeDetail>((resolve) => {
+                resolveSetRecipeRating = resolve;
+            });
+            vi.spyOn(client, 'setRecipeRating').mockReturnValue(pending);
+
+            act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { stars: 4 } }));
+
+            // The write has not resolved yet, but the cache already reflects the tapped value.
+            await waitFor(() =>
+                expect(
+                    queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+                ).toBe(4),
+            );
+            expect(result.current.isSuccess).toBe(false);
+
+            resolveSetRecipeRating(makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: 4 }));
+            await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+            expect(
+                queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+            ).toBe(4);
+        });
+
+        it('rolls back the cached viewerRating to the pre-mutation snapshot when the write rejects', async () => {
+            const { result, client, queryClient } = renderMutation(() => useSetRecipeRating());
+            queryClient.setQueryData(
+                recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+                makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: 2 }),
+            );
+            vi.spyOn(client, 'setRecipeRating').mockRejectedValue(
+                new BadRequestError('Invalid stars', 'VALIDATION_ERROR'),
+            );
+
+            act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { stars: 5 } }));
+            await waitFor(() => expect(result.current.isError).toBe(true));
+
+            // Rolls back to the snapshot taken before the optimistic write (2, not undefined) — a
+            // synchronously-rejecting mock collapses the optimistic window to a single microtask, so the
+            // observable end state is what this test pins; the transient optimistic write is covered above.
+            expect(
+                queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+            ).toBe(2);
+        });
     });
 });
 
@@ -617,16 +688,69 @@ describe('useDeleteRecipeRating', () => {
         expect(probes()).toEqual(expectedProbes(RATING_PROBES));
     });
 
-    it('surfaces a 404 and invalidates nothing', async () => {
+    it('surfaces a 404, rolls back the optimistic removal, and still reconciles on settle (DA4)', async () => {
         const error = new NotFoundError('Recipe not found', 'RECIPE_NOT_FOUND');
-        const { result, client, probes } = renderMutation(() => useDeleteRecipeRating());
+        const { result, client, queryClient, probes } = renderMutation(() => useDeleteRecipeRating());
+        queryClient.setQueryData(
+            recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+            makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: 3 }),
+        );
         vi.spyOn(client, 'deleteRecipeRating').mockRejectedValue(error);
 
         act(() => result.current.mutate(PROBE_RECIPE_ID));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
-        expect(probes()).toEqual([]);
+        expect(queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating).toBe(3);
+        expect(probes()).toEqual(expectedProbes(RATING_PROBES));
+    });
+
+    describe('optimistic update (DA4)', () => {
+        it('clears the cached viewerRating immediately, before the removal resolves', async () => {
+            const { result, client, queryClient } = renderMutation(() => useDeleteRecipeRating());
+            queryClient.setQueryData(
+                recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+                makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: 4 }),
+            );
+            let resolveDeleteRecipeRating: () => void = () => {
+                throw new Error('resolveDeleteRecipeRating was not assigned');
+            };
+            const pending = new Promise<void>((resolve) => {
+                resolveDeleteRecipeRating = resolve;
+            });
+            vi.spyOn(client, 'deleteRecipeRating').mockReturnValue(pending);
+
+            act(() => result.current.mutate(PROBE_RECIPE_ID));
+
+            await waitFor(() =>
+                expect(
+                    queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+                ).toBeUndefined(),
+            );
+            expect(result.current.isSuccess).toBe(false);
+
+            resolveDeleteRecipeRating();
+            await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        });
+
+        it('rolls back the cached viewerRating to the pre-mutation snapshot when the removal rejects', async () => {
+            const { result, client, queryClient } = renderMutation(() => useDeleteRecipeRating());
+            queryClient.setQueryData(
+                recipeServiceKeys.recipe(PROBE_RECIPE_ID),
+                makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: 4 }),
+            );
+            vi.spyOn(client, 'deleteRecipeRating').mockRejectedValue(new NotFoundError('Recipe not found'));
+
+            act(() => result.current.mutate(PROBE_RECIPE_ID));
+            await waitFor(() => expect(result.current.isError).toBe(true));
+
+            // Rolls back to the snapshot taken before the optimistic clear (4, not undefined) — a
+            // synchronously-rejecting mock collapses the optimistic window to a single microtask, so the
+            // observable end state is what this test pins; the transient optimistic clear is covered above.
+            expect(
+                queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
+            ).toBe(4);
+        });
     });
 });
 

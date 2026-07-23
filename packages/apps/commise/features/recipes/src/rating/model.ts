@@ -54,10 +54,12 @@ export type RecipeRatingDisplayProps = RecipeRatingAggregate;
  * + the in-flight/error flags in, and receives the rate/remove intents out.
  *
  * `selectedStars` is the rate action's CURRENT selection (the radiogroup value), not the displayed social-proof
- * score — the read-only stars the viewer SEES are the community `average`. The composing app derives it from the
- * detail's `viewerRating` (the viewer's own prior rating), so a returning viewer's stars are PRE-SELECTED and the
- * remove affordance is revealed on load; re-rating is still an idempotent upsert that replaces (Sc7). See
- * {@link resolveSelectedStars} for how the app reconciles a just-made selection with the server value.
+ * score — the read-only stars the viewer SEES are the community `average`. The composing app derives it directly
+ * from the detail's `viewerRating` (the viewer's own prior rating), so a returning viewer's stars are PRE-SELECTED
+ * and the remove affordance is revealed on load; re-rating is still an idempotent upsert that replaces (Sc7).
+ * DA4 — the write→refetch gap that used to need a session-local override bridge (`resolveSelectedStars`) is now
+ * closed at the hook layer: `useSetRecipeRating`/`useDeleteRecipeRating` patch `viewerRating` optimistically in
+ * the query cache, so `viewerRating` itself never flickers back before the refetch lands.
  */
 export interface RecipeRatingInputProps extends RecipeRatingAggregate {
     /** The rate action's current selection (checked radio). ABSENT → no option selected / the viewer has not rated. */
@@ -100,36 +102,6 @@ export const STAR_VALUES: readonly number[] = Array.from({ length: STAR_COUNT },
  */
 export const ratingModeFor = (params: { viewerId?: string; ownerId: string }): RecipeRatingMode =>
     isOwner({ ownerId: params.ownerId }, makeViewer({ id: params.viewerId })) ? 'own' : 'rate';
-
-/**
- * The viewer's most recent rating action THIS session, or `undefined` to defer entirely to the server.
- *
- * Three-state on purpose — ABSENT (no action yet, use the server's `viewerRating`), `{ stars: n }` (just rated
- * `n`), or `{ stars: undefined }` (just removed) — because a removal must be distinguishable from "no action":
- * a bare `number | undefined` collapses those two, which would make a just-removed rating flicker back to the
- * pre-removal stars until the refetch lands.
- */
-export type RatingSelectionOverride = { readonly stars: number | undefined } | undefined;
-
-/**
- * Reconcile the viewer's optimistic, session-local rating selection with the server's authoritative
- * `RecipeDetail.viewerRating` (FR-013), returning the stars the control should pre-select (or `undefined` for
- * no selection).
- *
- * The SERVER value is the source of truth: the instant it reflects the viewer's action (the rating write
- * invalidates the detail, and the refetch returns the new `viewerRating`), the `override` is ignored — so there
- * is never a lasting double source of truth. Until it catches up, the `override` bridges the write→refetch gap
- * so the stars do not flicker back to the pre-write value. With no override at all, the server value drives
- * directly, which is exactly what pre-selects a returning viewer's saved rating on load.
- *
- * @param override - The viewer's last local action this session (see {@link RatingSelectionOverride}).
- * @param viewerRating - The server's `RecipeDetail.viewerRating`; ABSENT when the viewer has not rated. Pure.
- * @returns The stars to pre-select, or `undefined` for no selection.
- */
-export const resolveSelectedStars = (
-    override: RatingSelectionOverride,
-    viewerRating: number | undefined,
-): number | undefined => (override !== undefined && override.stars !== viewerRating ? override.stars : viewerRating);
 
 /** The singular/plural templates for a star-option's accessible name (each may contain `{count}`). */
 export interface StarOptionLabels {

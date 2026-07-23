@@ -24,9 +24,7 @@ import {
     RecipeRatingInput,
     RecipeVisibilityToggle,
     ratingModeFor,
-    resolveSelectedStars,
     useCookingProgress,
-    type RatingSelectionOverride,
     type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
@@ -93,23 +91,17 @@ export function RecipeDetailScreen({
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
     const [deleteOpen, setDeleteOpen] = useState(false);
-    // The viewer's OPTIMISTIC rating action this session, or undefined to defer to the server. The detail's
-    // `viewerRating` (the viewer's own prior rating) is the source of truth and pre-selects on load; this only
-    // bridges the write→refetch gap so the stars don't flicker back before the refetch lands. See
-    // `resolveSelectedStars`. Reset below when the screen switches recipes so it can't leak across recipes.
-    const [ratingOverride, setRatingOverride] = useState<RatingSelectionOverride>(undefined);
     const [ratingRecipeId, setRatingRecipeId] = useState(recipeId);
 
     if (ratingRecipeId !== recipeId) {
         // A fresh push mounts a new screen, but a `replace`/deep-link reuses THIS screen instance with a new
         // `recipeId` param — so on an id change we must scrub every scrap of the previous recipe's mutation
-        // state. Resetting the mutations (not just the optimistic override) clears their `error` and
-        // `isPending` too — otherwise the previous recipe's failed/in-flight write leaks onto the new one,
-        // which shares the same `useMutation` instance, falsely showing a stale error or busy state. This
-        // covers the rating writes AND (B17) the visibility toggle + delete, whose errors now render. The
-        // render-phase `setRatingRecipeId` forces an immediate re-render, by which point the observers are idle.
+        // state. Resetting the mutations clears their `error` and `isPending` — otherwise the previous
+        // recipe's failed/in-flight write leaks onto the new one, which shares the same `useMutation`
+        // instance, falsely showing a stale error or busy state. This covers the rating writes AND (B17) the
+        // visibility toggle + delete, whose errors now render. The render-phase `setRatingRecipeId` forces an
+        // immediate re-render, by which point the observers are idle.
         setRatingRecipeId(recipeId);
-        setRatingOverride(undefined);
         setRating.reset();
         deleteRating.reset();
         setVisibility.reset();
@@ -179,9 +171,10 @@ export function RecipeDetailScreen({
             : isNotFoundError(ratingError)
               ? 'notAvailable'
               : 'generic';
-    // The stars the input pre-selects: the server's `viewerRating` once loaded, bridged by the optimistic
-    // override during a write so it never flickers. The community `averageRating` stays the displayed score.
-    const selectedStars = resolveSelectedStars(ratingOverride, recipe.viewerRating);
+    // The stars the input pre-selects: the server's `viewerRating` (DA4 — `useSetRecipeRating` /
+    // `useDeleteRecipeRating` patch this optimistically in the cache on `onMutate`, so it never flickers back
+    // to the pre-write value before the refetch lands). The community `averageRating` stays the displayed score.
+    const selectedStars = recipe.viewerRating;
 
     return (
         // ScrollView, not View: the detail (recipe body + rating + owner actions incl. the inline delete
@@ -212,15 +205,8 @@ export function RecipeDetailScreen({
                     {...(selectedStars === undefined ? {} : { selectedStars })}
                     pending={setRating.isPending || deleteRating.isPending}
                     {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
-                    onRate={(stars) =>
-                        setRating.mutate(
-                            { id: recipeId, input: { stars } },
-                            { onSuccess: () => setRatingOverride({ stars }) },
-                        )
-                    }
-                    onRemove={() =>
-                        deleteRating.mutate(recipeId, { onSuccess: () => setRatingOverride({ stars: undefined }) })
-                    }
+                    onRate={(stars) => setRating.mutate({ id: recipeId, input: { stars } })}
+                    onRemove={() => deleteRating.mutate(recipeId)}
                 />
             )}
 

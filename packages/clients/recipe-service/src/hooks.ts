@@ -18,6 +18,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import type {
     CreateRecipeInput,
+    RecipeDetail,
     RecipeSearchParams,
     RecipeVisibility,
     SetRecipeRatingInput,
@@ -343,6 +344,13 @@ export function useCloneRecipe() {
  * into `recipe(id)` instead of invalidating it. A visibility flip is confirmed (against the server DAL) to be
  * a pure single-column metadata UPDATE with no `recipe_versions` insert and no `currentVersion` bump — unlike
  * a content edit or a restore — so `recipeVersions(id)` is deliberately NOT invalidated here.
+ *
+ * DA4 follow-on: this is a genuinely optimistic-worthy write (a toggle the viewer expects to flip instantly),
+ * but layering `onMutate`/`onError` on top of DA3's write-through would need its own red→green pass to decide
+ * whether a failed flip's rollback should ALSO force the `onSettled` reconcile-regardless-of-outcome the rating
+ * hooks now use (today's `onSuccess`-only invalidation is a pinned, deliberate contract — see the tests keyed
+ * `VISIBILITY_PROBES`). Deferred out of DA4's required scope (rating) rather than risk a rushed change to that
+ * contract; not yet implemented.
  */
 export function useSetRecipeVisibility() {
     const client = useRecipeServiceClient();
@@ -444,28 +452,71 @@ export function useRestoreRecipeVersion() {
 // The two rating writes below stale the same single-recipe projection set (subtree + every list + search):
 // a rating changes the trigger-maintained `averageRating` / `ratingCount`, which render on the detail, on
 // every list row, AND on every search result.
+//
+// DA4 — optimistic Command: both hooks below pre-write `recipe(id).viewerRating` in `onMutate` (the ONLY
+// field the client can predict — the trigger-maintained `averageRating`/`ratingCount` are server-derived
+// aggregates the client has no formula for, so they are deliberately left untouched until settle), roll
+// back to the pre-mutation snapshot in `onError`, and always reconcile with the server in `onSettled` —
+// success or failure. This used to be a hand-rolled `ratingOverride` bridge duplicated in BOTH detail
+// containers (web + mobile); it now lives once, in the hook layer, as a real optimistic Command instead of
+// two copies of ad hoc `useState`. Invalidating on failure too (not just success) is deliberate: a rolled-
+// back cache is only a best-effort snapshot restore, and a final reconcile against the server is what
+// actually guarantees the UI matches truth (e.g. a concurrent write to the same recipe by another viewer).
 
-/** `PUT /v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert). */
+/** The `onMutate` context for a rating write: the pre-mutation `recipe(id)` snapshot to roll back to. */
+interface RatingMutationContext {
+    readonly previous: RecipeDetail | undefined;
+}
+
+/** `PUT /v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert), optimistically (DA4). */
 export function useSetRecipeRating() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (vars: { id: string; input: SetRecipeRatingInput }) => client.setRecipeRating(vars.id, vars.input),
-        onSuccess: (_result, vars) => {
+        onMutate: async (vars): Promise<RatingMutationContext> => {
+            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
+            const previous = queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(vars.id));
+            queryClient.setQueryData<RecipeDetail>(recipeServiceKeys.recipe(vars.id), (old) =>
+                old ? { ...old, viewerRating: vars.input.stars } : old,
+            );
+
+            return { previous };
+        },
+        onError: (_error, vars, context) => {
+            if (context?.previous !== undefined) {
+                queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), context.previous);
+            }
+        },
+        onSettled: (_result, _error, vars) => {
             invalidateRecipeProjections(queryClient, vars.id);
         },
     });
 }
 
-/** `DELETE /v1/recipes/{id}/rating` — remove the caller's rating (idempotent). */
+/** `DELETE /v1/recipes/{id}/rating` — remove the caller's rating (idempotent), optimistically (DA4). */
 export function useDeleteRecipeRating() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (id: string) => client.deleteRecipeRating(id),
-        onSuccess: (_result, id) => {
+        onMutate: async (id): Promise<RatingMutationContext> => {
+            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(id) });
+            const previous = queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(id));
+            queryClient.setQueryData<RecipeDetail>(recipeServiceKeys.recipe(id), (old) =>
+                old ? { ...old, viewerRating: undefined } : old,
+            );
+
+            return { previous };
+        },
+        onError: (_error, id, context) => {
+            if (context?.previous !== undefined) {
+                queryClient.setQueryData(recipeServiceKeys.recipe(id), context.previous);
+            }
+        },
+        onSettled: (_result, _error, id) => {
             invalidateRecipeProjections(queryClient, id);
         },
     });
@@ -646,6 +697,13 @@ export function useDeleteCollection() {
 // collection row's `updatedAt`, so its order cannot drift either. So a membership change alters nothing the
 // list renders; invalidating `collections` would refetch every cached collection to redraw identical rows.
 // Widen this ONLY if a list row starts rendering a count or a cover.
+//
+// DA4 follow-on: add/remove are candidates for the same optimistic Command shape as the rating hooks above
+// (the membership toggle is a UI action a viewer expects to reflect instantly), but an optimistic patch here
+// would need to fabricate a plausible `CollectionWithRecipes.recipes` entry (add) or splice one out (remove)
+// from server-shaped data the client does not have pre-write (add's embedded `Recipe`/`CollectionRecipeMembership`
+// row is server-generated). Deferred out of DA4's required scope (rating) rather than risk a rushed, under-tested
+// fabrication of that shape; not yet implemented.
 
 /** `POST /v1/collections/{id}/recipes` — add a recipe to a collection. */
 export function useAddRecipeToCollection() {

@@ -14,8 +14,6 @@ export {
     STAR_VALUES,
     formatStarOptionLabel,
     ratingModeFor,
-    resolveSelectedStars,
-    type RatingSelectionOverride,
     type RecipeRatingAggregate,
     type RecipeRatingDisplayProps,
     type RecipeRatingError,

@@ -274,15 +274,29 @@ export function useCreateRecipe() {
     });
 }
 
-/** `PATCH /v1/recipes/{id}` — update a recipe (optimistic concurrency). */
+/**
+ * `PATCH /v1/recipes/{id}` — update a recipe (optimistic concurrency).
+ *
+ * DA3 — write-through: the response IS the full, freshly-persisted `RecipeDetail`, so it is written straight
+ * into `recipe(id)` (`setQueryData`) instead of invalidating it and forcing a refetch of data the client
+ * already has. This is write-AFTER-success only, never an optimistic `onMutate` pre-write — the CAS 409
+ * conflict flow (a stale `expectedVersion`) is the entire point of this mutation, and pre-writing the cache
+ * would mask a conflict the server is about to reject. The response carries no version-LIST shape to write
+ * through, and a PATCH always records a new version row, so `recipeVersions(id)` still takes an explicit
+ * invalidation; list/search/collection-embed regions go stale exactly as before.
+ */
 export function useUpdateRecipe() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (vars: { id: string; input: UpdateRecipeInput }) => client.updateRecipe(vars.id, vars.input),
-        onSuccess: () => {
-            invalidateEditedRecipeRows(queryClient);
+        onSuccess: (data, vars) => {
+            queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
         },
     });
 }
@@ -300,21 +314,36 @@ export function useDeleteRecipe() {
     });
 }
 
-/** `POST /v1/recipes/{id}/clone` — clone a public recipe. */
+/**
+ * `POST /v1/recipes/{id}/clone` — clone a public recipe.
+ *
+ * DA3 — write-through: the response is the NEW clone's full `RecipeDetail`, so it is written straight into
+ * that clone's OWN `recipe(data.id)` (its id, not the source recipe's) instead of forcing a refetch. A fresh
+ * clone changes no existing recipe and belongs to no collection, so — unlike update/delete/visibility — only
+ * `recipeLists`/`recipeSearches` go stale; `recipes` (broad) and `collections` are deliberately NOT invalidated.
+ */
 export function useCloneRecipe() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (id: string) => client.cloneRecipe(id),
-        onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
+        onSuccess: (data) => {
+            queryClient.setQueryData(recipeServiceKeys.recipe(data.id), data);
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
         },
     });
 }
 
-/** `PATCH /v1/recipes/{id}/visibility` — set a recipe's visibility. */
+/**
+ * `PATCH /v1/recipes/{id}/visibility` — set a recipe's visibility.
+ *
+ * DA3 — write-through: the response is the full, freshly-persisted `RecipeDetail`, so it is written straight
+ * into `recipe(id)` instead of invalidating it. A visibility flip is confirmed (against the server DAL) to be
+ * a pure single-column metadata UPDATE with no `recipe_versions` insert and no `currentVersion` bump — unlike
+ * a content edit or a restore — so `recipeVersions(id)` is deliberately NOT invalidated here.
+ */
 export function useSetRecipeVisibility() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -322,8 +351,11 @@ export function useSetRecipeVisibility() {
     return useMutation({
         mutationFn: (vars: { id: string; visibility: RecipeVisibility }) =>
             client.setRecipeVisibility(vars.id, vars.visibility),
-        onSuccess: () => {
-            invalidateEditedRecipeRows(queryClient);
+        onSuccess: (data, vars) => {
+            queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
         },
     });
 }
@@ -334,10 +366,12 @@ export function useSetRecipeVisibility() {
 // a search row embeds the full `Recipe`). It is keyed off the mutation's variables, so a sibling recipe's
 // detail stays cached. `recipeSearches` is ALWAYS a separate, explicit call: search lives under the
 // `search` namespace OUTSIDE the `recipes` prefix (a prior class of staleness bugs), so no `recipes`
-// invalidation reaches it by accident. Restore, both rating writes, and all three photo writes share this
-// exact set — each changes a DIFFERENT projected field (title/`currentVersion`, `averageRating`/
-// `ratingCount`, `coverPhotoUrl` respectively), but every one of those fields renders on the detail, on
-// every list row, AND on every search result.
+// invalidation reaches it by accident. Both rating writes and all three photo writes share this exact set —
+// each changes a DIFFERENT projected field (`averageRating`/`ratingCount`, `coverPhotoUrl` respectively),
+// but every one of those fields renders on the detail, on every list row, AND on every search result.
+// Restore (below) changes a DIFFERENT projected field too (title/`currentVersion`) but is DA3 write-through:
+// its response fully describes the detail, so it writes that through instead of invalidating the subtree,
+// and invalidates only `recipeVersions(id)` (not covered by the response) plus lists/search/collections.
 
 /**
  * Invalidate the caches that render a single recipe's projected data: its own subtree (`recipe(id)`), every
@@ -360,12 +394,12 @@ function invalidateRecipeProjections(queryClient: ReturnType<typeof useQueryClie
 }
 
 /**
- * Invalidate the broad set an EDIT to an existing recipe stales: every recipe query (`recipes`), the
- * recipe-search namespace (`recipeSearches`), and — DA2 — every collection embed (`collections`). Used by the
- * library-wide edit writes (update/delete/visibility) that do not know which single recipe id changed a row
- * (delete/visibility target one recipe, but the existing broad-invalidation contract stales all recipe rows;
- * this preserves that and only ADDS the collection embeds). `create`/`clone` mint a NEW recipe that is a
- * member of no collection, so they keep their narrower recipes+search invalidation.
+ * Invalidate the broad set an EDIT to an existing recipe stales, for a mutation whose response does NOT
+ * fully describe the entity (`deleteRecipe` resolves `void`, so there is nothing to write through): every
+ * recipe query (`recipes`), the recipe-search namespace (`recipeSearches`), and — DA2 — every collection
+ * embed (`collections`). Used ONLY by {@link useDeleteRecipe} now — DA3 moved update/visibility/restore to
+ * explicit write-through + narrower invalidation (see each hook's doc comment) once their responses proved
+ * to fully describe the changed detail.
  *
  * @param queryClient - The query client whose cache to invalidate.
  * @sideEffect Marks the three regions stale on the query cache.
@@ -380,10 +414,15 @@ function invalidateEditedRecipeRows(queryClient: ReturnType<typeof useQueryClien
  * `POST /v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version.
  *
  * A restore is server-side a full recipe update off the snapshot: it rewrites the title/description/times,
- * replaces the ingredient and step sets, bumps `currentVersion`, and records a new version. So it stales the
- * standard single-recipe projection set via {@link invalidateRecipeProjections} — list rows render `title`
- * and `currentVersion`, and the snapshot's text rebuilds the row's search vector. Keyed off the mutation's
- * variables: a restore touches exactly one recipe, so no sibling recipe's detail is invalidated.
+ * replaces the ingredient and step sets, bumps `currentVersion`, and records a new version.
+ *
+ * DA3 — write-through: `data.recipe` is the full, freshly-persisted `RecipeDetail`, so it is written straight
+ * into `recipe(id)` instead of invalidating the subtree and forcing a refetch. The response carries no
+ * version-LIST shape (only the number it restored from/to), and a restore always records a new version row,
+ * so `recipeVersions(id)` still takes an explicit invalidation, alongside lists/search/collection-embeds —
+ * list rows render `title` and `currentVersion`, and the snapshot's text rebuilds the row's search vector.
+ * Keyed off the mutation's variables: a restore touches exactly one recipe, so a sibling recipe's detail is
+ * untouched.
  */
 export function useRestoreRecipeVersion() {
     const client = useRecipeServiceClient();
@@ -392,8 +431,12 @@ export function useRestoreRecipeVersion() {
     return useMutation({
         mutationFn: (vars: { id: string; versionNumber: number }) =>
             client.restoreRecipeVersion(vars.id, vars.versionNumber),
-        onSuccess: (_result, vars) => {
-            invalidateRecipeProjections(queryClient, vars.id);
+        onSuccess: (data, vars) => {
+            queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data.recipe);
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
         },
     });
 }

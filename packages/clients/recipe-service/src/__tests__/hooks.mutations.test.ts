@@ -31,6 +31,7 @@ import type { CreateRecipeInput } from '@kitchensink/recipe-core';
 
 import { BadRequestError, ForbiddenError, GoneError, NotFoundError, VersionConflictError } from '../errors.js';
 import {
+    recipeServiceKeys,
     useAddRecipeToCollection,
     useCloneCollection,
     useCloneRecipe,
@@ -107,19 +108,47 @@ const RECIPE_WRITE_PROBES: readonly CacheProbeName[] = [...ALL_RECIPE_PROBES, 'r
 const RECIPE_EMBED_WRITE_PROBES: readonly CacheProbeName[] = [...RECIPE_WRITE_PROBES, ...ALL_COLLECTION_PROBES];
 
 /**
- * What restoring a version of recipe A stales: A's own subtree (detail/versions/photos), every recipe list
- * (a restore rewrites `title` and bumps `currentVersion`, both of which list rows render), and the search
- * cache (the restore rebuilds the row's search text). Recipe B is untouched — a restore is scoped to one
- * recipe, so unlike the blanket `recipes` writes above this one stays keyed off the mutation's variables.
+ * DA3 — what a PATCH `update` on recipe A stales now that the mutation response is written THROUGH to the
+ * detail cache instead of triggering a refetch: A's own detail (`recipeA`) and its embedded photos
+ * (`recipeAPhotos`) stay VALID — `setQueryData` hydrates them directly, so invalidating them too would just
+ * force a redundant round-trip for data the client already holds. A's version LIST (`recipeAVersions`) still
+ * goes stale — a PATCH always records a new version row, and the response carries no version-list shape to
+ * write through — alongside every recipe list, the search cache, and every collection embed (DA2, a
+ * `CollectionWithRecipes.recipes` entry embeds the full `Recipe`, and the client has no index of which
+ * collections embed A).
  */
-const RESTORE_PROBES: readonly CacheProbeName[] = [
-    ...RECIPE_A_SUBTREE_PROBES,
+const UPDATE_PROBES: readonly CacheProbeName[] = [
+    'recipeAVersions',
     'recipeList',
     'recipeSearch',
-    // DA2 — a restore rewrites `title`, which every collection embed of recipe A renders. The client cannot
-    // know which collections embed A, so it stales the whole `collections` prefix (collectionB included).
     ...ALL_COLLECTION_PROBES,
 ];
+
+/**
+ * DA3 — what `PATCH .../visibility` on recipe A stales. Same shape as {@link UPDATE_PROBES} MINUS
+ * `recipeAVersions`: confirmed against the server DAL (`recipes.dal.ts` `setVisibility`) that a visibility
+ * flip is a pure single-column metadata UPDATE with no `recipe_versions` insert and no `currentVersion`
+ * bump, so — unlike a content edit or a restore — it records no new version for the list to reflect.
+ */
+const VISIBILITY_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch', ...ALL_COLLECTION_PROBES];
+
+/**
+ * DA3 — what restoring a version of recipe A stales. A restore is server-side a full content rewrite off the
+ * snapshot AND it records a new version row, so its shape is identical to {@link UPDATE_PROBES}: A's own
+ * detail/photos stay valid (write-through from `data.recipe`), `recipeAVersions` goes stale (the restore
+ * minted a new version), and every list/search/collection-embed goes stale exactly as an update does. Recipe
+ * B is untouched — a restore is scoped to one recipe, so unlike the blanket `recipes` writes above this one
+ * stays keyed off the mutation's variables.
+ */
+const RESTORE_PROBES: readonly CacheProbeName[] = UPDATE_PROBES;
+
+/**
+ * DA3 — what cloning a recipe stales. The clone mints a NEW recipe (its detail is written through under the
+ * CLONE's own id, not any seeded probe), so no existing recipe/collection probe goes stale: only the caller's
+ * recipe lists and search need to reflect the new row. A fresh clone is a member of no collection, so
+ * (unlike update/delete/visibility) `collections` is deliberately excluded.
+ */
+const CLONE_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch'];
 
 /**
  * What rating recipe A stales — identical shape to a restore, and for the same reason: a rating changes
@@ -244,14 +273,25 @@ describe('useUpdateRecipe', () => {
         expect(result.current.data).toEqual(updated);
     });
 
-    it('invalidates every recipe query and the search cache (the updated title must refresh in both)', async () => {
+    it('invalidates the version list, every recipe list, search, and every collection — but NOT the detail (DA3)', async () => {
         const { result, client, probes } = renderMutation(() => useUpdateRecipe());
         vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: PROBE_RECIPE_ID }));
 
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { expectedVersion: 1, title: 'New' } }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(RECIPE_EMBED_WRITE_PROBES));
+        expect(probes()).toEqual(expectedProbes(UPDATE_PROBES));
+    });
+
+    it('writes the update response through to the detail cache instead of invalidating it (DA3, no refetch round-trip)', async () => {
+        const updated = makeRecipeDetail({ id: PROBE_RECIPE_ID, title: 'New', currentVersion: 6 });
+        const { result, client, queryClient } = renderMutation(() => useUpdateRecipe());
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue(updated);
+
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { expectedVersion: 5, title: 'New' } }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(updated);
     });
 
     it('surfaces a 409 version conflict and invalidates nothing (the stale write must not evict cache)', async () => {
@@ -329,17 +369,30 @@ describe('useCloneRecipe', () => {
         expect(result.current.data).toEqual(clone);
     });
 
-    it("invalidates every recipe query and the search cache — the clone must appear in the caller's library", async () => {
+    it("invalidates the caller's recipe lists and search — the clone must appear in both — but no other recipe or collection (DA3)", async () => {
         // The discovery screen clones straight from a rendered search result (`RecipeDiscoveryContainer`
         // composes `useSearchRecipes` + `useCloneRecipe`), so the search cache is provably live at the
-        // moment this mutation succeeds — the one place staleness is guaranteed to be on screen.
+        // moment this mutation succeeds — the one place staleness is guaranteed to be on screen. A fresh
+        // clone is a member of no collection and changes no existing recipe, so `collections` and every
+        // existing-recipe probe (A/B/versions/photos) must stay valid.
         const { result, client, probes } = renderMutation(() => useCloneRecipe());
         vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_clone' }));
 
         act(() => result.current.mutate('rec_src'));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(RECIPE_WRITE_PROBES));
+        expect(probes()).toEqual(expectedProbes(CLONE_PROBES));
+    });
+
+    it("writes the clone's detail through to its OWN detail cache (DA3, no refetch round-trip)", async () => {
+        const clone = makeRecipeDetail({ id: 'rec_clone', clonedFromId: 'rec_src' });
+        const { result, client, queryClient } = renderMutation(() => useCloneRecipe());
+        vi.spyOn(client, 'cloneRecipe').mockResolvedValue(clone);
+
+        act(() => result.current.mutate('rec_src'));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe('rec_clone'))).toEqual(clone);
     });
 
     it('surfaces a 404 for a missing/private source recipe and invalidates nothing', async () => {
@@ -368,16 +421,29 @@ describe('useSetRecipeVisibility', () => {
         expect(result.current.data).toEqual(updated);
     });
 
-    it('invalidates every recipe query and the search cache', async () => {
+    it('invalidates every recipe list, search, and every collection — but NOT the detail or the version list (DA3)', async () => {
         // Search rows are `Recipe` metadata, which carries `visibility` — and the search read is scoped
-        // `public OR owned`, so a visibility flip changes both what a result renders and who matches it.
+        // `public OR owned`, so a visibility flip changes both what a result renders and who matches it. No
+        // `recipeAVersions` here: confirmed against the server DAL that a visibility flip is a pure
+        // metadata UPDATE with no `recipe_versions` insert, unlike a content edit or a restore.
         const { result, client, probes } = renderMutation(() => useSetRecipeVisibility());
         vi.spyOn(client, 'setRecipeVisibility').mockResolvedValue(makeRecipeDetail({ id: PROBE_RECIPE_ID }));
 
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, visibility: 'private' }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(RECIPE_EMBED_WRITE_PROBES));
+        expect(probes()).toEqual(expectedProbes(VISIBILITY_PROBES));
+    });
+
+    it('writes the visibility response through to the detail cache instead of invalidating it (DA3, no refetch round-trip)', async () => {
+        const updated = makeRecipeDetail({ id: PROBE_RECIPE_ID, visibility: 'public' });
+        const { result, client, queryClient } = renderMutation(() => useSetRecipeVisibility());
+        vi.spyOn(client, 'setRecipeVisibility').mockResolvedValue(updated);
+
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, visibility: 'public' }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(updated);
     });
 
     it('surfaces a 403 (free tier cannot make a recipe private) and invalidates nothing', async () => {
@@ -406,10 +472,10 @@ describe('useRestoreRecipeVersion', () => {
         expect(result.current.data).toEqual(restored);
     });
 
-    it("invalidates the restored recipe's subtree, every recipe list, and search — but NOT other recipes", async () => {
+    it("invalidates the restored recipe's version list, every recipe list, and search — but NOT the detail or other recipes (DA3)", async () => {
         // A restore is server-side a full `recipes.update` off the snapshot: it rewrites `title` and bumps
-        // `currentVersion` (both rendered by list rows) and rebuilds the row's search text. Leaving the
-        // lists valid stranded them on the pre-restore title — this asserts the corrected behavior.
+        // `currentVersion` (both rendered by list rows), records a new version, and rebuilds the row's
+        // search text. The detail itself is write-through (`data.recipe`), not invalidated.
         const { result, client, probes } = renderMutation(() => useRestoreRecipeVersion());
         vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue(makeRestoreVersionResponse());
 
@@ -417,6 +483,21 @@ describe('useRestoreRecipeVersion', () => {
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).toEqual(expectedProbes(RESTORE_PROBES));
+    });
+
+    it('writes the restored detail (data.recipe) through to the detail cache (DA3, no refetch round-trip)', async () => {
+        const restored = makeRestoreVersionResponse({
+            recipe: makeRecipeDetail({ id: PROBE_RECIPE_ID, title: 'Restored Title', currentVersion: 7 }),
+            restoredFromVersion: 2,
+            currentVersion: 7,
+        });
+        const { result, client, queryClient } = renderMutation(() => useRestoreRecipeVersion());
+        vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue(restored);
+
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, versionNumber: 2 }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(restored.recipe);
     });
 
     it('keys the invalidation off the variables, so restoring recipe A leaves recipe B cached', async () => {

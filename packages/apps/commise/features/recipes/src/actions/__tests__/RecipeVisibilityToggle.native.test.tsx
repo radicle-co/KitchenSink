@@ -77,3 +77,17 @@ describe('RecipeVisibilityToggle (native)', () => {
         expect(screen.queryByText('Upgrade to make recipes private.')).toBeNull();
     });
 });
+
+describe('RecipeVisibilityToggle (native) — change error (B17: no silent snap-back)', () => {
+    it('surfaces the failed-change copy when error is set', () => {
+        renderToggle({ error: true });
+
+        expect(screen.getByText('We couldn\u2019t change who can see this recipe. Please try again.')).toBeTruthy();
+    });
+
+    it('shows no error text when the last change did not fail', () => {
+        renderToggle({ error: false });
+
+        expect(screen.queryByText(/couldn\u2019t change/)).toBeNull();
+    });
+});

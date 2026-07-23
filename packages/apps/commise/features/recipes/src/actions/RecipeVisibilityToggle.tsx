@@ -18,6 +18,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
     visibility,
     canGoPrivate,
     disabledReason,
+    error = false,
     onChange,
 }) => {
     const { visibility: messages } = useMessages(recipeActionMessages);
@@ -75,6 +76,11 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
             {showReason && (
                 <p id={reasonId} className="text-body-sm text-warning">
                     {disabledReason}
+                </p>
+            )}
+            {error && (
+                <p role="alert" className="text-body-sm text-error">
+                    {messages.error}
                 </p>
             )}
         </fieldset>

@@ -21,6 +21,8 @@ export interface RecipeDeleteDialogProps {
     readonly open: boolean;
     /** Whether the delete mutation is in flight — disables and marks the confirm action busy. */
     readonly deleting?: boolean;
+    /** When true, a localized "couldn't delete" alert is shown in the dialog — the last delete failed (B17). */
+    readonly error?: boolean;
     /** Invoked when the user confirms the deletion. */
     readonly onConfirm: () => void;
     /** Invoked when the user dismisses the dialog without deleting. */
@@ -40,6 +42,8 @@ export interface RecipeVisibilityToggleProps {
     readonly canGoPrivate: boolean;
     /** Localized explanation shown when the private option is gated off (rendered only when `!canGoPrivate`). */
     readonly disabledReason?: string;
+    /** When true, a localized "couldn't change visibility" alert is shown — the last change failed (B17). */
+    readonly error?: boolean;
     /** Invoked with the requested next visibility when the user selects an enabled option. */
     readonly onChange: (next: RecipeVisibility) => void;
 }

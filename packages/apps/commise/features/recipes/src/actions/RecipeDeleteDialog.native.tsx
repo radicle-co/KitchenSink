@@ -18,6 +18,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
     recipeTitle,
     open,
     deleting = false,
+    error = false,
     onConfirm,
     onCancel,
 }) => {
@@ -54,6 +55,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
                 </Pressable>
             </View>
             {deleting && <Text style={styles.body}>{deleteDialog.deletingLabel}</Text>}
+            {error && !deleting && <Text style={styles.error}>{deleteDialog.error}</Text>}
         </View>
     );
 };
@@ -75,4 +77,5 @@ const styles = StyleSheet.create({
     confirmButton: { backgroundColor: palette.error, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 20 },
     confirmButtonBusy: { opacity: 0.6 },
     confirmLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    error: { fontSize: 13, color: palette.error },
 });

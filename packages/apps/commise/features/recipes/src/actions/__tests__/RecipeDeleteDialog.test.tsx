@@ -87,3 +87,23 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(screen.getByText('Deleting…')).toBeTruthy();
     });
 });
+
+describe('RecipeDeleteDialog (web) — delete error (B17: no silent stop)', () => {
+    it('surfaces the failed-delete copy inside the dialog when error is set', () => {
+        renderDialog({ error: true });
+
+        expect(screen.getByRole('alert').textContent).toBe('We couldn\u2019t delete this recipe. Please try again.');
+    });
+
+    it('does not show the error while a delete is still in flight', () => {
+        renderDialog({ error: true, deleting: true });
+
+        expect(screen.queryByText(/couldn\u2019t delete/)).toBeNull();
+    });
+
+    it('shows no error when the last delete did not fail', () => {
+        renderDialog({ error: false });
+
+        expect(screen.queryByText(/couldn\u2019t delete/)).toBeNull();
+    });
+});

@@ -17,6 +17,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
     recipeTitle,
     open,
     deleting = false,
+    error = false,
     onConfirm,
     onCancel,
 }) => {
@@ -65,6 +66,11 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
                     <span role="status" className="text-body-sm text-slate">
                         {deleteDialog.deletingLabel}
                     </span>
+                )}
+                {error && !deleting && (
+                    <p role="alert" className="text-body-sm text-error">
+                        {deleteDialog.error}
+                    </p>
                 )}
             </div>
         </div>

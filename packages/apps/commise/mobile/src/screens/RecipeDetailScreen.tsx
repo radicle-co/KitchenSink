@@ -98,15 +98,18 @@ export function RecipeDetailScreen({
 
     if (ratingRecipeId !== recipeId) {
         // A fresh push mounts a new screen, but a `replace`/deep-link reuses THIS screen instance with a new
-        // `recipeId` param — so on an id change we must scrub every scrap of the previous recipe's rating
+        // `recipeId` param — so on an id change we must scrub every scrap of the previous recipe's mutation
         // state. Resetting the mutations (not just the optimistic override) clears their `error` and
-        // `isPending` too — otherwise the previous recipe's failed/in-flight rating write leaks onto the new
-        // one, which shares the same `useMutation` instance, falsely showing a stale error or busy state. The
+        // `isPending` too — otherwise the previous recipe's failed/in-flight write leaks onto the new one,
+        // which shares the same `useMutation` instance, falsely showing a stale error or busy state. This
+        // covers the rating writes AND (B17) the visibility toggle + delete, whose errors now render. The
         // render-phase `setRatingRecipeId` forces an immediate re-render, by which point the observers are idle.
         setRatingRecipeId(recipeId);
         setRatingOverride(undefined);
         setRating.reset();
         deleteRating.reset();
+        setVisibility.reset();
+        deleteRecipe.reset();
     }
 
     const back =
@@ -231,6 +234,9 @@ export function RecipeDetailScreen({
                         visibility={recipe.visibility}
                         canGoPrivate={canGoPrivate}
                         disabledReason={canGoPrivate ? undefined : t.visibilityUpgradeReason}
+                        // B17 — a failed toggle snaps back to the query's value; surface an honest reason so
+                        // the change doesn't fail silently. Cleared on the next attempt (and on recipe switch).
+                        error={setVisibility.error !== null && setVisibility.error !== undefined}
                         onChange={changeVisibility}
                     />
                     <Pressable
@@ -245,6 +251,9 @@ export function RecipeDetailScreen({
                         recipeTitle={recipe.title}
                         open={deleteOpen}
                         deleting={deleteRecipe.isPending}
+                        // B17 — a failed delete left the dialog open with no explanation; surface an honest
+                        // reason inside it. Cleared on the next attempt (and on recipe switch).
+                        error={deleteRecipe.error !== null && deleteRecipe.error !== undefined}
                         onConfirm={() => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() })}
                         onCancel={() => setDeleteOpen(false)}
                     />

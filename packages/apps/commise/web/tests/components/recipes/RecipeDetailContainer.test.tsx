@@ -104,8 +104,15 @@ beforeEach(() => {
         options?.onSuccess?.(),
     );
 
-    useDeleteRecipeMock.mockReturnValue({ mutate: deleteMutateMock, isPending: false });
-    useSetRecipeVisibilityMock.mockReturnValue({ mutate: setVisibilityMutateMock, isPending: false });
+    // `error: null` + a no-op `reset` mirror an idle TanStack mutation — the container reads both `.error`
+    // (B17 banners) and calls `.reset()` on a recipe-id change (leak scrub).
+    useDeleteRecipeMock.mockReturnValue({ mutate: deleteMutateMock, isPending: false, error: null, reset: vi.fn() });
+    useSetRecipeVisibilityMock.mockReturnValue({
+        mutate: setVisibilityMutateMock,
+        isPending: false,
+        error: null,
+        reset: vi.fn(),
+    });
     useCloneRecipeMock.mockReturnValue({ mutate: cloneMutateMock, isPending: false });
     useSetRecipeRatingMock.mockReturnValue({ mutate: setRatingMutateMock, isPending: false, error: null });
     useDeleteRecipeRatingMock.mockReturnValue({ mutate: deleteRatingMutateMock, isPending: false, error: null });
@@ -212,6 +219,50 @@ describe('RecipeDetailContainer', () => {
             render(<RecipeDetailContainer id="rec_1" />);
 
             expect(screen.queryByRole('button', { name: 'Delete recipe' })).not.toBeInTheDocument();
+        });
+
+        it('surfaces a failed delete inside the dialog, not a silent stop (B17)', async () => {
+            const user = userEvent.setup();
+            useDeleteRecipeMock.mockReturnValue({
+                mutate: deleteMutateMock,
+                isPending: false,
+                error: new Error('network down'),
+                reset: vi.fn(),
+            });
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, title: 'Weeknight Pasta' }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+            await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
+
+            expect(screen.getByText('We couldn’t delete this recipe. Please try again.')).toBeInTheDocument();
+        });
+    });
+
+    describe('visibility (T074) — change error (B17: no silent snap-back)', () => {
+        it('surfaces a failed visibility change on the toggle', () => {
+            useSetRecipeVisibilityMock.mockReturnValue({
+                mutate: setVisibilityMutateMock,
+                isPending: false,
+                error: new Error('network down'),
+                reset: vi.fn(),
+            });
+            useRecipeMock.mockReturnValue({
+                isLoading: false,
+                isError: false,
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID }),
+                refetch: refetchMock,
+            });
+
+            render(<RecipeDetailContainer id="rec_1" />);
+
+            expect(
+                screen.getByText('We couldn’t change who can see this recipe. Please try again.'),
+            ).toBeInTheDocument();
         });
     });
 

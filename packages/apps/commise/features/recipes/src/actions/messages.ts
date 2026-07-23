@@ -20,6 +20,8 @@ export interface RecipeDeleteDialogMessages {
     readonly cancel: string;
     /** Busy indicator shown while the delete is in flight. */
     readonly deletingLabel: string;
+    /** Error shown inside the dialog when the delete fails, so it never silently stops (B17). */
+    readonly error: string;
 }
 
 /** Copy for the public/private visibility toggle (T074). */
@@ -30,6 +32,8 @@ export interface RecipeVisibilityToggleMessages {
     readonly publicLabel: string;
     /** Label for the private option. */
     readonly privateLabel: string;
+    /** Error shown when a visibility change fails and the toggle snaps back, so it never does so silently (B17). */
+    readonly error: string;
 }
 
 /** Copy for the clone action (T075). */
@@ -60,11 +64,13 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             confirm: 'Delete',
             cancel: 'Cancel',
             deletingLabel: 'Deleting…',
+            error: 'We couldn’t delete this recipe. Please try again.',
         },
         visibility: {
             groupLabel: 'Recipe visibility',
             publicLabel: 'Public',
             privateLabel: 'Private',
+            error: 'We couldn’t change who can see this recipe. Please try again.',
         },
         clone: {
             clone: 'Clone',

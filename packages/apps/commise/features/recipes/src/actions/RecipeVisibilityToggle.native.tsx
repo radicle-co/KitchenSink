@@ -20,6 +20,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
     visibility,
     canGoPrivate,
     disabledReason,
+    error = false,
     onChange,
 }) => {
     const { visibility: messages } = useMessages(recipeActionMessages);
@@ -64,6 +65,11 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
                 </Pressable>
             </View>
             {showReason && <Text style={styles.reason}>{disabledReason}</Text>}
+            {error && (
+                <Text accessibilityRole="alert" style={styles.error}>
+                    {messages.error}
+                </Text>
+            )}
         </View>
     );
 };
@@ -84,4 +90,5 @@ const styles = StyleSheet.create({
     optionLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
     optionLabelActive: { color: palette.charcoal, fontWeight: '600' },
     reason: { fontSize: 13, color: palette.warning },
+    error: { fontSize: 13, color: palette.error },
 });

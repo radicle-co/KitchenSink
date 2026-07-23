@@ -52,7 +52,9 @@ function detailResult(overrides: Partial<ReturnType<typeof useRecipe>> = {}): Re
 }
 
 function mutation<T>(overrides: Partial<T> = {}): T {
-    return { mutate: vi.fn(), isPending: false, ...overrides } as unknown as T;
+    // `error: null` + a no-op `reset` mirror an idle TanStack mutation — the screen reads `.error` (B17
+    // banners) and calls `.reset()` on a recipeId change (leak scrub).
+    return { mutate: vi.fn(), isPending: false, error: null, reset: vi.fn(), ...overrides } as unknown as T;
 }
 
 /** A `useUserProfile` double exposing only the viewer id + tier the screen reads. */
@@ -247,6 +249,27 @@ describe('RecipeDetailScreen — owner actions', () => {
         fireEvent.click(screen.getByRole('radio', { name: 'Public' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' });
+    });
+
+    it('surfaces a failed delete inside the dialog, not a silent stop (B17)', () => {
+        useDeleteRecipeMock.mockReturnValue(
+            mutation<ReturnType<typeof useDeleteRecipe>>({ error: new Error('network down') as never }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
+
+        expect(screen.getByText('We couldn’t delete this recipe. Please try again.')).toBeTruthy();
+    });
+
+    it('surfaces a failed visibility change on the toggle (B17: no silent snap-back)', () => {
+        useSetRecipeVisibilityMock.mockReturnValue(
+            mutation<ReturnType<typeof useSetRecipeVisibility>>({ error: new Error('network down') as never }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.getByText('We couldn’t change who can see this recipe. Please try again.')).toBeTruthy();
     });
 });
 

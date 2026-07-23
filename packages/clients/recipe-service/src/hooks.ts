@@ -16,10 +16,8 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { createContext, createElement, useContext } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type {
     CreateRecipeInput,
-    Ingredient,
     RecipeSearchParams,
     RecipeVisibility,
     SetRecipeRatingInput,
@@ -27,6 +25,14 @@ import type {
 } from '@kitchensink/recipe-core';
 
 import { RecipeServiceClient } from './client.js';
+import {
+    DEFAULT_INGREDIENT_POLL_INTERVAL_MS,
+    collectionQueries,
+    ingredientQueries,
+    recipeProjections,
+    recipeQueries,
+    recipeServiceKeys,
+} from './queries.js';
 import type {
     CloneCollectionRequest,
     CreateCollectionRequest,
@@ -37,6 +43,11 @@ import type {
     PhotoUploadUrlRequest,
     UpdateCollectionRequest,
 } from './types.js';
+
+// Re-exported so every existing `import { recipeServiceKeys } from '../hooks.js'` (and the public
+// `@kitchensink/recipe-service-client/hooks` subpath) keeps resolving unchanged — P5 moved the factory's
+// SOURCE to `./queries.js` (the module the read-seam factories below build on), not its public location.
+export { DEFAULT_INGREDIENT_POLL_INTERVAL_MS, recipeServiceKeys };
 
 // ─── Provider / context ───────────────────────────────────────────────────────────────────────────
 
@@ -76,42 +87,11 @@ export function useRecipeServiceClient(): RecipeServiceClient {
 }
 
 // ─── Query-key factory ──────────────────────────────────────────────────────────────────────────
-
-/**
- * Stable query-key factory for every recipe-service query (use its prefixes for invalidation).
- *
- * Keys nest so that a prefix names exactly one region of the cache: `recipes` covers every recipe query,
- * `recipe(id)` covers one recipe's whole subtree (its detail, versions, and photos), and `recipeLists` /
- * `recipeSearches` cover the params-addressed families whose individual keys a mutation cannot enumerate
- * (it does not know which filters or search terms a screen has cached). Note that `recipeSearches` is NOT
- * under the `recipes` prefix — search is its own namespace, so staling it always takes an explicit call.
- */
-export const recipeServiceKeys = {
-    all: ['recipe-service'] as const,
-    recipes: ['recipe-service', 'recipes'] as const,
-    /** Prefix over every `recipeList(params)` — the address for "every cached recipe list, whatever its filters". */
-    recipeLists: ['recipe-service', 'recipes', 'list'] as const,
-    recipeList: (params: ListRecipesParams = {}) => ['recipe-service', 'recipes', 'list', params] as const,
-    recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
-    recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
-    recipeVersion: (id: string, versionNumber: number) =>
-        ['recipe-service', 'recipes', 'detail', id, 'versions', versionNumber] as const,
-    recipePhotos: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'photos'] as const,
-    collections: ['recipe-service', 'collections'] as const,
-    collectionList: (params: ListCollectionsParams = {}) => ['recipe-service', 'collections', 'list', params] as const,
-    collection: (id: string) => ['recipe-service', 'collections', 'detail', id] as const,
-    /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
-    recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
-    recipeSearch: (params: RecipeSearchParams = {}) => ['recipe-service', 'search', 'recipes', params] as const,
-    /** Prefix over every `ingredientSearch(query, limit)` — "every cached ingredient search, whatever the terms". */
-    ingredientSearches: ['recipe-service', 'search', 'ingredients'] as const,
-    ingredientSearch: (query: string, limit?: number) =>
-        ['recipe-service', 'search', 'ingredients', query, limit ?? null] as const,
-    /** One ingredient's async-resolution poll (`GET /v1/ingredients/{id}/status`). */
-    ingredientStatus: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'status'] as const,
-    /** One ingredient's disambiguation candidate set (`GET /v1/ingredients/{id}/candidates`). */
-    ingredientCandidates: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'candidates'] as const,
-} as const;
+//
+// `recipeServiceKeys` is now DEFINED in `./queries.js` (see that module's doc comment for why: the
+// read-seam factories below build on it, and defining it there — rather than importing it back from
+// here — avoids a hooks.ts ⇄ queries.ts import cycle). It is re-exported above so every existing
+// `recipeServiceKeys` import keeps resolving from this module unchanged.
 
 /** Optional gate shared by id-addressed read hooks. */
 export interface QueryEnableOptions {
@@ -119,15 +99,18 @@ export interface QueryEnableOptions {
 }
 
 // ─── Recipe queries ───────────────────────────────────────────────────────────────────────────────
+//
+// Every read hook below is a one-liner over a `recipeQueries`/`collectionQueries`/`ingredientQueries`
+// factory (P5 — the Repository read seam, `./queries.js`): the hook owns ONLY what a hook-specific
+// concern actually is — the empty-id/empty-query gate (`enabled`) and, for the ingredient-status poll,
+// the caller-configurable cadence. The query key, the fetcher, and the cache policy (`staleTime`) live
+// on the factory, so they cannot drift between two hooks that read the same data.
 
 /** `GET /v1/recipes` — the caller's recipes (paginated). */
 export function useRecipes(params: ListRecipesParams = {}) {
     const client = useRecipeServiceClient();
 
-    return useQuery({
-        queryKey: recipeServiceKeys.recipeList(params),
-        queryFn: () => client.listRecipes(params),
-    });
+    return useQuery(recipeQueries(client).list(params));
 }
 
 /** `GET /v1/recipes/{id}` — a single recipe. */
@@ -135,8 +118,7 @@ export function useRecipe(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.recipe(id),
-        queryFn: () => client.getRecipeById(id),
+        ...recipeQueries(client).detail(id),
         enabled: (options.enabled ?? true) && id.length > 0,
     });
 }
@@ -146,8 +128,7 @@ export function useRecipeVersions(id: string, options: QueryEnableOptions = {}) 
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.recipeVersions(id),
-        queryFn: () => client.listRecipeVersions(id),
+        ...recipeQueries(client).versions(id),
         enabled: (options.enabled ?? true) && id.length > 0,
     });
 }
@@ -157,8 +138,7 @@ export function useRecipeVersion(id: string, versionNumber: number, options: Que
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.recipeVersion(id, versionNumber),
-        queryFn: () => client.getRecipeVersion(id, versionNumber),
+        ...recipeQueries(client).version(id, versionNumber),
         enabled: (options.enabled ?? true) && id.length > 0,
     });
 }
@@ -168,8 +148,7 @@ export function useRecipePhotos(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.recipePhotos(id),
-        queryFn: () => client.listRecipePhotos(id),
+        ...recipeQueries(client).photos(id),
         enabled: (options.enabled ?? true) && id.length > 0,
     });
 }
@@ -180,10 +159,7 @@ export function useRecipePhotos(id: string, options: QueryEnableOptions = {}) {
 export function useCollections(params: ListCollectionsParams = {}) {
     const client = useRecipeServiceClient();
 
-    return useQuery({
-        queryKey: recipeServiceKeys.collectionList(params),
-        queryFn: () => client.listCollections(params),
-    });
+    return useQuery(collectionQueries(client).list(params));
 }
 
 /** `GET /v1/collections/{id}` — a collection with its member recipes. */
@@ -191,8 +167,7 @@ export function useCollection(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.collection(id),
-        queryFn: () => client.getCollectionById(id),
+        ...collectionQueries(client).detail(id),
         enabled: (options.enabled ?? true) && id.length > 0,
     });
 }
@@ -203,10 +178,7 @@ export function useCollection(id: string, options: QueryEnableOptions = {}) {
 export function useSearchRecipes(params: RecipeSearchParams = {}) {
     const client = useRecipeServiceClient();
 
-    return useQuery({
-        queryKey: recipeServiceKeys.recipeSearch(params),
-        queryFn: () => client.searchRecipes(params),
-    });
+    return useQuery(recipeQueries(client).search(params));
 }
 
 /**
@@ -221,12 +193,7 @@ export function useSearchRecipes(params: RecipeSearchParams = {}) {
 export function useInfiniteSearchRecipes(params: RecipeSearchParams = {}) {
     const client = useRecipeServiceClient();
 
-    return useInfiniteQuery({
-        queryKey: recipeServiceKeys.recipeSearch(params),
-        queryFn: ({ pageParam }) => client.searchRecipes({ ...params, page: pageParam }),
-        initialPageParam: 1,
-        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
-    });
+    return useInfiniteQuery(recipeQueries(client).searchInfinite(params));
 }
 
 /** `GET /v1/ingredients/search` — ingredient typeahead (disabled for an empty query). */
@@ -234,14 +201,10 @@ export function useSearchIngredients(query: string, limit?: number, options: Que
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.ingredientSearch(query, limit),
-        queryFn: () => client.searchIngredients(query, limit),
+        ...ingredientQueries(client).search(query, limit),
         enabled: (options.enabled ?? true) && query.length > 0,
     });
 }
-
-/** Default poll cadence (ms) for {@link useIngredientStatus} — spaced so a `PENDING` food does not hammer. */
-export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
 
 /** Options for {@link useIngredientStatus}. */
 export interface IngredientStatusOptions extends QueryEnableOptions {
@@ -252,12 +215,12 @@ export interface IngredientStatusOptions extends QueryEnableOptions {
 /**
  * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
  *
- * The poll is SELF-LIMITING: `refetchInterval` returns a cadence ONLY while the last-seen status is
- * `PENDING`, and `false` for every other state — `RESOLVED`, `UNRESOLVED` (needs user disambiguation, not
- * more polling), the `NOT_FOUND`/`FAILED` terminals, and a freeform ingredient (no status). So it stops the
- * instant nutrition arrives or a terminal/disambiguation state is reached, never spinning on a food that
- * will not change by polling. TanStack keeps a single in-flight refetch per tick, and background refetching
- * is left off, so it cannot storm the endpoint.
+ * The poll is SELF-LIMITING: `refetchInterval` (from {@link ingredientQueries}`.status`) returns a cadence
+ * ONLY while the last-seen status is `PENDING`, and `false` for every other state — `RESOLVED`,
+ * `UNRESOLVED` (needs user disambiguation, not more polling), the `NOT_FOUND`/`FAILED` terminals, and a
+ * freeform ingredient (no status). So it stops the instant nutrition arrives or a terminal/disambiguation
+ * state is reached, never spinning on a food that will not change by polling. TanStack keeps a single
+ * in-flight refetch per tick, and background refetching is left off, so it cannot storm the endpoint.
  *
  * @param id - The ingredient id (the query is disabled for an empty id).
  * @param options - Enable gate + poll cadence.
@@ -267,14 +230,8 @@ export function useIngredientStatus(id: string, options: IngredientStatusOptions
     const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_INGREDIENT_POLL_INTERVAL_MS;
 
     return useQuery({
-        queryKey: recipeServiceKeys.ingredientStatus(id),
-        queryFn: () => client.getIngredientStatus(id),
+        ...ingredientQueries(client).status(id, pollIntervalMs),
         enabled: (options.enabled ?? true) && id.length > 0,
-        refetchInterval: (query) => {
-            const data = query.state.data as Ingredient | undefined;
-
-            return data?.foodResolutionStatus === FoodResolutionStatus.PENDING ? pollIntervalMs : false;
-        },
     });
 }
 
@@ -289,8 +246,7 @@ export function useIngredientCandidates(id: string, options: QueryEnableOptions 
     const client = useRecipeServiceClient();
 
     return useQuery({
-        queryKey: recipeServiceKeys.ingredientCandidates(id),
-        queryFn: () => client.getIngredientCandidates(id),
+        ...ingredientQueries(client).candidates(id),
         enabled: (options.enabled ?? true) && id.length > 0,
     });
 }
@@ -385,23 +341,22 @@ export function useSetRecipeVisibility() {
 
 /**
  * Invalidate the caches that render a single recipe's projected data: its own subtree (`recipe(id)`), every
- * recipe list (`recipeLists`), and the recipe-search namespace (`recipeSearches`). Sibling recipes stay
- * cached. See the block comment above for why these three — and only these three — go stale together.
+ * recipe list (`recipeLists`), the recipe-search namespace (`recipeSearches`), and — DA2 — every collection
+ * (`collections`, since a `CollectionWithRecipes.recipes` entry embeds the full `Recipe` projection, and the
+ * client has no index of which collections embed this recipe). Sibling recipes stay cached. See the block
+ * comment above for why these four — and only these four — go stale together.
+ *
+ * P5: this is now a thin loop over {@link recipeProjections}, the single registry the factories and this
+ * invalidation call site both read off — they cannot drift apart.
  *
  * @param queryClient - The query client whose cache to invalidate.
- * @param recipeId - The recipe whose detail/list/search projections changed.
- * @sideEffect Marks the three regions stale on the query cache.
+ * @param recipeId - The recipe whose detail/list/search/collection-embed projections changed.
+ * @sideEffect Marks the four regions stale on the query cache.
  */
 function invalidateRecipeProjections(queryClient: ReturnType<typeof useQueryClient>, recipeId: string): void {
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
-    // DA2 — a `CollectionWithRecipes.recipes` entry embeds the full `Recipe` projection, so a write that
-    // changes this recipe's title/cover/rating leaves every cached collection that embeds it stale. The
-    // client has no index of which collections embed this recipe, so it stales the whole `collections`
-    // prefix. (Direction note: this is recipe-write → embed; the reverse, membership-write narrowness, is
-    // deliberately NOT widened — only collection mutations touch a specific `collection(id)`.)
-    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
+    for (const queryKey of recipeProjections(recipeId)) {
+        void queryClient.invalidateQueries({ queryKey });
+    }
 }
 
 /**

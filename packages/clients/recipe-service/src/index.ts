@@ -11,6 +11,19 @@
 export { RecipeServiceClient } from './client.js';
 export type { RecipeServiceClientOptions, TokenSource } from './client.js';
 
+// P5 (W9) — the `queryOptions` repository-read-seam factories + the recipe-write invalidation registry.
+// Per the task contract these are exported from the main barrel (not the React-only `./hooks` subpath),
+// on the reasoning that a `queryOptions` VALUE needs no React to construct or consume (e.g. a server-side
+// `queryClient.prefetchQuery`/`fetchQuery` caller). Residual note: `queries.ts` still imports
+// `queryOptions`/`infiniteQueryOptions` from `@tanstack/react-query` (the only package that exports them
+// in v5) rather than the React-free `@tanstack/query-core`, so loading THIS barrel now also loads
+// `@tanstack/react-query`'s module graph — which is already a hard `dependencies` entry (not an optional
+// peer) of this package, and `react` itself is already a mandatory `peerDependencies` entry for the whole
+// package, so this does not add a new dependency, only widens which entry point pulls in one that already
+// existed. `hooks.ts` (the `./hooks` subpath) is what actually calls `useQuery`/`useInfiniteQuery` on top
+// of the values these factories build.
+export { collectionQueries, ingredientQueries, recipeProjections, recipeQueries } from './queries.js';
+
 export {
     BadRequestError,
     ForbiddenError,

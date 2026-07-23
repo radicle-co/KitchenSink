@@ -25,6 +25,10 @@ export interface RecipeVersionListMessages {
     readonly restoreAction: string;
     /** Busy status announced while a version is being restored (contains `{version}`). */
     readonly restoringStatus: string;
+    /** Error shown when a restore fails because the recipe changed underneath (409 conflict, B17). */
+    readonly restoreConflictError: string;
+    /** Error shown when a restore fails for any other reason (B17). */
+    readonly restoreGenericError: string;
 }
 
 /** Shared copy for the concurrent-edit conflict resolution view (T070 / C-005). */
@@ -113,6 +117,9 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             restore: 'Restore',
             restoreAction: 'Restore version {version}',
             restoringStatus: 'Restoring version {version}…',
+            restoreConflictError:
+                'This recipe changed since you opened its history. Review the refreshed list and try again.',
+            restoreGenericError: 'We couldn’t restore that version. Please try again.',
         },
         conflict: {
             heading: 'This recipe changed while you were editing',

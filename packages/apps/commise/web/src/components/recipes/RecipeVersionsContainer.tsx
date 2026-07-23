@@ -9,8 +9,9 @@
  * The row being restored is busied via `restoringVersion`, with the mutation carrying `{ id, versionNumber }`.
  * It holds no server data of its own — TanStack Query is the source of truth for the remote version list.
  */
-import { RecipeVersionList } from '@commise/features-recipes';
+import { RecipeVersionList, type RecipeVersionRestoreError } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 import type { FC } from 'react';
 
@@ -63,12 +64,37 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
 
     const restoringVersion = restore.isPending ? restore.variables.versionNumber : null;
 
+    // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
+    // the recipe changing underneath (someone saved a new version), so the copy tells the viewer to review the
+    // refreshed list; anything else is generic. The banner clears on the next restore attempt.
+    const restoreError: RecipeVersionRestoreError | undefined =
+        restore.error === null || restore.error === undefined
+            ? undefined
+            : isVersionConflictError(restore.error)
+              ? 'conflict'
+              : 'generic';
+
     return (
         <RecipeVersionList
             versions={versionsQuery.data}
             currentVersion={recipeQuery.data.currentVersion}
             restoringVersion={restoringVersion}
-            onRestore={(versionNumber) => restore.mutate({ id: recipeId, versionNumber })}
+            restoreError={restoreError}
+            onRestore={(versionNumber) =>
+                restore.mutate(
+                    { id: recipeId, versionNumber },
+                    {
+                        // On a conflict the local history + current version are stale — refetch so the viewer
+                        // sees the version that landed before they retry (the block marks the new current).
+                        onError: (error) => {
+                            if (isVersionConflictError(error)) {
+                                void versionsQuery.refetch();
+                                void recipeQuery.refetch();
+                            }
+                        },
+                    },
+                )
+            }
         />
     );
 };

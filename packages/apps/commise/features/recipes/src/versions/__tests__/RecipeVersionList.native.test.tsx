@@ -116,3 +116,28 @@ describe('RecipeVersionList (native) — restoring state', () => {
         expect(onRestore).not.toHaveBeenCalled();
     });
 });
+
+describe('RecipeVersionList (native) — restore error (B17: no silent failure)', () => {
+    it('surfaces the conflict copy when a restore fails because the recipe changed underneath', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'conflict' });
+
+        expect(
+            screen.getByText(
+                'This recipe changed since you opened its history. Review the refreshed list and try again.',
+            ),
+        ).toBeTruthy();
+    });
+
+    it('surfaces the generic copy for any other failed restore', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'generic' });
+
+        expect(screen.getByText('We couldn’t restore that version. Please try again.')).toBeTruthy();
+    });
+
+    it('shows no error text when the last restore did not fail', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoreError: undefined });
+
+        expect(screen.queryByText(/couldn’t restore/)).toBeNull();
+        expect(screen.queryByText(/changed since you opened/)).toBeNull();
+    });
+});

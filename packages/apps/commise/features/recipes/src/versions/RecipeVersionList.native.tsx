@@ -17,11 +17,20 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     versions,
     currentVersion,
     restoringVersion,
+    restoreError,
     onRestore,
 }) => {
     const { versionList } = useMessages(recipeVersionMessages);
     const locale = useLocale();
     const isRestoring = restoringVersion !== undefined && restoringVersion !== null;
+    // B17 — a failed restore is a mandated UI state, never a silent no-op. Resolve the container's error code
+    // to localized copy here so the block stays self-contained on its own copy.
+    const restoreErrorMessage =
+        restoreError === undefined
+            ? undefined
+            : restoreError === 'conflict'
+              ? versionList.restoreConflictError
+              : versionList.restoreGenericError;
 
     if (versions.length === 0) {
         return (
@@ -39,6 +48,11 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
             <Text accessibilityRole="header" style={styles.heading}>
                 {versionList.heading}
             </Text>
+            {restoreErrorMessage !== undefined && (
+                <Text accessibilityRole="alert" style={styles.restoreError}>
+                    {restoreErrorMessage}
+                </Text>
+            )}
             {sortVersionsDescending(versions).map((version) => {
                 const isCurrent = version.versionNumber === currentVersion;
                 const isBusy = restoringVersion === version.versionNumber;
@@ -99,4 +113,5 @@ const styles = StyleSheet.create({
     currentBadge: { fontSize: 12, fontWeight: '500', color: palette.seafoam },
     restoreButton: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
     restoreLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+    restoreError: { fontSize: 13, color: palette.error },
 });

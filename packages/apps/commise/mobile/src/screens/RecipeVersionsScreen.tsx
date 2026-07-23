@@ -6,8 +6,9 @@
  * Renders localized loading and error states until both queries resolve; the restore invalidates the recipe
  * and its versions, so the list refreshes itself.
  */
-import { RecipeVersionList } from '@commise/features-recipes';
+import { RecipeVersionList, type RecipeVersionRestoreError } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -59,6 +60,16 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
 
     const restoringVersion = restore.isPending ? (restore.variables?.versionNumber ?? null) : null;
 
+    // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
+    // the recipe changing underneath (someone saved a new version), so the copy tells the viewer to review the
+    // refreshed list; anything else is generic. The banner clears on the next restore attempt.
+    const restoreError: RecipeVersionRestoreError | undefined =
+        restore.error === null || restore.error === undefined
+            ? undefined
+            : isVersionConflictError(restore.error)
+              ? 'conflict'
+              : 'generic';
+
     return (
         <View style={styles.container}>
             {back}
@@ -66,7 +77,22 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
                 versions={versions.data}
                 currentVersion={recipe.data.currentVersion}
                 restoringVersion={restoringVersion}
-                onRestore={(versionNumber) => restore.mutate({ id: recipeId, versionNumber })}
+                restoreError={restoreError}
+                onRestore={(versionNumber) =>
+                    restore.mutate(
+                        { id: recipeId, versionNumber },
+                        {
+                            // On a conflict the local history + current version are stale — refetch so the
+                            // viewer sees the version that landed before they retry.
+                            onError: (error) => {
+                                if (isVersionConflictError(error)) {
+                                    void versions.refetch();
+                                    void recipe.refetch();
+                                }
+                            },
+                        },
+                    )
+                }
             />
         </View>
     );

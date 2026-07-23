@@ -10,6 +10,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { VersionConflictError } from '@kitchensink/recipe-service-client';
+
 import { RecipeVersionsContainer } from '@/components/recipes/RecipeVersionsContainer';
 
 import { makeRecipe } from './__fixtures__/recipeFixtures';
@@ -42,7 +44,24 @@ function mockRestore(overrides: Record<string, unknown> = {}): void {
         mutate: restoreMutateMock,
         isPending: false,
         variables: undefined,
+        error: null,
         ...overrides,
+    });
+}
+
+/** A two-version ready state (v1 restorable, v2 current) shared by the restore-flow tests. */
+function mockReadyTwoVersions(): void {
+    useRecipeVersionsMock.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: [makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 2 })],
+        refetch: versionsRefetchMock,
+    });
+    useRecipeMock.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: makeRecipe({ currentVersion: 2 }),
+        refetch: recipeRefetchMock,
     });
 }
 
@@ -123,25 +142,70 @@ describe('RecipeVersionsContainer', () => {
 
     it('restores the chosen version with the correct version number', async () => {
         const user = userEvent.setup();
-        useRecipeVersionsMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: [makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 2 })],
-            refetch: versionsRefetchMock,
-        });
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipe({ currentVersion: 2 }),
-            refetch: recipeRefetchMock,
-        });
+        mockReadyTwoVersions();
         mockRestore();
 
         render(<RecipeVersionsContainer recipeId="rec_1" />);
 
         await user.click(screen.getByRole('button', { name: 'Restore version 1' }));
 
-        expect(restoreMutateMock).toHaveBeenCalledWith({ id: 'rec_1', versionNumber: 1 });
+        // The mutate carries the version number plus an onError options object (B17 conflict refetch).
+        expect(restoreMutateMock).toHaveBeenCalledWith(
+            { id: 'rec_1', versionNumber: 1 },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
+    });
+
+    describe('restore failure (B17: no silent no-op)', () => {
+        it('surfaces the conflict banner when the restore 409s (not a silent no-op)', () => {
+            mockReadyTwoVersions();
+            // A restore that failed with a 409 leaves the mutation carrying a VersionConflictError.
+            mockRestore({ error: new VersionConflictError(3, 1) });
+
+            render(<RecipeVersionsContainer recipeId="rec_1" />);
+
+            // The failure is a mandated UI state — the conflict copy, not a silent no-op.
+            expect(screen.getByRole('alert').textContent).toContain('This recipe changed since you opened its history');
+        });
+
+        it('surfaces the generic banner for a non-conflict restore failure', () => {
+            mockReadyTwoVersions();
+            mockRestore({ error: new Error('network down') });
+
+            render(<RecipeVersionsContainer recipeId="rec_1" />);
+
+            expect(screen.getByRole('alert').textContent).toBe('We couldn’t restore that version. Please try again.');
+        });
+
+        it('refetches both queries when the restore onError fires with a conflict', async () => {
+            const user = userEvent.setup();
+            mockReadyTwoVersions();
+            mockRestore();
+
+            render(<RecipeVersionsContainer recipeId="rec_1" />);
+            await user.click(screen.getByRole('button', { name: 'Restore version 1' }));
+
+            const onError = restoreMutateMock.mock.calls[0]?.[1]?.onError as (error: unknown) => void;
+            onError(new VersionConflictError(3, 1));
+
+            expect(versionsRefetchMock).toHaveBeenCalledTimes(1);
+            expect(recipeRefetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('does NOT refetch when the restore onError fires with a non-conflict error', async () => {
+            const user = userEvent.setup();
+            mockReadyTwoVersions();
+            mockRestore();
+
+            render(<RecipeVersionsContainer recipeId="rec_1" />);
+            await user.click(screen.getByRole('button', { name: 'Restore version 1' }));
+
+            const onError = restoreMutateMock.mock.calls[0]?.[1]?.onError as (error: unknown) => void;
+            onError(new Error('network down'));
+
+            expect(versionsRefetchMock).not.toHaveBeenCalled();
+            expect(recipeRefetchMock).not.toHaveBeenCalled();
+        });
     });
 
     it('shows a busy status on the restoring row and disables every restore action', () => {

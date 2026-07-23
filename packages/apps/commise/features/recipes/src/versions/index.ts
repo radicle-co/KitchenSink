@@ -20,6 +20,7 @@ export {
     type RecipeMergeField,
     type RecipeMergeSelections,
     type RecipeVersionListProps,
+    type RecipeVersionRestoreError,
 } from './model.js';
 export {
     recipeVersionMessages,

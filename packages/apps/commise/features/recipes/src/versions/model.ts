@@ -17,6 +17,15 @@ import type { RecipeConflictMessages } from './messages.js';
  * recipe's versions (newest first) and delegates every interaction upward; it fetches nothing (the
  * composing app wires `useRecipeVersions` + `useRestoreRecipeVersion` to these props).
  */
+/**
+ * Which honest error a failed restore surfaces (localized copy lives in the list, keyed by this discriminant —
+ * the B20/B15 code pattern, so the composing container never reaches into the block's message dictionary).
+ * - `conflict` — the recipe changed underneath (409 {@link VersionConflictError}); the container refetches the
+ *   history + current version and the copy tells the viewer to review the refreshed list and retry.
+ * - `generic` — any other failed restore write.
+ */
+export type RecipeVersionRestoreError = 'conflict' | 'generic';
+
 export interface RecipeVersionListProps {
     /** The recipe's versions, in any order (the view sorts newest-first). */
     readonly versions: readonly RecipeVersion[];
@@ -24,6 +33,8 @@ export interface RecipeVersionListProps {
     readonly currentVersion: number;
     /** The version currently being restored (its row shows a busy state); `null`/absent when idle. */
     readonly restoringVersion?: number | null;
+    /** An honest error from the last restore attempt to surface, or ABSENT for none (B17). */
+    readonly restoreError?: RecipeVersionRestoreError;
     /** Invoked with the version number when a restore action is activated. */
     readonly onRestore: (versionNumber: number) => void;
 }

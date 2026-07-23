@@ -17,11 +17,20 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     versions,
     currentVersion,
     restoringVersion,
+    restoreError,
     onRestore,
 }) => {
     const { versionList } = useMessages(recipeVersionMessages);
     const locale = useLocale();
     const isRestoring = restoringVersion !== undefined && restoringVersion !== null;
+    // B17 — a failed restore is a mandated UI state, never a silent no-op. Resolve the container's error code
+    // to localized copy here so the block stays self-contained on its own copy.
+    const restoreErrorMessage =
+        restoreError === undefined
+            ? undefined
+            : restoreError === 'conflict'
+              ? versionList.restoreConflictError
+              : versionList.restoreGenericError;
 
     if (versions.length === 0) {
         return (
@@ -35,6 +44,11 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     return (
         <section aria-label={versionList.heading} className="mx-auto flex max-w-2xl flex-col gap-4 px-4 py-8">
             <h2 className="font-display text-heading-lg font-semibold text-charcoal">{versionList.heading}</h2>
+            {restoreErrorMessage !== undefined && (
+                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error">
+                    {restoreErrorMessage}
+                </p>
+            )}
             <ul className="flex flex-col gap-3">
                 {sortVersionsDescending(versions).map((version) => {
                     const isCurrent = version.versionNumber === currentVersion;

@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeVersionsScreen } from '../../src/screens/RecipeVersionsScreen.js';
@@ -39,9 +40,13 @@ function versionsResult(
 function restoreMutation(
     overrides: Partial<ReturnType<typeof useRestoreRecipeVersion>> = {},
 ): ReturnType<typeof useRestoreRecipeVersion> {
-    return { mutate: vi.fn(), isPending: false, variables: undefined, ...overrides } as unknown as ReturnType<
-        typeof useRestoreRecipeVersion
-    >;
+    return {
+        mutate: vi.fn(),
+        isPending: false,
+        variables: undefined,
+        error: null,
+        ...overrides,
+    } as unknown as ReturnType<typeof useRestoreRecipeVersion>;
 }
 
 afterEach(cleanup);
@@ -101,7 +106,11 @@ describe('RecipeVersionsScreen — populated', () => {
         render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', versionNumber: 1 });
+        // The mutate carries the version number plus an onError options object (B17 conflict refetch).
+        expect(mutate).toHaveBeenCalledWith(
+            { id: 'rec_1', versionNumber: 1 },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
     });
 
     it('returns to the caller from the back affordance', () => {
@@ -111,5 +120,75 @@ describe('RecipeVersionsScreen — populated', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
         expect(onBack).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () => {
+    const recipeRefetch = vi.fn();
+    const versionsRefetch = vi.fn();
+
+    beforeEach(() => {
+        useRecipeMock.mockReturnValue(
+            recipeResult({ data: makeRecipeDetail({ currentVersion: 2 }), refetch: recipeRefetch as never }),
+        );
+        useRecipeVersionsMock.mockReturnValue(
+            versionsResult({
+                data: [
+                    makeRecipeVersion({ id: 'ver_1', versionNumber: 1 }),
+                    makeRecipeVersion({ id: 'ver_2', versionNumber: 2 }),
+                ],
+                refetch: versionsRefetch as never,
+            }),
+        );
+    });
+
+    it('surfaces the conflict copy when the restore 409s', () => {
+        useRestoreRecipeVersionMock.mockReturnValue(
+            restoreMutation({ error: new VersionConflictError(3, 1) as never }),
+        );
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        expect(
+            screen.getByText(
+                'This recipe changed since you opened its history. Review the refreshed list and try again.',
+            ),
+        ).toBeTruthy();
+    });
+
+    it('surfaces the generic copy for a non-conflict restore failure', () => {
+        useRestoreRecipeVersionMock.mockReturnValue(restoreMutation({ error: new Error('network down') as never }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        expect(screen.getByText('We couldn’t restore that version. Please try again.')).toBeTruthy();
+    });
+
+    it('refetches history + recipe when the restore onError fires with a conflict', () => {
+        const mutate = vi.fn();
+        useRestoreRecipeVersionMock.mockReturnValue(restoreMutation({ mutate: mutate as never }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+
+        const onError = mutate.mock.calls[0]?.[1]?.onError as (error: unknown) => void;
+        onError(new VersionConflictError(3, 1));
+
+        expect(versionsRefetch).toHaveBeenCalledTimes(1);
+        expect(recipeRefetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT refetch when the restore onError fires with a non-conflict error', () => {
+        const mutate = vi.fn();
+        useRestoreRecipeVersionMock.mockReturnValue(restoreMutation({ mutate: mutate as never }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+
+        const onError = mutate.mock.calls[0]?.[1]?.onError as (error: unknown) => void;
+        onError(new Error('network down'));
+
+        expect(versionsRefetch).not.toHaveBeenCalled();
+        expect(recipeRefetch).not.toHaveBeenCalled();
     });
 });

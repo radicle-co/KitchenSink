@@ -28,9 +28,29 @@ export type RecipeRatingError =
     | 'generic';
 
 /**
- * Props for the interactive rating control — a controlled, presentational block. It fetches nothing and owns
- * no remote state: the composing app owns the `useSetRecipeRating` / `useDeleteRecipeRating` mutations, feeds
- * the community aggregate + the in-flight/error flags in, and receives the rate/remove intents out.
+ * The read-only COMMUNITY aggregate every viewer sees (FR-013a) — the social-proof score shown in BOTH the
+ * read-only ({@link RecipeRatingDisplayProps}) and interactive ({@link RecipeRatingInputProps}) variants.
+ */
+export interface RecipeRatingAggregate {
+    /** Community mean rating, 1–5 (FR-013a). ABSENT exactly when {@link ratingCount} is 0 — never shown as 0. */
+    readonly average?: number;
+    /** Number of community ratings; 0 when unrated. */
+    readonly ratingCount: number;
+}
+
+/**
+ * Props for `RecipeRatingDisplay` — the READ-ONLY variant the container selects on the viewer's OWN recipe
+ * (`mode === 'own'`, Sc8): the community aggregate plus a stated reason the input is withheld. Nothing
+ * interactive. The own-vs-rate decision lives in the orchestrating container ({@link ratingModeFor}), not in a
+ * behavior-switching prop — so this render component does exactly one thing (B15).
+ */
+export type RecipeRatingDisplayProps = RecipeRatingAggregate;
+
+/**
+ * Props for `RecipeRatingInput` — the INTERACTIVE variant the container selects when the viewer MAY rate
+ * (`mode === 'rate'`). A controlled, presentational block: it fetches nothing and owns no remote state — the
+ * composing app owns the `useSetRecipeRating` / `useDeleteRecipeRating` mutations, feeds the community aggregate
+ * + the in-flight/error flags in, and receives the rate/remove intents out.
  *
  * `selectedStars` is the rate action's CURRENT selection (the radiogroup value), not the displayed social-proof
  * score — the read-only stars the viewer SEES are the community `average`. The composing app derives it from the
@@ -38,13 +58,7 @@ export type RecipeRatingError =
  * remove affordance is revealed on load; re-rating is still an idempotent upsert that replaces (Sc7). See
  * {@link resolveSelectedStars} for how the app reconciles a just-made selection with the server value.
  */
-export interface RecipeRatingControlProps {
-    /** Whether the viewer may rate (see {@link RecipeRatingMode}). */
-    readonly mode: RecipeRatingMode;
-    /** Community mean rating, 1–5 (FR-013a). ABSENT exactly when {@link ratingCount} is 0 — never shown as 0. */
-    readonly average?: number;
-    /** Number of community ratings; 0 when unrated. */
-    readonly ratingCount: number;
+export interface RecipeRatingInputProps extends RecipeRatingAggregate {
     /** The rate action's current selection (checked radio). ABSENT → no option selected / the viewer has not rated. */
     readonly selectedStars?: number;
     /** Whether a rating write (set or remove) is in flight — disables the inputs and shows a busy status. */

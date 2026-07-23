@@ -1,15 +1,18 @@
 /**
- * @module @commise/features-recipes/rating — web interactive rating control (FR-013).
+ * @module @commise/features-recipes/rating — web rating render components (FR-013).
  *
- * The recipe-detail affordance that lets a viewer rate a recipe they can see and do NOT own (US "Ratings",
- * scenarios 6–10). Two parts:
- *  - the COMMUNITY aggregate, read-only — the social-proof score every viewer sees (`average` / `ratingCount`,
- *    the mockup's whole-star display), shown in both `rate` and `own` modes;
- *  - the RATE action — a 5-option star radiogroup that submits the viewer's own rating (an idempotent upsert
- *    that replaces on re-rate, Sc7) plus a remove affordance (idempotent, Sc10). Withheld on the viewer's own
- *    recipe (`mode="own"`, Sc8) behind a stated reason; the backend guard is the real enforcement.
+ * The recipe-detail rating affordance, split into TWO single-responsibility presentational components (B15) that
+ * the orchestrating container selects between via {@link ratingModeFor} — the own-vs-rate decision is NOT a
+ * behavior-switching `mode` prop on one component:
+ *  - {@link RecipeRatingDisplay} — the READ-ONLY variant shown on the viewer's OWN recipe (Sc8): the community
+ *    aggregate + a stated reason the input is withheld. The backend guard is the real enforcement.
+ *  - {@link RecipeRatingInput} — the INTERACTIVE variant (US "Ratings", scenarios 6–10): the community aggregate
+ *    plus a 5-option star radiogroup that submits the viewer's own rating (idempotent upsert that replaces on
+ *    re-rate, Sc7) and a remove affordance (idempotent, Sc10).
  *
- * Controlled + presentational: it owns no remote state and fetches nothing. Accessibility is first-class — the
+ * Both draw the COMMUNITY aggregate — the social-proof score every viewer sees (`average` / `ratingCount`) —
+ * through the shared {@link RatingSection} scaffold, so the section chrome has one representation. Both are
+ * controlled + presentational: they own no remote state and fetch nothing. Accessibility is first-class — the
  * input is a real radiogroup of labelled radios (arrow-key operable natively), not clickable divs, and state
  * rides on the radios' checked/disabled semantics + text, never colour. The one hover transition is disabled
  * under `prefers-reduced-motion` (`motion-reduce:transition-none`).
@@ -21,11 +24,16 @@
  * app keeps the server value authoritative once loaded.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useId, type FC } from 'react';
+import { useId, type FC, type ReactNode } from 'react';
 
 import { STAR_COUNT, formatAverageRating, formatRatingCount, toStarFills } from '../card/model.js';
 import { recipeRatingMessages, type RecipeRatingMessages } from './messages.js';
-import { STAR_VALUES, formatStarOptionLabel, type RecipeRatingControlProps } from './model.js';
+import {
+    STAR_VALUES,
+    formatStarOptionLabel,
+    type RecipeRatingDisplayProps,
+    type RecipeRatingInputProps,
+} from './model.js';
 
 const STAR_PATH =
     'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z';
@@ -76,8 +84,50 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
     );
 };
 
-export const RecipeRatingControl: FC<RecipeRatingControlProps> = ({
-    mode,
+/**
+ * The shared rating-section scaffold: the labelled region + community heading + read-only aggregate that BOTH
+ * variants render, with each variant's distinct tail supplied as `children`. Keeps the section chrome in one
+ * place (§3 DRY) so the display and input variants cannot drift on the heading, region label, or aggregate.
+ */
+const RatingSection: FC<{ average?: number; ratingCount: number; children: ReactNode }> = ({
+    average,
+    ratingCount,
+    children,
+}) => {
+    const { rating } = useMessages(recipeRatingMessages);
+
+    return (
+        <section aria-label={rating.regionLabel} className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
+            <div className="flex flex-col gap-2">
+                <h2 className="font-display text-heading-md font-semibold text-charcoal">{rating.communityHeading}</h2>
+                <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
+            </div>
+            {children}
+        </section>
+    );
+};
+
+/**
+ * The READ-ONLY rating variant shown on the viewer's OWN recipe (Sc8): the community aggregate plus a stated
+ * reason the input is withheld. Renders NOTHING interactive — the own-recipe gate is structural here, and the
+ * container never mounts this on a rateable recipe (see {@link ratingModeFor}).
+ */
+export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, ratingCount }) => {
+    const { rating } = useMessages(recipeRatingMessages);
+
+    return (
+        <RatingSection average={average} ratingCount={ratingCount}>
+            <p className="text-body-sm text-slate">{rating.ownRecipeNote}</p>
+        </RatingSection>
+    );
+};
+
+/**
+ * The INTERACTIVE rating variant (scenarios 6–10): the community aggregate plus a 5-option star radiogroup that
+ * submits the viewer's own rating (idempotent upsert, replaces on re-rate — Sc7) and a remove affordance
+ * (idempotent — Sc10), with in-flight and honest-error surfaces.
+ */
+export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
     average,
     ratingCount,
     selectedStars,
@@ -92,75 +142,66 @@ export const RecipeRatingControl: FC<RecipeRatingControlProps> = ({
     const starLabels = { one: rating.rateStarOne, other: rating.rateStarOther };
 
     return (
-        <section aria-label={rating.regionLabel} className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
-            <div className="flex flex-col gap-2">
-                <h2 className="font-display text-heading-md font-semibold text-charcoal">{rating.communityHeading}</h2>
-                <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
-            </div>
+        <RatingSection average={average} ratingCount={ratingCount}>
+            <div className="flex flex-col gap-3">
+                <fieldset role="radiogroup" aria-label={rating.groupLabel} className="flex flex-col gap-2">
+                    <legend className="text-body-sm font-medium text-charcoal">{rating.rateHeading}</legend>
+                    <div className="flex items-center gap-1">
+                        {STAR_VALUES.map((value) => {
+                            const optionLabel = formatStarOptionLabel(value, starLabels, locale);
+                            const filled = selectedStars !== undefined && value <= selectedStars;
 
-            {mode === 'own' ? (
-                <p className="text-body-sm text-slate">{rating.ownRecipeNote}</p>
-            ) : (
-                <div className="flex flex-col gap-3">
-                    <fieldset role="radiogroup" aria-label={rating.groupLabel} className="flex flex-col gap-2">
-                        <legend className="text-body-sm font-medium text-charcoal">{rating.rateHeading}</legend>
-                        <div className="flex items-center gap-1">
-                            {STAR_VALUES.map((value) => {
-                                const optionLabel = formatStarOptionLabel(value, starLabels, locale);
-                                const filled = selectedStars !== undefined && value <= selectedStars;
-
-                                return (
-                                    <label
-                                        key={value}
+                            return (
+                                <label
+                                    key={value}
+                                    aria-label={optionLabel}
+                                    className={`relative rounded p-0.5 transition motion-reduce:transition-none ${
+                                        pending ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-110'
+                                    }`}
+                                >
+                                    {/* Transparent overlay covering the star, so the radio itself is the
+                                        click/tap target (directly actionable for pointer users + E2E),
+                                        with the star rendered beneath — not a 1px `sr-only` point the
+                                        star would overlay and pointer drivers could not reach. */}
+                                    <input
+                                        type="radio"
+                                        name={groupName}
+                                        className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
                                         aria-label={optionLabel}
-                                        className={`relative rounded p-0.5 transition motion-reduce:transition-none ${
-                                            pending ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-110'
-                                        }`}
-                                    >
-                                        {/* Transparent overlay covering the star, so the radio itself is the
-                                            click/tap target (directly actionable for pointer users + E2E),
-                                            with the star rendered beneath — not a 1px `sr-only` point the
-                                            star would overlay and pointer drivers could not reach. */}
-                                        <input
-                                            type="radio"
-                                            name={groupName}
-                                            className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                                            aria-label={optionLabel}
-                                            checked={selectedStars === value}
-                                            disabled={pending}
-                                            onChange={() => onRate(value)}
-                                        />
-                                        <StarShape filled={filled} size="h-7 w-7" />
-                                    </label>
-                                );
-                            })}
-                        </div>
-                    </fieldset>
+                                        checked={selectedStars === value}
+                                        disabled={pending}
+                                        onChange={() => onRate(value)}
+                                    />
+                                    <StarShape filled={filled} size="h-7 w-7" />
+                                </label>
+                            );
+                        })}
+                    </div>
+                </fieldset>
 
-                    {selectedStars !== undefined && (
-                        <button
-                            type="button"
-                            disabled={pending}
-                            onClick={onRemove}
-                            className="w-fit text-body-sm font-medium text-error disabled:opacity-60"
-                        >
-                            {rating.removeLabel}
-                        </button>
-                    )}
+                {selectedStars !== undefined && (
+                    <button
+                        type="button"
+                        disabled={pending}
+                        onClick={onRemove}
+                        className="w-fit text-body-sm font-medium text-error disabled:opacity-60"
+                    >
+                        {rating.removeLabel}
+                    </button>
+                )}
 
-                    {pending && (
-                        <span role="status" aria-label={rating.submittingLabel} className="text-body-sm text-slate">
-                            {rating.submittingLabel}
-                        </span>
-                    )}
+                {pending && (
+                    <span role="status" aria-label={rating.submittingLabel} className="text-body-sm text-slate">
+                        {rating.submittingLabel}
+                    </span>
+                )}
 
-                    {error !== undefined && (
-                        <p role="alert" className="text-body-sm text-error">
-                            {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
-                        </p>
-                    )}
-                </div>
-            )}
-        </section>
+                {error !== undefined && (
+                    <p role="alert" className="text-body-sm text-error">
+                        {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
+                    </p>
+                )}
+            </div>
+        </RatingSection>
     );
 };

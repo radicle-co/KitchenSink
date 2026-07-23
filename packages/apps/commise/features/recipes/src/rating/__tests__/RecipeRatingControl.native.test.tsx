@@ -1,9 +1,13 @@
 /**
- * Native component tests for the interactive rating control (FR-013, scenarios 6–10), rendered via
- * react-native-web under jsdom. Mirrors the web leaf state-for-state — community aggregate (rated / unrated),
- * the rate radiogroup (idle / already-selected / submitting), remove (Sc10), the own-recipe gate (Sc8), and
- * the honest error surfaces (Sc9) — so the two platforms cannot drift. Same two mutation-lens assertions as
- * web: the own-recipe gate hides the input, and selecting a star reports its EXACT value.
+ * Native component tests for the two rating render components (FR-013, scenarios 6–10), split per B15 and
+ * rendered via react-native-web under jsdom. Mirrors the web leaves state-for-state so the two platforms cannot
+ * drift:
+ *  - {@link RecipeRatingDisplay} — the READ-ONLY own-recipe variant (Sc8): aggregate + reason, NO input;
+ *  - {@link RecipeRatingInput} — the interactive variant: the rate radiogroup (idle / already-selected /
+ *    submitting), the ≥44×44 touch target (B10), remove (Sc10), and the honest error surfaces (Sc9).
+ *
+ * Same two mutation-lens assertions as web: the read-only variant renders no input, and selecting a star
+ * reports its EXACT value.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -12,16 +16,26 @@ import { fireEvent } from '@testing-library/dom';
 import { LocaleProvider } from '@commise/i18n/react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeRatingControl } from '../RecipeRatingControl.native.js';
-import type { RecipeRatingControlProps } from '../model.js';
+import { RecipeRatingDisplay, RecipeRatingInput } from '../RecipeRatingControl.native.js';
+import type { RecipeRatingDisplayProps, RecipeRatingInputProps } from '../model.js';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
 
-function renderControl(overrides: Partial<RecipeRatingControlProps> = {}) {
-    const props: RecipeRatingControlProps = {
-        mode: 'rate',
+function renderDisplay(overrides: Partial<RecipeRatingDisplayProps> = {}) {
+    const props: RecipeRatingDisplayProps = { ratingCount: 0, ...overrides };
+    render(
+        <LocaleProvider locale="en">
+            <RecipeRatingDisplay {...props} />
+        </LocaleProvider>,
+    );
+
+    return props;
+}
+
+function renderInput(overrides: Partial<RecipeRatingInputProps> = {}) {
+    const props: RecipeRatingInputProps = {
         ratingCount: 0,
         onRate: noop,
         onRemove: noop,
@@ -29,29 +43,52 @@ function renderControl(overrides: Partial<RecipeRatingControlProps> = {}) {
     };
     render(
         <LocaleProvider locale="en">
-            <RecipeRatingControl {...props} />
+            <RecipeRatingInput {...props} />
         </LocaleProvider>,
     );
 
     return props;
 }
 
-describe('RecipeRatingControl (native)', () => {
+describe('RecipeRatingDisplay (native) — read-only own-recipe variant (Sc8)', () => {
     it('shows the community aggregate as a labelled, read-only summary when rated', () => {
-        renderControl({ average: 4.5, ratingCount: 12 });
+        renderDisplay({ average: 4, ratingCount: 3 });
+
+        expect(screen.getByRole('img', { name: /out of 5/ })).toBeTruthy();
+    });
+
+    it('shows an honest "not yet rated" summary when unrated', () => {
+        renderDisplay({ average: undefined, ratingCount: 0 });
+
+        expect(screen.getByText('Not yet rated')).toBeTruthy();
+        expect(screen.queryByRole('img', { name: /out of 5/ })).toBeNull();
+    });
+
+    it('renders NO interactive input, only the aggregate + a reason (mutation lens: the gate is structural)', () => {
+        renderDisplay({ average: 4, ratingCount: 3 });
+
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        expect(screen.queryByRole('radio')).toBeNull();
+        expect(screen.getByText('You can’t rate your own recipe.')).toBeTruthy();
+    });
+});
+
+describe('RecipeRatingInput (native) — interactive variant', () => {
+    it('shows the community aggregate as a labelled, read-only summary when rated', () => {
+        renderInput({ average: 4.5, ratingCount: 12 });
 
         expect(screen.getByRole('img', { name: 'Rated 4.5 out of 5, 12 ratings' })).toBeTruthy();
     });
 
     it('shows an honest "not yet rated" summary when unrated', () => {
-        renderControl({ average: undefined, ratingCount: 0 });
+        renderInput({ average: undefined, ratingCount: 0 });
 
         expect(screen.getByText('Not yet rated')).toBeTruthy();
         expect(screen.queryByRole('img', { name: /out of 5/ })).toBeNull();
     });
 
     it('offers a 5-option star radiogroup, each option accessibly named', () => {
-        renderControl();
+        renderInput();
 
         expect(screen.getByRole('radiogroup', { name: 'Your rating' })).toBeTruthy();
         expect(screen.getByRole('radio', { name: 'Rate 1 star' })).toBeTruthy();
@@ -60,7 +97,7 @@ describe('RecipeRatingControl (native)', () => {
     });
 
     it('gives each star a ≥44×44 touch target (B10, WCAG 2.5.5)', () => {
-        renderControl();
+        renderInput();
 
         // react-native-web compiles `minWidth`/`minHeight` to atomic CSS classes, so look up the class whose
         // rule sets 44px and assert every star carries it (jsdom can't compute a class-driven value inline).
@@ -89,7 +126,7 @@ describe('RecipeRatingControl (native)', () => {
 
     it('reports the SELECTED star value upward (mutation lens: exact value)', () => {
         const onRate = vi.fn();
-        renderControl({ onRate });
+        renderInput({ onRate });
 
         fireEvent.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
 
@@ -97,7 +134,7 @@ describe('RecipeRatingControl (native)', () => {
     });
 
     it('marks the current selection as the checked radio (Sc7)', () => {
-        renderControl({ selectedStars: 4 });
+        renderInput({ selectedStars: 4 });
 
         expect(screen.getByRole('radio', { name: 'Rate 4 stars', checked: true })).toBeTruthy();
         expect(screen.getByRole('radio', { name: 'Rate 2 stars', checked: false })).toBeTruthy();
@@ -106,7 +143,7 @@ describe('RecipeRatingControl (native)', () => {
     it('pre-selects the viewer’s own rating AND reveals remove on load, while still showing the DISTINCT community score', () => {
         // Mirror of the web assertion: `selectedStars` (viewer's own prior rating) drives the input; `average`
         // (community mean) stays the read-only display — different numbers, never conflated.
-        renderControl({ selectedStars: 2, average: 4.5, ratingCount: 12 });
+        renderInput({ selectedStars: 2, average: 4.5, ratingCount: 12 });
 
         expect(screen.getByRole('radio', { name: 'Rate 2 stars', checked: true })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Remove my rating' })).toBeTruthy();
@@ -115,7 +152,7 @@ describe('RecipeRatingControl (native)', () => {
 
     it('re-rates to a different value, replacing (Sc7)', () => {
         const onRate = vi.fn();
-        renderControl({ selectedStars: 4, onRate });
+        renderInput({ selectedStars: 4, onRate });
 
         fireEvent.click(screen.getByRole('radio', { name: 'Rate 2 stars' }));
 
@@ -124,7 +161,7 @@ describe('RecipeRatingControl (native)', () => {
 
     it('offers remove once a rating is selected and reports it upward (Sc10)', () => {
         const onRemove = vi.fn();
-        renderControl({ selectedStars: 3, onRemove });
+        renderInput({ selectedStars: 3, onRemove });
 
         fireEvent.click(screen.getByRole('button', { name: 'Remove my rating' }));
 
@@ -132,13 +169,13 @@ describe('RecipeRatingControl (native)', () => {
     });
 
     it('does not offer remove before any rating is selected', () => {
-        renderControl({ selectedStars: undefined });
+        renderInput({ selectedStars: undefined });
 
         expect(screen.queryByRole('button', { name: 'Remove my rating' })).toBeNull();
     });
 
     it('marks the control busy and disables the radios while a write is in flight', () => {
-        renderControl({ selectedStars: 4, pending: true });
+        renderInput({ selectedStars: 4, pending: true });
 
         expect(screen.getByText('Saving your rating…')).toBeTruthy();
         expect(screen.getByRole('radio', { name: 'Rate 2 stars' }).getAttribute('aria-disabled')).toBe('true');
@@ -146,25 +183,14 @@ describe('RecipeRatingControl (native)', () => {
     });
 
     it('surfaces a not-available error honestly (Sc9)', () => {
-        renderControl({ error: 'notAvailable' });
+        renderInput({ error: 'notAvailable' });
 
         expect(screen.getByText('This recipe isn’t available.')).toBeTruthy();
     });
 
     it('surfaces a generic error when a rating write fails', () => {
-        renderControl({ error: 'generic' });
+        renderInput({ error: 'generic' });
 
         expect(screen.getByText('We couldn’t save your rating. Please try again.')).toBeTruthy();
-    });
-
-    describe('own-recipe gate (Sc8) — mutation lens', () => {
-        it('renders NO rate input on the viewer’s own recipe, only the aggregate + a reason', () => {
-            renderControl({ mode: 'own', average: 4, ratingCount: 3 });
-
-            expect(screen.getByRole('img', { name: /out of 5/ })).toBeTruthy();
-            expect(screen.queryByRole('radiogroup')).toBeNull();
-            expect(screen.queryByRole('radio')).toBeNull();
-            expect(screen.getByText('You can’t rate your own recipe.')).toBeTruthy();
-        });
     });
 });

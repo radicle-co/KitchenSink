@@ -16,7 +16,8 @@ import {
     RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
-    RecipeRatingControl,
+    RecipeRatingDisplay,
+    RecipeRatingInput,
     RecipeVisibilityToggle,
     ratingModeFor,
     resolveSelectedStars,
@@ -182,23 +183,31 @@ export function RecipeDetailScreen({
                 onFilterByTag={onFilterByTag}
             />
 
-            <RecipeRatingControl
-                mode={ratingMode}
-                {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
-                ratingCount={recipe.ratingCount}
-                {...(selectedStars === undefined ? {} : { selectedStars })}
-                pending={setRating.isPending || deleteRating.isPending}
-                {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
-                onRate={(stars) =>
-                    setRating.mutate(
-                        { id: recipeId, input: { stars } },
-                        { onSuccess: () => setRatingOverride({ stars }) },
-                    )
-                }
-                onRemove={() =>
-                    deleteRating.mutate(recipeId, { onSuccess: () => setRatingOverride({ stars: undefined }) })
-                }
-            />
+            {/* Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
+                everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop. */}
+            {ratingMode === 'own' ? (
+                <RecipeRatingDisplay
+                    {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
+                    ratingCount={recipe.ratingCount}
+                />
+            ) : (
+                <RecipeRatingInput
+                    {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
+                    ratingCount={recipe.ratingCount}
+                    {...(selectedStars === undefined ? {} : { selectedStars })}
+                    pending={setRating.isPending || deleteRating.isPending}
+                    {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
+                    onRate={(stars) =>
+                        setRating.mutate(
+                            { id: recipeId, input: { stars } },
+                            { onSuccess: () => setRatingOverride({ stars }) },
+                        )
+                    }
+                    onRemove={() =>
+                        deleteRating.mutate(recipeId, { onSuccess: () => setRatingOverride({ stars: undefined }) })
+                    }
+                />
+            )}
 
             {isOwner && (
                 <View style={styles.ownerActions}>

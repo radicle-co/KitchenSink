@@ -26,7 +26,8 @@ import {
     RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
-    RecipeRatingControl,
+    RecipeRatingDisplay,
+    RecipeRatingInput,
     RecipeVisibilityToggle,
     filtersToQueryString,
     ratingModeFor,
@@ -183,18 +184,25 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                 }
             />
 
-            <RecipeRatingControl
-                mode={ratingMode}
-                average={recipe.averageRating}
-                ratingCount={recipe.ratingCount}
-                selectedStars={selectedStars}
-                pending={setRating.isPending || deleteRating.isPending}
-                error={ratingErrorKind}
-                onRate={(stars) =>
-                    setRating.mutate({ id, input: { stars } }, { onSuccess: () => setRatingOverride({ stars }) })
-                }
-                onRemove={() => deleteRating.mutate(id, { onSuccess: () => setRatingOverride({ stars: undefined }) })}
-            />
+            {/* Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
+                everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop. */}
+            {ratingMode === 'own' ? (
+                <RecipeRatingDisplay average={recipe.averageRating} ratingCount={recipe.ratingCount} />
+            ) : (
+                <RecipeRatingInput
+                    average={recipe.averageRating}
+                    ratingCount={recipe.ratingCount}
+                    selectedStars={selectedStars}
+                    pending={setRating.isPending || deleteRating.isPending}
+                    error={ratingErrorKind}
+                    onRate={(stars) =>
+                        setRating.mutate({ id, input: { stars } }, { onSuccess: () => setRatingOverride({ stars }) })
+                    }
+                    onRemove={() =>
+                        deleteRating.mutate(id, { onSuccess: () => setRatingOverride({ stars: undefined }) })
+                    }
+                />
+            )}
 
             {isOwner && (
                 <>

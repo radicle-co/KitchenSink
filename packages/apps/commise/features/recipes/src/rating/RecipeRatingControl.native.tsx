@@ -1,26 +1,36 @@
 /**
- * @module @commise/features-recipes/rating — native interactive rating control (FR-013).
+ * @module @commise/features-recipes/rating — native rating render components (FR-013).
  *
- * The React Native leaf of {@link import('./RecipeRatingControl.js').RecipeRatingControl} — same contract and
- * state machine: a read-only COMMUNITY aggregate (the social-proof score, shown in both modes) plus a 5-option
- * star radiogroup that submits the viewer's own rating (idempotent upsert, replaces on re-rate — Sc7) with a
- * remove affordance (idempotent — Sc10). Withheld on the viewer's own recipe (`mode="own"`, Sc8) behind a
- * stated reason; the backend guard is the real enforcement.
+ * The React Native leaves of the web {@link import('./RecipeRatingControl.js').RecipeRatingInput} /
+ * {@link import('./RecipeRatingControl.js').RecipeRatingDisplay} — same contract, split into TWO
+ * single-responsibility presentational components (B15) the orchestrating container selects between via
+ * {@link ratingModeFor}:
+ *  - {@link RecipeRatingDisplay} — READ-ONLY, shown on the viewer's OWN recipe (Sc8): the community aggregate +
+ *    a stated reason the input is withheld; the backend guard is the real enforcement.
+ *  - {@link RecipeRatingInput} — INTERACTIVE: the community aggregate plus a 5-option star radiogroup that
+ *    submits the viewer's own rating (idempotent upsert, replaces on re-rate — Sc7) with a remove affordance
+ *    (idempotent — Sc10).
  *
- * Controlled + presentational: owns no remote state. Accessibility mirrors the web leaf — a real `radiogroup`
- * of `radio`s (each with an accessible name + `aria-checked`), state on checked/disabled + text not colour.
- * No animation, so there is nothing to gate on `prefers-reduced-motion`. Like the web leaf, `selectedStars`
- * is fed from the detail's `viewerRating` (the viewer's own prior rating), so a returning viewer's stars are
- * pre-selected and remove is revealed on load; the read-only stars shown are the COMMUNITY `average`.
+ * Both draw the read-only COMMUNITY aggregate through the shared {@link RatingSection} scaffold. Controlled +
+ * presentational: they own no remote state. Accessibility mirrors the web leaves — a real `radiogroup` of
+ * `radio`s (each with an accessible name + `aria-checked`), state on checked/disabled + text not colour. No
+ * animation, so there is nothing to gate on `prefers-reduced-motion`. Like the web leaves, `selectedStars` is
+ * fed from the detail's `viewerRating`, so a returning viewer's stars are pre-selected and remove is revealed
+ * on load; the read-only stars shown are the COMMUNITY `average`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { STAR_COUNT, formatAverageRating, formatRatingCount, toStarFills } from '../card/model.js';
 import { recipeRatingMessages, type RecipeRatingMessages } from './messages.js';
-import { STAR_VALUES, formatStarOptionLabel, type RecipeRatingControlProps } from './model.js';
+import {
+    STAR_VALUES,
+    formatStarOptionLabel,
+    type RecipeRatingDisplayProps,
+    type RecipeRatingInputProps,
+} from './model.js';
 
 /** The read-only community aggregate: a labelled star image when rated, an honest "not yet rated" otherwise. */
 const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: RecipeRatingMessages }> = ({
@@ -55,8 +65,50 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
     );
 };
 
-export const RecipeRatingControl: FC<RecipeRatingControlProps> = ({
-    mode,
+/**
+ * The shared rating-section scaffold: the labelled region + community heading + read-only aggregate that BOTH
+ * variants render, with each variant's distinct tail supplied as `children`. Keeps the section chrome in one
+ * place (§3 DRY) so the display and input variants cannot drift on the heading, region label, or aggregate.
+ */
+const RatingSection: FC<{ average?: number; ratingCount: number; children: ReactNode }> = ({
+    average,
+    ratingCount,
+    children,
+}) => {
+    const { rating } = useMessages(recipeRatingMessages);
+
+    return (
+        <View accessibilityLabel={rating.regionLabel} style={styles.container}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {rating.communityHeading}
+            </Text>
+            <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
+            {children}
+        </View>
+    );
+};
+
+/**
+ * The READ-ONLY rating variant shown on the viewer's OWN recipe (Sc8): the community aggregate plus a stated
+ * reason the input is withheld. Renders NOTHING interactive — the own-recipe gate is structural here, and the
+ * container never mounts this on a rateable recipe (see {@link ratingModeFor}).
+ */
+export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, ratingCount }) => {
+    const { rating } = useMessages(recipeRatingMessages);
+
+    return (
+        <RatingSection average={average} ratingCount={ratingCount}>
+            <Text style={styles.note}>{rating.ownRecipeNote}</Text>
+        </RatingSection>
+    );
+};
+
+/**
+ * The INTERACTIVE rating variant (scenarios 6–10): the community aggregate plus a 5-option star radiogroup that
+ * submits the viewer's own rating (idempotent upsert, replaces on re-rate — Sc7) and a remove affordance
+ * (idempotent — Sc10), with in-flight and honest-error surfaces.
+ */
+export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
     average,
     ratingCount,
     selectedStars,
@@ -70,60 +122,51 @@ export const RecipeRatingControl: FC<RecipeRatingControlProps> = ({
     const starLabels = { one: rating.rateStarOne, other: rating.rateStarOther };
 
     return (
-        <View accessibilityLabel={rating.regionLabel} style={styles.container}>
-            <Text accessibilityRole="header" style={styles.heading}>
-                {rating.communityHeading}
-            </Text>
-            <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
+        <RatingSection average={average} ratingCount={ratingCount}>
+            <View style={styles.rateBlock}>
+                <Text style={styles.rateHeading}>{rating.rateHeading}</Text>
+                <View accessibilityRole="radiogroup" accessibilityLabel={rating.groupLabel} style={styles.stars}>
+                    {STAR_VALUES.map((value) => {
+                        const optionLabel = formatStarOptionLabel(value, starLabels, locale);
+                        const filled = selectedStars !== undefined && value <= selectedStars;
 
-            {mode === 'own' ? (
-                <Text style={styles.note}>{rating.ownRecipeNote}</Text>
-            ) : (
-                <View style={styles.rateBlock}>
-                    <Text style={styles.rateHeading}>{rating.rateHeading}</Text>
-                    <View accessibilityRole="radiogroup" accessibilityLabel={rating.groupLabel} style={styles.stars}>
-                        {STAR_VALUES.map((value) => {
-                            const optionLabel = formatStarOptionLabel(value, starLabels, locale);
-                            const filled = selectedStars !== undefined && value <= selectedStars;
-
-                            return (
-                                <Pressable
-                                    key={value}
-                                    accessibilityRole="radio"
-                                    accessibilityLabel={optionLabel}
-                                    aria-checked={selectedStars === value}
-                                    disabled={pending}
-                                    onPress={() => onRate(value)}
-                                    style={[styles.starOption, pending ? styles.optionDisabled : null]}
-                                >
-                                    <Text style={filled ? styles.rateStarFilled : styles.rateStarEmpty}>★</Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
-
-                    {selectedStars !== undefined && (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={rating.removeLabel}
-                            disabled={pending}
-                            onPress={onRemove}
-                            style={pending ? styles.optionDisabled : undefined}
-                        >
-                            <Text style={styles.removeLabel}>{rating.removeLabel}</Text>
-                        </Pressable>
-                    )}
-
-                    {pending && <Text style={styles.status}>{rating.submittingLabel}</Text>}
-
-                    {error !== undefined && (
-                        <Text accessibilityRole="alert" style={styles.error}>
-                            {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
-                        </Text>
-                    )}
+                        return (
+                            <Pressable
+                                key={value}
+                                accessibilityRole="radio"
+                                accessibilityLabel={optionLabel}
+                                aria-checked={selectedStars === value}
+                                disabled={pending}
+                                onPress={() => onRate(value)}
+                                style={[styles.starOption, pending ? styles.optionDisabled : null]}
+                            >
+                                <Text style={filled ? styles.rateStarFilled : styles.rateStarEmpty}>★</Text>
+                            </Pressable>
+                        );
+                    })}
                 </View>
-            )}
-        </View>
+
+                {selectedStars !== undefined && (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={rating.removeLabel}
+                        disabled={pending}
+                        onPress={onRemove}
+                        style={pending ? styles.optionDisabled : undefined}
+                    >
+                        <Text style={styles.removeLabel}>{rating.removeLabel}</Text>
+                    </Pressable>
+                )}
+
+                {pending && <Text style={styles.status}>{rating.submittingLabel}</Text>}
+
+                {error !== undefined && (
+                    <Text accessibilityRole="alert" style={styles.error}>
+                        {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
+                    </Text>
+                )}
+            </View>
+        </RatingSection>
     );
 };
 

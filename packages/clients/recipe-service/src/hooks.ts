@@ -346,11 +346,11 @@ export function useCloneRecipe() {
  * a content edit or a restore — so `recipeVersions(id)` is deliberately NOT invalidated here.
  *
  * DA4 follow-on: this is a genuinely optimistic-worthy write (a toggle the viewer expects to flip instantly),
- * but layering `onMutate`/`onError` on top of DA3's write-through would need its own red→green pass to decide
- * whether a failed flip's rollback should ALSO force the `onSettled` reconcile-regardless-of-outcome the rating
- * hooks now use (today's `onSuccess`-only invalidation is a pinned, deliberate contract — see the tests keyed
- * `VISIBILITY_PROBES`). Deferred out of DA4's required scope (rating) rather than risk a rushed change to that
- * contract; not yet implemented.
+ * but layering `onMutate`/`onError` on top of DA3's write-through would need its own red→green pass (today's
+ * `onSuccess`-only invalidation is a pinned, deliberate contract — see the tests keyed `VISIBILITY_PROBES`,
+ * and note the rating hooks below settled on this SAME shape: reconcile on success, rollback-only on error,
+ * no invalidation on failure). Deferred out of DA4's required scope (rating) rather than risk a rushed change
+ * to that contract; not yet implemented.
  */
 export function useSetRecipeVisibility() {
     const client = useRecipeServiceClient();
@@ -456,12 +456,20 @@ export function useRestoreRecipeVersion() {
 // DA4 — optimistic Command: both hooks below pre-write `recipe(id).viewerRating` in `onMutate` (the ONLY
 // field the client can predict — the trigger-maintained `averageRating`/`ratingCount` are server-derived
 // aggregates the client has no formula for, so they are deliberately left untouched until settle), roll
-// back to the pre-mutation snapshot in `onError`, and always reconcile with the server in `onSettled` —
-// success or failure. This used to be a hand-rolled `ratingOverride` bridge duplicated in BOTH detail
-// containers (web + mobile); it now lives once, in the hook layer, as a real optimistic Command instead of
-// two copies of ad hoc `useState`. Invalidating on failure too (not just success) is deliberate: a rolled-
-// back cache is only a best-effort snapshot restore, and a final reconcile against the server is what
-// actually guarantees the UI matches truth (e.g. a concurrent write to the same recipe by another viewer).
+// back to the pre-mutation snapshot in `onError`, and reconcile with the server in `onSuccess` ONLY. This
+// used to be a hand-rolled `ratingOverride` bridge duplicated in BOTH detail containers (web + mobile); it
+// now lives once, in the hook layer, as a real optimistic Command instead of two copies of ad hoc
+// `useState`.
+//
+// Reconciling on failure too (via `onSettled`) was tried and reverted: both detail containers render
+// `query.isError` BEFORE `query.data` (`RecipeDetailContainer.tsx`, `RecipeDetailScreen.tsx`), so a rating
+// write that fails with a 404 (the rated recipe became unreadable between page-load and tap) would
+// invalidate `recipe(id)`, trigger a refetch that ALSO 404s, and discard the entire detail page — ingredients,
+// steps, owner actions, version links — for the not-found screen, when the rollback alone already restores
+// local truth. `onError` is therefore ROLLBACK-ONLY and invalidates nothing: the snapshot restore does not
+// round-trip the network, so it cannot itself fail and cascade. A concurrent write to the same recipe by
+// another viewer is a real staleness case this leaves uncovered until the next natural refetch, but that is
+// the strictly smaller risk next to nuking a working detail page on every transient/permission failure.
 
 /** The `onMutate` context for a rating write: the pre-mutation `recipe(id)` snapshot to roll back to. */
 interface RatingMutationContext {
@@ -489,7 +497,7 @@ export function useSetRecipeRating() {
                 queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), context.previous);
             }
         },
-        onSettled: (_result, _error, vars) => {
+        onSuccess: (_data, vars) => {
             invalidateRecipeProjections(queryClient, vars.id);
         },
     });
@@ -516,7 +524,7 @@ export function useDeleteRecipeRating() {
                 queryClient.setQueryData(recipeServiceKeys.recipe(id), context.previous);
             }
         },
-        onSettled: (_result, _error, id) => {
+        onSuccess: (_data, id) => {
             invalidateRecipeProjections(queryClient, id);
         },
     });

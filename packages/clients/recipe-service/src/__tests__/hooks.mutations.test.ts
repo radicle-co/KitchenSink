@@ -571,9 +571,12 @@ describe('useSetRecipeRating', () => {
         expect(probes()).toContain('recipeSearch');
     });
 
-    it('surfaces a 403 (rating your own recipe), rolls back the optimistic write, and still reconciles on settle (DA4)', async () => {
-        // DA4 — `onSettled` reconciles with the server regardless of outcome: a rollback is only a best-effort
-        // local restore, so the final invalidation is what actually guarantees the cache matches server truth.
+    it('surfaces a 403 (rating your own recipe), rolls back the optimistic write, and invalidates nothing', async () => {
+        // A failed write must not evict good cache (the pre-existing repo contract), and — critically for
+        // rating — must not force a refetch of `recipe(id)` at all: both detail containers render
+        // `query.isError` BEFORE `query.data`, so an invalidation-triggered refetch that ALSO fails (e.g. the
+        // recipe became unreadable) would discard the whole detail page for the not-found screen. The rollback
+        // above is the ONLY reconciliation on failure; there is no round-trip to the server that could cascade.
         const error = new ForbiddenError('Cannot rate your own recipe', 'CANNOT_RATE_OWN_RECIPE');
         const { result, client, queryClient, probes } = renderMutation(() => useSetRecipeRating());
         queryClient.setQueryData(
@@ -589,10 +592,14 @@ describe('useSetRecipeRating', () => {
         expect(
             queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
         ).toBeUndefined();
-        expect(probes()).toEqual(expectedProbes(RATING_PROBES));
+        expect(probes()).toEqual([]);
     });
 
-    it('surfaces a 404 (rating a recipe the caller cannot see), rolls back the optimistic write, and still reconciles on settle (DA4)', async () => {
+    it('surfaces a 404 (rating a recipe the caller cannot see), rolls back the optimistic write, and invalidates nothing', async () => {
+        // Sc9 — the recipe became unreadable between page-load and the rating tap. Invalidating `recipe(id)`
+        // here would trigger a refetch that also 404s, cascading past the inline rating banner to discard the
+        // entire detail page (ingredients, steps, owner actions, version links). The rollback restores local
+        // truth without a round-trip, so nothing is invalidated.
         const error = new NotFoundError('Recipe not found', 'RECIPE_NOT_FOUND');
         const { result, client, queryClient, probes } = renderMutation(() => useSetRecipeRating());
         queryClient.setQueryData(
@@ -608,7 +615,7 @@ describe('useSetRecipeRating', () => {
         expect(
             queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating,
         ).toBeUndefined();
-        expect(probes()).toEqual(expectedProbes(RATING_PROBES));
+        expect(probes()).toEqual([]);
     });
 
     describe('optimistic update (DA4)', () => {
@@ -688,7 +695,9 @@ describe('useDeleteRecipeRating', () => {
         expect(probes()).toEqual(expectedProbes(RATING_PROBES));
     });
 
-    it('surfaces a 404, rolls back the optimistic removal, and still reconciles on settle (DA4)', async () => {
+    it('surfaces a 404, rolls back the optimistic removal, and invalidates nothing', async () => {
+        // Same Sc9 cascade risk as `useSetRecipeRating`'s failure tests above: invalidating `recipe(id)` on
+        // a failed removal would refetch straight into another 404 and blow away the whole detail page.
         const error = new NotFoundError('Recipe not found', 'RECIPE_NOT_FOUND');
         const { result, client, queryClient, probes } = renderMutation(() => useDeleteRecipeRating());
         queryClient.setQueryData(
@@ -702,7 +711,7 @@ describe('useDeleteRecipeRating', () => {
 
         expect(result.current.error).toBe(error);
         expect(queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(PROBE_RECIPE_ID))?.viewerRating).toBe(3);
-        expect(probes()).toEqual(expectedProbes(RATING_PROBES));
+        expect(probes()).toEqual([]);
     });
 
     describe('optimistic update (DA4)', () => {

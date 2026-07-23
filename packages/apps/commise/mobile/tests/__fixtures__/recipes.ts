@@ -1,69 +1,30 @@
 /**
- * Typed `make*` fixtures for the mobile recipe-screen tests. Overridable defaults (accepting `Partial<T>`)
- * per the constitution's fixture convention, kept local to the mobile app so its tests own their doubles.
- * Mirrors the recipe feature package's factories but lives here to avoid reaching into another package's
- * unexported `__fixtures__`.
+ * Typed `make*` fixtures for the mobile recipe-screen tests. `makeRecipe`, `makeRecipeDetail`,
+ * `makeRecipeVersion`, `makeCollection`, and `makeIngredient` are the shared, invariant-deriving Object
+ * Mother from `@kitchensink/recipe-core/testing` (T1) — re-exported here so consuming tests keep importing
+ * from this local module. Everything else (view-model fixtures, envelope wrappers, mobile-only
+ * compositions) stays local to the mobile app so its tests own their doubles.
  */
 import {
-    RecipeDifficulty,
-    RecipeSourceType,
-    RecipeStatus,
+    makeCollection,
+    makeIngredient,
+    makeRecipe,
+    makeRecipeDetail,
+    makeRecipeVersion,
+} from '@kitchensink/recipe-core/testing';
+import {
     RecipeVisibility,
-    usesPremiumCapability,
     type Collection,
-    type Ingredient,
     type PaginatedResponse,
     type Recipe,
-    type RecipeDetail,
     type RecipeIngredientView,
     type RecipeNutrition,
     type RecipeSearchResult,
     type RecipeStepView,
-    type RecipeVersion,
 } from '@kitchensink/recipe-core';
 import type { RecipeSearchResponse } from '@kitchensink/recipe-service-client';
 
-/**
- * Build a full {@link Recipe} with sensible defaults, overridable per field.
- *
- * @param overrides - Fields to override on the default recipe.
- * @returns A complete `Recipe`.
- */
-export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
-    const base = {
-        id: 'rec_1',
-        ownerId: 'usr_1',
-        title: 'Weeknight Pasta',
-        description: 'A fast, comforting weeknight dinner.',
-        prepTimeMinutes: 10,
-        cookTimeMinutes: 20,
-        totalTimeMinutes: 30,
-        servings: 4,
-        difficulty: RecipeDifficulty.MEDIUM,
-        visibility: RecipeVisibility.PRIVATE,
-        status: RecipeStatus.PUBLISHED,
-        sourceType: RecipeSourceType.USER_CREATED,
-        hasSubstantiveEdit: false,
-        dietaryFlags: [],
-        tags: [],
-        hasPartialNutrition: false,
-        currentVersion: 1,
-        averageRating: 4.5,
-        ratingCount: 12,
-        coverPhotoUrl: 'https://cdn.commise.app/recipes/rec_1/cover.jpg',
-        createdAt: '2026-04-01T09:00:00.000Z',
-        updatedAt: '2026-04-19T09:30:00.000Z',
-        ...overrides,
-    };
-
-    return {
-        ...base,
-        // Keep the PRO flag and the average honest: the flag is the materialized badge rule, and an
-        // average exists only alongside a non-zero count (recipe-core invariants). Explicit overrides win.
-        usesPremiumCapability: overrides.usesPremiumCapability ?? usesPremiumCapability(base),
-        averageRating: base.ratingCount > 0 ? base.averageRating : undefined,
-    };
-}
+export { makeCollection, makeIngredient, makeRecipe, makeRecipeDetail, makeRecipeVersion };
 
 /**
  * Build an {@link RecipeIngredientView} with sensible defaults, overridable per field.
@@ -114,24 +75,6 @@ export function makeNutrition(overrides: Partial<RecipeNutrition> = {}): RecipeN
 }
 
 /**
- * Build a full {@link RecipeDetail} (a {@link Recipe} plus ingredients, steps, photos, nutrition) with
- * sensible defaults, overridable per field.
- *
- * @param overrides - Fields to override on the default recipe detail.
- * @returns A complete `RecipeDetail`.
- */
-export function makeRecipeDetail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
-    return {
-        ...makeRecipe(),
-        ingredients: [makeIngredientView()],
-        steps: [makeStepView()],
-        photos: [],
-        nutrition: makeNutrition(),
-        ...overrides,
-    };
-}
-
-/**
  * Wrap recipes in the API's {@link PaginatedResponse} envelope with sensible pagination defaults.
  *
  * @param recipes - The page's recipes.
@@ -148,68 +91,6 @@ export function makeRecipePage(
         page: 1,
         pageSize: 20,
         hasMore: false,
-        ...overrides,
-    };
-}
-
-/**
- * Build a catalog {@link Ingredient} with sensible defaults, overridable per field.
- *
- * @param overrides - Fields to override on the default ingredient.
- * @returns A complete `Ingredient`.
- */
-export function makeIngredient(overrides: Partial<Ingredient> = {}): Ingredient {
-    return {
-        id: 'ing_1',
-        name: 'Olive oil',
-        isUserEntered: false,
-        createdAt: '2026-04-01T09:00:00.000Z',
-        ...overrides,
-    };
-}
-
-/**
- * Build a {@link RecipeVersion} with sensible defaults, overridable per field. The snapshot carries only the
- * required scalars (the version-history view reads the version number, timestamp, and summary, not the
- * snapshot body), so its `steps`/`ingredients` default to empty.
- *
- * @param overrides - Fields to override on the default version.
- * @returns A complete `RecipeVersion`.
- */
-export function makeRecipeVersion(overrides: Partial<RecipeVersion> = {}): RecipeVersion {
-    return {
-        id: 'ver_1',
-        recipeId: 'rec_1',
-        versionNumber: 1,
-        snapshot: {
-            version: 1,
-            title: 'Weeknight Pasta',
-            description: '',
-            steps: [],
-            ingredients: [],
-            servings: 4,
-            prepTimeMinutes: 10,
-            cookTimeMinutes: 20,
-        },
-        createdBy: 'usr_1',
-        createdAt: '2026-04-01T09:00:00.000Z',
-        ...overrides,
-    };
-}
-
-/**
- * Build a {@link Collection} with sensible defaults, overridable per field.
- *
- * @param overrides - Fields to override on the default collection.
- * @returns A complete `Collection`.
- */
-export function makeCollection(overrides: Partial<Collection> = {}): Collection {
-    return {
-        id: 'col_1',
-        ownerId: 'usr_1',
-        name: 'Weeknight favourites',
-        createdAt: '2026-04-01T09:00:00.000Z',
-        updatedAt: '2026-04-19T09:30:00.000Z',
         ...overrides,
     };
 }
@@ -235,7 +116,7 @@ export function makeCollectionWithRecipes(
  * Wrap collections in the API's {@link PaginatedResponse} envelope with sensible pagination defaults.
  *
  * @param collections - The page's collections.
- * @param overrides - Pagination fields to override.
+ * @param overrides - Envelope fields to override.
  * @returns A complete `PaginatedResponse<Collection>`.
  */
 export function makeCollectionPage(

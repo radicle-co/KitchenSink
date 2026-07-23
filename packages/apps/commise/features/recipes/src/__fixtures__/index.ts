@@ -1,16 +1,13 @@
 /**
  * @module @commise/features-recipes/__fixtures__ — typed `make*` factories for the recipe feature's
- * tests. Overridable defaults (accepting `Partial<T>`) per the constitution's fixture convention, kept
- * local to this package so its tests never depend on a service/client package's fixtures.
+ * tests. `makeRecipe`/`makeRecipeDetail` are the shared, invariant-deriving Object Mother from
+ * `@kitchensink/recipe-core/testing` (T1) — re-exported here so consuming tests keep importing from this
+ * local module. The feature-specific factories below (card/form view-models) stay local to this package
+ * so its tests never depend on a service/client package's fixtures.
  */
+import { makeRecipe, makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 import {
-    RecipeDifficulty,
-    RecipeSourceType,
-    RecipeStatus,
     RecipeVisibility,
-    usesPremiumCapability,
-    type Recipe,
-    type RecipeDetail,
     type RecipeIngredientView,
     type RecipeNutrition,
     type RecipePhoto,
@@ -21,57 +18,7 @@ import { toRecipeCardModel } from '../card/model.js';
 import type { RecipeFormValues } from '../form/model.js';
 import type { RecipeListItem } from '../list/model.js';
 
-/**
- * Build a full {@link Recipe} with sensible defaults, overridable per field.
- *
- * The default is a RATED, PRO recipe with a stated difficulty and a cover photo, so a card test exercises
- * every enriched field out of the box; overrides narrow to the other states (unrated, no difficulty, free
- * tier, no image). Two fields are DERIVED rather than stored as literals so the fixture can never fabricate
- * a state the domain forbids:
- *
- * - `usesPremiumCapability` is the materialized projection of the badge rule (recipe-core), so flipping
- *   `visibility`/`sourceType` yields the correct badge without restating it. An explicit override still wins.
- * - `averageRating` is present exactly when `ratingCount > 0` (the recipe-core invariant: an unrated recipe
- *   has NO average, never `0`), so `makeRecipe({ ratingCount: 0 })` drops the average instead of leaving a
- *   fake score behind.
- *
- * @param overrides - Fields to override on the default recipe.
- * @returns A complete `Recipe`.
- */
-export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
-    const base = {
-        id: 'rec_1',
-        ownerId: 'usr_1',
-        title: 'Weeknight Pasta',
-        description: 'A fast, comforting weeknight dinner.',
-        prepTimeMinutes: 10,
-        cookTimeMinutes: 20,
-        totalTimeMinutes: 30,
-        servings: 4,
-        difficulty: RecipeDifficulty.MEDIUM,
-        visibility: RecipeVisibility.PRIVATE,
-        status: RecipeStatus.PUBLISHED,
-        sourceType: RecipeSourceType.USER_CREATED,
-        hasSubstantiveEdit: false,
-        dietaryFlags: [],
-        tags: [],
-        hasPartialNutrition: false,
-        currentVersion: 1,
-        averageRating: 4.5,
-        ratingCount: 12,
-        coverPhotoUrl: 'https://cdn.commise.app/recipes/rec_1/cover.jpg',
-        createdAt: '2026-04-01T09:00:00.000Z',
-        updatedAt: '2026-04-19T09:30:00.000Z',
-        ...overrides,
-    };
-
-    return {
-        ...base,
-        usesPremiumCapability: overrides.usesPremiumCapability ?? usesPremiumCapability(base),
-        // Enforce the recipe-core invariant: an average exists only alongside a non-zero count.
-        averageRating: base.ratingCount > 0 ? base.averageRating : undefined,
-    };
-}
+export { makeRecipe, makeRecipeDetail };
 
 /**
  * Build a {@link RecipeListItem} card view-model with sensible defaults, overridable per field. Since the
@@ -174,24 +121,6 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
         visibility: RecipeVisibility.PRIVATE,
         ingredients: [{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }],
         steps: [{ instruction: 'Combine the ingredients.' }],
-        ...overrides,
-    };
-}
-
-/**
- * Build a full {@link RecipeDetail} (a {@link Recipe} plus ingredients, steps, photos, nutrition) with
- * sensible defaults, overridable per field.
- *
- * @param overrides - Fields to override on the default recipe detail.
- * @returns A complete `RecipeDetail`.
- */
-export function makeRecipeDetail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
-    return {
-        ...makeRecipe(),
-        ingredients: [makeIngredientView()],
-        steps: [makeStepView()],
-        photos: [],
-        nutrition: makeNutrition(),
         ...overrides,
     };
 }

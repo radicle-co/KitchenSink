@@ -173,11 +173,14 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                         patterns: [
                             {
                                 // Block reaching into another package's internals, but allow its
-                                // *declared* granular export barrels (database/*, types/*, hooks).
+                                // *declared* granular export barrels (database/*, types/*, hooks, testing).
                                 // Consumers such as the webhook Lambdas import those directly so they
                                 // don't pull the whole package (e.g. the NestJS service) in via the top
                                 // barrel; the `hooks` subpath likewise keeps React out of non-React
-                                // consumers of a client package (e.g. `recipe-service-client/hooks`).
+                                // consumers of a client package (e.g. `recipe-service-client/hooks`); the
+                                // `testing` subpath is the declared home for a package's shared Object
+                                // Mother fixtures (e.g. `recipe-core/testing`, T1) so downstream tests
+                                // import fixtures without pulling the runtime barrel's full surface.
                                 group: [
                                     '@kitchensink/*/*',
                                     '!@kitchensink/*/database',
@@ -185,9 +188,10 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/types',
                                     '!@kitchensink/*/types/*',
                                     '!@kitchensink/*/hooks',
+                                    '!@kitchensink/*/testing',
                                 ],
                                 message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks) — don't reach into other internals.",
+                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks, testing) — don't reach into other internals.",
                             },
                         ],
                     },

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import type { Collection } from '@kitchensink/recipe-core';
+import { makeCollection } from '@kitchensink/recipe-core/testing';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionList } from '../CollectionList.native.js';
@@ -16,17 +16,6 @@ import type { CollectionListViewProps } from '../model.js';
 afterEach(cleanup);
 
 const noop = () => undefined;
-
-function makeCollection(overrides: Partial<Collection> = {}): Collection {
-    return {
-        id: 'col_1',
-        ownerId: 'usr_1',
-        name: 'Weeknight Dinners',
-        createdAt: '2026-04-01T09:00:00.000Z',
-        updatedAt: '2026-04-19T09:30:00.000Z',
-        ...overrides,
-    };
-}
 
 function renderList(overrides: Partial<CollectionListViewProps> = {}) {
     const props: CollectionListViewProps = {

@@ -1,30 +1,16 @@
 /**
- * Typed `make*` fixture factories for the web collection-container tests. Each accepts `Partial<T>`
- * overrides over sensible defaults (constitution fixture convention). Kept local to the web app's tests so
- * they never depend on another package's (non-exported) fixtures.
+ * Typed `make*` fixture factories for the web collection-container tests. `makeCollection` is the shared,
+ * invariant-deriving Object Mother from `@kitchensink/recipe-core/testing` (T1) — re-exported here so
+ * consuming tests keep importing from this local module. `makeCollectionWithRecipes`/`makeCollectionsPage`
+ * stay web-local: they compose in the web-only `CollectionWithRecipes` type / are pagination-envelope
+ * helpers, not pure-domain wire-contract fixtures.
  */
-import type { CollectionWithRecipes } from '@commise/features-recipes';
+import { makeCollection, makeRecipe } from '@kitchensink/recipe-core/testing';
 import type { Collection, PaginatedResponse } from '@kitchensink/recipe-core';
 
-import { makeRecipe } from './recipeFixtures';
+import type { CollectionWithRecipes } from '@commise/features-recipes';
 
-/**
- * Build a complete {@link Collection} with sensible defaults.
- *
- * @param overrides - Fields to override on the default collection.
- * @returns A complete `Collection`.
- */
-export function makeCollection(overrides: Partial<Collection> = {}): Collection {
-    return {
-        id: 'col_1',
-        ownerId: 'usr_1',
-        name: 'Weeknight dinners',
-        description: 'Fast, comforting meals for busy nights.',
-        createdAt: '2026-04-01T09:00:00.000Z',
-        updatedAt: '2026-04-19T09:30:00.000Z',
-        ...overrides,
-    };
-}
+export { makeCollection };
 
 /**
  * Build a {@link CollectionWithRecipes} (a collection plus its member recipes).

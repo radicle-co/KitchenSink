@@ -1,3 +1,6 @@
 export * from './recipe.types.js';
 export * from './recipeObjectKeys.js';
 export * from './accountErasure.js';
+export * from './ids.js';
+export * from './viewer.js';
+export * from './recipeAccessPolicy.js';

@@ -14,6 +14,18 @@ describe('recipeAccessPolicy (P4)', () => {
         expect(isOwner(recipe, makeViewer({ id: 'usr_owner' }))).toBe(true);
         expect(isOwner(recipe, makeViewer({ id: 'usr_other' }))).toBe(false);
     });
+    it('is not owner for an anonymous viewer even when ownerId is malformed/undefined (fail-safe pin)', () => {
+        // `Recipe.ownerId` is typed as a required `string`, so a real `undefined` can only reach this code
+        // at runtime via malformed/corrupted data — the type system assumes it away. This test pins the
+        // RUNTIME `viewer.id !== undefined &&` guard in `isOwner`: without it, `undefined === undefined`
+        // would evaluate true and an anonymous (id-less) viewer would "own" the malformed recipe — a
+        // fail-open security hole every current fixture (which all use a defined string `ownerId`) is
+        // powerless to catch.
+        const malformedRecipe = { ownerId: undefined as unknown as string };
+        expect(isOwner(malformedRecipe, makeViewer({}))).toBe(false);
+        // A defined viewer id still must not match an undefined ownerId.
+        expect(isOwner(malformedRecipe, makeViewer({ id: 'usr_owner' }))).toBe(false);
+    });
     it('lets a non-owner clone a public recipe but never the owner (fixes D7 web/mobile disagreement)', () => {
         expect(canClone(recipe, makeViewer({ id: 'usr_other' }))).toBe(true);
         expect(canClone(recipe, makeViewer({ id: 'usr_owner' }))).toBe(false);

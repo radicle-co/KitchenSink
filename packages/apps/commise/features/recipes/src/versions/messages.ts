@@ -66,6 +66,11 @@ export interface RecipeConflictMessages {
     readonly keepMine: string;
     /** Label of the "use the latest version" choice. */
     readonly useTheirs: string;
+    /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
+     *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
+     *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
+     *  user is never left staring at an unchanged form with no feedback. */
+    readonly dataUnavailable: string;
     /** Label of the "merge field by field" choice (enters the per-field merge panel — FR-007c option c). */
     readonly mergeAction: string;
     /** Heading for the per-field merge panel. */
@@ -235,6 +240,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             theirsHeading: 'Latest saved version',
             keepMine: 'Keep my version',
             useTheirs: 'Use the latest version',
+            dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             mergeAction: 'Merge field by field',
             mergeHeading: 'Merge changes field by field',
             mergeExplanation:

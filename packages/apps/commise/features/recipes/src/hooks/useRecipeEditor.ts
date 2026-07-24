@@ -249,6 +249,16 @@ export interface UseRecipeEditorResult {
     readonly saveDraft: () => void;
     /** Whether the last submit failed for a reason OTHER than a version conflict (a handled 409 is never this). */
     readonly submitError: boolean;
+    /**
+     * Whether the last submit failed with a 409 that IS a `VersionConflictError` but that this hook could
+     * NOT turn into a `conflict` view — no `server` side (a malformed/un-enriched body) and/or no cached
+     * recipe to project it onto. `submitError` deliberately stays `false` for every `VersionConflictError`
+     * (see its own doc), so without this flag such a 409 would fail with NO visible feedback at all — a
+     * silent no-op save. A container should show a generic "this recipe changed elsewhere, reload and try
+     * again" message when this is `true`; the draft is preserved and the machine stays `editing` so the user
+     * can retry. See the module doc's "the 409's server/base thread in directly" section.
+     */
+    readonly conflictDataUnavailable: boolean;
     /** The wizard's current step (w3) — orthogonal to {@link state}; a step change never affects the statechart. */
     readonly step: RecipeWizardStep;
     /** Jump directly to `step` (the step-rail's free navigation — no validity gate). */
@@ -334,9 +344,12 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // and a follow-up round-trip would only re-introduce the race it is trying to resolve. `server` absent
     // (a malformed/un-enriched body — should not happen for the owner-update path this hook drives, per
     // `VersionConflictDetails`'s module docs) or no cached recipe to use as a display shell both degrade to
-    // the SAME "cannot build a conflict view" bail the old refetch-miss path used — the draft is preserved,
-    // the machine stays `editing`, and `submitError` stays `false` (still a handled 409, never generic). Any
-    // other error leaves the machine at `editing` too (via `updateRecipe`'s own settled isPending/isError).
+    // the SAME "cannot build a conflict view" bail the old refetch-miss path used — the draft is preserved
+    // and the machine stays `editing`. This is NOT a silent bail: `conflictDataUnavailable` (derived below,
+    // the same way `submitError` is) reads straight off `updateRecipe.error`/`query.data`, so a container
+    // always has a signal to show the user their save did not apply — closing the silent-no-op-save gap an
+    // opus review flagged. `submitError` itself stays `false` (still a handled 409, never the generic error).
+    // Any other error leaves the machine at `editing` too (via `updateRecipe`'s own settled isPending/isError).
     const handleUpdateError = (err: unknown, draft: RecipeFormValues): void => {
         if (!isVersionConflictError(err) || err.server === undefined || query.data === undefined) {
             return;
@@ -531,6 +544,14 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         publish,
         saveDraft,
         submitError: updateRecipe.isError && !isVersionConflictError(updateRecipe.error),
+        // Derived the SAME way `submitError` is (straight off `updateRecipe`'s own settled error state, not a
+        // separately-tracked flag that could desync from it) — a handled-but-undisplayable 409: it IS a
+        // `VersionConflictError` (so `submitError` above stays `false`), but has no `server` side to diff/show,
+        // or no cached recipe to project it onto (`query.data`). See the field's own JSDoc.
+        conflictDataUnavailable:
+            updateRecipe.isError &&
+            isVersionConflictError(updateRecipe.error) &&
+            (updateRecipe.error.server === undefined || query.data === undefined),
         step,
         goToStep,
         goNext,

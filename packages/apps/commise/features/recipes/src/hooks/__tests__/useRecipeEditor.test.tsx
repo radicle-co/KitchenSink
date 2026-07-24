@@ -453,6 +453,63 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         expect(result.current.submitError).toBe(true);
     });
 
+    // Opus-review finding: a 409 that IS a VersionConflictError but carries no `server` side (a malformed/
+    // un-enriched body — contract-guaranteed not to happen on the owner-update path, but possible via schema
+    // drift, a proxy stripping the response body, or a serialization bug) cannot be 3-way-diffed or displayed,
+    // so it can never enter `status: 'conflict'`. Before this fix, `submitError` ALSO stayed `false` for it
+    // (by design — it deliberately excludes every `VersionConflictError`), so the user clicked Save, ate a
+    // 409, and saw NOTHING: a silent no-op save. `conflictDataUnavailable` closes that gap without
+    // reintroducing a refetch or a fabricated conflict view.
+    it('an un-enriched 409 (VersionConflictError with no `server` side) sets conflictDataUnavailable, stays "editing", and never refetches', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        const refetch = vi.fn();
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded, refetch }));
+        const mutation = updateMutation([
+            { type: 'conflict', error: new VersionConflictError(undefined, 3, 'Recipe version conflict') },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+
+        // No server snapshot to diff/display -> never enters `conflict`.
+        expect(result.current.state).toEqual({ status: 'editing' });
+        // The new, distinct feedback flag -> the user is NOT left staring at an unchanged form.
+        expect(result.current.conflictDataUnavailable).toBe(true);
+        // Still a handled VersionConflictError -> the generic submitError flag stays false (unchanged
+        // semantics: submitError deliberately excludes EVERY VersionConflictError).
+        expect(result.current.submitError).toBe(false);
+        // No follow-up round-trip — this is a bail, not a resolution path.
+        expect(refetch).not.toHaveBeenCalled();
+    });
+
+    // Regression guard: a normal, enriched 409 (the contract-guaranteed shape) must NOT trip the new flag.
+    it('a normal enriched 409 (server present) leaves conflictDataUnavailable false and enters "conflict" as before', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        const refetch = vi.fn();
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded, refetch }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                    base: makeSide({ versionNumber: 3, snapshot: makeSnapshot({ version: 3, title: 'My Draft' }) }),
+                }),
+            },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+
+        expect(result.current.state.status).toBe('conflict');
+        expect(result.current.conflictDataUnavailable).toBe(false);
+        expect(refetch).not.toHaveBeenCalled();
+    });
+
     it('a resubmit via keepMine carries theirs.currentVersion as expectedVersion, not the stale version', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));

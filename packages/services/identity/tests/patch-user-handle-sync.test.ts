@@ -66,6 +66,34 @@ describe('patchUserMe handle-sync publish (W8-a.2)', () => {
         expect(publish).not.toHaveBeenCalled();
     });
 
+    it('A -> B -> A revert: publishes on BOTH transitions (no stale-baseline gate to skip the revert)', async () => {
+        // S-I3 (identity-webhooks) found the `user.updated` webhook gating on a baseline (`users.name`)
+        // it never wrote, freezing an A->B->A rename at B. `patchUserMe` writes `profiles` unconditionally
+        // from the request body — never gated on a stale baseline — so it does NOT share that bug. This
+        // proves the revert transition also publishes, closing decision 6's "both routes correct" ask.
+        const publish = vi.fn().mockResolvedValue(undefined);
+        const db = fakeDb([
+            // First call: A -> B.
+            [{ id: USER_ID, email: 'a@b.com', status: 'active', createdAt: new Date() }],
+            [{ displayName: 'New Name', avatarUrl: null }],
+            [{ id: 'acc-1', userId: USER_ID, subscriptionTier: 'free', createdAt: new Date(), updatedAt: new Date() }],
+            // Second call: B -> A (revert).
+            [{ id: USER_ID, email: 'a@b.com', status: 'active', createdAt: new Date() }],
+            [{ displayName: 'Original Name', avatarUrl: null }],
+            [{ id: 'acc-1', userId: USER_ID, subscriptionTier: 'free', createdAt: new Date(), updatedAt: new Date() }],
+        ]);
+        const service = makeService(db, { publish });
+
+        await service.patchUserMe(CTX, { displayName: 'New Name' });
+        await service.patchUserMe(CTX, { displayName: 'Original Name' });
+
+        expect(publish).toHaveBeenCalledTimes(2);
+        expect((publish.mock.calls[0]![0] as { displayName: string }).displayName).toBe('New Name');
+        // The revert (second call) MUST also publish — this is the transition the webhook's stale-baseline
+        // gate bug would have silently dropped had `patchUserMe` shared that gate.
+        expect((publish.mock.calls[1]![0] as { displayName: string }).displayName).toBe('Original Name');
+    });
+
     it('swallows a publish failure — the rename still succeeds', async () => {
         const publish = vi.fn().mockRejectedValue(new Error('sns down'));
         const db = fakeDb([

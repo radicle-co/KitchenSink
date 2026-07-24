@@ -4,8 +4,9 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
 import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
-import { profiles, users } from '@kitchensink/identity-service/database/schema';
+import { users } from '@kitchensink/identity-service/database/schema';
 import type { UserRow } from '@kitchensink/identity-service/database/schema';
+import type { UserId } from '@kitchensink/identity-service/types';
 import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 import { buildHandleSyncMessage } from '@kitchensink/identity-core';
 import {
@@ -165,26 +166,24 @@ const handleUserUpdated = async (
         await db.update(users).set({ email, updatedAt: now }).where(eq(users.id, existing.id));
     }
 
-    // if name/picture changed -> update profiles
+    // Coherent users/profiles sync (S-I3): gate on the CURRENT profiles row (the real baseline), not
+    // `users.name` (which this path never wrote — the stale baseline that froze an A->B->A revert at
+    // B). One transaction, both tables. Returns whether displayName actually changed, so the handle-sync
+    // publish below fires on every genuine transition, including a revert back to a prior value.
     const newPicture = data.image_url ?? null;
+    const { displayNameChanged } = await userDao.syncNameAndPicture(existing.id as UserId, {
+        name: displayName,
+        picture: newPicture,
+        now,
+    });
 
-    if (displayName !== existing.name || newPicture !== existing.picture) {
-        await db
-            .update(profiles)
-            .set({
-                displayName,
-                avatarUrl: newPicture,
-                updatedAt: now,
-            })
-            .where(eq(profiles.userId, existing.id));
-    }
-
-    // Handle-sync (W8-a.2): the SECOND producer route. When the display NAME changed, publish to the global
-    // topic so the recipe service corrects its denormalized author/editor handles. sourceTimestamp is the
-    // `now` written in the profiles update above — the SAME single monotonic clock the PATCH route uses, so
-    // the consumer's guard orders webhook and PATCH renames coherently. Best-effort: a failed publish is
-    // logged, never fails the webhook (the reconciliation/backfill backstops a missed event).
-    if (displayName !== existing.name) {
+    // Handle-sync (W8-a.2): the SECOND producer route. When the display NAME actually changed, publish to
+    // the global topic so the recipe service corrects its denormalized author/editor handles.
+    // sourceTimestamp is the SAME `now` written in the coherent sync above — the SAME single monotonic
+    // clock the PATCH route uses, so the consumer's guard orders webhook and PATCH renames coherently.
+    // Best-effort: a failed publish is logged, never fails the webhook (the reconciliation/backfill
+    // backstops a missed event).
+    if (displayNameChanged) {
         try {
             await handleSyncPublisher.publish(buildHandleSyncMessage(existing.id, displayName, now.toISOString()));
         } catch (error) {

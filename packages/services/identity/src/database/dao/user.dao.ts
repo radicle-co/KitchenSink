@@ -63,6 +63,53 @@ export class UserDAO {
         return rows[0];
     }
 
+    /**
+     * Coherent `users`/`profiles` sync for `user.updated` (S-I3). `profiles.displayName` is the
+     * AUTHORITATIVE display value the app renders; `users.name`/`users.picture` are a secondary copy.
+     * The prior bug gated the `profiles` write on `users.name`, which the `user.updated` path never
+     * updates — so the baseline never moved, and an A→B→A rename froze at B: the B→A revert compared
+     * incoming "A" against the stale `users.name` ("A", untouched since before the first rename) and
+     * saw no difference, silently dropping both the write and the handle-sync publish.
+     *
+     * This method reads the CURRENT `profiles` row (the real, moving baseline) and gates on THAT —
+     * inside one transaction, so `users` and `profiles` are written together and never drift apart
+     * again. Returns whether `displayName` actually changed, so the caller can gate the handle-sync
+     * publish on a real change (firing on every genuine transition, including a revert).
+     *
+     * @sideEffect updates `users.name`/`users.picture` and `profiles.displayName`/`avatarUrl` together.
+     */
+    async syncNameAndPicture(
+        userId: UserId,
+        data: { name: string; picture: string | null; now: Date },
+    ): Promise<{ displayNameChanged: boolean }> {
+        return this.db.transaction(async (tx) => {
+            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId));
+
+            if (!profile) {
+                return { displayNameChanged: false };
+            }
+
+            const displayNameChanged = data.name !== profile.displayName;
+            const avatarChanged = data.picture !== profile.avatarUrl;
+
+            if (!displayNameChanged && !avatarChanged) {
+                return { displayNameChanged: false };
+            }
+
+            await tx
+                .update(users)
+                .set({ name: data.name, picture: data.picture, updatedAt: data.now })
+                .where(eq(users.id, userId));
+
+            await tx
+                .update(profiles)
+                .set({ displayName: data.name, avatarUrl: data.picture, updatedAt: data.now })
+                .where(eq(profiles.userId, userId));
+
+            return { displayNameChanged };
+        });
+    }
+
     async softDelete(id: UserId): Promise<UserRow | undefined> {
         const rows = await this.db
             .update(users)

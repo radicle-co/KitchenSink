@@ -57,8 +57,10 @@ export type SnapshotFieldKey =
     | 'steps'
     | 'ingredients';
 
-/** Added/removed/modified tallies for one collection (steps, ingredients, or the overall summary). */
-interface DiffTally {
+/** Added/removed/modified tallies for one collection (steps, ingredients, or the overall summary). Exported
+ *  so consumers (e.g. the W6 Task 4 compare view's per-collection tally) can type against it directly rather
+ *  than indexing `SnapshotDiff['steps']`. */
+export interface DiffTally {
     readonly added: number;
     readonly removed: number;
     readonly modified: number;

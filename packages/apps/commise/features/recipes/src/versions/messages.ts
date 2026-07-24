@@ -146,6 +146,43 @@ export interface RecipeVersionPreviewMessages {
     readonly restoreThis: string;
 }
 
+/** Shared copy for the two-version compare panel (W6 Task 4 / FR-007b, FR-007c). Field labels are
+ *  DELIBERATELY not duplicated here — the changed-only A/B rows reuse {@link RecipeConflictMessages}'s field
+ *  labels (the same reuse {@link RecipeVersionPreviewMessages} and the row-level changed-fields summary
+ *  already rely on), and the per-column headers reuse {@link RecipeVersionListMessages.versionLabel} — a
+ *  field name or "Version {n}" label is one piece of knowledge regardless of which version surface renders
+ *  it. */
+export interface RecipeVersionCompareMessages {
+    /** Panel/sheet heading template (contains `{versionA}` and `{versionB}`) — deliberately renders
+     *  `{versionB}` FIRST (`Compare v{versionB} vs v{versionA}`), matching the wireframe's example "Compare
+     *  v12 vs v8" for a caller comparing an older version A against a newer version B. */
+    readonly title: string;
+    /** Accessible name of the close ("×") control. */
+    readonly close: string;
+    /** Heading for the Diff Summary section. */
+    readonly diffSummaryHeading: string;
+    /** Localized "Added" count template (contains `{count}`); reused for BOTH the overall Diff Summary
+     *  rollup and (when `showFullDiff` is toggled on) a `steps`/`ingredients` row's own tally. */
+    readonly added: string;
+    /** Localized "Removed" count template (contains `{count}`); see {@link added}. */
+    readonly removed: string;
+    /** Localized "Modified" count template (contains `{count}`); see {@link added}. */
+    readonly modified: string;
+    /** Label of the control that reveals each `steps`/`ingredients` row's per-collection Added/Removed/
+     *  Modified tally (shown OFF by default so a same-count reorder never reads as a misleading per-line
+     *  explosion — see {@link import('./model.js').buildCompareFieldRows}). */
+    readonly showFullDiff: string;
+    /** Label of the same control once the tally is showing. */
+    readonly hideFullDiff: string;
+    /** Message shown in place of the field rows when the two versions' snapshots are identical
+     *  (`diff.changedFields` is empty). */
+    readonly noChanges: string;
+    /** Message shown when the panel is open but fewer than two versions (and/or no `diff`) have been
+     *  supplied yet — the two-version SELECTION UI itself lives in the composing container (Task 5); this
+     *  view only reports that a selection is still needed. */
+    readonly selectTwoVersions: string;
+}
+
 /** The shape of the version surface's shared copy. */
 export interface RecipeVersionMessages {
     /** Copy for the version-history list (T069). */
@@ -154,6 +191,8 @@ export interface RecipeVersionMessages {
     readonly conflict: RecipeConflictMessages;
     /** Copy for the version preview modal (W6 Task 3). */
     readonly preview: RecipeVersionPreviewMessages;
+    /** Copy for the two-version compare panel (W6 Task 4). */
+    readonly compare: RecipeVersionCompareMessages;
 }
 
 export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
@@ -222,6 +261,18 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             error: 'We couldn’t load that version. Please try again.',
             keepCurrent: 'Keep current version',
             restoreThis: 'Restore this version',
+        },
+        compare: {
+            title: 'Compare v{versionB} vs v{versionA}',
+            close: 'Close compare',
+            diffSummaryHeading: 'Diff Summary',
+            added: 'Added: {count}',
+            removed: 'Removed: {count}',
+            modified: 'Modified: {count}',
+            showFullDiff: 'Show full diff',
+            hideFullDiff: 'Hide full diff',
+            noChanges: 'No changes between these versions.',
+            selectTwoVersions: 'Select two versions to compare.',
         },
     },
 };

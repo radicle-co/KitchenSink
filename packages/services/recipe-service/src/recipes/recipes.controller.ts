@@ -70,11 +70,11 @@ export class RecipesController {
     @Patch(':id')
     @WriteRateLimit()
     public async update(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @Param('id', ParseUUIDPipe) id: string,
         @Body() body: UpdateRecipeDto,
     ): Promise<RecipeResponse> {
-        return this.recipesService.update(ownerId, id, body);
+        return this.recipesService.update(principal, id, body);
     }
 
     /** `DELETE /v1/recipes/{id}` — soft-delete (tombstone) a recipe the caller owns. */
@@ -90,11 +90,11 @@ export class RecipesController {
     @HttpCode(HttpStatus.CREATED)
     @WriteRateLimit()
     public async clone(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @Param('id', ParseUUIDPipe) id: string,
         @Body() _body: CloneRecipeDto,
     ): Promise<RecipeResponse> {
-        return this.recipesService.clone(ownerId, id);
+        return this.recipesService.clone(principal, id);
     }
 
     /** `PATCH /v1/recipes/{id}/visibility` — set visibility (C-004 policy, gated on premium + provenance). */

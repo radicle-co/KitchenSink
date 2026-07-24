@@ -529,7 +529,7 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(OWNER, 'r-1', patch);
+        await newService(dal).update(principal(), 'r-1', patch);
 
         // The three states must reach the DAL as three DISTINCT values (value / null / undefined) — the DAL
         // is what turns them into set / clear / leave-unchanged. Asserting the exact value (incl. the
@@ -598,7 +598,7 @@ describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, servings: 4 });
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, servings: 4 });
 
         expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBe(50);
     });
@@ -609,7 +609,7 @@ describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, title: 'Renamed' });
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, title: 'Renamed' });
 
         expect(dalCallArg(dal.update, 1)).not.toHaveProperty('leadCaloriesPerServing');
     });
@@ -626,7 +626,7 @@ describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(OWNER, 'r-1', {
+        await newService(dal).update(principal(), 'r-1', {
             expectedVersion: 1,
             ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1 }],
         });
@@ -660,14 +660,17 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
         const create = vi.fn();
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(publicDraft(OWNER)), create });
 
-        const error = await catchError(newService(dal).clone(OTHER, 'r-1'));
+        const error = await catchError(newService(dal).clone(principal({ userId: OTHER }), 'r-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         expect(create).not.toHaveBeenCalled();
     });
 
     it.each([
-        ['update', (s: RecipesService) => s.update(OTHER, 'r-1', { expectedVersion: 1, title: 'x' })],
+        [
+            'update',
+            (s: RecipesService) => s.update(principal({ userId: OTHER }), 'r-1', { expectedVersion: 1, title: 'x' }),
+        ],
         ['delete', (s: RecipesService) => s.delete(OTHER, 'r-1')],
         [
             'setVisibility',
@@ -705,7 +708,7 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, status: 'published' });
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' });
 
         expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }));
     });
@@ -716,14 +719,14 @@ describe('RecipesService.update', () => {
 
     it('throws RECIPE_NOT_FOUND when the recipe is absent', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(newService(dal).update(OWNER, 'r-1', patch));
+        const error = await catchError(newService(dal).update(principal(), 'r-1', patch));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws NOT_OWNER when the caller does not own the recipe', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
-        const error = await catchError(newService(dal).update(OTHER, 'r-1', patch));
+        const error = await catchError(newService(dal).update(principal({ userId: OTHER }), 'r-1', patch));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
@@ -753,7 +756,7 @@ describe('RecipesService.update', () => {
             }),
         });
 
-        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error)).toBe(true);
 
@@ -785,7 +788,7 @@ describe('RecipesService.update', () => {
             readConflict: vi.fn().mockResolvedValue({ current }), // no baseVersion row retained
         });
 
-        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
 
         if (isRecipeDomainError(error)) {
             const details = error.details as { server: unknown; base?: unknown };
@@ -803,7 +806,7 @@ describe('RecipesService.update', () => {
             readConflict: vi.fn().mockResolvedValue({ current }),
         });
 
-        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
         expect((isRecipeDomainError(error) && (error.details as { currentVersion: number }).currentVersion) || 0).toBe(
@@ -818,7 +821,7 @@ describe('RecipesService.update', () => {
             readConflict: vi.fn().mockResolvedValue(undefined), // recipe vanished (tombstoned) since the pre-check
         });
 
-        const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
+        const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
@@ -831,7 +834,7 @@ describe('RecipesService.update', () => {
         });
         const service = newService(dal);
 
-        const response = await service.update(OWNER, 'r-1', patch);
+        const response = await service.update(principal(), 'r-1', patch);
 
         expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ title: 'Renamed' }));
         expect(response.currentVersion).toBe(2);
@@ -852,7 +855,7 @@ describe('RecipesService.update', () => {
             fakeRatingsDal(),
         );
 
-        await service.update(OWNER, 'r-1', patch);
+        await service.update(principal(), 'r-1', patch);
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(
             expect.objectContaining({ recipeId: 'r-1', versionNumber: 2, createdBy: OWNER }),
@@ -874,9 +877,53 @@ describe('RecipesService.update', () => {
             fakeRatingsDal(),
         );
 
-        await service.update(OWNER, 'r-1', patch, { recordSnapshot: false });
+        await service.update(principal(), 'r-1', patch, { recordSnapshot: false });
 
         expect(versions.createSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('records the editor handle (deriveDisplayName) on the update snapshot (W6 by-@handle attribution)', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        // An editor whose token claims derive to "Clara Oswald" — the same ONE rule create uses.
+        await service.update(principal({ firstName: 'Clara', lastName: 'Oswald' }), 'r-1', patch);
+
+        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Clara Oswald' }));
+    });
+
+    it('omits the editor handle on update when the principal has no derivable name (graceful, matches create)', async () => {
+        const versions = makeFakeVersionsService();
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        // The default principal carries no first/last name → deriveDisplayName returns '' → the key is omitted
+        // (NULL editor_handle), never persisted as an empty string.
+        await service.update(principal(), 'r-1', patch);
+
+        const input = vi.mocked(versions.createSnapshot).mock.calls[0]?.[0];
+        expect(input).not.toHaveProperty('editorHandle');
     });
 });
 
@@ -1086,7 +1133,7 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
             update: vi.fn().mockResolvedValue(existing),
         });
 
-        await newService(dal).update(OWNER, 'r-1', { expectedVersion: 1, ...patch });
+        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, ...patch });
 
         const updateArgs = (dal.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
 
@@ -1247,7 +1294,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         const softDelete = vi.fn();
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create, update, setVisibility, softDelete });
 
-        await newService(dal).clone(OWNER, 'src');
+        await newService(dal).clone(principal(), 'src');
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -1296,7 +1343,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         });
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
 
-        await newService(dal).clone(OWNER, 'src');
+        await newService(dal).clone(principal(), 'src');
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({ visibility: 'private', sourceType: 'imported_paid' }),
@@ -1318,7 +1365,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         const create = vi.fn().mockResolvedValue({ ...source, recipe: makeRecipeRow({ id: 'c', ownerId: OWNER }) });
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
 
-        await newService(dal).clone(OWNER, 'src');
+        await newService(dal).clone(principal(), 'src');
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({ sourceAttribution: expect.stringContaining(OTHER) }),
@@ -1335,7 +1382,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         const create = vi.fn();
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(source), create });
 
-        const error = await catchError(newService(dal).clone(OWNER, 'src'));
+        const error = await catchError(newService(dal).clone(principal(), 'src'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         expect(create).not.toHaveBeenCalled();
@@ -1343,7 +1390,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
 
     it('throws RECIPE_NOT_FOUND when the clone source does not exist', async () => {
         const dal = fakeDal({ findById: vi.fn().mockResolvedValue(undefined) });
-        const error = await catchError(newService(dal).clone(OWNER, 'missing'));
+        const error = await catchError(newService(dal).clone(principal(), 'missing'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });

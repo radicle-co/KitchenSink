@@ -16,6 +16,7 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2).
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { deriveDisplayName } from '@kitchensink/identity-core';
 import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
@@ -24,6 +25,7 @@ import { PendingArchivesDal } from './dal/pending-archives.dal.js';
 import { VERSION_ARCHIVE_READER, type VersionArchiveReader } from './version-archive.storage.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner, recipeNotFound } from '../recipes/recipe.error.js';
+import type { Principal } from '../auth/principal.js';
 import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
 import type { RecipeVersionRow } from '../database/schema/index.js';
 
@@ -163,7 +165,8 @@ export class VersionsService {
      *
      * @returns The restored recipe, the version it was restored FROM, and the new current version number.
      */
-    public async restore(ownerId: string, recipeId: string, versionNumber: number): Promise<RestoreVersionResult> {
+    public async restore(principal: Principal, recipeId: string, versionNumber: number): Promise<RestoreVersionResult> {
+        const ownerId = principal.userId;
         const current = await this.recipes.getById(ownerId, recipeId);
 
         if (current.ownerId !== ownerId) {
@@ -194,7 +197,7 @@ export class VersionsService {
         // summary), so the update must not also auto-snapshot, or the restore would write two versions at
         // the same number.
         const updated = await this.recipes.update(
-            ownerId,
+            principal,
             recipeId,
             {
                 expectedVersion: current.currentVersion,
@@ -226,6 +229,10 @@ export class VersionsService {
             { recordSnapshot: false },
         );
 
+        // Editor handle (W8-a.2): the RESTORER is the editor of this new version — derived from their
+        // claims via the ONE shared rule (matching create/update/clone); omitted → NULL when not derivable.
+        const editorHandle = deriveDisplayName(principal) || undefined;
+
         // Record the restore as its own immutable version (with restore provenance) — this also drives
         // retention. The RESPONSE is the restored recipe + version metadata, not this snapshot row.
         await this.createSnapshot({
@@ -235,6 +242,7 @@ export class VersionsService {
             createdBy: ownerId,
             baseVersion: versionNumber,
             changeSummary: `Restored from version ${versionNumber}`,
+            ...(editorHandle !== undefined ? { editorHandle } : {}),
         });
 
         return {

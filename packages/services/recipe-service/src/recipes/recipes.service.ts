@@ -650,11 +650,12 @@ export class RecipesService {
      * one version, not two at the same number. `options.changeSummary` labels the recorded version.
      */
     public async update(
-        ownerId: string,
+        principal: Principal,
         id: string,
         dto: UpdateRecipeDto,
         options: { recordSnapshot?: boolean; changeSummary?: string } = {},
     ): Promise<RecipeResponse> {
+        const ownerId = principal.userId;
         const existing = await this.dal.findById(id);
 
         if (!existing) {
@@ -733,7 +734,17 @@ export class RecipesService {
         }
 
         if (options.recordSnapshot !== false) {
-            await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated', dto.deviceLabel);
+            // Editor handle (W8-a.2) — the version's "by @handle" attribution. Derived from the editor's
+            // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
+            // source here (it is seeded only by rename events, so it is NULL for any un-renamed user).
+            const editorHandle = deriveDisplayName(principal) || undefined;
+            await this.recordSnapshot(
+                updated,
+                ownerId,
+                options.changeSummary ?? 'Updated',
+                dto.deviceLabel,
+                editorHandle,
+            );
         }
 
         return this.toDetailResponse(updated, await this.loadPhotoRows(id));
@@ -763,7 +774,8 @@ export class RecipesService {
      * (`sourceType`/`sourceUrl`/`sourceAttribution`), content copied, `hasSubstantiveEdit = false`, and
      * `visibility` set to the C-004 clone default for the source type. The ORIGINAL is never mutated.
      */
-    public async clone(ownerId: string, id: string): Promise<RecipeResponse> {
+    public async clone(principal: Principal, id: string): Promise<RecipeResponse> {
+        const ownerId = principal.userId;
         const source = await this.dal.findById(id);
 
         if (!source) {
@@ -813,7 +825,10 @@ export class RecipesService {
             steps: source.steps.map(toStepInputFromRow),
         });
 
-        await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`);
+        // Editor handle (W8-a.2): the CLONER (not the source author) is the editor of the clone's first
+        // version — derived from the caller's claims via the ONE shared rule, matching create/update.
+        const editorHandle = deriveDisplayName(principal) || undefined;
+        await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`, undefined, editorHandle);
 
         // A fresh clone starts with no photos (not copied from the source); nutrition is computed from its lines.
         return this.toDetailResponse(created, []);

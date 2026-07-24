@@ -23,7 +23,8 @@ import {
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsService, type RestoreVersionResult } from './versions.service.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { CurrentPrincipal, OwnerId } from '../auth/current-principal.decorator.js';
+import type { Principal } from '../auth/principal.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 @Controller('v1/recipes/:recipeId/versions')
@@ -55,10 +56,10 @@ export class VersionsController {
     @HttpCode(HttpStatus.OK)
     @WriteRateLimit()
     public async restore(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @Param('recipeId', ParseUUIDPipe) recipeId: string,
         @Param('versionNumber', ParseIntPipe) versionNumber: number,
     ): Promise<RestoreVersionResult> {
-        return this.versionsService.restore(ownerId, recipeId, versionNumber);
+        return this.versionsService.restore(principal, recipeId, versionNumber);
     }
 }

@@ -72,14 +72,16 @@ describe('RecipesController', () => {
         expect(result).toBe(RESPONSE);
     });
 
-    it('update delegates the owner key, id, and body', async () => {
+    it('update delegates the verified principal, id, and body', async () => {
         const update = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ update }));
         const body = { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto;
 
-        await controller.update(OWNER, 'r-1', body);
+        // Update needs the whole principal (not just the owner key) so the service can derive the editor
+        // handle for the version snapshot — assert the verified principal is forwarded verbatim.
+        await controller.update(PRINCIPAL, 'r-1', body);
 
-        expect(update).toHaveBeenCalledWith(OWNER, 'r-1', body);
+        expect(update).toHaveBeenCalledWith(PRINCIPAL, 'r-1', body);
     });
 
     it('remove delegates the owner key + id and resolves void', async () => {
@@ -90,13 +92,13 @@ describe('RecipesController', () => {
         expect(deleteFn).toHaveBeenCalledWith(OWNER, 'r-1');
     });
 
-    it('clone delegates the owner key + id and returns the service result', async () => {
+    it('clone delegates the verified principal + id and returns the service result', async () => {
         const clone = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ clone }));
 
-        const result = await controller.clone(OWNER, 'r-1', {} as CloneRecipeDto);
+        const result = await controller.clone(PRINCIPAL, 'r-1', {} as CloneRecipeDto);
 
-        expect(clone).toHaveBeenCalledWith(OWNER, 'r-1');
+        expect(clone).toHaveBeenCalledWith(PRINCIPAL, 'r-1');
         expect(result).toBe(RESPONSE);
     });
 

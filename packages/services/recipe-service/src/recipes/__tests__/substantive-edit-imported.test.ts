@@ -17,8 +17,10 @@ import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
+import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J0000000000000000000PRO0';
+const OWNER_PRINCIPAL: Principal = { userId: OWNER, sub: 'user_clerk', scopes: [], permissions: [] };
 const INGREDIENT_ID = '00000000-0000-4000-8000-0000000000ff';
 
 function importedAggregate(): RecipeAggregate {
@@ -85,7 +87,7 @@ describe('RecipesService.update — imported lineage preserved through a substan
             steps: [{ instruction: 'Steam instead of boiling' }],
         };
 
-        await svc.update(OWNER, 'r-imp', patch);
+        await svc.update(OWNER_PRINCIPAL, 'r-imp', patch);
 
         const persisted = update.mock.calls[0]?.[1] as Record<string, unknown>;
         expect(persisted).toMatchObject({ hasSubstantiveEdit: true });

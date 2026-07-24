@@ -21,9 +21,12 @@ import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
+import type { Principal } from '../../auth/principal.js';
 
 const SOURCE_OWNER = '01J0000000000000000000PRO0';
 const CLONER = '01J000000000000000000FREE0';
+const SOURCE_OWNER_PRINCIPAL: Principal = { userId: SOURCE_OWNER, sub: 'clerk_pro', scopes: [], permissions: [] };
+const CLONER_PRINCIPAL: Principal = { userId: CLONER, sub: 'clerk_free', scopes: [], permissions: [] };
 const INGREDIENT_ID = '00000000-0000-4000-8000-0000000000ff';
 
 function sourceAggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
@@ -120,14 +123,14 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 describe('RecipesService.clone', () => {
     it('throws RECIPE_NOT_FOUND when the source does not exist', async () => {
         const { dal } = fakeDal(undefined);
-        const error = await catchError(service(dal).clone(CLONER, 'src-1'));
+        const error = await catchError(service(dal).clone(CLONER_PRINCIPAL, 'src-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 
     it('throws RECIPE_NOT_FOUND (404, not 403) when a non-owner clones a PRIVATE recipe (W8-a.4 IDOR)', async () => {
         const { dal } = fakeDal(sourceAggregate({ visibility: 'private', ownerId: SOURCE_OWNER }));
-        const error = await catchError(service(dal).clone(CLONER, 'src-1'));
+        const error = await catchError(service(dal).clone(CLONER_PRINCIPAL, 'src-1'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
@@ -135,7 +138,7 @@ describe('RecipesService.clone', () => {
     it('lets the OWNER clone their own private recipe', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ visibility: 'private', ownerId: SOURCE_OWNER }));
 
-        await service(dal).clone(SOURCE_OWNER, 'src-1');
+        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1');
 
         expect(create).toHaveBeenCalledTimes(1);
     });
@@ -143,7 +146,7 @@ describe('RecipesService.clone', () => {
     it('creates a new recipe owned by the caller, linked via clonedFromId, with hasSubstantiveEdit reset', async () => {
         const { dal, create } = fakeDal(sourceAggregate());
 
-        const response = await service(dal).clone(CLONER, 'src-1');
+        const response = await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -169,7 +172,7 @@ describe('RecipesService.clone', () => {
             }),
         );
 
-        await service(dal).clone(CLONER, 'src-1');
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
 
         expect(create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -183,7 +186,7 @@ describe('RecipesService.clone', () => {
     it('records attribution to the original author when the source is a user_created original (no attribution)', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ sourceType: 'user_created', sourceAttribution: null }));
 
-        await service(dal).clone(CLONER, 'src-1');
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
 
         const input = create.mock.calls[0]?.[0] as { sourceAttribution?: string };
         expect(input.sourceAttribution).toContain(SOURCE_OWNER);
@@ -192,7 +195,7 @@ describe('RecipesService.clone', () => {
     it('defaults a user_created / imported_public clone to public visibility', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ sourceType: 'imported_public' }));
 
-        await service(dal).clone(CLONER, 'src-1');
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
 
         expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'public' });
     });
@@ -203,8 +206,26 @@ describe('RecipesService.clone', () => {
             sourceAggregate({ sourceType: 'imported_paid', visibility: 'private', ownerId: SOURCE_OWNER }),
         );
 
-        await service(dal).clone(SOURCE_OWNER, 'src-1');
+        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1');
 
         expect(create.mock.calls[0]?.[0]).toMatchObject({ visibility: 'private' });
+    });
+
+    it("records the cloner's editor handle (deriveDisplayName) on the clone snapshot (W6 attribution)", async () => {
+        const { dal } = fakeDal(sourceAggregate());
+        const versions = makeFakeVersionsService();
+        const svc = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            versions,
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        // The CLONER (not the source author) is the editor of the clone's first version.
+        await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1');
+
+        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Rose Tyler' }));
     });
 });

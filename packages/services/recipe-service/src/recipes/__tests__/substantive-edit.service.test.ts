@@ -18,8 +18,10 @@ import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
+import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J000000000000000000FREE0';
+const OWNER_PRINCIPAL: Principal = { userId: OWNER, sub: 'user_clerk', scopes: [], permissions: [] };
 const INGREDIENT_ID = '00000000-0000-4000-8000-0000000000ff';
 
 /** An existing aggregate: one step ("Mix") and one ingredient line (qty 1, unit "unit"). */
@@ -83,7 +85,7 @@ describe('RecipesService.update — substantive-edit detection', () => {
         const { dal, update } = fakeDal(existing, existing);
         const patch: UpdateRecipeDto = { expectedVersion: 1, title: 'Renamed', cuisine: 'thai', tags: ['x'] };
 
-        await service(dal).update(OWNER, 'r-1', patch);
+        await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);
 
         expect(update).toHaveBeenCalledTimes(1);
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('hasSubstantiveEdit', true);
@@ -94,7 +96,7 @@ describe('RecipesService.update — substantive-edit detection', () => {
         const { dal, update } = fakeDal(existing, existing);
         const patch: UpdateRecipeDto = { expectedVersion: 1, steps: [{ instruction: 'Simmer for a while' }] };
 
-        await service(dal).update(OWNER, 'r-1', patch);
+        await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);
 
         expect(update.mock.calls[0]?.[1]).toMatchObject({ hasSubstantiveEdit: true });
     });
@@ -107,7 +109,7 @@ describe('RecipesService.update — substantive-edit detection', () => {
             ingredients: [{ ingredientId: INGREDIENT_ID, name: 'Onion', quantity: 3, unit: 'unit' }],
         };
 
-        await service(dal).update(OWNER, 'r-1', patch);
+        await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);
 
         expect(update.mock.calls[0]?.[1]).toMatchObject({ hasSubstantiveEdit: true });
     });
@@ -121,7 +123,7 @@ describe('RecipesService.update — substantive-edit detection', () => {
             ingredients: [{ ingredientId: INGREDIENT_ID, name: 'Onion', quantity: 1, unit: 'unit' }],
         };
 
-        await service(dal).update(OWNER, 'r-1', patch);
+        await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);
 
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('hasSubstantiveEdit', true);
     });
@@ -131,7 +133,7 @@ describe('RecipesService.update — substantive-edit detection', () => {
         const { dal, update } = fakeDal(existing, existing);
         const patch: UpdateRecipeDto = { expectedVersion: 1, title: 'Renamed again' };
 
-        await service(dal).update(OWNER, 'r-1', patch);
+        await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);
 
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('hasSubstantiveEdit', false);
     });

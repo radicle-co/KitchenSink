@@ -12,8 +12,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { VersionsController } from '../versions.controller.js';
 import type { VersionsService } from '../versions.service.js';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
+import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J000000000000000000FREE0';
+const PRINCIPAL: Principal = { userId: OWNER, sub: 'clerk_sub', scopes: [], permissions: [] };
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 const VERSION_NUMBER = 1;
 
@@ -50,14 +52,14 @@ describe('VersionsController', () => {
         expect(result).toBe(VERSION);
     });
 
-    it('restore delegates the owner key + recipe id + integer versionNumber and returns the envelope', async () => {
+    it('restore delegates the verified principal + recipe id + integer versionNumber and returns the envelope', async () => {
         const envelope = { recipe: { id: RECIPE_ID }, restoredFromVersion: 1, currentVersion: 3 };
         const restore = vi.fn().mockResolvedValue(envelope);
         const controller = new VersionsController(fakeService({ restore }));
 
-        const result = await controller.restore(OWNER, RECIPE_ID, VERSION_NUMBER);
+        const result = await controller.restore(PRINCIPAL, RECIPE_ID, VERSION_NUMBER);
 
-        expect(restore).toHaveBeenCalledWith(OWNER, RECIPE_ID, VERSION_NUMBER);
+        expect(restore).toHaveBeenCalledWith(PRINCIPAL, RECIPE_ID, VERSION_NUMBER);
         expect(result).toBe(envelope);
     });
 });

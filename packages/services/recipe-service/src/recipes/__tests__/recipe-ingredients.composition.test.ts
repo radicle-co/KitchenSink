@@ -222,7 +222,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             expectedVersion: 1,
             ingredients: [{ ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' }],
         };
-        await service.update(OWNER, 'r-1', patch);
+        await service.update(OWNER_PRINCIPAL, 'r-1', patch);
 
         expect(ingredientsDal.findById).toHaveBeenCalledWith(ONION_ID);
         expect(dal.update).toHaveBeenCalledWith(
@@ -246,7 +246,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
         );
 
-        await service.update(OWNER, 'r-1', { expectedVersion: 1, title: 'Renamed' });
+        await service.update(OWNER_PRINCIPAL, 'r-1', { expectedVersion: 1, title: 'Renamed' });
 
         expect(ingredientsDal.findById).not.toHaveBeenCalled();
         const updateArg = (dal.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<

@@ -20,6 +20,7 @@ import type { VersionsDal } from '../dal/versions.dal.js';
 import type { PendingArchivesDal, EnqueueArchiveInput } from '../dal/pending-archives.dal.js';
 import type { VersionArchiveReader } from '../version-archive.storage.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
+import type { Principal } from '../../auth/principal.js';
 import { makeVersionRow } from '../../__fixtures__/index.js';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import type { RecipeVersionRow } from '../../database/schema/index.js';
@@ -189,6 +190,7 @@ describe('VersionsService.createSnapshot', () => {
 
 describe('VersionsService.restore', () => {
     const OWNER = '01J000000000000000000FREE0';
+    const PRINCIPAL: Principal = { userId: OWNER, sub: 'clerk_sub', scopes: [], permissions: [] };
     const RECIPE_ID = 'r-1';
 
     const TARGET_SNAPSHOT: RecipeSnapshot = {
@@ -242,13 +244,13 @@ describe('VersionsService.restore', () => {
             noArchive(),
         );
 
-        const result = await service.restore(OWNER, RECIPE_ID, 3);
+        const result = await service.restore(PRINCIPAL, RECIPE_ID, 3);
 
         // The version is addressed by its integer number, scoped to the recipe (not a row UUID).
         expect(findByRecipeAndVersion).toHaveBeenCalledWith(RECIPE_ID, 3);
         // The restore reverts ingredients too — not just title/steps/times (the previously-dropped case).
         expect(recipes.update).toHaveBeenCalledWith(
-            OWNER,
+            PRINCIPAL,
             RECIPE_ID,
             expect.objectContaining({
                 title: 'Old Title',
@@ -272,6 +274,25 @@ describe('VersionsService.restore', () => {
         expect(result).toEqual({ recipe: RESTORED_RECIPE, restoredFromVersion: 3, currentVersion: 6 });
     });
 
+    it("records the restorer's editor handle (deriveDisplayName) on the restore snapshot (W6 attribution)", async () => {
+        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
+        const dal = fakeDal({
+            findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
+            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
+        });
+        const service = new VersionsService(
+            dal,
+            fakeRecipes(),
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
+
+        // The RESTORER is the editor of the restore's new version — their handle, not the original author's.
+        await service.restore({ ...PRINCIPAL, firstName: 'Amy', lastName: 'Pond' }, RECIPE_ID, 3);
+
+        expect(dal.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Amy Pond' }));
+    });
+
     it('rejects a non-owner with NOT_OWNER and never mutates the recipe', async () => {
         const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
         const dal = fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(target) });
@@ -285,7 +306,7 @@ describe('VersionsService.restore', () => {
             noArchive(),
         );
 
-        await expect(service.restore(OWNER, RECIPE_ID, 3)).rejects.toBeDefined();
+        await expect(service.restore(PRINCIPAL, RECIPE_ID, 3)).rejects.toBeDefined();
         expect(recipes.update).not.toHaveBeenCalled();
     });
 
@@ -298,7 +319,7 @@ describe('VersionsService.restore', () => {
             noArchive(),
         );
 
-        await expect(service.restore(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
+        await expect(service.restore(PRINCIPAL, RECIPE_ID, 99)).rejects.toBeDefined();
         expect(dal.createSnapshot).not.toHaveBeenCalled();
     });
 });

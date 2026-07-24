@@ -148,7 +148,7 @@ const handleUserUpdated = async (
     db: PostgresJsDatabase<Record<string, never>>,
     requestId: string,
 ): Promise<void> => {
-    const userDao = new UserDAO(db);
+    const userDao = new UserDAO(db, logger);
     const existing = await userDao.findByIdentityId(data.id);
 
     if (!existing) {

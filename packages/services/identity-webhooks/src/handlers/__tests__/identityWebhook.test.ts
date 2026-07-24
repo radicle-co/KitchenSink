@@ -115,20 +115,32 @@ const makeUserUpdatedPayload = (firstName: string, lastName: string) => ({
 });
 
 /**
- * A stateful `UserDAO` double whose `syncNameAndPicture` mirrors the REAL DAO's gate-on-stored-value
- * behavior (compare the incoming name/picture against the CURRENTLY held profile, only "write" — and
- * report changed — on a real difference). This lets the handler-level test drive the exact A->B->A
- * sequence and assert the handler's publish-gating wiring reacts correctly across both transitions,
- * without needing a real database.
+ * A stateful `UserDAO` double whose `syncNameAndPicture` mirrors the REAL DAO's gate-on-`users`-mirror
+ * behavior (S-I3, corrected): the gate compares the incoming Clerk name/picture against `users.name`/
+ * `picture` (the Clerk MIRROR, tracked here as `mirror`) — NOT `profiles.displayName`/`avatarUrl` (the
+ * EFFECTIVE, possibly self-service-overridden display, tracked here as `profile`). A field is written
+ * to `profile` ONLY when that specific field's incoming value differs from `mirror`, so a self-service
+ * override on a field Clerk did NOT touch this event survives. This lets handler-level tests drive the
+ * exact A->B->A, self-service-preservation, and genuine-Clerk-change sequences and assert the
+ * handler's publish-gating wiring reacts correctly, without needing a real database.
  */
-const makeStatefulUserDao = (initialProfile: { displayName: string; avatarUrl: string | null }) => {
-    let profile = { ...initialProfile };
+const makeStatefulUserDao = (initial: {
+    mirrorName: string;
+    mirrorPicture: string | null;
+    profileDisplayName?: string;
+    profileAvatarUrl?: string | null;
+}) => {
+    let mirror = { name: initial.mirrorName, picture: initial.mirrorPicture };
+    let profile = {
+        displayName: initial.profileDisplayName ?? initial.mirrorName,
+        avatarUrl: initial.profileAvatarUrl !== undefined ? initial.profileAvatarUrl : initial.mirrorPicture,
+    };
     const existing = {
         id: 'usr_ulid',
         identityId: 'user_abc123',
         email: 'test@example.com',
-        name: profile.displayName,
-        picture: profile.avatarUrl,
+        name: mirror.name,
+        picture: mirror.picture,
     };
 
     return {
@@ -137,14 +149,20 @@ const makeStatefulUserDao = (initialProfile: { displayName: string; avatarUrl: s
         findByIdentityId: vi.fn().mockResolvedValue(existing),
         syncNameAndPicture: vi.fn(
             async (_userId: string, data: { name: string; picture: string | null; now: Date }) => {
-                const displayNameChanged = data.name !== profile.displayName;
-                const avatarChanged = data.picture !== profile.avatarUrl;
+                const nameChanged = data.name !== mirror.name;
+                const pictureChanged = data.picture !== mirror.picture;
 
-                if (displayNameChanged || avatarChanged) {
-                    profile = { displayName: data.name, avatarUrl: data.picture };
+                if (!nameChanged && !pictureChanged) {
+                    return { displayNameChanged: false };
                 }
 
-                return { displayNameChanged };
+                mirror = { name: data.name, picture: data.picture };
+                profile = {
+                    displayName: nameChanged ? data.name : profile.displayName,
+                    avatarUrl: pictureChanged ? data.picture : profile.avatarUrl,
+                };
+
+                return { displayNameChanged: nameChanged };
             },
         ),
         getStoredDisplayName: () => profile.displayName,
@@ -344,8 +362,8 @@ describe('identity-webhook handler', () => {
         // The store starts holding "Original Name" — mirrors profiles.displayName / users.name both
         // already at "A" before either webhook delivery below.
         const daoInstance = makeStatefulUserDao({
-            displayName: 'Original Name',
-            avatarUrl: 'https://example.com/avatar.png',
+            mirrorName: 'Original Name',
+            mirrorPicture: 'https://example.com/avatar.png',
         });
         vi.mocked(UserDAO).mockImplementation(function () {
             return daoInstance;
@@ -383,13 +401,74 @@ describe('identity-webhook handler', () => {
         );
     });
 
+    it('user.updated after a self-service rename: an avatar-only Clerk event does NOT revert profiles.displayName and does NOT publish', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        // Self-service state: `profiles.displayName` was overridden to "Self Service Name" via
+        // PATCH /v1/users/me, but `users.name` (the Clerk mirror) still reads Clerk's last-synced
+        // "Clerk Name" — exactly the divergence the corrected gate must respect.
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'Clerk Name',
+            mirrorPicture: 'https://example.com/avatar.png',
+            profileDisplayName: 'Self Service Name',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+
+        // Only the avatar changed on Clerk's side — the name (via buildDisplayName) is still "Clerk Name".
+        const avatarOnlyPayload = {
+            ...makeUserUpdatedPayload('Clerk', 'Name'),
+            data: { ...makeUserUpdatedPayload('Clerk', 'Name').data, image_url: 'https://example.com/new-avatar.png' },
+        };
+        mockVerifyWebhook.mockReturnValue(avatarOnlyPayload as never);
+
+        const result = await handler(
+            makeEvent(JSON.stringify(avatarOnlyPayload), { 'svix-id': 'msg_avatar_only' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        // The self-service override MUST survive an unrelated Clerk event — this is the assertion
+        // that fails against the profiles-gated design (commit 6f9d43f2).
+        expect(daoInstance.getStoredDisplayName()).toBe('Self Service Name');
+        expect(handleSyncPublish).not.toHaveBeenCalled();
+    });
+
+    it('user.updated with a genuine Clerk name change: Clerk wins over a prior self-service override, and publishes', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'Clerk Name',
+            mirrorPicture: 'https://example.com/avatar.png',
+            profileDisplayName: 'Self Service Name',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+
+        mockVerifyWebhook.mockReturnValue(makeUserUpdatedPayload('New', 'ClerkName') as never);
+        const result = await handler(
+            makeEvent(JSON.stringify(makeUserUpdatedPayload('New', 'ClerkName')), { 'svix-id': 'msg_genuine_change' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(daoInstance.getStoredDisplayName()).toBe('New ClerkName');
+        expect(handleSyncPublish).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'usr_ulid', displayName: 'New ClerkName' }),
+        );
+    });
+
     it('user.updated with no actual name/picture change -> does not publish a handle-sync rename', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
 
         const daoInstance = makeStatefulUserDao({
-            displayName: 'Same Name',
-            avatarUrl: 'https://example.com/avatar.png',
+            mirrorName: 'Same Name',
+            mirrorPicture: 'https://example.com/avatar.png',
         });
         vi.mocked(UserDAO).mockImplementation(function () {
             return daoInstance;

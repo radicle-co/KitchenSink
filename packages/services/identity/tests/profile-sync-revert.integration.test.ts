@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -148,5 +148,84 @@ describe.skipIf(!DATABASE_URL)('user.updated A->B->A profile sync — coherent u
         const [user] = await db.select().from(users).where(eq(users.id, userId));
         expect(profile?.avatarUrl).toBe('https://example.com/avatar-new.png');
         expect(user?.picture).toBe('https://example.com/avatar-new.png');
+    });
+
+    it('self-service preservation: a self-service rename survives an unrelated (avatar-only) Clerk event', async () => {
+        // Provision at "Clerk Name" (users.name and profiles.displayName both start there, as they
+        // would right after Clerk-driven provisioning).
+        const userId = await provisionUser('user_self_service', 'Clerk Name');
+
+        // Self-service edit via PATCH /v1/users/me: only `profiles.displayName` is written (mirroring
+        // `UsersService.patchUserMe`, which never touches `users.name`). `users.name` is now STALE
+        // relative to `profiles.displayName` by design — that gap is exactly what the corrected gate
+        // must respect.
+        await db
+            .update(profiles)
+            .set({ displayName: 'Self Service Name', updatedAt: new Date() })
+            .where(eq(profiles.userId, userId));
+
+        // A `user.updated` webhook arrives whose Clerk name is UNCHANGED ("Clerk Name") — e.g. only the
+        // avatar changed, an email changed, or this is a svix redelivery. Against the pre-fix DAO
+        // (gated on `profiles`, which now reads "Self Service Name") this looks like Clerk's "Clerk
+        // Name" differs from the stored "Self Service Name" and WRONGLY reverts it — this assertion is
+        // the one that fails against commit 6f9d43f2.
+        const result = await userDao.syncNameAndPicture(userId, {
+            name: 'Clerk Name',
+            picture: 'https://example.com/avatar-new.png',
+            now: new Date(),
+        });
+
+        expect(result.displayNameChanged).toBe(false);
+
+        const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+
+        // The self-service override MUST survive — NOT reverted to "Clerk Name".
+        expect(profile?.displayName).toBe('Self Service Name');
+        // The Clerk mirror still moves for the field Clerk DID change (the avatar), keeping `users` an
+        // accurate mirror for the next comparison.
+        expect(user?.picture).toBe('https://example.com/avatar-new.png');
+        expect(user?.name).toBe('Clerk Name');
+    });
+
+    it('a genuine Clerk name change overwrites a prior self-service override and reports displayName changed', async () => {
+        const userId = await provisionUser('user_self_service_overwrite', 'Clerk Name');
+
+        await db
+            .update(profiles)
+            .set({ displayName: 'Self Service Name', updatedAt: new Date() })
+            .where(eq(profiles.userId, userId));
+
+        // Clerk's name genuinely changes this time ("Clerk Name" -> "New Clerk Name") — Clerk wins,
+        // overwriting the self-service override (decision 6: displayName is Clerk-synced).
+        const result = await userDao.syncNameAndPicture(userId, {
+            name: 'New Clerk Name',
+            picture: 'https://example.com/avatar-a.png',
+            now: new Date(),
+        });
+
+        expect(result.displayNameChanged).toBe(true);
+
+        const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+        expect(profile?.displayName).toBe('New Clerk Name');
+        expect(user?.name).toBe('New Clerk Name');
+    });
+
+    it('logs a warning (does not throw) when the profiles row is missing — an invariant violation', async () => {
+        const userId = await provisionUser('user_missing_profile', 'Clerk Name');
+        await db.delete(profiles).where(eq(profiles.userId, userId));
+
+        const warn = vi.fn();
+        const daoWithLogger = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>, { warn });
+
+        const result = await daoWithLogger.syncNameAndPicture(userId, {
+            name: 'New Clerk Name',
+            picture: 'https://example.com/avatar-a.png',
+            now: new Date(),
+        });
+
+        expect(result.displayNameChanged).toBe(false);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('profiles row is missing'), { userId });
     });
 });

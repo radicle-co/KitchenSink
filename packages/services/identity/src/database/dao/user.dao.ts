@@ -2,12 +2,30 @@ import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import { users, accounts, profiles } from '../schema/index.js';
-import type { NewUserRow, UserRow } from '../schema/index.js';
+import type { NewUserRow, ProfileRow, UserRow } from '../schema/index.js';
 import { newUserId, type UserId } from '../../types/index.js';
+
+/**
+ * Minimal structural logging contract. `UserDAO` is shared between the NestJS identity service
+ * (Sentry via `@sentry/nestjs`, `createServiceLogger`) and the identity-webhooks Lambda bundle (Sentry
+ * via `@sentry/aws-serverless`, its own `common/observability.js` logger) — two incompatible concrete
+ * Sentry integrations. Depending on either concretely from this shared DAO would either fail to
+ * resolve in the other package or bundle an unrelated Sentry SDK into the Lambda. Callers pass their
+ * own package's logger; a silent no-op is the safe default so existing `new UserDAO(db)` call sites
+ * that never hit the warning path are unaffected.
+ */
+export interface UserDaoLogger {
+    warn: (message: string, extra?: Record<string, unknown>) => void;
+}
+
+const noopLogger: UserDaoLogger = { warn: () => {} };
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 MOD-011 MOD-012 */
 export class UserDAO {
-    constructor(private readonly db: PostgresJsDatabase<Record<string, never>>) {}
+    constructor(
+        private readonly db: PostgresJsDatabase<Record<string, never>>,
+        private readonly logger: UserDaoLogger = noopLogger,
+    ) {}
 
     async findById(id: UserId): Promise<UserRow | undefined> {
         const rows = await this.db.select().from(users).where(eq(users.id, id));
@@ -64,35 +82,63 @@ export class UserDAO {
     }
 
     /**
-     * Coherent `users`/`profiles` sync for `user.updated` (S-I3). `profiles.displayName` is the
-     * AUTHORITATIVE display value the app renders; `users.name`/`users.picture` are a secondary copy.
-     * The prior bug gated the `profiles` write on `users.name`, which the `user.updated` path never
-     * updates — so the baseline never moved, and an A→B→A rename froze at B: the B→A revert compared
-     * incoming "A" against the stale `users.name` ("A", untouched since before the first rename) and
-     * saw no difference, silently dropping both the write and the handle-sync publish.
+     * Coherent `users`/`profiles` sync for `user.updated` (S-I3, corrected). `users.name`/
+     * `users.picture` are the Clerk MIRROR — the last-synced Clerk value — and are the gate.
+     * `profiles.displayName`/`avatarUrl` is the EFFECTIVE value the app renders, which a user can
+     * override independent of Clerk via self-service `PATCH /v1/users/me`.
      *
-     * This method reads the CURRENT `profiles` row (the real, moving baseline) and gates on THAT —
-     * inside one transaction, so `users` and `profiles` are written together and never drift apart
-     * again. Returns whether `displayName` actually changed, so the caller can gate the handle-sync
-     * publish on a real change (firing on every genuine transition, including a revert).
+     * The ORIGINAL bug gated on `users.name`, which this webhook path never wrote — the baseline never
+     * moved, so an A→B→A Clerk rename froze `profiles.displayName` at B (the B→A revert compared
+     * against the stale, never-moved `users.name` and saw no difference).
      *
-     * @sideEffect updates `users.name`/`users.picture` and `profiles.displayName`/`avatarUrl` together.
+     * Gating on `profiles` instead (the first attempted fix) traded that bug for a WORSE one: after a
+     * self-service rename set `profiles.displayName` to X while Clerk's name stayed Y, ANY subsequent
+     * `user.updated` (an avatar-only change, an email change, a svix redelivery) recomputed Clerk's
+     * unchanged Y, compared it to X, saw a "difference", and REVERTED the self-service edit — data loss
+     * on every unrelated webhook delivery.
+     *
+     * Gating on `users.name`/`users.picture` (the Clerk mirror) — and moving the mirror on every real
+     * Clerk-side change — fixes both at once:
+     *   - A genuine Clerk change (mirror ≠ incoming) moves the mirror AND syncs `profiles` (Clerk wins
+     *     on a real change — decision 6), so the mirror never goes stale and A→B→A still round-trips.
+     *   - A non-name Clerk event (mirror name == incoming name, e.g. avatar-only or a redelivery)
+     *     leaves `profiles.displayName` untouched, preserving a self-service override. The two fields
+     *     are gated INDEPENDENTLY — an avatar-only event still moves `profiles.avatarUrl` (and the
+     *     mirror), it just never touches `displayName`.
+     *
+     * Both tables are written together in one transaction so they can never drift into a stale
+     * duplicate baseline. Returns whether `displayName` (specifically) changed, so the caller can gate
+     * the handle-sync publish on a genuine Clerk-driven name change only.
+     *
+     * @sideEffect updates `users.name`/`users.picture` and, per-field, `profiles.displayName`/
+     * `avatarUrl` — only for the field(s) that genuinely changed on Clerk's side.
      */
     async syncNameAndPicture(
         userId: UserId,
         data: { name: string; picture: string | null; now: Date },
     ): Promise<{ displayNameChanged: boolean }> {
         return this.db.transaction(async (tx) => {
-            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId));
+            const [user] = await tx.select().from(users).where(eq(users.id, userId));
 
-            if (!profile) {
+            if (!user) {
                 return { displayNameChanged: false };
             }
 
-            const displayNameChanged = data.name !== profile.displayName;
-            const avatarChanged = data.picture !== profile.avatarUrl;
+            const nameChanged = data.name !== user.name;
+            const pictureChanged = data.picture !== user.picture;
 
-            if (!displayNameChanged && !avatarChanged) {
+            if (!nameChanged && !pictureChanged) {
+                return { displayNameChanged: false };
+            }
+
+            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId));
+
+            if (!profile) {
+                this.logger.warn(
+                    'UserDAO.syncNameAndPicture: users row exists but profiles row is missing (invariant violation)',
+                    { userId },
+                );
+
                 return { displayNameChanged: false };
             }
 
@@ -101,12 +147,22 @@ export class UserDAO {
                 .set({ name: data.name, picture: data.picture, updatedAt: data.now })
                 .where(eq(users.id, userId));
 
+            const profilePatch: Partial<Pick<ProfileRow, 'displayName' | 'avatarUrl'>> = {};
+
+            if (nameChanged) {
+                profilePatch.displayName = data.name;
+            }
+
+            if (pictureChanged) {
+                profilePatch.avatarUrl = data.picture;
+            }
+
             await tx
                 .update(profiles)
-                .set({ displayName: data.name, avatarUrl: data.picture, updatedAt: data.now })
+                .set({ ...profilePatch, updatedAt: data.now })
                 .where(eq(profiles.userId, userId));
 
-            return { displayNameChanged };
+            return { displayNameChanged: nameChanged };
         });
     }
 

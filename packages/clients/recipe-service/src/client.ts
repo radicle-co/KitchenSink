@@ -27,7 +27,6 @@ import {
 } from '@kitchensink/recipe-core';
 import { z } from 'zod';
 import type {
-    Collection,
     CreateRecipeInput,
     Ingredient,
     PaginatedResponse,
@@ -49,6 +48,7 @@ import {
     ForbiddenError,
     GoneError,
     NotFoundError,
+    PullDriftError,
     RecipeServiceClientError,
     UnauthorizedError,
     UnexpectedResponseError,
@@ -56,6 +56,7 @@ import {
 } from './errors.js';
 import type {
     CloneCollectionRequest,
+    Collection,
     CollectionRecipeMembership,
     CollectionWithRecipes,
     CreateCollectionRequest,
@@ -66,11 +67,34 @@ import type {
     ListRecipesParams,
     PhotoConfirmRequest,
     PhotoUploadUrlRequest,
+    PullDiff,
     PullFromSourceResponse,
     RecipeSearchResponse,
     UpdateCollectionRequest,
     UploadUrlResponse,
 } from './types.js';
+
+/**
+ * The `Collection` response schema, WIDENED (W5 Task 5) from `@kitchensink/recipe-core`'s `collectionSchema`
+ * with the recipe service's response-only pull-provenance fields (`./types.js`'s local `Collection`). This
+ * MUST stay in sync with that widening: `collectionSchema.parse` alone would silently STRIP these fields
+ * (zod drops unrecognized keys by default), so every validated collection-returning method below uses this
+ * extended schema, never the bare core one — otherwise the wider TS type would be a lie about what `parse`
+ * actually returns. `lastPulledAt` reuses the same `.datetime({ offset: true })` strictness as the core
+ * schema's own timestamp fields (its private `isoDateTimeStringSchema` is not exported for reuse here).
+ */
+const collectionResponseSchema = collectionSchema.extend({
+    sourceOwnerHandle: z.string().min(1).optional(),
+    sourceCollectionName: z.string().min(1).optional(),
+    lastPulledAt: z.string().datetime({ offset: true }).optional(),
+});
+
+/** Runtime validator for {@link PullDiff} — the response shape of `previewPullFromSource`. */
+const pullDiffSchema = z.object({
+    added: z.array(z.string()),
+    removed: z.array(z.string()),
+    unchanged: z.array(z.string()),
+});
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
@@ -608,7 +632,7 @@ export class RecipeServiceClient {
     public async createCollection(request: CreateCollectionRequest): Promise<Collection> {
         const res = await this.send('POST', '/v1/collections', request);
 
-        return this.expect(res, 201, collectionSchema);
+        return this.expect(res, 201, collectionResponseSchema);
     }
 
     /**
@@ -625,7 +649,7 @@ export class RecipeServiceClient {
             pageSize: params.pageSize,
         });
 
-        return this.expect(res, 200, paginatedResponseSchema(collectionSchema));
+        return this.expect(res, 200, paginatedResponseSchema(collectionResponseSchema));
     }
 
     /**
@@ -654,7 +678,7 @@ export class RecipeServiceClient {
     public async updateCollection(id: string, request: UpdateCollectionRequest): Promise<Collection> {
         const res = await this.send('PATCH', `/v1/collections/${encodeURIComponent(id)}`, request);
 
-        return this.expect(res, 200, collectionSchema);
+        return this.expect(res, 200, collectionResponseSchema);
     }
 
     /**
@@ -714,19 +738,43 @@ export class RecipeServiceClient {
     public async cloneCollection(id: string, request?: CloneCollectionRequest): Promise<Collection> {
         const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/clone`, request);
 
-        return this.expect(res, 201, collectionSchema);
+        return this.expect(res, 201, collectionResponseSchema);
+    }
+
+    /**
+     * `POST /v1/collections/{id}/pull-from-source/preview` — PREVIEW a pull without mutating (W5 Task 5).
+     * Read-only: the server runs this in a read-only transaction, so it is structurally incapable of
+     * writing. Show the returned diff to the caller, then echo it back as `previewedDiff` on
+     * {@link pullCollectionFromSource} so the commit can detect drift between preview and commit.
+     *
+     * @param id - The (cloned) collection id.
+     * @returns The `{ added, removed, unchanged }` diff pulling would apply.
+     * @throws {BadRequestError} (`COLLECTION_NOT_CLONED`) when the collection has no source to pull from.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async previewPullFromSource(id: string): Promise<PullDiff> {
+        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/pull-from-source/preview`);
+
+        return this.expect(res, 200, pullDiffSchema);
     }
 
     /**
      * `POST /v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source.
      *
      * @param id - The (cloned) collection id.
+     * @param body - Optionally echoes the `previewedDiff` from {@link previewPullFromSource}; when present,
+     *   the server re-derives the diff live and rejects with {@link PullDriftError} (carrying the fresh
+     *   diff) if it no longer matches — so the caller never silently applies a set the user did not confirm.
      * @returns The resulting collection + the recipe ids this pull added.
      * @throws {BadRequestError} (`COLLECTION_NOT_CLONED`) when the collection has no source to pull from.
+     * @throws {PullDriftError} when the previewed diff drifted from the live one (`PULL_DRIFT`, `409`).
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async pullCollectionFromSource(id: string): Promise<PullFromSourceResponse> {
-        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/pull-from-source`);
+    public async pullCollectionFromSource(
+        id: string,
+        body?: { readonly previewedDiff?: PullDiff },
+    ): Promise<PullFromSourceResponse> {
+        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/pull-from-source`, body);
 
         return this.expectUnvalidated<PullFromSourceResponse>(res, 200);
     }
@@ -908,7 +956,13 @@ export class RecipeServiceClient {
             case 404:
                 return new NotFoundError(body.message, body.code);
             case 409:
-                return toVersionConflict(body);
+                // Two DISTINCT 409s share this status: an optimistic-concurrency VERSION_CONFLICT (recipe
+                // update/restore) and a pull-from-source PULL_DRIFT (commit re-derived a diff that no
+                // longer matches the caller's preview). Dispatch on the body's `code` — the ONLY thing that
+                // tells them apart — so both keep mapping to their own typed error without regressing the
+                // other; anything that is not `PULL_DRIFT` (including a legacy/absent code) falls through
+                // to the version-conflict mapping, preserving today's behavior exactly.
+                return body.code === 'PULL_DRIFT' ? toPullDrift(body) : toVersionConflict(body);
             case 410:
                 return new GoneError(body.message, body.code);
             default:
@@ -947,4 +1001,18 @@ function toVersionConflict(body: { message?: string; details?: Record<string, un
         body.message,
         enriched.success ? { server: enriched.data.server, base: enriched.data.base } : undefined,
     );
+}
+
+/**
+ * Build a {@link PullDriftError} from a `PULL_DRIFT` `ErrorResponse` body, extracting + validating the
+ * fresh diff carried at `details.diff` (`pullDriftError` in the recipe service). Falls back to an
+ * empty-but-well-formed {@link PullDiff} on a malformed/absent `details.diff` — defensive parsing
+ * symmetric with {@link toVersionConflict}'s `safeParse` — so a body drifted from the documented shape
+ * still yields a typed, `diff`-carrying error rather than throwing out of the error-mapping path itself.
+ */
+function toPullDrift(body: { message?: string; details?: Record<string, unknown> }): PullDriftError {
+    const parsed = pullDiffSchema.safeParse(body.details?.['diff']);
+    const diff: PullDiff = parsed.success ? parsed.data : { added: [], removed: [], unchanged: [] };
+
+    return new PullDriftError(diff, body.message);
 }

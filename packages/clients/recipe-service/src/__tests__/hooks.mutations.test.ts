@@ -29,7 +29,14 @@ import { act, cleanup, waitFor } from '@testing-library/react';
 
 import type { CreateRecipeInput, RecipeDetail } from '@kitchensink/recipe-core';
 
-import { BadRequestError, ForbiddenError, GoneError, NotFoundError, VersionConflictError } from '../errors.js';
+import {
+    BadRequestError,
+    ForbiddenError,
+    GoneError,
+    NotFoundError,
+    PullDriftError,
+    VersionConflictError,
+} from '../errors.js';
 import {
     recipeServiceKeys,
     useAddRecipeToCollection,
@@ -44,6 +51,7 @@ import {
     useDeleteRecipe,
     useDeleteRecipePhoto,
     useDeleteRecipeRating,
+    usePreviewPull,
     usePullCollectionFromSource,
     useRemoveRecipeFromCollection,
     useReorderRecipePhotos,
@@ -59,6 +67,7 @@ import {
     makeCollectionRecipeMembership,
     makeErasureAccepted,
     makeIngredient,
+    makePullDiff,
     makePullFromSourceResponse,
     makeRecipeDetail,
     makeRecipePhoto,
@@ -1202,24 +1211,71 @@ describe('useCloneCollection', () => {
     });
 });
 
-describe('usePullCollectionFromSource', () => {
-    it('pulls through the client with the collection id', async () => {
-        const response = makePullFromSourceResponse();
-        const { result, client } = renderMutation(() => usePullCollectionFromSource());
-        const pullCollectionFromSource = vi.spyOn(client, 'pullCollectionFromSource').mockResolvedValue(response);
+describe('usePreviewPull', () => {
+    it('previews through the client with the collection id and resolves the diff', async () => {
+        const diff = makePullDiff();
+        const { result, client } = renderMutation(() => usePreviewPull());
+        const previewPullFromSource = vi.spyOn(client, 'previewPullFromSource').mockResolvedValue(diff);
 
         act(() => result.current.mutate(PROBE_COLLECTION_ID));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(pullCollectionFromSource).toHaveBeenCalledWith(PROBE_COLLECTION_ID);
+        expect(previewPullFromSource).toHaveBeenCalledWith(PROBE_COLLECTION_ID);
+        expect(result.current.data).toEqual(diff);
+    });
+
+    it('is a pure read — invalidates no cache on success', async () => {
+        const { result, client, probes } = renderMutation(() => usePreviewPull());
+        vi.spyOn(client, 'previewPullFromSource').mockResolvedValue(makePullDiff());
+
+        act(() => result.current.mutate(PROBE_COLLECTION_ID));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(probes()).toEqual([]);
+    });
+
+    it('surfaces a 400 when the collection has no source to preview from', async () => {
+        const error = new BadRequestError('Collection is not a clone', 'NOT_A_CLONE');
+        const { result, client } = renderMutation(() => usePreviewPull());
+        vi.spyOn(client, 'previewPullFromSource').mockRejectedValue(error);
+
+        act(() => result.current.mutate(PROBE_COLLECTION_ID));
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(result.current.error).toBe(error);
+    });
+});
+
+describe('usePullCollectionFromSource', () => {
+    it('pulls through the client with the collection id and no previewed diff', async () => {
+        const response = makePullFromSourceResponse();
+        const { result, client } = renderMutation(() => usePullCollectionFromSource());
+        const pullCollectionFromSource = vi.spyOn(client, 'pullCollectionFromSource').mockResolvedValue(response);
+
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(pullCollectionFromSource).toHaveBeenCalledWith(PROBE_COLLECTION_ID, { previewedDiff: undefined });
         expect(result.current.data).toEqual(response);
+    });
+
+    it('forwards an echoed previewedDiff to the client (drift check)', async () => {
+        const previewedDiff = makePullDiff();
+        const response = makePullFromSourceResponse();
+        const { result, client } = renderMutation(() => usePullCollectionFromSource());
+        const pullCollectionFromSource = vi.spyOn(client, 'pullCollectionFromSource').mockResolvedValue(response);
+
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, previewedDiff }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(pullCollectionFromSource).toHaveBeenCalledWith(PROBE_COLLECTION_ID, { previewedDiff });
     });
 
     it('invalidates every collection query', async () => {
         const { result, client, probes } = renderMutation(() => usePullCollectionFromSource());
         vi.spyOn(client, 'pullCollectionFromSource').mockResolvedValue(makePullFromSourceResponse());
 
-        act(() => result.current.mutate(PROBE_COLLECTION_ID));
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).toEqual(expectedProbes(ALL_COLLECTION_PROBES));
@@ -1229,7 +1285,7 @@ describe('usePullCollectionFromSource', () => {
         const { result, client, probes } = renderMutation(() => usePullCollectionFromSource());
         vi.spyOn(client, 'pullCollectionFromSource').mockResolvedValue(makePullFromSourceResponse());
 
-        act(() => result.current.mutate(PROBE_COLLECTION_ID));
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).not.toContain('recipeList');
@@ -1240,10 +1296,23 @@ describe('usePullCollectionFromSource', () => {
         const { result, client, probes } = renderMutation(() => usePullCollectionFromSource());
         vi.spyOn(client, 'pullCollectionFromSource').mockRejectedValue(error);
 
-        act(() => result.current.mutate(PROBE_COLLECTION_ID));
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
+        expect(probes()).toEqual([]);
+    });
+
+    it('surfaces a PULL_DRIFT 409 as a typed PullDriftError (not swallowed) and invalidates nothing', async () => {
+        const error = new PullDriftError(makePullDiff({ added: ['rec_9'] }));
+        const { result, client, probes } = renderMutation(() => usePullCollectionFromSource());
+        vi.spyOn(client, 'pullCollectionFromSource').mockRejectedValue(error);
+
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, previewedDiff: makePullDiff() }));
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(result.current.error).toBe(error);
+        expect((result.current.error as PullDriftError).diff).toEqual(error.diff);
         expect(probes()).toEqual([]);
     });
 });

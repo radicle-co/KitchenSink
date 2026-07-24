@@ -22,7 +22,11 @@ import {
     type RecipeSearchResult,
     type RecipeStepView,
 } from '@kitchensink/recipe-core';
-import type { RecipeSearchResponse } from '@kitchensink/recipe-service-client';
+import type {
+    CollectionRecipeAddedVia,
+    CollectionWithRecipes,
+    RecipeSearchResponse,
+} from '@kitchensink/recipe-service-client';
 
 export { makeCollection, makeIngredient, makeRecipe, makeRecipeDetail, makeRecipeVersion };
 
@@ -96,19 +100,21 @@ export function makeRecipePage(
 }
 
 /**
- * Build a collection with its member recipes (the `getCollectionById` response shape).
+ * Build a collection with its member recipes (the `getCollectionById` response shape, W5 Task 5's
+ * `CollectionWithRecipes` — each member is required to carry its provenance; callers pass plain `Recipe`s
+ * and this fixture defaults every one to `addedVia: 'manual'`, overridable per recipe by the caller).
  *
- * @param recipes - The member recipes.
+ * @param recipes - The member recipes (plain `Recipe`, or already `{ ...recipe, addedVia }`).
  * @param overrides - Collection fields to override.
- * @returns A `Collection` with a `recipes` member list.
+ * @returns A complete `CollectionWithRecipes`.
  */
 export function makeCollectionWithRecipes(
-    recipes: readonly Recipe[] = [],
+    recipes: readonly (Recipe & { readonly addedVia?: CollectionRecipeAddedVia })[] = [],
     overrides: Partial<Collection> = {},
-): Collection & { readonly recipes: readonly Recipe[] } {
+): CollectionWithRecipes {
     return {
         ...makeCollection(overrides),
-        recipes: [...recipes],
+        recipes: recipes.map((recipe) => ({ addedVia: 'manual' as const, ...recipe })),
     };
 }
 

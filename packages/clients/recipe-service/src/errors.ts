@@ -7,14 +7,18 @@
  *
  * Status → error map (per `contracts/api.openapi.yaml`):
  *   `400` → {@link BadRequestError}, `401` → {@link UnauthorizedError}, `403` → {@link ForbiddenError},
- *   `404` → {@link NotFoundError}, `409` → {@link VersionConflictError} (optimistic-concurrency),
- *   `410` → {@link GoneError} (account already erased), anything else → {@link UnexpectedResponseError}.
+ *   `404` → {@link NotFoundError}, `409` → {@link VersionConflictError} (optimistic-concurrency) OR
+ *   {@link PullDriftError} (pull-from-source drift — the two `409`s are disambiguated by the response
+ *   body's `code`), `410` → {@link GoneError} (account already erased), anything else →
+ *   {@link UnexpectedResponseError}.
  *
  * The optional `code` mirrors the recipe domain's `ErrorResponse.code` (see `RecipeErrorCode` in
  * `@kitchensink/recipe-core`); it is passed through verbatim as a `string` because the wire also emits
  * transport-level codes (`UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `ALREADY_ERASED`) outside that enum.
  */
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
+
+import type { PullDiff } from './types.js';
 
 /** Base class for all recipe-service client errors. Carries the originating HTTP status + domain code. */
 export class RecipeServiceClientError extends Error {
@@ -133,6 +137,29 @@ export class VersionConflictError extends RecipeServiceClientError {
 /** Type guard for {@link VersionConflictError}. */
 export function isVersionConflictError(error: unknown): error is VersionConflictError {
     return error instanceof VersionConflictError;
+}
+
+/**
+ * `409` — a pull-from-source commit drifted since the client's preview (`PULL_DRIFT`, W5 Task 5): the
+ * source OR the caller's own clone membership changed since `previewPullFromSource`, so the previewed diff
+ * no longer matches. Carries the FRESH `diff` (from the response `details`) so the caller can re-present
+ * the updated changes rather than silently applying a set the user never confirmed.
+ */
+export class PullDriftError extends RecipeServiceClientError {
+    /** The freshly recomputed diff (added/removed/unchanged) as of the rejected commit attempt. */
+    public readonly diff: PullDiff;
+
+    public constructor(diff: PullDiff, message = 'The source changed since you previewed this pull.') {
+        super(message, 409, 'PULL_DRIFT');
+        this.name = 'PullDriftError';
+        this.diff = diff;
+        Object.setPrototypeOf(this, PullDriftError.prototype);
+    }
+}
+
+/** Type guard for {@link PullDriftError}. */
+export function isPullDriftError(error: unknown): error is PullDriftError {
+    return error instanceof PullDriftError;
 }
 
 /** `410` — the account has already been erased (a prior GDPR erasure job completed; `ALREADY_ERASED`). */

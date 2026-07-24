@@ -42,6 +42,7 @@ import type {
     ListRecipesParams,
     PhotoConfirmRequest,
     PhotoUploadUrlRequest,
+    PullDiff,
     UpdateCollectionRequest,
 } from './types.js';
 
@@ -767,13 +768,40 @@ export function useCloneCollection() {
     });
 }
 
-/** `POST /v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source. */
+/**
+ * `POST /v1/collections/{id}/pull-from-source/preview` — PREVIEW a pull without mutating (W5 Task 5).
+ *
+ * An IMPERATIVE trigger (`mutateAsync`), not a query: the preview is read-only server-side but is invoked
+ * on demand (e.g. opening the pull-updates dialog), not kept warm/refetched like a `useQuery` cache entry.
+ * It touches no cache — nothing about the collection changed — so there is no invalidation to perform; the
+ * caller echoes the resolved {@link PullDiff} back as `previewedDiff` to {@link usePullCollectionFromSource}.
+ */
+export function usePreviewPull() {
+    const client = useRecipeServiceClient();
+
+    return useMutation({
+        mutationFn: (id: string) => client.previewPullFromSource(id),
+    });
+}
+
+/**
+ * `POST /v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source.
+ *
+ * `previewedDiff` (from {@link usePreviewPull}) is optional and, when supplied, lets the server detect
+ * DRIFT between what the caller previewed and what it would apply now — a rejection surfaces as a typed
+ * {@link PullDriftError} (never swallowed) carrying the fresh diff for the caller to re-present.
+ *
+ * No write-through: the response's `collection` is the NARROW `Collection` projection (no `recipes`
+ * embed), so writing it into `collection(id)` would clobber that cache's `.recipes` array with an entry
+ * that lacks it entirely. Invalidating is therefore the correct — not merely simpler — choice here.
+ */
 export function usePullCollectionFromSource() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (id: string) => client.pullCollectionFromSource(id),
+        mutationFn: (vars: { id: string; previewedDiff?: PullDiff }) =>
+            client.pullCollectionFromSource(vars.id, { previewedDiff: vars.previewedDiff }),
         // A pull only adds MEMBERSHIP rows (`added_via = 'pull'`) — it creates no recipes and edits no
         // recipe row, so no recipe or search query is stale. Only the collection namespace is.
         onSuccess: () => {

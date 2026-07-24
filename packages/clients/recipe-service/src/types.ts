@@ -1,13 +1,17 @@
 /**
  * Wire request/response shapes for `@kitchensink/recipe-service-client` (T-004 / T-095) that have NO
- * canonical equivalent in `@kitchensink/recipe-core`. The core domain types (`Recipe`, `Collection`,
- * `Ingredient`, `RecipePhoto`, `RecipeVersion`, `CreateRecipeInput`, `UpdateRecipeInput`,
- * `RecipeSearchParams`, `PaginatedResponse`) are imported directly from `@kitchensink/recipe-core`;
- * only the endpoint-specific envelopes/requests (photos, collections, search, versions, erasure) are
- * declared here, mirroring `contracts/api.openapi.yaml`. Dates are ISO-8601 strings (CODING_STANDARDS).
+ * canonical equivalent in `@kitchensink/recipe-core`. The core domain types (`Recipe`, `Ingredient`,
+ * `RecipePhoto`, `RecipeVersion`, `CreateRecipeInput`, `UpdateRecipeInput`, `RecipeSearchParams`,
+ * `PaginatedResponse`) are imported directly from `@kitchensink/recipe-core`; only the endpoint-specific
+ * envelopes/requests (photos, collections, search, versions, erasure) are declared here, mirroring
+ * `contracts/api.openapi.yaml`. Dates are ISO-8601 strings (CODING_STANDARDS).
+ *
+ * `Collection` is the ONE exception: it is re-declared here (W5 Task 5) as `@kitchensink/recipe-core`'s
+ * `Collection` WIDENED with the recipe service's response-only pull-provenance fields (see below) — every
+ * client method that returns a collection returns THIS shape, not the narrower core entity.
  */
 import type {
-    Collection,
+    Collection as CoreCollection,
     Recipe,
     RecipeFacetCount,
     RecipeSearchResult,
@@ -88,11 +92,49 @@ export interface UpdateCollectionRequest {
     readonly visibility?: RecipeVisibility;
 }
 
-/** Response from `getCollectionById`: a collection plus its member recipes. */
-export type CollectionWithRecipes = Collection & { readonly recipes?: readonly Recipe[] };
+/**
+ * The `Collection` wire shape, widened (W5 Task 5) with the pull-provenance projections the recipe
+ * service's collection endpoints now return: `lastPulledAt` (the last successful pull, W5 Task 3) and
+ * `sourceOwnerHandle` / `sourceCollectionName` (the source's attribution, FROZEN at clone time — W5 Task
+ * 2). All three are absent for a collection that was never cloned (the two source fields) or never pulled
+ * (`lastPulledAt`). Widened HERE rather than on `@kitchensink/recipe-core`'s `Collection` because these
+ * are recipe-service response-only projections (mirroring the service's own `CollectionResponse`), not
+ * part of the domain-core entity every service shares.
+ */
+export type Collection = CoreCollection & {
+    /** The source owner's display handle, frozen at clone time; absent when unresolved or never cloned. */
+    readonly sourceOwnerHandle?: string;
+    /** The source collection's name, frozen at clone time; absent when never cloned. */
+    readonly sourceCollectionName?: string;
+    /** When this collection was last refreshed from its source; absent if never pulled. */
+    readonly lastPulledAt?: string;
+};
 
 /** Provenance of a recipe's membership in a collection (`manual` | `clone_seed` | `pull`). */
 export type CollectionRecipeAddedVia = 'manual' | 'clone_seed' | 'pull';
+
+/**
+ * A recipe as it appears within a collection embed (W5 Task 4/5): the `Recipe` wire shape plus this
+ * member's provenance, so the client can render the source-indicator without a second membership lookup.
+ */
+export type CollectionMemberRecipe = Recipe & { readonly addedVia: CollectionRecipeAddedVia };
+
+/** Response from `getCollectionById`: a collection plus its member recipes. */
+export type CollectionWithRecipes = Collection & { readonly recipes?: readonly CollectionMemberRecipe[] };
+
+/**
+ * The three-way pull-from-source diff (W5 Task 5): a three-way partition of `source ∪ clone`, echoed by
+ * `previewPullFromSource` (read-only) and re-derived live by `pullCollectionFromSource`'s drift check.
+ * Mirrors the recipe service's `PullDiff` (`collections/domain/pull-diff.ts`).
+ */
+export interface PullDiff {
+    /** Recipes in the source but not the clone — the pull WILL add these. */
+    readonly added: readonly string[];
+    /** Recipes in the clone but not the source — informational; a pull never removes them. */
+    readonly removed: readonly string[];
+    /** Recipes in both — already present; the pull is a no-op for these. */
+    readonly unchanged: readonly string[];
+}
 
 /** Response from `addRecipeToCollection`: the created membership join record. */
 export interface CollectionRecipeMembership {

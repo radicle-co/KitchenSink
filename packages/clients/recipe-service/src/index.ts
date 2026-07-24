@@ -29,6 +29,7 @@ export {
     ForbiddenError,
     GoneError,
     NotFoundError,
+    PullDriftError,
     RecipeServiceClientError,
     UnauthorizedError,
     UnexpectedResponseError,
@@ -37,6 +38,7 @@ export {
     isForbiddenError,
     isGoneError,
     isNotFoundError,
+    isPullDriftError,
     isRecipeServiceClientError,
     isUnauthorizedError,
     isUnexpectedResponseError,
@@ -45,6 +47,8 @@ export {
 
 export type {
     CloneCollectionRequest,
+    Collection,
+    CollectionMemberRecipe,
     CollectionRecipeAddedVia,
     CollectionRecipeMembership,
     CollectionWithRecipes,
@@ -56,6 +60,7 @@ export type {
     ListRecipesParams,
     PhotoConfirmRequest,
     PhotoUploadUrlRequest,
+    PullDiff,
     PullFromSourceResponse,
     RecipeListSortBy,
     RecipeSearchFacetCounts,

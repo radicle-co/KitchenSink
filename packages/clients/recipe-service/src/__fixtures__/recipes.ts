@@ -5,7 +5,6 @@
  * Optional domain fields are omitted (not set to `undefined`) so the serialized wire shape is exact.
  */
 import type {
-    Collection,
     Ingredient,
     PaginatedResponse,
     Recipe,
@@ -17,9 +16,12 @@ import type {
 } from '@kitchensink/recipe-core';
 
 import type {
+    Collection,
+    CollectionMemberRecipe,
     CollectionRecipeMembership,
     CollectionWithRecipes,
     ErasureRequestAcceptedResponse,
+    PullDiff,
     PullFromSourceResponse,
     RecipeSearchResponse,
     UploadUrlResponse,
@@ -91,11 +93,30 @@ export function makeCollection(overrides: Partial<Collection> = {}): Collection 
     };
 }
 
+/** Build a {@link CollectionMemberRecipe} (a {@link Recipe} plus its provenance within the collection). */
+export function makeCollectionMemberRecipe(overrides: Partial<CollectionMemberRecipe> = {}): CollectionMemberRecipe {
+    return {
+        ...makeRecipe(),
+        addedVia: 'manual',
+        ...overrides,
+    };
+}
+
 /** Build a {@link CollectionWithRecipes} (a collection plus its embedded member recipes). */
 export function makeCollectionWithRecipes(overrides: Partial<CollectionWithRecipes> = {}): CollectionWithRecipes {
     return {
         ...makeCollection(),
-        recipes: [makeRecipe()],
+        recipes: [makeCollectionMemberRecipe()],
+        ...overrides,
+    };
+}
+
+/** Build a {@link PullDiff} (added/removed/unchanged recipe id partitions). */
+export function makePullDiff(overrides: Partial<PullDiff> = {}): PullDiff {
+    return {
+        added: ['rec_2'],
+        removed: [],
+        unchanged: ['rec_1'],
         ...overrides,
     };
 }

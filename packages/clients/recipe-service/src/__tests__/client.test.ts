@@ -16,13 +16,15 @@ import {
     ForbiddenError,
     GoneError,
     NotFoundError,
+    PullDriftError,
     RecipeServiceClient,
     UnauthorizedError,
     VersionConflictError,
     isGoneError,
+    isPullDriftError,
     isVersionConflictError,
 } from '../index.js';
-import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { makePullDiff, makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { callsOf, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
@@ -267,6 +269,50 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
         expect(conflict.server?.deviceLabel).toBe('Pixel 8');
         expect(conflict.base?.versionNumber).toBe(5);
         expect(conflict.base?.snapshot.title).toBe('Base title');
+    });
+
+    it('409 PULL_DRIFT → PullDriftError carrying the fresh diff (NOT VersionConflictError)', async () => {
+        const diff = makePullDiff({ added: ['rec_9'], removed: ['rec_3'], unchanged: ['rec_1'] });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(409, {
+                code: 'PULL_DRIFT',
+                message: 'The source changed since you previewed this pull.',
+                details: { collectionId: 'col_1', diff },
+            }),
+        });
+
+        const error = await client
+            .pullCollectionFromSource('col_1', { previewedDiff: makePullDiff({ added: [] }) })
+            .catch((caught: unknown) => caught);
+
+        expect(isPullDriftError(error)).toBe(true);
+        expect(isVersionConflictError(error)).toBe(false);
+        expect((error as PullDriftError).diff).toEqual(diff);
+        expect((error as PullDriftError).status).toBe(409);
+        expect((error as PullDriftError).code).toBe('PULL_DRIFT');
+    });
+
+    it('409 VERSION_CONFLICT (recipe update) STILL maps to VersionConflictError — regression guard', async () => {
+        // Pins that adding the PULL_DRIFT branch to the shared 409 dispatch did not divert the
+        // pre-existing version-conflict path onto it.
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(409, {
+                code: 'VERSION_CONFLICT',
+                message: 'Recipe version conflict',
+                details: { currentVersion: 3, conflictingVersion: 2 },
+            }),
+        });
+
+        const error = await client
+            .updateRecipe('rec_1', { expectedVersion: 2, title: 'New' })
+            .catch((caught: unknown) => caught);
+
+        expect(isVersionConflictError(error)).toBe(true);
+        expect(isPullDriftError(error)).toBe(false);
+        expect((error as VersionConflictError).currentVersion).toBe(3);
+        expect((error as VersionConflictError).conflictingVersion).toBe(2);
     });
 
     it('410 → GoneError (account already erased)', async () => {

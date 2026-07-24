@@ -15,6 +15,7 @@ import {
     makeErasureAccepted,
     makeIngredient,
     makePaginatedResponse,
+    makePullDiff,
     makePullFromSourceResponse,
     makeRecipe,
     makeRecipeDetail,
@@ -403,6 +404,22 @@ describe('RecipeServiceClient — collections', () => {
         expect(requestAt(fetchMock).url).toBe(`${BASE}/v1/collections/col_1`);
     });
 
+    it('createCollection preserves the widened pull-provenance fields through schema validation (not stripped)', async () => {
+        // `collectionSchema` (from @kitchensink/recipe-core) does not declare these fields, and zod drops
+        // unrecognized keys by default — this pins that the client's own `collectionResponseSchema`
+        // extension is actually wired in, not just declared as dead code.
+        const created = makeCollection({
+            sourceOwnerHandle: 'chef_amy',
+            sourceCollectionName: 'Weeknight dinners (original)',
+            lastPulledAt: '2026-07-20T00:00:00.000Z',
+        });
+        const fetchMock = stubFetch(201, created);
+
+        const result = await makeClient(fetchMock).createCollection({ name: 'Weeknight dinners' });
+
+        expect(result).toEqual(created);
+    });
+
     it('updateCollection PATCHes /v1/collections/{id} with the update and returns the collection (200)', async () => {
         const updated = makeCollection({ name: 'Renamed' });
         const fetchMock = stubFetch(200, updated);
@@ -484,6 +501,33 @@ describe('RecipeServiceClient — collections', () => {
         const req = requestAt(fetchMock);
         expect(req.method).toBe('POST');
         expect(req.url).toBe(`${BASE}/v1/collections/col_1/pull-from-source`);
+        expect(req.body).toBeUndefined();
+    });
+
+    it('pullCollectionFromSource sends { previewedDiff } in the body when a preview is echoed back', async () => {
+        const previewedDiff = makePullDiff();
+        const response = makePullFromSourceResponse();
+        const fetchMock = stubFetch(200, response);
+
+        const result = await makeClient(fetchMock).pullCollectionFromSource('col_1', { previewedDiff });
+
+        expect(result).toEqual(response);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/v1/collections/col_1/pull-from-source`);
+        expect(jsonBody(fetchMock)).toEqual({ previewedDiff });
+    });
+
+    it('previewPullFromSource POSTs /{id}/pull-from-source/preview with no body and returns the diff (200)', async () => {
+        const diff = makePullDiff();
+        const fetchMock = stubFetch(200, diff);
+
+        const result = await makeClient(fetchMock).previewPullFromSource('col_1');
+
+        expect(result).toEqual(diff);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/v1/collections/col_1/pull-from-source/preview`);
         expect(req.body).toBeUndefined();
     });
 });

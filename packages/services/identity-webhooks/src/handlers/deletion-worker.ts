@@ -1,10 +1,7 @@
 import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
+import type { UserDAO } from '@kitchensink/identity-service/database/dao';
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
-
-import { getDb } from '../common/db.js';
-import { getConfig } from '../config/env.js';
+import { withDb, type DbContext } from '../common/handler-pipeline.js';
 import { logger, withObservability } from '../common/observability.js';
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
@@ -18,11 +15,8 @@ const parseMessage = (record: SQSRecord): IdpDeletionMessage => {
 };
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
-const processRecord = async (record: SQSRecord, dbSecretArn: string): Promise<void> => {
+const processRecord = async (record: SQSRecord, userDao: UserDAO): Promise<void> => {
     const { identityId } = parseMessage(record);
-
-    const db = await getDb(dbSecretArn);
-    const userDao = new UserDAO(db as unknown as PostgresJsDatabase<Record<string, never>>);
 
     // Purge the user's private data on deletion: delete the account + profile rows and clear the
     // avatar, but retain the soft-deleted user row's id/email/name for public recipe attribution.
@@ -41,17 +35,17 @@ const processRecord = async (record: SQSRecord, dbSecretArn: string): Promise<vo
     });
 };
 
-/** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
-const innerHandler = async (event: SQSEvent, _context: Context): Promise<void> => {
-    // Resolved (and cached) via the typed config at the top of the handler — S-I5: a missing/invalid
-    // DB_SECRET_ARN now fails fast on the first invocation of a cold container, rather than being
-    // hand-rolled per handler as a truthiness check + ad hoc error envelope.
-    const { DB_SECRET_ARN } = getConfig();
-
+/**
+ * The variant business logic — the invariant env-guard + `getDb` + `new UserDAO` prologue is now
+ * `withDb` (S-I6), which resolves the typed config (S-I5) and hands the db/DAO context here.
+ *
+ * @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017
+ */
+const innerHandler = async (event: SQSEvent, _context: Context, { userDao }: DbContext): Promise<void> => {
     for (const record of event.Records) {
-        await processRecord(record, DB_SECRET_ARN);
+        await processRecord(record, userDao);
     }
 };
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
-export const handler = withObservability(innerHandler);
+export const handler = withObservability(withDb(innerHandler));

@@ -3,7 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
+import { recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
 import { users } from '@kitchensink/identity-service/database/schema';
 import type { UserRow } from '@kitchensink/identity-service/database/schema';
 import type { UserId } from '@kitchensink/identity-service/types';
@@ -17,11 +17,14 @@ import {
 import { setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { getWebhookConfig } from '../config/env.js';
-import { getDb } from '../common/db.js';
-import { resolveRequestId } from '../common/error-envelope.js';
+import {
+    withDb,
+    withVerifiedWebhook,
+    type DbContext,
+    type VerifiedWebhookContext,
+} from '../common/handler-pipeline.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
 import { traceAuth } from '../common/auth-trace.js';
-import { verifyWebhook } from '../common/svix.js';
 
 interface IdentityUserData {
     id: string;
@@ -145,10 +148,9 @@ const handleUserCreated = async (
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 const handleUserUpdated = async (
     data: IdentityUserData,
-    db: PostgresJsDatabase<Record<string, never>>,
+    { db, userDao }: DbContext,
     requestId: string,
 ): Promise<void> => {
-    const userDao = new UserDAO(db, logger);
     const existing = await userDao.findByIdentityId(data.id);
 
     if (!existing) {
@@ -210,28 +212,21 @@ const handleUserDeleted = async (data: { id: string }, requestId: string): Promi
     logger.info('identity-webhook: user.deleted enqueued', { requestId, identityId: data.id });
 };
 
-/** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
-const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-    // Resolved first, outside any try/catch: a genuine env misconfig must fail the invocation outright
-    // (the S-I5 cold-start contract), not be swallowed into the signature-verification 401 branch below.
-    const config = getWebhookConfig();
-    const requestId = resolveRequestId(context, event.requestContext?.requestId);
-
-    let payload: ReturnType<typeof verifyWebhook>;
-
-    try {
-        const rawBody = event.body ?? '';
-        payload = verifyWebhook(event.headers as Record<string, string>, rawBody, config.IDP_WEBHOOK_SECRET);
-    } catch (err) {
-        logger.warn('identity-webhook: signature verification failed', { requestId, error: (err as Error).message });
-
-        return {
-            statusCode: 401,
-            body: JSON.stringify({ error: 'Unauthorized' }),
-        };
-    }
-
-    const db = (await getDb(config.DB_SECRET_ARN)) as unknown as PostgresJsDatabase<Record<string, never>>;
+/**
+ * The variant business logic — the invariant svix signature-verification prologue is now
+ * `withVerifiedWebhook`, and the invariant env-guard + `getDb` + `new UserDAO` prologue is now
+ * `withDb` (both S-I6); this core receives the already-verified payload and the resolved db/DAO
+ * context, and owns only the confirm-after-process dedup + the exhaustive event-type dispatch below.
+ *
+ * @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012
+ */
+const idpWebhookHandlerCore = async (
+    event: APIGatewayProxyEvent,
+    _context: Context,
+    { payload, requestId }: VerifiedWebhookContext,
+    dbCtx: DbContext,
+): Promise<APIGatewayProxyResult> => {
+    const { db } = dbCtx;
     const svixId = event.headers?.['svix-id'] ?? '';
 
     const identityId = (payload.data as { id?: string }).id ?? 'unknown';
@@ -258,7 +253,7 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
         }
 
         case 'user.updated': {
-            await handleUserUpdated(payload.data as unknown as IdentityUserData, db, requestId);
+            await handleUserUpdated(payload.data as unknown as IdentityUserData, dbCtx, requestId);
             break;
         }
 
@@ -283,5 +278,17 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
 };
 
-/** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
-export const handler = withObservability(idpWebhookHandlerCore);
+/**
+ * Composition (S-I6, Template-Method): `withObservability` (Sentry instrumentation, outermost) wraps
+ * `withVerifiedWebhook` (svix signature-verification prologue) wraps `withDb` (env/db/DAO prologue)
+ * wraps `idpWebhookHandlerCore` (the dedup + exhaustive-union dispatch above, the only variant part).
+ *
+ * @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012
+ */
+export const handler = withObservability(
+    withVerifiedWebhook((event, context, verified) =>
+        withDb<APIGatewayProxyEvent, APIGatewayProxyResult>((innerEvent, innerContext, dbCtx) =>
+            idpWebhookHandlerCore(innerEvent, innerContext, verified, dbCtx),
+        )(event, context),
+    ),
+);

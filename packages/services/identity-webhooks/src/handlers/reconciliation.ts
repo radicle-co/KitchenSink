@@ -1,12 +1,9 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
-import { getDb } from '../common/db.js';
+import { withDb, type DbContext } from '../common/handler-pipeline.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { listUsers } from '../common/identityClient.js';
-import { getConfig } from '../config/env.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
 
 /** @implements REQ-017 REQ-IF-010 FR-017 ARCH-012 MOD-012 */
@@ -17,17 +14,18 @@ type ReconciliationResult = {
     total: number;
 };
 
-/** @implements REQ-017 REQ-IF-010 FR-017 ARCH-012 MOD-012 */
-const innerHandler = async (_event: ScheduledEvent, _context: Context): Promise<ReconciliationResult> => {
-    // Resolved (and cached) via the typed config at the top of the handler — S-I5: a missing DB_SECRET_ARN
-    // or IDP_SECRET_KEY/AUTH_SECRET_ARN now fails fast on the first invocation of a cold container,
-    // rather than being hand-rolled per handler as a truthiness check + ad hoc error envelope.
-    const { DB_SECRET_ARN } = getConfig();
-
+/**
+ * The variant business logic — the invariant env-guard + `getDb` + `new UserDAO` prologue is now
+ * `withDb` (S-I6), which resolves the typed config (S-I5) and hands the db/DAO context here.
+ *
+ * @implements REQ-017 REQ-IF-010 FR-017 ARCH-012 MOD-012
+ */
+const innerHandler = async (
+    _event: ScheduledEvent,
+    _context: Context,
+    { db, userDao }: DbContext,
+): Promise<ReconciliationResult> => {
     const idpUsers = await listUsers();
-    const db = await getDb(DB_SECRET_ARN);
-    const typedDb = db as unknown as PostgresJsDatabase<Record<string, never>>;
-    const userDao = new UserDAO(typedDb);
 
     let inserted = 0;
     let updated = 0;
@@ -47,7 +45,7 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context): Promise<
         // email must still produce a complete placeholder-emailed user (`placeholder`), never be skipped.
         try {
             await provisionCompleteUser(
-                buildProvisionDeps(typedDb),
+                buildProvisionDeps(db),
                 {
                     identityId: idpUser.id,
                     email: primaryEmail,
@@ -83,4 +81,4 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context): Promise<
 };
 
 /** @implements REQ-017 REQ-IF-010 FR-017 ARCH-012 MOD-012 */
-export const handler = withObservability(innerHandler);
+export const handler = withObservability(withDb(innerHandler));

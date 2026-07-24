@@ -47,6 +47,7 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        touchLastPulled: vi.fn(),
     };
 }
 

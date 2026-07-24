@@ -49,6 +49,8 @@ export interface CollectionResponse {
     readonly sourceOwnerHandle?: string;
     /** The source collection's name, FROZEN at clone time (W5 Task 2). */
     readonly sourceCollectionName?: string;
+    /** When this collection was last refreshed from its source (W5 Task 3); absent if never pulled. */
+    readonly lastPulledAt?: IsoDateTimeString;
     readonly createdAt: IsoDateTimeString;
     readonly updatedAt: IsoDateTimeString;
 }

@@ -29,6 +29,7 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        touchLastPulled: vi.fn(),
         ...overrides,
     };
 }

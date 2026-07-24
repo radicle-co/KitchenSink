@@ -67,6 +67,7 @@ function toCollectionResponse(row: CollectionRow, recipeCount?: number): Collect
         ...(row.sourceCollectionId !== null ? { sourceCollectionId: row.sourceCollectionId } : {}),
         ...(row.sourceOwnerHandle !== null ? { sourceOwnerHandle: row.sourceOwnerHandle } : {}),
         ...(row.sourceCollectionName !== null ? { sourceCollectionName: row.sourceCollectionName } : {}),
+        ...(row.lastPulledAt !== null ? { lastPulledAt: row.lastPulledAt.toISOString() } : {}),
         ...(recipeCount !== undefined ? { recipeCount } : {}),
     };
 }
@@ -335,7 +336,7 @@ export class CollectionsService {
         collectionId: string,
         previewedDiff?: PullDiff,
     ): Promise<PullFromSourceResult> {
-        const { collection, sourceCollectionId } = await this.resolvePullContext(ownerId, collectionId);
+        const { sourceCollectionId } = await this.resolvePullContext(ownerId, collectionId);
 
         // Read BOTH memberships in one read-only, coherent snapshot and derive the diff via the SAME pure fn
         // the preview used — so the "what will change" the caller confirmed is computed identically here.
@@ -354,8 +355,12 @@ export class CollectionsService {
             await this.dal.addRecipe(collectionId, recipeId, RecipeCollectionAddedVia.PULL);
         }
 
+        // W5 Task 3: "last pulled" means the user SYNCED, not "something changed" — stamp it even when
+        // `diff.added` is empty. Build the response from the UPDATED row so `lastPulledAt` is present.
+        const touched = await this.dal.touchLastPulled(collectionId);
+
         return {
-            collection: toCollectionResponse(collection, cloneIds.length + diff.added.length),
+            collection: toCollectionResponse(touched, cloneIds.length + diff.added.length),
             addedRecipeIds: diff.added,
         };
     }

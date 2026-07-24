@@ -182,6 +182,37 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
         await db.delete(recipeCollections).where(eq(recipeCollections.collectionId, sourceId));
     });
 
+    it('W5 Task 3: stamps lastPulledAt on pull (present + recent), and ADVANCES it on a later empty-diff pull', async () => {
+        const cloneId = await cloneSource();
+
+        const beforeFirstPull = Date.now();
+        const firstBody = (await (await pull(cloneId)).json()) as PullBody & { collection: { lastPulledAt?: string } };
+        const afterFirstPull = Date.now();
+
+        expect(firstBody.collection.lastPulledAt).toBeDefined();
+        const firstPulledAt = Date.parse(firstBody.collection.lastPulledAt as string);
+        expect(Number.isNaN(firstPulledAt)).toBe(false);
+        // "Recent": stamped strictly within this test's own request window (guards against a bug that
+        // reads a stale/default DB timestamp instead of the server-derived `new Date()`).
+        expect(firstPulledAt).toBeGreaterThanOrEqual(beforeFirstPull);
+        expect(firstPulledAt).toBeLessThanOrEqual(afterFirstPull);
+
+        const getBody = (await (await fetch(`${baseUrl}/v1/collections/${cloneId}`)).json()) as {
+            lastPulledAt?: string;
+        };
+        expect(getBody.lastPulledAt).toBe(firstBody.collection.lastPulledAt);
+
+        // Pull again with nothing new in the source (empty diff) — "last pulled" is when the user
+        // SYNCED, not when something changed, so the timestamp must still ADVANCE.
+        await new Promise((resolve) => setTimeout(resolve, 5)); // guard against clock-granularity ties
+        const secondBody = (await (await pull(cloneId)).json()) as PullBody & { collection: { lastPulledAt?: string } };
+        expect(secondBody.addedRecipeIds).toEqual([]);
+        expect(secondBody.collection.lastPulledAt).toBeDefined();
+        const secondPulledAt = Date.parse(secondBody.collection.lastPulledAt as string);
+        expect(secondPulledAt).toBeGreaterThanOrEqual(firstPulledAt);
+        expect(secondPulledAt).toBeGreaterThan(firstPulledAt);
+    });
+
     it('400s COLLECTION_NOT_CLONED on a collection that was never cloned', async () => {
         const created = await fetch(`${baseUrl}/v1/collections`, {
             method: 'POST',

@@ -143,6 +143,33 @@ describe('CollectionsDal.update', () => {
     });
 });
 
+describe('CollectionsDal.touchLastPulled', () => {
+    it('sets last_pulled_at and updated_at to the current time and returns the updated row', async () => {
+        const fake = createFakeDb();
+        const touched = makeCollectionRow({ lastPulledAt: new Date('2026-07-24T12:00:00.000Z') });
+        fake.queue([touched]);
+        const dal = new CollectionsDal(fake.db);
+
+        const result = await dal.touchLastPulled(touched.id);
+
+        expect(result).toBe(touched);
+        expect(methodsOf(fake)).toEqual(['update', 'set', 'where', 'returning']);
+        const setArg = fake.calls[1]?.args[0] as Record<string, unknown>;
+        expect(setArg['lastPulledAt']).toBeInstanceOf(Date);
+        expect(setArg['updatedAt']).toBeInstanceOf(Date);
+    });
+
+    it('throws when the id does not exist (no row to update)', async () => {
+        const fake = createFakeDb();
+        fake.queue([]);
+        const dal = new CollectionsDal(fake.db);
+
+        await expect(dal.touchLastPulled('missing')).rejects.toThrow(
+            'touchLastPulled: no collection row found to update.',
+        );
+    });
+});
+
 describe('CollectionsDal.deleteById', () => {
     it('returns true when a row was removed', async () => {
         const fake = createFakeDb();

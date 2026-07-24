@@ -138,6 +138,30 @@ export class CollectionsDal {
     }
 
     /**
+     * Stamp `last_pulled_at` (W5 Task 3) with the CURRENT time, server-derived — never client input.
+     * `updated_at` is bumped alongside it, matching {@link update}'s convention. Called once per
+     * successful `pullFromSource` commit, regardless of whether the pull added any recipes: "last
+     * pulled" means "the user last synced", not "the last time something changed".
+     *
+     * @sideEffect Updates the collection row's `last_pulled_at` + `updated_at`.
+     */
+    public async touchLastPulled(id: string): Promise<CollectionRow> {
+        const updated = await this.db
+            .update(collections)
+            .set({ lastPulledAt: new Date(), updatedAt: new Date() })
+            .where(eq(collections.id, id))
+            .returning();
+
+        const row = updated[0];
+
+        if (!row) {
+            throw new Error('touchLastPulled: no collection row found to update.');
+        }
+
+        return row;
+    }
+
+    /**
      * Delete a collection by id; returns whether a row was removed. No-cascade w.r.t. recipes — only the
      * `recipe_collections` junction rows are removed (by FK), never the `recipes` themselves.
      */

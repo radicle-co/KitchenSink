@@ -44,6 +44,9 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        // Default: a valid row so tests that don't care about `lastPulledAt` specifically (most of the
+        // pre-Task-3 cases below) don't have to wire it — `toCollectionResponse` always needs a real row.
+        touchLastPulled: vi.fn().mockResolvedValue(makeCollectionRow({ id: CLONE_ID })),
     };
 }
 
@@ -163,6 +166,52 @@ describe('CollectionsService.pullFromSource', () => {
         expect(dal.addRecipe).not.toHaveBeenCalled();
         expect(dal.removeRecipe).not.toHaveBeenCalled();
         expect(result.addedRecipeIds).toEqual([]);
+    });
+
+    it('W5 Task 3: stamps lastPulledAt on a pull that adds a new recipe, and surfaces it on the response', async () => {
+        const dal = makeDal();
+        wireFindById(dal);
+        wireListRecipes(dal, ['rec-a'], ['rec-a', 'rec-b']);
+        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' }));
+        const touchedAt = new Date('2026-07-24T12:00:00.000Z');
+        dal.touchLastPulled.mockResolvedValue(
+            makeCollectionRow({
+                id: CLONE_ID,
+                ownerId: CLONER,
+                sourceCollectionId: SOURCE_ID,
+                lastPulledAt: touchedAt,
+            }),
+        );
+        const service = makeService(dal);
+
+        const result = await service.pullFromSource(CLONER, CLONE_ID);
+
+        expect(dal.touchLastPulled).toHaveBeenCalledExactlyOnceWith(CLONE_ID);
+        expect(result.collection.lastPulledAt).toBe(touchedAt.toISOString());
+    });
+
+    it('W5 Task 3: STILL stamps lastPulledAt when the source has nothing new (the user pulled = they synced)', async () => {
+        const dal = makeDal();
+        wireFindById(dal);
+        wireListRecipes(dal, ['rec-a', 'rec-b'], ['rec-a', 'rec-b']);
+        const touchedAt = new Date('2026-07-24T12:05:00.000Z');
+        dal.touchLastPulled.mockResolvedValue(
+            makeCollectionRow({
+                id: CLONE_ID,
+                ownerId: CLONER,
+                sourceCollectionId: SOURCE_ID,
+                lastPulledAt: touchedAt,
+            }),
+        );
+        const service = makeService(dal);
+
+        const result = await service.pullFromSource(CLONER, CLONE_ID);
+
+        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.touchLastPulled).toHaveBeenCalledExactlyOnceWith(CLONE_ID);
+        expect(result.collection.lastPulledAt).toBe(touchedAt.toISOString());
+        expect(typeof result.collection.lastPulledAt).toBe('string');
+        expect(Number.isNaN(Date.parse(result.collection.lastPulledAt as string))).toBe(false);
     });
 
     it('rejects a pull on a collection that was never cloned (no source to pull from)', async () => {

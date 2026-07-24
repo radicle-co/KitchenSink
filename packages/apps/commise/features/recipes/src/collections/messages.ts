@@ -162,6 +162,25 @@ export interface CollectionActionsMessages {
     readonly saveVisibility: string;
 }
 
+/**
+ * Copy for the clone-info panel (W5 Task 8, C5): the source collection's `@owner / "name"` attribution, the
+ * cloned date, and the View Source action, rendered by both the web and native leaves.
+ */
+export interface CloneInfoPanelMessages {
+    /** Accessible name for the panel's wrapping landmark, and its visible section title. */
+    readonly heading: string;
+    /** Attribution template with a resolved source owner handle (contains `{handle}` and `{name}`). */
+    readonly clonedFrom: string;
+    /** Attribution template with no resolved source owner (contains `{name}`). */
+    readonly clonedFromNoHandle: string;
+    /** Generic fallback shown when neither the source owner handle nor the collection name resolved. */
+    readonly clonedFromUnknown: string;
+    /** "Cloned {date}" template (contains `{date}`). */
+    readonly clonedOn: string;
+    /** Label of the view-source action. */
+    readonly viewSource: string;
+}
+
 /** The shape of the collections feature's shared copy. */
 export interface CollectionMessages {
     /** Copy for the collection-list screen. */
@@ -176,6 +195,8 @@ export interface CollectionMessages {
     readonly header: CollectionHeaderMessages;
     /** Copy for the collection-actions sidebar. */
     readonly actions: CollectionActionsMessages;
+    /** Copy for the clone-info panel (source attribution, cloned date, View Source). */
+    readonly cloneInfo: CloneInfoPanelMessages;
 }
 
 export const collectionMessages: LocalizedMessages<CollectionMessages> = {
@@ -251,6 +272,14 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             makePrivate: 'Private',
             privatePremiumGated: 'Upgrade to premium to make a collection private.',
             saveVisibility: 'Save changes',
+        },
+        cloneInfo: {
+            heading: 'Clone Info',
+            clonedFrom: '@{handle} / "{name}"',
+            clonedFromNoHandle: '"{name}"',
+            clonedFromUnknown: 'a source collection',
+            clonedOn: 'Cloned {date}',
+            viewSource: 'View Source',
         },
     },
 };

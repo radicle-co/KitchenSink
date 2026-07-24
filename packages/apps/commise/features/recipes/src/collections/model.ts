@@ -214,6 +214,35 @@ export interface CollectionActionsProps {
 }
 
 /**
+ * Props for the clone-info panel (W5 Task 8, C5) — a presentational render of the collection-view
+ * wireframe's "CLONE INFO" panel: the source collection's `@owner / "name"` attribution, the date this
+ * collection was cloned, and a View Source control. Rendered by the composing container (W5 Task 12) ONLY
+ * when the collection is a clone, so `sourceCollectionId` is always present here — this component assumes
+ * clone props and holds no "not a clone" branch of its own.
+ *
+ * `sourceOwnerHandle`/`sourceCollectionName` are frozen at clone time (W5 Task 2) and may independently be
+ * absent — an unresolved owner, or a source deleted after cloning — so the attribution degrades gracefully
+ * (name-only, then a generic fallback) rather than leaking `undefined` into the DOM. `locale` arrives as an
+ * explicit prop (unlike the sibling {@link CollectionHeaderViewProps}, which reads it via `useLocale()`) so
+ * this leaf stays pure `props → JSX` with no hook of its own. It fetches nothing and performs no mutations;
+ * the View Source interaction is delegated upward.
+ */
+export interface CloneInfoPanelProps {
+    /** The source owner's display handle, frozen at clone time; absent for an unresolved owner. */
+    readonly sourceOwnerHandle?: string;
+    /** The source collection's name, frozen at clone time; absent if the source is no longer resolvable. */
+    readonly sourceCollectionName?: string;
+    /** The source collection's id, for the View Source navigation — always present for a clone. */
+    readonly sourceCollectionId: string;
+    /** ISO 8601 timestamp of this collection's clone creation (the clone's `createdAt`). */
+    readonly clonedAt: string;
+    /** The active BCP-47 locale, used to format {@link clonedAt} via {@link formatCollectionDate}. */
+    readonly locale: Locale;
+    /** Invoked with `sourceCollectionId` when the View Source control is activated. */
+    readonly onViewSource: (sourceCollectionId: string) => void;
+}
+
+/**
  * Format an ISO 8601 timestamp as a date-only string for the collection header's "Last pulled" line, in
  * the active locale. Distinct from {@link import('../versions/model.js').formatVersionTimestamp}: the
  * wireframe shows a DATE only (no time) for this field. Formatted in UTC so the output is deterministic

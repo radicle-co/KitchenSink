@@ -201,6 +201,189 @@ describe('RecipeForm (native) — ingredients', () => {
     });
 });
 
+describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-007)', () => {
+    it('shows a resolved catalog line’s calories', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Arborio rice',
+                        quantity: 300,
+                        unit: 'g',
+                        caloriesPer100g: 130,
+                    },
+                ],
+            }),
+        });
+
+        expect(screen.getByText('390 cal')).toBeTruthy();
+    });
+
+    it('shows a freeform line’s user-entered calories', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_free', name: 'Grandma’s spice mix', quantity: 1, userCalories: 45 }],
+            }),
+        });
+
+        expect(screen.getByText('45 cal')).toBeTruthy();
+    });
+
+    it('shows NO calorie badge for a seeded-without-nutrition line — never a fake 0', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, resolutionStatus: 'RESOLVED' },
+                ],
+            }),
+        });
+
+        expect(screen.queryByText(/cal$/)).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
+    });
+
+    it('renders the running per-serving total for a complete ingredient set', () => {
+        renderForm({
+            values: filledValues({
+                servings: 1,
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
+                    { ingredientId: 'ing_2', name: 'Custom spice', quantity: 1, userCalories: 30 },
+                ],
+            }),
+        });
+
+        expect(screen.getByText('Total nutrition (per serving): 420 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.queryByText('Partial — some ingredients aren’t counted yet')).toBeNull();
+    });
+
+    it('updates the running total when an ingredient is added', () => {
+        const { rerender } = render(
+            <RecipeForm
+                values={filledValues({
+                    servings: 1,
+                    ingredients: [
+                        { ingredientId: 'ing_1', name: 'Rice', quantity: 100, unit: 'g', caloriesPer100g: 100 },
+                    ],
+                })}
+                mode="create"
+                onChange={noop}
+                onSubmit={noop}
+                onCancel={noop}
+            />,
+        );
+
+        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+
+        rerender(
+            <RecipeForm
+                values={filledValues({
+                    servings: 1,
+                    ingredients: [
+                        { ingredientId: 'ing_1', name: 'Rice', quantity: 100, unit: 'g', caloriesPer100g: 100 },
+                        { ingredientId: 'ing_2', name: 'Oil', quantity: 100, unit: 'g', caloriesPer100g: 50 },
+                    ],
+                })}
+                mode="create"
+                onChange={noop}
+                onSubmit={noop}
+                onCancel={noop}
+            />,
+        );
+
+        expect(screen.getByText('Total nutrition (per serving): 150 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+    });
+
+    it('updates the running total when an ingredient’s quantity changes', () => {
+        const { rerender } = render(
+            <RecipeForm
+                values={filledValues({
+                    servings: 1,
+                    ingredients: [
+                        { ingredientId: 'ing_1', name: 'Rice', quantity: 100, unit: 'g', caloriesPer100g: 100 },
+                    ],
+                })}
+                mode="create"
+                onChange={noop}
+                onSubmit={noop}
+                onCancel={noop}
+            />,
+        );
+
+        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+
+        rerender(
+            <RecipeForm
+                values={filledValues({
+                    servings: 1,
+                    ingredients: [
+                        { ingredientId: 'ing_1', name: 'Rice', quantity: 200, unit: 'g', caloriesPer100g: 100 },
+                    ],
+                })}
+                mode="create"
+                onChange={noop}
+                onSubmit={noop}
+                onCancel={noop}
+            />,
+        );
+
+        expect(screen.getByText('Total nutrition (per serving): 200 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+    });
+
+    it('updates the running total when an ingredient is removed', () => {
+        const { rerender } = render(
+            <RecipeForm
+                values={filledValues({
+                    servings: 1,
+                    ingredients: [
+                        { ingredientId: 'ing_1', name: 'Rice', quantity: 100, unit: 'g', caloriesPer100g: 100 },
+                        { ingredientId: 'ing_2', name: 'Oil', quantity: 100, unit: 'g', caloriesPer100g: 50 },
+                    ],
+                })}
+                mode="create"
+                onChange={noop}
+                onSubmit={noop}
+                onCancel={noop}
+            />,
+        );
+
+        expect(screen.getByText('Total nutrition (per serving): 150 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+
+        rerender(
+            <RecipeForm
+                values={filledValues({
+                    servings: 1,
+                    ingredients: [
+                        { ingredientId: 'ing_1', name: 'Rice', quantity: 100, unit: 'g', caloriesPer100g: 100 },
+                    ],
+                })}
+                mode="create"
+                onChange={noop}
+                onSubmit={noop}
+                onCancel={noop}
+            />,
+        );
+
+        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+    });
+
+    it('shows the honest partial affordance (never a fake total) when a line cannot be accounted for', () => {
+        renderForm({
+            values: filledValues({
+                servings: 1,
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Rice', quantity: 100, unit: 'g', caloriesPer100g: 100 },
+                    { ingredientId: 'ing_2', name: 'Stock', quantity: 1, unit: 'cup', resolutionStatus: 'PENDING' },
+                ],
+            }),
+        });
+
+        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText('Partial — some ingredients aren’t counted yet')).toBeTruthy();
+    });
+});
+
 describe('RecipeForm (native) — instructions', () => {
     it('shows the empty state when there are no steps', () => {
         renderForm({ values: filledValues({ steps: [] }) });

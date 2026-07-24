@@ -12,7 +12,7 @@ import type { FC, ReactElement, ReactNode } from 'react';
 import { StyleSheet, Switch, Text, TextInput, View, Pressable } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
-import { computeTotalTime } from './model.js';
+import { computeTotalTime, lineCalories, recipeNutritionTotal } from './model.js';
 import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
@@ -171,9 +171,11 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
 /** Step 2: the dynamic ingredient list (the ingredient typeahead/picker itself is app-owned and composed alongside this). */
 export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
+    const total = recipeNutritionTotal(values);
 
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
+        const calories = lineCalories(line);
 
         return (
             <View key={index} style={styles.row}>
@@ -206,6 +208,9 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                         {resolutionStatusLabel(m, line.resolutionStatus)}
                     </Text>
                 )}
+                {calories !== undefined && (
+                    <Text style={styles.caloriesBadge}>{fillTemplate(m.ingredientCaloriesTemplate, { calories })}</Text>
+                )}
                 <Button
                     variant="destructive"
                     icon={<Feather name="trash-2" size={16} color={palette.error} />}
@@ -236,6 +241,17 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 >
                     {m.addIngredient}
                 </Button>
+            </View>
+            <View style={styles.nutritionTotal}>
+                <Text style={styles.nutritionTotalText}>
+                    {fillTemplate(m.nutritionTotalTemplate, {
+                        calories: total.calories,
+                        protein: total.proteinG,
+                        carbs: total.carbsG,
+                        fat: total.fatG,
+                    })}
+                </Text>
+                {!total.isComplete && <Text style={styles.emptyText}>{m.nutritionPartialNotice}</Text>}
             </View>
         </View>
     );
@@ -376,9 +392,18 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     statusBadge: { fontSize: 11, color: palette.slate },
+    caloriesBadge: { fontSize: 12, fontWeight: '600', color: palette.seafoam },
     error: { color: palette.error, fontSize: 13 },
     emptyText: { color: palette.slate, fontSize: 13 },
     totalTime: { color: palette.slate, fontSize: 13 },
+    nutritionTotal: {
+        gap: 4,
+        borderRadius: 12,
+        backgroundColor: palette.pearl,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    nutritionTotalText: { fontSize: 13, fontWeight: '600', color: palette.charcoal },
     switchRow: {
         flexDirection: 'row',
         alignItems: 'center',

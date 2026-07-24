@@ -13,7 +13,9 @@ import {
     canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
+    lineCalories,
     pendingIngredientIds,
+    recipeNutritionTotal,
     setIngredientStatusById,
     stepErrorsFor,
     toCreateRecipeInput,
@@ -465,6 +467,129 @@ describe('toNutritionLine (E3 plumbing — form line -> the aggregator Nutrition
 
         expect(nutritionLine.unit).toBe('');
         expect(computeRecipeNutrition([nutritionLine], 1).isComplete).toBe(false);
+    });
+});
+
+describe('lineCalories (w3/e3 — per-row calorie figure)', () => {
+    const baseLine = (over: Partial<RecipeFormIngredient> = {}): RecipeFormIngredient => ({
+        ingredientId: 'ing_1',
+        name: 'Olive oil',
+        quantity: 2,
+        unit: 'tbsp',
+        ...over,
+    });
+
+    it('returns the resolved catalog line calories — the SAME number the aggregator itself computes', () => {
+        const line = baseLine({
+            quantity: 300,
+            unit: 'g',
+            caloriesPer100g: 130,
+            proteinGPer100g: 2.7,
+            carbsGPer100g: 28,
+            fatGPer100g: 0.3,
+        });
+
+        expect(lineCalories(line)).toBe(computeRecipeNutrition([toNutritionLine(line)], 1).calories);
+        expect(lineCalories(line)).toBe(390);
+    });
+
+    it('returns the freeform user-entered calories verbatim, including an honest zero', () => {
+        const line = baseLine({ ingredientId: 'ing_free', userCalories: 45, userProteinG: 1 });
+
+        expect(lineCalories(line)).toBe(45);
+
+        const zeroCalorieLine = baseLine({ ingredientId: 'ing_water', name: 'Water', userCalories: 0 });
+
+        expect(lineCalories(zeroCalorieLine)).toBe(0);
+    });
+
+    it('returns undefined (never a fake 0) for a line still resolving (no catalog nutrition yet)', () => {
+        const line = baseLine({ resolutionStatus: 'PENDING' });
+
+        expect(lineCalories(line)).toBeUndefined();
+    });
+
+    it('returns undefined for a catalog line whose unit cannot convert to grams (no portions)', () => {
+        const line = baseLine({ quantity: 1, unit: 'clove', caloriesPer100g: 149 });
+
+        expect(lineCalories(line)).toBeUndefined();
+    });
+
+    it('returns undefined for a seeded-without-nutrition line (edit-mode gap, RESOLVED but no per-100g)', () => {
+        // A line seeded from RecipeIngredientView (an existing recipe's ingredients), which does not carry
+        // per-100g nutrition — resolutionStatus is 'RESOLVED' but there is still nothing to compute from.
+        const line = baseLine({ resolutionStatus: 'RESOLVED' });
+
+        expect(lineCalories(line)).toBeUndefined();
+    });
+});
+
+describe('recipeNutritionTotal (w3/e3 — the running per-serving total, one aggregator, no second rule)', () => {
+    it('matches computeRecipeNutrition run directly over the same mapped lines', () => {
+        const values = filledValues({
+            servings: 2,
+            ingredients: [
+                { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
+                { ingredientId: 'ing_2', name: 'Salt', quantity: 5, unit: 'g', userCalories: 0 },
+            ],
+        });
+
+        expect(recipeNutritionTotal(values)).toEqual(
+            computeRecipeNutrition(values.ingredients.map(toNutritionLine), values.servings),
+        );
+    });
+
+    it('sums complete lines to a definite total and flags isComplete: true when every line is accounted for', () => {
+        const values = filledValues({
+            servings: 1,
+            ingredients: [
+                {
+                    ingredientId: 'ing_1',
+                    name: 'Arborio rice',
+                    quantity: 300,
+                    unit: 'g',
+                    caloriesPer100g: 130,
+                    proteinGPer100g: 2.7,
+                    carbsGPer100g: 28,
+                    fatGPer100g: 0.3,
+                },
+                { ingredientId: 'ing_2', name: 'Custom spice', quantity: 1, userCalories: 30, userProteinG: 1 },
+            ],
+        });
+
+        expect(recipeNutritionTotal(values)).toEqual({
+            calories: 420,
+            proteinG: 9.1,
+            carbsG: 84,
+            fatG: 0.9,
+            isComplete: true,
+        });
+    });
+
+    it('flags isComplete: false and still sums every ACCOUNTABLE line when one line cannot be computed', () => {
+        const values = filledValues({
+            servings: 1,
+            ingredients: [
+                { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
+                // Still resolving — no catalog nutrition yet, no user override: excluded, never a fake 0.
+                { ingredientId: 'ing_2', name: 'Stock', quantity: 1, unit: 'cup', resolutionStatus: 'PENDING' },
+            ],
+        });
+
+        const total = recipeNutritionTotal(values);
+
+        expect(total.isComplete).toBe(false);
+        expect(total.calories).toBe(390); // the rice's contribution alone — the unresolved line is excluded.
+    });
+
+    it('returns a zero, complete total for an empty ingredient list (no lines to fail on)', () => {
+        expect(recipeNutritionTotal(filledValues({ ingredients: [] }))).toEqual({
+            calories: 0,
+            proteinG: 0,
+            carbsG: 0,
+            fatG: 0,
+            isComplete: true,
+        });
     });
 });
 

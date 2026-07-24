@@ -5,7 +5,7 @@
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
  * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
  */
-import { toNutritionLine as buildNutritionLine } from '@kitchensink/recipe-core';
+import { computeRecipeNutrition, toNutritionLine as buildNutritionLine } from '@kitchensink/recipe-core';
 import type {
     CreateRecipeInput,
     FoodResolutionStatus,
@@ -16,6 +16,7 @@ import type {
     RecipeDetail,
     RecipeDifficulty,
     RecipeIngredientView,
+    RecipeNutrition,
     RecipeStatus,
     RecipeStepView,
     RecipeVisibility,
@@ -136,6 +137,40 @@ export const toNutritionLine = (line: RecipeFormIngredient): NutritionLine => {
 
     return buildNutritionLine(measure, catalog);
 };
+
+/**
+ * One ingredient line's own calories (w3/e3, step 2's per-row figure, FR-007) — the SAME aggregator
+ * {@link recipeNutritionTotal} uses, run over just this one line at `servings=1` so its per-serving division
+ * is a no-op and the result is the line's whole contribution. Returns `undefined` — never a fake `0` — when
+ * the line has no computable nutrition: still resolving (no catalog per-100g yet), a freeform line with no
+ * user-entered calories, a catalog line whose unit the aggregator cannot convert to grams (no mass factor,
+ * no matching portion), or an edit-mode line seeded from `RecipeIngredientView` (which carries no per-100g
+ * data at all until the user re-searches it — see {@link toRecipeFormValues}). A freeform line's explicit
+ * `userCalories: 0` (e.g. water) correctly returns `0`, not `undefined` — the user stated it. Pure.
+ *
+ * @param line - The form's ingredient line.
+ * @returns The line's calories, or `undefined` when it cannot be computed.
+ */
+export const lineCalories = (line: RecipeFormIngredient): number | undefined => {
+    const { calories, isComplete } = computeRecipeNutrition([toNutritionLine(line)], 1);
+
+    return isComplete ? calories : undefined;
+};
+
+/**
+ * The running per-serving nutrition total for the form's CURRENT ingredient set (w3/e3, step 2's "Total
+ * nutrition (per serving)" line, FR-007) — the SAME aggregator {@link lineCalories} uses, run over every
+ * line at once at the form's current `servings`. A pure derivation of `values`, not local state: the caller
+ * recomputes it on every render, so it stays exact across ingredient add/remove/quantity/unit changes and
+ * servings edits, with no risk of a stale cached total. `isComplete` is `false` when any line could not be
+ * accounted for; the UI MUST render the honest partial affordance in that case rather than a false-precise
+ * number (never hide the exclusion behind a total that looks whole). Pure.
+ *
+ * @param values - The editor's current form values.
+ * @returns The per-serving {@link RecipeNutrition} total.
+ */
+export const recipeNutritionTotal = (values: RecipeFormValues): RecipeNutrition =>
+    computeRecipeNutrition(values.ingredients.map(toNutritionLine), values.servings);
 
 /**
  * An empty create form: no ingredients/steps, public visibility (free-tier default), zeroed numerics.

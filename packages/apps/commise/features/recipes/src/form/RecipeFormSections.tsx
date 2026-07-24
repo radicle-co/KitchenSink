@@ -19,7 +19,7 @@ import type { FC, ReactElement } from 'react';
 
 import { fillTemplate } from '../list/model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
-import { computeTotalTime } from './model.js';
+import { computeTotalTime, lineCalories, recipeNutritionTotal } from './model.js';
 import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
@@ -203,9 +203,11 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
 /** Step 2: the dynamic ingredient list (the ingredient typeahead/picker itself is app-owned and composed alongside this). */
 export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
+    const total = recipeNutritionTotal(values);
 
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
+        const calories = lineCalories(line);
 
         return (
             <li key={index} className="flex flex-wrap items-center gap-2">
@@ -240,6 +242,11 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                         {resolutionStatusLabel(m, line.resolutionStatus)}
                     </span>
                 )}
+                {calories !== undefined && (
+                    <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-seafoam">
+                        {fillTemplate(m.ingredientCaloriesTemplate, { calories })}
+                    </span>
+                )}
                 <Button
                     variant="destructive"
                     icon={<TrashIcon />}
@@ -268,6 +275,17 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 <Button variant="secondary" icon={<PlusIcon />} onPress={() => onChange(addIngredient(values))}>
                     {m.addIngredient}
                 </Button>
+            </div>
+            <div className="flex flex-col gap-1 rounded-xl bg-pearl/60 px-4 py-3">
+                <p className="text-body-sm font-medium text-charcoal">
+                    {fillTemplate(m.nutritionTotalTemplate, {
+                        calories: total.calories,
+                        protein: total.proteinG,
+                        carbs: total.carbsG,
+                        fat: total.fatG,
+                    })}
+                </p>
+                {!total.isComplete && <p className="text-caption text-slate">{m.nutritionPartialNotice}</p>}
             </div>
         </section>
     );

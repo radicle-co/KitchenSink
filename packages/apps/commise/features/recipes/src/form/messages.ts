@@ -73,6 +73,16 @@ export interface RecipeFormMessages {
     readonly removeIngredient: string;
     /** Empty-state copy shown when there are no ingredient lines yet. */
     readonly noIngredients: string;
+    /** Per-row calorie figure template (contains `{calories}`; w3/e3, FR-007). Absent entirely when uncomputable. */
+    readonly ingredientCaloriesTemplate: string;
+    /**
+     * The running per-serving nutrition total template (w3/e3, FR-007; contains `{calories}`, `{protein}`,
+     * `{carbs}`, `{fat}`) — mirrors the wireframe's `Total nutrition (per serving): 420 cal | 18g P | 62g C |
+     * 12g F` line verbatim.
+     */
+    readonly nutritionTotalTemplate: string;
+    /** Honest affordance shown alongside the total when it is partial (FR-007 — some lines aren't counted yet). */
+    readonly nutritionPartialNotice: string;
 
     /** Resolution-status badge: awaiting resolution. */
     readonly statusPending: string;
@@ -147,6 +157,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         addIngredient: 'Add ingredient',
         removeIngredient: 'Remove ingredient {number}',
         noIngredients: 'No ingredients yet. Add your first ingredient.',
+        ingredientCaloriesTemplate: '{calories} cal',
+        nutritionTotalTemplate: 'Total nutrition (per serving): {calories} cal | {protein}g P | {carbs}g C | {fat}g F',
+        nutritionPartialNotice: 'Partial — some ingredients aren’t counted yet',
 
         statusPending: 'Resolving…',
         statusUnresolved: 'Not resolved',

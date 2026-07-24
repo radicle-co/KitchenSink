@@ -53,9 +53,72 @@ export const EnvironmentSchema = BaseEnvironmentObject.refine(hasIdpSecret, IDP_
 
 export type Environment = z.infer<typeof EnvironmentSchema>;
 
-/** Parses `process.env` against {@link EnvironmentSchema}. Throws a `ZodError` on a missing/invalid var. */
+/**
+ * Stable, grep-able code stamped on every {@link ConfigError}. Ops greps this ONE string across the
+ * webhook Lambdas' logs to find a cold-start misconfiguration, regardless of which var was missing.
+ */
+export const CONFIG_ERROR_CODE = 'IDENTITY_WEBHOOKS_INVALID_ENV';
+
+/**
+ * Thrown at a Lambda's cold start when `process.env` fails validation against its env schema. Wraps the
+ * raw `ZodError` in a typed, coded error so a genuine misconfiguration surfaces as a single grep-able
+ * ops signal ({@link CONFIG_ERROR_CODE}) that NAMES the offending var(s) — rather than a bare `ZodError`
+ * whose class/message ops can't reliably alert on. Aggregates every failing var at once (not
+ * one-at-a-time) and retains the underlying issues for structured logging. Fail-fast is preserved: the
+ * memoized accessors ({@link getConfig}/{@link getWebhookConfig}) throw this on their first call.
+ */
+export class ConfigError extends Error {
+    /** The stable, grep-able ops code — always {@link CONFIG_ERROR_CODE}. */
+    public readonly code: typeof CONFIG_ERROR_CODE = CONFIG_ERROR_CODE;
+    /** The distinct top-level env-var names implicated by the failure (the vars to fix). */
+    public readonly invalidVars: string[];
+    /** The underlying zod issues, retained for structured logging. */
+    public readonly issues: z.ZodError['issues'];
+
+    constructor(error: z.ZodError) {
+        const invalidVars = ConfigError.varsFromError(error);
+        const detail = error.issues
+            .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+            .join('\n');
+        super(`${CONFIG_ERROR_CODE}: invalid identity-webhooks environment [${invalidVars.join(', ')}]:\n${detail}`);
+        this.name = 'ConfigError';
+        this.invalidVars = invalidVars;
+        this.issues = error.issues;
+        Object.setPrototypeOf(this, ConfigError.prototype);
+    }
+
+    /** The distinct top-level keys implicated by a zod error (`(root)` for refinements without a path). Pure. */
+    private static varsFromError(error: z.ZodError): string[] {
+        const vars = new Set<string>();
+
+        for (const issue of error.issues) {
+            const [first] = issue.path;
+            vars.add(typeof first === 'string' && first.length > 0 ? first : '(root)');
+        }
+
+        return [...vars];
+    }
+}
+
+/** Type guard for {@link ConfigError}. */
+export function isConfigError(error: unknown): error is ConfigError {
+    return error instanceof ConfigError;
+}
+
+/** Parse `process.env` against `schema`, throwing a typed {@link ConfigError} (not a bare `ZodError`) on failure. */
+function parseEnvOrThrow<Schema extends z.ZodTypeAny>(schema: Schema): z.infer<Schema> {
+    const result = schema.safeParse(process.env);
+
+    if (!result.success) {
+        throw new ConfigError(result.error);
+    }
+
+    return result.data;
+}
+
+/** Parses `process.env` against {@link EnvironmentSchema}. Throws a {@link ConfigError} on a missing/invalid var. */
 export function resolveEnvironment(): Environment {
-    return EnvironmentSchema.parse(process.env);
+    return parseEnvOrThrow(EnvironmentSchema);
 }
 
 /**
@@ -70,9 +133,9 @@ export const WebhookEnvironmentSchema = BaseEnvironmentObject.required({
 
 export type WebhookEnvironment = z.infer<typeof WebhookEnvironmentSchema>;
 
-/** Parses `process.env` against {@link WebhookEnvironmentSchema}. Throws a `ZodError` on a missing/invalid var. */
+/** Parses `process.env` against {@link WebhookEnvironmentSchema}. Throws a {@link ConfigError} on a missing/invalid var. */
 export function resolveWebhookEnvironment(): WebhookEnvironment {
-    return WebhookEnvironmentSchema.parse(process.env);
+    return parseEnvOrThrow(WebhookEnvironmentSchema);
 }
 
 let cachedEnvironment: Environment | undefined;

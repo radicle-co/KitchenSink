@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
+import { CONFIG_ERROR_CODE, ConfigError, resetConfigCacheForTests } from '../../../src/config/env.js';
+
 /**
  * E2E: identity-webhooks async Lambdas (deletion-worker + reconciliation).
  *
@@ -58,6 +60,11 @@ vi.mock('../../../src/common/observability.js', () => ({
 const ctx = { getRemainingTimeInMillis: () => 25_000, awsRequestId: 'req-e2e-async' } as unknown as Context;
 
 beforeEach(() => {
+    // The handlers memoize their parsed env via getConfig()/getWebhookConfig() (module-level cache,
+    // simulating a Lambda cold start). Reset it before each test — including before re-seeding the env
+    // below — so a "missing env" test isn't masked by a valid config an earlier test in this file
+    // already warmed.
+    resetConfigCacheForTests();
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
     process.env.AUTH_SECRET_ARN = 'sk_test_dummy';
     mockProvisionCompleteUser.mockResolvedValue({
@@ -125,12 +132,18 @@ describe('e2e: deletion-worker Lambda', () => {
         expect(mockPurgePrivateData).toHaveBeenNthCalledWith(3, 'user_c');
     });
 
-    it('fails fast with an envelope error when DB_SECRET_ARN is missing', async () => {
+    it('fails fast at cold start with a typed coded ConfigError when DB_SECRET_ARN is missing', async () => {
         delete process.env.DB_SECRET_ARN;
         const { handler } = await import('../../../src/handlers/deletion-worker.js');
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_x' })] };
-        await expect(handler(event, ctx)).rejects.toThrow(/DELETION_WORKER_MISSING_ENV/);
+        const rejection = handler(event, ctx);
+
+        // A genuine misconfig rejects the invocation with the grep-able coded error (not a bare ZodError),
+        // and the message NAMES the offending var — the assertion that proves the fail-fast is real.
+        await expect(rejection).rejects.toBeInstanceOf(ConfigError);
+        await expect(rejection).rejects.toHaveProperty('code', CONFIG_ERROR_CODE);
+        await expect(rejection).rejects.toThrow(/DB_SECRET_ARN/);
     });
 });
 
@@ -209,12 +222,17 @@ describe('e2e: reconciliation Lambda', () => {
         expect(mockFindByIdentityId).not.toHaveBeenCalled();
     });
 
-    it('fails fast with envelope error when required env is missing', async () => {
+    it('fails fast at cold start with a typed coded ConfigError when required env is missing', async () => {
         delete process.env.DB_SECRET_ARN;
         delete process.env.AUTH_SECRET_ARN;
         delete process.env.IDP_SECRET_KEY;
         const { handler } = await import('../../../src/handlers/reconciliation.js');
 
-        await expect(handler(makeScheduledEvent(), ctx)).rejects.toThrow(/RECONCILIATION_MISSING_ENV/);
+        const rejection = handler(makeScheduledEvent(), ctx);
+
+        // Missing DB secret AND missing IdP secret both surface in one coded, grep-able rejection.
+        await expect(rejection).rejects.toBeInstanceOf(ConfigError);
+        await expect(rejection).rejects.toHaveProperty('code', CONFIG_ERROR_CODE);
+        await expect(rejection).rejects.toThrow(/DB_SECRET_ARN/);
     });
 });

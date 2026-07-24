@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    CONFIG_ERROR_CODE,
+    ConfigError,
     EnvironmentSchema,
     WebhookEnvironmentSchema,
     getConfig,
     getWebhookConfig,
+    isConfigError,
     resetConfigCacheForTests,
     resolveEnvironment,
     resolveWebhookEnvironment,
@@ -105,6 +108,38 @@ describe('WebhookEnvironmentSchema', () => {
     });
 });
 
+describe('ConfigError', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('is an Error subclass carrying the stable grep-able code and the underlying zod issues', () => {
+        vi.stubEnv('DB_SECRET_ARN', '');
+        vi.stubEnv('IDP_SECRET_KEY', '');
+        vi.stubEnv('AUTH_SECRET_ARN', '');
+
+        let caught: unknown;
+
+        try {
+            resolveEnvironment();
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(caught).toBeInstanceOf(Error);
+        expect(caught).toBeInstanceOf(ConfigError);
+        expect((caught as ConfigError).name).toBe('ConfigError');
+        expect((caught as ConfigError).code).toBe('IDENTITY_WEBHOOKS_INVALID_ENV');
+        expect((caught as ConfigError).issues.length).toBeGreaterThan(0);
+    });
+
+    it('isConfigError narrows only genuine ConfigError instances', () => {
+        expect(isConfigError(new Error('nope'))).toBe(false);
+        expect(isConfigError('IDENTITY_WEBHOOKS_INVALID_ENV')).toBe(false);
+        expect(isConfigError(undefined)).toBe(false);
+    });
+});
+
 describe('resolveEnvironment', () => {
     afterEach(() => {
         vi.unstubAllEnvs();
@@ -118,11 +153,24 @@ describe('resolveEnvironment', () => {
         expect(resolveEnvironment()).toMatchObject(validBaseEnv);
     });
 
-    it('throws when process.env is missing a required var', () => {
+    it('throws a typed coded ConfigError (not a bare ZodError) naming the missing var', () => {
+        vi.stubEnv('DB_SECRET_ARN', '');
         vi.stubEnv('IDP_SECRET_KEY', '');
         vi.stubEnv('AUTH_SECRET_ARN', '');
 
-        expect(() => resolveEnvironment()).toThrow();
+        let caught: unknown;
+
+        try {
+            resolveEnvironment();
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isConfigError(caught)).toBe(true);
+        expect((caught as ConfigError).code).toBe(CONFIG_ERROR_CODE);
+        expect((caught as ConfigError).message).toContain('DB_SECRET_ARN');
+        expect((caught as ConfigError).invalidVars).toContain('DB_SECRET_ARN');
+        expect((caught as ConfigError).issues.length).toBeGreaterThan(0);
     });
 });
 
@@ -196,7 +244,17 @@ describe('getConfig / getWebhookConfig (memoized cold-start accessors)', () => {
             vi.stubEnv(key, value);
         }
 
-        expect(() => getWebhookConfig()).toThrow();
+        let caught: unknown;
+
+        try {
+            getWebhookConfig();
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isConfigError(caught)).toBe(true);
+        expect((caught as ConfigError).code).toBe(CONFIG_ERROR_CODE);
+        expect((caught as ConfigError).message).toContain('DELETION_QUEUE_URL');
     });
 
     it('getWebhookConfig succeeds and caches independently of getConfig', () => {

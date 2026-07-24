@@ -322,6 +322,64 @@ describe('VersionsService.restore', () => {
         await expect(service.restore(PRINCIPAL, RECIPE_ID, 99)).rejects.toBeDefined();
         expect(dal.createSnapshot).not.toHaveBeenCalled();
     });
+
+    it('records the restore snapshot with its provenance (baseVersion + changeSummary) on the happy path', async () => {
+        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
+        const dal = fakeDal({
+            findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
+            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
+        });
+        const service = new VersionsService(
+            dal,
+            fakeRecipes(),
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
+
+        await service.restore(PRINCIPAL, RECIPE_ID, 3);
+
+        // History reconciles: when createSnapshot succeeds, a version row IS written carrying restore
+        // provenance — this must not regress once the write is made best-effort below.
+        expect(dal.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({
+                recipeId: RECIPE_ID,
+                versionNumber: 6,
+                baseVersion: 3,
+                changeSummary: 'Restored from version 3',
+            }),
+        );
+    });
+
+    it('does NOT fail the restore when the snapshot write throws (best-effort, logged not fatal)', async () => {
+        // S-R2: `restore` already committed the recipe update (via `recipes.update`) BEFORE this snapshot
+        // write runs. Unlike create/update/clone's `RecipesService.recordSnapshot`, restore's own
+        // `createSnapshot` call used to be un-swallowed — a snapshot failure here escaped as a 500 even
+        // though the restore had already taken effect. This pins the fix: same best-effort convention,
+        // logged and swallowed, restore still resolves its success result.
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot: TARGET_SNAPSHOT });
+        const dal = fakeDal({
+            findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
+            createSnapshot: vi.fn().mockRejectedValue(new Error('snapshot boom')),
+        });
+        const recipes = fakeRecipes();
+        const service = new VersionsService(
+            dal,
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        );
+
+        const result = await service.restore(PRINCIPAL, RECIPE_ID, 3);
+
+        // The recipe update already committed — that is the caller-visible effect, and restore must
+        // still report success even though its own version-history write failed.
+        expect(result).toEqual({ recipe: RESTORED_RECIPE, restoredFromVersion: 3, currentVersion: 6 });
+        expect(recipes.update).toHaveBeenCalledOnce();
+        expect(consoleError).toHaveBeenCalled();
+
+        consoleError.mockRestore();
+    });
 });
 
 describe('VersionsService.get', () => {

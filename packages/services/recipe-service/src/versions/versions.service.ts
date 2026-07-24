@@ -235,15 +235,26 @@ export class VersionsService {
 
         // Record the restore as its own immutable version (with restore provenance) — this also drives
         // retention. The RESPONSE is the restored recipe + version metadata, not this snapshot row.
-        await this.createSnapshot({
-            recipeId,
-            versionNumber: updated.currentVersion,
-            snapshot: { ...snapshot, version: updated.currentVersion },
-            createdBy: ownerId,
-            baseVersion: versionNumber,
-            changeSummary: `Restored from version ${versionNumber}`,
-            ...(editorHandle !== undefined ? { editorHandle } : {}),
-        });
+        //
+        // Best-effort (the SAME convention as `RecipesService.recordSnapshot`): the `recipes.update` call
+        // above has ALREADY committed the recipe content, so a snapshot-write failure here must not
+        // surface as a 500 on an otherwise-successful restore — it is logged and swallowed, not rethrown.
+        // The reconciliation/worker path backstops a missed row, same as create/update/clone.
+        try {
+            await this.createSnapshot({
+                recipeId,
+                versionNumber: updated.currentVersion,
+                snapshot: { ...snapshot, version: updated.currentVersion },
+                createdBy: ownerId,
+                baseVersion: versionNumber,
+                changeSummary: `Restored from version ${versionNumber}`,
+                ...(editorHandle !== undefined ? { editorHandle } : {}),
+            });
+        } catch (error) {
+            // The recipe is saved; a version-history hiccup is non-fatal to the restore. Surface it for
+            // observability (logs route to Sentry) without propagating.
+            console.error(`Failed to record version snapshot for recipe ${recipeId}:`, error);
+        }
 
         return {
             recipe: updated,

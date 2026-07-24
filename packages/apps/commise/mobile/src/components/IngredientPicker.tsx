@@ -1,32 +1,23 @@
 /**
- * Ingredient typeahead (mobile, T067 support). Resolves a free-typed ingredient name to a catalog
- * `ingredientId` — the id the recipe wire-contract REQUIRES for every ingredient line — either by selecting
- * a search hit (`useSearchIngredients`) or by creating a freeform ingredient (`useCreateIngredient`). It owns
- * only the transient search text and which match (if any) is being disambiguated; the resolved ingredient is
- * reported upward via `onResolve`, where the editor appends it to the form's ingredient lines.
+ * Ingredient typeahead (mobile, T067 support). A thin renderer (CP-6/P2) over the shared, platform-agnostic
+ * `useIngredientResolver` (`@commise/features-recipes/hooks`), which owns the search text, the
+ * disambiguation state, and all four ways a line resolves (catalog-hit, addByName, candidate pick,
+ * freeform). This leaf's job is ONLY to render `viewState` with its own RN markup and wire the hook's
+ * actions to `Pressable`/`TextInput` events — see the hook's module doc for the full state machine, the
+ * async-resolution vertical (data-model R5 / FR-007), and the drift-unification decisions made when it was
+ * extracted from this leaf and its web sibling.
  *
- * Async resolution (data-model R5 / FR-007): the PRIMARY add action for a typed name is `addByName` (the
- * async-resolution entry point, `useAddIngredientByName`) — "Find nutrition for …" resolves real nutrition
- * through the source-agnostic food service, reporting a `PENDING` line the editor then polls to `RESOLVED`,
- * or opening disambiguation for an `UNRESOLVED` result. The freeform "Create …" below is the explicit
- * fallback. An `UNRESOLVED` match (from search OR addByName) opens a disambiguation candidate list
- * (`useIngredientCandidates`); picking a candidate resolves it (`useResolveIngredient`) and the line is
- * reported already `RESOLVED`. A `PENDING`/`RESOLVED` match reports immediately (its status flows onto the
- * line). It stores no remote state of its own (the query cache is the source of truth).
+ * The hook's callback contract is `onResolved: (line: RecipeFormIngredient) => void`; this leaf keeps its
+ * own public `onResolve` prop (its `ResolvedIngredient` shape, narrower than `RecipeFormIngredient` — no
+ * `quantity`) unchanged for its existing caller (`RecipeEditor`), adapting at this boundary.
  */
 import { fillTemplate } from '@commise/features-recipes';
+import type { RecipeFormIngredient } from '@commise/features-recipes';
+import { useIngredientResolver } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { Ingredient } from '@kitchensink/recipe-core';
-import {
-    useAddIngredientByName,
-    useCreateIngredient,
-    useIngredientCandidates,
-    useResolveIngredient,
-    useSearchIngredients,
-} from '@kitchensink/recipe-service-client/hooks';
+import type { FoodResolutionStatus, Ingredient } from '@kitchensink/recipe-core';
+import type { IngredientCandidate } from '@kitchensink/recipe-service-client';
 import type { JSX } from 'react';
-import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -45,13 +36,50 @@ export interface IngredientPickerProps {
     readonly onResolve: (ingredient: ResolvedIngredient) => void;
 }
 
-/** Project a catalog {@link Ingredient} onto the upward-reported resolved ingredient. */
-function toResolved(ingredient: Ingredient): ResolvedIngredient {
+/** Narrow the hook's `RecipeFormIngredient` line down to this leaf's `ResolvedIngredient` prop shape. */
+function toResolvedIngredient(line: RecipeFormIngredient): ResolvedIngredient | null {
+    if (line.ingredientId === null) {
+        return null;
+    }
+
     return {
-        id: ingredient.id,
-        name: ingredient.name,
-        ...(ingredient.foodResolutionStatus === undefined ? {} : { resolutionStatus: ingredient.foodResolutionStatus }),
+        id: line.ingredientId,
+        name: line.name,
+        ...(line.resolutionStatus === undefined ? {} : { resolutionStatus: line.resolutionStatus }),
     };
+}
+
+/** One search-result row: the clickable match. No terminal notice — matches this leaf's prior behavior. */
+function ResultRow({ ingredient, onPress }: { ingredient: Ingredient; onPress: () => void }): JSX.Element {
+    return (
+        <Pressable accessibilityRole="button" accessibilityLabel={ingredient.name} onPress={onPress}>
+            <Text>{ingredient.name}</Text>
+        </Pressable>
+    );
+}
+
+/** One disambiguation-candidate row. */
+function CandidateRow({
+    candidate,
+    disabled,
+    onPress,
+}: {
+    candidate: IngredientCandidate;
+    disabled: boolean;
+    onPress: () => void;
+}): JSX.Element {
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={candidate.name}
+            accessibilityState={{ disabled }}
+            disabled={disabled}
+            onPress={onPress}
+        >
+            <Text>{candidate.name}</Text>
+            {candidate.summary !== null && <Text>{candidate.summary}</Text>}
+        </Pressable>
+    );
 }
 
 /**
@@ -62,112 +90,86 @@ function toResolved(ingredient: Ingredient): ResolvedIngredient {
  */
 export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Element {
     const { ingredientPicker: t } = useMessages(mobileMessages);
-    const [query, setQuery] = useState('');
-    const [disambiguating, setDisambiguating] = useState<Ingredient | null>(null);
-    const trimmed = query.trim();
+    const {
+        query,
+        setQuery,
+        trimmed,
+        viewState,
+        addByNameStatus,
+        createStatus,
+        resolveError,
+        selectMatch,
+        findNutrition,
+        pickCandidate,
+        addFreeform,
+        cancelDisambiguation,
+    } = useIngredientResolver((line) => {
+        const resolved = toResolvedIngredient(line);
 
-    const search = useSearchIngredients(trimmed, undefined, { enabled: disambiguating === null });
-    const addIngredientByName = useAddIngredientByName();
-    const createIngredient = useCreateIngredient();
-    const candidates = useIngredientCandidates(disambiguating?.id ?? '', { enabled: disambiguating !== null });
-    const resolveIngredient = useResolveIngredient();
-
-    const results = search.data ?? [];
-    const hasQuery = trimmed.length > 0;
-    const showEmpty = hasQuery && !search.isLoading && results.length === 0;
-
-    const resolveLine = (ingredient: Ingredient): void => {
-        onResolve(toResolved(ingredient));
-        setQuery('');
-        // Leaving disambiguation unmounts the candidate panel (and its resolve error/pending UI), so no
-        // explicit mutation reset is needed — the transient mutation state is dropped with the subtree.
-        setDisambiguating(null);
-    };
-
-    const selectMatch = (ingredient: Ingredient): void => {
-        if (ingredient.foodResolutionStatus === FoodResolutionStatus.UNRESOLVED) {
-            setDisambiguating(ingredient);
-
-            return;
+        if (resolved !== null) {
+            onResolve(resolved);
         }
+    });
 
-        resolveLine(ingredient);
-    };
-
-    /**
-     * The PRIMARY add action for a typed name (the async-resolution entry point): add the food by name and
-     * route by the status it comes back with — `UNRESOLVED` opens disambiguation; `PENDING` / `RESOLVED`
-     * reports a line the editor then polls. On failure the freeform fallback below stays available.
-     */
-    const findNutrition = (): void => {
-        addIngredientByName.mutate(trimmed, {
-            onSuccess: (ingredient) => {
-                if (ingredient.foodResolutionStatus === FoodResolutionStatus.UNRESOLVED) {
-                    setDisambiguating(ingredient);
-
-                    return;
-                }
-
-                resolveLine(ingredient);
-            },
-        });
-    };
-
-    const pickCandidate = (candidateId: string): void => {
-        if (disambiguating === null) {
-            return;
-        }
-
-        resolveIngredient.mutate({ id: disambiguating.id, candidateIds: [candidateId] }, { onSuccess: resolveLine });
-    };
-
-    const createFreeform = (): void => {
-        createIngredient.mutate(trimmed, { onSuccess: resolveLine });
-    };
-
-    if (disambiguating !== null) {
-        const title = fillTemplate(t.disambiguateTitle, { name: disambiguating.name });
+    if (viewState.kind === 'disambiguating' || viewState.kind === 'resolving') {
+        const title = fillTemplate(t.disambiguateTitle, { name: viewState.name });
+        const resolving = viewState.kind === 'resolving';
 
         return (
             <View accessibilityLabel={title}>
                 <Text accessibilityRole="header">{title}</Text>
-                {candidates.isLoading && <Text>{t.disambiguateLoading}</Text>}
-                {candidates.isError && <Text accessibilityRole="alert">{t.disambiguateError}</Text>}
-                {candidates.isSuccess && (candidates.data?.length ?? 0) === 0 && <Text>{t.disambiguateEmpty}</Text>}
-                {(candidates.data ?? []).map((candidate) => (
-                    <Pressable
+                {viewState.kind === 'disambiguating' && viewState.isLoading && <Text>{t.disambiguateLoading}</Text>}
+                {viewState.kind === 'disambiguating' && viewState.isError && (
+                    <Text accessibilityRole="alert">{t.disambiguateError}</Text>
+                )}
+                {viewState.kind === 'disambiguating' &&
+                    !viewState.isLoading &&
+                    !viewState.isError &&
+                    viewState.candidates.length === 0 && <Text>{t.disambiguateEmpty}</Text>}
+                {viewState.candidates.map((candidate) => (
+                    <CandidateRow
                         key={candidate.candidateId}
-                        accessibilityRole="button"
-                        accessibilityLabel={candidate.name}
-                        accessibilityState={{ disabled: resolveIngredient.isPending }}
-                        disabled={resolveIngredient.isPending}
+                        candidate={candidate}
+                        disabled={resolving}
                         onPress={() => pickCandidate(candidate.candidateId)}
-                    >
-                        <Text>{candidate.name}</Text>
-                        {candidate.summary !== null && <Text>{candidate.summary}</Text>}
-                    </Pressable>
+                    />
                 ))}
-                {resolveIngredient.isPending && <Text>{t.resolving}</Text>}
-                {resolveIngredient.isError && <Text accessibilityRole="alert">{t.resolveError}</Text>}
+                {resolving && <Text>{t.resolving}</Text>}
+                {viewState.kind === 'disambiguating' && resolveError && (
+                    <Text accessibilityRole="alert">{t.resolveError}</Text>
+                )}
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={fillTemplate(t.create, { query: disambiguating.name })}
-                    accessibilityState={{ disabled: createIngredient.isPending, busy: createIngredient.isPending }}
-                    disabled={createIngredient.isPending}
-                    onPress={createFreeform}
+                    accessibilityLabel={fillTemplate(t.create, { query: viewState.name })}
+                    accessibilityState={{ disabled: createStatus.isPending, busy: createStatus.isPending }}
+                    disabled={createStatus.isPending}
+                    onPress={addFreeform}
                 >
-                    <Text>{fillTemplate(t.create, { query: disambiguating.name })}</Text>
+                    <Text>{fillTemplate(t.create, { query: viewState.name })}</Text>
                 </Pressable>
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t.disambiguateBack}
-                    onPress={() => setDisambiguating(null)}
+                    onPress={cancelDisambiguation}
                 >
                     <Text>{t.disambiguateBack}</Text>
                 </Pressable>
             </View>
         );
     }
+
+    // idle | searching | results | terminal: the single-match "terminal" kind renders exactly like a
+    // one-item results list (no distinct notice — mobile has never surfaced one; see the CP-6/P2 report).
+    let results: readonly Ingredient[] = [];
+
+    if (viewState.kind === 'terminal') {
+        results = [viewState.ingredient];
+    } else if (viewState.kind === 'results') {
+        results = viewState.results;
+    }
+
+    const hasQuery = trimmed.length > 0;
+    const showEmpty = viewState.kind === 'results' && results.length === 0;
 
     return (
         <View accessibilityLabel={t.heading}>
@@ -179,14 +181,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                 onChangeText={setQuery}
             />
             {results.map((ingredient) => (
-                <Pressable
-                    key={ingredient.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={ingredient.name}
-                    onPress={() => selectMatch(ingredient)}
-                >
-                    <Text>{ingredient.name}</Text>
-                </Pressable>
+                <ResultRow key={ingredient.id} ingredient={ingredient} onPress={() => selectMatch(ingredient)} />
             ))}
             {showEmpty && <Text>{t.empty}</Text>}
             {hasQuery && (
@@ -195,11 +190,8 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={fillTemplate(t.addByName, { query: trimmed })}
-                        accessibilityState={{
-                            disabled: addIngredientByName.isPending,
-                            busy: addIngredientByName.isPending,
-                        }}
-                        disabled={addIngredientByName.isPending}
+                        accessibilityState={{ disabled: addByNameStatus.isPending, busy: addByNameStatus.isPending }}
+                        disabled={addByNameStatus.isPending}
                         onPress={findNutrition}
                     >
                         <Text>{fillTemplate(t.addByName, { query: trimmed })}</Text>
@@ -208,17 +200,17 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={fillTemplate(t.create, { query: trimmed })}
-                        accessibilityState={{ disabled: createIngredient.isPending, busy: createIngredient.isPending }}
-                        disabled={createIngredient.isPending}
-                        onPress={createFreeform}
+                        accessibilityState={{ disabled: createStatus.isPending, busy: createStatus.isPending }}
+                        disabled={createStatus.isPending}
+                        onPress={addFreeform}
                     >
                         <Text>{fillTemplate(t.create, { query: trimmed })}</Text>
                     </Pressable>
                 </>
             )}
-            {addIngredientByName.isPending && <Text>{t.addingByName}</Text>}
-            {addIngredientByName.isError && <Text accessibilityRole="alert">{t.addByNameError}</Text>}
-            {createIngredient.isPending && <Text>{t.creating}</Text>}
+            {addByNameStatus.isPending && <Text>{t.addingByName}</Text>}
+            {addByNameStatus.isError && <Text accessibilityRole="alert">{t.addByNameError}</Text>}
+            {createStatus.isPending && <Text>{t.creating}</Text>}
         </View>
     );
 }

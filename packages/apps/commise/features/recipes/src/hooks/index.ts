@@ -5,5 +5,7 @@
  * pure models never pulls React hooks in.
  */
 
+export * from './ingredientResolver.model.js';
 export * from './usePollIngredientStatus.js';
 export * from './useRecipePhotoUpload.js';
+export * from './useIngredientResolver.js';

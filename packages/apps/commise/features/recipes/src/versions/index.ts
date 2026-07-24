@@ -6,14 +6,17 @@
  */
 export { RecipeVersionList } from './RecipeVersionList.js';
 export { RecipeConflictView } from './RecipeConflictView.js';
+export { VersionPreviewModal } from './VersionPreviewModal.js';
 
 export { diffSnapshots, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
 export {
     buildRecipeMergeFields,
+    changedFromCurrentCounts,
     composeMergedRecipe,
     formatVersionTimestamp,
     sortVersionsDescending,
     toConflictSideFields,
+    toVersionPreviewIngredientLines,
     type ConflictField,
     type MergeSide,
     type RecipeConflictViewProps,
@@ -21,10 +24,13 @@ export {
     type RecipeMergeSelections,
     type RecipeVersionListProps,
     type RecipeVersionRestoreError,
+    type VersionPreviewIngredientLine,
+    type VersionPreviewModalProps,
 } from './model.js';
 export {
     recipeVersionMessages,
     type RecipeConflictMessages,
     type RecipeVersionListMessages,
     type RecipeVersionMessages,
+    type RecipeVersionPreviewMessages,
 } from './messages.js';

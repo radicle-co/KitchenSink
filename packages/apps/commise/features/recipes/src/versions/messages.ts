@@ -116,12 +116,44 @@ export interface RecipeConflictMessages {
     readonly stepCountOther: string;
 }
 
+/** Shared copy for the version preview modal (W6 Task 3 / FR-007b). Field labels (title/description/
+ *  servings/prep/cook/total) are DELIBERATELY not duplicated here — the component reuses
+ *  {@link RecipeConflictMessages}'s field labels, the same reuse the row-level changed-fields summary
+ *  already relies on ({@link import('./model.js').formatChangedFieldNames}), so a label is one piece of
+ *  knowledge regardless of which version surface renders it. */
+export interface RecipeVersionPreviewMessages {
+    /** Modal heading template (contains `{version}` and `{title}`) — the loaded state. */
+    readonly title: string;
+    /** Modal heading shown while loading or on error, before the version's own title is known. */
+    readonly titleLoading: string;
+    /** Ingredients section heading template (contains `{version}`). */
+    readonly ingredientsHeading: string;
+    /** Per-line calorie chip template (contains `{calories}`); rendered ONLY when the snapshot ingredient
+     *  carries a `userCalories` override — never fabricated for a catalog-resolved line. */
+    readonly caloriesLabel: string;
+    /** "Changed from current" summary template (contains `{ingredients}` and `{steps}`), derived from
+     *  {@link import('./diff.js').SnapshotDiff} vs. the recipe's CURRENT version. */
+    readonly changedFromCurrent: string;
+    /** Accessible label + status text shown while the previewed version is being fetched. */
+    readonly loading: string;
+    /** Error shown when the previewed version failed to load. Not a dead end — Keep-current/Cancel still
+     *  closes the modal. */
+    readonly error: string;
+    /** Label of the "keep current version" / cancel action (the single exit path, mirroring
+     *  `PullUpdatesDialog`). */
+    readonly keepCurrent: string;
+    /** Label of the "restore this version" action. */
+    readonly restoreThis: string;
+}
+
 /** The shape of the version surface's shared copy. */
 export interface RecipeVersionMessages {
     /** Copy for the version-history list (T069). */
     readonly versionList: RecipeVersionListMessages;
     /** Copy for the concurrent-edit conflict view (T070). */
     readonly conflict: RecipeConflictMessages;
+    /** Copy for the version preview modal (W6 Task 3). */
+    readonly preview: RecipeVersionPreviewMessages;
 }
 
 export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
@@ -179,6 +211,17 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             ingredientCountOther: '{count} ingredients',
             stepCountOne: '{count} step',
             stepCountOther: '{count} steps',
+        },
+        preview: {
+            title: 'Version {version} Preview: {title}',
+            titleLoading: 'Version preview',
+            ingredientsHeading: 'Ingredients at v{version}',
+            caloriesLabel: '{calories} cal',
+            changedFromCurrent: 'Changed from current: {ingredients} ingredients, {steps} steps',
+            loading: 'Loading version preview…',
+            error: 'We couldn’t load that version. Please try again.',
+            keepCurrent: 'Keep current version',
+            restoreThis: 'Restore this version',
         },
     },
 };

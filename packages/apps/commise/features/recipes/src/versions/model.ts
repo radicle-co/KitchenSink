@@ -6,12 +6,14 @@
  * can never drift on ordering, shape, or formatting. No React, no platform APIs.
  */
 import type { Locale } from '@commise/i18n';
-import type { RecipeDetail, RecipeVersion } from '@kitchensink/recipe-core';
+import type { RecipeDetail, RecipeIngredient, RecipeVersion } from '@kitchensink/recipe-core';
 
+import { formatCalories } from '../card/model.js';
+import { formatQuantity } from '../detail/model.js';
 import type { RecipeFormValues } from '../form/model.js';
 import { fillTemplate, formatDurationMinutes, formatRecipeCount } from '../list/model.js';
-import { diffSnapshots, type SnapshotFieldKey } from './diff.js';
-import type { RecipeConflictMessages, RecipeVersionListMessages } from './messages.js';
+import { diffSnapshots, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
+import type { RecipeConflictMessages, RecipeVersionListMessages, RecipeVersionPreviewMessages } from './messages.js';
 
 /**
  * Props for the recipe version-history list (T069) — a controlled, presentational component. It lists a
@@ -463,3 +465,98 @@ export const composeMergedRecipe = (
 
 /** Re-export of the shared template filler for the version leaves (kept in one place — the list model). */
 export { fillTemplate };
+
+// ─── Version preview modal (W6 Task 3 / FR-007b) ────────────────────────────────────────────────────
+
+/**
+ * Props for the version preview modal (W6 Task 3) — a FULLY controlled, presentational component. Renders
+ * a past version's full snapshot content plus a "changed from current" summary derived from
+ * `diffFromCurrent` ({@link diffSnapshots}, Task 1, computed by the caller against the recipe's CURRENT
+ * version). Fetches nothing — the composing container (Task 5) wires `useRecipeVersion` to these props.
+ */
+export interface VersionPreviewModalProps {
+    /** Whether the modal is open. */
+    readonly open: boolean;
+    /** The previewed version (its full snapshot). ABSENT while loading or on error. */
+    readonly version?: RecipeVersion;
+    /** Whether the version fetch is in flight. */
+    readonly isLoading: boolean;
+    /** Whether the version fetch failed. NOT a dead end — Keep-current/Cancel still closes the modal, so
+     *  the composing container can retry. */
+    readonly error?: boolean;
+    /** This version's diff vs. the recipe's CURRENT version, for the "Changed from current" line. ABSENT
+     *  while loading/erroring, alongside `version`. */
+    readonly diffFromCurrent?: SnapshotDiff;
+    /** Invoked to close the modal without restoring — "Keep current version", Cancel, Escape, or the
+     *  backdrop click all resolve to this ONE callback (mirrors `PullUpdatesDialog`'s single exit path). */
+    readonly onCancel: () => void;
+    /** Invoked with the previewed version's number when "Restore this version" is activated. */
+    readonly onRestore: (versionNumber: number) => void;
+    /** The active BCP-47 locale (calorie-formatting input only; this component owns no locale state). */
+    readonly locale: Locale;
+}
+
+/** One ingredient line rendered by the preview modal — pre-formatted text plus its calorie chip, WHEN the
+ *  snapshot ingredient carries one (see {@link toVersionPreviewIngredientLines}). */
+export interface VersionPreviewIngredientLine {
+    /** Stable key for React reconciliation — the snapshot row's own (frozen) id. */
+    readonly key: string;
+    /** The formatted "{quantity}{unit} {name}" text, with any `displayText` override appended. */
+    readonly text: string;
+    /** The formatted "{calories} cal" chip. OMITTED (never fabricated) when the ingredient carries no
+     *  `userCalories` override — a catalog-resolved line's per-serving calories are not captured in a
+     *  `RecipeSnapshot` at all (see `diff.ts` module docs). */
+    readonly calories?: string;
+}
+
+/**
+ * Project a version snapshot's ingredient lines into the pre-formatted rows the preview modal renders.
+ * Reuses {@link formatQuantity} (the detail view's own quantity/unit formatter) and {@link formatCalories}
+ * (the card's calorie formatter) rather than re-deriving either — one authoritative formatting per piece of
+ * knowledge, so the preview can never render a quantity or a calorie count differently than the rest of the
+ * app. A line's calorie chip renders ONLY when the snapshot ingredient itself carries `userCalories` (a
+ * user-entered nutrition override, W8-a.7); this NEVER fabricates a figure for a catalog-resolved line. Pure.
+ *
+ * @param ingredients - The snapshot's ingredient lines, in their stored order.
+ * @param messages - The localized preview copy (the calorie template).
+ * @param locale - The active BCP-47 locale.
+ * @returns The ordered, pre-formatted ingredient lines.
+ */
+export const toVersionPreviewIngredientLines = (
+    ingredients: readonly RecipeIngredient[],
+    messages: RecipeVersionPreviewMessages,
+    locale: Locale,
+): readonly VersionPreviewIngredientLine[] =>
+    ingredients.map((ingredient) => {
+        const name =
+            ingredient.displayText !== undefined
+                ? `${ingredient.ingredientName} (${ingredient.displayText})`
+                : ingredient.ingredientName;
+
+        return {
+            key: ingredient.id,
+            text: `${formatQuantity(ingredient.quantity, ingredient.unit)} ${name}`,
+            ...(ingredient.userCalories !== undefined
+                ? {
+                      calories: fillTemplate(messages.caloriesLabel, {
+                          calories: formatCalories(ingredient.userCalories, locale),
+                      }),
+                  }
+                : {}),
+        };
+    });
+
+/**
+ * Compute the "Changed from current: {n} ingredients, {m} steps" counts from a {@link SnapshotDiff}: each
+ * collection's TOTAL changed lines (added + removed + modified) — the same per-collection tallies the Diff
+ * Summary rollup (Task 1) is built from, not a bespoke count. Pure.
+ *
+ * @param diff - This version's diff vs. the recipe's current version.
+ * @returns The total changed ingredient and step counts.
+ */
+export const changedFromCurrentCounts = (
+    diff: SnapshotDiff,
+): { readonly ingredients: number; readonly steps: number } => ({
+    ingredients: diff.ingredients.added + diff.ingredients.removed + diff.ingredients.modified,
+    steps: diff.steps.added + diff.steps.removed + diff.steps.modified,
+});

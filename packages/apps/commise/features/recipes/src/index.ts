@@ -18,3 +18,4 @@ export * from './collections/index.js';
 export * from './discovery/index.js';
 export * from './photos/index.js';
 export * from './filters/index.js';
+export * from './wizard/index.js';

@@ -147,7 +147,8 @@ describe('RecipesScreen — navigation', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
 
-        expect(screen.getByRole('heading', { name: 'New recipe' })).toBeTruthy();
+        expect(screen.getByLabelText('Title')).toBeTruthy();
+        expect(screen.getByText('Step 1 of 4')).toBeTruthy();
     });
 
     it('switches to the discover tab', () => {

@@ -1,37 +1,44 @@
 /**
- * Recipe editor (mobile, T067; CP-6/P1 — now FULLY CONTROLLED). The presentational orchestration layer
- * shared by the create and edit screens: it wires the ingredient typeahead ({@link IngredientPicker}) and
- * poll-after-add, and hands the presentational `RecipeForm` building block its props. It performs NO data
- * fetching and runs NO mutation, and — since CP-6/P1 — it owns NO state of its own either: `values`/`errors`
- * come in from the caller and every edit reports back via `onChange`, exactly mirroring the web container's
- * direct use of `RecipeForm`. This closes the mobile-vs-web reseed incompatibility (see
- * `useRecipeEditor`'s module doc): the old `useState(initialValues)`-seeded-once-on-mount design was WHY the
- * edit screen needed a `seedNonce`/`seedOverride` remount hack to reseed after "use theirs" — a controlled
- * component has no such need, because the caller can always just call `onChange` again.
+ * Recipe editor (mobile, T067; CP-6/P1 fully controlled; w3/e1,e2 rewired onto the 4-step `Wizard` shell).
+ * The presentational orchestration layer shared by the create and edit screens: it wires the ingredient
+ * typeahead ({@link IngredientPicker}) and poll-after-add into step 2, and renders the `Wizard` compound
+ * shell (`Wizard.Rail`/`Wizard.TopBar` as a sticky header above the scrolling step content, one
+ * `Wizard.Step` per step hosting the SAME extracted `RecipeBasicsFields`/`RecipeIngredientsFields`/
+ * `RecipeInstructionsFields`/`RecipeVisibilityField` leaves the web edit container uses, and
+ * `Wizard.Controls` as the footer nav). It performs NO data fetching and runs NO mutation, and owns NO state
+ * of its own: `values`/`errors`/the wizard's `step`/navigation come in from the caller and every edit
+ * reports back via `onChange`/`goNext`/`goPrev`/etc — exactly mirroring the web container's direct
+ * `Wizard` wiring. Step 4's body is caller-supplied (`photosSlot`): the edit screen passes the real
+ * `RecipePhotoUploader` (needs a persisted recipe id); the create screen passes a "save first" notice.
  *
- * The create screen (no seed/conflict/version concerns) owns its own local `values`/`errors` `useState` and
- * passes them down the same way the edit screen's `useRecipeEditor` hook does — same controlled contract,
- * different state owner.
+ * The create screen (no seed/conflict/version concerns) owns its own local `values`/`errors`/step
+ * `useState` and passes them down the same way the edit screen's `useRecipeEditor` hook does — same
+ * controlled contract, different state owner.
  */
 import {
     pendingIngredientIds,
-    RecipeForm,
+    RecipeBasicsFields,
+    RecipeIngredientsFields,
+    RecipeInstructionsFields,
+    RecipeVisibilityField,
     setIngredientStatusById,
+    Wizard,
     type RecipeFormErrors,
     type RecipeFormMode,
     type RecipeFormValues,
+    type RecipeWizardStep,
 } from '@commise/features-recipes';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 import { useCallback } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
 import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
 
 /** Props for {@link RecipeEditor}. */
 export interface RecipeEditorProps {
-    /** Create vs edit — selects the form's heading and submit copy. */
+    /** Create vs edit — selects the wizard's PRESERVED Publish accessible name. */
     readonly mode: RecipeFormMode;
     /** The controlled draft (blank for create, seeded from the loaded recipe for edit). */
     readonly values: RecipeFormValues;
@@ -41,19 +48,38 @@ export interface RecipeEditorProps {
     readonly onChange: (next: RecipeFormValues) => void;
     /** Whether the composing screen's create/update mutation is in flight. */
     readonly submitting: boolean;
-    /** A localized error to surface above the form when the mutation failed. */
+    /** A localized error to surface above the wizard when the mutation failed. */
     readonly submitError?: string;
-    /** Called when the user submits the form — the caller validates (see `useRecipeEditor.submit`). */
-    readonly onSubmit: () => void;
-    /** Called when the user cancels the editor. */
+    /** The wizard's active step. */
+    readonly step: RecipeWizardStep;
+    /** Whether `step` has no validation errors (the `[Next]` gate). */
+    readonly canAdvanceFrom: (step: RecipeWizardStep) => boolean;
+    /** The validation errors belonging to `step` — drives the rail's invalid flag. */
+    readonly stepErrors: (step: RecipeWizardStep) => RecipeFormErrors;
+    /** Advance one step. */
+    readonly goNext: () => void;
+    /** Go back one step. */
+    readonly goPrev: () => void;
+    /** Jump directly to a step. */
+    readonly goToStep: (step: RecipeWizardStep) => void;
+    /** Persist as a draft. */
+    readonly saveDraft: () => void;
+    /** Whole-form validate then persist as published. */
+    readonly publish: () => void;
+    /** Whether the draft has unsaved edits relative to its baseline — drives the discard guard. */
+    readonly isDirty: boolean;
+    /** Called once Cancel is confirmed (or immediately when nothing would be lost). */
     readonly onCancel: () => void;
+    /** Step 4's body — the caller decides what "Photos" shows (a real uploader, or a "save first" notice). */
+    readonly photosSlot: ReactNode;
 }
 
 /**
- * The recipe create/edit editor.
+ * The recipe create/edit wizard editor.
  *
- * @param props - Mode, the controlled draft + its change handler, submission state, and the submit/cancel callbacks.
- * @returns The typeahead + controlled recipe form.
+ * @param props - Mode, the controlled draft + its change handler, the wizard's step/navigation, submission
+ *   state, the discard guard's `isDirty`, and the caller-supplied Photos step body.
+ * @returns The typeahead-augmented, controlled `Wizard`.
  */
 export function RecipeEditor({
     mode,
@@ -62,8 +88,17 @@ export function RecipeEditor({
     onChange,
     submitting,
     submitError,
-    onSubmit,
+    step,
+    canAdvanceFrom,
+    stepErrors,
+    goNext,
+    goPrev,
+    goToStep,
+    saveDraft,
+    publish,
+    isDirty,
     onCancel,
+    photosSlot,
 }: RecipeEditorProps): JSX.Element {
     // Carry the line's ACTUAL resolution status from the picker (a food added by name may be PENDING and
     // resolve later) — never assume RESOLVED, or a still-resolving line would never be polled. A line with no
@@ -98,29 +133,57 @@ export function RecipeEditor({
     );
 
     return (
-        // flex:1 so the child RecipeForm's ScrollView inherits a bounded height and can actually scroll — the
-        // ingredient picker stays pinned above it as the form scrolls.
         <View style={styles.container}>
             {submitError !== undefined && submitError.length > 0 && (
                 <Text accessibilityRole="alert">{submitError}</Text>
             )}
-            <IngredientPicker onResolve={appendResolved} />
-            {pendingIngredientIds(values).map((id) => (
-                <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
-            ))}
-            <RecipeForm
+            <Wizard
+                mode={mode === 'create' ? 'create' : 'edit'}
+                step={step}
                 values={values}
-                errors={errors}
-                mode={mode}
-                submitting={submitting}
-                onChange={onChange}
-                onSubmit={onSubmit}
+                canAdvanceFrom={canAdvanceFrom}
+                stepErrors={stepErrors}
+                goNext={goNext}
+                goPrev={goPrev}
+                goToStep={goToStep}
+                saveDraft={saveDraft}
+                publish={publish}
                 onCancel={onCancel}
-            />
+                isDirty={isDirty}
+                submitting={submitting}
+            >
+                {/* Sticky header: Save Draft / Preview / Cancel / Publish, outside the scrolling step body. */}
+                <Wizard.TopBar />
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <Wizard.Rail />
+                    <Wizard.Step step={1}>
+                        <RecipeBasicsFields values={values} errors={errors} onChange={onChange} />
+                        <RecipeVisibilityField values={values} onChange={onChange} />
+                    </Wizard.Step>
+                    <Wizard.Step step={2}>
+                        <IngredientPicker onResolve={appendResolved} />
+                        {pendingIngredientIds(values).map((id) => (
+                            <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
+                        ))}
+                        <RecipeIngredientsFields values={values} errors={errors} onChange={onChange} />
+                    </Wizard.Step>
+                    <Wizard.Step step={3}>
+                        <RecipeInstructionsFields values={values} errors={errors} onChange={onChange} />
+                    </Wizard.Step>
+                    <Wizard.Step step={4}>{photosSlot}</Wizard.Step>
+                    <Wizard.Controls />
+                </ScrollView>
+            </Wizard>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { gap: 16, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48 },
 });

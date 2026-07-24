@@ -24,7 +24,11 @@
             "import": "./dist/tokens/*.js",
             "default": "./dist/tokens/*.js"
         },
-        "./button": "./src/button/index.ts"
+        "./button": "./src/button/index.ts",
+        "./confirm-dialog": "./src/confirmDialog/index.ts"
+    },
+    "dependencies": {
+        "@radix-ui/react-alert-dialog": "^1.1.15"
     },
     "peerDependencies": {
         "react": "^19.0.0",

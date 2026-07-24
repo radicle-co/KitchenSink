@@ -14,7 +14,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 
-import { defaultRecipeFormValues, type RecipeFormValues } from '@commise/features-recipes';
+import {
+    canAdvanceFromStep,
+    defaultRecipeFormValues,
+    stepErrorsFor,
+    type RecipeFormValues,
+    type RecipeWizardStep,
+} from '@commise/features-recipes';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import {
     useAddIngredientByName,
@@ -92,10 +98,13 @@ beforeEach(() => {
 
 /**
  * A stateful wrapper mirroring how a real caller (`useRecipeEditor`, or the create screen's own local
- * state) owns `values` for the now-fully-controlled `RecipeEditor` — the editor itself holds no state.
+ * state) owns `values` AND the wizard's step for the now-fully-controlled `RecipeEditor` — the editor itself
+ * holds no state. Seeded with a title so step 1 is valid and `Next` can reach step 2 (Ingredients), where
+ * the picker under test lives.
  */
 function ControlledEditor(): ReturnType<typeof RecipeEditor> {
-    const [values, setValues] = useState<RecipeFormValues>(defaultRecipeFormValues());
+    const [values, setValues] = useState<RecipeFormValues>({ ...defaultRecipeFormValues(), title: 'Quinoa Bowl' });
+    const [step, setStep] = useState<RecipeWizardStep>(1);
 
     return (
         <RecipeEditor
@@ -103,18 +112,36 @@ function ControlledEditor(): ReturnType<typeof RecipeEditor> {
             values={values}
             onChange={setValues}
             submitting={false}
-            onSubmit={vi.fn()}
+            step={step}
+            canAdvanceFrom={(s) => canAdvanceFromStep(values, s)}
+            stepErrors={(s) => stepErrorsFor(values, s)}
+            goNext={() => {
+                if (step < 4 && canAdvanceFromStep(values, step)) {
+                    setStep((step + 1) as RecipeWizardStep);
+                }
+            }}
+            goPrev={() => {
+                if (step > 1) {
+                    setStep((step - 1) as RecipeWizardStep);
+                }
+            }}
+            goToStep={setStep}
+            saveDraft={vi.fn()}
+            publish={vi.fn()}
+            isDirty={false}
             onCancel={vi.fn()}
+            photosSlot={null}
         />
     );
 }
 
-/** Render the editor and add "Quinoa" through the addByName (find-nutrition) path. */
+/** Render the editor, navigate to step 2 (Ingredients), and add "Quinoa" through the addByName path. */
 function addByNameFlow(added: ReturnType<typeof makeIngredient>): void {
     useAddIngredientByNameMock.mockReturnValue(addByNameMutation(added));
 
     render(<ControlledEditor />);
 
+    fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
     fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Quinoa' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find nutrition for “Quinoa”' }));
 }

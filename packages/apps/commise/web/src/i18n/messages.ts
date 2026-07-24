@@ -145,6 +145,8 @@ export interface WebMessages {
         readonly form: {
             /** Error shown when persisting a create/edit fails. */
             readonly submitError: string;
+            /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
+            readonly photosAfterCreateNotice: string;
         };
         /** Copy for the ingredient typeahead the shared form block deliberately omits (the container owns it). */
         readonly picker: {
@@ -310,6 +312,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             },
             form: {
                 submitError: 'We couldn’t save this recipe. Please try again.',
+                photosAfterCreateNotice: 'Save this recipe first — you can add photos from its edit page.',
             },
             picker: {
                 regionLabel: 'Ingredient search',

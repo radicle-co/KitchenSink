@@ -62,10 +62,11 @@ beforeEach(() => {
 });
 
 describe('RecipeCreateScreen — chrome', () => {
-    it('renders the create heading and submit label', () => {
+    it('renders the create wizard, seeded at step 1, with the PRESERVED submit label', () => {
         render(<RecipeCreateScreen onCreated={vi.fn()} onCancel={vi.fn()} />);
 
-        expect(screen.getByRole('heading', { name: 'New recipe' })).toBeTruthy();
+        expect(screen.getByLabelText('Title')).toBeTruthy();
+        expect(screen.getByText('Step 1 of 4')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Create recipe' })).toBeTruthy();
     });
 });
@@ -94,16 +95,22 @@ describe('RecipeCreateScreen — happy path', () => {
 
         render(<RecipeCreateScreen onCreated={onCreated} onCancel={vi.fn()} />);
 
-        // Title.
+        // Step 1: Title.
         fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Weeknight Pasta' } });
-        // Resolve an ingredient via the typeahead (appends a resolved line with quantity 1). The picker only
-        // surfaces search results once a query is typed (`deriveViewState` gates on a non-empty `trimmed`).
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+
+        // Step 2: resolve an ingredient via the typeahead (appends a resolved line with quantity 1). The
+        // picker only surfaces search results once a query is typed (`deriveViewState` gates on a non-empty
+        // `trimmed`).
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'olive' } });
         fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
-        // Add and fill an instruction step.
+        fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+
+        // Step 3: add and fill an instruction step.
         fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
         fireEvent.change(screen.getByLabelText('Step 1 instruction'), { target: { value: 'Boil the pasta.' } });
 
+        // Publish (the top-bar action, reachable from any step) carries the PRESERVED "Create recipe" name.
         fireEvent.click(screen.getByRole('button', { name: 'Create recipe' }));
 
         expect(mutate).toHaveBeenCalledTimes(1);

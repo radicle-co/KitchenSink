@@ -38,6 +38,22 @@ export interface RecipeFormProps {
     readonly onCancel: () => void;
 }
 
+/**
+ * Props shared by every extracted field-group leaf (`RecipeFormSections.tsx`/`.native.tsx`) — Basics,
+ * Ingredients, Instructions, Visibility. Deliberately narrower than {@link RecipeFormProps}: a section is a
+ * pure `values -> JSX` slice with no `mode`/`submitting`/`onSubmit`/`onCancel` concerns, so it composes
+ * equally under `RecipeForm`'s single `<form>` (T067) AND under a `Wizard.Step` (w3), which needs the SAME
+ * fields with none of the form-level chrome.
+ */
+export interface RecipeFormSectionProps {
+    /** The full editable form state — sections read only the slice they render. */
+    readonly values: RecipeFormValues;
+    /** Field-level validation messages to surface; absent/empty when the form is valid. */
+    readonly errors?: RecipeFormErrors;
+    /** Called with the next values on every field/row edit (add, remove, or change). */
+    readonly onChange: (next: RecipeFormValues) => void;
+}
+
 /** A blank ingredient line: unresolved (no catalog id yet), empty name, quantity 1. */
 export const blankIngredient = (): RecipeFormIngredient => ({ ingredientId: null, name: '', quantity: 1 });
 

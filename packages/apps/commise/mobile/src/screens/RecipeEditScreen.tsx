@@ -1,14 +1,16 @@
 /**
  * Recipe-edit screen (mobile, T067 + T070; CP-6/P1 — rewired onto the shared `useRecipeEditor` headless
- * hook, `@commise/features-recipes/hooks`). The hook owns the whole edit lifecycle — seed-once, validation,
- * submit-with-`expectedVersion`, the 409-to-conflict transition, and the three FR-007c resolutions — as a
- * discriminated-union statechart; this screen is now a thin renderer that switches on `state.status`. The
- * old `seedNonce`/`seedOverride` remount hack is GONE: `RecipeEditor` is a plain controlled component
- * (`values` in, `onChange` out), so "use theirs" is the SAME `setValues` transition the hook's initial seed
- * uses — no remount required. See the hook's module doc for the full statechart and the reseed-
- * incompatibility fix. Mirrors the web `RecipeEditContainer`.
+ * hook, `@commise/features-recipes/hooks`; w3/e1,e2 — rewired again onto the 4-step `Wizard` shell via
+ * `RecipeEditor`). The hook owns the whole edit lifecycle — seed-once, validation,
+ * submit-with-`expectedVersion`, the 409-to-conflict transition, the three FR-007c resolutions, AND (w3) the
+ * step/draft/publish extensions — as a discriminated-union statechart plus orthogonal step-navigation state;
+ * this screen is a thin renderer that switches on `state.status`. The old `seedNonce`/`seedOverride` remount
+ * hack is GONE: `RecipeEditor` is a plain controlled component (`values` in, `onChange` out), so "use
+ * theirs" is the SAME `setValues` transition the hook's initial seed uses — no remount required. See the
+ * hook's module doc for the full statechart and the reseed-incompatibility fix. Mirrors the web
+ * `RecipeEditContainer`.
  */
-import { RecipeConflictView, toRecipeFormValues } from '@commise/features-recipes';
+import { RecipeConflictView, toRecipeFormValues, useDiscardGuard } from '@commise/features-recipes';
 import { useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
@@ -37,6 +39,14 @@ export interface RecipeEditScreenProps {
 export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
     const editor = useRecipeEditor(recipeId, { onSaved: (recipe) => onSaved(recipe.id) });
+
+    // The discard guard's "unsaved edits" baseline: captured once the recipe has seeded (past `'loading'`),
+    // re-captured on every successful save (`'saved'`) — see `useDiscardGuard`'s module doc. Declared before
+    // the early returns below (Rules of Hooks: no conditional hook calls).
+    const isDirty = useDiscardGuard(editor.values, {
+        ready: editor.state.status !== 'loading',
+        justSaved: editor.state.status === 'saved',
+    });
 
     // `isError` MUST be checked before the loading condition below: on a genuine failure `query.data` stays
     // `undefined` forever, which would otherwise keep `editor.state.status === 'loading'` true forever too
@@ -84,19 +94,25 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     }
 
     return (
-        <>
-            <RecipeEditor
-                mode="edit"
-                values={editor.values}
-                errors={editor.errors}
-                onChange={editor.setValues}
-                submitting={editor.state.status === 'submitting'}
-                submitError={editor.submitError ? t.saveError : undefined}
-                onSubmit={editor.submit}
-                onCancel={onCancel}
-            />
-            <RecipePhotoUploader recipeId={recipeId} />
-        </>
+        <RecipeEditor
+            mode="edit"
+            values={editor.values}
+            errors={editor.errors}
+            onChange={editor.setValues}
+            submitting={editor.state.status === 'submitting'}
+            submitError={editor.submitError ? t.saveError : undefined}
+            step={editor.step}
+            canAdvanceFrom={editor.canAdvanceFrom}
+            stepErrors={editor.stepErrors}
+            goNext={editor.goNext}
+            goPrev={editor.goPrev}
+            goToStep={editor.goToStep}
+            saveDraft={editor.saveDraft}
+            publish={editor.publish}
+            isDirty={isDirty}
+            onCancel={onCancel}
+            photosSlot={<RecipePhotoUploader recipeId={recipeId} />}
+        />
     );
 }
 

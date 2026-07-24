@@ -93,6 +93,8 @@ export interface MobileMessages {
         readonly createError: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
+        /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
+        readonly photosAfterCreateNotice: string;
         /** Alert shown when deleting a recipe fails. */
         readonly deleteError: string;
         /** Alert shown when cloning a recipe fails. */
@@ -233,6 +235,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
             saveError: 'We couldn’t save your changes. Please try again.',
+            photosAfterCreateNotice: 'Save this recipe first — you can add photos from its edit screen.',
             deleteError: 'We couldn’t delete this recipe. Please try again.',
             cloneError: 'We couldn’t clone this recipe. Please try again.',
             versionsLoading: 'Loading version history…',

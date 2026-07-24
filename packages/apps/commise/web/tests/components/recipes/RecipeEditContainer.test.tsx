@@ -105,15 +105,23 @@ describe('RecipeEditContainer', () => {
         await vi.waitFor(() => expect(getRecipeSpy).toHaveBeenCalledTimes(2));
     });
 
-    it('seeds the form from the loaded recipe', async () => {
+    it('seeds the 4-step wizard from the loaded recipe, one step at a time', async () => {
+        const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        expect(await screen.findByRole('heading', { level: 1, name: 'Edit recipe' })).toBeInTheDocument();
-        expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Weeknight Pasta');
+        // Step 1 (Basic) is seeded and shown first.
+        expect(await screen.findByRole('textbox', { name: 'Title' })).toHaveValue('Weeknight Pasta');
+        expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
+
+        // Step 2 (Ingredients) is seeded, reached via the footer nav.
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
         expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' })).toHaveValue('Olive oil');
+
+        // Step 3 (Instructions) is seeded too.
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
         expect(screen.getByRole('textbox', { name: 'Step 1 instruction' })).toHaveValue('Combine the ingredients.');
     });
 
@@ -238,5 +246,74 @@ describe('RecipeEditContainer', () => {
         expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Server Pasta');
         // The user is NOT navigated away — they land back on the up-to-date edit form.
         expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it('Save Draft persists with a draft status, then navigates back to the detail route (onSaved)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+        const updateSpy = vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await screen.findByRole('textbox', { name: 'Title' });
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+        const [, input] = updateSpy.mock.calls[0]!;
+        expect(input.status).toBe('draft');
+        // `useRecipeEditor`'s `onSaved` fires on every successful save (draft or publish) — same navigation
+        // the pre-wizard "Save changes" always used.
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+    });
+
+    it('Publish is blocked while the ingredients step is invalid, and flags that step in the rail', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ title: 'Weeknight Pasta', ingredients: [] }),
+        );
+        const updateSpy = vi.spyOn(client, 'updateRecipe');
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await screen.findByRole('textbox', { name: 'Title' });
+        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        expect(updateSpy).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: /Ingredients: needs attention/ })).toBeInTheDocument();
+        expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it('Cancel with unsaved edits shows the discard-confirmation dialog; confirming navigates to the detail route', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+        expect(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+        expect(pushMock).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+    });
+
+    it('Cancel with no unsaved edits navigates to the detail route immediately (no dialog)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await screen.findByRole('textbox', { name: 'Title' });
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
     });
 });

@@ -5,6 +5,12 @@
  * into their recipe create/edit page/screen, wiring validation, ingredient typeahead, and submission.
  */
 export { RecipeForm } from './RecipeForm.js';
+export {
+    RecipeBasicsFields,
+    RecipeIngredientsFields,
+    RecipeInstructionsFields,
+    RecipeVisibilityField,
+} from './RecipeFormSections.js';
 
 export {
     applyDraftToRecipeDetail,
@@ -43,7 +49,7 @@ export {
     updateIngredientAt,
     updateStepAt,
 } from './props.js';
-export type { DifficultyOption, RecipeFormMode, RecipeFormProps } from './props.js';
+export type { DifficultyOption, RecipeFormMode, RecipeFormProps, RecipeFormSectionProps } from './props.js';
 
 export { recipeFormMessages } from './messages.js';
 export type { RecipeFormMessages } from './messages.js';

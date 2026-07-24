@@ -55,6 +55,11 @@ export default defineConfig({
             // `expo-image` is a native module with no jsdom runtime; the native leaves that adopt it for
             // disk-cached remote images (B11) render through a react-native-web stub under these tests.
             'expo-image': path.resolve(import.meta.dirname, 'test-utils/expoImageStub.tsx'),
+            // `@expo/vector-icons` ships extensionless internal ESM imports (`./createIconSet`, required
+            // from `AntDesign.js`) that a cold Vitest dependency scan cannot reliably resolve (w3: exposed by
+            // the wizard's new `Feather` usage — mirrors `@commise/mobile`'s identical fix, same root cause).
+            // Icons are decorative in these tests, so stub the whole module.
+            '@expo/vector-icons': path.resolve(import.meta.dirname, 'test-utils/expoVectorIconsStub.tsx'),
         },
     },
 });

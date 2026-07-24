@@ -1,19 +1,17 @@
 /**
- * Component tests for RecipeCreateContainer (T067 web recipe-create wiring). Covers: the create form
- * renders; an invalid form blocks submission (no mutation, validation surfaced); a valid form maps to the
- * `CreateRecipeInput` wire shape (with the ingredient resolved via the picker) and navigates to the new
- * recipe on success; poll-after-add (a PENDING line resolves to RESOLVED via the poller); and a persistence
- * failure surfaces. The Next router stays mocked; queries use role/label/text only.
+ * Component tests for RecipeCreateContainer (w3/e1,e2: rewired onto the 4-step `Wizard` shell). Covers: the
+ * wizard renders seeded at step 1; an invalid form blocks submission (no mutation, validation surfaced on
+ * the current step); a valid form — filled across steps 1/2/3 via the footer `Next` nav — maps to the
+ * `CreateRecipeInput` wire shape (with the ingredient resolved via the picker on step 2) and navigates to
+ * the new recipe on success; Save Draft persists with a draft status; poll-after-add (a PENDING line
+ * resolves to RESOLVED via the poller, on step 2); and a persistence failure surfaces. The Next router stays
+ * mocked; queries use role/label/text only.
  *
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
  * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL recipe-service hooks
  * (`useCreateRecipe`, plus the embedded `IngredientPicker`'s `useSearchIngredients`/`useAddIngredientByName`/
  * `useIngredientStatus` via the shared `useIngredientResolver`) over a real, network-guarded
- * `RecipeServiceClient`, stubbed per test with type-checked `vi.spyOn(client, '<method>')`. This is a FULL
- * migration — no narrow hook-level mock remains. `useIngredientCandidates`/`useResolveIngredient` need no
- * stub at all: the resolver only enables/calls them once a match enters disambiguation (`UNRESOLVED`), which
- * none of these tests ever drive into, so the real (disabled) query/never-called mutation touch the client
- * exactly zero times.
+ * `RecipeServiceClient`, stubbed per test with type-checked `vi.spyOn(client, '<method>')`.
  */
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -41,15 +39,17 @@ afterEach(() => {
 });
 
 describe('RecipeCreateContainer', () => {
-    it('renders the create form', () => {
+    it('renders the create wizard, seeded at step 1', () => {
         const client = createFakeRecipeServiceClient();
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
-        expect(screen.getByRole('heading', { level: 1, name: 'New recipe' })).toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument();
+        expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Create recipe' })).toBeInTheDocument();
     });
 
-    it('blocks submission and surfaces validation when the form is invalid', async () => {
+    it('blocks submission and surfaces validation on the current step when the form is invalid', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         const createSpy = vi.spyOn(client, 'createRecipe');
@@ -60,9 +60,10 @@ describe('RecipeCreateContainer', () => {
 
         expect(createSpy).not.toHaveBeenCalled();
         expect(screen.getByText('A title is required.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Basic: needs attention/ })).toBeInTheDocument();
     });
 
-    it('maps a valid form to the wire input and navigates to the new recipe on success', async () => {
+    it('maps a valid form (filled across steps) to the wire input and navigates to the new recipe on success', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'searchIngredients').mockResolvedValue([
@@ -72,16 +73,20 @@ describe('RecipeCreateContainer', () => {
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
+        // Step 1: title.
         await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Test Recipe');
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
 
-        // Resolve an ingredient via the picker so the line carries an ingredientId.
+        // Step 2: resolve an ingredient via the picker so the line carries an ingredientId.
         await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'oli');
         await user.click(await screen.findByRole('button', { name: 'Olive oil' }));
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
 
-        // Add and fill one instruction step.
+        // Step 3: add and fill one instruction step.
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
 
+        // Publish is reachable from any step (the top bar renders it throughout).
         await user.click(screen.getByRole('button', { name: 'Create recipe' }));
 
         const createSpy = vi.mocked(client.createRecipe);
@@ -90,6 +95,26 @@ describe('RecipeCreateContainer', () => {
         expect(input.title).toBe('Test Recipe');
         expect(input.ingredients).toEqual([{ ingredientId: 'ing_9', name: 'Olive oil', quantity: 1 }]);
         expect(input.steps).toEqual([{ instruction: 'Combine everything.' }]);
+        expect(input.status).toBe('published');
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created'));
+    });
+
+    it('Save Draft persists with a draft status under the relaxed step-1-only floor', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'createRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_created' }));
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+
+        // No ingredients/steps filled at all — Save Draft's floor is step 1 only (title/servings/times).
+        await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Draft Recipe');
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        const createSpy = vi.mocked(client.createRecipe);
+        await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+        const [input] = createSpy.mock.calls[0] as [CreateRecipeInput];
+        expect(input.title).toBe('Draft Recipe');
+        expect(input.status).toBe('draft');
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created'));
     });
 
@@ -108,6 +133,9 @@ describe('RecipeCreateContainer', () => {
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
+        // Step 1 must be valid (a non-blank title) before Next can advance to step 2.
+        await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Quinoa Bowl');
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
         await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'Quinoa');
         await user.click(await screen.findByRole('button', { name: 'Find nutrition for “Quinoa”' }));
 
@@ -130,12 +158,31 @@ describe('RecipeCreateContainer', () => {
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
         await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Test Recipe');
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
         await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'oli');
         await user.click(await screen.findByRole('button', { name: 'Olive oil' }));
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
         await user.click(screen.getByRole('button', { name: 'Create recipe' }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t save this recipe. Please try again.');
+    });
+
+    it('Cancel with unsaved edits shows the discard-confirmation dialog; confirming navigates to the recipe list', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+
+        await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Test Recipe');
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+        expect(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+        expect(pushMock).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes');
     });
 });

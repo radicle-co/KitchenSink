@@ -215,7 +215,7 @@ describe('RecipeEditScreen — ready state', () => {
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
-        expect(screen.getByRole('heading', { name: 'Edit recipe' })).toBeTruthy();
+        expect(screen.getByText('Step 1 of 4')).toBeTruthy();
         expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Weeknight Pasta');
     });
 });
@@ -395,7 +395,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Use the latest version' }));
 
-        expect(await screen.findByRole('heading', { name: 'Edit recipe' })).toBeTruthy();
+        expect(await screen.findByLabelText('Title')).toBeTruthy();
         expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Server Saved Recipe');
         expect(onSaved).not.toHaveBeenCalled();
     });

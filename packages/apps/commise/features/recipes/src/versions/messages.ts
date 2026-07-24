@@ -342,7 +342,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             optionMergeDescription: 'Review each changed field and choose which version to keep.',
             mergeHeading: 'Merge changes field by field',
             mergeExplanation:
-                'For each field, choose which version to keep. Your version is selected by default — change any field to pull in the latest saved value.',
+                'Choose a value for each changed field. Nothing is selected by default; the Save button stays disabled until you pick at least one.',
             mergeMineLabel: 'Your version',
             mergeServerLabel: 'Latest saved version',
             mergeOptionLabel: '{side}: {value}',

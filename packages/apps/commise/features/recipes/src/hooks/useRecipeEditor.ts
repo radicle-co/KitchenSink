@@ -100,15 +100,17 @@
  * state, not just its `visibility` field. `publish()` is unaffected — it always sends `status: 'published'`.
  *
  * **`defaultMergeSelections` (`versions/model.ts`) was DELETED, not consumed, by this change.** It built a
- * fully-materialized `{[key]: 'mine'}` record from a LOCALIZED `RecipeMergeField[]` (itself built from
- * `messages`/`locale`, which this platform-agnostic hook does not have and must not import). Both live
- * readers of a per-field selection already treat an ABSENT key as `'mine'` —
- * `composeMergedRecipe` (`selections[key] === 'theirs' ? theirs : mine`) and `RecipeConflictView`'s `sideOf`
- * (`selections[key] ?? 'mine'`) — so seeding `conflict.mergeSelections` with `{}` on conflict entry is
- * BEHAVIORALLY IDENTICAL to seeding it with a materialized default record. The function had zero production
- * callers before this change (confirmed in the CP-6 current-state map) and gained none after it — keeping an
- * unconsumed third statement of "mine is the default" would have been a DRY liability, not a DRY win, so it
- * (and its dedicated test) were removed rather than force-fed an artificial caller.
+ * fully-materialized `{[key]: 'mine'}` record from a LOCALIZED field-label list (itself built from
+ * `messages`/`locale`, which this platform-agnostic hook does not have and must not import). The one live
+ * reader of a per-field selection's default still treats an ABSENT key as `'mine'` —
+ * `composeMergedRecipe` (`selections[key] === 'theirs' ? theirs : mine`) — so seeding `conflict.mergeSelections`
+ * with `{}` on conflict entry is BEHAVIORALLY IDENTICAL to seeding it with a materialized default record.
+ * (`RecipeConflictView`'s own `sideOf` renders an absent key as NEITHER radio checked — a display/gating
+ * distinction from `composeMergedRecipe`'s compose-time default, not a second data-level fallback.) The
+ * function had zero production callers before this change (confirmed in the CP-6 current-state map) and
+ * gained none after it — keeping an unconsumed third statement of "mine is the default" would have been a
+ * DRY liability, not a DRY win, so it (and its dedicated test) were removed rather than force-fed an
+ * artificial caller.
  */
 import {
     RecipeStatus,

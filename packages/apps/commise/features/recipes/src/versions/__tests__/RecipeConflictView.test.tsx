@@ -587,4 +587,57 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         fireEvent.click(save);
         expect(onMerge).toHaveBeenCalledTimes(1);
     });
+
+    it('resets staleConfirmed AND the merge panel — re-blocking Overwrite until re-confirmed — when a SECOND, still-stale conflict arrives on the same instance (X6 robustness gap)', () => {
+        freezeClock();
+        const onOverwrite = vi.fn();
+        const firstProps: RecipeConflictViewProps = {
+            server,
+            base,
+            diff,
+            versionsBehind: 11,
+            mineValues,
+            theirsValues,
+            selections: {},
+            onSelectionsChange: noop,
+            onKeepServer: noop,
+            onOverwrite,
+            onMerge: noop,
+        };
+        const { rerender } = render(<RecipeConflictView {...firstProps} />);
+
+        // Enter the merge panel for the FIRST conflict and confirm its stale-base warning there (the same
+        // shared checkbox gates Save merged version).
+        fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand — continue anyway' }).checked).toBe(
+            true,
+        );
+
+        // A SECOND, still-stale conflict lands on the SAME component instance (new props, e.g. a retried
+        // Overwrite that 409'd again) — a different server versionNumber identifies it as a NEW conflict.
+        const secondServer = makeVersionConflictSide({ versionNumber: 9, updatedAt: '2026-05-09T15:00:00.000Z' });
+        rerender(<RecipeConflictView {...firstProps} server={secondServer} />);
+
+        // The merge panel toggle resets — a NEW conflict restarts at the options view.
+        expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
+        expect(screen.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
+
+        // The confirm checkbox is UNCHECKED again, and Overwrite is BLOCKED until re-confirmed for THIS
+        // conflict — the stale checkbox state must not survive across conflicts.
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand — continue anyway' }).checked).toBe(
+            false,
+        );
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        expect(overwrite.disabled).toBe(true);
+
+        fireEvent.click(overwrite);
+        expect(onOverwrite).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        expect(overwrite.disabled).toBe(false);
+        fireEvent.click(overwrite);
+        expect(onOverwrite).toHaveBeenCalledTimes(1);
+    });
 });

@@ -25,10 +25,12 @@
  * they live on. Nothing is auto-merged; every field's resolution is the user's explicit choice. `selections`
  * comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every toggle
  * reports back via `onSelectionsChange` — this view owns no merge data of its own. Only the merge-panel-
- * visible toggle and the stale-confirm checkbox stay local (pure UI state, not data the machine needs).
+ * visible toggle and the stale-confirm checkbox stay local (pure UI state, not data the machine needs) —
+ * and BOTH reset whenever `server.versionNumber` changes, i.e. whenever a NEW conflict (not merely a
+ * re-render of the SAME one) arrives on this component instance, so neither can leak across conflicts.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
 import type { ConflictMarker } from './conflictDiff.js';
@@ -127,6 +129,16 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     // controlled by the caller.
     const [merging, setMerging] = useState(false);
     const [staleConfirmed, setStaleConfirmed] = useState(false);
+    // A NEW conflict (same component instance, new props — e.g. a retried Overwrite that 409'd again) must
+    // NOT inherit the PRIOR conflict's local UI state: without this reset, a confirmed-but-still-stale
+    // checkbox would silently authorize Overwrite/Save-merged on a conflict the user never actually
+    // confirmed (X6 robustness gap), and the merge panel would stay open showing the STALE conflict's rows.
+    // `server.versionNumber` is this conflict's stable identity token (a fresh 409 always carries the
+    // server's CURRENT version, so two DIFFERENT conflicts can never share one).
+    useEffect(() => {
+        setStaleConfirmed(false);
+        setMerging(false);
+    }, [server.versionNumber]);
     // Reading the clock is THIS component's own side effect (mirrors `HomeGreeting`'s split of "the caller
     // reads `new Date()`, the pure formatter only maps an instant to a string") — `formatServerBanner`/
     // `formatRelativeTimeAgo` stay pure and testable without freezing time.

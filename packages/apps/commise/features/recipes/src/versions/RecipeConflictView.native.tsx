@@ -11,11 +11,13 @@
  *
  * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows`, Server FIRST then Yours (X7), gated (X5) on at
  * least one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an
- * explicit stale-base confirm shared with Overwrite. See the web leaf's own module doc for the full
- * rationale; this file mirrors it exactly so the two platforms cannot drift.
+ * explicit stale-base confirm shared with Overwrite. Both the merge-panel toggle and the stale-confirm
+ * checkbox are local UI state that resets whenever `server.versionNumber` changes (a NEW conflict on this
+ * SAME instance). See the web leaf's own module doc for the full rationale; this file mirrors it exactly so
+ * the two platforms cannot drift.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FC } from 'react';
 import { palette } from '@commise/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -123,6 +125,13 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     // the caller.
     const [merging, setMerging] = useState(false);
     const [staleConfirmed, setStaleConfirmed] = useState(false);
+    // A NEW conflict (same component instance, new props) must NOT inherit the PRIOR conflict's local UI
+    // state — see the web leaf's own note (X6 robustness gap). `server.versionNumber` is this conflict's
+    // stable identity token.
+    useEffect(() => {
+        setStaleConfirmed(false);
+        setMerging(false);
+    }, [server.versionNumber]);
     // Reading the clock is THIS component's own side effect — see the web leaf's own note.
     const now = new Date();
 
@@ -183,7 +192,11 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <Text accessibilityLiveRegion="polite" style={styles.summary}>
                     {formatMergeSummary(selections, conflict, locale)}
                 </Text>
-                {!hasSelection && <Text style={styles.explanation}>{conflict.mergeNoSelectionHint}</Text>}
+                {!hasSelection && (
+                    <Text accessibilityLiveRegion="polite" style={styles.explanation}>
+                        {conflict.mergeNoSelectionHint}
+                    </Text>
+                )}
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={conflict.mergeSubmit}

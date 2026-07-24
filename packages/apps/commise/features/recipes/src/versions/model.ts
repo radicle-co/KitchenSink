@@ -102,15 +102,16 @@ export interface RecipeConflictViewProps {
      *  everywhere (X7). Drives the per-side banner (X3). */
     readonly server: VersionConflictSide;
     /** The version the draft was edited from, when still retained in the DB window; ABSENT when evicted (the
-     *  base-evicted fallback — see `conflictDiff.ts`). Carried through for the changed-fields panel/staleness
-     *  warning; this view does not read it directly. */
+     *  base-evicted fallback — see `conflictDiff.ts`). Read directly by `isConflictBaseStale` (W7 Task 5 / X6)
+     *  to decide whether the stale-base warning + confirm gate applies. */
     readonly base?: VersionConflictSide;
     /** The precomputed 3-way diff (`computeConflictDiff`, W7 Task 1) — changed-or-conflicting rows only.
      *  Rendered as the changed-only diff panel below the three options, with a per-row marker + legend
      *  (W7 Task 4 / X1). */
     readonly diff: ConflictDiff;
-    /** `server.versionNumber - (base?.versionNumber ?? 0)` (the X6 staleness signal) — carried through for
-     *  W7 Task 5's staleness warning; this view does not render it yet. */
+    /** `server.versionNumber - (base?.versionNumber ?? 0)` (the X6 staleness signal) — passed to
+     *  `isConflictBaseStale` alongside `base` to render W7 Task 5's staleness warning and gate
+     *  Overwrite/Save-merged on an explicit confirm. */
     readonly versionsBehind: number;
     /** The user's in-progress draft, as the editable form shape — the "mine" side of the field-by-field merge
      *  (Option C). */
@@ -931,14 +932,14 @@ export const changedFromCurrentCounts = (
 
 /**
  * Render the "Changed from current: {ingredients}, {steps}" summary line from a {@link SnapshotDiff}, with
- * each count correctly pluralized via the SAME `ingredientCount*`/`stepCount*` templates the merge panel's
- * own ingredient/step counts already use ({@link buildRecipeMergeFields}) — a count of 1 reads "1
+ * each count correctly pluralized via the SAME `ingredientCount*`/`stepCount*` templates the compare panel's
+ * own ingredient/step counts already use ({@link collectionFieldValue}) — a count of 1 reads "1
  * ingredient"/"1 step", never a hard-coded plural ("1 ingredients"/"1 steps"). The field label is one piece
  * of knowledge regardless of which version surface renders it; so is its pluralization. Pure.
  *
  * @param diff - This version's diff vs. the recipe's current version.
  * @param previewMessages - The localized preview copy (the summary line's own template).
- * @param conflictMessages - The shared singular/plural count templates (reused — see {@link buildRecipeMergeFields}).
+ * @param conflictMessages - The shared singular/plural count templates (reused — see {@link collectionFieldValue}).
  * @param locale - The active BCP-47 locale (for locale-correct count pluralization).
  * @returns The formatted "Changed from current" summary line.
  */

@@ -860,6 +860,13 @@ export interface Collection {
     id: string;
     ownerId: string;
     name: string;
+    /**
+     * Reuses {@link RecipeVisibility} (`'public' | 'private'`) rather than a separate
+     * collection-scoped union — the server's `CollectionVisibility` enum has the identical
+     * value set, and the two concepts are the same thing at different layers. Always present:
+     * the server sends it on every collection read (list and single).
+     */
+    visibility: RecipeVisibility;
     description?: string;
     /**
      * Set when this collection was cloned from another collection (FR-011).
@@ -869,6 +876,8 @@ export interface Collection {
     sourceCollectionId?: string;
     createdAt: IsoDateTimeString;
     updatedAt: IsoDateTimeString;
+    /** Member recipe count; present only on single-collection reads (absent on list reads). */
+    recipeCount?: number;
 }
 
 /**
@@ -878,10 +887,12 @@ export const collectionSchema = z.object({
     id: idSchema,
     ownerId: idSchema,
     name: z.string().min(1),
+    visibility: recipeVisibilitySchema,
     description: z.string().min(1).optional(),
     sourceCollectionId: idSchema.optional(),
     createdAt: isoDateTimeStringSchema,
     updatedAt: isoDateTimeStringSchema,
+    recipeCount: z.number().int().nonnegative().optional(),
 });
 
 /**

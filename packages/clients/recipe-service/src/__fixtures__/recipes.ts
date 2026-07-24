@@ -87,6 +87,7 @@ export function makeCollection(overrides: Partial<Collection> = {}): Collection 
         id: 'col_1',
         ownerId: 'usr_1',
         name: 'Weeknight dinners',
+        visibility: 'private',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
         ...overrides,

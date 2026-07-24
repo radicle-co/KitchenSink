@@ -23,6 +23,7 @@ function makeCollectionWithRecipes(overrides: Partial<CollectionWithRecipes> = {
         id: 'col_1',
         ownerId: 'usr_1',
         name: 'Weeknight Dinners',
+        visibility: 'private',
         createdAt: '2026-04-01T09:00:00.000Z',
         updatedAt: '2026-04-19T09:30:00.000Z',
     };

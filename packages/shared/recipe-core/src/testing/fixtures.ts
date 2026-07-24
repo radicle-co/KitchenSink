@@ -161,6 +161,7 @@ export function makeCollection(overrides: Partial<Collection> = {}): Collection 
         id: 'col_1',
         ownerId: 'usr_1',
         name: 'Weeknight dinners',
+        visibility: 'private',
         description: 'Fast, comforting meals for busy nights.',
         createdAt: '2026-04-01T09:00:00.000Z',
         updatedAt: '2026-04-19T09:30:00.000Z',

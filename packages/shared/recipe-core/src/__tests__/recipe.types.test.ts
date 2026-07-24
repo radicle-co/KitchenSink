@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { CUISINES, isRecipeError, RecipeErrorCode } from '../index.js';
-import type { RecipeError } from '../index.js';
+import { collectionSchema, CUISINES, isRecipeError, RecipeErrorCode } from '../index.js';
+import type { Collection, RecipeError } from '../index.js';
 
 describe('isRecipeError', () => {
     it('matches a structurally-valid RecipeError instance', () => {
@@ -68,5 +68,61 @@ describe('CUISINES (w3/e5)', () => {
         }
 
         expect(new Set(CUISINES).size).toBe(CUISINES.length);
+    });
+});
+
+describe('collectionSchema (W5 collection-view wire fields)', () => {
+    const baseWireCollection = {
+        id: 'col_1',
+        ownerId: 'usr_1',
+        name: 'Weeknight dinners',
+        createdAt: '2026-04-01T09:00:00.000Z',
+        updatedAt: '2026-04-19T09:30:00.000Z',
+    };
+
+    it('accepts and returns a required `visibility` alongside an optional `recipeCount` (not stripped)', () => {
+        const wire = { ...baseWireCollection, visibility: 'public', recipeCount: 5 };
+
+        const parsed = collectionSchema.parse(wire);
+
+        expect(parsed.visibility).toBe('public');
+        expect(parsed.recipeCount).toBe(5);
+    });
+
+    it('accepts `visibility: "private"` with `recipeCount` absent (list reads omit it)', () => {
+        const wire = { ...baseWireCollection, visibility: 'private' };
+
+        const parsed = collectionSchema.parse(wire);
+
+        expect(parsed.visibility).toBe('private');
+        expect(parsed.recipeCount).toBeUndefined();
+    });
+
+    it('rejects a wire object missing `visibility` (the server always sends it)', () => {
+        expect(() => collectionSchema.parse(baseWireCollection)).toThrow();
+    });
+
+    it('rejects a negative `recipeCount`', () => {
+        const wire = { ...baseWireCollection, visibility: 'public', recipeCount: -1 };
+
+        expect(() => collectionSchema.parse(wire)).toThrow();
+    });
+
+    it('rejects a non-integer `recipeCount`', () => {
+        const wire = { ...baseWireCollection, visibility: 'public', recipeCount: 1.5 };
+
+        expect(() => collectionSchema.parse(wire)).toThrow();
+    });
+
+    it('the inferred `Collection` type carries a required `visibility` and optional `recipeCount`', () => {
+        // Compile-time proof: this object satisfies `Collection` only with `visibility` present and typed
+        // as `RecipeVisibility`, and compiles fine with `recipeCount` omitted (proving it is optional).
+        const collection: Collection = {
+            ...baseWireCollection,
+            visibility: 'private',
+        };
+
+        expect(collection.visibility).toBe('private');
+        expect(collection.recipeCount).toBeUndefined();
     });
 });

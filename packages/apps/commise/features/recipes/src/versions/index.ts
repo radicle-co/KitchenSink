@@ -16,6 +16,7 @@ export {
     changedFromCurrentCounts,
     compareViewState,
     composeMergedRecipe,
+    formatChangedFromCurrent,
     formatCollectionTally,
     formatVersionTimestamp,
     snapshotFieldLabel,

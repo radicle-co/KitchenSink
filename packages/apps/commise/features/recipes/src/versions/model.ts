@@ -596,6 +596,41 @@ export const changedFromCurrentCounts = (
     steps: diff.steps.added + diff.steps.removed + diff.steps.modified,
 });
 
+/**
+ * Render the "Changed from current: {ingredients}, {steps}" summary line from a {@link SnapshotDiff}, with
+ * each count correctly pluralized via the SAME `ingredientCount*`/`stepCount*` templates the conflict
+ * panel's own ingredient/step counts already use ({@link toConflictSideFields}) — a count of 1 reads "1
+ * ingredient"/"1 step", never a hard-coded plural ("1 ingredients"/"1 steps"). The field label is one piece
+ * of knowledge regardless of which version surface renders it; so is its pluralization. Pure.
+ *
+ * @param diff - This version's diff vs. the recipe's current version.
+ * @param previewMessages - The localized preview copy (the summary line's own template).
+ * @param conflictMessages - The shared singular/plural count templates (reused — see {@link toConflictSideFields}).
+ * @param locale - The active BCP-47 locale (for locale-correct count pluralization).
+ * @returns The formatted "Changed from current" summary line.
+ */
+export const formatChangedFromCurrent = (
+    diff: SnapshotDiff,
+    previewMessages: RecipeVersionPreviewMessages,
+    conflictMessages: RecipeConflictMessages,
+    locale: Locale,
+): string => {
+    const counts = changedFromCurrentCounts(diff);
+
+    return fillTemplate(previewMessages.changedFromCurrent, {
+        ingredients: formatRecipeCount(
+            counts.ingredients,
+            { one: conflictMessages.ingredientCountOne, other: conflictMessages.ingredientCountOther },
+            locale,
+        ),
+        steps: formatRecipeCount(
+            counts.steps,
+            { one: conflictMessages.stepCountOne, other: conflictMessages.stepCountOther },
+            locale,
+        ),
+    });
+};
+
 // ─── Version compare (W6 Task 4 / FR-007b, FR-007c) ─────────────────────────────────────────────────
 //
 // The wireframe's "Compare Versions" right sidebar: pick two versions (selection UI lives in the composing

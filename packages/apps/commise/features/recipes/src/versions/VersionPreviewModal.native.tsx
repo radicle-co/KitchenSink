@@ -23,8 +23,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeVersionMessages } from './messages.js';
 import {
-    changedFromCurrentCounts,
     fillTemplate,
+    formatChangedFromCurrent,
     toVersionPreviewIngredientLines,
     type VersionPreviewModalProps,
 } from './model.js';
@@ -132,7 +132,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 
                         {diffFromCurrent !== undefined && (
                             <Text style={styles.changedNote}>
-                                {fillTemplate(preview.changedFromCurrent, changedFromCurrentCounts(diffFromCurrent))}
+                                {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
                             </Text>
                         )}
                     </ScrollView>

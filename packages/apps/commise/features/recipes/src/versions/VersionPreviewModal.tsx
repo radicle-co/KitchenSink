@@ -33,8 +33,8 @@ import { useRef, type FC } from 'react';
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeVersionMessages } from './messages.js';
 import {
-    changedFromCurrentCounts,
     fillTemplate,
+    formatChangedFromCurrent,
     toVersionPreviewIngredientLines,
     type VersionPreviewModalProps,
 } from './model.js';
@@ -146,10 +146,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 
                             {diffFromCurrent !== undefined && (
                                 <p className="text-body-sm italic text-slate">
-                                    {fillTemplate(
-                                        preview.changedFromCurrent,
-                                        changedFromCurrentCounts(diffFromCurrent),
-                                    )}
+                                    {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
                                 </p>
                             )}
                         </div>

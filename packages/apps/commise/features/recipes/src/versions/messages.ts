@@ -136,7 +136,10 @@ export interface RecipeVersionPreviewMessages {
      *  carries a `userCalories` override — never fabricated for a catalog-resolved line. */
     readonly caloriesLabel: string;
     /** "Changed from current" summary template (contains `{ingredients}` and `{steps}`), derived from
-     *  {@link import('./diff.js').SnapshotDiff} vs. the recipe's CURRENT version. */
+     *  {@link import('./diff.js').SnapshotDiff} vs. the recipe's CURRENT version. Each token is a
+     *  PRE-PLURALIZED count string (e.g. "1 ingredient" / "2 ingredients") produced by
+     *  {@link import('./model.js').formatChangedFromCurrent} via the shared `ingredientCount*`/`stepCount*`
+     *  templates — this template itself carries no noun, so it never hard-codes a plural. */
     readonly changedFromCurrent: string;
     /** Accessible label + status text shown while the previewed version is being fetched. */
     readonly loading: string;
@@ -265,7 +268,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             titleLoading: 'Version preview',
             ingredientsHeading: 'Ingredients at v{version}',
             caloriesLabel: '{calories} cal',
-            changedFromCurrent: 'Changed from current: {ingredients} ingredients, {steps} steps',
+            changedFromCurrent: 'Changed from current: {ingredients}, {steps}',
             loading: 'Loading version preview…',
             error: 'We couldn’t load that version. Please try again.',
             keepCurrent: 'Keep current version',

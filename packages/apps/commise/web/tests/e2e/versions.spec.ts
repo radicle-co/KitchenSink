@@ -149,8 +149,9 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(dialog.getByText('A fast pasta dinner.', { exact: true })).toBeVisible();
         await expect(dialog.getByText('4', { exact: true })).toBeVisible();
 
-        // v1 vs the CURRENT version (v3): the ingredient quantity differs (1 modified), steps are identical.
-        await expect(dialog.getByText('Changed from current: 1 ingredients, 0 steps')).toBeVisible();
+        // v1 vs the CURRENT version (v3): the ingredient quantity differs (1 modified, singular "1
+        // ingredient"), steps are identical (0, plural "0 steps").
+        await expect(dialog.getByText('Changed from current: 1 ingredient, 0 steps')).toBeVisible();
 
         await page.getByRole('button', { name: 'Keep current version' }).click();
         await expect(page.getByRole('dialog')).toHaveCount(0);

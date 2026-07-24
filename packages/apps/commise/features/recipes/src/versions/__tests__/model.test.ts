@@ -19,6 +19,7 @@ import {
     composeMergedRecipe,
     findPriorVersion,
     formatChangedFieldNames,
+    formatChangedFromCurrent,
     formatVersionAttribution,
     formatVersionTimestamp,
     sortVersionsDescending,
@@ -472,5 +473,48 @@ describe('changedFromCurrentCounts (W6 Task 3)', () => {
         };
 
         expect(changedFromCurrentCounts(diff)).toEqual({ ingredients: 0, steps: 0 });
+    });
+});
+
+describe('formatChangedFromCurrent (localization-quality fix)', () => {
+    const zeroTally = { added: 0, removed: 0, modified: 0 };
+
+    it('pluralizes both counts (2 ingredients, 0 steps) — the "other" category, not a hard-coded plural', () => {
+        const diff: SnapshotDiff = {
+            changedFields: [],
+            steps: zeroTally,
+            ingredients: { added: 1, removed: 1, modified: 0 },
+            summary: zeroTally,
+        };
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
+            'Changed from current: 2 ingredients, 0 steps',
+        );
+    });
+
+    it('singularizes a count of exactly 1 for BOTH ingredients and steps (1 ingredient, 1 step)', () => {
+        const diff: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 1, removed: 0, modified: 0 },
+            ingredients: { added: 1, removed: 0, modified: 0 },
+            summary: zeroTally,
+        };
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
+            'Changed from current: 1 ingredient, 1 step',
+        );
+    });
+
+    it('singularizes only the field whose count is 1, pluralizing the other independently', () => {
+        const diff: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 1, removed: 0, modified: 0 },
+            ingredients: { added: 4, removed: 5, modified: 6 },
+            summary: zeroTally,
+        };
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
+            'Changed from current: 15 ingredients, 1 step',
+        );
     });
 });

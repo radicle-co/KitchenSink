@@ -14,7 +14,7 @@ import { useState } from 'react';
 
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
-import { diffSnapshots } from '../diff.js';
+import { diffSnapshots, type SnapshotDiff } from '../diff.js';
 import type { VersionPreviewModalProps } from '../model.js';
 import { VersionPreviewModal } from '../VersionPreviewModal.js';
 
@@ -146,12 +146,24 @@ describe('VersionPreviewModal (web) — populated version', () => {
         expect(screen.queryByText(/^\s*cal$/)).toBeNull();
     });
 
-    it('renders the "changed from current" summary from diffFromCurrent', () => {
+    it('renders the "changed from current" summary from diffFromCurrent, pluralized per count', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
 
-        // populatedDiff: ingredients added(ri_3)+removed(ri_2)+modified(ri_1 quantity/calories) = 3;
-        // steps modified(instruction changed) = 1.
-        expect(screen.getByText('Changed from current: 3 ingredients, 1 steps')).toBeTruthy();
+        // populatedDiff: ingredients added(ri_3)+removed(ri_2)+modified(ri_1 quantity/calories) = 3 (plural);
+        // steps modified(instruction changed) = 1 (singular — "1 step", never the ungrammatical "1 steps").
+        expect(screen.getByText('Changed from current: 3 ingredients, 1 step')).toBeTruthy();
+    });
+
+    it('singularizes the "changed from current" summary when a count is exactly 1', () => {
+        const singularDiff: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 1, removed: 0, modified: 0 },
+            ingredients: { added: 1, removed: 0, modified: 0 },
+            summary: { added: 2, removed: 0, modified: 0 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: singularDiff })} />);
+
+        expect(screen.getByText('Changed from current: 1 ingredient, 1 step')).toBeTruthy();
     });
 
     it('omits the "changed from current" line when no diff was supplied', () => {

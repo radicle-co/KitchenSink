@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event';
 
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
-import { diffSnapshots } from '../diff.js';
+import { diffSnapshots, type SnapshotDiff } from '../diff.js';
 import type { VersionPreviewModalProps } from '../model.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
@@ -143,10 +143,23 @@ describe('VersionPreviewModal (native) — populated version', () => {
         expect(screen.queryByText(/^\s*cal$/)).toBeNull();
     });
 
-    it('renders the "changed from current" summary from diffFromCurrent', () => {
+    it('renders the "changed from current" summary from diffFromCurrent, pluralized per count', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
 
-        expect(screen.getByText('Changed from current: 3 ingredients, 1 steps')).toBeTruthy();
+        // populatedDiff: 3 changed ingredients (plural); 1 changed step (singular — "1 step", never "1 steps").
+        expect(screen.getByText('Changed from current: 3 ingredients, 1 step')).toBeTruthy();
+    });
+
+    it('singularizes the "changed from current" summary when a count is exactly 1', () => {
+        const singularDiff: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 1, removed: 0, modified: 0 },
+            ingredients: { added: 1, removed: 0, modified: 0 },
+            summary: { added: 2, removed: 0, modified: 0 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: singularDiff })} />);
+
+        expect(screen.getByText('Changed from current: 1 ingredient, 1 step')).toBeTruthy();
     });
 
     it('omits the "changed from current" line when no diff was supplied', () => {

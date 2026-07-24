@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { RecipeDifficulty } from '@kitchensink/recipe-core';
+import { computeRecipeNutrition, RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
 import {
@@ -15,8 +15,10 @@ import {
     pendingIngredientIds,
     setIngredientStatusById,
     toCreateRecipeInput,
+    toNutritionLine,
     toUpdateRecipeInput,
     validateRecipeForm,
+    type RecipeFormIngredient,
     type RecipeFormValues,
 } from '../model.js';
 
@@ -284,6 +286,110 @@ describe('pendingIngredientIds (poll-after-add: which lines still resolve)', () 
         });
 
         expect(pendingIngredientIds(values)).toEqual([]);
+    });
+});
+
+describe('toNutritionLine (E3 plumbing — form line -> the aggregator NutritionLine)', () => {
+    const baseLine = (over: Partial<RecipeFormIngredient> = {}): RecipeFormIngredient => ({
+        ingredientId: 'ing_1',
+        name: 'Olive oil',
+        quantity: 2,
+        unit: 'tbsp',
+        ...over,
+    });
+
+    it('maps the catalog per-100g branch (mass unit) with no user-override fields', () => {
+        const line = baseLine({
+            quantity: 300,
+            unit: 'g',
+            caloriesPer100g: 130,
+            proteinGPer100g: 2.7,
+            carbsGPer100g: 28,
+            fatGPer100g: 0.3,
+        });
+
+        expect(toNutritionLine(line)).toEqual({
+            quantity: 300,
+            unit: 'g',
+            caloriesPer100g: 130,
+            proteinGPer100g: 2.7,
+            carbsGPer100g: 28,
+            fatGPer100g: 0.3,
+        });
+        // Round-trip through the real aggregator: 300g @ 130 cal/100g = 390 cal for this one line/serving.
+        expect(computeRecipeNutrition([toNutritionLine(line)], 1)).toEqual({
+            calories: 390,
+            proteinG: 8.1,
+            carbsG: 84,
+            fatG: 0.9,
+            isComplete: true,
+        });
+    });
+
+    it('carries household portions so a volumetric/count unit converts through the real aggregator', () => {
+        const line = baseLine({
+            quantity: 2,
+            unit: 'tablespoon',
+            caloriesPer100g: 884,
+            proteinGPer100g: 0,
+            carbsGPer100g: 0,
+            fatGPer100g: 100,
+            portions: [{ unit: 'tablespoon', gramsPerUnit: 13.5 }],
+        });
+
+        expect(toNutritionLine(line).portions).toEqual([{ unit: 'tablespoon', gramsPerUnit: 13.5 }]);
+        expect(computeRecipeNutrition([toNutritionLine(line)], 1).isComplete).toBe(true);
+    });
+
+    it('maps the freeform user-override branch, taking priority over any (absent) catalog data', () => {
+        const line = baseLine({
+            ingredientId: 'ing_free',
+            name: 'Grandma’s spice mix',
+            quantity: 1,
+            unit: 'batch',
+            userCalories: 45,
+            userProteinG: 1,
+            userCarbsG: 8,
+            userFatG: 0.5,
+        });
+
+        expect(toNutritionLine(line)).toEqual({
+            quantity: 1,
+            unit: 'batch',
+            userCalories: 45,
+            userProteinG: 1,
+            userCarbsG: 8,
+            userFatG: 0.5,
+        });
+        expect(computeRecipeNutrition([toNutritionLine(line)], 1)).toEqual({
+            calories: 45,
+            proteinG: 1,
+            carbsG: 8,
+            fatG: 0.5,
+            isComplete: true,
+        });
+    });
+
+    it('maps an honestly-incomplete line (no user override, no resolved catalog nutrition) to isComplete: false', () => {
+        // A freshly-picked line still PENDING catalog resolution, or a freeform line with no user nutrition yet.
+        const line = baseLine({ resolutionStatus: 'PENDING' });
+
+        expect(toNutritionLine(line)).toEqual({ quantity: 2, unit: 'tbsp' });
+        expect(computeRecipeNutrition([toNutritionLine(line)], 1).isComplete).toBe(false);
+    });
+
+    it('degrades an absent unit to an empty string rather than guessing — unconvertible, honestly incomplete', () => {
+        const line: RecipeFormIngredient = {
+            ingredientId: 'ing_2',
+            name: 'Eggs',
+            quantity: 3,
+            caloriesPer100g: 155,
+        };
+
+        const nutritionLine = toNutritionLine(line);
+
+        expect(nutritionLine.unit).toBe('');
+        expect(computeRecipeNutrition([nutritionLine], 1).isComplete).toBe(false);
     });
 });
 

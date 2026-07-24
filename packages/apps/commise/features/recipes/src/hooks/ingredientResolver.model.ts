@@ -39,13 +39,27 @@ export function nextMatchAction(status: FoodResolutionStatus | undefined): 'reso
     return isUnresolvedStatus(status) ? 'disambiguate' : 'resolve';
 }
 
-/** Project a catalog `Ingredient` onto a resolved form line (quantity defaults to 1; the form edits it). */
+/**
+ * Project a catalog `Ingredient` onto a resolved form line (quantity defaults to 1; the form edits it).
+ *
+ * Also carries the ingredient's per-100g macros + household-measure portions, when the catalog row has them,
+ * onto the form line (w3/e3) — so a picked ingredient's nutrition survives to feed {@link toNutritionLine}
+ * (`form/model.ts`) for step 2's per-row + running per-serving nutrition (FR-007). A line still `PENDING`
+ * resolution, or a freeform ingredient with no catalog nutrition, carries none of these fields — never a
+ * fabricated `0` — which is exactly the input {@link toNutritionLine}'s aggregator needs to correctly report
+ * that line as unaccounted (`isComplete: false`) rather than silently under-counting.
+ */
 export function toIngredientLine(ingredient: Ingredient): RecipeFormIngredient {
     return {
         ingredientId: ingredient.id,
         name: ingredient.name,
         quantity: 1,
         ...(ingredient.foodResolutionStatus === undefined ? {} : { resolutionStatus: ingredient.foodResolutionStatus }),
+        ...(ingredient.caloriesPer100g === undefined ? {} : { caloriesPer100g: ingredient.caloriesPer100g }),
+        ...(ingredient.proteinGPer100g === undefined ? {} : { proteinGPer100g: ingredient.proteinGPer100g }),
+        ...(ingredient.carbsGPer100g === undefined ? {} : { carbsGPer100g: ingredient.carbsGPer100g }),
+        ...(ingredient.fatGPer100g === undefined ? {} : { fatGPer100g: ingredient.fatGPer100g }),
+        ...(ingredient.portions === undefined ? {} : { portions: ingredient.portions }),
     };
 }
 

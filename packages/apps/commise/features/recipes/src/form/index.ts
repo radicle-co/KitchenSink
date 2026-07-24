@@ -13,6 +13,7 @@ export {
     pendingIngredientIds,
     setIngredientStatusById,
     toCreateRecipeInput,
+    toNutritionLine,
     toRecipeFormValues,
     toUpdateRecipeInput,
     validateRecipeForm,

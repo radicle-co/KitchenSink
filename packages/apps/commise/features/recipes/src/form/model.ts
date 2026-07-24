@@ -5,9 +5,14 @@
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
  * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
  */
+import { toNutritionLine as buildNutritionLine } from '@kitchensink/recipe-core';
 import type {
     CreateRecipeInput,
     FoodResolutionStatus,
+    IngredientPortion,
+    LineCatalogNutrition,
+    LineMeasure,
+    NutritionLine,
     RecipeDetail,
     RecipeDifficulty,
     RecipeIngredientView,
@@ -20,6 +25,14 @@ import type {
  * One editable ingredient line. `ingredientId` is `null` until the line resolves to a catalog row (via
  * food-service typeahead or a freeform create) — the wire contract REQUIRES an id, so an unresolved line
  * cannot be submitted (validation flags it). `resolutionStatus` drives the row's async nutrition badge.
+ *
+ * The nutrition fields (w3/e3) feed {@link toNutritionLine}'s aggregation for step 2's per-row + running
+ * per-serving nutrition (FR-007). `caloriesPer100g`/`proteinGPer100g`/`carbsGPer100g`/`fatGPer100g` +
+ * `portions` are the resolved catalog nutrition, carried onto the line by `toIngredientLine`
+ * (`hooks/ingredientResolver.model.ts`) once a picked ingredient resolves — absent while `PENDING` or for a
+ * freeform ingredient the catalog has no data for. `userCalories`/`userProteinG`/`userCarbsG`/`userFatG` are
+ * the FR-007a freeform per-line override a later task's UI sets; when present they take priority over the
+ * catalog fields in {@link toNutritionLine}, exactly as the aggregator's own `NutritionLine` prioritizes them.
  */
 export interface RecipeFormIngredient {
     readonly ingredientId: string | null;
@@ -28,6 +41,16 @@ export interface RecipeFormIngredient {
     readonly unit?: string;
     readonly notes?: string;
     readonly resolutionStatus?: FoodResolutionStatus;
+    readonly caloriesPer100g?: number;
+    readonly proteinGPer100g?: number;
+    readonly carbsGPer100g?: number;
+    readonly fatGPer100g?: number;
+    /** The catalog ingredient's household-measure portions — lets a volumetric/count unit convert to grams. */
+    readonly portions?: readonly IngredientPortion[];
+    readonly userCalories?: number;
+    readonly userProteinG?: number;
+    readonly userCarbsG?: number;
+    readonly userFatG?: number;
 }
 
 /** One editable instruction step (the server assigns `stepNumber` from array order). */
@@ -67,6 +90,51 @@ export interface RecipeFormValues {
  */
 export const computeTotalTime = (prepTimeMinutes: number, cookTimeMinutes: number): number =>
     prepTimeMinutes + cookTimeMinutes;
+
+/**
+ * Map a form ingredient line to the recipe-core {@link NutritionLine} the aggregator
+ * (`computeRecipeNutrition`/`leadCaloriesPerServing`) consumes (w3/e3 plumbing, feeding step 2's per-row +
+ * running per-serving nutrition, FR-007/FR-007a). Delegates the actual merge to recipe-core's own
+ * `toNutritionLine(measure, catalog)` — the single place a line's nutrition inputs are combined (module doc,
+ * `recipe-core/src/nutrition.ts`) — by splitting this line into its {@link LineMeasure} (quantity/unit + any
+ * freeform user override) and its {@link LineCatalogNutrition} (resolved per-100g macros + household
+ * portions), omitted entirely when the line carries none of it (still resolving, or a freeform line with no
+ * catalog match). A missing `unit` degrades to `''` rather than a guess: the aggregator's own `unitToGrams`
+ * cannot convert an empty unit, so the line is correctly excluded (`isComplete: false`) instead of silently
+ * assuming a unit. Pure.
+ *
+ * @param line - The form's ingredient line.
+ * @returns The {@link NutritionLine} for the recipe-core nutrition aggregator.
+ */
+export const toNutritionLine = (line: RecipeFormIngredient): NutritionLine => {
+    const measure: LineMeasure = {
+        quantity: line.quantity,
+        unit: line.unit ?? '',
+        ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
+        ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
+        ...(line.userCarbsG === undefined ? {} : { userCarbsG: line.userCarbsG }),
+        ...(line.userFatG === undefined ? {} : { userFatG: line.userFatG }),
+    };
+
+    const hasCatalogNutrition =
+        line.caloriesPer100g !== undefined ||
+        line.proteinGPer100g !== undefined ||
+        line.carbsGPer100g !== undefined ||
+        line.fatGPer100g !== undefined ||
+        line.portions !== undefined;
+
+    const catalog: LineCatalogNutrition | undefined = hasCatalogNutrition
+        ? {
+              ...(line.caloriesPer100g === undefined ? {} : { caloriesPer100g: line.caloriesPer100g }),
+              ...(line.proteinGPer100g === undefined ? {} : { proteinGPer100g: line.proteinGPer100g }),
+              ...(line.carbsGPer100g === undefined ? {} : { carbsGPer100g: line.carbsGPer100g }),
+              ...(line.fatGPer100g === undefined ? {} : { fatGPer100g: line.fatGPer100g }),
+              ...(line.portions === undefined ? {} : { portions: line.portions }),
+          }
+        : undefined;
+
+    return buildNutritionLine(measure, catalog);
+};
 
 /**
  * An empty create form: no ingredients/steps, public visibility (free-tier default), zeroed numerics.

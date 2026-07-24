@@ -116,6 +116,49 @@ describe('toIngredientLine', () => {
         });
         expect('resolutionStatus' in toIngredientLine(ingredient)).toBe(false);
     });
+
+    it('carries per-100g nutrition + household portions onto the form line when the catalog row has them (E3)', () => {
+        const ingredient = makeIngredient({
+            id: 'ing_9',
+            name: 'Olive oil',
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            caloriesPer100g: 884,
+            proteinGPer100g: 0,
+            carbsGPer100g: 0,
+            fatGPer100g: 100,
+            portions: [{ unit: 'tablespoon', gramsPerUnit: 13.5 }],
+        });
+
+        expect(toIngredientLine(ingredient)).toEqual({
+            ingredientId: 'ing_9',
+            name: 'Olive oil',
+            quantity: 1,
+            resolutionStatus: FoodResolutionStatus.RESOLVED,
+            caloriesPer100g: 884,
+            proteinGPer100g: 0,
+            carbsGPer100g: 0,
+            fatGPer100g: 100,
+            portions: [{ unit: 'tablespoon', gramsPerUnit: 13.5 }],
+        });
+    });
+
+    it('omits every nutrition field when the catalog row carries none (still resolving, or genuinely absent)', () => {
+        const ingredient: Ingredient = {
+            id: 'ing_10',
+            name: 'Sourdough starter',
+            isUserEntered: true,
+            createdAt: '2026-04-01T09:00:00.000Z',
+        };
+
+        const line = toIngredientLine(ingredient);
+
+        expect(line).toEqual({ ingredientId: 'ing_10', name: 'Sourdough starter', quantity: 1 });
+        expect('caloriesPer100g' in line).toBe(false);
+        expect('proteinGPer100g' in line).toBe(false);
+        expect('carbsGPer100g' in line).toBe(false);
+        expect('fatGPer100g' in line).toBe(false);
+        expect('portions' in line).toBe(false);
+    });
 });
 
 describe('deriveViewState', () => {

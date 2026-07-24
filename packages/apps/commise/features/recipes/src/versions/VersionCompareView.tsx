@@ -120,12 +120,12 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                         <div className="grid grid-cols-2 gap-3 text-caption font-medium uppercase tracking-wide text-slate">
                                             <span>
                                                 {fillTemplate(versionList.versionLabel, {
-                                                    version: versionA.versionNumber,
+                                                    version: versionB.versionNumber,
                                                 })}
                                             </span>
                                             <span>
                                                 {fillTemplate(versionList.versionLabel, {
-                                                    version: versionB.versionNumber,
+                                                    version: versionA.versionNumber,
                                                 })}
                                             </span>
                                         </div>
@@ -139,8 +139,8 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                                         {row.label}
                                                     </span>
                                                     <div className="grid grid-cols-2 gap-3 text-body-sm text-charcoal">
-                                                        <span>{row.valueA}</span>
                                                         <span>{row.valueB}</span>
+                                                        <span>{row.valueA}</span>
                                                     </div>
                                                     {row.tally !== undefined && showFullDiff && (
                                                         <span className="text-caption text-slate">

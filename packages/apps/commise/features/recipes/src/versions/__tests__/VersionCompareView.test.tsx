@@ -164,6 +164,21 @@ describe('VersionCompareView (web) — populated diff', () => {
         expect(screen.queryByText('Cook time')).toBeNull();
         expect(screen.queryByText('Steps')).toBeNull();
     });
+
+    it('renders version B’s column before version A’s column, matching the "Compare v{B} vs v{A}" header order', () => {
+        render(<VersionCompareView {...baseProps({ versionA, versionB, diff: populatedDiff })} />);
+
+        // Column headers: B (v12) precedes A (v8) — would fail if the columns were flipped back to A-first.
+        const versionBHeader = screen.getByText('Version 12');
+        const versionAHeader = screen.getByText('Version 8');
+        expect(versionBHeader.compareDocumentPosition(versionAHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        // Row values follow the same B-then-A order, and still correspond to their own version (B's
+        // "Updated description." stays in the first/B column, A's "Original description." in the second).
+        const updatedValue = screen.getByText('Updated description.');
+        const originalValue = screen.getByText('Original description.');
+        expect(updatedValue.compareDocumentPosition(originalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
 });
 
 describe('VersionCompareView (web) — no-change diff', () => {

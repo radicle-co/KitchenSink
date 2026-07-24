@@ -8,7 +8,8 @@
  * `onRequestClose` (the Android hardware-back path RN provides) is wired straight to `onClose`, the same
  * callback the explicit close control uses — one exit path, not two. Per CR-004 ("Native adaptation: the
  * compare/diff sidebar … become[s a] full-screen sheet"), the web's right-side panel becomes this full-screen
- * takeover, and the web's two-column A/B grid becomes version A stacked over version B per field.
+ * takeover, and the web's two-column A/B grid becomes version B stacked over version A per field — matching
+ * the web columns' left-to-right order, both driven by the "Compare v{B} vs v{A}" heading order.
  *
  * A three-way state ({@link import('./model.js').compareViewState}, discriminated — see the web leaf's
  * module docs for the full semantics): `'selecting'` (fewer than two versions/diff supplied yet),
@@ -103,18 +104,18 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                             <View style={styles.side}>
                                                 <Text style={styles.sideLabel}>
                                                     {fillTemplate(versionList.versionLabel, {
-                                                        version: versionA.versionNumber,
-                                                    })}
-                                                </Text>
-                                                <Text style={styles.fieldValue}>{row.valueA}</Text>
-                                            </View>
-                                            <View style={styles.side}>
-                                                <Text style={styles.sideLabel}>
-                                                    {fillTemplate(versionList.versionLabel, {
                                                         version: versionB.versionNumber,
                                                     })}
                                                 </Text>
                                                 <Text style={styles.fieldValue}>{row.valueB}</Text>
+                                            </View>
+                                            <View style={styles.side}>
+                                                <Text style={styles.sideLabel}>
+                                                    {fillTemplate(versionList.versionLabel, {
+                                                        version: versionA.versionNumber,
+                                                    })}
+                                                </Text>
+                                                <Text style={styles.fieldValue}>{row.valueA}</Text>
                                             </View>
                                             {row.tally !== undefined && showFullDiff && (
                                                 <Text style={styles.tally}>

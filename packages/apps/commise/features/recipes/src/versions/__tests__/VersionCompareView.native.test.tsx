@@ -156,6 +156,28 @@ describe('VersionCompareView (native) — populated diff', () => {
         expect(screen.queryByText('Cook time')).toBeNull();
         expect(screen.queryByText('Steps')).toBeNull();
     });
+
+    it('renders version B’s side before version A’s side in every row, matching the header order', () => {
+        render(<VersionCompareView {...baseProps({ versionA, versionB, diff: populatedDiff })} />);
+
+        // Row values: B's "Updated description." precedes A's "Original description." — would fail if the
+        // native stack order were flipped back to A-over-B.
+        const updatedValue = screen.getByText('Updated description.');
+        const originalValue = screen.getByText('Original description.');
+        expect(updatedValue.compareDocumentPosition(originalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        // Every row's side label follows the same B-then-A order (description + ingredients rows), and each
+        // label still corresponds to its own version after the reorder.
+        const versionBLabels = screen.getAllByText('Version 12');
+        const versionALabels = screen.getAllByText('Version 8');
+        expect(versionBLabels).toHaveLength(2);
+        expect(versionALabels).toHaveLength(2);
+        versionBLabels.forEach((label, index) => {
+            expect(
+                label.compareDocumentPosition(versionALabels[index]) & Node.DOCUMENT_POSITION_FOLLOWING,
+            ).toBeTruthy();
+        });
+    });
 });
 
 describe('VersionCompareView (native) — no-change diff', () => {

@@ -244,8 +244,8 @@ describe('RecipeEditScreen — loading and error', () => {
             submitError: false,
             query: { isLoading: false, isError: false, error: undefined, refetch: vi.fn() },
             resolutions: {
-                keepMine: vi.fn(),
-                useTheirs: vi.fn(),
+                overwrite: vi.fn(),
+                keepServer: vi.fn(),
                 merge: vi.fn(),
                 setMergeSelections: vi.fn(),
             },
@@ -304,9 +304,15 @@ describe('RecipeEditScreen — save', () => {
     });
 
     it('does not surface the generic save-error alert for a version conflict', () => {
-        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ id: 'rec_1' }) }));
+        const loaded = makeRecipeDetail({ id: 'rec_1' });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        // Enriched (carries a `server` side) — a well-formed 409, NOT the un-enriched `conflictDataUnavailable`
+        // case (its own dedicated test below), so only `submitError`'s own exclusion is under test here.
         useUpdateRecipeMock.mockReturnValue(
-            updateMutation({ isError: true, error: new VersionConflictError(5, 3) as never }),
+            updateMutation({
+                isError: true,
+                error: new VersionConflictError(5, 3, undefined, { server: toVersionConflictSide(loaded) }) as never,
+            }),
         );
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
@@ -316,10 +322,11 @@ describe('RecipeEditScreen — save', () => {
 });
 
 describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
-    it('enters conflict mode on a version conflict, showing the server-first banner and the three option cards', async () => {
+    it('enters conflict mode on a version conflict, showing the server-first banner and the three option cards — built from the 409 itself, never a refetch', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3, servings: 4 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5, servings: 8 });
-        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        const refetch = vi.fn();
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded, refetch }));
         useUpdateRecipeMock.mockReturnValue(
             updateMutation({ mutate: mutateWith([{ type: 'conflict', error: conflictError(5, 3, theirs) }]) as never }),
         );
@@ -334,6 +341,33 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         expect(screen.getByRole('button', { name: 'Overwrite with your version' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Merge manually' })).toBeTruthy();
         expect(screen.getByText(/Server Saved Recipe/)).toBeTruthy();
+        expect(refetch).not.toHaveBeenCalled();
+    });
+
+    // Phantom fast-path (W7 Task 2, wired through the screen in Task 6): a 409 whose 3-way diff is EMPTY (the
+    // in-progress edit already matches what the server saved) never interrupts the user with the conflict UI.
+    it('a phantom zero-diff 409 auto-resolves without ever showing the conflict UI', async () => {
+        // `theirs` already carries the title `My Draft Recipe Deluxe` this recipe is seeded with — every other
+        // field matches the shared fixture defaults, so mine/theirs agree on every field: the diff is empty.
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe Deluxe', currentVersion: 3 });
+        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe Deluxe', currentVersion: 5 });
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        const mutate = mutateWith([
+            { type: 'conflict', error: conflictError(5, 3, theirs) },
+            { type: 'success', recipe: saved },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
+        const onSaved = vi.fn();
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(mutate).toHaveBeenCalledTimes(2);
+        const [secondVars] = mutate.mock.calls[1] as [{ input: { expectedVersion: number } }];
+        expect(secondVars.input.expectedVersion).toBe(5);
+        expect(screen.queryByRole('heading', { name: 'This recipe changed while you were editing' })).toBeNull();
+        expect(onSaved).toHaveBeenCalledWith('rec_1');
     });
 
     it('Option B (overwrite) re-submits against the server’s current version and navigates on success', async () => {
@@ -431,23 +465,49 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         expect(onSaved).toHaveBeenCalledWith('rec_1');
     });
 
-    // Option A ("keep server") is a DISTINCT terminal outcome (`status: 'discarded'`, no write). The FULL
-    // post-discard navigation (OQ-1) is W7 Task 6's screen-wiring scope; here, minimally, Option A must exit
-    // the conflict view without submitting a write or reporting a saved id.
-    it('Option A (keep server) exits the conflict view without submitting a write or reporting a saved id', async () => {
+    // Option A ("keep server") is a DISTINCT terminal outcome (`status: 'discarded'`, no write). OQ-1 (W7
+    // Task 6): a discard still navigates away — via `onCancel`, the navigator's own "go back to the recipe
+    // I was editing" callback — NEVER `onSaved` (a discard is not a save, so it must never report a saved id).
+    it('Option A (keep server) discards without a write, then navigates via onCancel (never reports a saved id)', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
         const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
         useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
         const mutate = mutateWith([{ type: 'conflict', error: conflictError(5, 3, theirs) }]);
         useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
         const onSaved = vi.fn();
+        const onCancel = vi.fn();
 
-        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={onCancel} />);
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Keep server version' }));
 
         expect(screen.queryByText('This recipe changed while you were editing')).toBeNull();
         expect(mutate).toHaveBeenCalledTimes(1); // only the original (rejected) submit — no resubmit.
         expect(onSaved).not.toHaveBeenCalled();
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    // Opus-review-class gap (W7 Task 2's `conflictDataUnavailable`, wired through the screen in Task 6): a 409
+    // that IS a VersionConflictError but carries no `server` side (a malformed/un-enriched body) cannot be
+    // 3-way-diffed or displayed — without this flag the user would tap Save, eat a 409, and see nothing.
+    // `useUpdateRecipe` is mocked wholesale here (unlike the other conflict tests above, which drive the
+    // 409 through `mutateWith`'s `onError` callback) — `conflictDataUnavailable` reads `isError`/`error`
+    // straight off the mutation's OWN return value (mirroring `submitError`, see the hook's JSDoc), so the
+    // fixture sets that return value statically, the SAME pattern the generic save-error test above uses.
+    it('shows a localized, actionable error when the 409 cannot be resolved into a conflict view, and stays editing (retryable)', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ id: 'rec_1' }) }));
+        useUpdateRecipeMock.mockReturnValue(
+            updateMutation({
+                isError: true,
+                error: new VersionConflictError(undefined, 3, 'Recipe version conflict') as never,
+            }),
+        );
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+        expect(screen.getByText('This recipe was changed elsewhere. Reload and try again.')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'This recipe changed while you were editing' })).toBeNull();
+        // Stays editing — the form is still rendered and interactive (the retry path is preserved).
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
     });
 });

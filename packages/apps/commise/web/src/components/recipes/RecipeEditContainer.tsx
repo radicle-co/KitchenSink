@@ -15,11 +15,21 @@
  * statechart and the reseed-incompatibility fix it resolves (web previously reseeded in place; mobile
  * previously remounted via a `seedNonce`/`seedOverride` hack — both platforms now drive the SAME `setValues`
  * transition).
+ *
+ * **OQ-1 resolve→detail navigation (W7 Task 6).** A successful `overwrite`/`merge` resolves through the SAME
+ * `submitDraft` → `onSuccess` → `opts.onSaved` path a plain save uses, so it lands on the SAME
+ * `router.push(detailRoute)` this container already wires for `onSaved` — no separate branch needed. Choosing
+ * `keepServer` (Option A) is different: it is a discard, not a write, so `useRecipeEditor` never calls
+ * `onSaved` for it — it transitions to the DISTINCT `status: 'discarded'` terminal instead. This container
+ * watches for that transition in its own `useEffect` and navigates to the SAME `detailRoute`, but WITHOUT any
+ * "Saved!" success affordance (there is none to suppress today — the point is that a future one must key off
+ * `status: 'saved'`, never fire for a discard).
  */
 import {
     pendingIngredientIds,
     RecipeBasicsFields,
     RecipeConflictView,
+    recipeVersionMessages,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
@@ -35,7 +45,7 @@ import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { FC } from 'react';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
@@ -60,6 +70,7 @@ export interface RecipeEditContainerProps {
 export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, recipeId }) => {
     const router = useRouter();
     const { recipes } = useMessages(webMessages);
+    const { conflict } = useMessages(recipeVersionMessages);
     const detailRoute = `/${locale}/recipes/${recipeId}` as Route;
     const editor = useRecipeEditor(recipeId, { onSaved: () => router.push(detailRoute) });
 
@@ -81,6 +92,19 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
         ready: editor.state.status !== 'loading',
         justSaved: editor.state.status === 'saved',
     });
+
+    // OQ-1 (W7 Task 6): `keepServer` (Option A) discards the draft WITHOUT a write, so it never runs the
+    // `onSaved` callback a real save resolves through — it lands on the DISTINCT `status: 'discarded'`
+    // terminal instead (see `useRecipeEditor`'s module doc). This effect is the container's own reaction to
+    // that terminal: navigate to the SAME `detailRoute` a save's `onSaved` uses, but with no "Saved!"
+    // affordance (a discard never wrote anything). Keyed on the `status` STRING (not the `EditorState` object,
+    // which is a fresh reference every render) so it fires exactly once per transition into `'discarded'`,
+    // never on every subsequent re-render while the route change is still in flight.
+    useEffect(() => {
+        if (editor.state.status === 'discarded') {
+            router.push(detailRoute);
+        }
+    }, [editor.state.status, router, detailRoute]);
 
     if (editor.query.isError) {
         const notFound = isNotFoundError(editor.query.error);
@@ -172,6 +196,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 <Wizard.Controls />
             </Wizard>
             {editor.submitError && <p role="alert">{recipes.form.submitError}</p>}
+            {editor.conflictDataUnavailable && <p role="alert">{conflict.dataUnavailable}</p>}
         </div>
     );
 };

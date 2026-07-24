@@ -194,11 +194,12 @@ describe('RecipeEditContainer', () => {
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 
-    it('enters conflict mode on a 409, rendering the server-first banner, the three option cards, and the changed fields', async () => {
+    it('enters conflict mode on a 409, rendering the server-first banner, the three option cards, and the changed fields — built from the 409 itself, never a refetch', async () => {
         const user = userEvent.setup();
         const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
         const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4 });
         const client = conflictClient(mine, theirs);
+        const getRecipeSpy = vi.mocked(client.getRecipeById);
 
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
@@ -219,6 +220,33 @@ describe('RecipeEditContainer', () => {
         // The edit form is gone while resolving the conflict.
         expect(screen.queryByRole('textbox', { name: 'Title' })).not.toBeInTheDocument();
         expect(pushMock).not.toHaveBeenCalled();
+        // The conflict view is built straight off the 409's OWN server/base sides — no follow-up round-trip.
+        expect(getRecipeSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // Phantom fast-path (W7 Task 2, wired through the container in Task 6): a 409 whose 3-way diff is EMPTY
+    // (the user's in-progress edit already matches what the server saved) never interrupts the user with the
+    // conflict UI — the hook resubmits the SAME draft against the fresh CAS token behind the scenes instead.
+    it('a phantom zero-diff 409 auto-resolves without ever showing the conflict UI', async () => {
+        const user = userEvent.setup();
+        // `theirs` already carries the EXACT title the user is about to type — every other field matches the
+        // shared fixture defaults, so mine/theirs agree on every field once the edit lands: the diff is empty.
+        const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
+        const theirs = makeRecipeDetail({ title: 'Weeknight Pasta Deluxe', currentVersion: 4 });
+        const client = conflictClient(mine, theirs);
+        const updateSpy = vi.mocked(client.updateRecipe);
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        expect(updateSpy).toHaveBeenCalledTimes(2);
+        const [, secondInput] = updateSpy.mock.calls[1]!;
+        expect(secondInput.expectedVersion).toBe(4);
+        // The conflict view was NEVER shown — the phantom 409 auto-resolved instead of interrupting the user.
+        expect(screen.queryByText('This recipe changed while you were editing')).not.toBeInTheDocument();
     });
 
     it('Option B (overwrite) re-submits against the server’s fresh currentVersion and navigates on success', async () => {
@@ -284,10 +312,10 @@ describe('RecipeEditContainer', () => {
     });
 
     // Option A ("keep server") is a DISTINCT terminal outcome (`status: 'discarded'`, no write — see
-    // `useRecipeEditor`'s module doc). The FULL post-discard navigation (OQ-1: navigate to the recipe's
-    // detail view without "Saved!" messaging) is W7 Task 6's container-wiring scope; here, minimally, Option
-    // A must exit the conflict view without writing or navigating.
-    it('Option A (keep server) exits the conflict view without submitting a write or navigating', async () => {
+    // `useRecipeEditor`'s module doc). OQ-1 (W7 Task 6): a discard still navigates to the SAME recipe detail
+    // route a save's `onSaved` uses, just without any "Saved!" messaging (there is none to suppress today —
+    // the container's own effect fires only off `status: 'discarded'`, never `'saved'`).
+    it('Option A (keep server) discards without a write, then navigates to the detail route (no "Saved!" messaging)', async () => {
         const user = userEvent.setup();
         const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
         const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4 });
@@ -303,6 +331,34 @@ describe('RecipeEditContainer', () => {
 
         expect(screen.queryByText('This recipe changed while you were editing')).not.toBeInTheDocument();
         expect(updateSpy).toHaveBeenCalledTimes(1); // only the original (rejected) submit — no resubmit.
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        // No success indication anywhere in the document — a discard never wrote anything.
+        expect(screen.queryByText(/saved/i)).not.toBeInTheDocument();
+    });
+
+    // Opus-review-class gap (W7 Task 2's `conflictDataUnavailable`, wired through the container in Task 6): a
+    // 409 that IS a VersionConflictError but carries no `server` side (a malformed/un-enriched body) cannot be
+    // 3-way-diffed or displayed — without this flag the user would click Save, eat a 409, and see nothing.
+    it('shows a localized, actionable error when the 409 cannot be resolved into a conflict view, and stays editing (retryable)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
+        );
+        vi.spyOn(client, 'updateRecipe').mockRejectedValue(
+            new VersionConflictError(undefined, 3, 'Recipe version conflict'),
+        );
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(await screen.findByText('This recipe was changed elsewhere. Reload and try again.')).toBeInTheDocument();
+        // Never the fabricated conflict view — there is no server/base to build it from.
+        expect(screen.queryByText('This recipe changed while you were editing')).not.toBeInTheDocument();
+        // Stays editing — the draft (and the retry path) are preserved.
+        expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Weeknight Pasta Deluxe');
         expect(pushMock).not.toHaveBeenCalled();
     });
 

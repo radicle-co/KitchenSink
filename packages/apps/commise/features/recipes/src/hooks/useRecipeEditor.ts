@@ -62,10 +62,12 @@
  * winning version) — `status` transitions to `'discarded'`, never `'saved'`, so a container can navigate to
  * the recipe's detail view without the "Saved!" messaging a real write earns. `saved`/`discarded` are modeled
  * as one 3-state `terminal` union rather than two booleans specifically so they are mutually exclusive by
- * construction. `keepMine`/`useTheirs` (the pre-W7-Task-2 names) stay callable, unchanged, purely so the
- * not-yet-rewired web/mobile containers keep type-checking (Task 6 rewires them to `overwrite`/`keepServer`
- * and removes the old names) — `overwrite` and `keepMine` are the exact same "yours win" resubmit under two
- * names.
+ * construction. The pre-W7-Task-2 names `keepMine`/`useTheirs` (kept callable through Task 5 purely so the
+ * not-yet-rewired web/mobile containers stayed type-checking) are REMOVED as of Task 6, now that both
+ * containers are wired onto `overwrite`/`keepServer` — `overwrite` is `keepMine`'s exact same "yours win"
+ * resubmit under its current name; `useTheirs`'s reseed-and-keep-editing behavior has no equivalent in the
+ * rebuilt FR-007c UI (Option A now discards + navigates away, it does not reseed and resume editing), so it
+ * was deleted outright rather than kept as unreachable dead code.
  *
  * **Wizard step state is orthogonal (w3).** `step`/`goToStep`/`goNext`/`goPrev`/`canAdvanceFrom`/`stepErrors`
  * are pure UI-navigation state layered ON TOP of the statechart above — NOT a 6th `EditorState` variant. A
@@ -157,7 +159,7 @@ import {
  * **`saved`/`discarded` are reset on every transition that resumes editing**, not just set-once: a consumer
  * that does NOT unmount on `onSaved` (a multi-step wizard) can keep the machine alive past a successful save,
  * so BOTH terminal flags are cleared on `setValues`/`setField` (any fresh edit), on a reseed (the seed-once
- * effect and `useTheirs`), and on entering/resolving `conflict` (every resolution's resubmit, and `useTheirs`).
+ * effect), and on entering/resolving `conflict` (every resolution's own resubmit or discard).
  * Without this, a save followed by further editing and a 409 could exit `conflict` back into a stale `saved`
  * display instead of `editing` — see the hook's tests under "saved latch". Modeled as a single 3-state
  * `terminal` union (`'none' | 'saved' | 'discarded'`), not two independent booleans, so the two terminal
@@ -277,21 +279,13 @@ export interface UseRecipeEditorResult {
     readonly query: RecipeEditorQueryState;
     /**
      * The FR-007c conflict resolutions, plus the merge-selection setter the controlled conflict view binds
-     * to. `keepServer`/`overwrite` are the CURRENT (W7 Task 2) names for Options A/B; `keepMine`/`useTheirs`
-     * are kept callable, UNCHANGED, purely so the web/mobile containers (not yet rewired — that is Task 6)
-     * keep type-checking — new callers should prefer `keepServer`/`overwrite`. Every resolution is a no-op
-     * outside `status: 'conflict'`.
+     * to. `keepServer`/`overwrite` are the ONLY resolutions Options A/B expose (W7 Task 6) — the pre-Task-2
+     * names `keepMine`/`useTheirs` have been removed now that both platform containers are wired onto these.
+     * Every resolution is a no-op outside `status: 'conflict'`.
      */
     readonly resolutions: {
-        /** @deprecated Superseded by {@link overwrite} (same "yours win" resubmit) — kept callable for the
-         *  not-yet-rewired containers (Task 6). Re-submit the draft against the latest saved version. */
-        readonly keepMine: () => void;
-        /** @deprecated Superseded by {@link keepServer} (OQ-1 Option A: discard + exit, no reseed) — kept
-         *  callable for the not-yet-rewired containers (Task 6). Discard the draft and reseed `values` from
-         *  the latest saved recipe (the SAME transition as the initial seed). */
-        readonly useTheirs: () => void;
         /** Option B ("yours win", W7 Task 2): re-submit the draft AS-IS against `conflict.server.versionNumber`,
-         *  forcing it to win. Functionally identical to {@link keepMine}; the current name for new callers. */
+         *  forcing it to win. */
         readonly overwrite: () => void;
         /** Option A (OQ-1, W7 Task 2): discard the draft and exit `conflict` WITHOUT reseeding `values` and
          *  WITHOUT issuing a write (the server already holds the winning version) — transitions to the
@@ -472,8 +466,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
     const stepErrors = (checkStep: RecipeWizardStep): RecipeFormErrors => stepErrorsFor(values, checkStep);
 
-    // `keepMine`/`overwrite` are the SAME resubmit — "yours win", forcing the draft to overwrite the server's
-    // winning version — under two names (see the resolutions' own JSDoc for why both exist right now).
+    // Option B ("yours win"): forcing the draft to overwrite the server's winning version.
     const resubmitDraftAsIs = (): void => {
         if (conflict === null) {
             return;
@@ -485,20 +478,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     };
 
     const resolutions: UseRecipeEditorResult['resolutions'] = {
-        keepMine: resubmitDraftAsIs,
         overwrite: resubmitDraftAsIs,
-        useTheirs: (): void => {
-            if (conflict === null) {
-                return;
-            }
-
-            // The SAME reseed transition the initial seed-once effect uses — this is the fix for the reseed
-            // incompatibility: no remount, no seed override, just `setValues`.
-            setValuesState(toRecipeFormValues(conflict.theirs));
-            setErrors({});
-            setConflict(null);
-            setTerminal('none');
-        },
         keepServer: (): void => {
             if (conflict === null) {
                 return;

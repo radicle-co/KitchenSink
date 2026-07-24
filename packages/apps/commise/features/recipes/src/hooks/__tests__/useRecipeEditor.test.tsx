@@ -3,10 +3,9 @@
  * resolves the web-vs-mobile reseed incompatibility described in `.superpowers/sdd/cp6-current-state.md`
  * §2. Pins the invariants the two platform containers depended on before the extraction: seed-once (a
  * background refetch of the SAME recipe never clobbers an in-progress edit); a 409 — and ONLY a 409 — opens
- * `status: 'conflict'`, never surfacing as `submitError`; a resubmit (via `keepMine`/`overwrite`) carries
- * `server.versionNumber`, not the stale version that lost the race; `useTheirs` reseeds `values` through
- * the SAME transition the initial seed uses (no remount/override, closing the reseed incompatibility);
- * `merge(selections)` composes via `composeConflictMerge` and submits; and validation blocks a `submit()`
+ * `status: 'conflict'`, never surfacing as `submitError`; a resubmit (via `overwrite`) carries
+ * `server.versionNumber`, not the stale version that lost the race; `merge(selections)` composes via
+ * `composeConflictMerge` and submits; and validation blocks a `submit()`
  * on an invalid draft. The `@kitchensink/recipe-service-client/hooks` module is mocked (its own behavior is
  * covered by that package's tests); `VersionConflictError`/`isVersionConflictError` are the REAL
  * implementations, so the 409-detection path is exercised for real, not stubbed.
@@ -18,8 +17,9 @@
  * never show a misleading "Saved!" for a discard); `overwrite` (Option B) and `merge` (Option C, now
  * PER-ELEMENT via `steps[N]`/`ingredients:<id>` keys) both resolve against `server.versionNumber`; and a
  * second 409 during a resolve resubmit re-enters conflict from THAT error's own `server`/`base`, never a
- * refetch. `keepMine`/`useTheirs` are kept callable (unchanged) so the not-yet-rewired web/mobile containers
- * (Task 6) keep type-checking.
+ * refetch. W7 Task 6: the pre-Task-2 `keepMine`/`useTheirs` names are gone from `resolutions` — every test
+ * below drives the CURRENT `overwrite`/`keepServer` names, now that both platform containers are wired onto
+ * them.
  */
 import { act, renderHook } from '@testing-library/react';
 import { RecipeStatus } from '@kitchensink/recipe-core';
@@ -280,7 +280,7 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
         expect(result.current.state).toEqual({ status: 'editing' });
     });
 
-    it('does not resurrect "saved" after a post-save conflict is resolved via useTheirs (the exact trap: save -> resume editing -> 409 -> useTheirs)', async () => {
+    it('does not resurrect "saved" after a post-save conflict is resolved via keepServer (the exact trap: save -> resume editing -> 409 -> keepServer)', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
         const saved = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 4 });
         const refetch = vi.fn();
@@ -315,10 +315,11 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
         });
         expect(result.current.state.status).toBe('conflict');
 
-        act(() => result.current.resolutions.useTheirs());
+        act(() => result.current.resolutions.keepServer());
 
-        // The stale `saved` latch must NOT resurface once the conflict clears — the machine is editing again.
-        expect(result.current.state).toEqual({ status: 'editing' });
+        // The stale `saved` latch must NOT resurface once the conflict clears — the machine lands on the
+        // discard terminal it actually resolved to, never a leftover `saved` from before this conflict.
+        expect(result.current.state).toEqual({ status: 'discarded' });
     });
 });
 
@@ -510,7 +511,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         expect(refetch).not.toHaveBeenCalled();
     });
 
-    it('a resubmit via keepMine carries theirs.currentVersion as expectedVersion, not the stale version', () => {
+    it('a resubmit via overwrite carries theirs.currentVersion as expectedVersion, not the stale version', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
@@ -532,7 +533,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
 
         act(() => result.current.submit());
-        act(() => result.current.resolutions.keepMine());
+        act(() => result.current.resolutions.overwrite());
 
         expect(mutation.mutate).toHaveBeenCalledTimes(2);
         const [firstVars] = mutation.mutate.mock.calls[0] as [MutateVars];
@@ -599,51 +600,19 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         expect(result.current.state).toEqual({ status: 'discarded' });
     });
 
-    it('keepMine, overwrite, keepServer, useTheirs, and merge are all no-ops outside conflict state', () => {
+    it('overwrite, keepServer, and merge are all no-ops outside conflict state', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
         useUpdateRecipeMock.mockReturnValue(mutation);
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
 
-        act(() => result.current.resolutions.keepMine());
         act(() => result.current.resolutions.overwrite());
         act(() => result.current.resolutions.keepServer());
-        act(() => result.current.resolutions.useTheirs());
         act(() => result.current.resolutions.merge({}));
 
         expect(mutation.mutate).not.toHaveBeenCalled();
         expect(result.current.state).toEqual({ status: 'editing' });
-    });
-});
-
-describe('useRecipeEditor — useTheirs reseeds values (closes the reseed incompatibility)', () => {
-    it('discards the draft and reseeds `values` from `theirs`, exiting conflict without navigating', () => {
-        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
-        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
-        const mutation = updateMutation([
-            {
-                type: 'conflict',
-                error: new VersionConflictError(5, 3, undefined, {
-                    server: makeSide({
-                        versionNumber: 5,
-                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
-                    }),
-                }),
-            },
-        ]);
-        useUpdateRecipeMock.mockReturnValue(mutation);
-        const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
-
-        act(() => result.current.submit());
-        expect(result.current.state.status).toBe('conflict');
-
-        act(() => result.current.resolutions.useTheirs());
-
-        expect(result.current.state).toEqual({ status: 'editing' });
-        expect(result.current.values.title).toBe('Server Title');
-        expect(onSaved).not.toHaveBeenCalled();
     });
 });
 
@@ -1043,7 +1012,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         expect(result.current.step).toBe(3);
     });
 
-    it('a resubmit via keepMine after a step change still carries theirs.currentVersion as expectedVersion', () => {
+    it('a resubmit via overwrite after a step change still carries theirs.currentVersion as expectedVersion', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
@@ -1065,7 +1034,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         act(() => result.current.goToStep(2));
         act(() => result.current.submit());
         act(() => result.current.goToStep(4));
-        act(() => result.current.resolutions.keepMine());
+        act(() => result.current.resolutions.overwrite());
 
         const [secondVars] = mutation.mutate.mock.calls[1] as [MutateVars];
         expect(secondVars.input.expectedVersion).toBe(5);

@@ -16,6 +16,7 @@ import {
 
 import { toRecipeCardModel } from '../card/model.js';
 import type { RecipeFormValues } from '../form/model.js';
+import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
 import type { RecipeListItem } from '../list/model.js';
 
 export { makeRecipe, makeRecipeDetail };
@@ -96,6 +97,21 @@ export function makePhoto(overrides: Partial<RecipePhoto> = {}): RecipePhoto {
         contentType: 'image/jpeg',
         order: 1,
         createdAt: '2026-04-19T09:30:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
+ * Build a {@link RecipePhotoQueueItem} with sensible defaults, overridable per field (w3/e4 photo grid).
+ *
+ * @param overrides - Fields to override on the default queue item.
+ * @returns A complete `RecipePhotoQueueItem`.
+ */
+export function makeQueueItem(overrides: Partial<RecipePhotoQueueItem> = {}): RecipePhotoQueueItem {
+    return {
+        fileId: 1,
+        fileName: 'dinner.png',
+        status: 'queued',
         ...overrides,
     };
 }

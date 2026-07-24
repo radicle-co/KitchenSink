@@ -1,35 +1,34 @@
 /**
- * Recipe photo uploader (mobile, T067, wireframe step 4). The container that turns the shared, presentational
- * {@link RecipePhotoManager} block (its native leaf) into a working photo surface: it reads the recipe's
- * photos from the query cache, supplies the native image-picker button as the block's `addControl`, and
- * delegates the direct-to-S3 upload orchestration the block deliberately stays free of to the shared,
- * single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24).
+ * Recipe photo uploader (mobile, T067, wireframe step 4; w3/e4 per-file queue grid). The container that turns
+ * the shared, presentational {@link RecipePhotoManager} block (its native leaf) into a working photo surface:
+ * it reads the recipe's photos from the query cache, supplies the native image-picker button as the block's
+ * `addControl`, and ENQUEUES every picked asset onto `useRecipePhotoUploadQueue` (w3/e4) — the layer that
+ * drives the shared, single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24) once per file,
+ * sequentially, while the grid shows each file's own status.
  *
- * Upload flow, on a picked asset: read the asset's bytes as a Blob, then hand `{ blob, fileName, contentType,
- * fileSize }` to `upload`, which mints a presigned URL, `PUT`s the bytes straight to S3, then confirms so the
- * service records the photo — driving the hook's `uploading` busy state and, on any failure, a localized
- * `errorMessage`. Removal delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in
- * flight. Cross-platform peer of the web container; the picker (`expo-image-picker`) and the real S3 upload
- * require on-device verification.
+ * Upload flow, on a picked asset: read the asset's bytes as a Blob, then enqueue `{ blob, fileName,
+ * contentType, fileSize, previewUri: asset.uri }` (the asset's own URI doubles as the grid thumbnail while
+ * queued/uploading/failed — no extra copy needed on this platform, unlike the web leaf's `createObjectURL`).
+ * The queue drives the presign → S3 PUT → confirm sequence per file; `confirm → invalidateRecipeProjections`
+ * still runs exactly once per successful upload, from inside `useRecipePhotoUpload`. Removal of a CONFIRMED
+ * photo delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in flight; the queue's own
+ * `retry`/`remove` handle a queued/failed FILE. Cross-platform peer of the web container; the picker
+ * (`expo-image-picker`) and the real S3 upload require on-device verification.
  *
- * **Two leaf-local guards this container owns (the hook deliberately stays free of either):**
- *  1. **Stale-error cross-clear.** The hook only clears its own `errorMessage` when a NEW `upload()` starts,
- *     so a failed upload followed by an unrelated, successful remove would otherwise leave the upload-error
- *     banner on screen forever. `uploadErrorSlot` mirrors the hook's `errorMessage` via effect so `removePhoto`
- *     can clear it exactly like its own `removeErrorMessage` slot — restoring the pre-refactor symmetry where
- *     ANY fresh action cleared ANY prior error.
- *  2. **Pick + blob-read re-entrancy (B24, closed for the full window).** The hook's `uploading` only flips
- *     true once `upload()` is actually called, but the picker launch + local blob read that happen BEFORE that
- *     call are themselves awaited work with no guard of their own. `picking` covers that window: the add
- *     control is disabled on `uploading || picking`, and `addPhoto` early-returns if either is already true —
- *     so a second tap during the picker/blob-read can't launch `expo-image-picker` a second time concurrently.
+ * **Pick + blob-read re-entrancy (B24-adjacent, closed for the full window).** The queue's `uploading` only
+ * reflects an upload that has actually STARTED, but the picker launch + local blob read that happen BEFORE
+ * `enqueue()` are themselves awaited work with no guard of their own. `picking` covers that window: the add
+ * control is disabled only while `picking` (never while an upload is in flight — the whole point of the
+ * queue is that a second pick during an in-flight upload is accepted and queued, not blocked), and `addPhoto`
+ * early-returns if a pick is already underway — so a second tap during the picker/blob-read can't launch
+ * `expo-image-picker` a second time concurrently.
  */
 import { RecipePhotoManager } from '@commise/features-recipes';
-import { useRecipePhotoUpload } from '@commise/features-recipes/hooks';
+import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { useDeleteRecipePhoto, useRecipePhotos } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -44,46 +43,39 @@ export interface RecipePhotoUploaderProps {
  * The recipe photo uploader.
  *
  * @param props - The id of the recipe whose photos are managed.
- * @returns The photo manager block wired to the native picker and the upload/remove mutations.
+ * @returns The photo manager block wired to the native picker and the upload-queue/remove mutations.
  */
 export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX.Element {
     const { recipePhotos: t } = useMessages(mobileMessages);
     const photosQuery = useRecipePhotos(recipeId);
     const deletePhoto = useDeleteRecipePhoto();
-    const { uploading, errorMessage: uploadErrorMessage, upload } = useRecipePhotoUpload(recipeId, t.uploadError);
+    const uploader = useRecipePhotoUpload(recipeId, t.uploadError);
+    const photos = photosQuery.data ?? [];
+    const queue = useRecipePhotoUploadQueue(uploader, photos.length);
 
-    // Two local error slots the upload hook deliberately knows nothing about: `pickErrorMessage` covers a
-    // failed local Blob read of the picked asset's URI (before `upload` is ever called, so the hook's own
-    // `errorMessage` can't carry it); `removeErrorMessage` covers a failed delete. A fresh attempt at either
-    // action clears its own slot; the displayed error prefers the more likely-current source.
+    // Two local error slots neither the upload hook nor the queue know about: `pickErrorMessage` covers a
+    // failed local Blob read of the picked asset's URI (before `enqueue()` is ever called, so no queue item
+    // exists yet to carry it); `removeErrorMessage` covers a failed delete of a CONFIRMED photo. A fresh
+    // attempt at either action clears its own slot.
     const [pickErrorMessage, setPickErrorMessage] = useState<string | undefined>(undefined);
     const [removeErrorMessage, setRemoveErrorMessage] = useState<string | undefined>(undefined);
-    // A locally-clearable mirror of the hook's own `errorMessage` (see the stale-error cross-clear guard in
-    // the module doc above). The hook clears ITS `errorMessage` only when a new `upload()` starts; this slot
-    // additionally lets `removePhoto` clear it, so a successful unrelated remove can't leave a stale
-    // upload-error banner on screen.
-    const [uploadErrorSlot, setUploadErrorSlot] = useState<string | undefined>(undefined);
 
-    useEffect(() => {
-        setUploadErrorSlot(uploadErrorMessage);
-    }, [uploadErrorMessage]);
-
-    // Tracks the picker-launch + local-blob-read window, BEFORE `upload()` (and so the hook's own
-    // `uploading`) ever starts — see the re-entrancy guard in the module doc above.
+    // Tracks the picker-launch + local-blob-read window, BEFORE `enqueue()` ever runs — see the re-entrancy
+    // guard in the module doc above.
     const [picking, setPicking] = useState(false);
-    const errorMessage = removeErrorMessage ?? pickErrorMessage ?? uploadErrorSlot;
+    const errorMessage = removeErrorMessage ?? pickErrorMessage;
 
-    const photos = photosQuery.data ?? [];
     // The delete mutation carries its target in `variables`; busy only that row while its deletion is pending.
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
 
-    // Pick an image, then delegate the presign → PUT-to-S3 → confirm sequence to the shared, single-flight
-    // `useRecipePhotoUpload` hook. A canceled pick is a silent no-op. `picking` spans the ENTIRE picker-launch
-    // + blob-read + upload window so the add control's `uploading || picking` guard never opens a gap for a
-    // concurrent second launch (B24, re-entrancy).
+    // Pick an image, then enqueue it onto the upload queue — the queue drives the presign → PUT-to-S3 →
+    // confirm sequence itself. A canceled pick is a silent no-op. `picking` spans ONLY the picker-launch +
+    // blob-read window (never the upload itself), so a second tap while a PREVIOUS pick is still resolving
+    // can't launch `expo-image-picker` a second time concurrently — but a tap while a PREVIOUS upload is
+    // still in flight is welcomed: it enqueues, exactly the queue's reason to exist.
     const addPhoto = async (): Promise<void> => {
-        if (picking || uploading) {
-            // Already mid-flight (picker open, reading the blob, or uploading) — a second tap is a no-op.
+        if (picking) {
+            // Already mid-flight (picker open, or reading the blob) — a second tap is a no-op.
             return;
         }
 
@@ -113,7 +105,6 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
             const fileName = asset.fileName ?? 'photo.jpg';
             const fileSize = asset.fileSize ?? 0;
 
-            setRemoveErrorMessage(undefined);
             setPickErrorMessage(undefined);
 
             let blob: Blob;
@@ -126,17 +117,14 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
                 return;
             }
 
-            await upload({ blob, fileName, contentType, fileSize });
+            queue.enqueue([{ blob, fileName, contentType, fileSize, previewUri: asset.uri }]);
         } finally {
             setPicking(false);
         }
     };
 
     const removePhoto = (photoId: string): void => {
-        // Unconditional cross-clear (pre-refactor symmetry): a fresh remove attempt clears ANY prior error,
-        // including a stale upload-error banner the hook itself would otherwise never clear for us.
         setRemoveErrorMessage(undefined);
-        setUploadErrorSlot(undefined);
         deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setRemoveErrorMessage(t.removeError) });
     };
 
@@ -144,8 +132,8 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
         <Pressable
             accessibilityRole="button"
             accessibilityLabel={t.addLabel}
-            accessibilityState={{ busy: uploading || picking, disabled: uploading || picking }}
-            disabled={uploading || picking}
+            accessibilityState={{ busy: picking, disabled: picking }}
+            disabled={picking}
             onPress={() => void addPhoto()}
         >
             <Text>{t.addLabel}</Text>
@@ -157,8 +145,11 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
             photos={photos}
             onRemovePhoto={removePhoto}
             removingPhotoId={removingPhotoId}
-            uploading={uploading}
+            uploading={uploader.uploading}
             errorMessage={errorMessage}
+            queueItems={queue.items}
+            onRetryQueueItem={queue.retry}
+            onRemoveQueueItem={queue.remove}
             addControl={addControl}
         />
     );

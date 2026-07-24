@@ -1,16 +1,18 @@
 /**
  * Component tests for the mobile RecipePhotoUploader (react-native-web under jsdom — see
  * `vitest.native.config.ts`). The uploader composes the shared, presentational `RecipePhotoManager` block
- * (its native leaf) with the native image picker and the presign → PUT → confirm upload orchestration.
+ * (its native leaf) with the native image picker and the `useRecipePhotoUploadQueue` layer (w3/e4) over the
+ * single-flight presign → PUT → confirm upload orchestration.
  *
  * `expo-image-picker`, the recipe-service hooks, and the global `fetch` are all mocked, so these cover the
  * container's own logic in isolation: the picked-asset happy path (presign → S3 PUT → confirm, in order),
- * a failed S3 PUT surfacing a localized error and clearing the busy state, a canceled pick as a no-op,
- * remove delegating to the delete mutation, the add control hiding at the 10-photo cap, a stale upload-error
- * banner clearing on a fresh (successful) remove (regression), and the add control staying disabled — and
- * `expo-image-picker` staying single-launched — for the full picker-launch + blob-read window, not just once
- * `uploading` flips true (regression, B24 re-entrancy). The native picker itself and the real S3 upload
- * require on-device verification (a Maestro flow) — not reachable here.
+ * a failed S3 PUT surfacing the picked file's own FAILED badge + Retry (per-file, not a blanket banner),
+ * retrying re-driving only that file, a canceled pick as a no-op, remove delegating to the delete mutation,
+ * the add control hiding at the 10-photo cap, and the add control staying disabled — and `expo-image-picker`
+ * staying single-launched — for the full picker-launch + blob-read window (regression, B24-adjacent
+ * re-entrancy) while staying ENABLED during an in-flight upload (a second pick now queues, per w3/e4). The
+ * native picker itself and the real S3 upload require on-device verification (a Maestro flow) — not
+ * reachable here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -170,7 +172,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         expect(putOrder).toBeLessThan(confirmOrder);
     });
 
-    it('surfaces a localized error and clears the busy state when the S3 PUT fails', async () => {
+    it('surfaces the picked file’s own FAILED badge + Retry when the S3 PUT fails (not a blanket banner)', async () => {
         const createMutateAsync = vi.fn().mockResolvedValue({
             uploadUrl: 'https://s3.example.com/put',
             key: 'uploads/rec_1/new.jpg',
@@ -187,11 +189,45 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
 
-        const alert = await screen.findByRole('alert');
-        expect(alert.textContent).toContain('We couldn’t add your photo. Please try again.');
+        expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Retry upload of picked.jpg' })).toBeTruthy();
         // The upload never confirms, and the busy status is cleared.
         expect(confirmMutateAsync).not.toHaveBeenCalled();
         await waitFor(() => expect(screen.queryByLabelText('Uploading photo')).toBeNull());
+    });
+
+    it('retries only the failed file, flipping it to uploading then confirming', async () => {
+        const createMutateAsync = vi
+            .fn()
+            .mockResolvedValueOnce({
+                uploadUrl: 'https://s3.example.com/put',
+                key: 'uploads/rec_1/new.jpg',
+                expiresIn: 900,
+                maxBytes: 5_242_880,
+            })
+            .mockResolvedValueOnce({
+                uploadUrl: 'https://s3.example.com/put',
+                key: 'uploads/rec_1/new.jpg',
+                expiresIn: 900,
+                maxBytes: 5_242_880,
+            });
+        const confirmMutateAsync = vi.fn().mockResolvedValue(makePhoto({ id: 'pht_new' }));
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
+        fetchMock
+            .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
+            .mockResolvedValueOnce({ ok: false, status: 403 });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+        await screen.findByRole('alert', { name: 'Upload failed' });
+
+        fetchMock.mockResolvedValue({ ok: true, status: 200 });
+        fireEvent.click(screen.getByRole('button', { name: 'Retry upload of picked.jpg' }));
+
+        await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
+        expect(createMutateAsync).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole('alert', { name: 'Upload failed' })).toBeNull();
     });
 
     it('does nothing when the pick is canceled', async () => {
@@ -261,6 +297,65 @@ describe('RecipePhotoUploader — pick re-entrancy (regression)', () => {
     });
 });
 
+describe('RecipePhotoUploader — queueing a second pick while uploading (w3/e4)', () => {
+    it('accepts a second pick while the first is uploading — the add control stays enabled, and the second queues', async () => {
+        let resolveFirstPresign: (value: {
+            uploadUrl: string;
+            key: string;
+            expiresIn: number;
+            maxBytes: number;
+        }) => void = () => {};
+        const createMutateAsync = vi
+            .fn()
+            .mockImplementationOnce(
+                () =>
+                    new Promise((resolve) => {
+                        resolveFirstPresign = resolve;
+                    }),
+            )
+            .mockResolvedValue({
+                uploadUrl: 'https://s3.example.com/put',
+                key: 'uploads/rec_1/second.jpg',
+                expiresIn: 900,
+                maxBytes: 5_242_880,
+            });
+        const confirmMutateAsync = vi.fn().mockResolvedValue(makePhoto({ id: 'pht_new' }));
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
+        fetchMock.mockResolvedValue({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        const addButton = screen.getByRole('button', { name: 'Add photo' });
+
+        fireEvent.click(addButton);
+        await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1));
+
+        // The first upload is mid-flight, but the add control is NOT disabled (only `picking` disables it) —
+        // a second pick is welcomed, not rejected.
+        expect(addButton.getAttribute('aria-disabled')).not.toBe('true');
+
+        fireEvent.click(addButton);
+        await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(2));
+
+        // The second file is queued, not started — its presign must not have fired yet.
+        expect(createMutateAsync).toHaveBeenCalledTimes(1);
+        expect(screen.getByLabelText('Queued')).toBeTruthy();
+
+        fetchMock.mockResolvedValue({ ok: true, status: 200 });
+        resolveFirstPresign({
+            uploadUrl: 'https://s3.example.com/put',
+            key: 'uploads/rec_1/first.jpg',
+            expiresIn: 900,
+            maxBytes: 5_242_880,
+        });
+
+        await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
+        // Only once the first settled did the second file's presign fire.
+        await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(2));
+    });
+});
+
 describe('RecipePhotoUploader — remove', () => {
     it('delegates removal to the delete mutation with the photo id', () => {
         const mutate = vi.fn();
@@ -287,12 +382,10 @@ describe('RecipePhotoUploader — remove', () => {
         expect(screen.getByText('Removing…')).toBeTruthy();
     });
 
-    // Regression: pre-refactor, `removePhoto` unconditionally cleared ANY prior error before every remove.
-    // Post-refactor (the `useRecipePhotoUpload` extraction, 9fbcbb0a), the displayed error preferred the
-    // hook's own `errorMessage`, which only clears on a NEW `upload()` — so a failed upload followed by a
-    // successful, unrelated remove left the upload-error banner on screen forever. Fails without the
-    // `uploadErrorSlot` mirror + its clear in `removePhoto`.
-    it('clears a stale upload-error banner when a fresh remove is initiated', async () => {
+    // w3/e4 supersedes the pre-queue "global upload-error banner" design (and the `uploadErrorSlot`
+    // cross-clear it needed): a failed FILE's badge is now scoped to that queue item, so an unrelated fresh
+    // remove of a CONFIRMED photo must not touch it — there is no longer a shared global slot to stomp.
+    it('leaves an unrelated failed queue item’s badge untouched by a fresh remove of a confirmed photo', async () => {
         const createMutateAsync = vi.fn().mockResolvedValue({
             uploadUrl: 'https://s3.example.com/put',
             key: 'uploads/rec_1/new.jpg',
@@ -312,20 +405,19 @@ describe('RecipePhotoUploader — remove', () => {
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
 
-        // A failed upload leaves the localized error banner up.
+        // A failed upload leaves that file's own FAILED badge up.
         fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
-        const alert = await screen.findByRole('alert');
-        expect(alert.textContent).toContain('We couldn’t add your photo. Please try again.');
+        await screen.findByRole('alert', { name: 'Upload failed' });
 
-        // A fresh remove is initiated (and — since `onError` is never invoked here — succeeds): the stale
-        // upload-error banner must clear, not persist.
+        // A fresh, UNRELATED remove of the confirmed photo (and — since `onError` is never invoked here —
+        // succeeds) must not clear the failed queue item's own badge; the two are independent now.
         fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
 
         expect(mutate).toHaveBeenCalledWith(
             { id: 'rec_1', photoId: 'pht_42' },
             expect.objectContaining({ onError: expect.any(Function) }),
         );
-        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
     });
 });
 

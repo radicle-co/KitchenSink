@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { makePhoto } from '../../__fixtures__/index.js';
+import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
 import { RecipePhotoManager } from '../RecipePhotoManager.js';
 import { MAX_RECIPE_PHOTOS, type RecipePhotoManagerProps } from '../model.js';
 
@@ -96,6 +96,85 @@ describe('RecipePhotoManager (web) — add control + cap', () => {
             makePhoto({ id: `ph_${index}`, order: index + 1 }),
         );
         renderManager({ photos, addControl: <button type="button">Add photo</button> });
+
+        expect(screen.queryByRole('button', { name: 'Add photo' })).toBeNull();
+        expect(screen.getByText(`Maximum of ${MAX_RECIPE_PHOTOS} photos reached.`)).toBeTruthy();
+    });
+});
+
+describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
+    it('renders the confirmed photos in a fixed 3-column grid', () => {
+        renderManager({ photos: threePhotos });
+
+        expect(screen.getByRole('list').className).toContain('grid-cols-3');
+    });
+
+    it('renders a status badge for a queued file', () => {
+        renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })] });
+
+        expect(screen.getByRole('status', { name: 'Queued' })).toBeTruthy();
+    });
+
+    it('renders a status badge for an uploading file, with no retry/remove controls', () => {
+        renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading' })] });
+
+        expect(screen.getByRole('status', { name: 'Uploading…' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+    });
+
+    it('renders a FAILED file with a Retry and a Remove control, and no other status text confusable with it', () => {
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', errorMessage: 'oops' })],
+        });
+
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Retry upload of burnt.png' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
+    });
+
+    it('invokes onRetryQueueItem with the fileId when Retry is clicked', () => {
+        const onRetryQueueItem = vi.fn();
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
+            onRetryQueueItem,
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Retry upload of burnt.png' }));
+
+        expect(onRetryQueueItem).toHaveBeenCalledWith(7);
+    });
+
+    it('invokes onRemoveQueueItem with the fileId when Remove is clicked on a failed item', () => {
+        const onRemoveQueueItem = vi.fn();
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
+            onRemoveQueueItem,
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove burnt.png' }));
+
+        expect(onRemoveQueueItem).toHaveBeenCalledWith(7);
+    });
+
+    it('omits an `ok` queue item from the grid — it is folded into the confirmed photos', () => {
+        renderManager({
+            photos: [makePhoto({ id: 'ph_1' })],
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'ok' })],
+        });
+
+        // Exactly one grid cell (the confirmed photo) — the `ok` queue item renders nothing extra.
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(1);
+    });
+
+    it('counts pending queue items toward the photo cap', () => {
+        const photos = Array.from({ length: MAX_RECIPE_PHOTOS - 1 }, (_unused, index) =>
+            makePhoto({ id: `ph_${index}`, order: index + 1 }),
+        );
+        renderManager({
+            photos,
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading' })],
+            addControl: <button type="button">Add photo</button>,
+        });
 
         expect(screen.queryByRole('button', { name: 'Add photo' })).toBeNull();
         expect(screen.getByText(`Maximum of ${MAX_RECIPE_PHOTOS} photos reached.`)).toBeTruthy();

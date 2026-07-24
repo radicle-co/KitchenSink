@@ -4,23 +4,25 @@
  * The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational
  * and holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:
  * it reads the photos via `useRecipePhotos`, supplies the block's `addControl` (an accessible label wrapping
- * a hidden `<input type="file">`), and on a file selection delegates the three-step direct-to-S3 upload —
- * presign → PUT the raw file → confirm (which invalidates the photos + recipe caches) — to the shared,
- * single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24). Remove wires the per-photo control to
- * `useDeleteRecipePhoto`, busying just the row whose deletion is in flight.
+ * a hidden, `multiple` `<input type="file">`), and on a file selection ENQUEUES every picked file onto
+ * `useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`
+ * headless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.
+ * Remove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in
+ * flight; the queue's own `retry`/`remove` handle a queued/failed FILE (not yet a confirmed photo).
  *
- * Remote state stays in TanStack Query; the hook owns the transient upload `uploading` flag and the last
- * localized `errorMessage`. This container keeps only the web-specific bits the hook deliberately stays
- * free of: the `inputRef` reset-in-`finally` (so the same file can be re-picked) and the B24 DOM guard —
- * the input is `disabled` while `uploading`, so a second pick mid-upload can't even open a file dialog that
- * would fire a second (now single-flight-rejected, but still-attempted) `handleFileChange`.
+ * Remote state stays in TanStack Query; `confirm → invalidateRecipeProjections` still runs exactly once per
+ * successful upload, from inside `useRecipePhotoUpload` — this container and the queue layer above it never
+ * reimplement that call. The web-specific bits neither hook owns: acquiring `File`s from the DOM `change`
+ * event, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or
+ * folded into the confirmed `photos` list on success), and resetting the input so the same file can be
+ * re-picked after being removed from the queue.
  */
 import { RecipePhotoManager } from '@commise/features-recipes';
-import { useRecipePhotoUpload } from '@commise/features-recipes/hooks';
+import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { useDeleteRecipePhoto, useRecipePhotos } from '@kitchensink/recipe-service-client/hooks';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
 import { webMessages } from '@/i18n/messages';
@@ -35,39 +37,72 @@ export interface RecipePhotoUploaderContainerProps {
  * The live recipe photo uploader.
  *
  * @param props - The recipe id whose photos to manage.
- * @returns The shared photo-manager block wired to the presign → PUT → confirm upload + delete mutations.
+ * @returns The shared photo-manager block wired to the presign → PUT → confirm upload queue + delete mutation.
  */
 export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({ recipeId }) => {
     const { recipes } = useMessages(webMessages);
     const photosQuery = useRecipePhotos(recipeId);
     const deletePhoto = useDeleteRecipePhoto();
-    const { uploading, errorMessage, upload } = useRecipePhotoUpload(recipeId, recipes.photos.uploadError);
+    const uploader = useRecipePhotoUpload(recipeId, recipes.photos.uploadError);
+
+    const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
+    const queue = useRecipePhotoUploadQueue(uploader, photos.length);
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
+    // Object URLs are a browser-only resource this container mints (not the platform-agnostic queue hook) —
+    // revoked as soon as a file is no longer PENDING: removed from the queue, or resolved `ok` (the confirmed
+    // `photos` list — refetched by the same `confirm` call — takes over rendering it via its own `photo.url`).
+    const previewUrlsRef = useRef(new Map<number, string>());
 
-    // Acquire the picked File, delegate the presign → PUT → confirm sequence to the shared single-flight
-    // hook, then reset the input in `finally` so re-selecting the same file re-fires `change`.
-    const handleFileChange = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
-        // B24 guard (belt + suspenders): the input is also `disabled` while `uploading` below, but a change
-        // event already in the queue when `uploading` flips true must not start a second flow either.
-        if (uploading) {
-            return;
-        }
+    useEffect(() => {
+        const tracked = previewUrlsRef.current;
 
-        const file = event.target.files?.[0];
-
-        if (file === undefined) {
-            return;
-        }
-
-        try {
-            await upload({ blob: file, fileName: file.name, contentType: file.type, fileSize: file.size });
-        } finally {
-            if (inputRef.current !== null) {
-                inputRef.current.value = '';
+        for (const item of queue.items) {
+            if (item.previewUri !== undefined && !tracked.has(item.fileId)) {
+                tracked.set(item.fileId, item.previewUri);
             }
+        }
+
+        for (const [fileId, url] of tracked) {
+            const stillPending = queue.items.some((item) => item.fileId === fileId && item.status !== 'ok');
+
+            if (!stillPending) {
+                URL.revokeObjectURL(url);
+                tracked.delete(fileId);
+            }
+        }
+    }, [queue.items]);
+
+    useEffect(() => {
+        const tracked = previewUrlsRef.current;
+
+        return () => {
+            for (const url of tracked.values()) {
+                URL.revokeObjectURL(url);
+            }
+        };
+    }, []);
+
+    // Acquire every picked File and enqueue them all — the queue drives each one's presign → PUT → confirm
+    // sequentially (one at a time, respecting the single-flight hook's own guarantee) while the grid shows
+    // every file's own status. Reset the input immediately so re-selecting the same file (e.g. after
+    // removing it from the queue) still fires a fresh `change` event.
+    const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
+        const files = Array.from(event.target.files ?? []);
+
+        queue.enqueue(
+            files.map((file) => ({
+                blob: file,
+                fileName: file.name,
+                contentType: file.type,
+                fileSize: file.size,
+                previewUri: URL.createObjectURL(file),
+            })),
+        );
+
+        if (inputRef.current !== null) {
+            inputRef.current.value = '';
         }
     };
 
@@ -76,14 +111,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     const addControl = (
         <label>
             {recipes.photos.addLabel}
-            <input
-                ref={inputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                disabled={uploading}
-                onChange={(event) => void handleFileChange(event)}
-            />
+            <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFileChange} />
         </label>
     );
 
@@ -92,9 +120,11 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
             photos={photos}
             onRemovePhoto={(photoId) => deletePhoto.mutate({ id: recipeId, photoId })}
             removingPhotoId={removingPhotoId}
-            uploading={uploading}
+            uploading={uploader.uploading}
+            queueItems={queue.items}
+            onRetryQueueItem={queue.retry}
+            onRemoveQueueItem={queue.remove}
             addControl={addControl}
-            {...(errorMessage === undefined ? {} : { errorMessage })}
         />
     );
 };

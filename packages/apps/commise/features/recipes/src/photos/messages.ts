@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes/photos/messages — user-facing copy for the recipe photo manager
- * (T067, wireframe step 4).
+ * (T067, wireframe step 4; w3/e4 per-file queue grid status/retry/remove copy).
  *
  * Shared, platform-neutral strings as a {@link LocalizedMessages} dictionary, consumed by BOTH the web
  * `.tsx` and native `.native.tsx` leaves via `useMessages`, so the platforms cannot drift on copy. The `en`
@@ -26,6 +26,20 @@ export interface PhotoMessages {
     readonly uploadingLabel: string;
     /** Notice shown when the recipe is at the photo cap (contains `{max}`). */
     readonly maxReached: string;
+    /** Accessible alt text for a queued/uploading/failed file's thumbnail (contains `{fileName}`). */
+    readonly queuePhotoAlt: string;
+    /** Visible + accessible status word for a file waiting its turn in the queue. */
+    readonly queueStatusQueued: string;
+    /** Visible + accessible status word for a file whose upload is in flight. */
+    readonly queueStatusUploading: string;
+    /** Visible + accessible status word for a file whose upload failed. */
+    readonly queueStatusFailed: string;
+    /** Visible label of the retry action on a failed queue item. */
+    readonly queueRetry: string;
+    /** Accessible label of the retry action (contains `{fileName}`, so each failed file's retry is unique). */
+    readonly queueRetryLabel: string;
+    /** Accessible label of the remove action on a queued/failed queue item (contains `{fileName}`). */
+    readonly queueRemoveLabel: string;
 }
 
 /** The photo manager copy, per locale. `en` is required; other locales extend the same shape. */
@@ -39,5 +53,12 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         removeLabel: 'Remove photo {index}',
         uploadingLabel: 'Uploading photo',
         maxReached: 'Maximum of {max} photos reached.',
+        queuePhotoAlt: 'Photo {fileName}',
+        queueStatusQueued: 'Queued',
+        queueStatusUploading: 'Uploading…',
+        queueStatusFailed: 'Upload failed',
+        queueRetry: 'Retry',
+        queueRetryLabel: 'Retry upload of {fileName}',
+        queueRemoveLabel: 'Remove {fileName}',
     },
 };

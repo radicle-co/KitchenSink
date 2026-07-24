@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
 /**
- * Component tests for RecipePhotoUploaderContainer (T067 web recipe-photo wiring, wireframe step 4). The
- * container composes the shared presentational `RecipePhotoManager` block with the presign → PUT → confirm
- * upload orchestration and the delete-photo mutation. Covers: rendering the recipe's photos from the query;
- * a file selection running presign → direct-PUT → confirm in order with the right args (the S3 PUT carries
- * method `PUT` and the raw file body); a failed direct upload surfacing a localized error and clearing the
- * uploading state; the in-flight uploading status while the sequence is pending; a second file pick while an
- * upload is in flight being rejected at the DOM AND orchestration level (B24 — the double-submit race the
- * shared `useRecipePhotoUpload` hook closes); remove invoking the delete mutation with the photo id; and the
- * 10-photo cap hiding the add control. Queries use role/label/text only — no test ids.
+ * Component tests for RecipePhotoUploaderContainer (T067 web recipe-photo wiring, wireframe step 4; w3/e4
+ * per-file upload queue grid). The container composes the shared presentational `RecipePhotoManager` block
+ * with the `useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload` orchestration and
+ * the delete-photo mutation. Covers: rendering the recipe's photos from the query; a file selection running
+ * presign → direct-PUT → confirm in order with the right args (the S3 PUT carries method `PUT` and the raw
+ * file body); a failed direct upload surfacing the file's own FAILED badge + Retry (not a blanket banner —
+ * per-file status is the whole point of the queue); the in-flight uploading status while the sequence is
+ * pending; picking a SECOND file while the first is still uploading being QUEUED (not rejected — the queue's
+ * whole reason to exist) and processed once the first settles, still driving the underlying single-flight
+ * hook's presign exactly once at a time (B24 is preserved INSIDE the queue, not at the DOM/container level
+ * anymore); retrying a failed file re-driving only that file; removing a failed queue item dropping it;
+ * remove invoking the delete mutation with the photo id; and the 10-photo cap hiding the add control. Queries
+ * use role/label/text only — no test ids.
  *
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
  * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks over
@@ -121,7 +125,7 @@ describe('RecipePhotoUploaderContainer', () => {
         expect((input as HTMLInputElement).value).toBe('');
     });
 
-    it('surfaces a localized error and clears uploading when the direct upload fails', async () => {
+    it('surfaces the file’s own FAILED badge + Retry when the direct upload fails (not a blanket banner)', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
@@ -134,12 +138,58 @@ describe('RecipePhotoUploaderContainer', () => {
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
 
-        const alert = await screen.findByRole('alert');
-        expect(alert).toHaveTextContent(/couldn.t upload that photo/i);
+        expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Retry upload of dinner.png' })).toBeInTheDocument();
         // A failed direct upload never confirms.
         expect(confirm).not.toHaveBeenCalled();
         // The uploading busy status is cleared.
         expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument();
+    });
+
+    it('retries only the failed file, flipping it to uploading then folding it into the confirmed photos', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        const presign = vi
+            .spyOn(client, 'createPhotoUploadUrl')
+            .mockResolvedValueOnce(makeUploadUrlResponse())
+            .mockResolvedValueOnce(makeUploadUrlResponse());
+        const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
+        const fetchMock = stubFetch(false);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
+        await user.upload(await screen.findByLabelText('Add photo'), file);
+        await screen.findByRole('alert', { name: 'Upload failed' });
+
+        fetchMock.mockResolvedValue({ ok: true, status: 200 });
+        await user.click(screen.getByRole('button', { name: 'Retry upload of dinner.png' }));
+
+        await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+        expect(presign).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole('alert', { name: 'Upload failed' })).not.toBeInTheDocument();
+    });
+
+    it('removes a failed queue item without touching the delete-photo mutation', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
+        vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
+        const del = vi.spyOn(client, 'deleteRecipePhoto');
+        stubFetch(false);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
+        await user.upload(await screen.findByLabelText('Add photo'), file);
+        await screen.findByRole('alert', { name: 'Upload failed' });
+
+        await user.click(screen.getByRole('button', { name: 'Remove dinner.png' }));
+
+        expect(screen.queryByRole('alert', { name: 'Upload failed' })).not.toBeInTheDocument();
+        expect(del).not.toHaveBeenCalled();
     });
 
     it('shows the uploading status while the upload sequence is in flight', async () => {
@@ -169,42 +219,53 @@ describe('RecipePhotoUploaderContainer', () => {
         expect(presign).toHaveBeenCalledTimes(1);
     });
 
-    it('rejects a second file pick while an upload is already in flight (B24 regression guard)', async () => {
+    it('queues a second file pick while the first is uploading (w3/e4) instead of rejecting it', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
-        let resolvePresign: (value: UploadUrlResponse) => void = () => undefined;
-        const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockReturnValue(
-            new Promise<UploadUrlResponse>((resolve) => {
-                resolvePresign = resolve;
-            }),
-        );
+        let resolveFirstPresign: (value: UploadUrlResponse) => void = () => undefined;
+        const presign = vi
+            .spyOn(client, 'createPhotoUploadUrl')
+            .mockImplementationOnce(
+                () =>
+                    new Promise<UploadUrlResponse>((resolve) => {
+                        resolveFirstPresign = resolve;
+                    }),
+            )
+            .mockResolvedValue(makeUploadUrlResponse({ key: 'recipes/rec_1/second.png' }));
         const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(true);
 
         renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         const input = await screen.findByLabelText('Add photo');
-        await user.upload(input, file);
+        // The input accepts multiple files — the add control is never disabled while uploading, since a
+        // second pick now QUEUES rather than being rejected at the DOM (the old B24-at-the-container guard;
+        // B24 itself still holds — see `useRecipePhotoUpload.test.tsx` — just enforced inside the queue now).
+        expect(input).not.toBeDisabled();
 
-        // The presign is still pending: the input is disabled at the DOM level, the B24 guard.
-        expect(input).toBeDisabled();
+        const firstFile = new File(['bytes'], 'dinner.png', { type: 'image/png' });
+        await user.upload(input, firstFile);
+        expect(presign).toHaveBeenCalledTimes(1);
 
-        // A second pick attempt (a raw `change` event, bypassing the `disabled` attribute the way a queued
-        // browser event could) must still not start a second presign→PUT→confirm flow — the container's
-        // `handleFileChange` guard and the hook's own single-flight guard both reject it.
         const secondFile = new File(['more-bytes'], 'lunch.png', { type: 'image/png' });
         fireEvent.change(input, { target: { files: [secondFile] } });
 
+        // The second file is QUEUED, not started — its presign must not have fired yet.
         expect(presign).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('status', { name: 'Queued' })).toBeInTheDocument();
 
-        resolvePresign(makeUploadUrlResponse());
-
+        resolveFirstPresign(makeUploadUrlResponse());
         await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
-        // The confirmed upload is for the FIRST file only.
-        expect(confirm).toHaveBeenCalledWith('rec_1', { key: OBJECT_KEY, contentType: 'image/png' });
-        expect(input).not.toBeDisabled();
+
+        // ONLY once the first settled did the second file's presign fire.
+        await waitFor(() => expect(presign).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+        expect(confirm).toHaveBeenNthCalledWith(1, 'rec_1', { key: OBJECT_KEY, contentType: 'image/png' });
+        expect(confirm).toHaveBeenNthCalledWith(2, 'rec_1', {
+            key: 'recipes/rec_1/second.png',
+            contentType: 'image/png',
+        });
     });
 
     it('removes a photo by invoking the delete mutation with the photo id', async () => {

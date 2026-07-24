@@ -8,5 +8,6 @@
 export * from './ingredientResolver.model.js';
 export * from './usePollIngredientStatus.js';
 export * from './useRecipePhotoUpload.js';
+export * from './useRecipePhotoUploadQueue.js';
 export * from './useIngredientResolver.js';
 export * from './useRecipeEditor.js';

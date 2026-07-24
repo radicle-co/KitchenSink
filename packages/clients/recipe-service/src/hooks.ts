@@ -292,7 +292,11 @@ export function useUpdateRecipe() {
 
     return useMutation({
         mutationFn: (vars: { id: string; input: UpdateRecipeInput }) => client.updateRecipe(vars.id, vars.input),
-        onSuccess: (data, vars) => {
+        onSuccess: async (data, vars) => {
+            // Cancel any in-flight `recipe(id)` GET before writing through, so a detail fetch that started
+            // stale (>staleTime) and settles AFTER this mutation cannot clobber the fresh response with
+            // pre-update data (symmetric with the rating hooks' optimistic cancel).
+            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
             queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
@@ -329,7 +333,10 @@ export function useCloneRecipe() {
 
     return useMutation({
         mutationFn: (id: string) => client.cloneRecipe(id),
-        onSuccess: (data) => {
+        onSuccess: async (data) => {
+            // Cancel any in-flight GET for the clone's own id before writing its detail through (symmetric
+            // with the other write-through hooks; a fresh clone rarely has one, but keep the guard uniform).
+            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(data.id) });
             queryClient.setQueryData(recipeServiceKeys.recipe(data.id), data);
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
@@ -359,7 +366,10 @@ export function useSetRecipeVisibility() {
     return useMutation({
         mutationFn: (vars: { id: string; visibility: RecipeVisibility }) =>
             client.setRecipeVisibility(vars.id, vars.visibility),
-        onSuccess: (data, vars) => {
+        onSuccess: async (data, vars) => {
+            // Cancel any in-flight `recipe(id)` GET before writing through, so a stale detail fetch settling
+            // after this visibility change cannot clobber the fresh response (symmetric with the other hooks).
+            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
             queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
@@ -439,7 +449,10 @@ export function useRestoreRecipeVersion() {
     return useMutation({
         mutationFn: (vars: { id: string; versionNumber: number }) =>
             client.restoreRecipeVersion(vars.id, vars.versionNumber),
-        onSuccess: (data, vars) => {
+        onSuccess: async (data, vars) => {
+            // Cancel any in-flight `recipe(id)` GET before writing through, so a stale detail fetch settling
+            // after this restore cannot clobber the restored detail (symmetric with the other hooks).
+            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
             queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data.recipe);
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });

@@ -5,30 +5,33 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { RecipeIngredient, RecipeSnapshot } from '@kitchensink/recipe-core';
+import type { RecipeIngredient, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
 
-import type { RecipeFormValues } from '../../form/model.js';
+import type { RecipeFormIngredient, RecipeFormStep } from '../../form/model.js';
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { makeRecipeVersion, makeVersionConflictSide } from '../__fixtures__/index.js';
 import type { ConflictFieldRow } from '../conflictDiff.js';
 import type { SnapshotDiff } from '../diff.js';
 import { recipeVersionMessages } from '../messages.js';
 import {
-    buildRecipeMergeFields,
     changedFromCurrentCounts,
     changeSummaryForVersion,
+    composeConflictMerge,
     composeMergedRecipe,
     conflictFieldKindLabel,
     conflictMarkerGlyph,
     conflictMarkerLabel,
     conflictRowLabel,
+    countMergeSelections,
     findPriorVersion,
     formatChangedFieldNames,
     formatChangedFromCurrent,
+    formatMergeSummary,
     formatRelativeTimeAgo,
     formatServerBanner,
     formatVersionAttribution,
     formatVersionTimestamp,
+    isConflictBaseStale,
     sortVersionsDescending,
     toVersionPreviewIngredientLines,
     type RecipeMergeSelections,
@@ -245,93 +248,6 @@ describe('conflictRowLabel (W7 Task 4 / X1)', () => {
     });
 });
 
-describe('buildRecipeMergeFields (T070 / FR-007c field-by-field merge)', () => {
-    it('projects every editable field with each side’s formatted value', () => {
-        const mine = makeRecipeFormValues({
-            title: 'My Title',
-            description: 'My description',
-            cuisine: 'Thai',
-            tags: ['spicy'],
-            dietaryFlags: ['vegan'],
-            servings: 6,
-            prepTimeMinutes: 15,
-            cookTimeMinutes: 25,
-            visibility: 'public',
-            ingredients: [
-                { ingredientId: 'a', name: 'A', quantity: 1 },
-                { ingredientId: 'b', name: 'B', quantity: 1 },
-                { ingredientId: 'c', name: 'C', quantity: 1 },
-            ],
-            steps: [{ instruction: 'One' }, { instruction: 'Two' }],
-        });
-        const theirs = makeRecipeFormValues({
-            title: 'Their Title',
-            description: '',
-            cuisine: 'Italian',
-            tags: [],
-            dietaryFlags: ['vegetarian', 'gluten-free'],
-            servings: 4,
-            prepTimeMinutes: 10,
-            cookTimeMinutes: 20,
-            visibility: 'private',
-            ingredients: [{ ingredientId: 'x', name: 'X', quantity: 1 }],
-            steps: [{ instruction: 'Only' }],
-        });
-
-        const fields = buildRecipeMergeFields(mine, theirs, conflict, 'en');
-        const byKey = Object.fromEntries(fields.map((field) => [field.key, field]));
-
-        // Field set + order is driven by the form shape.
-        expect(fields.map((field) => field.key)).toEqual([
-            'title',
-            'description',
-            'cuisine',
-            'servings',
-            'prepTimeMinutes',
-            'cookTimeMinutes',
-            'visibility',
-            'tags',
-            'dietaryFlags',
-            'ingredients',
-            'steps',
-        ]);
-
-        expect(byKey['title']).toMatchObject({ label: 'Title', mineValue: 'My Title', theirsValue: 'Their Title' });
-        // An empty free-text field renders the localized empty marker, not a blank.
-        expect(byKey['description']?.theirsValue).toBe('None');
-        expect(byKey['servings']).toMatchObject({ mineValue: '6', theirsValue: '4' });
-        expect(byKey['prepTimeMinutes']).toMatchObject({ mineValue: '15 min', theirsValue: '10 min' });
-        expect(byKey['visibility']).toMatchObject({ mineValue: 'Public', theirsValue: 'Private' });
-        expect(byKey['tags']).toMatchObject({ mineValue: 'spicy', theirsValue: 'None' });
-        expect(byKey['dietaryFlags']?.theirsValue).toBe('vegetarian, gluten-free');
-        expect(byKey['ingredients']).toMatchObject({ mineValue: '3 ingredients', theirsValue: '1 ingredient' });
-        expect(byKey['steps']).toMatchObject({ mineValue: '2 steps', theirsValue: '1 step' });
-    });
-
-    it('renders EVERY field even when both sides are identical (no field is hidden)', () => {
-        const same = makeRecipeFormValues();
-
-        const fields = buildRecipeMergeFields(same, same, conflict, 'en');
-
-        // The whole editable field set is present — nothing is silently dropped because it happens to match.
-        expect(fields).toHaveLength(11);
-        expect(fields.every((field) => field.mineValue === field.theirsValue)).toBe(true);
-    });
-
-    it('includes a field the form gains later that has no curated descriptor (never silently omitted)', () => {
-        // Simulate a future `RecipeFormValues` field (e.g. CR-001's `difficulty`) not yet in the registry.
-        const mine = { ...makeRecipeFormValues(), difficulty: 'hard' } as unknown as RecipeFormValues;
-        const theirs = { ...makeRecipeFormValues(), difficulty: 'easy' } as unknown as RecipeFormValues;
-
-        const fields = buildRecipeMergeFields(mine, theirs, conflict, 'en');
-        const difficulty = fields.find((field) => field.key === 'difficulty');
-
-        expect(difficulty).toBeDefined();
-        expect(difficulty?.mineValue).toBe('hard');
-        expect(difficulty?.theirsValue).toBe('easy');
-    });
-});
-
 describe('composeMergedRecipe (FR-007c — per-field, never last-write-wins)', () => {
     const mine = makeRecipeFormValues({
         title: 'My Title',
@@ -390,6 +306,139 @@ describe('composeMergedRecipe (FR-007c — per-field, never last-write-wins)', (
 
         expect(mine).toEqual(mineSnapshot);
         expect(theirs).toEqual(theirsSnapshot);
+    });
+});
+
+describe('composeConflictMerge (W7 Task 5 — per-element merge, mutation lens)', () => {
+    const mineStep = (n: number): RecipeFormStep => ({ instruction: `Mine step ${n}` });
+    const theirsStep = (n: number): RecipeFormStep => ({ instruction: `Theirs step ${n}` });
+    const mineIngredient = (id: string): RecipeFormIngredient => ({
+        ingredientId: id,
+        name: `Mine ${id}`,
+        quantity: 1,
+    });
+    const theirsIngredient = (id: string): RecipeFormIngredient => ({
+        ingredientId: id,
+        name: `Theirs ${id}`,
+        quantity: 2,
+    });
+
+    const mine = makeRecipeFormValues({
+        title: 'My Title',
+        servings: 6,
+        steps: [mineStep(1), mineStep(2), mineStep(3)],
+        ingredients: [mineIngredient('a'), mineIngredient('b'), mineIngredient('c')],
+    });
+    const theirs = makeRecipeFormValues({
+        title: 'Their Title',
+        servings: 4,
+        steps: [theirsStep(1), theirsStep(2), theirsStep(3)],
+        ingredients: [theirsIngredient('a'), theirsIngredient('b'), theirsIngredient('c')],
+    });
+
+    it('a scalar selection swaps ONLY that scalar (delegates to composeMergedRecipe)', () => {
+        const merged = composeConflictMerge(mine, theirs, { title: 'theirs' });
+
+        expect(merged.title).toBe('Their Title');
+        // Every OTHER top-level field — including the untouched whole arrays — stays mine's.
+        expect(merged.servings).toBe(6);
+        expect(merged.steps).toEqual(mine.steps);
+        expect(merged.ingredients).toEqual(mine.ingredients);
+    });
+
+    it('a `steps[N]` selection swaps ONLY that index — every other step is untouched (mutation lens)', () => {
+        const merged = composeConflictMerge(mine, theirs, { 'steps[1]': 'theirs' });
+
+        // A merge that swapped the whole array, the wrong index, or dropped a step would fail one of these.
+        expect(merged.steps).toEqual([mineStep(1), theirsStep(2), mineStep(3)]);
+        expect(merged.steps).toHaveLength(3);
+        // Unrelated top-level fields are untouched.
+        expect(merged.title).toBe('My Title');
+        expect(merged.ingredients).toEqual(mine.ingredients);
+    });
+
+    it('multiple `steps[N]` selections each swap only their own index', () => {
+        const merged = composeConflictMerge(mine, theirs, { 'steps[0]': 'theirs', 'steps[2]': 'theirs' });
+
+        expect(merged.steps).toEqual([theirsStep(1), mineStep(2), theirsStep(3)]);
+    });
+
+    it('an `ingredients:<id>` selection swaps ONLY that identity — every other ingredient is untouched', () => {
+        const merged = composeConflictMerge(mine, theirs, { 'ingredients:b': 'theirs' });
+
+        expect(merged.ingredients).toEqual([mineIngredient('a'), theirsIngredient('b'), mineIngredient('c')]);
+        expect(merged.ingredients).toHaveLength(3);
+        expect(merged.steps).toEqual(mine.steps);
+    });
+
+    it('combines per-element step AND ingredient selections independently', () => {
+        const merged = composeConflictMerge(mine, theirs, { 'steps[2]': 'theirs', 'ingredients:a': 'theirs' });
+
+        expect(merged.steps).toEqual([mineStep(1), mineStep(2), theirsStep(3)]);
+        expect(merged.ingredients).toEqual([theirsIngredient('a'), mineIngredient('b'), mineIngredient('c')]);
+    });
+
+    it('with NO per-element key, steps/ingredients stay the whole-array default (mine) — identical to composeMergedRecipe', () => {
+        const merged = composeConflictMerge(mine, theirs, { title: 'theirs' });
+
+        expect(merged.steps).toEqual(composeMergedRecipe(mine, theirs, { title: 'theirs' }).steps);
+        expect(merged.ingredients).toEqual(composeMergedRecipe(mine, theirs, { title: 'theirs' }).ingredients);
+    });
+
+    it('does not mutate either input', () => {
+        const mineSnapshot = structuredClone(mine);
+        const theirsSnapshot = structuredClone(theirs);
+
+        composeConflictMerge(mine, theirs, { 'steps[1]': 'theirs', 'ingredients:a': 'theirs' });
+
+        expect(mine).toEqual(mineSnapshot);
+        expect(theirs).toEqual(theirsSnapshot);
+    });
+});
+
+describe('isConflictBaseStale (W7 Task 5 / X6)', () => {
+    const base: VersionConflictSide = makeVersionConflictSide({ versionNumber: 5 });
+
+    it('is false when a base is present and within the 10-version threshold', () => {
+        expect(isConflictBaseStale(base, 10)).toBe(false);
+        expect(isConflictBaseStale(base, 1)).toBe(false);
+    });
+
+    it('is true when the server is more than 10 versions ahead of the base', () => {
+        expect(isConflictBaseStale(base, 11)).toBe(true);
+    });
+
+    it('is true when the base is absent, REGARDLESS of what versionsBehind reads (unreliable without a base)', () => {
+        expect(isConflictBaseStale(undefined, 1)).toBe(true);
+        expect(isConflictBaseStale(undefined, 0)).toBe(true);
+    });
+});
+
+describe('countMergeSelections / formatMergeSummary (W7 Task 5 — running "Summary of choices")', () => {
+    it('counts zero of both sides for empty selections', () => {
+        expect(countMergeSelections({})).toEqual({ server: 0, mine: 0 });
+        expect(formatMergeSummary({}, conflict, 'en')).toBe(
+            'Summary: 0 choices from server, 0 choices from your version',
+        );
+    });
+
+    it('tallies each side’s explicit picks, correctly pluralized', () => {
+        const selections: RecipeMergeSelections = {
+            title: 'theirs',
+            servings: 'theirs',
+            'steps[1]': 'mine',
+        };
+
+        expect(countMergeSelections(selections)).toEqual({ server: 2, mine: 1 });
+        expect(formatMergeSummary(selections, conflict, 'en')).toBe(
+            'Summary: 2 choices from server, 1 choice from your version',
+        );
+    });
+
+    it('does not count an absent key — only EXPLICIT selections, not the implied default', () => {
+        // `composeMergedRecipe`/`composeConflictMerge` still default an absent key to "mine", but the running
+        // summary reports what the user actively picked, not the composed result.
+        expect(countMergeSelections({ title: 'theirs' })).toEqual({ server: 1, mine: 0 });
     });
 });
 

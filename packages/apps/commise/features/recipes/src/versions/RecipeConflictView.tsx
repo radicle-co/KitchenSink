@@ -13,26 +13,34 @@
  * — [A] keep server, [B] overwrite with mine, [C] merge field by field — and the changed-only diff panel
  * (W7 Task 4 / X1) below the cards, driven by the precomputed `ConflictDiff` (W7 Task 1): one row PER
  * changed-or-conflicting field/element, each with an accessible marker (`[→]` changed / `[!!]` conflict —
- * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend. The merge panel itself
- * (Option C) is UNCHANGED from the pre-W7 shape — a per-field
- * radio chooser whose selections are the caller's own (`selections` in, `onSelectionsChange` out); this leaf
- * reports the current selections upward via `onMerge` and the caller composes + submits. Nothing is
- * auto-merged — every field's resolution is the user's explicit choice. Only the merge-panel-visible toggle
- * stays local (pure UI navigation, not data the machine needs).
+ * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend.
+ *
+ * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows` — the CHANGED fields/elements, one radiogroup
+ * per row, Server FIRST then Yours (X7), reusing {@link import('./model.js').conflictRowLabel} so a merge
+ * row can never disagree with the diff panel above on how it names itself. Selecting is the user's EXPLICIT
+ * choice: no radio is pre-checked, so the running "Summary of choices" starts at zero and the Save/Resolve
+ * action is GATED (X5) on at least one selection existing. A base that was evicted from version history, or
+ * is more than 10 versions behind (X6), additionally requires an explicit confirm before Overwrite OR
+ * Save-merged proceeds — `isConflictBaseStale` gates both actions the same way regardless of which screen
+ * they live on. Nothing is auto-merged; every field's resolution is the user's explicit choice. `selections`
+ * comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every toggle
+ * reports back via `onSelectionsChange` — this view owns no merge data of its own. Only the merge-panel-
+ * visible toggle and the stale-confirm checkbox stay local (pure UI state, not data the machine needs).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useId, useState } from 'react';
-import type { FC } from 'react';
+import type { ChangeEvent, FC } from 'react';
 
 import type { ConflictMarker } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import {
-    buildRecipeMergeFields,
     conflictMarkerGlyph,
     conflictMarkerLabel,
     conflictRowLabel,
     fillTemplate,
+    formatMergeSummary,
     formatServerBanner,
+    isConflictBaseStale,
     type MergeSide,
     type RecipeConflictViewProps,
 } from './model.js';
@@ -46,22 +54,25 @@ const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conf
  * accessible NAME to the title alone (its computed-from-content name would otherwise run the description
  * text on too, e.g. "Keep server version Discard your local changes…"); `aria-describedby` still attaches
  * the description as the button's accessible DESCRIPTION, so assistive tech reads both, just not run
- * together as one name.
+ * together as one name. `disabled` (W7 Task 5 / X6) is the stale-base confirm gate on Option B (Overwrite)
+ * — Option A and C are never gated this way (see the module doc).
  */
 const OptionCard: FC<{
     readonly title: string;
     readonly description: string;
     readonly onChoose: () => void;
-}> = ({ title, description, onChoose }) => {
+    readonly disabled?: boolean;
+}> = ({ title, description, onChoose, disabled = false }) => {
     const descriptionId = useId();
 
     return (
         <button
             type="button"
             onClick={onChoose}
+            disabled={disabled}
             aria-label={title}
             aria-describedby={descriptionId}
-            className="flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl"
+            className="flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-card"
         >
             <span aria-hidden="true" className="font-display text-body-lg font-semibold text-charcoal">
                 {title}
@@ -73,11 +84,35 @@ const OptionCard: FC<{
     );
 };
 
+/**
+ * The stale-base warning + explicit confirm checkbox (W7 Task 5 / X6) — shared, unchanged markup between the
+ * options view (gates Overwrite) and the merge panel (gates Save merged version), so the two can never drift
+ * on wording or behavior. `role="alert"` (mirrors `RecipeDeleteDialog`'s own alert-role warning surfaces).
+ */
+const StaleBaseWarning: FC<{
+    readonly warning: string;
+    readonly confirmLabel: string;
+    readonly confirmed: boolean;
+    readonly onConfirmedChange: (confirmed: boolean) => void;
+}> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
+    <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-warning/15 p-4 ring-1 ring-warning">
+        <p className="text-body-sm text-charcoal">{warning}</p>
+        <label className="flex items-center gap-2 text-body-sm font-medium text-charcoal">
+            <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => onConfirmedChange(event.target.checked)}
+            />
+            {confirmLabel}
+        </label>
+    </div>
+);
+
 export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     server,
+    base,
     diff,
-    mineValues,
-    theirsValues,
+    versionsBehind,
     selections,
     onSelectionsChange,
     onKeepServer,
@@ -87,8 +122,11 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
     // Whether the merge panel is showing is pure UI navigation (not data the `useRecipeEditor` machine needs)
-    // — it stays local. The per-field `selections` themselves are fully controlled by the caller.
+    // — it stays local. So is the stale-base confirm checkbox (W7 Task 5 / X6) — a fresh acknowledgment for
+    // THIS conflict, not data the machine composes with. The per-field `selections` themselves are fully
+    // controlled by the caller.
     const [merging, setMerging] = useState(false);
+    const [staleConfirmed, setStaleConfirmed] = useState(false);
     // Reading the clock is THIS component's own side effect (mirrors `HomeGreeting`'s split of "the caller
     // reads `new Date()`, the pure formatter only maps an instant to a string") — `formatServerBanner`/
     // `formatRelativeTimeAgo` stay pure and testable without freezing time.
@@ -97,52 +135,80 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     const optionLabel = (side: string, value: string): string =>
         fillTemplate(conflict.mergeOptionLabel, { side, value });
 
+    const isStale = isConflictBaseStale(base, versionsBehind);
+    const hasSelection = Object.keys(selections).length > 0;
+    const staleWarning = isStale ? (
+        <StaleBaseWarning
+            warning={conflict.staleBaseWarning}
+            confirmLabel={conflict.staleBaseConfirmLabel}
+            confirmed={staleConfirmed}
+            onConfirmedChange={setStaleConfirmed}
+        />
+    ) : null;
+
     if (merging) {
-        const fields = buildRecipeMergeFields(mineValues, theirsValues, conflict, locale);
-        // Sparse per-field resolution: an absent field is the default ("mine"), matching `composeMergedRecipe`'s
-        // own absent-key handling — so this reads the controlled `selections` prop with the same fallback.
-        const sideOf = (key: string): MergeSide => selections[key] ?? 'mine';
+        // No default side: an absent key renders NEITHER radio checked, so the running summary — and the
+        // selection gate below — reflect only the user's EXPLICIT picks (an absent key still composes to
+        // "mine" downstream, in `composeConflictMerge` — this is a display/gating distinction, not a data one).
+        const sideOf = (key: string): MergeSide | undefined => selections[key];
         const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
+        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed);
 
         return (
             <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
                 <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.mergeHeading}</h2>
                 <p className="text-body-md text-slate">{conflict.mergeExplanation}</p>
+                {staleWarning}
                 <div className="flex flex-col gap-3">
-                    {fields.map((field) => (
-                        <fieldset
-                            key={field.key}
-                            role="radiogroup"
-                            aria-label={field.label}
-                            className="flex flex-col gap-1 rounded-2xl bg-card p-4 ring-1 ring-border"
-                        >
-                            <legend className="text-caption uppercase tracking-wide text-slate">{field.label}</legend>
-                            <label className="flex items-center gap-2 text-body-md text-charcoal">
-                                <input
-                                    type="radio"
-                                    name={field.key}
-                                    checked={sideOf(field.key) === 'mine'}
-                                    onChange={() => choose(field.key, 'mine')}
-                                />
-                                {optionLabel(conflict.mergeMineLabel, field.mineValue)}
-                            </label>
-                            <label className="flex items-center gap-2 text-body-md text-charcoal">
-                                <input
-                                    type="radio"
-                                    name={field.key}
-                                    checked={sideOf(field.key) === 'theirs'}
-                                    onChange={() => choose(field.key, 'theirs')}
-                                />
-                                {optionLabel(conflict.mergeServerLabel, field.theirsValue)}
-                            </label>
-                        </fieldset>
-                    ))}
+                    {diff.rows.map((row) => {
+                        const label = conflictRowLabel(row, conflict);
+                        const current = sideOf(row.key);
+
+                        return (
+                            <fieldset
+                                key={row.key}
+                                role="radiogroup"
+                                aria-label={label}
+                                className="flex flex-col gap-1 rounded-2xl bg-card p-4 ring-1 ring-border"
+                            >
+                                <legend className="text-caption uppercase tracking-wide text-slate">{label}</legend>
+                                {/* Server FIRST, then Yours (X7). */}
+                                <label className="flex items-center gap-2 text-body-md text-charcoal">
+                                    <input
+                                        type="radio"
+                                        name={row.key}
+                                        checked={current === 'theirs'}
+                                        onChange={() => choose(row.key, 'theirs')}
+                                    />
+                                    {optionLabel(conflict.mergeServerLabel, row.theirs)}
+                                </label>
+                                <label className="flex items-center gap-2 text-body-md text-charcoal">
+                                    <input
+                                        type="radio"
+                                        name={row.key}
+                                        checked={current === 'mine'}
+                                        onChange={() => choose(row.key, 'mine')}
+                                    />
+                                    {optionLabel(conflict.mergeMineLabel, row.mine)}
+                                </label>
+                            </fieldset>
+                        );
+                    })}
                 </div>
+                <p aria-live="polite" className="text-body-sm font-medium text-charcoal">
+                    {formatMergeSummary(selections, conflict, locale)}
+                </p>
+                {!hasSelection && (
+                    <p role="status" className="text-body-sm text-slate">
+                        {conflict.mergeNoSelectionHint}
+                    </p>
+                )}
                 <div className="flex flex-wrap gap-3">
                     <button
                         type="button"
                         onClick={() => onMerge(selections)}
-                        className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
+                        disabled={mergeDisabled}
+                        className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-seafoam"
                     >
                         {conflict.mergeSubmit}
                     </button>
@@ -172,6 +238,9 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <p className="text-body-md text-charcoal">{conflict.mineBanner}</p>
             </div>
 
+            {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
+            {staleWarning}
+
             {/* Three A/B/C option cards (X2). */}
             <div className="flex flex-col gap-4 sm:flex-row">
                 <OptionCard
@@ -183,6 +252,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                     title={conflict.optionOverwriteTitle}
                     description={conflict.optionOverwriteDescription}
                     onChoose={onOverwrite}
+                    disabled={isStale && !staleConfirmed}
                 />
                 <OptionCard
                     title={conflict.optionMergeTitle}

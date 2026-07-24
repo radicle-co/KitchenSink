@@ -350,7 +350,11 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Overwrite with your version' }));
+        // This fake conflict carries no `base` (W8-a.5 real conflicts may also lack one — the base-evicted
+        // case), so the W7 Task 5 / X6 stale-base gate applies: confirm before Overwrite proceeds.
+        await screen.findByRole('button', { name: 'Overwrite with your version' });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Overwrite with your version' }));
 
         expect(mutate).toHaveBeenCalledTimes(2);
         const [firstVars] = mutate.mock.calls[0] as [{ input: { expectedVersion: number } }];
@@ -374,7 +378,9 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Overwrite with your version' }));
+        await screen.findByRole('button', { name: 'Overwrite with your version' });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Overwrite with your version' }));
 
         expect(await screen.findByText(/Saved At Six/)).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
@@ -403,10 +409,12 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
-        // Enter the merge panel, keep my title (default), pull servings from the latest saved version.
+        // Enter the merge panel, keep my title (default), pull servings from the latest saved version. This
+        // fake conflict carries no `base`, so the W7 Task 5 / X6 stale-base gate applies here too.
         fireEvent.click(await screen.findByRole('button', { name: 'Merge manually' }));
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
         fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 8' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
         fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
 
         expect(mutate).toHaveBeenCalledTimes(2);

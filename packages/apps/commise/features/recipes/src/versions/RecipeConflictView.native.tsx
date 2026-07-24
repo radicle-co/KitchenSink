@@ -7,8 +7,12 @@
  * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
  * per changed-or-conflicting field/element, each with an accessible marker (text/role, never colour alone)
- * and Server-then-Yours values (X7), plus a legend. The merge panel (Option C) is unchanged from the pre-W7
- * shape.
+ * and Server-then-Yours values (X7), plus a legend.
+ *
+ * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows`, Server FIRST then Yours (X7), gated (X5) on at
+ * least one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an
+ * explicit stale-base confirm shared with Overwrite. See the web leaf's own module doc for the full
+ * rationale; this file mirrors it exactly so the two platforms cannot drift.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useState } from 'react';
@@ -19,12 +23,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ConflictMarker } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import {
-    buildRecipeMergeFields,
     conflictMarkerGlyph,
     conflictMarkerLabel,
     conflictRowLabel,
     fillTemplate,
+    formatMergeSummary,
     formatServerBanner,
+    isConflictBaseStale,
     type MergeSide,
     type RecipeConflictViewProps,
 } from './model.js';
@@ -33,19 +38,27 @@ import {
  *  order). */
 const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
 
-/** One A/B/C option card — a title, a description, and the choice it fires. */
+/** One A/B/C option card — a title, a description, and the choice it fires. `disabled` (W7 Task 5 / X6) is
+ *  the stale-base confirm gate on Option B (Overwrite) — Option A and C are never gated this way. */
 const OptionCard: FC<{
     readonly title: string;
     readonly description: string;
     readonly onChoose: () => void;
-}> = ({ title, description, onChoose }) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onChoose} style={styles.optionCard}>
+    readonly disabled?: boolean;
+}> = ({ title, description, onChoose, disabled = false }) => (
+    <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        disabled={disabled}
+        onPress={onChoose}
+        style={[styles.optionCard, disabled && styles.optionCardDisabled]}
+    >
         <Text style={styles.optionTitle}>{title}</Text>
         <Text style={styles.optionDescription}>{description}</Text>
     </Pressable>
 );
 
-/** One radio option in a field's merge chooser. */
+/** One radio option in a merge row's chooser. */
 const MergeOption: FC<{
     readonly label: string;
     readonly checked: boolean;
@@ -63,11 +76,40 @@ const MergeOption: FC<{
     </Pressable>
 );
 
+/**
+ * The stale-base warning + explicit confirm checkbox (W7 Task 5 / X6) — shared, unchanged markup between the
+ * options view (gates Overwrite) and the merge panel (gates Save merged version). `accessibilityRole="alert"`
+ * mirrors `RecipeDeleteDialog.native`'s own alert-role warning surface; the checkbox mirrors
+ * `RecipeVersionList.native`'s ☑/☐-glyph checkbox convention (react-native-web renders `role="checkbox"` but
+ * not a reliable `aria-checked`).
+ */
+const StaleBaseWarning: FC<{
+    readonly warning: string;
+    readonly confirmLabel: string;
+    readonly confirmed: boolean;
+    readonly onConfirmedChange: (confirmed: boolean) => void;
+}> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
+    <View accessibilityRole="alert" style={styles.staleWarning}>
+        <Text style={styles.staleWarningText}>{warning}</Text>
+        <Pressable
+            accessibilityRole="checkbox"
+            accessibilityLabel={confirmLabel}
+            accessibilityState={{ checked: confirmed }}
+            onPress={() => onConfirmedChange(!confirmed)}
+            style={styles.option}
+        >
+            <Text style={styles.optionLabel}>
+                {confirmed ? '☑' : '☐'} {confirmLabel}
+            </Text>
+        </Pressable>
+    </View>
+);
+
 export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     server,
+    base,
     diff,
-    mineValues,
-    theirsValues,
+    versionsBehind,
     selections,
     onSelectionsChange,
     onKeepServer,
@@ -76,20 +118,34 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
-    // Whether the merge panel is showing is pure UI navigation — stays local. `selections` is fully
-    // controlled by the caller (the `useRecipeEditor` machine).
+    // Whether the merge panel is showing, and the stale-base confirm checkbox, are pure UI navigation state
+    // (not data the `useRecipeEditor` machine needs) — they stay local. `selections` is fully controlled by
+    // the caller.
     const [merging, setMerging] = useState(false);
+    const [staleConfirmed, setStaleConfirmed] = useState(false);
     // Reading the clock is THIS component's own side effect — see the web leaf's own note.
     const now = new Date();
 
     const optionLabel = (side: string, value: string): string =>
         fillTemplate(conflict.mergeOptionLabel, { side, value });
 
+    const isStale = isConflictBaseStale(base, versionsBehind);
+    const hasSelection = Object.keys(selections).length > 0;
+    const staleWarning = isStale ? (
+        <StaleBaseWarning
+            warning={conflict.staleBaseWarning}
+            confirmLabel={conflict.staleBaseConfirmLabel}
+            confirmed={staleConfirmed}
+            onConfirmedChange={setStaleConfirmed}
+        />
+    ) : null;
+
     if (merging) {
-        const fields = buildRecipeMergeFields(mineValues, theirsValues, conflict, locale);
-        // Sparse per-field resolution: an absent field defaults to "mine", matching `composeMergedRecipe`.
-        const sideOf = (key: string): MergeSide => selections[key] ?? 'mine';
+        // No default side: an absent key renders NEITHER radio checked — see the web leaf's own note on why
+        // this is a display/gating distinction, not a data one (`composeConflictMerge` still defaults to mine).
+        const sideOf = (key: string): MergeSide | undefined => selections[key];
         const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
+        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed);
 
         return (
             <View accessibilityLabel={conflict.mergeHeading} style={styles.container}>
@@ -97,31 +153,43 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                     {conflict.mergeHeading}
                 </Text>
                 <Text style={styles.explanation}>{conflict.mergeExplanation}</Text>
-                {fields.map((field) => (
-                    <View
-                        key={field.key}
-                        accessibilityRole="radiogroup"
-                        accessibilityLabel={field.label}
-                        style={styles.group}
-                    >
-                        <Text style={styles.fieldLabel}>{field.label}</Text>
-                        <MergeOption
-                            label={optionLabel(conflict.mergeMineLabel, field.mineValue)}
-                            checked={sideOf(field.key) === 'mine'}
-                            onSelect={() => choose(field.key, 'mine')}
-                        />
-                        <MergeOption
-                            label={optionLabel(conflict.mergeServerLabel, field.theirsValue)}
-                            checked={sideOf(field.key) === 'theirs'}
-                            onSelect={() => choose(field.key, 'theirs')}
-                        />
-                    </View>
-                ))}
+                {staleWarning}
+                {diff.rows.map((row) => {
+                    const label = conflictRowLabel(row, conflict);
+                    const current = sideOf(row.key);
+
+                    return (
+                        <View
+                            key={row.key}
+                            accessibilityRole="radiogroup"
+                            accessibilityLabel={label}
+                            style={styles.group}
+                        >
+                            <Text style={styles.fieldLabel}>{label}</Text>
+                            {/* Server FIRST, then Yours (X7). */}
+                            <MergeOption
+                                label={optionLabel(conflict.mergeServerLabel, row.theirs)}
+                                checked={current === 'theirs'}
+                                onSelect={() => choose(row.key, 'theirs')}
+                            />
+                            <MergeOption
+                                label={optionLabel(conflict.mergeMineLabel, row.mine)}
+                                checked={current === 'mine'}
+                                onSelect={() => choose(row.key, 'mine')}
+                            />
+                        </View>
+                    );
+                })}
+                <Text accessibilityLiveRegion="polite" style={styles.summary}>
+                    {formatMergeSummary(selections, conflict, locale)}
+                </Text>
+                {!hasSelection && <Text style={styles.explanation}>{conflict.mergeNoSelectionHint}</Text>}
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={conflict.mergeSubmit}
+                    disabled={mergeDisabled}
                     onPress={() => onMerge(selections)}
-                    style={styles.chooseButton}
+                    style={[styles.chooseButton, mergeDisabled && styles.chooseButtonDisabled]}
                 >
                     <Text style={styles.chooseLabel}>{conflict.mergeSubmit}</Text>
                 </Pressable>
@@ -153,6 +221,9 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <Text style={styles.bannerLine}>{conflict.mineBanner}</Text>
             </View>
 
+            {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
+            {staleWarning}
+
             {/* Three A/B/C option cards (X2). */}
             <OptionCard
                 title={conflict.optionServerTitle}
@@ -163,6 +234,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 title={conflict.optionOverwriteTitle}
                 description={conflict.optionOverwriteDescription}
                 onChoose={onOverwrite}
+                disabled={isStale && !staleConfirmed}
             />
             <OptionCard
                 title={conflict.optionMergeTitle}
@@ -235,6 +307,15 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     bannerLine: { fontSize: 15, color: palette.charcoal },
+    staleWarning: {
+        backgroundColor: 'rgba(230, 168, 60, 0.15)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: palette.warning,
+        padding: 16,
+        gap: 8,
+    },
+    staleWarningText: { fontSize: 14, color: palette.charcoal },
     optionCard: {
         backgroundColor: palette.white,
         borderRadius: 16,
@@ -243,6 +324,7 @@ const styles = StyleSheet.create({
         padding: 16,
         gap: 4,
     },
+    optionCardDisabled: { opacity: 0.5 },
     optionTitle: { fontSize: 17, fontWeight: '600', color: palette.charcoal },
     optionDescription: { fontSize: 13, color: palette.slate },
     group: {
@@ -254,6 +336,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
+    summary: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
     subheading: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
     changedFields: { gap: 8 },
     changedFieldRow: {
@@ -287,6 +370,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         marginTop: 4,
     },
+    chooseButtonDisabled: { opacity: 0.5 },
     chooseLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     secondaryButton: {
         alignSelf: 'flex-start',

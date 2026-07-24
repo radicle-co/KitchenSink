@@ -388,64 +388,109 @@ describe('RecipeConflictView (web) — changed-only diff panel with markers + le
     });
 });
 
-describe('RecipeConflictView (web) — field-by-field merge (FR-007c option c, controlled selections)', () => {
+describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)', () => {
     const enterMerge = () => fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
 
-    it('enters merge mode with a per-field chooser defaulting to the user’s draft', () => {
+    it('lists ONLY the changed fields/elements from diff.rows — an unchanged field never appears', () => {
         freezeClock();
         renderControlledConflict();
         enterMerge();
 
         expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
-        // Each editable field is its own radio group; title defaults to the user's draft value.
-        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
-        const mineRadio = within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' });
-        const theirsRadio = within(titleGroup).getByRole('radio', { name: 'Latest saved version: Latest Saved Title' });
-        expect((mineRadio as HTMLInputElement).checked).toBe(true);
-        expect((theirsRadio as HTMLInputElement).checked).toBe(false);
+        expect(screen.getByRole('radiogroup', { name: 'Title' })).toBeTruthy();
+        expect(screen.getByRole('radiogroup', { name: 'Servings' })).toBeTruthy();
+        // The fixture `diff` carries exactly 2 rows — no extra field (e.g. Description) is invented.
+        expect(screen.getAllByRole('radiogroup')).toHaveLength(2);
+        expect(screen.queryByRole('radiogroup', { name: 'Description' })).toBeNull();
     });
 
-    it('toggles a field between mine and theirs (round-trips through onSelectionsChange)', () => {
+    it('renders Server BEFORE Your version within a row (X7 — server-first radio order)', () => {
         freezeClock();
         renderControlledConflict();
         enterMerge();
 
-        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        const theirsRadio = within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' });
-        fireEvent.click(theirsRadio);
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        const radios = within(titleGroup).getAllByRole('radio');
 
-        expect((theirsRadio as HTMLInputElement).checked).toBe(true);
+        expect(radios).toHaveLength(2);
+        expect((radios[0] as HTMLInputElement).labels?.[0]?.textContent).toBe(
+            'Latest saved version: Latest Saved Title',
+        );
+        expect((radios[1] as HTMLInputElement).labels?.[0]?.textContent).toBe('Your version: My Draft Title');
+    });
+
+    it('starts with NEITHER radio checked — nothing is auto-selected', () => {
+        freezeClock();
+        renderControlledConflict();
+        enterMerge();
+
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
         expect(
-            (within(servingsGroup).getByRole('radio', { name: 'Your version: 6' }) as HTMLInputElement).checked,
+            (
+                within(titleGroup).getByRole('radio', {
+                    name: 'Latest saved version: Latest Saved Title',
+                }) as HTMLInputElement
+            ).checked,
+        ).toBe(false);
+        expect(
+            (within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' }) as HTMLInputElement)
+                .checked,
         ).toBe(false);
     });
 
-    it('reports the current selections to onMerge (my title left default + their servings chosen)', () => {
+    it('selecting a row builds the selections and updates the running summary', () => {
         freezeClock();
-        const onMerge = vi.fn();
-        renderControlledConflict({ onMerge });
+        renderControlledConflict();
         enterMerge();
 
-        // Keep the title on mine (default); pull servings from theirs.
+        expect(screen.getByText('Summary: 0 choices from server, 0 choices from your version')).toBeTruthy();
+
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
         fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
 
-        // The leaf reports the RAW selections (composition is the caller's job, not this view's) — sparse,
-        // only the field the user actually touched.
-        expect(onMerge).toHaveBeenCalledTimes(1);
-        expect(onMerge).toHaveBeenCalledWith({ servings: 'theirs' });
+        expect(
+            (within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }) as HTMLInputElement).checked,
+        ).toBe(true);
+        expect(screen.getByText('Summary: 1 choice from server, 0 choices from your version')).toBeTruthy();
+
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        fireEvent.click(within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' }));
+
+        expect(screen.getByText('Summary: 1 choice from server, 1 choice from your version')).toBeTruthy();
     });
 
-    it('submitting with no changes reports an empty selections object (every field stays at its default)', () => {
+    it('gating (X5): Save merged version is disabled with zero selections, and clicking it fires nothing', () => {
         freezeClock();
         const onMerge = vi.fn();
         renderControlledConflict({ onMerge });
         enterMerge();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        expect(save.disabled).toBe(true);
+        expect(screen.getByText('Choose a value for at least one field to save the merged version.')).toBeTruthy();
 
-        expect(onMerge).toHaveBeenCalledWith({});
+        fireEvent.click(save);
+
+        expect(onMerge).not.toHaveBeenCalled();
+    });
+
+    it('gating (X5): Save merged version enables after one selection and fires onMerge with it', () => {
+        freezeClock();
+        const onMerge = vi.fn();
+        renderControlledConflict({ onMerge });
+        enterMerge();
+
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        expect(save.disabled).toBe(false);
+        expect(screen.queryByText('Choose a value for at least one field to save the merged version.')).toBeNull();
+
+        fireEvent.click(save);
+
+        expect(onMerge).toHaveBeenCalledTimes(1);
+        expect(onMerge).toHaveBeenCalledWith({ servings: 'theirs' });
     });
 
     it('is a pure pass-through over the given selections prop — reads exactly what it is given', () => {
@@ -479,5 +524,67 @@ describe('RecipeConflictView (web) — field-by-field merge (FR-007c option c, c
         expect(onSelectionsChange).toHaveBeenCalledWith({});
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
+    });
+});
+
+describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Task 5 / X6)', () => {
+    it('renders NO warning for a normal case (base present, versionsBehind <= 10)', () => {
+        freezeClock();
+        renderConflict({ versionsBehind: 5 });
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
+            false,
+        );
+    });
+
+    it('renders the warning + blocks Overwrite until confirmed when versionsBehind > 10', () => {
+        freezeClock();
+        const onOverwrite = vi.fn();
+        renderConflict({ versionsBehind: 11, onOverwrite });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        expect(overwrite.disabled).toBe(true);
+
+        fireEvent.click(overwrite);
+        expect(onOverwrite).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        expect(overwrite.disabled).toBe(false);
+
+        fireEvent.click(overwrite);
+        expect(onOverwrite).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders the warning when base is undefined, even with a LOW versionsBehind (unreliable alone)', () => {
+        freezeClock();
+        renderConflict({ base: undefined, versionsBehind: 1 });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
+            true,
+        );
+    });
+
+    it('blocks Save merged version in the merge panel until confirmed, alongside the selection gate', () => {
+        freezeClock();
+        const onMerge = vi.fn();
+        renderControlledConflict({ onMerge, versionsBehind: 11 });
+        fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        expect(save.disabled).toBe(true);
+        fireEvent.click(save);
+        expect(onMerge).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        expect(save.disabled).toBe(false);
+
+        fireEvent.click(save);
+        expect(onMerge).toHaveBeenCalledTimes(1);
     });
 });

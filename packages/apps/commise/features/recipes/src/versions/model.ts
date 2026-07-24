@@ -465,155 +465,31 @@ export const conflictRowLabel = (row: ConflictFieldRow, messages: RecipeConflict
 // each editable field from either their own in-progress draft ("mine") or the latest saved recipe ("theirs").
 // This is a genuine merge (keep my new title AND the other device's added ingredient), distinct from the
 // keep-mine / use-theirs whole-record choices, and it is what FR-007c's "MUST NOT last-write-wins" forbids
-// resolving any other way. Granularity is PER TOP-LEVEL FIELD (not per array element): FR-007c says
-// "field-by-field", and a full element-level array diff is a separate, larger tool the requirement does not
-// call for. Every field's resolution is the user's EXPLICIT choice — nothing is auto-combined.
+// resolving any other way. Every field's resolution is the user's EXPLICIT choice — nothing is auto-combined.
+//
+// `composeMergedRecipe` below is the TOP-LEVEL-FIELD compose primitive `composeConflictMerge` (W7 Task 2)
+// builds on. There is deliberately no `buildRecipeMergeFields`-style "every editable field, whole-record"
+// panel-building helper here (a pre-W7 shape, removed by W7 Task 5): the merge panel now renders ONLY the
+// CHANGED fields/elements — `ConflictDiff.rows` (W7 Task 1), each row already labelled by
+// {@link conflictRowLabel} (Task 4) — so a second, whole-field label/format registry would be a second,
+// drifting representation of the same "what does this field look like" knowledge the diff row already
+// carries.
 
 /** Which side of the conflict a merged field is taken from. */
 export type MergeSide = 'mine' | 'theirs';
 
-/** One editable field presented in the merge panel — its label plus each side's pre-formatted value. */
-export interface RecipeMergeField {
-    /** The `RecipeFormValues` key this field resolves (also the radio-group `name`). */
-    readonly key: string;
-    /** The localized field label. */
-    readonly label: string;
-    /** The user's draft value, formatted for display. */
-    readonly mineValue: string;
-    /** The latest saved value, formatted for display. */
-    readonly theirsValue: string;
-}
-
-/** Per-field resolution: for each editable field key, the side the user chose. */
+/** Per-field/per-element resolution: for each `ConflictFieldRow.key` (a top-level field name, or a
+ *  per-element `steps[N]`/`ingredients:<id>` key), the side the user chose. */
 export type RecipeMergeSelections = Readonly<Record<string, MergeSide>>;
 
-/** How one editable field is labelled and formatted in the merge panel. */
-interface MergeFieldDescriptor {
-    readonly label: (messages: RecipeConflictMessages) => string;
-    readonly format: (value: unknown, messages: RecipeConflictMessages, locale: Locale) => string;
-}
-
-/** Format a free-text field, falling back to the localized empty marker for a blank/absent value. Pure. */
-const formatText = (value: unknown, messages: RecipeConflictMessages): string =>
-    typeof value === 'string' && value.trim() !== '' ? value : messages.emptyValue;
-
-/** Format a numeric field. Pure. */
-const formatNumber = (value: unknown): string => String(typeof value === 'number' ? value : 0);
-
-/** Format a minutes field via the shared duration template. Pure. */
-const formatDuration = (value: unknown, messages: RecipeConflictMessages): string =>
-    formatDurationMinutes(typeof value === 'number' ? value : 0, messages.minutes);
-
-/** Format a string-list field (tags / dietary flags), falling back to the empty marker when none. Pure. */
-const formatList = (value: unknown, messages: RecipeConflictMessages): string =>
-    Array.isArray(value) && value.length > 0 ? value.map(String).join(', ') : messages.emptyValue;
-
-/** Count the elements of an array-valued field (0 for a non-array). Pure. */
-const arrayLength = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
-
-/**
- * The known editable fields, in display order, each with its localized label + value formatter. Iteration
- * order here drives the panel's field order. This is NOT a gate on which fields are shown — a field present
- * on the draft but absent here is still rendered (see {@link mergeFieldKeys} + {@link fallbackDescriptor}),
- * so a newly-added form field is never silently dropped from the merge; it only lacks a curated label until
- * one is added.
- */
-const MERGE_FIELD_DESCRIPTORS: Readonly<Record<string, MergeFieldDescriptor>> = {
-    title: { label: (m) => m.titleLabel, format: formatText },
-    description: { label: (m) => m.descriptionLabel, format: formatText },
-    cuisine: { label: (m) => m.cuisineLabel, format: formatText },
-    servings: { label: (m) => m.servingsLabel, format: formatNumber },
-    prepTimeMinutes: { label: (m) => m.prepLabel, format: formatDuration },
-    cookTimeMinutes: { label: (m) => m.cookLabel, format: formatDuration },
-    visibility: {
-        label: (m) => m.visibilityLabel,
-        format: (value, m) => (value === 'public' ? m.visibilityPublic : m.visibilityPrivate),
-    },
-    tags: { label: (m) => m.tagsLabel, format: formatList },
-    dietaryFlags: { label: (m) => m.dietaryFlagsLabel, format: formatList },
-    ingredients: {
-        label: (m) => m.ingredientsLabel,
-        format: (value, m, locale) =>
-            formatRecipeCount(arrayLength(value), { one: m.ingredientCountOne, other: m.ingredientCountOther }, locale),
-    },
-    steps: {
-        label: (m) => m.stepsLabel,
-        format: (value, m, locale) =>
-            formatRecipeCount(arrayLength(value), { one: m.stepCountOne, other: m.stepCountOther }, locale),
-    },
-};
-
-/**
- * Descriptor for a field with no curated entry (a form field added after this module) — graceful
- * degradation so the field still appears and is choosable. The label is the raw key (a follow-up adds a
- * localized label + formatter); the value is a best-effort string. Pure.
- */
-const fallbackDescriptor = (key: string): MergeFieldDescriptor => ({
-    label: () => key,
-    format: (value, messages) =>
-        Array.isArray(value) ? formatList(value, messages) : formatText(String(value), messages),
-});
-
-/**
- * The keys to render in the merge panel, DERIVED from the draft's own shape: the known fields first (in
- * display order), then any additional keys present on the draft. Driving the set from the data — not a hard
- * enumeration — means a field added to {@link RecipeFormValues} later (e.g. `difficulty`) is included
- * automatically rather than silently omitted. Pure.
- *
- * @param values - The draft whose keys define the mergeable field set.
- * @returns The ordered field keys.
- */
-const mergeFieldKeys = (values: RecipeFormValues): readonly string[] => {
-    const present = Object.keys(values);
-    const known = Object.keys(MERGE_FIELD_DESCRIPTORS).filter((key) => present.includes(key));
-    const extra = present.filter((key) => !(key in MERGE_FIELD_DESCRIPTORS));
-
-    return [...known, ...extra];
-};
-
-/**
- * Project the user's draft ("mine") and the latest saved recipe ("theirs") into the ordered, labelled,
- * pre-formatted per-field choices the merge panel renders. EVERY editable field is returned (not only the
- * ones that differ) so no conflicting field can be hidden and silently resolved to one side. Pure.
- *
- * @param mine - The user's in-progress draft.
- * @param theirs - The latest saved recipe projected to the editable form shape.
- * @param messages - The localized conflict copy (labels + templates).
- * @param locale - The active BCP-47 locale (for count pluralization).
- * @returns The ordered merge fields.
- */
-export const buildRecipeMergeFields = (
-    mine: RecipeFormValues,
-    theirs: RecipeFormValues,
-    messages: RecipeConflictMessages,
-    locale: Locale,
-): readonly RecipeMergeField[] => {
-    const mineRecord = mine as unknown as Readonly<Record<string, unknown>>;
-    const theirsRecord = theirs as unknown as Readonly<Record<string, unknown>>;
-
-    return mergeFieldKeys(mine).map((key) => {
-        const descriptor = MERGE_FIELD_DESCRIPTORS[key] ?? fallbackDescriptor(key);
-
-        return {
-            key,
-            label: descriptor.label(messages),
-            mineValue: descriptor.format(mineRecord[key], messages, locale),
-            theirsValue: descriptor.format(theirsRecord[key], messages, locale),
-        };
-    });
-};
-
 // A NAMED `defaultMergeSelections` helper (materializing every known field key to `'mine'`) was deliberately
-// NOT reintroduced here (CP-6/P1). Both live readers of a per-field selection already treat an ABSENT key as
-// `'mine'` — `composeMergedRecipe` below (`selections[key] === 'theirs' ? theirs : mine`) and the conflict
-// view's `sideOf` (`selections[key] ?? 'mine'`) — so seeding the `useRecipeEditor` machine's
+// NOT reintroduced here (CP-6/P1), and stays out after W7 Task 5's per-element rework: EVERY reader of a
+// per-field/per-element selection already treats an ABSENT key as `'mine'` — `composeMergedRecipe` below
+// (`selections[key] === 'theirs' ? theirs : mine`) and `composeConflictMerge`'s own element-merge helpers
+// (`mergeStepsByElement`/`mergeIngredientsByElement`) — so seeding the `useRecipeEditor` machine's
 // `conflict.mergeSelections` with `{}` on conflict entry is BEHAVIORALLY IDENTICAL to seeding it with a
-// materialized default record. A `defaultMergeSelections(fields: RecipeMergeField[])` also could not be
-// called from the platform-agnostic hook anyway — `RecipeMergeField[]` is a LOCALIZED projection
-// (`buildRecipeMergeFields` needs `messages`/`locale`), which the hook does not have. The prior version of
-// this module exported such a helper with zero production callers (confirmed before this change); keeping
-// an unconsumed third statement of "mine is the default" alongside the two above would be a DRY liability,
-// not a DRY win, so it — and its dedicated test — were removed rather than force-fed a caller.
+// materialized default record. Keeping an unconsumed third statement of "mine is the default" alongside the
+// readers above would be a DRY liability, not a DRY win.
 
 /**
  * Compose the merged draft from the per-field selections: each field is taken from "theirs" when the user
@@ -864,6 +740,90 @@ export const composeConflictMerge = (
             ? { ingredients: mergeIngredientsByElement(mine.ingredients, theirs.ingredients, selections) }
             : {}),
     };
+};
+
+// ─── Selection-gating, choice summary + stale-base warning (W7 Task 5 / X5, X6) ─────────────────────
+//
+// The merge panel (Option C) must never silently resolve a field the user hasn't looked at, so the
+// Save/Resolve action is GATED (X5) on at least one EXPLICIT selection existing, and a running "Summary of
+// choices" line reports how the user's picks split between the two sides as they make them. Separately, a
+// conflict whose common base is unusually far behind — or missing entirely — is riskier to resolve blindly
+// (Overwrite/Save-merged can discard intervening changes the view never got to show), so that case (X6)
+// requires an explicit confirm before either action proceeds.
+
+/** More than this many versions behind is stale enough to warn on (X6). */
+const STALE_VERSIONS_BEHIND_THRESHOLD = 10;
+
+/**
+ * Whether the 409's base is stale enough (X6) to require an explicit confirm before Overwrite/Save-merged
+ * proceed: the base version was evicted from version history (`base === undefined`) OR the server is more
+ * than {@link STALE_VERSIONS_BEHIND_THRESHOLD} versions ahead of it. Both conditions are checked
+ * independently — `versionsBehind` ALONE is unreliable when `base` is absent (`useRecipeEditor` degrades it
+ * to `server.versionNumber` itself in that case, an unrelated number that can easily land under the
+ * threshold), so an absent base must warn regardless of what `versionsBehind` happens to read. Pure.
+ *
+ * @param base - The 409's base side, or `undefined` when evicted from version history.
+ * @param versionsBehind - `server.versionNumber - (base?.versionNumber ?? 0)`, the X6 staleness signal.
+ * @returns Whether the stale-base warning + confirm gate applies.
+ */
+export const isConflictBaseStale = (base: VersionConflictSide | undefined, versionsBehind: number): boolean =>
+    base === undefined || versionsBehind > STALE_VERSIONS_BEHIND_THRESHOLD;
+
+/** How the user's EXPLICIT per-field/per-element merge picks (W7 Task 5's running "Summary of choices")
+ *  currently split between the two sides. An absent key (still defaulting to "mine" for composition — see
+ *  {@link composeMergedRecipe}) is NOT counted here: the summary reports what the user has actively chosen,
+ *  not the composed result, so it reads "0, 0" until the first deliberate pick. */
+export interface MergeSelectionCounts {
+    /** Rows explicitly resolved to the server's value. */
+    readonly server: number;
+    /** Rows explicitly resolved to the user's own draft value. */
+    readonly mine: number;
+}
+
+/**
+ * Tally {@link RecipeMergeSelections} by chosen side. Pure.
+ *
+ * @param selections - The current per-field/per-element resolution.
+ * @returns How many selections went to the server's value vs. the user's own.
+ */
+export const countMergeSelections = (selections: RecipeMergeSelections): MergeSelectionCounts => {
+    const sides = Object.values(selections);
+
+    return {
+        server: sides.filter((side) => side === 'theirs').length,
+        mine: sides.filter((side) => side === 'mine').length,
+    };
+};
+
+/**
+ * Render the running "Summary of choices" line (W7 Task 5): how many of the user's picks went to the
+ * server's value vs. their own, each correctly pluralized via the SAME one/other-template pattern every
+ * other count in this module uses (e.g. {@link formatChangedFromCurrent}'s ingredient/step counts). Pure.
+ *
+ * @param selections - The current per-field/per-element resolution.
+ * @param messages - The localized conflict copy (the summary templates).
+ * @param locale - The active BCP-47 locale (for count pluralization).
+ * @returns The formatted "Summary of choices" line.
+ */
+export const formatMergeSummary = (
+    selections: RecipeMergeSelections,
+    messages: RecipeConflictMessages,
+    locale: Locale,
+): string => {
+    const counts = countMergeSelections(selections);
+
+    return fillTemplate(messages.mergeSummaryTemplate, {
+        server: formatRecipeCount(
+            counts.server,
+            { one: messages.mergeSummaryServerCountOne, other: messages.mergeSummaryServerCountOther },
+            locale,
+        ),
+        mine: formatRecipeCount(
+            counts.mine,
+            { one: messages.mergeSummaryMineCountOne, other: messages.mergeSummaryMineCountOther },
+            locale,
+        ),
+    });
 };
 
 /** Re-export of the shared template filler for the version leaves (kept in one place — the list model). */

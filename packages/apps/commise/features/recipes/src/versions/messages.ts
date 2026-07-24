@@ -142,6 +142,28 @@ export interface RecipeConflictMessages {
     readonly mergeSubmit: string;
     /** Label of the "return to the three choices" action in the merge panel. */
     readonly mergeBack: string;
+    /** The running "Summary of choices" template (W7 Task 5; contains `{server}` and `{mine}`, each an
+     *  already-pluralized count phrase — see {@link mergeSummaryServerCountOne} / {@link mergeSummaryMineCountOne}). */
+    readonly mergeSummaryTemplate: string;
+    /** Singular "N choice(s) from server" count template (contains `{count}`) — see {@link mergeSummaryTemplate}. */
+    readonly mergeSummaryServerCountOne: string;
+    /** Plural "N choices from server" count template. See {@link mergeSummaryServerCountOne}. */
+    readonly mergeSummaryServerCountOther: string;
+    /** Singular "N choice from your version" count template. See {@link mergeSummaryServerCountOne}. */
+    readonly mergeSummaryMineCountOne: string;
+    /** Plural "N choices from your version" count template. See {@link mergeSummaryServerCountOne}. */
+    readonly mergeSummaryMineCountOther: string;
+    /** Inline hint shown next to a disabled Save/Resolve action while zero merge selections have been made
+     *  (W7 Task 5 / X5) — the wireframe's "Merge with no selections: Resolve button disabled; inline hint
+     *  per field" error-handling row. */
+    readonly mergeNoSelectionHint: string;
+    /** The stale-base warning (W7 Task 5 / X6) shown when the 409's base version was evicted from history OR
+     *  the server is more than 10 versions ahead of it ({@link import('./model.js').isConflictBaseStale}) —
+     *  Overwrite and Save-merged both risk discarding changes the changed-fields panel never got to show. */
+    readonly staleBaseWarning: string;
+    /** Label of the explicit confirm checkbox the {@link staleBaseWarning} case requires before Overwrite or
+     *  Save-merged proceeds. */
+    readonly staleBaseConfirmLabel: string;
     /** Field label: recipe title. */
     readonly titleLabel: string;
     /** Field label: description. */
@@ -326,6 +348,15 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             mergeOptionLabel: '{side}: {value}',
             mergeSubmit: 'Save merged version',
             mergeBack: 'Back to options',
+            mergeSummaryTemplate: 'Summary: {server}, {mine}',
+            mergeSummaryServerCountOne: '{count} choice from server',
+            mergeSummaryServerCountOther: '{count} choices from server',
+            mergeSummaryMineCountOne: '{count} choice from your version',
+            mergeSummaryMineCountOther: '{count} choices from your version',
+            mergeNoSelectionHint: 'Choose a value for at least one field to save the merged version.',
+            staleBaseWarning:
+                'This recipe is far ahead of the version you started from, or that starting version is no longer available. Overwriting or merging now may discard changes you can’t see here.',
+            staleBaseConfirmLabel: 'I understand — continue anyway',
             titleLabel: 'Title',
             descriptionLabel: 'Description',
             cuisineLabel: 'Cuisine',

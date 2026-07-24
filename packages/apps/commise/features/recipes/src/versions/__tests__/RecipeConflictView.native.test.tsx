@@ -386,38 +386,89 @@ describe('RecipeConflictView (native) — changed-only diff panel with markers +
     });
 });
 
-describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c, controlled selections)', () => {
+describe('RecipeConflictView (native) — per-element merge (Option C, W7 Task 5)', () => {
     const enterMerge = () => fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
 
-    it('enters merge mode with a per-field chooser defaulting to the user’s draft', () => {
+    it('lists ONLY the changed fields/elements from diff.rows — an unchanged field never appears', () => {
         freezeClock();
         renderControlledConflict();
         enterMerge();
 
         expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
-        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
-        const mineRadio = within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' });
-        expect(mineRadio.getAttribute('aria-checked')).toBe('true');
-        const theirsRadio = within(titleGroup).getByRole('radio', { name: 'Latest saved version: Latest Saved Title' });
-        expect(theirsRadio.getAttribute('aria-checked')).toBe('false');
+        expect(screen.getByRole('radiogroup', { name: 'Title' })).toBeTruthy();
+        expect(screen.getByRole('radiogroup', { name: 'Servings' })).toBeTruthy();
+        expect(screen.getAllByRole('radiogroup')).toHaveLength(2);
+        expect(screen.queryByRole('radiogroup', { name: 'Description' })).toBeNull();
     });
 
-    it('toggles a field between mine and theirs (round-trips through onSelectionsChange)', () => {
+    it('renders Server BEFORE Your version within a row (X7 — server-first radio order)', () => {
         freezeClock();
         renderControlledConflict();
         enterMerge();
 
-        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        const theirsRadio = within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' });
-        fireEvent.click(theirsRadio);
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        const radios = within(titleGroup).getAllByRole('radio');
 
-        expect(theirsRadio.getAttribute('aria-checked')).toBe('true');
-        expect(within(servingsGroup).getByRole('radio', { name: 'Your version: 6' }).getAttribute('aria-checked')).toBe(
-            'false',
-        );
+        expect(radios).toHaveLength(2);
+        expect(radios[0]?.getAttribute('aria-label')).toBe('Latest saved version: Latest Saved Title');
+        expect(radios[1]?.getAttribute('aria-label')).toBe('Your version: My Draft Title');
     });
 
-    it('reports the current selections to onMerge (my title left default + their servings chosen)', () => {
+    it('starts with NEITHER radio checked — nothing is auto-selected', () => {
+        freezeClock();
+        renderControlledConflict();
+        enterMerge();
+
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        expect(
+            within(titleGroup)
+                .getByRole('radio', { name: 'Latest saved version: Latest Saved Title' })
+                .getAttribute('aria-checked'),
+        ).toBe('false');
+        expect(
+            within(titleGroup)
+                .getByRole('radio', { name: 'Your version: My Draft Title' })
+                .getAttribute('aria-checked'),
+        ).toBe('false');
+    });
+
+    it('selecting a row builds the selections and updates the running summary', () => {
+        freezeClock();
+        renderControlledConflict();
+        enterMerge();
+
+        expect(screen.getByText('Summary: 0 choices from server, 0 choices from your version')).toBeTruthy();
+
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+
+        expect(
+            within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }).getAttribute('aria-checked'),
+        ).toBe('true');
+        expect(screen.getByText('Summary: 1 choice from server, 0 choices from your version')).toBeTruthy();
+
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        fireEvent.click(within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' }));
+
+        expect(screen.getByText('Summary: 1 choice from server, 1 choice from your version')).toBeTruthy();
+    });
+
+    it('gating (X5): Save merged version is disabled with zero selections, and clicking it fires nothing', () => {
+        freezeClock();
+        const onMerge = vi.fn();
+        renderControlledConflict({ onMerge });
+        enterMerge();
+
+        const save = screen.getByRole('button', { name: 'Save merged version' });
+        expect(save.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText('Choose a value for at least one field to save the merged version.')).toBeTruthy();
+
+        fireEvent.click(save);
+
+        expect(onMerge).not.toHaveBeenCalled();
+    });
+
+    it('gating (X5): Save merged version enables after one selection and fires onMerge with it', () => {
         freezeClock();
         const onMerge = vi.fn();
         renderControlledConflict({ onMerge });
@@ -425,10 +476,33 @@ describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c
 
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
         fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
+
+        const save = screen.getByRole('button', { name: 'Save merged version' });
+        expect(save.getAttribute('aria-disabled')).not.toBe('true');
+        expect(screen.queryByText('Choose a value for at least one field to save the merged version.')).toBeNull();
+
+        fireEvent.click(save);
 
         expect(onMerge).toHaveBeenCalledTimes(1);
         expect(onMerge).toHaveBeenCalledWith({ servings: 'theirs' });
+    });
+
+    it('is a pure pass-through over the given selections prop — reads exactly what it is given', () => {
+        freezeClock();
+        const onMerge = vi.fn();
+        renderConflict({ onMerge, selections: { title: 'theirs' } });
+        enterMerge();
+
+        const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
+        expect(
+            within(titleGroup)
+                .getByRole('radio', { name: 'Latest saved version: Latest Saved Title' })
+                .getAttribute('aria-checked'),
+        ).toBe('true');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
+
+        expect(onMerge).toHaveBeenCalledWith({ title: 'theirs' });
     });
 
     it('resets selections and returns to the three options via back', () => {
@@ -442,5 +516,67 @@ describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c
         expect(onSelectionsChange).toHaveBeenCalledWith({});
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
+    });
+});
+
+describe('RecipeConflictView (native) — stale-base warning + confirm gate (W7 Task 5 / X6)', () => {
+    it('renders NO warning for a normal case (base present, versionsBehind <= 10)', () => {
+        freezeClock();
+        renderConflict({ versionsBehind: 5 });
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(
+            screen.getByRole('button', { name: 'Overwrite with your version' }).getAttribute('aria-disabled'),
+        ).not.toBe('true');
+    });
+
+    it('renders the warning + blocks Overwrite until confirmed when versionsBehind > 10', () => {
+        freezeClock();
+        const onOverwrite = vi.fn();
+        renderConflict({ versionsBehind: 11, onOverwrite });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        const overwrite = screen.getByRole('button', { name: 'Overwrite with your version' });
+        expect(overwrite.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(overwrite);
+        expect(onOverwrite).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        expect(overwrite.getAttribute('aria-disabled')).not.toBe('true');
+
+        fireEvent.click(overwrite);
+        expect(onOverwrite).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders the warning when base is undefined, even with a LOW versionsBehind (unreliable alone)', () => {
+        freezeClock();
+        renderConflict({ base: undefined, versionsBehind: 1 });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Overwrite with your version' }).getAttribute('aria-disabled')).toBe(
+            'true',
+        );
+    });
+
+    it('blocks Save merged version in the merge panel until confirmed, alongside the selection gate', () => {
+        freezeClock();
+        const onMerge = vi.fn();
+        renderControlledConflict({ onMerge, versionsBehind: 11 });
+        fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        fireEvent.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+
+        const save = screen.getByRole('button', { name: 'Save merged version' });
+        expect(save.getAttribute('aria-disabled')).toBe('true');
+        fireEvent.click(save);
+        expect(onMerge).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        expect(save.getAttribute('aria-disabled')).not.toBe('true');
+
+        fireEvent.click(save);
+        expect(onMerge).toHaveBeenCalledTimes(1);
     });
 });

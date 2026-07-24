@@ -233,7 +233,11 @@ describe('RecipeEditContainer', () => {
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
-        await user.click(await screen.findByRole('button', { name: 'Overwrite with your version' }));
+        // This fake conflict carries no `base` (W8-a.5 real conflicts may also lack one — the base-evicted
+        // case), so the W7 Task 5 / X6 stale-base gate applies: confirm before Overwrite proceeds.
+        await screen.findByRole('button', { name: 'Overwrite with your version' });
+        await user.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        await user.click(screen.getByRole('button', { name: 'Overwrite with your version' }));
 
         await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(2));
         // First submit carried the stale version (3, → 409); the re-submit carries the fresh server version (4).
@@ -258,10 +262,12 @@ describe('RecipeEditContainer', () => {
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
-        // Enter the merge panel and pull servings from the latest saved version, keeping my title.
+        // Enter the merge panel and pull servings from the latest saved version, keeping my title. This fake
+        // conflict carries no `base`, so the W7 Task 5 / X6 stale-base gate applies here too.
         await user.click(await screen.findByRole('button', { name: 'Merge manually' }));
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
         await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 8' }));
+        await user.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
         await user.click(screen.getByRole('button', { name: 'Save merged version' }));
 
         await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(2));

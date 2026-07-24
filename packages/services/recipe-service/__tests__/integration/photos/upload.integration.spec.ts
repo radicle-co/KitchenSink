@@ -23,13 +23,14 @@ import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../te
 /** The dev-bypass owner ULID this suite creates recipes + photos as. */
 const OWNER = '01JPHOTO0OWNER0000000000AA';
 
-/** A minimal object that begins with the PNG 8-byte magic signature (padded so a HEAD size is non-zero). */
-const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array<number>(56).fill(0x00)]);
-
 /**
- * A REAL, decodable 1×1 PNG (base64) — needed for the thumbnail path, where sharp must actually decode
- * the confirmed original. The padded-signature {@link PNG_BYTES} above passes magic-byte validation but
- * is NOT decodable, which is exactly the graceful-degrade case (confirm still succeeds, no thumbnail).
+ * A REAL, decodable 1×1 PNG (base64) — the ONE valid-image fixture the upload flow is driven with. The
+ * confirm path validates by structure via the `file-type` library (NOT a bare 8-byte signature check), so
+ * a mere PNG signature padded with zero bytes is correctly rejected (verified: `file-type` returns
+ * `undefined` for it → 422). This is a genuine PNG that `file-type` recognizes AND `sharp` can decode, so
+ * it drives both the happy-path confirm and the thumbnail-rendition path. The graceful thumbnail-degrade
+ * case (magic-valid but non-decodable → confirm still succeeds, no thumbnail) is covered by the service
+ * unit tests (`photos.service.test.ts` "DEGRADES when the image cannot be resized").
  */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
@@ -122,7 +123,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(pngUploadRequest(PNG_BYTES.byteLength)),
+            body: JSON.stringify(pngUploadRequest(REAL_PNG_BYTES.byteLength)),
         });
         expect(presignRes.status).toBe(200);
         const presigned = (await presignRes.json()) as UploadUrlBody;
@@ -135,7 +136,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         const putRes = await fetch(presigned.uploadUrl, {
             method: 'PUT',
             headers: { 'content-type': 'image/png' },
-            body: PNG_BYTES,
+            body: REAL_PNG_BYTES,
         });
         expect(putRes.ok).toBe(true);
 

@@ -18,11 +18,14 @@ export {
     type ConflictMarker,
 } from './conflictDiff.js';
 export {
+    applyServerSnapshotToRecipeDetail,
     buildCompareFieldRows,
     buildRecipeMergeFields,
     changedFromCurrentCounts,
     compareViewState,
+    composeConflictMerge,
     composeMergedRecipe,
+    draftToSnapshot,
     formatChangedFromCurrent,
     formatCollectionTally,
     formatVersionTimestamp,

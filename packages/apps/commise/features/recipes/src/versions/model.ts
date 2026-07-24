@@ -6,11 +6,25 @@
  * can never drift on ordering, shape, or formatting. No React, no platform APIs.
  */
 import type { Locale } from '@commise/i18n';
-import type { RecipeDetail, RecipeIngredient, RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
+import type {
+    RecipeDetail,
+    RecipeIngredient,
+    RecipeIngredientView,
+    RecipeSnapshot,
+    RecipeStep,
+    RecipeStepView,
+    RecipeVersion,
+    VersionConflictSide,
+} from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
 import { formatQuantity } from '../detail/model.js';
-import type { RecipeFormValues } from '../form/model.js';
+import {
+    computeTotalTime,
+    type RecipeFormIngredient,
+    type RecipeFormStep,
+    type RecipeFormValues,
+} from '../form/model.js';
 import { fillTemplate, formatDurationMinutes, formatRecipeCount } from '../list/model.js';
 import { diffSnapshots, type DiffTally, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
 import type {
@@ -491,6 +505,228 @@ export const composeMergedRecipe = (
     // `merged` is a per-key copy of `mine` (same shape) with some values replaced by `theirs`' same-typed
     // values, so it satisfies `RecipeFormValues`; the cast bridges the key-driven `Record` build.
     return merged as unknown as RecipeFormValues;
+};
+
+// ─── Snapshot projections + per-element merge (W7 Task 2) ───────────────────────────────────────────
+//
+// The 409's enriched body (`VersionConflictError.server`/`.base`, W8-a.5) carries `RecipeSnapshot`-shaped
+// sides; `useRecipeEditor`'s draft is `RecipeFormValues`-shaped. These two projections bridge that gap
+// WITHOUT a refetch: {@link draftToSnapshot} turns the in-progress draft into the same `RecipeSnapshot`
+// shape `computeConflictDiff` (W7 Task 1) compares against, and {@link applyServerSnapshotToRecipeDetail}
+// turns the server's snapshot into a displayable `RecipeDetail` by overlaying it onto the last-known
+// recipe (the query cache's `RecipeDetail`, used purely as a SHELL for fields a snapshot doesn't carry —
+// id, ownerId, visibility, photos, nutrition, etc.).
+
+/**
+ * Project the in-progress draft to a {@link RecipeSnapshot} — the shape {@link ./conflictDiff.js!computeConflictDiff} (W7
+ * Task 1) 3-way-compares against the 409's `server`/`base` sides. `id`/`recipeId` on the synthesized
+ * `RecipeStep`/`RecipeIngredient` rows are placeholders (never persisted, never read by
+ * {@link ./conflictDiff.js!computeConflictDiff}'s content comparisons — see `diff.ts`'s module docs on why those fields are
+ * structural, not authored content); `sortOrder` is the line's array position, mirroring how the service
+ * assigns it on save. An unresolved ingredient line (no `ingredientId` yet) is dropped, matching every
+ * other draft→wire projection ({@link ../form/model.js!toCreateRecipeInput}, {@link ../form/model.js!applyDraftToRecipeDetail}) — an
+ * unresolved line was never going to reach the server, so it cannot appear in what the server sees either.
+ * `isUserEntered` defaults to `false` (the draft carries no provenance flag — same documented limitation as
+ * {@link ../form/model.js!applyDraftToRecipeDetail}). Pure.
+ *
+ * @param values - The editor's current draft.
+ * @param version - The snapshot's own sequence number (excluded from every diff — see `diff.ts` — so any
+ *   value is diff-safe; callers pass the base version this draft started from, when known).
+ * @returns The draft projected to a {@link RecipeSnapshot}.
+ */
+export const draftToSnapshot = (values: RecipeFormValues, version: number): RecipeSnapshot => ({
+    version,
+    title: values.title.trim(),
+    description: values.description.trim(),
+    servings: values.servings,
+    prepTimeMinutes: values.prepTimeMinutes,
+    cookTimeMinutes: values.cookTimeMinutes,
+    steps: values.steps.map(
+        (step, index): RecipeStep => ({
+            id: `draft-step-${index}`,
+            recipeId: '',
+            stepNumber: index + 1,
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        }),
+    ),
+    ingredients: values.ingredients
+        .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
+        .map(
+            (line, index): RecipeIngredient => ({
+                id: `draft-ingredient-${index}`,
+                recipeId: '',
+                ingredientId: line.ingredientId,
+                quantity: line.quantity,
+                unit: line.unit ?? '',
+                ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
+                sortOrder: index,
+                ingredientName: line.name,
+                isUserEntered: false,
+                ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
+                ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
+                ...(line.userCarbsG === undefined ? {} : { userCarbsG: line.userCarbsG }),
+                ...(line.userFatG === undefined ? {} : { userFatG: line.userFatG }),
+            }),
+        ),
+});
+
+/**
+ * Overlay a 409's `server`/`base` {@link VersionConflictSide} onto a base {@link RecipeDetail} SHELL — the
+ * inverse of {@link draftToSnapshot}, and the `RecipeDetail`-shaped "theirs" display side `useRecipeEditor`
+ * builds WITHOUT a refetch (W7 Task 2): `base` supplies every field a `RecipeSnapshot` doesn't carry (id,
+ * ownerId, visibility, photos, nutrition, timestamps, …), and `side`'s snapshot overlays the 7 diffable
+ * fields plus `currentVersion` (the fresh CAS token — `side.versionNumber`). Pure.
+ *
+ * @param base - The last-known recipe (the query cache's `RecipeDetail`), used only as a field shell.
+ * @param side - The 409's `server` (or `base`) side to overlay.
+ * @returns A {@link RecipeDetail} reflecting `side`'s content on top of `base`'s other fields.
+ */
+export const applyServerSnapshotToRecipeDetail = (base: RecipeDetail, side: VersionConflictSide): RecipeDetail => {
+    const { snapshot } = side;
+
+    return {
+        ...base,
+        currentVersion: side.versionNumber,
+        title: snapshot.title,
+        description: snapshot.description,
+        servings: snapshot.servings,
+        prepTimeMinutes: snapshot.prepTimeMinutes,
+        cookTimeMinutes: snapshot.cookTimeMinutes,
+        totalTimeMinutes: computeTotalTime(snapshot.prepTimeMinutes, snapshot.cookTimeMinutes),
+        ingredients: snapshot.ingredients.map(
+            (ingredient): RecipeIngredientView => ({
+                ingredientId: ingredient.ingredientId,
+                name: ingredient.ingredientName,
+                quantity: ingredient.quantity,
+                ...(ingredient.unit === '' ? {} : { unit: ingredient.unit }),
+                ...(ingredient.displayText === undefined || ingredient.displayText === ''
+                    ? {}
+                    : { notes: ingredient.displayText }),
+                isUserEntered: ingredient.isUserEntered,
+            }),
+        ),
+        steps: snapshot.steps.map(
+            (step): RecipeStepView => ({
+                stepNumber: step.stepNumber,
+                instruction: step.instruction,
+                ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+            }),
+        ),
+    };
+};
+
+/** Matches a per-element STEP selection key from {@link ./conflictDiff.js!computeConflictDiff} (W7 Task 1), e.g. `steps[2]`. */
+const STEP_SELECTION_KEY = /^steps\[\d+\]$/;
+
+/** Matches a per-element INGREDIENT selection key from {@link ./conflictDiff.js!computeConflictDiff} (W7 Task 1), e.g.
+ *  `ingredients:ing_1`. */
+const INGREDIENT_SELECTION_KEY = /^ingredients:/;
+
+/**
+ * Position-wise per-element step merge: an explicit `steps[N]` selection of `'theirs'` swaps that index;
+ * every other index keeps mine's own step. An index mine has no step at is included ONLY when explicitly
+ * selected `'theirs'` (an element theirs added that mine never had) — matching {@link composeMergedRecipe}'s
+ * "absent selection defaults to mine" rule extended to element granularity. Pure.
+ */
+const mergeStepsByElement = (
+    mine: readonly RecipeFormStep[],
+    theirs: readonly RecipeFormStep[],
+    selections: RecipeMergeSelections,
+): RecipeFormStep[] => {
+    const length = Math.max(mine.length, theirs.length);
+    const result: RecipeFormStep[] = [];
+
+    for (let index = 0; index < length; index += 1) {
+        const chooseTheirs = selections[`steps[${index}]`] === 'theirs';
+        const step = chooseTheirs ? theirs[index] : mine[index];
+
+        if (step !== undefined) {
+            result.push(step);
+        }
+    }
+
+    return result;
+};
+
+/**
+ * Identity-wise per-element ingredient merge, keyed by `ingredientId` (the SAME stable cross-version
+ * identity `diff.ts`'s `ingredientIdentity` uses): an explicit `ingredients:<id>` selection of `'theirs'`
+ * swaps that identity's line; every other identity keeps mine's own line. An identity mine has no line for
+ * is included ONLY when explicitly selected `'theirs'`. Pure.
+ */
+const mergeIngredientsByElement = (
+    mine: readonly RecipeFormIngredient[],
+    theirs: readonly RecipeFormIngredient[],
+    selections: RecipeMergeSelections,
+): RecipeFormIngredient[] => {
+    const theirsByIdentity = new Map(
+        theirs
+            .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
+            .map((line) => [line.ingredientId, line] as const),
+    );
+    const mineIdentities = new Set(mine.map((line) => line.ingredientId).filter((id): id is string => id !== null));
+    const result: RecipeFormIngredient[] = [];
+
+    for (const line of mine) {
+        const chooseTheirs = line.ingredientId !== null && selections[`ingredients:${line.ingredientId}`] === 'theirs';
+
+        if (!chooseTheirs) {
+            result.push(line);
+            continue;
+        }
+
+        const theirsLine = line.ingredientId === null ? undefined : theirsByIdentity.get(line.ingredientId);
+
+        if (theirsLine !== undefined) {
+            result.push(theirsLine);
+        }
+    }
+
+    for (const line of theirs) {
+        if (
+            line.ingredientId !== null &&
+            !mineIdentities.has(line.ingredientId) &&
+            selections[`ingredients:${line.ingredientId}`] === 'theirs'
+        ) {
+            result.push(line);
+        }
+    }
+
+    return result;
+};
+
+/**
+ * Compose the merged draft for the W7 per-element conflict resolution (FR-007c option c): top-level fields
+ * resolve via {@link composeMergedRecipe} (unchanged — absent key defaults to `'mine'`), then `steps`/
+ * `ingredients` are RE-COMPOSED element-wise whenever `selections` carries any per-element key
+ * ({@link ./conflictDiff.js!computeConflictDiff}'s `steps[N]`/`ingredients:<id>` row keys, W7 Task 1) — the finer-grained
+ * resolution the per-row radio offers. A collection with NO per-element selection at all keeps
+ * {@link composeMergedRecipe}'s own (whole-array, default-mine) result untouched, so a caller that only
+ * ever sets top-level keys sees IDENTICAL behavior to before this change. Pure.
+ *
+ * @param mine - The user's in-progress draft.
+ * @param theirs - The latest saved recipe projected to the editable form shape.
+ * @param selections - The per-field AND per-element resolution (absent key defaults to `'mine'`).
+ * @returns A new {@link RecipeFormValues} composed field-by-field and, where selected, element-by-element.
+ */
+export const composeConflictMerge = (
+    mine: RecipeFormValues,
+    theirs: RecipeFormValues,
+    selections: RecipeMergeSelections,
+): RecipeFormValues => {
+    const merged = composeMergedRecipe(mine, theirs, selections);
+    const keys = Object.keys(selections);
+    const hasStepSelection = keys.some((key) => STEP_SELECTION_KEY.test(key));
+    const hasIngredientSelection = keys.some((key) => INGREDIENT_SELECTION_KEY.test(key));
+
+    return {
+        ...merged,
+        ...(hasStepSelection ? { steps: mergeStepsByElement(mine.steps, theirs.steps, selections) } : {}),
+        ...(hasIngredientSelection
+            ? { ingredients: mergeIngredientsByElement(mine.ingredients, theirs.ingredients, selections) }
+            : {}),
+    };
 };
 
 /** Re-export of the shared template filler for the version leaves (kept in one place — the list model). */

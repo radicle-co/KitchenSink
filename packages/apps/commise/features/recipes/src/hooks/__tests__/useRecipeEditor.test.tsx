@@ -3,21 +3,82 @@
  * resolves the web-vs-mobile reseed incompatibility described in `.superpowers/sdd/cp6-current-state.md`
  * §2. Pins the invariants the two platform containers depended on before the extraction: seed-once (a
  * background refetch of the SAME recipe never clobbers an in-progress edit); a 409 — and ONLY a 409 — opens
- * `status: 'conflict'`, never surfacing as `submitError`; a resubmit (via `keepMine`) carries
- * `theirs.currentVersion`, not the stale version that lost the race; `useTheirs` reseeds `values` through
+ * `status: 'conflict'`, never surfacing as `submitError`; a resubmit (via `keepMine`/`overwrite`) carries
+ * `server.versionNumber`, not the stale version that lost the race; `useTheirs` reseeds `values` through
  * the SAME transition the initial seed uses (no remount/override, closing the reseed incompatibility);
- * `merge(selections)` composes via `composeMergedRecipe` and submits; and validation blocks a `submit()` on
- * an invalid draft. The `@kitchensink/recipe-service-client/hooks` module is mocked (its own behavior is
+ * `merge(selections)` composes via `composeConflictMerge` and submits; and validation blocks a `submit()`
+ * on an invalid draft. The `@kitchensink/recipe-service-client/hooks` module is mocked (its own behavior is
  * covered by that package's tests); `VersionConflictError`/`isVersionConflictError` are the REAL
  * implementations, so the 409-detection path is exercised for real, not stubbed.
+ *
+ * W7 Task 2 additions: the 409's enriched `server`/`base` sides thread into `conflict` WITHOUT a refetch
+ * (asserted directly via a `refetch` spy); a diff-empty ("phantom") 409 resubmits instead of interrupting
+ * the user; `versionsBehind`/an absent `base` expose the staleness signal; `keepServer` (Option A) discards
+ * the draft and exits via a NEW, distinct `'discarded'` terminal state (never `'saved'`, so a container can
+ * never show a misleading "Saved!" for a discard); `overwrite` (Option B) and `merge` (Option C, now
+ * PER-ELEMENT via `steps[N]`/`ingredients:<id>` keys) both resolve against `server.versionNumber`; and a
+ * second 409 during a resolve resubmit re-enters conflict from THAT error's own `server`/`base`, never a
+ * refetch. `keepMine`/`useTheirs` are kept callable (unchanged) so the not-yet-rewired web/mobile containers
+ * (Task 6) keep type-checking.
  */
 import { act, renderHook } from '@testing-library/react';
 import { RecipeStatus } from '@kitchensink/recipe-core';
+import type { RecipeIngredient, RecipeSnapshot, RecipeStep, VersionConflictSide } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
 import { validateRecipeForm } from '../../form/model.js';
+
+/** Build a {@link RecipeStep} with sensible defaults, overridable per field — mirrors `conflictDiff.test.ts`'s
+ *  local fixture, kept local here too rather than shared (single consumer per file, per DAMP-in-tests). */
+const makeStep = (overrides: Partial<RecipeStep> = {}): RecipeStep => ({
+    id: 'step_1',
+    recipeId: 'rec_1',
+    stepNumber: 1,
+    instruction: 'Combine the ingredients.',
+    ...overrides,
+});
+
+/** Build a {@link RecipeIngredient} with sensible defaults, overridable per field. `sortOrder` defaults to
+ *  `0` (NOT `1`) to match `useRecipeEditor`'s own `draftToSnapshot` projection, which numbers a draft's
+ *  ingredients from array index `0` — keeping the two aligned is what lets the phantom-fast-path tests below
+ *  construct a server/base snapshot that is content-IDENTICAL to a freshly-seeded draft. */
+const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngredient => ({
+    id: 'ri_1',
+    recipeId: 'rec_1',
+    ingredientId: 'ing_1',
+    quantity: 2,
+    unit: 'tbsp',
+    sortOrder: 0,
+    ingredientName: 'Olive oil',
+    isUserEntered: false,
+    ...overrides,
+});
+
+/** Build a {@link RecipeSnapshot} with sensible defaults ALIGNED to `makeRecipeDetail`'s own defaults (same
+ *  title/description/servings/times/ingredient/step content), overridable per field — so a snapshot built
+ *  from this factory content-matches a `RecipeDetail` built from `makeRecipeDetail()` with no overrides. */
+const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot => ({
+    version: 1,
+    title: 'Weeknight Pasta',
+    description: 'A fast, comforting weeknight dinner.',
+    steps: [makeStep()],
+    ingredients: [makeIngredient()],
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 20,
+    ...overrides,
+});
+
+/** Build a {@link VersionConflictSide} (a 409's `server`/`base`) with sensible defaults, overridable per
+ *  field. */
+const makeSide = (overrides: Partial<VersionConflictSide> = {}): VersionConflictSide => ({
+    versionNumber: 5,
+    updatedAt: '2026-04-19T09:30:00.000Z',
+    snapshot: makeSnapshot(),
+    ...overrides,
+});
 
 const { useRecipeMock, useUpdateRecipeMock } = vi.hoisted(() => ({
     useRecipeMock: vi.fn(),
@@ -222,12 +283,23 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
     it('does not resurrect "saved" after a post-save conflict is resolved via useTheirs (the exact trap: save -> resume editing -> 409 -> useTheirs)', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
         const saved = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 4 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
-        const refetch = vi.fn().mockResolvedValue({ data: theirs });
+        const refetch = vi.fn();
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded, refetch }));
         const mutation = updateMutation([
             { type: 'success', recipe: saved },
-            { type: 'conflict', error: new VersionConflictError(5, 4) },
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 4, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                    base: makeSide({
+                        versionNumber: 4,
+                        snapshot: makeSnapshot({ version: 4, title: 'My Second Draft' }),
+                    }),
+                }),
+            },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
@@ -253,26 +325,119 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
 describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () => {
     it('a version-conflict submit transitions to "conflict", never to a generic submitError', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(
-            recipeQuery({ data: loaded, refetch: vi.fn().mockResolvedValue({ data: theirs }) }),
-        );
-        const mutation = updateMutation([{ type: 'conflict', error: new VersionConflictError(5, 3) }]);
+        const refetch = vi.fn();
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded, refetch }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                    base: makeSide({ versionNumber: 3, snapshot: makeSnapshot({ version: 3, title: 'My Draft' }) }),
+                }),
+            },
+        ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
 
-        await act(async () => {
-            result.current.submit();
-            await Promise.resolve();
-        });
+        act(() => result.current.submit());
 
         expect(result.current.state).toMatchObject({
             status: 'conflict',
-            theirs,
+            theirs: expect.objectContaining({ title: 'Server Title', currentVersion: 5 }),
             draft: expect.objectContaining({ title: 'My Draft' }),
         });
         // The handled-409 invariant: it must NEVER surface as the generic submit-error flag.
         expect(result.current.submitError).toBe(false);
+        // The core W7 Task 2 behavioral change: no refetch — the conflict is built from the 409's OWN
+        // enriched `server`/`base`, not a follow-up round-trip to the server.
+        expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it('carries the enriched server/base + precomputed diff + versionsBehind on the conflict state', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const server = makeSide({
+            versionNumber: 5,
+            snapshot: makeSnapshot({ version: 5, title: 'Server Title', servings: 6 }),
+        });
+        const base = makeSide({ versionNumber: 3, snapshot: makeSnapshot({ version: 3 }) });
+        const mutation = updateMutation([
+            { type: 'conflict', error: new VersionConflictError(5, 3, undefined, { server, base }) },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+
+        const state = result.current.state;
+
+        if (state.status !== 'conflict') {
+            throw new Error('expected conflict state');
+        }
+
+        expect(state.server).toBe(server);
+        expect(state.base).toBe(base);
+        // versionsBehind = server.versionNumber - base.versionNumber (X6 signal).
+        expect(state.versionsBehind).toBe(2);
+        expect(state.diff.isEmpty).toBe(false);
+        expect(state.diff.rows.some((row) => row.key === 'title')).toBe(true);
+        expect(state.mineSnapshot.title).toBe('My Draft');
+    });
+
+    it('treats an absent base (evicted from version history) as maximally stale via versionsBehind', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const server = makeSide({
+            versionNumber: 25,
+            snapshot: makeSnapshot({ version: 25, title: 'Server Title' }),
+        });
+        const mutation = updateMutation([
+            { type: 'conflict', error: new VersionConflictError(25, 3, undefined, { server }) },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+
+        const state = result.current.state;
+
+        if (state.status !== 'conflict') {
+            throw new Error('expected conflict state');
+        }
+
+        expect(state.base).toBeUndefined();
+        // No base to subtract — versionsBehind degrades to the server's own version number, which is > 10
+        // for any recipe with real history (the "treat absent base as stale" degradation).
+        expect(state.versionsBehind).toBe(25);
+        expect(state.versionsBehind).toBeGreaterThan(10);
+    });
+
+    it('a version-conflict whose diff is EMPTY (mine and theirs already agree) resubmits instead of entering conflict (the phantom fast-path)', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(6, 3, undefined, {
+                    server: makeSide({ versionNumber: 6 }),
+                    base: makeSide({ versionNumber: 3 }),
+                }),
+            },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+        const [, secondCall] = mutation.mutate.mock.calls;
+        const [secondVars] = secondCall as [MutateVars];
+        // The phantom resubmit carries the FRESH server version as its CAS token.
+        expect(secondVars.input.expectedVersion).toBe(6);
+        expect(result.current.state.status).not.toBe('conflict');
     });
 
     it('a NON-conflict submit failure leaves the machine editing and DOES set submitError', () => {
@@ -288,37 +453,96 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         expect(result.current.submitError).toBe(true);
     });
 
-    it('a resubmit via keepMine carries theirs.currentVersion as expectedVersion, not the stale version', async () => {
+    it('a resubmit via keepMine carries theirs.currentVersion as expectedVersion, not the stale version', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(
-            recipeQuery({ data: loaded, refetch: vi.fn().mockResolvedValue({ data: theirs }) }),
-        );
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
         const mutation = updateMutation([
-            { type: 'conflict', error: new VersionConflictError(5, 3) },
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                    base: makeSide({ versionNumber: 3, snapshot: makeSnapshot({ version: 3, title: 'My Draft' }) }),
+                }),
+            },
             { type: 'success', recipe: saved },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
 
-        await act(async () => {
-            result.current.submit();
-            await Promise.resolve();
-        });
+        act(() => result.current.submit());
         act(() => result.current.resolutions.keepMine());
 
         expect(mutation.mutate).toHaveBeenCalledTimes(2);
         const [firstVars] = mutation.mutate.mock.calls[0] as [MutateVars];
         const [secondVars] = mutation.mutate.mock.calls[1] as [MutateVars];
         expect(firstVars.input.expectedVersion).toBe(3);
-        expect(secondVars.input.expectedVersion).toBe(theirs.currentVersion);
         expect(secondVars.input.expectedVersion).toBe(5);
         expect(onSaved).toHaveBeenCalledWith(saved);
     });
 
-    it('keepMine and merge are no-ops outside conflict state', () => {
+    it('overwrite (Option B, "yours win") resubmits the draft against server.versionNumber; a second 409 re-enters conflict from the NEW error, never a refetch', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        const refetch = vi.fn();
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded, refetch }));
+        const firstServer = makeSide({
+            versionNumber: 5,
+            snapshot: makeSnapshot({ version: 5, title: 'Server Title A' }),
+        });
+        const secondServer = makeSide({
+            versionNumber: 7,
+            snapshot: makeSnapshot({ version: 7, title: 'Server Title B' }),
+        });
+        const mutation = updateMutation([
+            { type: 'conflict', error: new VersionConflictError(5, 3, undefined, { server: firstServer }) },
+            { type: 'conflict', error: new VersionConflictError(7, 5, undefined, { server: secondServer }) },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+        expect(result.current.state).toMatchObject({ status: 'conflict', server: firstServer });
+
+        act(() => result.current.resolutions.overwrite());
+
+        const [secondVars] = mutation.mutate.mock.calls[1] as [MutateVars];
+        expect(secondVars.input.expectedVersion).toBe(5);
+        expect(result.current.state).toMatchObject({ status: 'conflict', server: secondServer });
+        expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it('keepServer discards the draft and exits WITHOUT saving — the discard signal, distinct from "saved"', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+        expect(result.current.state.status).toBe('conflict');
+
+        act(() => result.current.resolutions.keepServer());
+
+        // No resolve write — the server already holds the winning version.
+        expect(mutation.mutate).toHaveBeenCalledTimes(1);
+        expect(result.current.state).toEqual({ status: 'discarded' });
+    });
+
+    it('keepMine, overwrite, keepServer, useTheirs, and merge are all no-ops outside conflict state', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
@@ -326,28 +550,36 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
 
         act(() => result.current.resolutions.keepMine());
+        act(() => result.current.resolutions.overwrite());
+        act(() => result.current.resolutions.keepServer());
+        act(() => result.current.resolutions.useTheirs());
         act(() => result.current.resolutions.merge({}));
 
         expect(mutation.mutate).not.toHaveBeenCalled();
+        expect(result.current.state).toEqual({ status: 'editing' });
     });
 });
 
 describe('useRecipeEditor — useTheirs reseeds values (closes the reseed incompatibility)', () => {
-    it('discards the draft and reseeds `values` from `theirs`, exiting conflict without navigating', async () => {
+    it('discards the draft and reseeds `values` from `theirs`, exiting conflict without navigating', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(
-            recipeQuery({ data: loaded, refetch: vi.fn().mockResolvedValue({ data: theirs }) }),
-        );
-        const mutation = updateMutation([{ type: 'conflict', error: new VersionConflictError(5, 3) }]);
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+        ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
 
-        await act(async () => {
-            result.current.submit();
-            await Promise.resolve();
-        });
+        act(() => result.current.submit());
         expect(result.current.state.status).toBe('conflict');
 
         act(() => result.current.resolutions.useTheirs());
@@ -358,26 +590,28 @@ describe('useRecipeEditor — useTheirs reseeds values (closes the reseed incomp
     });
 });
 
-describe('useRecipeEditor — merge(selections) composes via composeMergedRecipe and submits', () => {
-    it('composes mine + theirs per the given selections and submits against theirs.currentVersion', async () => {
+describe('useRecipeEditor — merge(selections) composes via composeConflictMerge and submits', () => {
+    it('composes top-level field selections (composeMergedRecipe’s own scope) and submits against server.versionNumber', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3, servings: 4 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5, servings: 8 });
-        useRecipeMock.mockReturnValue(
-            recipeQuery({ data: loaded, refetch: vi.fn().mockResolvedValue({ data: theirs }) }),
-        );
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
         const mutation = updateMutation([
-            { type: 'conflict', error: new VersionConflictError(5, 3) },
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title', servings: 8 }),
+                    }),
+                }),
+            },
             { type: 'success', recipe: saved },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
 
-        await act(async () => {
-            result.current.submit();
-            await Promise.resolve();
-        });
+        act(() => result.current.submit());
         // Pull servings from theirs, keep title on mine (the default, an absent key).
         act(() => result.current.resolutions.merge({ servings: 'theirs' }));
 
@@ -386,6 +620,67 @@ describe('useRecipeEditor — merge(selections) composes via composeMergedRecipe
         expect(secondVars.input['title']).toBe('My Draft');
         expect(secondVars.input['servings']).toBe(8);
         expect((secondVars.input as { expectedVersion: number }).expectedVersion).toBe(5);
+        expect(onSaved).toHaveBeenCalledWith(saved);
+    });
+
+    it('composes PER-ELEMENT selections (steps[N]/ingredients:<id>, W7 Task 1 row keys) and submits against server.versionNumber', () => {
+        const loaded = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            steps: [
+                makeStepView({ stepNumber: 1, instruction: 'Mine step one' }),
+                makeStepView({ stepNumber: 2, instruction: 'Mine step two' }),
+            ],
+            ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' })],
+        });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const server = makeSide({
+            versionNumber: 5,
+            snapshot: makeSnapshot({
+                version: 5,
+                steps: [
+                    makeStep({ id: 'st_1', stepNumber: 1, instruction: 'Mine step one' }),
+                    makeStep({ id: 'st_2', stepNumber: 2, instruction: 'Their step two' }),
+                ],
+                ingredients: [
+                    makeIngredient({
+                        id: 'ri_1',
+                        ingredientId: 'ing_1',
+                        ingredientName: 'Olive oil',
+                        quantity: 2,
+                        unit: 'tbsp',
+                        sortOrder: 0,
+                    }),
+                    makeIngredient({
+                        id: 'ri_2',
+                        ingredientId: 'ing_2',
+                        ingredientName: 'Butter',
+                        quantity: 1,
+                        unit: 'tbsp',
+                        sortOrder: 1,
+                    }),
+                ],
+            }),
+        });
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
+        const mutation = updateMutation([
+            { type: 'conflict', error: new VersionConflictError(5, 3, undefined, { server }) },
+            { type: 'success', recipe: saved },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const onSaved = vi.fn();
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+
+        act(() => result.current.submit());
+        act(() => result.current.resolutions.merge({ 'steps[1]': 'theirs', 'ingredients:ing_2': 'theirs' }));
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+        const [secondVars] = mutation.mutate.mock.calls[1] as [{ id: string; input: Record<string, unknown> }];
+        expect((secondVars.input as { expectedVersion: number }).expectedVersion).toBe(5);
+        const steps = secondVars.input['steps'] as ReadonlyArray<{ instruction: string }>;
+        expect(steps.map((step) => step.instruction)).toEqual(['Mine step one', 'Their step two']);
+        const ingredients = secondVars.input['ingredients'] as ReadonlyArray<{ ingredientId: string }>;
+        expect(ingredients.map((ingredient) => ingredient.ingredientId).sort()).toEqual(['ing_1', 'ing_2']);
         expect(onSaved).toHaveBeenCalledWith(saved);
     });
 
@@ -663,52 +958,59 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         expect(result.current.step).toBe(2);
     });
 
-    it('a 409 from a non-1 step still enters "conflict" (never submitError), and does not reset the step', async () => {
+    it('a 409 from a non-1 step still enters "conflict" (never submitError), and does not reset the step', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(
-            recipeQuery({ data: loaded, refetch: vi.fn().mockResolvedValue({ data: theirs }) }),
-        );
-        const mutation = updateMutation([{ type: 'conflict', error: new VersionConflictError(5, 3) }]);
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+        ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
 
         act(() => result.current.goToStep(3));
+        act(() => result.current.submit());
 
-        await act(async () => {
-            result.current.submit();
-            await Promise.resolve();
+        expect(result.current.state).toMatchObject({
+            status: 'conflict',
+            theirs: expect.objectContaining({ title: 'Server Title', currentVersion: 5 }),
         });
-
-        expect(result.current.state).toMatchObject({ status: 'conflict', theirs });
         expect(result.current.submitError).toBe(false);
         expect(result.current.step).toBe(3);
     });
 
-    it('a resubmit via keepMine after a step change still carries theirs.currentVersion as expectedVersion', async () => {
+    it('a resubmit via keepMine after a step change still carries theirs.currentVersion as expectedVersion', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
-        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
-        useRecipeMock.mockReturnValue(
-            recipeQuery({ data: loaded, refetch: vi.fn().mockResolvedValue({ data: theirs }) }),
-        );
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
         const mutation = updateMutation([
-            { type: 'conflict', error: new VersionConflictError(5, 3) },
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
             { type: 'success', recipe: saved },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
 
         act(() => result.current.goToStep(2));
-        await act(async () => {
-            result.current.submit();
-            await Promise.resolve();
-        });
+        act(() => result.current.submit());
         act(() => result.current.goToStep(4));
         act(() => result.current.resolutions.keepMine());
 
         const [secondVars] = mutation.mutate.mock.calls[1] as [MutateVars];
-        expect(secondVars.input.expectedVersion).toBe(theirs.currentVersion);
         expect(secondVars.input.expectedVersion).toBe(5);
     });
 

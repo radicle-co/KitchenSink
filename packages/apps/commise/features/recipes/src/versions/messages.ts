@@ -75,9 +75,45 @@ export interface RecipeConflictMessages {
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
      *  user is never left staring at an unchanged form with no feedback. */
     readonly dataUnavailable: string;
-    /** Heading for the minimal changed-fields list rendered below the three options (W7 Task 3; Task 4
-     *  replaces this with the full marker/legend panel). */
+    /** Heading for the changed-only diff panel rendered below the three options (W7 Task 3 → Task 4). */
     readonly changedFieldsHeading: string;
+    /** The "was" (base) value line template (contains `{value}`), rendered on a diff row ONLY when its
+     *  {@link import('./conflictDiff.js').ConflictFieldRow.base} is present (W7 Task 4 / X1) — per the
+     *  wireframe, absent on the base-evicted 2-way-fallback rows (see `conflictDiff.ts` module docs). */
+    readonly wasValueLabel: string;
+    /** Per-element STEP row label template (contains `{position}`, 1-based — W7 Task 4 / X1), e.g. "Step 3".
+     *  Reused instead of the plural {@link stepsLabel} for a {@link
+     *  import('./conflictDiff.js').ConflictFieldRow} whose `fieldKind` is `'step'`, so a per-element row is
+     *  never mislabeled with the whole-collection name. */
+    readonly stepPositionLabel: string;
+    /** Per-element INGREDIENT row label template (contains `{value}`, the row's own formatted line — W7
+     *  Task 4 / X1), e.g. "Ingredient: 200g Pasta". See {@link stepPositionLabel} for why a per-element row
+     *  needs its own label rather than reusing the plural {@link ingredientsLabel}. */
+    readonly ingredientRowLabel: string;
+    /** The changed-only diff panel's ASCII glyph for a `marker: 'unchanged'` row (W7 Task 4 / X1) — never
+     *  actually rendered today (the panel is changed-only), but part of the shared 3-glyph vocabulary the
+     *  legend explains. */
+    readonly markerGlyphUnchanged: string;
+    /** The ASCII glyph for a `marker: 'changed'` row. See {@link markerGlyphUnchanged}. */
+    readonly markerGlyphChanged: string;
+    /** The ASCII glyph for a `marker: 'conflict'` row. See {@link markerGlyphUnchanged}. */
+    readonly markerGlyphConflict: string;
+    /** The accessible (screen-reader) name for a `marker: 'unchanged'` row — paired with its glyph so the
+     *  marker is conveyed by TEXT/role, never colour alone (W7 Task 4 / X1). */
+    readonly markerLabelUnchanged: string;
+    /** The accessible name for a `marker: 'changed'` row. See {@link markerLabelUnchanged}. */
+    readonly markerLabelChanged: string;
+    /** The accessible name for a `marker: 'conflict'` row. See {@link markerLabelUnchanged}. */
+    readonly markerLabelConflict: string;
+    /** Accessible heading/label for the marker legend (W7 Task 4 / X1). */
+    readonly legendHeading: string;
+    /** One legend entry's template (contains `{glyph}` and `{label}` — see {@link markerGlyphUnchanged} /
+     *  {@link markerLabelUnchanged}), e.g. "[→] changed". */
+    readonly legendEntryTemplate: string;
+    /** Shown in place of the diff panel when `diff.rows` is empty — a defensive fallback (Task 2 already
+     *  fast-paths a genuinely phantom-empty diff away from this view entirely, so this should not normally
+     *  be reached) rather than rendering a silently blank panel (W7 Task 4). */
+    readonly noDifferencesMessage: string;
     /** Option A's title: keep the server version. */
     readonly optionServerTitle: string;
     /** Option A's description. */
@@ -264,6 +300,18 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             mineBanner: 'Your version: local unsaved changes',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             changedFieldsHeading: 'Changed fields',
+            wasValueLabel: 'Was: {value}',
+            stepPositionLabel: 'Step {position}',
+            ingredientRowLabel: 'Ingredient: {value}',
+            markerGlyphUnchanged: '[=]',
+            markerGlyphChanged: '[→]',
+            markerGlyphConflict: '[!!]',
+            markerLabelUnchanged: 'unchanged',
+            markerLabelChanged: 'changed',
+            markerLabelConflict: 'conflict',
+            legendHeading: 'Legend',
+            legendEntryTemplate: '{glyph} {label}',
+            noDifferencesMessage: 'No differences to show.',
             optionServerTitle: 'Keep server version',
             optionServerDescription: 'Discard your local changes and keep the server version.',
             optionOverwriteTitle: 'Overwrite with your version',

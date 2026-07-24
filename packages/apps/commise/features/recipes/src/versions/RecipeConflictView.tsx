@@ -10,9 +10,11 @@
  *
  * FULLY controlled, presentational conflict resolver for FR-007c. This is the W7 rebuild of the DEFAULT
  * (options) view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2)
- * — [A] keep server, [B] overwrite with mine, [C] merge field by field — and a minimal changed-fields list
- * below the cards, driven by the precomputed `ConflictDiff` (W7 Task 1; Task 4 replaces this with the full
- * marker/legend panel). The merge panel itself (Option C) is UNCHANGED from the pre-W7 shape — a per-field
+ * — [A] keep server, [B] overwrite with mine, [C] merge field by field — and the changed-only diff panel
+ * (W7 Task 4 / X1) below the cards, driven by the precomputed `ConflictDiff` (W7 Task 1): one row PER
+ * changed-or-conflicting field/element, each with an accessible marker (`[→]` changed / `[!!]` conflict —
+ * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend. The merge panel itself
+ * (Option C) is UNCHANGED from the pre-W7 shape — a per-field
  * radio chooser whose selections are the caller's own (`selections` in, `onSelectionsChange` out); this leaf
  * reports the current selections upward via `onMerge` and the caller composes + submits. Nothing is
  * auto-merged — every field's resolution is the user's explicit choice. Only the merge-panel-visible toggle
@@ -22,15 +24,22 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { useId, useState } from 'react';
 import type { FC } from 'react';
 
+import type { ConflictMarker } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import {
     buildRecipeMergeFields,
-    conflictFieldKindLabel,
+    conflictMarkerGlyph,
+    conflictMarkerLabel,
+    conflictRowLabel,
     fillTemplate,
     formatServerBanner,
     type MergeSide,
     type RecipeConflictViewProps,
 } from './model.js';
+
+/** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
+ *  order). */
+const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
 
 /**
  * One A/B/C option card — a title, a description, and the choice it fires. `aria-label` pins the button's
@@ -182,23 +191,62 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 />
             </div>
 
-            {/* Minimal changed-fields list (W7 Task 4 replaces this with the full marker/legend panel). */}
-            {diff.rows.length > 0 && (
-                <ul aria-label={conflict.changedFieldsHeading} className="flex flex-col gap-2">
-                    {diff.rows.map((row) => (
-                        <li key={row.key} className="flex flex-col rounded-2xl bg-card p-3 ring-1 ring-border">
-                            <span className="text-caption uppercase tracking-wide text-slate">
-                                {conflictFieldKindLabel(row.fieldKind, conflict)}
-                            </span>
-                            <span className="text-body-sm text-charcoal">
-                                {optionLabel(conflict.mergeMineLabel, row.mine)}
-                            </span>
-                            <span className="text-body-sm text-charcoal">
-                                {optionLabel(conflict.mergeServerLabel, row.theirs)}
-                            </span>
-                        </li>
-                    ))}
-                </ul>
+            {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
+            {diff.rows.length > 0 ? (
+                <section aria-label={conflict.changedFieldsHeading} className="flex flex-col gap-3">
+                    <h3 className="font-display text-heading-sm font-semibold text-charcoal">
+                        {conflict.changedFieldsHeading}
+                    </h3>
+                    <ul className="flex flex-col gap-2">
+                        {diff.rows.map((row) => (
+                            <li
+                                key={row.key}
+                                className="flex flex-col gap-1 rounded-2xl bg-card p-3 ring-1 ring-border"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        role="img"
+                                        aria-label={conflictMarkerLabel(row.marker, conflict)}
+                                        className="font-mono text-body-sm text-slate"
+                                    >
+                                        {conflictMarkerGlyph(row.marker, conflict)}
+                                    </span>
+                                    <span className="text-caption uppercase tracking-wide text-slate">
+                                        {conflictRowLabel(row, conflict)}
+                                    </span>
+                                </div>
+                                {row.base !== undefined && (
+                                    <p className="text-body-sm text-slate">
+                                        {fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                    </p>
+                                )}
+                                {/* Server value FIRST, then Yours (X7). */}
+                                <p className="text-body-sm text-charcoal">
+                                    {optionLabel(conflict.mergeServerLabel, row.theirs)}
+                                </p>
+                                <p className="text-body-sm text-charcoal">
+                                    {optionLabel(conflict.mergeMineLabel, row.mine)}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                    <ul aria-label={conflict.legendHeading} className="flex flex-wrap gap-3 text-caption text-slate">
+                        {LEGEND_MARKERS.map((marker) => (
+                            <li key={marker}>
+                                {fillTemplate(conflict.legendEntryTemplate, {
+                                    glyph: conflictMarkerGlyph(marker, conflict),
+                                    label: conflictMarkerLabel(marker, conflict),
+                                })}
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            ) : (
+                // Defensive — Task 2 already fast-paths a genuinely phantom-empty diff away from this view,
+                // so this should not normally be reached; a blank panel is never an acceptable fallback.
+                <p role="status" className="text-body-md text-slate">
+                    {conflict.noDifferencesMessage}
+                </p>
             )}
         </section>
     );

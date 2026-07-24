@@ -26,7 +26,7 @@ import {
     type RecipeFormValues,
 } from '../form/model.js';
 import { fillTemplate, formatDurationMinutes, formatRecipeCount } from '../list/model.js';
-import type { ConflictDiff, ConflictFieldKind } from './conflictDiff.js';
+import type { ConflictDiff, ConflictFieldKind, ConflictFieldRow, ConflictMarker } from './conflictDiff.js';
 import { diffSnapshots, type DiffTally, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
 import type {
     RecipeConflictMessages,
@@ -106,8 +106,8 @@ export interface RecipeConflictViewProps {
      *  warning; this view does not read it directly. */
     readonly base?: VersionConflictSide;
     /** The precomputed 3-way diff (`computeConflictDiff`, W7 Task 1) — changed-or-conflicting rows only.
-     *  Rendered as a minimal changed-fields list below the three options; W7 Task 4 replaces this with the
-     *  full marker/legend panel. */
+     *  Rendered as the changed-only diff panel below the three options, with a per-row marker + legend
+     *  (W7 Task 4 / X1). */
     readonly diff: ConflictDiff;
     /** `server.versionNumber - (base?.versionNumber ?? 0)` (the X6 staleness signal) — carried through for
      *  W7 Task 5's staleness warning; this view does not render it yet. */
@@ -381,6 +381,83 @@ const CONFLICT_FIELD_KIND_LABEL_KEY: Readonly<Record<ConflictFieldKind, keyof Re
  */
 export const conflictFieldKindLabel = (fieldKind: ConflictFieldKind, messages: RecipeConflictMessages): string =>
     messages[CONFLICT_FIELD_KIND_LABEL_KEY[fieldKind]];
+
+// ─── Changed-only diff panel: markers + per-row labels (W7 Task 4 / X1) ─────────────────────────────
+
+/** Which localized glyph key names each {@link ConflictMarker}'s ASCII glyph (`[=]` / `[→]` / `[!!]`). */
+const CONFLICT_MARKER_GLYPH_KEY: Readonly<Record<ConflictMarker, keyof RecipeConflictMessages>> = {
+    unchanged: 'markerGlyphUnchanged',
+    changed: 'markerGlyphChanged',
+    conflict: 'markerGlyphConflict',
+};
+
+/** Which localized label key names each {@link ConflictMarker}'s ACCESSIBLE name — a DIFFERENT string per
+ *  marker, so the marker is conveyed by text/role, never colour (or the glyph's shape) alone. */
+const CONFLICT_MARKER_LABEL_KEY: Readonly<Record<ConflictMarker, keyof RecipeConflictMessages>> = {
+    unchanged: 'markerLabelUnchanged',
+    changed: 'markerLabelChanged',
+    conflict: 'markerLabelConflict',
+};
+
+/**
+ * The localized ASCII glyph (see {@link CONFLICT_MARKER_GLYPH_KEY}) rendered for one {@link ConflictMarker}
+ * — the VISIBLE marker text (e.g. `[→]`). Pure.
+ *
+ * @param marker - The row's marker classification.
+ * @param messages - The shared conflict-panel copy.
+ * @returns The localized glyph.
+ */
+export const conflictMarkerGlyph = (marker: ConflictMarker, messages: RecipeConflictMessages): string =>
+    messages[CONFLICT_MARKER_GLYPH_KEY[marker]];
+
+/**
+ * The localized ACCESSIBLE label (see {@link CONFLICT_MARKER_LABEL_KEY}) for one {@link ConflictMarker} —
+ * the name assistive tech announces for the marker (e.g. "changed"), distinct from its glyph so the
+ * distinction survives without colour or shape (X1). Pure.
+ *
+ * @param marker - The row's marker classification.
+ * @param messages - The shared conflict-panel copy.
+ * @returns The localized accessible marker name.
+ */
+export const conflictMarkerLabel = (marker: ConflictMarker, messages: RecipeConflictMessages): string =>
+    messages[CONFLICT_MARKER_LABEL_KEY[marker]];
+
+/** Matches a per-element STEP row's `steps[N]` key (`conflictDiff.ts`), capturing its 0-based position. */
+const STEP_ROW_KEY = /^steps\[(\d+)\]$/;
+
+/**
+ * The label for one {@link ConflictFieldRow} in the changed-only diff panel (W7 Task 4 / X1): the shared
+ * field label for a scalar row ({@link conflictFieldKindLabel}); "Step {n}" (1-based, decoded from the row's
+ * own `steps[N]` key) for a per-element STEP row; "Ingredient: {value}" for a per-element INGREDIENT row,
+ * where `{value}` is the row's own formatted line — SERVER-FIRST (X7: `theirs`, then `mine`, then `base`,
+ * the first non-empty) — since a `ConflictFieldRow` carries no independent ingredient name (its stable
+ * identity, `ingredientId`, is an opaque catalog reference, not display text — see `conflictDiff.ts`), and
+ * the row's own formatted "{quantity}{unit} {name}" line both identifies the ingredient AND is already
+ * exactly what every other side-by-side value on this panel renders — introducing a second, differently
+ * (name-only) formatted representation of the same ingredient would be a DRY liability, not a DRY win. A
+ * `ConflictFieldRow` carries no `label` of its own — localization is this function's job (mirrors
+ * {@link snapshotFieldLabel}'s / {@link conflictFieldKindLabel}'s own row→label indirection). Pure.
+ *
+ * @param row - The changed-or-conflicting row to label.
+ * @param messages - The shared conflict-panel copy.
+ * @returns The row's localized label.
+ */
+export const conflictRowLabel = (row: ConflictFieldRow, messages: RecipeConflictMessages): string => {
+    if (row.fieldKind === 'step') {
+        const match = STEP_ROW_KEY.exec(row.key);
+        const position = match === null ? 1 : Number(match[1]) + 1;
+
+        return fillTemplate(messages.stepPositionLabel, { position });
+    }
+
+    if (row.fieldKind === 'ingredient') {
+        const identity = row.theirs !== '' ? row.theirs : row.mine !== '' ? row.mine : (row.base ?? '');
+
+        return fillTemplate(messages.ingredientRowLabel, { value: identity });
+    }
+
+    return conflictFieldKindLabel(row.fieldKind, messages);
+};
 
 // ─── Field-by-field merge (T070 / FR-007c option c) ─────────────────────────────────────────────────
 //

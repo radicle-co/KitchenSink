@@ -229,13 +229,162 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
     });
 });
 
-describe('RecipeConflictView (web) — changed-fields list (minimal, W7 Task 4 replaces)', () => {
-    it('lists the diff’s changed rows by their localized field label', () => {
+describe('RecipeConflictView (web) — changed-only diff panel with markers + legend (W7 Task 4 / X1)', () => {
+    const changedOnlyDiff: ConflictDiff = {
+        rows: [
+            {
+                key: 'title',
+                fieldKind: 'title',
+                marker: 'changed',
+                base: 'Weeknight Pasta',
+                mine: 'My Draft Title',
+                theirs: 'Weeknight Pasta',
+                mineChanged: true,
+                theirsChanged: false,
+            },
+            {
+                key: 'servings',
+                fieldKind: 'servings',
+                marker: 'conflict',
+                base: '4',
+                mine: '6',
+                theirs: '8',
+                mineChanged: true,
+                theirsChanged: true,
+            },
+        ],
+        hasConflict: true,
+        isEmpty: false,
+    };
+
+    it('renders EXACTLY the diff’s changed-only rows — an unchanged field (Description) is absent', () => {
         freezeClock();
-        renderConflict();
+        renderConflict({ diff: changedOnlyDiff });
 
         expect(screen.getByText('Title')).toBeTruthy();
         expect(screen.getByText('Servings')).toBeTruthy();
+        expect(screen.queryByText('Description')).toBeNull();
+    });
+
+    it('renders the Server value BEFORE the Yours value on each row (X7 — the Task-3 placeholder had this backwards)', () => {
+        freezeClock();
+        renderConflict({ diff: changedOnlyDiff });
+
+        const serverValue = screen.getByText('Latest saved version: Weeknight Pasta');
+        const mineValue = screen.getByText('Your version: My Draft Title');
+
+        // eslint-disable-next-line no-bitwise
+        expect(serverValue.compareDocumentPosition(mineValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('renders the "was" base value when the row carries one', () => {
+        freezeClock();
+        renderConflict({ diff: changedOnlyDiff });
+
+        expect(screen.getByText('Was: Weeknight Pasta')).toBeTruthy();
+        expect(screen.getByText('Was: 4')).toBeTruthy();
+    });
+
+    it('omits the "was" line when a row carries no base (base-evicted 2-way fallback)', () => {
+        freezeClock();
+        const fallbackDiff: ConflictDiff = {
+            rows: [
+                {
+                    key: 'title',
+                    fieldKind: 'title',
+                    marker: 'conflict',
+                    mine: 'My Draft Title',
+                    theirs: 'Latest Saved Title',
+                    mineChanged: true,
+                    theirsChanged: true,
+                },
+            ],
+            hasConflict: true,
+            isEmpty: false,
+        };
+        renderConflict({ diff: fallbackDiff });
+
+        expect(screen.queryByText(/^Was:/)).toBeNull();
+    });
+
+    it('marks a `changed` row with an accessible "changed" marker (not colour alone)', () => {
+        freezeClock();
+        renderConflict({ diff: changedOnlyDiff });
+
+        expect(screen.getByRole('img', { name: 'changed' })).toBeTruthy();
+    });
+
+    it('marks a `conflict` row with an accessible "conflict" marker, distinct from "changed"', () => {
+        freezeClock();
+        renderConflict({ diff: changedOnlyDiff });
+
+        expect(screen.getByRole('img', { name: 'conflict' })).toBeTruthy();
+        // Exactly one marker per row — no stray accessible-image nodes.
+        expect(screen.getAllByRole('img')).toHaveLength(2);
+    });
+
+    it('renders a legend explaining all three markers', () => {
+        freezeClock();
+        renderConflict({ diff: changedOnlyDiff });
+
+        expect(screen.getByText('[=] unchanged')).toBeTruthy();
+        expect(screen.getByText('[→] changed')).toBeTruthy();
+        expect(screen.getByText('[!!] conflict')).toBeTruthy();
+    });
+
+    it('includes the step’s position in a per-element step row’s label', () => {
+        freezeClock();
+        const stepDiff: ConflictDiff = {
+            rows: [
+                {
+                    key: 'steps[2]',
+                    fieldKind: 'step',
+                    marker: 'changed',
+                    base: 'Add kale and cook until wilted',
+                    mine: 'Add spinach and cook until wilted',
+                    theirs: 'Add kale and cook until wilted',
+                    mineChanged: true,
+                    theirsChanged: false,
+                },
+            ],
+            hasConflict: false,
+            isEmpty: false,
+        };
+        renderConflict({ diff: stepDiff });
+
+        expect(screen.getByText('Step 3')).toBeTruthy();
+    });
+
+    it('includes the ingredient’s identity in a per-element ingredient row’s label', () => {
+        freezeClock();
+        const ingredientDiff: ConflictDiff = {
+            rows: [
+                {
+                    key: 'ingredients:ing_1',
+                    fieldKind: 'ingredient',
+                    marker: 'changed',
+                    base: '200g Pasta',
+                    mine: '250g Pasta',
+                    theirs: '200g Pasta',
+                    mineChanged: true,
+                    theirsChanged: false,
+                },
+            ],
+            hasConflict: false,
+            isEmpty: false,
+        };
+        renderConflict({ diff: ingredientDiff });
+
+        expect(screen.getByText('Ingredient: 200g Pasta')).toBeTruthy();
+    });
+
+    it('renders a defensive "no differences" message when diff.rows is empty, instead of an empty panel', () => {
+        freezeClock();
+        renderConflict({ diff: { rows: [], hasConflict: false, isEmpty: true } });
+
+        expect(screen.getByText('No differences to show.')).toBeTruthy();
+        expect(screen.queryByRole('img')).toBeNull();
+        expect(screen.queryByText('[→] changed')).toBeNull();
     });
 });
 

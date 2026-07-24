@@ -4,9 +4,11 @@
  *
  * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
- * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and a
- * minimal changed-fields list driven by the precomputed `ConflictDiff` (W7 Task 1; Task 4 replaces this).
- * The merge panel (Option C) is unchanged from the pre-W7 shape.
+ * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
+ * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
+ * per changed-or-conflicting field/element, each with an accessible marker (text/role, never colour alone)
+ * and Server-then-Yours values (X7), plus a legend. The merge panel (Option C) is unchanged from the pre-W7
+ * shape.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useState } from 'react';
@@ -14,15 +16,22 @@ import type { FC } from 'react';
 import { palette } from '@commise/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { ConflictMarker } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import {
     buildRecipeMergeFields,
-    conflictFieldKindLabel,
+    conflictMarkerGlyph,
+    conflictMarkerLabel,
+    conflictRowLabel,
     fillTemplate,
     formatServerBanner,
     type MergeSide,
     type RecipeConflictViewProps,
 } from './model.js';
+
+/** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
+ *  order). */
+const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
 
 /** One A/B/C option card — a title, a description, and the choice it fires. */
 const OptionCard: FC<{
@@ -161,21 +170,53 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 onChoose={() => setMerging(true)}
             />
 
-            {/* Minimal changed-fields list (W7 Task 4 replaces this with the full marker/legend panel). */}
-            {diff.rows.length > 0 && (
+            {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
+            {diff.rows.length > 0 ? (
                 <View accessibilityLabel={conflict.changedFieldsHeading} style={styles.changedFields}>
+                    <Text accessibilityRole="header" style={styles.subheading}>
+                        {conflict.changedFieldsHeading}
+                    </Text>
                     {diff.rows.map((row) => (
                         <View key={row.key} style={styles.changedFieldRow}>
-                            <Text style={styles.fieldLabel}>{conflictFieldKindLabel(row.fieldKind, conflict)}</Text>
-                            <Text style={styles.changedFieldValue}>
-                                {optionLabel(conflict.mergeMineLabel, row.mine)}
-                            </Text>
+                            <View style={styles.changedFieldRowHeader}>
+                                <View
+                                    accessible
+                                    accessibilityRole="image"
+                                    accessibilityLabel={conflictMarkerLabel(row.marker, conflict)}
+                                >
+                                    <Text style={styles.marker}>{conflictMarkerGlyph(row.marker, conflict)}</Text>
+                                </View>
+                                <Text style={styles.fieldLabel}>{conflictRowLabel(row, conflict)}</Text>
+                            </View>
+                            {row.base !== undefined && (
+                                <Text style={styles.changedFieldValue}>
+                                    {fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                </Text>
+                            )}
+                            {/* Server value FIRST, then Yours (X7). */}
                             <Text style={styles.changedFieldValue}>
                                 {optionLabel(conflict.mergeServerLabel, row.theirs)}
                             </Text>
+                            <Text style={styles.changedFieldValue}>
+                                {optionLabel(conflict.mergeMineLabel, row.mine)}
+                            </Text>
                         </View>
                     ))}
+                    <View accessibilityLabel={conflict.legendHeading} style={styles.legend}>
+                        {LEGEND_MARKERS.map((marker) => (
+                            <Text key={marker} style={styles.legendEntry}>
+                                {fillTemplate(conflict.legendEntryTemplate, {
+                                    glyph: conflictMarkerGlyph(marker, conflict),
+                                    label: conflictMarkerLabel(marker, conflict),
+                                })}
+                            </Text>
+                        ))}
+                    </View>
                 </View>
+            ) : (
+                // Defensive — Task 2 already fast-paths a genuinely phantom-empty diff away from this view,
+                // so this should not normally be reached; a blank panel is never an acceptable fallback.
+                <Text style={styles.explanation}>{conflict.noDifferencesMessage}</Text>
             )}
         </View>
     );
@@ -213,6 +254,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
+    subheading: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
     changedFields: { gap: 8 },
     changedFieldRow: {
         backgroundColor: palette.white,
@@ -222,7 +264,11 @@ const styles = StyleSheet.create({
         padding: 12,
         gap: 2,
     },
+    changedFieldRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    marker: { fontSize: 13, fontVariant: ['tabular-nums'], color: palette.slate },
     changedFieldValue: { fontSize: 14, color: palette.charcoal },
+    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
+    legendEntry: { fontSize: 12, color: palette.slate },
     option: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
     radioDot: {
         width: 18,

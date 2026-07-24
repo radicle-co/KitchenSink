@@ -19,6 +19,7 @@ import { recipes } from '../../../src/database/schema/recipes.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import { CollectionsService } from '../../../src/collections/collections.service.js';
 import { isRecipeDomainError } from '../../../src/recipes/recipe.error.js';
+import { AuthorHandlesDal } from '../../../src/authors/dal/author-handles.dal.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const hasDatabaseUrl = Boolean(DATABASE_URL);
@@ -62,7 +63,7 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         db = createRecipeDrizzle(pool);
-        service = new CollectionsService(new CollectionsDal(db));
+        service = new CollectionsService(new CollectionsDal(db), new AuthorHandlesDal(db));
     });
 
     afterAll(async () => {

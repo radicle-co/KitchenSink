@@ -45,6 +45,10 @@ export interface CollectionResponse {
     readonly visibility: CollectionVisibility;
     readonly recipeCount?: number;
     readonly sourceCollectionId?: string;
+    /** The source owner's display handle, FROZEN at clone time (W5 Task 2); absent when unresolved. */
+    readonly sourceOwnerHandle?: string;
+    /** The source collection's name, FROZEN at clone time (W5 Task 2). */
+    readonly sourceCollectionName?: string;
     readonly createdAt: IsoDateTimeString;
     readonly updatedAt: IsoDateTimeString;
 }

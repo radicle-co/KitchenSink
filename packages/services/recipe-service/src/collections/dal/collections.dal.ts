@@ -40,6 +40,14 @@ export interface CreateCollectionRow {
      * ancestor.
      */
     readonly sourceCollectionId?: string | null;
+    /**
+     * W5 Task 2: the source owner's display handle, FROZEN at clone time (never resynced on a later
+     * source-owner rename — CR-003). `null`/absent when the source owner has no resolvable handle yet,
+     * in which case attribution degrades to the name only.
+     */
+    readonly sourceOwnerHandle?: string | null;
+    /** W5 Task 2: the source collection's name, FROZEN at clone time. */
+    readonly sourceCollectionName?: string | null;
 }
 
 /** Partial patch for updating a collection. Absent fields are left untouched. */
@@ -69,6 +77,8 @@ export class CollectionsDal {
                 description: input.description ?? null,
                 visibility: input.visibility,
                 sourceCollectionId: input.sourceCollectionId ?? null,
+                sourceOwnerHandle: input.sourceOwnerHandle ?? null,
+                sourceCollectionName: input.sourceCollectionName ?? null,
             })
             .returning();
 

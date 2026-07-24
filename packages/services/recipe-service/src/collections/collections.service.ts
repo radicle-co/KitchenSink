@@ -28,6 +28,7 @@ import {
     type CollectionVisibility,
 } from '../database/schema/collections.js';
 import type { RecipeRow } from '../database/schema/recipes.js';
+import { AuthorHandlesDal } from '../authors/dal/author-handles.dal.js';
 import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
 import {
@@ -64,6 +65,8 @@ function toCollectionResponse(row: CollectionRow, recipeCount?: number): Collect
         ...response,
         ...(row.description !== null ? { description: row.description } : {}),
         ...(row.sourceCollectionId !== null ? { sourceCollectionId: row.sourceCollectionId } : {}),
+        ...(row.sourceOwnerHandle !== null ? { sourceOwnerHandle: row.sourceOwnerHandle } : {}),
+        ...(row.sourceCollectionName !== null ? { sourceCollectionName: row.sourceCollectionName } : {}),
         ...(recipeCount !== undefined ? { recipeCount } : {}),
     };
 }
@@ -120,7 +123,10 @@ function toRecipe(row: RecipeRow): Recipe {
 
 @Injectable()
 export class CollectionsService {
-    public constructor(@Inject(CollectionsDal) private readonly dal: CollectionsDal) {}
+    public constructor(
+        @Inject(CollectionsDal) private readonly dal: CollectionsDal,
+        @Inject(AuthorHandlesDal) private readonly authorHandles: AuthorHandlesDal,
+    ) {}
 
     /** Create a collection owned by `ownerId`. Visibility defaults to `private` (FR-010). */
     public async createCollection(ownerId: string, input: CreateCollectionInput): Promise<CollectionResponse> {
@@ -249,6 +255,12 @@ export class CollectionsService {
      * public collection is not itself published), and no listener links it back to the source. Later
      * source edits reach it only through an explicit {@link pullFromSource}.
      *
+     * **Source attribution is FROZEN at clone time** (W5 Task 2): the source's name and its owner's
+     * CURRENT display handle (resolved once, here, via {@link AuthorHandlesDal.findHandle}) are copied
+     * onto the clone row and never resynced — a later rename of the source owner does NOT propagate
+     * (CR-003: this is deliberate, not a missed sync). When the handle cannot be resolved yet (no
+     * `author_handles` row for that owner), attribution degrades gracefully to the name only.
+     *
      * @param clonerId - The app-user ULID performing the clone; becomes the clone's owner.
      * @param sourceId - The collection being cloned.
      * @param overrides - Optional `name` / `description` for the clone (`CloneCollectionRequest`);
@@ -272,6 +284,9 @@ export class CollectionsService {
         }
 
         const seedRecipes = await this.dal.listRecipes(sourceId, clonerId);
+        // Frozen attribution (W5 Task 2): resolved ONCE, at clone time, from the CURRENT read model —
+        // never re-read on a later source-owner rename (CR-003).
+        const sourceOwnerHandle = await this.authorHandles.findHandle(source.ownerId);
 
         const clone = await this.dal.create({
             ownerId: clonerId,
@@ -281,6 +296,8 @@ export class CollectionsService {
             // cloner's own, separate decision (FR-010).
             visibility: 'private',
             sourceCollectionId: sourceId,
+            sourceOwnerHandle: sourceOwnerHandle ?? null,
+            sourceCollectionName: source.name,
         });
 
         for (const recipe of seedRecipes) {

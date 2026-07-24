@@ -11,6 +11,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
+import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
 import { makeCollectionRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = { [K in keyof CollectionsDal]: ReturnType<typeof vi.fn> };
@@ -32,6 +33,11 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
     };
 }
 
+/** Visibility toggles never touch `AuthorHandlesDal` — a stub resolving to `undefined` is sufficient. */
+function makeAuthorHandlesDal(): AuthorHandlesDal {
+    return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() } as unknown as AuthorHandlesDal;
+}
+
 const OWNER = 'owner-1';
 
 describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
@@ -39,7 +45,7 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.update.mockResolvedValue(makeCollectionRow({ ownerId: OWNER, visibility }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal);
+        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal());
 
         const result = await service.setVisibility(OWNER, 'c1', visibility);
 
@@ -50,7 +56,7 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
     it('rejects an invalid visibility with INVALID_VISIBILITY before any DB write', async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal);
+        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal());
 
         await expect(service.setVisibility(OWNER, 'c1', 'unlisted')).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
@@ -61,7 +67,7 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
     it('enforces ownership — a non-owner cannot change visibility', async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: 'someone-else' }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal);
+        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal());
 
         await expect(service.setVisibility(OWNER, 'c1', 'public')).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.NOT_OWNER,
@@ -74,7 +80,7 @@ describe('CollectionsService.updateCollection with a visibility patch', () => {
     it('rejects an invalid visibility in the patch (service is the enforcement point)', async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal);
+        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal());
 
         await expect(service.updateCollection(OWNER, 'c1', { visibility: 'bogus' })).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
@@ -86,7 +92,7 @@ describe('CollectionsService.updateCollection with a visibility patch', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.update.mockResolvedValue(makeCollectionRow({ ownerId: OWNER, visibility: 'public' }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal);
+        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal());
 
         const result = await service.updateCollection(OWNER, 'c1', { visibility: 'public' });
 

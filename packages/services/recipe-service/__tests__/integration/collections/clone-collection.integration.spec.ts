@@ -1,7 +1,7 @@
 /**
- * T103 + T129 — collection-clone integration test (real Nest app + Docker Postgres).
+ * T103 + T129 + W5 Task 2 — collection-clone integration test (real Nest app + Docker Postgres).
  *
- * Drives `POST /v1/collections/{id}/clone` end to end and proves the two things a mocked DAL cannot:
+ * Drives `POST /v1/collections/{id}/clone` end to end and proves what a mocked DAL cannot:
  *   1. **The access boundary is real SQL** (T103) — a public collection holding one public and one
  *      PRIVATE recipe (owned by the source owner, not the cloner) clones with the public recipe only.
  *      The unit spec pins that the cloner is passed as the viewer; this pins that the viewer-scoped
@@ -9,6 +9,10 @@
  *   2. **Provenance is persisted** (T129) — the clone row carries `source_collection_id` and every
  *      seeded membership lands with `added_via = 'clone_seed'`, read back from the DB rather than
  *      inferred from a mock call.
+ *   3. **Source attribution is frozen at clone time, for real** (W5 Task 2 / CR-003) — the clone's
+ *      `sourceOwnerHandle`/`sourceCollectionName` are resolved from the live `author_handles` table at
+ *      clone time; a SUBSEQUENT rename of the source owner's handle in that table must NOT change what
+ *      a re-read of the clone reports — the frozen columns, not a live join, are the source of truth.
  *
  * Two identities are needed (cloner ≠ source owner), but the dev-auth bypass fixes ONE principal per
  * booted app, so the source's rows are seeded directly via the app's Drizzle client and the HTTP calls
@@ -22,17 +26,22 @@ import { DrizzleProvider } from '../../../src/database/database.module.js';
 import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { collections, recipeCollections } from '../../../src/database/schema/collections.js';
 import { recipes } from '../../../src/database/schema/recipes.js';
+import { authorHandles } from '../../../src/database/schema/author-handles.js';
 
 /** The dev-bypass principal every HTTP call below authenticates as. */
 const CLONER = '01JCLONE00CLONER000000000A';
 /** The source collection's owner — a different user, whose private recipe must NOT be cloned. */
 const SOURCE_OWNER = '01JCLONE00SRCOWNER0000000B';
+/** The source owner's display handle, seeded BEFORE any clone — what attribution should freeze onto. */
+const SOURCE_OWNER_HANDLE = 'clara';
 
 interface CollectionBody {
     id: string;
     ownerId: string;
     name: string;
     sourceCollectionId?: string;
+    sourceOwnerHandle?: string;
+    sourceCollectionName?: string;
     recipeCount?: number;
 }
 
@@ -82,12 +91,18 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
             { collectionId: sourceId, recipeId: publicRecipeId, addedVia: 'manual' },
             { collectionId: sourceId, recipeId: privateRecipeId, addedVia: 'manual' },
         ]);
+
+        // The source owner's CURRENT handle, resolvable at clone time (W5 Task 2).
+        await db
+            .insert(authorHandles)
+            .values({ userId: SOURCE_OWNER, displayName: SOURCE_OWNER_HANDLE, sourceTimestamp: new Date() });
     });
 
     afterAll(async () => {
         await db.delete(collections).where(eq(collections.ownerId, CLONER));
         await db.delete(collections).where(eq(collections.ownerId, SOURCE_OWNER));
         await db.delete(recipes).where(eq(recipes.ownerId, SOURCE_OWNER));
+        await db.delete(authorHandles).where(eq(authorHandles.userId, SOURCE_OWNER));
         await booted.close();
     });
 
@@ -99,6 +114,10 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
         // Provenance + ownership (T129), read back from the row the API returned.
         expect(clone.ownerId).toBe(CLONER);
         expect(clone.sourceCollectionId).toBe(sourceId);
+        // Frozen attribution (W5 Task 2): the source's name + its owner's handle, resolved via the real
+        // `author_handles` table (not mocked).
+        expect(clone.sourceCollectionName).toBe('Shared Favourites');
+        expect(clone.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
 
         const members = await db
             .select({ recipeId: recipeCollections.recipeId, addedVia: recipeCollections.addedVia })
@@ -126,6 +145,41 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
         expect(res.status).toBe(201);
         expect(((await res.json()) as CollectionBody).name).toBe('My Own Name');
     });
+
+    it(
+        "freezes source attribution at clone time — a LATER rename of the source owner's handle does " +
+            'not change what a re-read of the clone reports (CR-003: deliberately not synced)',
+        async () => {
+            const cloneRes = await fetch(`${baseUrl}/v1/collections/${sourceId}/clone`, { method: 'POST' });
+            expect(cloneRes.status).toBe(201);
+            const clone = (await cloneRes.json()) as CollectionBody;
+            expect(clone.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
+            expect(clone.sourceCollectionName).toBe('Shared Favourites');
+
+            // Rename the source owner's handle AFTER the clone exists.
+            await db
+                .update(authorHandles)
+                .set({ displayName: 'clara-renamed', sourceTimestamp: new Date() })
+                .where(eq(authorHandles.userId, SOURCE_OWNER));
+
+            const getRes = await fetch(`${baseUrl}/v1/collections/${clone.id}`);
+            expect(getRes.status).toBe(200);
+            const reread = (await getRes.json()) as CollectionBody;
+
+            // Still the FROZEN handle from clone time — never the live/renamed value.
+            expect(reread.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
+            expect(reread.sourceOwnerHandle).not.toBe('clara-renamed');
+            expect(reread.sourceCollectionName).toBe('Shared Favourites');
+            expect(reread.sourceCollectionId).toBe(sourceId);
+
+            // Restore the seeded handle so this test's ordering doesn't leak into later assertions in
+            // this file that read `SOURCE_OWNER_HANDLE` off a fresh clone.
+            await db
+                .update(authorHandles)
+                .set({ displayName: SOURCE_OWNER_HANDLE, sourceTimestamp: new Date() })
+                .where(eq(authorHandles.userId, SOURCE_OWNER));
+        },
+    );
 
     it('404s cloning a PRIVATE collection owned by someone else (existence is not revealed)', async () => {
         const [priv] = await db

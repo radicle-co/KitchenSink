@@ -23,10 +23,15 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
+import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
     [K in keyof CollectionsDal]: ReturnType<typeof vi.fn>;
+};
+
+type AuthorHandlesMock = {
+    [K in keyof AuthorHandlesDal]: ReturnType<typeof vi.fn>;
 };
 
 function makeDal(): DalMock {
@@ -45,8 +50,17 @@ function makeDal(): DalMock {
     };
 }
 
-function makeService(dal: DalMock): CollectionsService {
-    return new CollectionsService(dal as unknown as CollectionsDal);
+/** Defaults `findHandle` to `undefined` (no resolvable handle) — the common case across the pre-W5-Task-2 tests. */
+function makeAuthorHandlesDal(overrides: Partial<AuthorHandlesMock> = {}): AuthorHandlesMock {
+    return {
+        findHandle: vi.fn().mockResolvedValue(undefined),
+        applyRename: vi.fn(),
+        ...overrides,
+    };
+}
+
+function makeService(dal: DalMock, authorHandles: AuthorHandlesMock = makeAuthorHandlesDal()): CollectionsService {
+    return new CollectionsService(dal as unknown as CollectionsDal, authorHandles as unknown as AuthorHandlesDal);
 }
 
 /** The user performing the clone (NOT the source's owner). */
@@ -202,5 +216,73 @@ describe('CollectionsService.cloneCollection', () => {
         if (isRecipeDomainError(error)) {
             expect(error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         }
+    });
+});
+
+describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, CR-003 frozen-at-clone)', () => {
+    /** A public source owned by `SOURCE_OWNER`, named for the attribution assertions below. */
+    function attributionSource(): ReturnType<typeof makeCollectionRow> {
+        return makeCollectionRow({
+            id: SOURCE_ID,
+            ownerId: SOURCE_OWNER,
+            visibility: 'public',
+            name: 'Keto Staples',
+        });
+    }
+
+    it("resolves the source owner's CURRENT handle via AuthorHandlesDal and freezes it + the source name onto the clone", async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(attributionSource());
+        dal.listRecipes.mockResolvedValue([]);
+        dal.create.mockResolvedValue(
+            makeCollectionRow({
+                id: CLONE_ID,
+                ownerId: CLONER,
+                name: 'Keto Staples',
+                sourceCollectionId: SOURCE_ID,
+                sourceOwnerHandle: 'clara',
+                sourceCollectionName: 'Keto Staples',
+            }),
+        );
+        const authorHandles = makeAuthorHandlesDal({ findHandle: vi.fn().mockResolvedValue('clara') });
+        const service = makeService(dal, authorHandles);
+
+        const result = await service.cloneCollection(CLONER, SOURCE_ID);
+
+        // Resolved for the SOURCE owner, not the cloner.
+        expect(authorHandles.findHandle).toHaveBeenCalledWith(SOURCE_OWNER);
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceOwnerHandle: 'clara', sourceCollectionName: 'Keto Staples' }),
+        );
+        expect(result.sourceOwnerHandle).toBe('clara');
+        expect(result.sourceCollectionName).toBe('Keto Staples');
+        expect(result.sourceCollectionId).toBe(SOURCE_ID);
+    });
+
+    it('degrades to name-only attribution when the source owner has no resolvable handle yet', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(attributionSource());
+        dal.listRecipes.mockResolvedValue([]);
+        dal.create.mockResolvedValue(
+            makeCollectionRow({
+                id: CLONE_ID,
+                ownerId: CLONER,
+                name: 'Keto Staples',
+                sourceCollectionId: SOURCE_ID,
+                sourceOwnerHandle: null,
+                sourceCollectionName: 'Keto Staples',
+            }),
+        );
+        const authorHandles = makeAuthorHandlesDal({ findHandle: vi.fn().mockResolvedValue(undefined) });
+        const service = makeService(dal, authorHandles);
+
+        const result = await service.cloneCollection(CLONER, SOURCE_ID);
+
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceOwnerHandle: null, sourceCollectionName: 'Keto Staples' }),
+        );
+        // Omitted (not `null`) on the wire — the omit-null DTO convention (mirrors `sourceCollectionId`).
+        expect(result.sourceOwnerHandle).toBeUndefined();
+        expect(result.sourceCollectionName).toBe('Keto Staples');
     });
 });

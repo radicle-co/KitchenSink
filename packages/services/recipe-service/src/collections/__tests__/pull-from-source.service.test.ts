@@ -24,6 +24,7 @@ import { NotFoundException } from '@nestjs/common';
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
+import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
 import { makeCollectionRow, makeMembershipRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
@@ -46,8 +47,16 @@ function makeDal(): DalMock {
     };
 }
 
+/** `pullFromSource` never touches `AuthorHandlesDal` — a stub resolving to `undefined` is sufficient. */
+function makeAuthorHandlesDal(): { [K in keyof AuthorHandlesDal]: ReturnType<typeof vi.fn> } {
+    return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() };
+}
+
 function makeService(dal: DalMock): CollectionsService {
-    return new CollectionsService(dal as unknown as CollectionsDal);
+    return new CollectionsService(
+        dal as unknown as CollectionsDal,
+        makeAuthorHandlesDal() as unknown as AuthorHandlesDal,
+    );
 }
 
 const CLONER = 'cloner-1';

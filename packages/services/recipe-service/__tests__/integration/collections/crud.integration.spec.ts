@@ -197,6 +197,32 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         expect((await service.getCollection(OWNER, myCollection.id)).recipes).toHaveLength(0);
     });
 
+    // W5 Task 4: the source-indicator checkbox (C3) needs each member's provenance on the collection
+    // embed. Seed the three provenance kinds directly through the DAL (clone_seed/pull are normally only
+    // written internally by cloneCollection/pullFromSource, not a public "add with provenance" endpoint)
+    // and assert `GET /v1/collections/:id` (service.getCollection, the controller's exact call) reports
+    // each member's addedVia correctly.
+    it("exposes each member's addedVia matching how it entered the collection", async () => {
+        const collection = await service.createCollection(OWNER, { name: 'Provenance' });
+        const manualRecipeId = await insertRecipe(db, OWNER, 'Manual Add');
+        const cloneRecipeId = await insertRecipe(db, OWNER, 'Clone Seed');
+        const pullRecipeId = await insertRecipe(db, OWNER, 'Pulled');
+
+        await service.addRecipe(OWNER, collection.id, manualRecipeId);
+
+        const dal = new CollectionsDal(db);
+        await dal.addRecipe(collection.id, cloneRecipeId, 'clone_seed');
+        await dal.addRecipe(collection.id, pullRecipeId, 'pull');
+
+        const fetched = await service.getCollection(OWNER, collection.id);
+
+        const addedViaById = new Map(fetched.recipes.map((recipe) => [recipe.id, recipe.addedVia]));
+        expect(addedViaById.get(manualRecipeId)).toBe('manual');
+        expect(addedViaById.get(cloneRecipeId)).toBe('clone_seed');
+        expect(addedViaById.get(pullRecipeId)).toBe('pull');
+        expect(fetched.recipes).toHaveLength(3);
+    });
+
     // ADV-4 authoritative (read-side) half — the case add-time validation CANNOT catch: a member that
     // was PUBLIC when added but is later made PRIVATE by its owner must drop out of the listing. If the
     // read filter is missing, the now-private foreign recipe leaks through getCollection.

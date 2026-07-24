@@ -260,14 +260,43 @@ describe('CollectionsDal.removeRecipe', () => {
 describe('CollectionsDal.listRecipes', () => {
     it('inner-joins recipes (excluding tombstoned + non-viewable) and returns the rows', async () => {
         const fake = createFakeDb();
-        const rows = [makeRecipeRow()];
+        const rows = [{ ...makeRecipeRow(), addedVia: 'manual' as const }];
         fake.queue(rows);
         const dal = new CollectionsDal(fake.db);
 
-        expect(await dal.listRecipes('c1', 'viewer-1')).toBe(rows);
+        expect(await dal.listRecipes('c1', 'viewer-1')).toEqual(rows);
         // INNER JOIN + WHERE carry both the tombstone exclusion and the viewability filter
         // (`public OR owner=viewer`); the predicate CONTENT is verified behaviourally in the integration
         // spec (the fake DB records call shape, not WHERE args — see Tier-2 F4/F19 in the backlog).
+        expect(methodsOf(fake)).toContain('innerJoin');
+        expect(methodsOf(fake)).toContain('where');
+    });
+
+    // W5 Task 4: the source-indicator checkbox (C3) needs each member's provenance. `listRecipes` must
+    // project `recipeCollections.addedVia` alongside the recipe columns — not just the bare recipe row —
+    // and hand each provenance value through untouched (manual / clone_seed / pull).
+    it("selects addedVia alongside the recipe columns and returns each member's provenance untouched", async () => {
+        const fake = createFakeDb();
+        const rows = [
+            { ...makeRecipeRow({ id: 'r-manual' }), addedVia: 'manual' as const },
+            { ...makeRecipeRow({ id: 'r-clone' }), addedVia: 'clone_seed' as const },
+            { ...makeRecipeRow({ id: 'r-pull' }), addedVia: 'pull' as const },
+        ];
+        fake.queue(rows);
+        const dal = new CollectionsDal(fake.db);
+
+        const result = await dal.listRecipes('c1', 'viewer-1');
+
+        expect(result.map((row) => ({ id: row.id, addedVia: row.addedVia }))).toEqual([
+            { id: 'r-manual', addedVia: 'manual' },
+            { id: 'r-clone', addedVia: 'clone_seed' },
+            { id: 'r-pull', addedVia: 'pull' },
+        ]);
+        // The select projection must carry `addedVia` through, not just the bare recipe columns — this
+        // is the part that regresses if someone reverts to `select(getTableColumns(recipes))`.
+        expect(fake.calls[0]).toMatchObject({ method: 'select' });
+        const selectArg = fake.calls[0]?.args[0] as Record<string, unknown>;
+        expect(selectArg).toHaveProperty('addedVia');
         expect(methodsOf(fake)).toContain('innerJoin');
         expect(methodsOf(fake)).toContain('where');
     });

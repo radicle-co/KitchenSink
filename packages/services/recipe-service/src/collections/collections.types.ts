@@ -55,9 +55,16 @@ export interface CollectionResponse {
     readonly updatedAt: IsoDateTimeString;
 }
 
+/**
+ * A recipe as it appears within a collection embed (W5 Task 4): the `Recipe` wire shape plus this
+ * member's PROVENANCE (`addedVia`), so the client can render the source-indicator checkbox (C3) without
+ * a second membership lookup.
+ */
+export type CollectionMemberRecipe = Recipe & { readonly addedVia: RecipeCollectionAddedVia };
+
 /** The `CollectionWithRecipes` wire schema — a collection plus its (non-tombstoned) recipes. */
 export interface CollectionWithRecipesResponse extends CollectionResponse {
-    readonly recipes: Recipe[];
+    readonly recipes: CollectionMemberRecipe[];
 }
 
 /**

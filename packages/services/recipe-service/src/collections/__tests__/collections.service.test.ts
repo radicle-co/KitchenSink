@@ -158,6 +158,46 @@ describe('CollectionsService.getCollection', () => {
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.NOT_OWNER,
         );
     });
+
+    // W5 Task 4: the source-indicator checkbox (C3) needs each member's provenance on the embed.
+    it("carries each member's addedVia through from the DAL row onto the embedded recipe", async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.listRecipes.mockResolvedValue([
+            { ...makeRecipeRow({ id: 'r-manual' }), addedVia: 'manual' },
+            { ...makeRecipeRow({ id: 'r-clone' }), addedVia: 'clone_seed' },
+            { ...makeRecipeRow({ id: 'r-pull' }), addedVia: 'pull' },
+        ]);
+        const service = makeService(dal);
+
+        const result = await service.getCollection(OWNER, 'c1');
+
+        expect(result.recipes.map((recipe) => ({ id: recipe.id, addedVia: recipe.addedVia }))).toEqual([
+            { id: 'r-manual', addedVia: 'manual' },
+            { id: 'r-clone', addedVia: 'clone_seed' },
+            { id: 'r-pull', addedVia: 'pull' },
+        ]);
+    });
+
+    // Leak-matrix re-assertion (predicate untouched, W5 Task 4): the embed must render EXACTLY what the
+    // DAL's viewer-scoped `listRecipes` returned — never more. The real filtering (a non-owner's
+    // public-draft/private/deleted member dropping out) lives in `membershipPredicate`
+    // (activeRecipe/viewableBy/publishedOrOwnedBy, untouched by this change) and is proven against a real
+    // DB in the integration spec; this unit test pins that the service layer adds no members of its own
+    // and forwards the correct viewer id, so a service-side leak (e.g. re-querying unscoped) would fail it.
+    it('renders exactly the members the DAL returned (no service-side widening) and scopes by viewer', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.listRecipes.mockResolvedValue([{ ...makeRecipeRow({ id: 'visible-only' }), addedVia: 'manual' }]);
+        const service = makeService(dal);
+
+        const result = await service.getCollection(OWNER, 'c1');
+
+        expect(result.recipes).toHaveLength(1);
+        expect(result.recipes[0]?.id).toBe('visible-only');
+        expect(dal.listRecipes).toHaveBeenCalledWith('c1', OWNER);
+        expect(dal.listRecipes).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('CollectionsService.deleteCollection (no-cascade)', () => {

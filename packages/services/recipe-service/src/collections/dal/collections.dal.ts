@@ -247,14 +247,27 @@ export class CollectionsDal {
      *    serves three callers (the `CollectionWithRecipes` embed, `cloneCollection`'s clone-seed, and
      *    `pullFromSource`/preview), so patching this predicate covers all three. Keep it in lockstep with
      *    `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
+     *
+     * Also projects each membership's `added_via` (W5 Task 4) alongside the recipe columns, so the
+     * `CollectionWithRecipes` embed can surface per-member provenance (the source-indicator checkbox,
+     * C3) without a second read. `cloneCollection`'s clone-seed loop reads through this same method but
+     * only uses `.id`, so the extra column is inert there.
      */
-    public async listRecipes(collectionId: string, viewerId: string): Promise<RecipeRow[]> {
-        return this.db
-            .select(getTableColumns(recipes))
+    public async listRecipes(
+        collectionId: string,
+        viewerId: string,
+    ): Promise<Array<RecipeRow & { addedVia: RecipeCollectionAddedVia }>> {
+        const rows = await this.db
+            .select({ ...getTableColumns(recipes), addedVia: recipeCollections.addedVia })
             .from(recipeCollections)
             .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
             .where(this.membershipPredicate(collectionId, viewerId))
             .orderBy(recipeCollections.addedAt);
+
+        // `added_via` is a checked `text` column (not a Drizzle enum), so its selected type is the plain
+        // `string` the schema infers — narrow it to the closed provenance union here, at the DAL boundary,
+        // matching the cast convention already used for `addRecipe`'s returned membership row.
+        return rows.map((row) => ({ ...row, addedVia: row.addedVia as RecipeCollectionAddedVia }));
     }
 
     /**

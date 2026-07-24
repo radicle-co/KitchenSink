@@ -162,7 +162,9 @@ export class CollectionsService {
         // The caller (collection owner) is the viewer: they see public members + their own private ones,
         // never another user's private recipe that was added to (or left in) this collection.
         const recipeRows = await this.dal.listRecipes(id, ownerId);
-        const recipes = recipeRows.map(toRecipe);
+        // W5 Task 4: carry each member's provenance through onto the embedded recipe (source-indicator
+        // checkbox, C3) — the `Recipe` projection plus the DAL row's `addedVia`, nothing more.
+        const recipes = recipeRows.map((row) => ({ ...toRecipe(row), addedVia: row.addedVia }));
 
         return { ...toCollectionResponse(collection, recipes.length), recipes };
     }

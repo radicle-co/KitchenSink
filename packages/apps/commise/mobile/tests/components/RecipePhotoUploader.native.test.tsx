@@ -6,8 +6,11 @@
  * `expo-image-picker`, the recipe-service hooks, and the global `fetch` are all mocked, so these cover the
  * container's own logic in isolation: the picked-asset happy path (presign → S3 PUT → confirm, in order),
  * a failed S3 PUT surfacing a localized error and clearing the busy state, a canceled pick as a no-op,
- * remove delegating to the delete mutation, and the add control hiding at the 10-photo cap. The native
- * picker itself and the real S3 upload require on-device verification (a Maestro flow) — not reachable here.
+ * remove delegating to the delete mutation, the add control hiding at the 10-photo cap, a stale upload-error
+ * banner clearing on a fresh (successful) remove (regression), and the add control staying disabled — and
+ * `expo-image-picker` staying single-launched — for the full picker-launch + blob-read window, not just once
+ * `uploading` flips true (regression, B24 re-entrancy). The native picker itself and the real S3 upload
+ * require on-device verification (a Maestro flow) — not reachable here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -206,6 +209,58 @@ describe('RecipePhotoUploader — upload orchestration', () => {
     });
 });
 
+describe('RecipePhotoUploader — pick re-entrancy (regression)', () => {
+    // Regression: pre-refactor, `setUploading(true)` ran BEFORE the blob read, so the add control was
+    // disabled for the whole picker-launch + blob-read window. Post-refactor, the blob read happened in this
+    // leaf BEFORE `upload()` was called, so the hook's `uploading` was still false through that window and a
+    // second tap could launch `expo-image-picker` a second time concurrently. Fails without the local
+    // `picking` guard (gating the add control on `uploading || picking` and early-returning `addPhoto`).
+    it('disables the add control and single-launches the picker for the full pick + blob-read window', async () => {
+        let resolvePick: (result: { canceled: boolean; assets: (typeof pickedAsset)[] | null }) => void = () => {};
+
+        const pickPromise = new Promise<{ canceled: boolean; assets: (typeof pickedAsset)[] | null }>((resolve) => {
+            resolvePick = resolve;
+        });
+        launchImageLibraryAsyncMock.mockReturnValue(pickPromise as never);
+
+        const createMutateAsync = vi.fn().mockResolvedValue({
+            uploadUrl: 'https://s3.example.com/put',
+            key: 'uploads/rec_1/new.jpg',
+            expiresIn: 900,
+            maxBytes: 5_242_880,
+        });
+        const confirmMutateAsync = vi.fn().mockResolvedValue(makePhoto({ id: 'pht_new' }));
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
+        // 1st fetch → read the picked asset as a Blob; 2nd fetch → the S3 PUT.
+        fetchMock
+            .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
+            .mockResolvedValueOnce({ ok: true, status: 200 });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        const addButton = screen.getByRole('button', { name: 'Add photo' });
+
+        fireEvent.click(addButton);
+        await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
+
+        // The picker is still open (its promise hasn't settled) — the add control is already disabled, even
+        // though the hook's own `uploading` hasn't flipped true yet (upload() isn't called until after the
+        // picker resolves AND the blob read completes).
+        expect(addButton.getAttribute('aria-disabled')).toBe('true');
+
+        // A second tap during the window is a no-op: the picker is not launched a second time.
+        fireEvent.click(addButton);
+        expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1);
+
+        resolvePick({ canceled: false, assets: [pickedAsset] });
+
+        await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
+        // The full sequence ran exactly once, never interleaved by the rejected second tap.
+        expect(createMutateAsync).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+});
+
 describe('RecipePhotoUploader — remove', () => {
     it('delegates removal to the delete mutation with the photo id', () => {
         const mutate = vi.fn();
@@ -230,6 +285,47 @@ describe('RecipePhotoUploader — remove', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
 
         expect(screen.getByText('Removing…')).toBeTruthy();
+    });
+
+    // Regression: pre-refactor, `removePhoto` unconditionally cleared ANY prior error before every remove.
+    // Post-refactor (the `useRecipePhotoUpload` extraction, 9fbcbb0a), the displayed error preferred the
+    // hook's own `errorMessage`, which only clears on a NEW `upload()` — so a failed upload followed by a
+    // successful, unrelated remove left the upload-error banner on screen forever. Fails without the
+    // `uploadErrorSlot` mirror + its clear in `removePhoto`.
+    it('clears a stale upload-error banner when a fresh remove is initiated', async () => {
+        const createMutateAsync = vi.fn().mockResolvedValue({
+            uploadUrl: 'https://s3.example.com/put',
+            key: 'uploads/rec_1/new.jpg',
+            expiresIn: 900,
+            maxBytes: 5_242_880,
+        });
+        const confirmMutateAsync = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
+        fetchMock
+            .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
+            .mockResolvedValueOnce({ ok: false, status: 403 });
+
+        const mutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult([makePhoto({ id: 'pht_42' })]));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+
+        // A failed upload leaves the localized error banner up.
+        fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+        const alert = await screen.findByRole('alert');
+        expect(alert.textContent).toContain('We couldn’t add your photo. Please try again.');
+
+        // A fresh remove is initiated (and — since `onError` is never invoked here — succeeds): the stale
+        // upload-error banner must clear, not persist.
+        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+
+        expect(mutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoId: 'pht_42' },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });
 

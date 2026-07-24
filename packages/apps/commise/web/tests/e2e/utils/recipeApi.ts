@@ -8,6 +8,7 @@ import {
     type RecipeDetail,
     type RecipeDifficulty,
     type RecipeFacetCount,
+    type RecipePhoto,
     type RecipeStatus,
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
@@ -15,7 +16,15 @@ import type {
     CollectionRecipeMembership,
     RecipeSearchFacets,
     RecipeSearchResponse,
+    UploadUrlResponse,
 } from '@kitchensink/recipe-service-client';
+
+/**
+ * The mock "S3" origin the presign step hands back as `uploadUrl` (T067/CP-6/P3 photo-upload e2e). A
+ * dedicated `page.route` below fulfils any `PUT` here with a bare 200, standing in for the real direct-to-S3
+ * upload the recipe service's presigned URL targets in production.
+ */
+const MOCK_S3_ORIGIN = 'https://mock-s3.recipe-photos.e2e.example.com';
 
 /**
  * Recipe-service route mocks for the web E2E specs (T079/T080/T104/T109/T110). The recipe pages are
@@ -399,11 +408,17 @@ export async function mockRecipeApi(
     );
     let nextId = 1;
     let nextCollectionId = 1;
+    // Photos (T067/CP-6/P3): a recipe id → its confirmed photos, in display order. Seeded from each
+    // recipe's embedded `photos` so a spec that pre-seeds a cover photo sees it on both the detail's
+    // embedded list AND `GET /v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
+    const photoStore = new Map<string, RecipePhoto[]>();
+    let nextPhotoId = 1;
 
     const seed = options.recipes ?? [makeRecipeDetail({ id: 'rec_seed', ownerId: viewerId, title: 'Seed Recipe' })];
 
     for (const recipe of seed) {
         store.set(recipe.id, recipe);
+        photoStore.set(recipe.id, [...recipe.photos]);
         // Capture the seed's aggregate as the base of OTHER users' ratings — the viewer has not rated yet, so
         // whatever the seed carries is attributable to everyone else. A viewer rating layers on top of this.
         baseAggregates.set(recipe.id, {
@@ -471,9 +486,61 @@ export async function mockRecipeApi(
             return route.fulfill({ status: 201, json: catalogIngredient });
         }
 
-        // Photos (edit surface mounts the uploader): empty list.
-        if (/\/v1\/recipes\/[^/]+\/photos$/.test(path)) {
-            return route.fulfill({ json: [] });
+        // Photos (T067/CP-6/P3 — presign → direct S3 PUT → confirm, driven by `useRecipePhotoUpload`).
+        // Matched BEFORE the bare `/photos` list route so the longer, more specific paths win.
+
+        // Presign: mint a mock S3 URL under MOCK_S3_ORIGIN; the object key encodes the recipe + a counter
+        // so a confirm can be traced back to the presign that minted it, exactly as the real key does.
+        const uploadUrlPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/upload-url$/);
+
+        if (uploadUrlPath && method === 'POST') {
+            const id = uploadUrlPath[1] as string;
+            const key = `uploads/${id}/mock_${nextPhotoId}.jpg`;
+            const response: UploadUrlResponse = {
+                uploadUrl: `${MOCK_S3_ORIGIN}/${key}`,
+                key,
+                expiresIn: 900,
+                maxBytes: 5_242_880,
+            };
+
+            // A short artificial delay so the busy affordance the hook drives (`uploading`) is observable
+            // by the spec rather than resolving within the same event-loop turn as the click.
+            await new Promise((resolve) => setTimeout(resolve, 200));
+
+            return route.fulfill({ json: response });
+        }
+
+        // Confirm: record the uploaded key against the recipe, appended at the next display order — the
+        // same shape `POST /v1/recipes/{id}/photos/confirm` returns (201, the created `RecipePhoto`).
+        const confirmPhotoPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/confirm$/);
+
+        if (confirmPhotoPath && method === 'POST') {
+            const id = confirmPhotoPath[1] as string;
+            const input = body();
+            const key = typeof input['key'] === 'string' ? input['key'] : `uploads/${id}/mock_${nextPhotoId}.jpg`;
+            const contentType = typeof input['contentType'] === 'string' ? input['contentType'] : 'image/jpeg';
+            const existing = photoStore.get(id) ?? [];
+            const photo: RecipePhoto = {
+                id: `pht_${nextPhotoId++}`,
+                recipeId: id,
+                key,
+                url: `https://cdn.example.com/${key}`,
+                contentType,
+                order: existing.length + 1,
+                createdAt: ISO,
+            };
+            photoStore.set(id, [...existing, photo]);
+
+            return route.fulfill({ status: 201, json: photo });
+        }
+
+        // List (edit surface mounts the uploader): the recipe's confirmed photos, in order.
+        const photosListPath = path.match(/\/v1\/recipes\/([^/]+)\/photos$/);
+
+        if (photosListPath && method === 'GET') {
+            const id = photosListPath[1] as string;
+
+            return route.fulfill({ json: photoStore.get(id) ?? [] });
         }
 
         // Clone → a new recipe owned by the viewer, attributed to the source.
@@ -808,6 +875,10 @@ export async function mockRecipeApi(
         // above are mocked; the rest reach the real network.
         return route.continue();
     });
+
+    // The direct-to-S3 PUT the hook sends to the presigned `uploadUrl` above — a distinct origin, so it
+    // needs its own route (the `/v1/**` glob above only matches the recipe-service's own origin/path).
+    await page.route(`${MOCK_S3_ORIGIN}/**`, (route) => route.fulfill({ status: 200, body: '' }));
 
     return store;
 }

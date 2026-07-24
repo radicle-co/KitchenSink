@@ -2,10 +2,12 @@
  * @module @commise/features-recipes — native collection-detail view (T072 building block).
  *
  * The React Native leaf of {@link import('./CollectionDetail.js').CollectionDetail} — same presentational
- * contract: header (name, description, rename + delete) and member recipe rows — each a
+ * contract: the MEMBER LIST ("Recipes" section, add control, member recipe rows — each a
  * {@link CollectionMemberRow} (W5 Task 9, C3), which composes the shared `RecipeCard` with its
- * source-indicator and remove control — with an empty state when the collection has no members. Rendered
- * with RN primitives.
+ * source-indicator and remove control) plus an empty state and the B17 error banner. Rendered with RN
+ * primitives. The header zone (name/rename/delete/provenance/back) is owned by the sibling
+ * {@link import('./CollectionHeader.native.js').CollectionHeader} (W5 Task 6), composed above this block by
+ * the screen (W5 Task 12) — this view holds no header of its own, so the surface renders exactly ONE header.
  *
  * Member-list windowing (W5/C7): the detail embed returns EVERY member in one round trip (no
  * member-pagination endpoint — out of scope), so this view reveals them client-side in
@@ -29,8 +31,6 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     onSelectRecipe,
     onRemoveRecipe,
     onAddRecipe,
-    onRename,
-    onDelete,
     error,
 }) => {
     const { detail } = useMessages(collectionMessages);
@@ -43,37 +43,12 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     const errorMessage = error === undefined ? undefined : error === 'delete' ? detail.deleteError : detail.removeError;
 
     return (
-        <View accessibilityLabel={collection.name} style={styles.container}>
-            <Text accessibilityRole="header" style={styles.heading}>
-                {collection.name}
-            </Text>
-            {collection.description !== undefined && collection.description.length > 0 && (
-                <Text style={styles.description}>{collection.description}</Text>
-            )}
+        <View accessibilityLabel={detail.membersHeading} style={styles.container}>
             {errorMessage !== undefined && (
                 <Text accessibilityRole="alert" style={styles.errorBanner}>
                     {errorMessage}
                 </Text>
             )}
-            <View style={styles.headerActions}>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={detail.renameCta}
-                    onPress={onRename}
-                    style={styles.textButton}
-                >
-                    <Text style={styles.renameLabel}>{detail.renameCta}</Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={detail.deleteCta}
-                    onPress={onDelete}
-                    style={styles.textButton}
-                >
-                    <Text style={styles.deleteLabel}>{detail.deleteCta}</Text>
-                </Pressable>
-            </View>
-
             <View style={styles.membersHeader}>
                 <Text accessibilityRole="header" style={styles.sectionHeading}>
                     {detail.membersHeading}
@@ -127,16 +102,11 @@ const border = 'rgba(178, 190, 195, 0.3)';
 
 const styles = StyleSheet.create({
     container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
-    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
     description: { fontSize: 15, color: palette.slate },
-    headerActions: { flexDirection: 'row', gap: 8 },
     sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     membersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
     addButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
     addLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    textButton: { paddingVertical: 6, paddingHorizontal: 10 },
-    renameLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
-    deleteLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },
     errorBanner: { fontSize: 13, color: palette.error },
     card: {
         backgroundColor: palette.white,

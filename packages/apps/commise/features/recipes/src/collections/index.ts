@@ -23,6 +23,7 @@ export {
     type CollectionFormMode,
     type CollectionFormProps,
     type CollectionHeaderViewProps,
+    type CollectionListLoadMore,
     type CollectionListStatus,
     type CollectionListViewProps,
     type CollectionMemberRecipe,

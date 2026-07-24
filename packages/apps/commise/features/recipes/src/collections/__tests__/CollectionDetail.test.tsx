@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web collection-detail view. Covers every branch T072 requires — the header
- * (name, description, rename/delete actions), the member recipe rows (select + remove per row), and the
- * empty state (a collection with no members) — asserting on role/name/text and mock-call arguments so a
- * dropped handler argument or a missing branch fails.
+ * Component tests for the web collection-detail view — now the MEMBER LIST only (the header moved to
+ * `CollectionHeader`, W5 Task 12). Covers every branch it renders: the member recipe rows (select + remove
+ * per row), the add-a-recipe control, the empty state (a collection with no members), the client-side
+ * reveal windowing (W5/C7), and the B17 delete/remove error banner — asserting on role/name/text and
+ * mock-call arguments so a dropped handler argument or a missing branch fails.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -45,46 +46,12 @@ function renderDetail(overrides: Partial<CollectionDetailViewProps> = {}) {
         onSelectRecipe: noop,
         onRemoveRecipe: noop,
         onAddRecipe: noop,
-        onRename: noop,
-        onDelete: noop,
         ...overrides,
     };
     render(<CollectionDetail {...props} />);
 
     return props;
 }
-
-describe('CollectionDetail (web) — header', () => {
-    it('renders the collection name as the top-level heading', () => {
-        renderDetail({ collection: makeCollectionWithRecipes({ name: 'Holiday Baking' }) });
-
-        expect(screen.getByRole('heading', { level: 1, name: 'Holiday Baking' })).toBeTruthy();
-    });
-
-    it('renders the description when present', () => {
-        renderDetail({ collection: makeCollectionWithRecipes({ description: 'Cozy cold-weather bakes.' }) });
-
-        expect(screen.getByText('Cozy cold-weather bakes.')).toBeTruthy();
-    });
-
-    it('reports rename requests upward', () => {
-        const onRename = vi.fn();
-        renderDetail({ onRename });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
-
-        expect(onRename).toHaveBeenCalledTimes(1);
-    });
-
-    it('reports delete requests upward', () => {
-        const onDelete = vi.fn();
-        renderDetail({ onDelete });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-
-        expect(onDelete).toHaveBeenCalledTimes(1);
-    });
-});
 
 describe('CollectionDetail (web) — member recipes', () => {
     it('renders one row per member recipe', () => {
@@ -169,6 +136,21 @@ describe('CollectionDetail (web) — member-list windowing (W5/C7)', () => {
     it('renders no load-more control when the member count is within the window', () => {
         renderDetail({ collection: makeCollectionWithRecipes({ recipes: eightMembers.slice(0, 4) }) });
 
+        expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull();
+    });
+
+    it('windows a non-multiple member count — 6 members show the first 4 and a "Load more (2 more)" control', () => {
+        const sixMembers = Array.from({ length: 6 }, (_, index) =>
+            makeCollectionMemberRecipe({ id: `rec_${index + 1}`, title: `Recipe ${index + 1}` }),
+        );
+        renderDetail({ collection: makeCollectionWithRecipes({ recipes: sixMembers }) });
+
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(4);
+        expect(screen.getByRole('button', { name: 'Load more (2 more)' })).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more (2 more)' }));
+
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(6);
         expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull();
     });
 });

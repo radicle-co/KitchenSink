@@ -28,11 +28,11 @@ export const CollectionList: FC<CollectionListViewProps> = ({
     onSelect,
     onCreate,
     onRetry,
-    hasMore = false,
-    isFetchingNextPage = false,
-    onLoadMore = () => undefined,
+    loadMore,
 }) => {
     const { list } = useMessages(collectionMessages);
+    const hasMore = loadMore?.hasMore ?? false;
+    const isFetchingNextPage = loadMore?.loading ?? false;
 
     let body: ReactElement;
 
@@ -80,7 +80,7 @@ export const CollectionList: FC<CollectionListViewProps> = ({
                     // W5/C7 — server-paged "Load more" (no infinite scroll); vanishes once the last page loads.
                     <button
                         type="button"
-                        onClick={onLoadMore}
+                        onClick={() => loadMore?.onLoadMore()}
                         disabled={isFetchingNextPage}
                         aria-busy={isFetchingNextPage || undefined}
                         className="self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 disabled:opacity-60"

@@ -16,22 +16,46 @@
  */
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NotFoundError } from '@kitchensink/recipe-service-client';
+import { NotFoundError, PullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { CollectionDetailContainer } from '@/components/recipes/CollectionDetailContainer';
 
-import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
+import { makeCollection, makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
 
-const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
+const { pushMock, useAuthMock, useUserProfileMock } = vi.hoisted(() => ({
+    pushMock: vi.fn(),
+    useAuthMock: vi.fn(),
+    useUserProfileMock: vi.fn(),
+}));
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
 }));
+
+vi.mock('@clerk/nextjs', () => ({
+    useAuth: useAuthMock,
+}));
+
+vi.mock('@/hooks/useUserProfile', () => ({
+    useUserProfile: useUserProfileMock,
+}));
+
+/** Build a profile-query stub carrying only the subscription tier the visibility gate reads. */
+function profileWithTier(subscriptionTier: 'free' | 'premium') {
+    return { data: { account: { subscriptionTier } } };
+}
+
+beforeEach(() => {
+    // Signed-in viewer with a premium tier by default (so the premium gate is OPEN unless a test overrides it);
+    // the visibility-gate tests set the tier they need. The viewer id is irrelevant to the collection gates.
+    useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_1' } });
+    useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+});
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -45,6 +69,20 @@ function clientSeededWith(collection: ReturnType<typeof makeCollectionWithRecipe
 
     return client;
 }
+
+/** A cloned collection with its source-provenance fields populated (drives clone-info + pull affordances). */
+function makeClonedCollection(overrides: Partial<ReturnType<typeof makeCollectionWithRecipes>> = {}) {
+    return makeCollectionWithRecipes({
+        id: 'col_9',
+        sourceCollectionId: 'col_src',
+        sourceCollectionName: 'Origin dinners',
+        sourceOwnerHandle: 'sourcechef',
+        ...overrides,
+    });
+}
+
+/** A pull diff with one addable recipe. */
+const ADDABLE_DIFF: PullDiff = { added: ['rec_new'], removed: [], unchanged: ['rec_1'] };
 
 describe('CollectionDetailContainer', () => {
     it('renders the loading state while the query is pending', () => {
@@ -200,6 +238,138 @@ describe('CollectionDetailContainer', () => {
 
             await screen.findByRole('button', { name: 'Weeknight Pasta' });
             expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        });
+    });
+
+    describe('clone-info + pull affordances (render only for a cloned collection)', () => {
+        it('renders the clone-info panel and the pull action for a cloned collection', async () => {
+            const client = clientSeededWith(makeClonedCollection());
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            expect(await screen.findByRole('heading', { name: 'Clone Info' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Pull Updates from Source' })).toBeInTheDocument();
+        });
+
+        it('renders neither the clone-info panel nor the pull action for a non-clone', async () => {
+            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            await screen.findByRole('button', { name: 'Weeknight Pasta' });
+            expect(screen.queryByRole('heading', { name: 'Clone Info' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: 'Pull Updates from Source' })).not.toBeInTheDocument();
+        });
+
+        it('navigates to the source collection when View Source is activated', async () => {
+            const user = userEvent.setup();
+            const client = clientSeededWith(makeClonedCollection());
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            await user.click(await screen.findByRole('button', { name: 'View Source' }));
+
+            expect(pushMock).toHaveBeenCalledWith('/en/collections/col_src');
+        });
+    });
+
+    describe('pull-updates preview → commit → drift state machine', () => {
+        it('runs the preview then opens the dialog with the diff; confirm commits with the previewed diff', async () => {
+            const user = userEvent.setup();
+            const client = clientSeededWith(makeClonedCollection());
+            const previewSpy = vi.spyOn(client, 'previewPullFromSource').mockResolvedValue(ADDABLE_DIFF);
+            const pullSpy = vi
+                .spyOn(client, 'pullCollectionFromSource')
+                .mockResolvedValue({ collection: makeCollection({ id: 'col_9' }), addedRecipeIds: ['rec_new'] });
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            await user.click(await screen.findByRole('button', { name: 'Pull Updates from Source' }));
+
+            // The dialog opens on the preview, showing the diff-driven confirm control.
+            const confirm = await screen.findByRole('button', { name: 'Pull 1 Recipes' });
+            expect(previewSpy).toHaveBeenCalledWith('col_9');
+
+            await user.click(confirm);
+
+            await vi.waitFor(() => expect(pullSpy).toHaveBeenCalledWith('col_9', { previewedDiff: ADDABLE_DIFF }));
+            // On success the dialog closes.
+            await vi.waitFor(() =>
+                expect(
+                    screen.queryByRole('heading', { name: 'Pull Updates from Source Collection' }),
+                ).not.toBeInTheDocument(),
+            );
+        });
+
+        it('re-previews and shows the drift message when the commit rejects with a PullDriftError', async () => {
+            const user = userEvent.setup();
+            const client = clientSeededWith(makeClonedCollection());
+            const freshDiff: PullDiff = { added: ['rec_fresh'], removed: [], unchanged: [] };
+            const previewSpy = vi
+                .spyOn(client, 'previewPullFromSource')
+                .mockResolvedValueOnce(ADDABLE_DIFF)
+                .mockResolvedValueOnce(freshDiff);
+            const pullSpy = vi
+                .spyOn(client, 'pullCollectionFromSource')
+                .mockRejectedValue(new PullDriftError(freshDiff));
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            await user.click(await screen.findByRole('button', { name: 'Pull Updates from Source' }));
+            await user.click(await screen.findByRole('button', { name: 'Pull 1 Recipes' }));
+
+            // The commit drifted → the container re-previews and surfaces the drift alert, keeping the dialog
+            // open (never an infinite spinner, never a blind retry).
+            const alert = await screen.findByRole('alert');
+            expect(alert.textContent).toContain('The source collection changed since you last checked');
+            expect(pullSpy).toHaveBeenCalledTimes(1);
+            expect(previewSpy).toHaveBeenCalledTimes(2);
+            // The dialog is still open (its title is present) and NOT stuck on the loading affordance.
+            expect(screen.getByRole('heading', { name: 'Pull Updates from Source Collection' })).toBeInTheDocument();
+            expect(screen.queryByRole('status', { name: 'Loading pull preview' })).not.toBeInTheDocument();
+        });
+    });
+
+    describe('clone collection', () => {
+        it('clones the collection and navigates to the new clone', async () => {
+            const user = userEvent.setup();
+            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
+            const cloneSpy = vi.spyOn(client, 'cloneCollection').mockResolvedValue(makeCollection({ id: 'col_clone' }));
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            await user.click(await screen.findByRole('button', { name: 'Clone Collection' }));
+
+            await vi.waitFor(() => expect(cloneSpy).toHaveBeenCalledWith('col_9', undefined));
+            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections/col_clone'));
+        });
+    });
+
+    describe('visibility save (premium-gated)', () => {
+        it('saves the pending private visibility for a premium viewer', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', visibility: 'public' }));
+            const updateSpy = vi
+                .spyOn(client, 'updateCollection')
+                .mockResolvedValue(makeCollection({ id: 'col_9', visibility: 'private' }));
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            await user.click(await screen.findByRole('radio', { name: 'Private' }));
+            await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+            await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledWith('col_9', { visibility: 'private' }));
+        });
+
+        it('a free viewer cannot reach a private save — the private option is disabled', async () => {
+            useUserProfileMock.mockReturnValue(profileWithTier('free'));
+            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', visibility: 'public' }));
+
+            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+            const privateOption = await screen.findByRole('radio', { name: 'Private' });
+            expect(privateOption).toBeDisabled();
         });
     });
 });

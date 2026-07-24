@@ -4,10 +4,10 @@
  * retry) — plus navigation on select/create.
  *
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
- * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL `useCollections` hook
- * over a real, network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with
- * a type-checked `vi.spyOn(client, 'listCollections')`. The Next router stays mocked — routing is not part of
- * the recipe-service hooks seam this migration targets.
+ * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL `useCollectionsInfinite`
+ * hook (W5/C7 server-paged "Load more") over a real, network-guarded `RecipeServiceClient`
+ * (`createFakeRecipeServiceClient`), stubbed per test with a type-checked `vi.spyOn(client, 'listCollections')`.
+ * The Next router stays mocked — routing is not part of the recipe-service hooks seam this migration targets.
  */
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -105,5 +105,33 @@ describe('CollectionListContainer', () => {
         await user.click(await screen.findByRole('button', { name: 'New collection' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/collections/new');
+    });
+
+    it('advances the page and appends the next page when Load more is activated (W5/C7)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const listSpy = vi
+            .spyOn(client, 'listCollections')
+            .mockResolvedValueOnce(
+                makeCollectionsPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })], {
+                    hasMore: true,
+                    page: 1,
+                }),
+            )
+            .mockResolvedValueOnce(
+                makeCollectionsPage([makeCollection({ id: 'col_2', name: 'Holiday baking' })], {
+                    hasMore: false,
+                    page: 2,
+                }),
+            );
+
+        renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+
+        await screen.findByRole('button', { name: 'Weeknight dinners' });
+        await user.click(screen.getByRole('button', { name: 'Load more' }));
+
+        expect(await screen.findByRole('button', { name: 'Holiday baking' })).toBeInTheDocument();
+        expect(listSpy).toHaveBeenCalledTimes(2);
+        expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
     });
 });

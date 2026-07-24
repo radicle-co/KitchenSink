@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import {
     useCloneRecipe,
-    useCollections,
+    useCollectionsInfinite,
     useCreateIngredient,
     useCreateRecipe,
     useDeleteRecipe,
@@ -54,7 +54,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
     useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
     useInfiniteSearchRecipes: vi.fn(),
-    useCollections: vi.fn(),
+    useCollectionsInfinite: vi.fn(),
     useSetRecipeRating: vi.fn(),
     useDeleteRecipeRating: vi.fn(),
 }));
@@ -115,8 +115,8 @@ beforeEach(() => {
             fetchNextPage: vi.fn(),
         }),
     );
-    vi.mocked(useCollections).mockReturnValue(
-        query<ReturnType<typeof useCollections>>({ data: makeCollectionPage([]) }),
+    vi.mocked(useCollectionsInfinite).mockReturnValue(
+        query<ReturnType<typeof useCollectionsInfinite>>({ data: { pages: [makeCollectionPage([])] } as never }),
     );
     vi.mocked(useUserProfile).mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useUserProfile>);
 });

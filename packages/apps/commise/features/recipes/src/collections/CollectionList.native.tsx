@@ -19,11 +19,11 @@ export const CollectionList: FC<CollectionListViewProps> = ({
     onSelect,
     onCreate,
     onRetry,
-    hasMore = false,
-    isFetchingNextPage = false,
-    onLoadMore = () => undefined,
+    loadMore,
 }) => {
     const { list } = useMessages(collectionMessages);
+    const hasMore = loadMore?.hasMore ?? false;
+    const isFetchingNextPage = loadMore?.loading ?? false;
 
     let body: ReactElement;
 
@@ -69,7 +69,7 @@ export const CollectionList: FC<CollectionListViewProps> = ({
                         accessibilityLabel={isFetchingNextPage ? list.loadingMore : list.loadMore}
                         accessibilityState={{ busy: isFetchingNextPage, disabled: isFetchingNextPage }}
                         disabled={isFetchingNextPage}
-                        onPress={onLoadMore}
+                        onPress={() => loadMore?.onLoadMore()}
                         style={[styles.loadMore, isFetchingNextPage && styles.loadMoreBusy]}
                     >
                         <Text style={styles.loadMoreLabel}>

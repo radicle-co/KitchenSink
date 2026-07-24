@@ -213,6 +213,8 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                     onAddRecipe={() => nav.push({ id: 'collectionAddRecipe', collectionId: surface.collectionId })}
                     onRename={(name) => nav.push({ id: 'collectionRename', collectionId: surface.collectionId, name })}
                     onDeleted={() => nav.selectTab('collections')}
+                    onCloned={(collectionId) => nav.push({ id: 'collectionDetail', collectionId })}
+                    onViewSource={(collectionId) => nav.push({ id: 'collectionDetail', collectionId })}
                     onBack={nav.back}
                 />
             );

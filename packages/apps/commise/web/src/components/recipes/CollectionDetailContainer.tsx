@@ -1,26 +1,58 @@
 'use client';
 
 /**
- * Container for the collection-detail route: fetches a single collection (with its member recipes) via
- * `useCollection(id)` and renders the shared, presentational `CollectionDetail` on success. The fetch-state
- * affordances (loading, generic error with retry, and a distinct not-found message) belong to the app, not
- * the building block, and are localized through the web dictionary (`useMessages`). It wires the member and
- * collection mutations (remove a member, delete the collection → navigate back to the list) and navigation
- * (rename → the rename form; select a member → the recipe route). Remote state stays in TanStack Query — the
- * view is derived from the query, never copied into local state.
+ * Container for the collection-detail route (W5 Task 12 — the collection-view integration linchpin). It
+ * fetches a single collection (with its member recipes) via `useCollection(id)` and composes the shared,
+ * presentational collection building blocks around it: the {@link CollectionHeader} (name, visibility badge,
+ * recipe count, source attribution, last-pulled, Back + rename/delete — C4/C6), the {@link CollectionActions}
+ * sidebar (add-recipes, pull-updates, clone, and the premium-gated visibility toggle — C1/FR-009/FR-010/
+ * FR-011), the {@link CloneInfoPanel} (only for a cloned collection — C5), the member list
+ * ({@link CollectionDetail}), and the {@link PullUpdatesDialog} (C2). The fetch-state affordances (loading,
+ * generic error with retry, distinct not-found) belong to the app, not the blocks, and are localized through
+ * the web dictionary (`useMessages`).
+ *
+ * Remote state stays in TanStack Query — the view is derived from the query, never copied into local state;
+ * the only local state is view state the server does not own: the pending (unsaved) visibility selection and
+ * the pull preview→commit→drift dialog state machine.
+ *
+ * Premium gate (C1): a single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from Clerk's
+ * `external_id` session claim + `useUserProfile`'s subscription tier — the SAME signals and the SAME
+ * `canGoPrivate` predicate the recipe detail container and the mobile screen evaluate, so the two platforms
+ * and the two surfaces can never diverge on the gate. It fails safe (gated OFF) while the profile loads/absent.
+ *
+ * Pull-updates state machine (C2/FR-011): opening Pull runs `previewPull` (imperative `mutateAsync`) and shows
+ * its {@link PullDiff} in the dialog; confirming commits with `pullCollectionFromSource({ previewedDiff })`; a
+ * `PullDriftError` (409 — the source drifted since the preview) is caught, RE-PREVIEWED for the fresh diff, and
+ * surfaced as the dialog's `'drift'` state (never a blind retry, never an infinite spinner). A successful
+ * commit invalidates via the hook, then closes + clears the dialog.
  */
-import { CollectionDetail, type CollectionDetailError } from '@commise/features-recipes';
-import { useMessages } from '@commise/i18n/react';
-import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
+    CloneInfoPanel,
+    CollectionActions,
+    CollectionDetail,
+    CollectionHeader,
+    PullUpdatesDialog,
+    collectionMessages,
+    type CollectionDetailError,
+} from '@commise/features-recipes';
+import { useLocale, useMessages } from '@commise/i18n/react';
+import { useAuth } from '@clerk/nextjs';
+import { canGoPrivate, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
+import { isNotFoundError, isPullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
+import {
+    useCloneCollection,
     useCollection,
     useDeleteCollection,
+    usePreviewPull,
+    usePullCollectionFromSource,
     useRemoveRecipeFromCollection,
+    useUpdateCollection,
 } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link CollectionDetailContainer}. */
@@ -32,17 +64,67 @@ export interface CollectionDetailContainerProps {
 }
 
 /**
+ * Read the viewer's app-user ULID from Clerk's session claims (the `external_id` claim — the recipe
+ * service's owner key). Returns `undefined` when the claim is absent so the premium gate stays deniably off.
+ *
+ * @param sessionClaims - Clerk's session claims (untyped for the custom `external_id` claim).
+ * @returns The viewer's app-user ULID, or `undefined` when it is not present.
+ */
+function readViewerId(sessionClaims: unknown): string | undefined {
+    const claims = sessionClaims as Record<string, unknown> | null;
+    const externalId = claims?.['external_id'];
+
+    return typeof externalId === 'string' ? externalId : undefined;
+}
+
+/**
  * The live collection-detail container.
  *
  * @param props - The collection id to load and the active locale.
- * @returns The detail view, or a localized loading / not-found / error affordance.
+ * @returns The composed detail view, or a localized loading / not-found / error affordance.
  */
 export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale }) => {
     const router = useRouter();
+    const activeLocale = useLocale();
     const { collections } = useMessages(webMessages);
+    const { actions: collectionActions } = useMessages(collectionMessages);
+    const { sessionClaims } = useAuth();
+    const profile = useUserProfile();
     const query = useCollection(id);
     const removeRecipe = useRemoveRecipeFromCollection();
     const deleteCollection = useDeleteCollection();
+    const updateCollection = useUpdateCollection();
+    const cloneCollection = useCloneCollection();
+    const previewPull = usePreviewPull();
+    const commitPull = usePullCollectionFromSource();
+
+    // View state the server does not own: the pending (unsaved) visibility selection and the pull dialog's
+    // preview→commit→drift machine. `pendingVisibility` is undefined until the viewer changes it, so the saved
+    // value is the source of truth until then (no need to seed it from data that is not loaded yet).
+    const [pendingVisibility, setPendingVisibility] = useState<RecipeVisibility | undefined>(undefined);
+    const [isPullOpen, setPullOpen] = useState(false);
+    const [pullDiff, setPullDiff] = useState<PullDiff | undefined>(undefined);
+    const [pullError, setPullError] = useState<'drift' | 'generic' | undefined>(undefined);
+    const [stateCollectionId, setStateCollectionId] = useState(id);
+
+    if (stateCollectionId !== id) {
+        // The App Router keeps THIS container mounted across a `/collections/A` → `/collections/B` navigation
+        // (same dynamic-segment pattern), so on an id change we must scrub every scrap of the previous
+        // collection's local + mutation state — otherwise collection A's pending visibility, open pull dialog,
+        // or a failed/in-flight write leaks onto B, which shares the same `useMutation`/`useState` instances.
+        // (The member-window reveal count is reset separately by keying `CollectionDetail` on `collection.id`.)
+        setStateCollectionId(id);
+        setPendingVisibility(undefined);
+        setPullOpen(false);
+        setPullDiff(undefined);
+        setPullError(undefined);
+        removeRecipe.reset();
+        deleteCollection.reset();
+        updateCollection.reset();
+        cloneCollection.reset();
+        previewPull.reset();
+        commitPull.reset();
+    }
 
     if (query.isLoading) {
         return <div role="status" aria-label={collections.detail.loadingLabel} />;
@@ -69,9 +151,23 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
         return <div role="status" aria-label={collections.detail.loadingLabel} />;
     }
 
+    const collection = query.data;
+    const isCloned = collection.sourceCollectionId !== undefined;
+    const savedVisibility = collection.visibility;
+    const effectivePending = pendingVisibility ?? savedVisibility;
+
+    // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim +
+    // the profile's subscription tier), feeds the visibility gate through the shared `canGoPrivate` predicate —
+    // the SAME predicate the recipe detail container and the mobile screen evaluate (C1). Fails safe (OFF)
+    // while the profile loads or is absent (`makeViewer` maps an absent/unrecognized tier to `'free'`).
+    const viewer = makeViewer({
+        id: readViewerId(sessionClaims),
+        subscriptionTier: profile.data?.account.subscriptionTier,
+    });
+    const viewerCanGoPrivate = canGoPrivate(viewer);
+
     // B17 — a failed delete/remove must never look frozen. Surface an honest code for whichever mutation
     // errored; delete takes precedence over remove (it is the more consequential, whole-collection action).
-    // Each mutation resets its own error on the next attempt, so the banner clears when the viewer retries.
     const mutationError: CollectionDetailError | undefined =
         deleteCollection.error !== null && deleteCollection.error !== undefined
             ? 'delete'
@@ -79,19 +175,146 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
               ? 'remove'
               : undefined;
 
-    return (
-        <CollectionDetail
-            collection={query.data}
-            error={mutationError}
-            onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
-            onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
-            onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}
-            onRename={() => router.push(`/${locale}/collections/${id}/rename` as Route)}
-            onDelete={() =>
-                deleteCollection.mutate(id, {
-                    onSuccess: () => router.push(`/${locale}/collections` as Route),
-                })
+    /** Fetch a fresh preview and show it in the dialog; a failed preview surfaces the generic error state. */
+    const runPreview = async (): Promise<void> => {
+        try {
+            const diff = await previewPull.mutateAsync(id);
+            setPullDiff(diff);
+            setPullError(undefined);
+        } catch {
+            setPullError('generic');
+        }
+    };
+
+    /** Open the pull dialog and kick off the initial preview (C2). */
+    const openPull = (): void => {
+        setPullDiff(undefined);
+        setPullError(undefined);
+        setPullOpen(true);
+        void runPreview();
+    };
+
+    /** Cancel/dismiss the pull dialog and reset its whole state machine. */
+    const cancelPull = (): void => {
+        setPullOpen(false);
+        setPullDiff(undefined);
+        setPullError(undefined);
+        previewPull.reset();
+        commitPull.reset();
+    };
+
+    /**
+     * Commit the previewed pull. On a `PullDriftError` (409 — the source drifted since the preview), re-run
+     * the preview for the FRESH diff and surface the dialog's `'drift'` state, keeping it open so the viewer
+     * re-decides against current data (never a blind retry, never an infinite spinner). Any other failure is
+     * generic; a successful commit invalidates (via the hook), then closes + clears the dialog.
+     */
+    const confirmPull = async (): Promise<void> => {
+        try {
+            await commitPull.mutateAsync({ id, previewedDiff: pullDiff });
+            setPullOpen(false);
+            setPullDiff(undefined);
+            setPullError(undefined);
+        } catch (error) {
+            if (isPullDriftError(error)) {
+                try {
+                    const fresh = await previewPull.mutateAsync(id);
+                    setPullDiff(fresh);
+                    setPullError('drift');
+                } catch {
+                    // Even the re-preview failed — fall back to the generic error rather than a stuck spinner.
+                    setPullError('generic');
+                }
+            } else {
+                setPullError('generic');
             }
-        />
+        }
+    };
+
+    return (
+        <section aria-label={collection.name} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+            <CollectionHeader
+                name={collection.name}
+                description={collection.description}
+                visibility={savedVisibility}
+                recipeCount={collection.recipeCount ?? collection.recipes?.length ?? 0}
+                sourceCollectionName={collection.sourceCollectionName}
+                sourceOwnerHandle={collection.sourceOwnerHandle}
+                lastPulledAt={collection.lastPulledAt}
+                onBack={() => router.push(`/${locale}/collections` as Route)}
+                onEdit={() => router.push(`/${locale}/collections/${id}/rename` as Route)}
+                onDelete={() =>
+                    deleteCollection.mutate(id, {
+                        onSuccess: () => router.push(`/${locale}/collections` as Route),
+                    })
+                }
+            />
+
+            <div className="flex flex-col gap-6 lg:flex-row-reverse lg:items-start">
+                <aside className="flex flex-col gap-6 lg:w-80 lg:shrink-0">
+                    <CollectionActions
+                        isCloned={isCloned}
+                        visibility={savedVisibility}
+                        pendingVisibility={effectivePending}
+                        canGoPrivate={viewerCanGoPrivate}
+                        disabledReason={collectionActions.privatePremiumGated}
+                        isCloning={cloneCollection.isPending}
+                        isPulling={previewPull.isPending || commitPull.isPending}
+                        onAddRecipes={() => router.push(`/${locale}/collections/${id}/add` as Route)}
+                        onPullUpdates={openPull}
+                        onClone={() =>
+                            cloneCollection.mutate(
+                                { id },
+                                {
+                                    onSuccess: (created) =>
+                                        router.push(`/${locale}/collections/${created.id}` as Route),
+                                },
+                            )
+                        }
+                        onVisibilityChange={setPendingVisibility}
+                        onSaveVisibility={() =>
+                            updateCollection.mutate({ id, request: { visibility: effectivePending } })
+                        }
+                    />
+                    {isCloned && collection.sourceCollectionId !== undefined && (
+                        <CloneInfoPanel
+                            sourceOwnerHandle={collection.sourceOwnerHandle}
+                            sourceCollectionName={collection.sourceCollectionName}
+                            sourceCollectionId={collection.sourceCollectionId}
+                            clonedAt={collection.createdAt}
+                            locale={activeLocale}
+                            onViewSource={(sourceId) => router.push(`/${locale}/collections/${sourceId}` as Route)}
+                        />
+                    )}
+                </aside>
+
+                <div className="min-w-0 flex-1">
+                    {/* Reveal-reset (Task 11): key the member-list subtree on the collection id so the
+                        client-side member-window reveal count resets when navigating between collections. */}
+                    <CollectionDetail
+                        key={collection.id}
+                        collection={collection}
+                        error={mutationError}
+                        onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
+                        onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
+                        onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}
+                    />
+                </div>
+            </div>
+
+            {isCloned && (
+                <PullUpdatesDialog
+                    open={isPullOpen}
+                    diff={pullDiff}
+                    isLoadingPreview={previewPull.isPending}
+                    isCommitting={commitPull.isPending}
+                    error={pullError}
+                    sourceOwnerHandle={collection.sourceOwnerHandle}
+                    sourceCollectionName={collection.sourceCollectionName}
+                    onCancel={cancelPull}
+                    onConfirm={() => void confirmPull()}
+                />
+            )}
+        </section>
     );
 };

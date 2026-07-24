@@ -67,17 +67,30 @@ export interface CollectionListViewProps {
     readonly onCreate: () => void;
     /** Invoked when the retry action is activated in the error state. */
     readonly onRetry: () => void;
-    /** Whether another server page exists (W5/C7); renders a `[Load more]` control at the list's end. The
-     *  composing container wires this off `useCollectionsInfinite`'s `hasNextPage` (Task 12). Optional so a
-     *  caller not yet wired to the infinite query (e.g. the flat `useCollections` screens/containers this
-     *  view already had) can omit it; defaults to `false` — no control. */
-    readonly hasMore?: boolean;
-    /** Whether the next page is currently being fetched; the load-more control shows a busy/disabled state.
-     *  Defaults to `false`. */
-    readonly isFetchingNextPage?: boolean;
-    /** Invoked when the load-more control is activated. Suppressed while `!hasMore`; optional for the same
-     *  reason as `hasMore` (unreachable when `hasMore` is `false`). */
-    readonly onLoadMore?: () => void;
+    /**
+     * Optional server-paged load-more control (W5/C7) — grouped into ONE optional prop rather than three flat
+     * `hasMore`/`isFetchingNextPage`/`onLoadMore` fields, so the whole feature expresses "load more" as a
+     * single thing (the established {@link import('../discovery/model.js').RecipeDiscoveryLoadMoreControl}
+     * shape). Absent → no pagination control (a caller wired to the flat `useCollections` rather than
+     * `useCollectionsInfinite`); the composing container (Task 12) wires it off `useCollectionsInfinite`.
+     */
+    readonly loadMore?: CollectionListLoadMore;
+}
+
+/**
+ * The server-paged load-more control for the collection list (W5/C7) — structurally the same shape as
+ * {@link import('../discovery/model.js').RecipeDiscoveryLoadMoreControl} (one shared shape for the same
+ * concern across discovery + collections): whether another page exists, whether the next page is in flight,
+ * and the fetch-next callback. The view renders a `[Load more]` button only while {@link hasMore}; it
+ * vanishes at the last page (no infinite scroll).
+ */
+export interface CollectionListLoadMore {
+    /** Whether another server page exists; the `[Load more]` control renders only while `true`. */
+    readonly hasMore: boolean;
+    /** Whether the next page is currently being fetched; the control shows a busy/disabled state. */
+    readonly loading: boolean;
+    /** Invoked when the load-more control is activated (wired to `useCollectionsInfinite`'s `fetchNextPage`). */
+    readonly onLoadMore: () => void;
 }
 
 /**
@@ -91,10 +104,6 @@ export interface CollectionListViewProps {
 export const MEMBER_WINDOW_SIZE = 4;
 
 /**
- * Props for the collection-detail view — a presentational render of a loaded {@link CollectionWithRecipes}
- * (header + member recipe rows). Fetch states (loading/error) belong to the composing app, not here.
- */
-/**
  * Which honest error a failed collection mutation surfaces (localized copy lives in the block, keyed by this
  * discriminant — the B17 code pattern, so the composing container never reaches into the block's dictionary).
  * - `delete` — deleting the collection failed (the action looked frozen before B17).
@@ -102,6 +111,16 @@ export const MEMBER_WINDOW_SIZE = 4;
  */
 export type CollectionDetailError = 'delete' | 'remove';
 
+/**
+ * Props for the collection-detail view — a presentational render of a loaded {@link CollectionWithRecipes}'s
+ * MEMBER LIST (heading, add-a-recipe control, member recipe rows, and the client-side reveal windowing).
+ *
+ * The collection's HEADER zone — name, description, visibility badge, recipe count, source attribution,
+ * last-pulled date, and the rename/delete/back affordances — is owned by the sibling
+ * {@link CollectionHeaderViewProps} block (W5 Task 6), composed ABOVE this one by the container (W5 Task 12).
+ * This block therefore holds NO name/rename/delete of its own — that markup used to live here and was removed
+ * so there is exactly ONE header, not two. Fetch states (loading/error) belong to the composing app, not here.
+ */
 export interface CollectionDetailViewProps {
     readonly collection: CollectionWithRecipes;
     /** Invoked with a recipe id when a member row is activated. */
@@ -110,10 +129,6 @@ export interface CollectionDetailViewProps {
     readonly onRemoveRecipe: (recipeId: string) => void;
     /** Invoked when the add-a-recipe action is activated (opens the {@link CollectionRecipePickerProps} view). */
     readonly onAddRecipe: () => void;
-    /** Invoked when the rename action is activated. */
-    readonly onRename: () => void;
-    /** Invoked when the delete action is activated. */
-    readonly onDelete: () => void;
     /** An honest error from the last delete/remove attempt to surface, or ABSENT for none (B17). */
     readonly error?: CollectionDetailError;
 }

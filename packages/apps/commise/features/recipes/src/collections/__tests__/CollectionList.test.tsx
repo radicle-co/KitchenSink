@@ -25,9 +25,6 @@ function renderList(overrides: Partial<CollectionListViewProps> = {}) {
         onSelect: noop,
         onCreate: noop,
         onRetry: noop,
-        hasMore: false,
-        isFetchingNextPage: false,
-        onLoadMore: noop,
         ...overrides,
     };
     render(<CollectionList {...props} />);
@@ -130,15 +127,29 @@ describe('CollectionList (web) — populated state', () => {
 describe('CollectionList (web) — server-paged load-more (W5/C7)', () => {
     it('renders a load-more control when another page exists and reports activation upward', () => {
         const onLoadMore = vi.fn();
-        renderList({ status: 'ready', collections: threeCollections, hasMore: true, onLoadMore });
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            loadMore: { hasMore: true, loading: false, onLoadMore },
+        });
 
         fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
 
         expect(onLoadMore).toHaveBeenCalledTimes(1);
     });
 
+    it('renders no load-more control when the grouped loadMore prop is absent', () => {
+        renderList({ status: 'ready', collections: threeCollections });
+
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+
     it('renders no load-more control when there is no next page', () => {
-        renderList({ status: 'ready', collections: threeCollections, hasMore: false });
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            loadMore: { hasMore: false, loading: false, onLoadMore: noop },
+        });
 
         expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     });
@@ -147,8 +158,7 @@ describe('CollectionList (web) — server-paged load-more (W5/C7)', () => {
         renderList({
             status: 'ready',
             collections: threeCollections,
-            hasMore: true,
-            isFetchingNextPage: true,
+            loadMore: { hasMore: true, loading: true, onLoadMore: noop },
         });
 
         const button = screen.getByRole('button', { name: 'Loading…' });

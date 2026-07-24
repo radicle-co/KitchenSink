@@ -6,7 +6,7 @@
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
 import type { Locale } from '@commise/i18n';
-import type { Collection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { Collection, Recipe, RecipeCollectionAddedVia, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /**
  * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
@@ -34,13 +34,23 @@ export type RecipePickerStatus = 'loading' | 'error' | 'ready';
 export type CollectionFormMode = 'create' | 'rename';
 
 /**
+ * A member recipe's provenance within a specific collection (W5 Task 9, C3 / FR-011) — mirrors the
+ * recipe-service client's `CollectionMemberRecipe` (`Recipe & { addedVia }`), but expressed in
+ * `@kitchensink/recipe-core` domain types so this presentational feature depends only on the domain layer,
+ * not the HTTP client (same rationale as {@link CollectionWithRecipes}). `manual` = added directly by the
+ * collection owner, protected from Pull Updates (the wireframe's `[x]` state); `clone_seed`/`pull` = seeded
+ * from or synced from the source collection, and will be refreshed by a future Pull Updates (the `[ ]` state).
+ */
+export type CollectionMemberRecipe = Recipe & { readonly addedVia: RecipeCollectionAddedVia };
+
+/**
  * A collection plus its member recipes — the shape the detail view (T072) consumes. Structurally mirrors
  * the recipe-service client's `CollectionWithRecipes` response (`Collection` + optional member `recipes`),
  * but is expressed in `@kitchensink/recipe-core` domain types so this presentational feature depends only on
  * the domain layer, not the HTTP client. `recipes` is optional (a list-only projection may omit it) and the
  * view treats an absent list as empty.
  */
-export type CollectionWithRecipes = Collection & { readonly recipes?: readonly Recipe[] };
+export type CollectionWithRecipes = Collection & { readonly recipes?: readonly CollectionMemberRecipe[] };
 
 /**
  * Props for the collection-list view — a controlled, presentational component. It renders one of four states
@@ -84,6 +94,23 @@ export interface CollectionDetailViewProps {
     readonly onDelete: () => void;
     /** An honest error from the last delete/remove attempt to surface, or ABSENT for none (B17). */
     readonly error?: CollectionDetailError;
+}
+
+/**
+ * Props for a single collection member row (W5 Task 9, C3) — composes the shared {@link RecipeCardModel}
+ * (via `RecipeCard`/`toRecipeCardModel`: title, calories, the version badge past v1, the visibility/draft
+ * badge) with the two row-specific things the card does NOT already render: a read-only source-indicator
+ * (owner-added/protected vs from-source/will-sync, derived from `member.addedVia`) and the `by @handle`
+ * author attribution. A presentational, controlled component — it fetches nothing and performs no mutation.
+ * Selecting the row and removing the member are SIBLING affordances, never nested, so activating Remove can
+ * never also fire `onSelect` (the double-fire guard).
+ */
+export interface CollectionMemberRowProps {
+    readonly member: CollectionMemberRecipe;
+    /** Invoked with the member's recipe id when the row's select target is activated. */
+    readonly onSelect: (recipeId: string) => void;
+    /** Invoked with the member's recipe id when the row's remove control is activated. */
+    readonly onRemove: (recipeId: string) => void;
 }
 
 /**

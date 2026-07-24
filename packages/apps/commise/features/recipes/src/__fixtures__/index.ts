@@ -7,6 +7,7 @@
  */
 import { makeRecipe, makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 import {
+    RecipeCollectionAddedVia,
     RecipeVisibility,
     type RecipeIngredientView,
     type RecipeNutrition,
@@ -15,6 +16,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { toRecipeCardModel } from '../card/model.js';
+import type { CollectionMemberRecipe } from '../collections/model.js';
 import type { RecipeFormValues } from '../form/model.js';
 import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
 import type { RecipeListItem } from '../list/model.js';
@@ -32,6 +34,19 @@ export { makeRecipe, makeRecipeDetail };
  */
 export function makeRecipeListItem(overrides: Partial<RecipeListItem> = {}): RecipeListItem {
     return { ...toRecipeCardModel(makeRecipe()), ...overrides };
+}
+
+/**
+ * Build a {@link CollectionMemberRecipe} (a {@link makeRecipe} recipe plus its collection-membership
+ * provenance, W5 Task 9 / C3) with sensible defaults, overridable per field. Defaults to `manual` (the
+ * owner-added/protected source-indicator state) — pass `{ addedVia: RecipeCollectionAddedVia.CLONE_SEED }`
+ * or `.PULL` for the from-source/will-sync state.
+ *
+ * @param overrides - Fields to override on the default member recipe.
+ * @returns A complete `CollectionMemberRecipe`.
+ */
+export function makeCollectionMemberRecipe(overrides: Partial<CollectionMemberRecipe> = {}): CollectionMemberRecipe {
+    return { ...makeRecipe(), addedVia: RecipeCollectionAddedVia.MANUAL, ...overrides };
 }
 
 /**

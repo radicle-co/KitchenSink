@@ -2,16 +2,17 @@
  * @module @commise/features-recipes — native collection-detail view (T072 building block).
  *
  * The React Native leaf of {@link import('./CollectionDetail.js').CollectionDetail} — same presentational
- * contract: header (name, description, rename + delete) and member recipe rows (each selectable, each with a
- * per-row remove control), with an empty state when the collection has no members. Rendered with RN
- * primitives.
+ * contract: header (name, description, rename + delete) and member recipe rows — each a
+ * {@link CollectionMemberRow} (W5 Task 9, C3), which composes the shared `RecipeCard` with its
+ * source-indicator and remove control — with an empty state when the collection has no members. Rendered
+ * with RN primitives.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { CollectionMemberRow } from './CollectionMemberRow.native.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionDetailViewProps } from './model.js';
 
@@ -81,30 +82,14 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                     <Text style={styles.description}>{detail.emptyBody}</Text>
                 </View>
             ) : (
-                recipes.map((recipe) => {
-                    const removeLabel = fillTemplate(detail.removeRecipe, { title: recipe.title });
-
-                    return (
-                        <View key={recipe.id} style={styles.memberRow}>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={recipe.title}
-                                onPress={() => onSelectRecipe(recipe.id)}
-                                style={styles.memberTitleButton}
-                            >
-                                <Text style={styles.memberTitle}>{recipe.title}</Text>
-                            </Pressable>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={removeLabel}
-                                onPress={() => onRemoveRecipe(recipe.id)}
-                                style={styles.textButton}
-                            >
-                                <Text style={styles.deleteLabel}>{removeLabel}</Text>
-                            </Pressable>
-                        </View>
-                    );
-                })
+                recipes.map((recipe) => (
+                    <CollectionMemberRow
+                        key={recipe.id}
+                        member={recipe}
+                        onSelect={onSelectRecipe}
+                        onRemove={onRemoveRecipe}
+                    />
+                ))
             )}
         </View>
     );
@@ -134,17 +119,4 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     emptyTitle: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
-    memberRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        backgroundColor: palette.white,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: border,
-        padding: 14,
-    },
-    memberTitleButton: { flexShrink: 1 },
-    memberTitle: { fontSize: 16, fontWeight: '600', color: palette.charcoal },
 });

@@ -9,7 +9,7 @@ import { fireEvent } from '@testing-library/dom';
 
 import type { Collection } from '@kitchensink/recipe-core';
 
-import { makeRecipe } from '../../__fixtures__/index.js';
+import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionDetail } from '../CollectionDetail.native.js';
 import type { CollectionDetailViewProps, CollectionWithRecipes } from '../model.js';
@@ -31,8 +31,8 @@ function makeCollectionWithRecipes(overrides: Partial<CollectionWithRecipes> = {
     return {
         ...base,
         recipes: [
-            makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
-            makeRecipe({ id: 'rec_2', title: 'Sheet-Pan Chicken' }),
+            makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
+            makeCollectionMemberRecipe({ id: 'rec_2', title: 'Sheet-Pan Chicken' }),
         ],
         ...overrides,
     };

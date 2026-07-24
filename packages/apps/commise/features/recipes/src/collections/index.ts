@@ -10,6 +10,7 @@ export { CollectionList } from './CollectionList.js';
 export { CollectionDetail } from './CollectionDetail.js';
 export { CollectionForm } from './CollectionForm.js';
 export { CollectionHeader } from './CollectionHeader.js';
+export { CollectionMemberRow } from './CollectionMemberRow.js';
 export { CollectionRecipePicker } from './CollectionRecipePicker.js';
 
 export {
@@ -23,6 +24,8 @@ export {
     type CollectionHeaderViewProps,
     type CollectionListStatus,
     type CollectionListViewProps,
+    type CollectionMemberRecipe,
+    type CollectionMemberRowProps,
     type CollectionRecipePickerProps,
     type CollectionWithRecipes,
     type RecipePickerStatus,

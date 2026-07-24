@@ -2,13 +2,14 @@
  * @module @commise/features-recipes — web collection-detail view (T072 building block).
  *
  * Presentational render of a loaded {@link CollectionWithRecipes}: the header (name, description, rename +
- * delete actions) and the member recipe rows (each selectable, each with a per-row remove control), with an
- * empty state when the collection has no members. Fetch states belong to the composing app, not here.
+ * delete actions) and the member recipe rows — each a {@link CollectionMemberRow} (W5 Task 9, C3), which
+ * composes the shared `RecipeCard` with its source-indicator and remove control — with an empty state when
+ * the collection has no members. Fetch states belong to the composing app, not here.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { CollectionMemberRow } from './CollectionMemberRow.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionDetailViewProps } from './model.js';
 
@@ -78,25 +79,12 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                 ) : (
                     <ul className="flex flex-col gap-3">
                         {recipes.map((recipe) => (
-                            <li
-                                key={recipe.id}
-                                className="flex items-center justify-between gap-3 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border"
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() => onSelectRecipe(recipe.id)}
-                                    aria-label={recipe.title}
-                                    className="font-display text-heading-md font-semibold text-charcoal transition-colors hover:text-seafoam"
-                                >
-                                    {recipe.title}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => onRemoveRecipe(recipe.id)}
-                                    className="rounded-full px-3 py-1 text-body-sm font-medium text-error transition hover:bg-coral/10"
-                                >
-                                    {fillTemplate(detail.removeRecipe, { title: recipe.title })}
-                                </button>
+                            <li key={recipe.id}>
+                                <CollectionMemberRow
+                                    member={recipe}
+                                    onSelect={onSelectRecipe}
+                                    onRemove={onRemoveRecipe}
+                                />
                             </li>
                         ))}
                     </ul>

@@ -11,7 +11,7 @@ import { fireEvent } from '@testing-library/dom';
 
 import type { Collection } from '@kitchensink/recipe-core';
 
-import { makeRecipe } from '../../__fixtures__/index.js';
+import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionDetail } from '../CollectionDetail.js';
 import type { CollectionDetailViewProps, CollectionWithRecipes } from '../model.js';
 
@@ -32,8 +32,8 @@ function makeCollectionWithRecipes(overrides: Partial<CollectionWithRecipes> = {
     return {
         ...base,
         recipes: [
-            makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
-            makeRecipe({ id: 'rec_2', title: 'Sheet-Pan Chicken' }),
+            makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
+            makeCollectionMemberRecipe({ id: 'rec_2', title: 'Sheet-Pan Chicken' }),
         ],
         ...overrides,
     };

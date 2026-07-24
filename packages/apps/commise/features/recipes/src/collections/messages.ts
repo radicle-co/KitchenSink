@@ -46,6 +46,15 @@ export interface CollectionDetailMessages {
     readonly deleteError: string;
     /** Error shown when removing a member recipe fails (B17). */
     readonly removeError: string;
+    /** A member row's source-indicator state when `addedVia === 'manual'` — owner-added, protected from Pull
+     *  Updates (the wireframe's `[x]` state, W5 Task 9 / C3). Rendered as text, never colour alone. */
+    readonly sourceIndicatorOwned: string;
+    /** A member row's source-indicator state when `addedVia` is `clone_seed`/`pull` — seeded/synced from the
+     *  source collection, will refresh on a future Pull Updates (the wireframe's `[ ]` state). */
+    readonly sourceIndicatorFromSource: string;
+    /** A member row's author-attribution template (contains `{handle}`); rendered only when the member
+     *  recipe carries an author handle — omitted rather than showing `by @undefined`. */
+    readonly byAuthor: string;
 }
 
 /**
@@ -220,6 +229,9 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             deleteCta: 'Delete',
             deleteError: 'We couldn’t delete this collection. Please try again.',
             removeError: 'We couldn’t remove that recipe. Please try again.',
+            sourceIndicatorOwned: 'Added by you',
+            sourceIndicatorFromSource: 'From source collection',
+            byAuthor: 'by @{handle}',
         },
         picker: {
             heading: 'Add recipes to {name}',

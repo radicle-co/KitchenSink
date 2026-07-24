@@ -11,6 +11,13 @@ export { VersionCompareView } from './VersionCompareView.js';
 
 export { diffSnapshots, type DiffTally, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
 export {
+    computeConflictDiff,
+    type ConflictDiff,
+    type ConflictFieldKind,
+    type ConflictFieldRow,
+    type ConflictMarker,
+} from './conflictDiff.js';
+export {
     buildCompareFieldRows,
     buildRecipeMergeFields,
     changedFromCurrentCounts,

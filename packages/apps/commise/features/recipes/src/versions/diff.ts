@@ -104,8 +104,11 @@ const hasChanges = (tally: DiffTally): boolean => tally.added > 0 || tally.remov
 /**
  * Whether two steps AT THE SAME POSITION carry different authored content. Compares `instruction` and
  * `timerSeconds` only — `id`/`recipeId`/`stepNumber` are structural/regenerated, not authored content. Pure.
+ * Exported so the W7 three-way {@link ../conflictDiff.js!computeConflictDiff} can reuse this SAME
+ * authored-content comparison rather than re-deriving it — one authoritative definition of "changed" per
+ * step, so the two-way and three-way diffs can never disagree.
  */
-const stepContentChanged = (base: RecipeStep, target: RecipeStep): boolean =>
+export const stepContentChanged = (base: RecipeStep, target: RecipeStep): boolean =>
     base.instruction !== target.instruction || base.timerSeconds !== target.timerSeconds;
 
 /**
@@ -134,15 +137,17 @@ const diffSteps = (base: readonly RecipeStep[], target: readonly RecipeStep[]): 
     return { added, removed, modified };
 };
 
-/** The stable cross-version ingredient identity — the canonical catalog ingredient reference (see module docs). */
-const ingredientIdentity = (ingredient: RecipeIngredient): string => ingredient.ingredientId;
+/** The stable cross-version ingredient identity — the canonical catalog ingredient reference (see module docs).
+ *  Exported for reuse by the W7 three-way {@link ../conflictDiff.js!computeConflictDiff} (see {@link stepContentChanged}
+ *  for why reuse, not re-derivation, matters here). */
+export const ingredientIdentity = (ingredient: RecipeIngredient): string => ingredient.ingredientId;
 
 /**
  * Whether two ingredient lines WITH THE SAME IDENTITY carry different content. Compares every field except
  * `id`/`recipeId` (regenerated per save) and `ingredientId` (the identity itself, trivially equal here).
- * Pure.
+ * Pure. Exported for reuse — see {@link stepContentChanged}.
  */
-const ingredientContentChanged = (base: RecipeIngredient, target: RecipeIngredient): boolean =>
+export const ingredientContentChanged = (base: RecipeIngredient, target: RecipeIngredient): boolean =>
     base.quantity !== target.quantity ||
     base.unit !== target.unit ||
     base.displayText !== target.displayText ||

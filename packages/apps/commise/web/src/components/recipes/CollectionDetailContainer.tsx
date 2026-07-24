@@ -210,6 +210,13 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
      * generic; a successful commit invalidates (via the hook), then closes + clears the dialog.
      */
     const confirmPull = async (): Promise<void> => {
+        // Defense in depth (belt-and-braces alongside the dialog only rendering Confirm once a diff has
+        // loaded): never commit a pull without a previewed diff to defend against — a blind pull would skip
+        // the server's drift guard entirely (it only runs when `previewedDiff` is present).
+        if (pullDiff === undefined) {
+            return;
+        }
+
         try {
             await commitPull.mutateAsync({ id, previewedDiff: pullDiff });
             setPullOpen(false);

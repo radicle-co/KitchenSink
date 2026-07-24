@@ -185,6 +185,13 @@ export function CollectionDetailScreen({
     };
 
     const confirmPull = async (): Promise<void> => {
+        // Defense in depth (belt-and-braces alongside the dialog only rendering Confirm once a diff has
+        // loaded): never commit a pull without a previewed diff to defend against — a blind pull would skip
+        // the server's drift guard entirely (it only runs when `previewedDiff` is present).
+        if (pullDiff === undefined) {
+            return;
+        }
+
         try {
             await commitPull.mutateAsync({ id: collectionId, previewedDiff: pullDiff });
             setPullOpen(false);

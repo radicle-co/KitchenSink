@@ -5,13 +5,19 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+
 import type { RecipeFormValues } from '../../form/model.js';
 import { makeRecipeDetail, makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { makeRecipeVersion } from '../__fixtures__/index.js';
 import { recipeVersionMessages } from '../messages.js';
 import {
     buildRecipeMergeFields,
+    changeSummaryForVersion,
     composeMergedRecipe,
+    findPriorVersion,
+    formatChangedFieldNames,
+    formatVersionAttribution,
     formatVersionTimestamp,
     sortVersionsDescending,
     toConflictSideFields,
@@ -19,6 +25,20 @@ import {
 } from '../model.js';
 
 const conflict = recipeVersionMessages.en.conflict;
+const versionList = recipeVersionMessages.en.versionList;
+
+/** A default {@link RecipeSnapshot}, overridable per field — mirrors the default `makeRecipeVersion` shape. */
+const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot => ({
+    version: 1,
+    title: 'Weeknight Pasta',
+    description: 'A fast, comforting weeknight dinner.',
+    steps: [],
+    ingredients: [],
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 20,
+    ...overrides,
+});
 
 describe('sortVersionsDescending', () => {
     it('orders versions newest-first by version number', () => {
@@ -245,5 +265,95 @@ describe('composeMergedRecipe (FR-007c — per-field, never last-write-wins)', (
 
         expect(mine).toEqual(mineSnapshot);
         expect(theirs).toEqual(theirsSnapshot);
+    });
+});
+
+describe('findPriorVersion (W6 Task 2)', () => {
+    it('returns undefined for the earliest version in the set', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 2 })];
+
+        expect(findPriorVersion(versions, 1)).toBeUndefined();
+    });
+
+    it('returns the immediately-prior version (greatest versionNumber strictly less than the target)', () => {
+        const versions = [
+            makeRecipeVersion({ versionNumber: 1 }),
+            makeRecipeVersion({ versionNumber: 2 }),
+            makeRecipeVersion({ versionNumber: 3 }),
+        ];
+
+        expect(findPriorVersion(versions, 3)?.versionNumber).toBe(2);
+    });
+
+    it('degrades gracefully across a gap in the given set (not versionNumber - 1 arithmetic)', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 5 })];
+
+        expect(findPriorVersion(versions, 5)?.versionNumber).toBe(1);
+    });
+
+    it('does not mutate the input array', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 2 })];
+        const snapshot = [...versions];
+
+        findPriorVersion(versions, 2);
+
+        expect(versions).toEqual(snapshot);
+    });
+});
+
+describe('changeSummaryForVersion (W6 Task 2)', () => {
+    it('reports no prior for the earliest version, with no changed fields', () => {
+        const v1 = makeRecipeVersion({ versionNumber: 1, snapshot: makeSnapshot() });
+
+        expect(changeSummaryForVersion([v1], v1)).toEqual({ hasPrior: false, changedFields: [] });
+    });
+
+    it('reports the changed fields versus the immediately-prior version', () => {
+        const v1 = makeRecipeVersion({ versionNumber: 1, snapshot: makeSnapshot({ version: 1 }) });
+        const v2 = makeRecipeVersion({
+            versionNumber: 2,
+            snapshot: makeSnapshot({ version: 2, title: 'Weeknight Pasta, Revised' }),
+        });
+
+        expect(changeSummaryForVersion([v1, v2], v2)).toEqual({ hasPrior: true, changedFields: ['title'] });
+    });
+
+    it('reports hasPrior true with no changed fields when the prior snapshot is identical', () => {
+        const v1 = makeRecipeVersion({ versionNumber: 1, snapshot: makeSnapshot({ version: 1 }) });
+        const v2 = makeRecipeVersion({ versionNumber: 2, snapshot: makeSnapshot({ version: 2 }) });
+
+        expect(changeSummaryForVersion([v1, v2], v2)).toEqual({ hasPrior: true, changedFields: [] });
+    });
+});
+
+describe('formatChangedFieldNames (W6 Task 2)', () => {
+    it('localizes and joins the changed field names, preserving declared order', () => {
+        expect(formatChangedFieldNames(['title', 'steps'], conflict)).toBe('Title, Steps');
+    });
+
+    it('renders a single field with no separator', () => {
+        expect(formatChangedFieldNames(['ingredients'], conflict)).toBe('Ingredients');
+    });
+
+    it('renders an empty string for no changed fields', () => {
+        expect(formatChangedFieldNames([], conflict)).toBe('');
+    });
+});
+
+describe('formatVersionAttribution (W6 Task 2)', () => {
+    it('renders the editor + device when both are present', () => {
+        expect(formatVersionAttribution('clara', 'iPhone', versionList)).toBe('by @clara (from iPhone)');
+    });
+
+    it('renders the editor alone when the device is absent', () => {
+        expect(formatVersionAttribution('clara', undefined, versionList)).toBe('by @clara');
+    });
+
+    it('renders undefined when neither the editor nor the device is present (never "by @undefined")', () => {
+        expect(formatVersionAttribution(undefined, undefined, versionList)).toBeUndefined();
+    });
+
+    it('renders undefined when only the device is present (no editor to attribute to)', () => {
+        expect(formatVersionAttribution(undefined, 'iPhone', versionList)).toBeUndefined();
     });
 });

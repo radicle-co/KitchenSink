@@ -2,8 +2,11 @@
  * @module @commise/features-recipes — native recipe version-history view (T069 building block).
  *
  * The React Native leaf of {@link import('./RecipeVersionList.js').RecipeVersionList} — same controlled,
- * presentational contract (newest-first, current version marked and not restorable, busy state on the
- * version being restored with all restore actions disabled, empty state) rendered with RN primitives.
+ * presentational contract (newest-first, editor/device attribution, computed changed-fields summary, Preview
+ * action, current version marked and not restorable, busy state on the version being restored with all
+ * restore actions disabled, empty state) rendered with RN primitives. `onBack` is intentionally NOT read
+ * here — native screens (`RecipeVersionsScreen`) already compose their own back chrome outside this shared
+ * component, so this leaf renders no back affordance (see the web leaf's `VersionListHeader` for the V6 fix).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -11,7 +14,15 @@ import { palette } from '@commise/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeVersionMessages } from './messages.js';
-import { fillTemplate, formatVersionTimestamp, sortVersionsDescending, type RecipeVersionListProps } from './model.js';
+import {
+    changeSummaryForVersion,
+    fillTemplate,
+    formatChangedFieldNames,
+    formatVersionAttribution,
+    formatVersionTimestamp,
+    sortVersionsDescending,
+    type RecipeVersionListProps,
+} from './model.js';
 
 export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     versions,
@@ -19,8 +30,9 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     restoringVersion,
     restoreError,
     onRestore,
+    onPreview,
 }) => {
-    const { versionList } = useMessages(recipeVersionMessages);
+    const { versionList, conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
     const isRestoring = restoringVersion !== undefined && restoringVersion !== null;
     // B17 — a failed restore is a mandated UI state, never a silent no-op. Resolve the container's error code
@@ -56,6 +68,8 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
             {sortVersionsDescending(versions).map((version) => {
                 const isCurrent = version.versionNumber === currentVersion;
                 const isBusy = restoringVersion === version.versionNumber;
+                const attribution = formatVersionAttribution(version.editorHandle, version.deviceLabel, versionList);
+                const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                 return (
                     <View key={version.id} style={styles.row}>
@@ -66,21 +80,47 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                             {isCurrent ? (
                                 <Text style={styles.currentBadge}>{versionList.currentBadge}</Text>
                             ) : (
-                                <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityLabel={fillTemplate(versionList.restoreAction, {
-                                        version: version.versionNumber,
-                                    })}
-                                    accessibilityState={{ disabled: isRestoring, busy: isBusy }}
-                                    disabled={isRestoring}
-                                    onPress={() => onRestore(version.versionNumber)}
-                                    style={styles.restoreButton}
-                                >
-                                    <Text style={styles.restoreLabel}>{versionList.restore}</Text>
-                                </Pressable>
+                                <View style={styles.rowActions}>
+                                    {onPreview !== undefined && (
+                                        <Pressable
+                                            accessibilityRole="button"
+                                            accessibilityLabel={fillTemplate(versionList.previewAction, {
+                                                version: version.versionNumber,
+                                            })}
+                                            onPress={() => onPreview(version.versionNumber)}
+                                            style={styles.previewButton}
+                                        >
+                                            <Text style={styles.previewLabel}>{versionList.preview}</Text>
+                                        </Pressable>
+                                    )}
+                                    <Pressable
+                                        accessibilityRole="button"
+                                        accessibilityLabel={fillTemplate(versionList.restoreAction, {
+                                            version: version.versionNumber,
+                                        })}
+                                        accessibilityState={{ disabled: isRestoring, busy: isBusy }}
+                                        disabled={isRestoring}
+                                        onPress={() => onRestore(version.versionNumber)}
+                                        style={styles.restoreButton}
+                                    >
+                                        <Text style={styles.restoreLabel}>{versionList.restore}</Text>
+                                    </Pressable>
+                                </View>
                             )}
                         </View>
                         <Text style={styles.muted}>{formatVersionTimestamp(version.createdAt, locale)}</Text>
+                        {attribution !== undefined && <Text style={styles.muted}>{attribution}</Text>}
+                        {!hasPrior ? (
+                            <Text style={styles.muted}>{versionList.initialVersion}</Text>
+                        ) : (
+                            changedFields.length > 0 && (
+                                <Text style={styles.muted}>
+                                    {fillTemplate(versionList.changedFields, {
+                                        fields: formatChangedFieldNames(changedFields, conflict),
+                                    })}
+                                </Text>
+                            )
+                        )}
                         {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
                             <Text style={styles.muted}>{version.changeSummary}</Text>
                         )}
@@ -109,8 +149,11 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     rowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    rowActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     versionLabel: { fontSize: 16, fontWeight: '600', color: palette.charcoal },
     currentBadge: { fontSize: 12, fontWeight: '500', color: palette.seafoam },
+    previewButton: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
+    previewLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
     restoreButton: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
     restoreLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
     restoreError: { fontSize: 13, color: palette.error },

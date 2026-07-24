@@ -1,17 +1,49 @@
 /**
  * @module @commise/features-recipes — web recipe version-history view (T069 building block).
  *
- * Controlled, presentational version list: renders a recipe's versions newest-first, each with its number
- * and timestamp; the current version is marked and not restorable, every other version offers a Restore
- * action, and the version being restored shows a busy status (with all restore actions disabled to prevent
- * a concurrent restore). Empty state when there is no history. It fetches nothing; the composing app wires
- * `useRecipeVersions` + `useRestoreRecipeVersion` to these props.
+ * Controlled, presentational version list: renders a recipe's versions newest-first, each with its number,
+ * timestamp, editor/device attribution (when known), and a computed "Changed: {fields}" summary versus its
+ * immediately-prior version (the earliest version shows an "Initial version" label instead). The current
+ * version is marked and not restorable; every other version offers Restore and (when `onPreview` is wired)
+ * Preview actions, and the version being restored shows a busy status (with all restore actions disabled to
+ * prevent a concurrent restore). Empty state when there is no history. A "Back to Recipe" affordance renders
+ * when `onBack` is wired (V6 — the native `RecipeVersionsScreen` already composes its own back chrome, so
+ * only this web leaf needs it). It fetches nothing; the composing app wires `useRecipeVersions` +
+ * `useRestoreRecipeVersion` to these props.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
 import { recipeVersionMessages } from './messages.js';
-import { fillTemplate, formatVersionTimestamp, sortVersionsDescending, type RecipeVersionListProps } from './model.js';
+import {
+    changeSummaryForVersion,
+    fillTemplate,
+    formatChangedFieldNames,
+    formatVersionAttribution,
+    formatVersionTimestamp,
+    sortVersionsDescending,
+    type RecipeVersionListProps,
+} from './model.js';
+
+/** The heading + optional "Back to Recipe" affordance shared by the empty and populated states. */
+const VersionListHeader: FC<{
+    readonly heading: string;
+    readonly backLabel: string;
+    readonly onBack?: () => void;
+}> = ({ heading, backLabel, onBack }) => (
+    <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-heading-lg font-semibold text-charcoal">{heading}</h2>
+        {onBack !== undefined && (
+            <button
+                type="button"
+                onClick={onBack}
+                className="rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+            >
+                {backLabel}
+            </button>
+        )}
+    </div>
+);
 
 export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     versions,
@@ -19,8 +51,10 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     restoringVersion,
     restoreError,
     onRestore,
+    onPreview,
+    onBack,
 }) => {
-    const { versionList } = useMessages(recipeVersionMessages);
+    const { versionList, conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
     const isRestoring = restoringVersion !== undefined && restoringVersion !== null;
     // B17 — a failed restore is a mandated UI state, never a silent no-op. Resolve the container's error code
@@ -35,7 +69,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     if (versions.length === 0) {
         return (
             <section aria-label={versionList.heading} className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
-                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{versionList.heading}</h2>
+                <VersionListHeader heading={versionList.heading} backLabel={versionList.backToRecipe} onBack={onBack} />
                 <p className="text-body-md text-slate">{versionList.empty}</p>
             </section>
         );
@@ -43,7 +77,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
 
     return (
         <section aria-label={versionList.heading} className="mx-auto flex max-w-2xl flex-col gap-4 px-4 py-8">
-            <h2 className="font-display text-heading-lg font-semibold text-charcoal">{versionList.heading}</h2>
+            <VersionListHeader heading={versionList.heading} backLabel={versionList.backToRecipe} onBack={onBack} />
             {restoreErrorMessage !== undefined && (
                 <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error">
                     {restoreErrorMessage}
@@ -53,6 +87,12 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                 {sortVersionsDescending(versions).map((version) => {
                     const isCurrent = version.versionNumber === currentVersion;
                     const isBusy = restoringVersion === version.versionNumber;
+                    const attribution = formatVersionAttribution(
+                        version.editorHandle,
+                        version.deviceLabel,
+                        versionList,
+                    );
+                    const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                     return (
                         <li
@@ -65,6 +105,20 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                             <span className="text-body-sm text-slate">
                                 {formatVersionTimestamp(version.createdAt, locale)}
                             </span>
+                            {attribution !== undefined && (
+                                <span className="w-full text-body-sm text-slate">{attribution}</span>
+                            )}
+                            {!hasPrior ? (
+                                <span className="w-full text-body-sm text-slate">{versionList.initialVersion}</span>
+                            ) : (
+                                changedFields.length > 0 && (
+                                    <span className="w-full text-body-sm text-slate">
+                                        {fillTemplate(versionList.changedFields, {
+                                            fields: formatChangedFieldNames(changedFields, conflict),
+                                        })}
+                                    </span>
+                                )
+                            )}
                             {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
                                 <span className="w-full text-body-sm text-slate">{version.changeSummary}</span>
                             )}
@@ -73,17 +127,31 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                     {versionList.currentBadge}
                                 </span>
                             ) : (
-                                <button
-                                    type="button"
-                                    aria-label={fillTemplate(versionList.restoreAction, {
-                                        version: version.versionNumber,
-                                    })}
-                                    disabled={isRestoring}
-                                    onClick={() => onRestore(version.versionNumber)}
-                                    className="ml-auto rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10 disabled:opacity-60"
-                                >
-                                    {versionList.restore}
-                                </button>
+                                <div className="ml-auto flex items-center gap-2">
+                                    {onPreview !== undefined && (
+                                        <button
+                                            type="button"
+                                            aria-label={fillTemplate(versionList.previewAction, {
+                                                version: version.versionNumber,
+                                            })}
+                                            onClick={() => onPreview(version.versionNumber)}
+                                            className="rounded-full px-4 py-1.5 text-body-sm font-medium text-slate transition hover:bg-slate/10"
+                                        >
+                                            {versionList.preview}
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        aria-label={fillTemplate(versionList.restoreAction, {
+                                            version: version.versionNumber,
+                                        })}
+                                        disabled={isRestoring}
+                                        onClick={() => onRestore(version.versionNumber)}
+                                        className="rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10 disabled:opacity-60"
+                                    >
+                                        {versionList.restore}
+                                    </button>
+                                </div>
                             )}
                             {isBusy && (
                                 <span role="status" className="w-full text-body-sm text-slate">

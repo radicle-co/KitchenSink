@@ -8,11 +8,15 @@
  * belong to the app and are localized through the web dictionary; the block owns the list + empty states.
  * The row being restored is busied via `restoringVersion`, with the mutation carrying `{ id, versionNumber }`.
  * It holds no server data of its own — TanStack Query is the source of truth for the remote version list.
+ * Wires `onBack` (V6) to navigate to the recipe-detail route — the web parity fix for the native
+ * `RecipeVersionsScreen`, which already receives its own `onBack` from its navigator.
  */
 import { RecipeVersionList, type RecipeVersionRestoreError } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import type { Route } from 'next';
+import { useParams, useRouter } from 'next/navigation';
 import type { FC } from 'react';
 
 import { webMessages } from '@/i18n/messages';
@@ -31,6 +35,8 @@ export interface RecipeVersionsContainerProps {
  */
 export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
     const { recipes } = useMessages(webMessages);
+    const { locale } = useParams<{ locale: string }>();
+    const router = useRouter();
     const versionsQuery = useRecipeVersions(recipeId);
     const recipeQuery = useRecipe(recipeId);
     const restore = useRestoreRecipeVersion();
@@ -80,6 +86,7 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
             currentVersion={recipeQuery.data.currentVersion}
             restoringVersion={restoringVersion}
             restoreError={restoreError}
+            onBack={() => router.push(`/${locale}/recipes/${recipeId}` as Route)}
             onRestore={(versionNumber) =>
                 restore.mutate(
                     { id: recipeId, versionNumber },

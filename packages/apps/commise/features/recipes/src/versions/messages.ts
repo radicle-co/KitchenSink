@@ -29,6 +29,23 @@ export interface RecipeVersionListMessages {
     readonly restoreConflictError: string;
     /** Error shown when a restore fails for any other reason (B17). */
     readonly restoreGenericError: string;
+    /** Editor attribution template (contains `{handle}`); rendered ONLY when `editorHandle` is present. */
+    readonly byEditor: string;
+    /** Device attribution suffix template (contains `{device}`), appended after {@link byEditor} when
+     *  `deviceLabel` is also present. `deviceLabel` is untrusted free text — always rendered as text, never
+     *  `dangerouslySetInnerHTML`. */
+    readonly fromDevice: string;
+    /** Changed-fields summary template (contains `{fields}`, a localized comma-joined field-name list). */
+    readonly changedFields: string;
+    /** Label shown on the earliest version in the list (which has no prior version to diff against). */
+    readonly initialVersion: string;
+    /** Visible label of the per-row Preview action (W6 Task 3 hook). */
+    readonly preview: string;
+    /** Accessible name of the Preview action, disambiguated per version (contains `{version}`). */
+    readonly previewAction: string;
+    /** Visible label of the "back to the recipe" affordance (V6 — rendered by the web leaf only; native
+     *  screens, e.g. `RecipeVersionsScreen`, already compose their own back chrome). */
+    readonly backToRecipe: string;
 }
 
 /** Shared copy for the concurrent-edit conflict resolution view (T070 / C-005). */
@@ -120,6 +137,13 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             restoreConflictError:
                 'This recipe changed since you opened its history. Review the refreshed list and try again.',
             restoreGenericError: 'We couldn’t restore that version. Please try again.',
+            byEditor: 'by @{handle}',
+            fromDevice: ' (from {device})',
+            changedFields: 'Changed: {fields}',
+            initialVersion: 'Initial version',
+            preview: 'Preview',
+            previewAction: 'Preview version {version}',
+            backToRecipe: 'Back to Recipe',
         },
         conflict: {
             heading: 'This recipe changed while you were editing',

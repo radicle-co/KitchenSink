@@ -10,7 +10,8 @@ import type { RecipeDetail, RecipeVersion } from '@kitchensink/recipe-core';
 
 import type { RecipeFormValues } from '../form/model.js';
 import { fillTemplate, formatDurationMinutes, formatRecipeCount } from '../list/model.js';
-import type { RecipeConflictMessages } from './messages.js';
+import { diffSnapshots, type SnapshotFieldKey } from './diff.js';
+import type { RecipeConflictMessages, RecipeVersionListMessages } from './messages.js';
 
 /**
  * Props for the recipe version-history list (T069) — a controlled, presentational component. It lists a
@@ -37,6 +38,14 @@ export interface RecipeVersionListProps {
     readonly restoreError?: RecipeVersionRestoreError;
     /** Invoked with the version number when a restore action is activated. */
     readonly onRestore: (versionNumber: number) => void;
+    /** Invoked with the version number when a row's Preview action is activated (W6 Task 3 hook — the
+     *  preview modal itself lands separately). ABSENT → no Preview affordance is rendered for any row; a
+     *  caller not yet wired to the preview flow simply omits this prop rather than showing a dead control. */
+    readonly onPreview?: (versionNumber: number) => void;
+    /** Invoked when the "Back to Recipe" affordance is activated (V6). Rendered ONLY by the web leaf —
+     *  native screens (`RecipeVersionsScreen`) already compose their own back chrome outside this shared
+     *  component, so the native leaf intentionally does not read this prop. */
+    readonly onBack?: () => void;
 }
 
 /**
@@ -94,6 +103,121 @@ export const formatVersionTimestamp = (isoDateTime: string, locale: Locale): str
     new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(
         new Date(isoDateTime),
     );
+
+// ─── Row-level changed-fields summary (W6 Task 2) ───────────────────────────────────────────────────
+//
+// Each version row (except the earliest) shows a computed "Changed: {fields}" summary — the diff of that
+// version against its immediately-PRIOR sibling, via `diffSnapshots` (W6 Task 1). "Immediately prior" is
+// located by SORTED versionNumber order within the given `versions` set, not `versionNumber - 1`
+// arithmetic, so it degrades gracefully if the caller's list ever has gaps (e.g. an archived version).
+
+/**
+ * Find the version immediately prior to `versionNumber` within `versions` — the member with the greatest
+ * `versionNumber` strictly less than it. `undefined` when no such member exists (the earliest version in
+ * the set — nothing to diff against). Pure; does not mutate `versions`.
+ *
+ * @param versions - The candidate versions (any order).
+ * @param versionNumber - The version number to find the immediate predecessor of.
+ * @returns The immediately-prior version, or `undefined`.
+ */
+export const findPriorVersion = (
+    versions: readonly RecipeVersion[],
+    versionNumber: number,
+): RecipeVersion | undefined => {
+    const laterThanLatest = (latest: RecipeVersion | undefined, candidate: RecipeVersion): boolean =>
+        latest === undefined || candidate.versionNumber > latest.versionNumber;
+
+    return versions
+        .filter((version) => version.versionNumber < versionNumber)
+        .reduce<
+            RecipeVersion | undefined
+        >((latest, candidate) => (laterThanLatest(latest, candidate) ? candidate : latest), undefined);
+};
+
+/** One version row's changed-fields summary relative to its immediately-prior version. */
+export interface VersionRowChangeSummary {
+    /** Whether a prior version exists in the given set (`false` for the earliest version — nothing to diff). */
+    readonly hasPrior: boolean;
+    /** The changed {@link SnapshotFieldKey}s versus the prior version, in declared order; empty when there
+     *  is no prior version, or when the two snapshots do not differ. */
+    readonly changedFields: readonly SnapshotFieldKey[];
+}
+
+/**
+ * Compute one version row's changed-fields summary: {@link diffSnapshots} between this version's snapshot
+ * and its immediately-prior sibling's ({@link findPriorVersion}) within `versions`. Pure.
+ *
+ * @param versions - The full candidate set to locate `version`'s prior sibling within.
+ * @param version - The version to summarize.
+ * @returns Whether a prior version exists, and the changed fields versus it.
+ */
+export const changeSummaryForVersion = (
+    versions: readonly RecipeVersion[],
+    version: RecipeVersion,
+): VersionRowChangeSummary => {
+    const prior = findPriorVersion(versions, version.versionNumber);
+
+    return prior === undefined
+        ? { hasPrior: false, changedFields: [] }
+        : { hasPrior: true, changedFields: diffSnapshots(prior.snapshot, version.snapshot).changedFields };
+};
+
+/**
+ * Which localized field-label key (from the SHARED {@link RecipeConflictMessages} field labels — the same
+ * human-readable names the field-by-field merge panel shows, reused here rather than duplicated: the field
+ * name is the same piece of knowledge regardless of which surface displays it) names each
+ * {@link SnapshotFieldKey}.
+ */
+const SNAPSHOT_FIELD_LABEL_KEY: Readonly<Record<SnapshotFieldKey, keyof RecipeConflictMessages>> = {
+    title: 'titleLabel',
+    description: 'descriptionLabel',
+    servings: 'servingsLabel',
+    prepTimeMinutes: 'prepLabel',
+    cookTimeMinutes: 'cookLabel',
+    steps: 'stepsLabel',
+    ingredients: 'ingredientsLabel',
+};
+
+/**
+ * Render a row's changed fields as a localized, comma-joined list of field names (e.g. "Title, Steps"),
+ * preserving {@link SnapshotFieldKey}'s declared order. Pure.
+ *
+ * @param fields - The changed field keys (e.g. `SnapshotDiff.changedFields`).
+ * @param messages - The shared conflict-panel field labels (reused — see {@link SNAPSHOT_FIELD_LABEL_KEY}).
+ * @returns The localized, comma-joined field-name list.
+ */
+export const formatChangedFieldNames = (
+    fields: readonly SnapshotFieldKey[],
+    messages: RecipeConflictMessages,
+): string => fields.map((field) => messages[SNAPSHOT_FIELD_LABEL_KEY[field]]).join(', ');
+
+// ─── Row-level editor/device attribution (W6 Task 2) ────────────────────────────────────────────────
+
+/**
+ * Render a version row's editor/device attribution line — `by @{handle}`, with a device suffix appended
+ * when a device is also known. `undefined` when `editorHandle` is ABSENT (a pre-feature version, or one
+ * whose editor could not be resolved) — the caller renders no attribution line at all, never
+ * `by @undefined`. `deviceLabel` is untrusted free text: this returns a plain string for the caller to
+ * render as TEXT (React escapes it) — NEVER via `dangerouslySetInnerHTML`. Pure.
+ *
+ * @param editorHandle - The version's editor handle, if known.
+ * @param deviceLabel - The version's device label, if known.
+ * @param messages - The localized attribution templates.
+ * @returns The formatted attribution line, or `undefined` when there is nothing to attribute.
+ */
+export const formatVersionAttribution = (
+    editorHandle: string | undefined,
+    deviceLabel: string | undefined,
+    messages: RecipeVersionListMessages,
+): string | undefined => {
+    if (editorHandle === undefined) {
+        return undefined;
+    }
+
+    const byEditor = fillTemplate(messages.byEditor, { handle: editorHandle });
+
+    return deviceLabel === undefined ? byEditor : byEditor + fillTemplate(messages.fromDevice, { device: deviceLabel });
+};
 
 /** One labelled field rendered for a side of the conflict view. */
 export interface ConflictField {

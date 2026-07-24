@@ -130,6 +130,149 @@ describe('RecipeVersionList (web) — restoring state', () => {
     });
 });
 
+describe('RecipeVersionList (web) — editor/device attribution', () => {
+    it('shows "by @handle (from device)" when both are present', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: 'iPhone' })];
+        renderList({ versions, currentVersion: 1 });
+
+        expect(screen.getByText('by @clara (from iPhone)')).toBeTruthy();
+    });
+
+    it('shows "by @handle" with no device suffix when only the handle is present', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: undefined })];
+        renderList({ versions, currentVersion: 1 });
+
+        expect(screen.getByText('by @clara')).toBeTruthy();
+    });
+
+    it('renders no attribution line when neither the handle nor the device is present', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined, deviceLabel: undefined })];
+        renderList({ versions, currentVersion: 1 });
+
+        expect(screen.queryByText(/^by @/)).toBeNull();
+        expect(screen.queryByText(/undefined/)).toBeNull();
+    });
+
+    it('renders the device label as plain text, never as markup (untrusted free text)', () => {
+        const versions = [
+            makeRecipeVersion({
+                versionNumber: 1,
+                editorHandle: 'clara',
+                deviceLabel: '<img src=x onerror=alert(1)>',
+            }),
+        ];
+        renderList({ versions, currentVersion: 1 });
+
+        expect(screen.getByText('by @clara (from <img src=x onerror=alert(1)>)')).toBeTruthy();
+        expect(document.querySelector('img')).toBeNull();
+    });
+});
+
+describe('RecipeVersionList (web) — changed-fields summary', () => {
+    const priorSnapshot = {
+        version: 1,
+        title: 'Weeknight Pasta',
+        description: 'A fast, comforting weeknight dinner.',
+        steps: [{ id: 'step_1', recipeId: 'rec_1', stepNumber: 1, instruction: 'Boil water.' }],
+        ingredients: [],
+        servings: 4,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 20,
+    };
+    const revisedSnapshot = {
+        ...priorSnapshot,
+        version: 2,
+        title: 'Weeknight Pasta, Revised',
+        steps: [{ id: 'step_1', recipeId: 'rec_1', stepNumber: 1, instruction: 'Boil salted water.' }],
+    };
+
+    it('shows the localized changed-fields summary versus the immediately-prior version', () => {
+        const versions = [
+            makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
+            makeRecipeVersion({ versionNumber: 2, snapshot: revisedSnapshot }),
+        ];
+        renderList({ versions, currentVersion: 2 });
+
+        expect(screen.getByText('Changed: Title, Steps')).toBeTruthy();
+    });
+
+    it('shows the initial-version label (and no Changed line) for the earliest version', () => {
+        const versions = [
+            makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
+            makeRecipeVersion({ versionNumber: 2, snapshot: revisedSnapshot }),
+        ];
+        renderList({ versions, currentVersion: 2 });
+
+        const initialRow = screen.getByText('Version 1').closest('li');
+        expect(initialRow).not.toBeNull();
+        expect(within(initialRow as HTMLElement).getByText('Initial version')).toBeTruthy();
+        expect(within(initialRow as HTMLElement).queryByText(/^Changed:/)).toBeNull();
+    });
+
+    it('still renders the existing free-text changeSummary line alongside the computed summary', () => {
+        const versions = [
+            makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
+            makeRecipeVersion({
+                versionNumber: 2,
+                snapshot: revisedSnapshot,
+                changeSummary: 'Tweaked the boil step.',
+            }),
+        ];
+        renderList({ versions, currentVersion: 2 });
+
+        expect(screen.getByText('Changed: Title, Steps')).toBeTruthy();
+        expect(screen.getByText('Tweaked the boil step.')).toBeTruthy();
+    });
+});
+
+describe('RecipeVersionList (web) — preview control', () => {
+    it('fires onPreview with the version number for every non-current row', () => {
+        const onPreview = vi.fn();
+        renderList({ versions: threeVersions, currentVersion: 3, onPreview });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Preview version 2' }));
+
+        expect(onPreview).toHaveBeenCalledWith(2);
+    });
+
+    it('renders no Preview control for the current version', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, onPreview: vi.fn() });
+
+        expect(screen.queryByRole('button', { name: 'Preview version 3' })).toBeNull();
+    });
+
+    it('renders no Preview controls at all when onPreview is not provided', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        expect(screen.queryByRole('button', { name: /^Preview/ })).toBeNull();
+    });
+});
+
+describe('RecipeVersionList (web) — back to recipe (V6)', () => {
+    it('renders a back-to-recipe control that activates onBack', () => {
+        const onBack = vi.fn();
+        renderList({ versions: threeVersions, currentVersion: 3, onBack });
+
+        fireEvent.click(screen.getByRole('button', { name: /back/i }));
+
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders no back control when onBack is not provided', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
+        expect(screen.queryByRole('link', { name: /back/i })).toBeNull();
+    });
+
+    it('renders the back control in the empty state too', () => {
+        const onBack = vi.fn();
+        renderList({ versions: [], onBack });
+
+        expect(screen.getByRole('button', { name: /back/i })).toBeTruthy();
+    });
+});
+
 describe('RecipeVersionList (web) — restore error (B17: no silent failure)', () => {
     it('surfaces the conflict copy when a restore fails because the recipe changed underneath', () => {
         renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'conflict' });

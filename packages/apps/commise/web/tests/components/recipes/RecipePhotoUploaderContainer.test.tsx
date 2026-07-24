@@ -5,11 +5,13 @@
  * upload orchestration and the delete-photo mutation. Covers: rendering the recipe's photos from the query;
  * a file selection running presign → direct-PUT → confirm in order with the right args (the S3 PUT carries
  * method `PUT` and the raw file body); a failed direct upload surfacing a localized error and clearing the
- * uploading state; the in-flight uploading status while the sequence is pending; remove invoking the delete
- * mutation with the photo id; and the 10-photo cap hiding the add control. The recipe-service photo hooks
- * are mocked and `fetch` is stubbed. Queries use role/label/text only — no test ids.
+ * uploading state; the in-flight uploading status while the sequence is pending; a second file pick while an
+ * upload is in flight being rejected at the DOM AND orchestration level (B24 — the double-submit race the
+ * shared `useRecipePhotoUpload` hook closes); remove invoking the delete mutation with the photo id; and the
+ * 10-photo cap hiding the add control. The recipe-service photo hooks are mocked and `fetch` is stubbed.
+ * Queries use role/label/text only — no test ids.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -118,12 +120,16 @@ describe('RecipePhotoUploaderContainer', () => {
             id: 'rec_1',
             request: { fileName: 'dinner.png', contentType: 'image/png', fileSize: file.size },
         });
-        // Step 2: a direct PUT of the raw file body to the presigned URL.
-        expect(fetchMock).toHaveBeenCalledWith(UPLOAD_URL, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': 'image/png' },
-        });
+        // Step 2: a direct PUT of the raw file body to the presigned URL (the hook also passes an
+        // AbortController signal, used for abort-on-unmount — not part of this contract).
+        expect(fetchMock).toHaveBeenCalledWith(
+            UPLOAD_URL,
+            expect.objectContaining({
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': 'image/png' },
+            }),
+        );
         // Step 3: confirm with the presigned key + content type.
         expect(confirm).toHaveBeenCalledWith({
             id: 'rec_1',
@@ -185,6 +191,47 @@ describe('RecipePhotoUploaderContainer', () => {
         resolvePresign({ uploadUrl: UPLOAD_URL, key: OBJECT_KEY });
 
         await waitFor(() => expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument());
+    });
+
+    it('rejects a second file pick while an upload is already in flight (B24 regression guard)', async () => {
+        const user = userEvent.setup();
+        let resolvePresign: (value: { uploadUrl: string; key: string }) => void = () => undefined;
+        const presign = vi.fn().mockReturnValue(
+            new Promise<{ uploadUrl: string; key: string }>((resolve) => {
+                resolvePresign = resolve;
+            }),
+        );
+        const confirm = vi.fn().mockResolvedValue(makeRecipePhoto());
+        stubFetch(true);
+
+        useRecipePhotosMock.mockReturnValue(photosQuery([]));
+        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation(presign));
+        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation(confirm));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
+
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
+        const input = screen.getByLabelText('Add photo');
+        await user.upload(input, file);
+
+        // The presign is still pending: the input is disabled at the DOM level, the B24 guard.
+        expect(input).toBeDisabled();
+
+        // A second pick attempt (a raw `change` event, bypassing the `disabled` attribute the way a queued
+        // browser event could) must still not start a second presign→PUT→confirm flow — the container's
+        // `handleFileChange` guard and the hook's own single-flight guard both reject it.
+        const secondFile = new File(['more-bytes'], 'lunch.png', { type: 'image/png' });
+        fireEvent.change(input, { target: { files: [secondFile] } });
+
+        expect(presign).toHaveBeenCalledTimes(1);
+
+        resolvePresign({ uploadUrl: UPLOAD_URL, key: OBJECT_KEY });
+
+        await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+        // The confirmed upload is for the FIRST file only.
+        expect(confirm).toHaveBeenCalledWith({ id: 'rec_1', request: { key: OBJECT_KEY, contentType: 'image/png' } });
+        expect(input).not.toBeDisabled();
     });
 
     it('removes a photo by invoking the delete mutation with the photo id', async () => {

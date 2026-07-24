@@ -6,3 +6,4 @@
  */
 
 export * from './usePollIngredientStatus.js';
+export * from './useRecipePhotoUpload.js';

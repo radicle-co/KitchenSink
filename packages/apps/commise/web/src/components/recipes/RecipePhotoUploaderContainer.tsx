@@ -4,25 +4,23 @@
  * The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational
  * and holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:
  * it reads the photos via `useRecipePhotos`, supplies the block's `addControl` (an accessible label wrapping
- * a hidden `<input type="file">`), and on a file selection runs the three-step direct-to-S3 upload —
- * presign (`useCreatePhotoUploadUrl`) → PUT the raw file to the presigned URL → confirm
- * (`useConfirmPhotoUpload`, which invalidates the photos + recipe caches). Remove wires the per-photo
- * control to `useDeleteRecipePhoto`, busying just the row whose deletion is in flight.
+ * a hidden `<input type="file">`), and on a file selection delegates the three-step direct-to-S3 upload —
+ * presign → PUT the raw file → confirm (which invalidates the photos + recipe caches) — to the shared,
+ * single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24). Remove wires the per-photo control to
+ * `useDeleteRecipePhoto`, busying just the row whose deletion is in flight.
  *
- * Remote state stays in TanStack Query; the container holds only the transient upload `uploading` flag and
- * the last localized upload `errorMessage`. The file input is reset after every attempt so the same file can
- * be re-picked, and any failure across the three steps surfaces one localized error to the block.
+ * Remote state stays in TanStack Query; the hook owns the transient upload `uploading` flag and the last
+ * localized `errorMessage`. This container keeps only the web-specific bits the hook deliberately stays
+ * free of: the `inputRef` reset-in-`finally` (so the same file can be re-picked) and the B24 DOM guard —
+ * the input is `disabled` while `uploading`, so a second pick mid-upload can't even open a file dialog that
+ * would fire a second (now single-flight-rejected, but still-attempted) `handleFileChange`.
  */
 import { RecipePhotoManager } from '@commise/features-recipes';
+import { useRecipePhotoUpload } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
-import {
-    useConfirmPhotoUpload,
-    useCreatePhotoUploadUrl,
-    useDeleteRecipePhoto,
-    useRecipePhotos,
-} from '@kitchensink/recipe-service-client/hooks';
-import { useRef, useState } from 'react';
+import { useDeleteRecipePhoto, useRecipePhotos } from '@kitchensink/recipe-service-client/hooks';
+import { useRef } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
 import { webMessages } from '@/i18n/messages';
@@ -42,50 +40,31 @@ export interface RecipePhotoUploaderContainerProps {
 export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({ recipeId }) => {
     const { recipes } = useMessages(webMessages);
     const photosQuery = useRecipePhotos(recipeId);
-    const createUploadUrl = useCreatePhotoUploadUrl();
-    const confirmUpload = useConfirmPhotoUpload();
     const deletePhoto = useDeleteRecipePhoto();
+    const { uploading, errorMessage, upload } = useRecipePhotoUpload(recipeId, recipes.photos.uploadError);
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const [uploading, setUploading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
     const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
 
-    // presign → direct PUT → confirm; any step failing surfaces one localized error. The input is reset in
-    // `finally` so re-selecting the same file re-fires `change`.
+    // Acquire the picked File, delegate the presign → PUT → confirm sequence to the shared single-flight
+    // hook, then reset the input in `finally` so re-selecting the same file re-fires `change`.
     const handleFileChange = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+        // B24 guard (belt + suspenders): the input is also `disabled` while `uploading` below, but a change
+        // event already in the queue when `uploading` flips true must not start a second flow either.
+        if (uploading) {
+            return;
+        }
+
         const file = event.target.files?.[0];
 
         if (file === undefined) {
             return;
         }
 
-        setUploading(true);
-        setErrorMessage(undefined);
-
         try {
-            const { uploadUrl, key } = await createUploadUrl.mutateAsync({
-                id: recipeId,
-                request: { fileName: file.name, contentType: file.type, fileSize: file.size },
-            });
-
-            const response = await fetch(uploadUrl, {
-                method: 'PUT',
-                body: file,
-                headers: { 'Content-Type': file.type },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Photo upload failed with status ${response.status}`);
-            }
-
-            await confirmUpload.mutateAsync({ id: recipeId, request: { key, contentType: file.type } });
-        } catch {
-            setErrorMessage(recipes.photos.uploadError);
+            await upload({ blob: file, fileName: file.name, contentType: file.type, fileSize: file.size });
         } finally {
-            setUploading(false);
-
             if (inputRef.current !== null) {
                 inputRef.current.value = '';
             }
@@ -102,6 +81,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                 type="file"
                 accept="image/*"
                 hidden
+                disabled={uploading}
                 onChange={(event) => void handleFileChange(event)}
             />
         </label>

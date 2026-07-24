@@ -1,23 +1,22 @@
 /**
  * Recipe photo uploader (mobile, T067, wireframe step 4). The container that turns the shared, presentational
  * {@link RecipePhotoManager} block (its native leaf) into a working photo surface: it reads the recipe's
- * photos from the query cache, supplies the native image-picker button as the block's `addControl`, and owns
- * the direct-to-S3 upload orchestration the block deliberately stays free of.
+ * photos from the query cache, supplies the native image-picker button as the block's `addControl`, and
+ * delegates the direct-to-S3 upload orchestration the block deliberately stays free of to the shared,
+ * single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24).
  *
- * Upload flow, on a picked asset: mint a presigned URL (`useCreatePhotoUploadUrl`), read the asset's bytes as
- * a Blob and `PUT` them straight to S3, then confirm (`useConfirmPhotoUpload`) so the service records the
- * photo — driving the block's `uploading` busy state and, on any failure, a localized `errorMessage`. Removal
- * delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in flight. Cross-platform peer
- * of the web container; the picker (`expo-image-picker`) and the real S3 upload require on-device verification.
+ * Upload flow, on a picked asset: read the asset's bytes as a Blob, then hand `{ blob, fileName, contentType,
+ * fileSize }` to `upload`, which mints a presigned URL, `PUT`s the bytes straight to S3, then confirms so the
+ * service records the photo — driving the hook's `uploading` busy state and, on any failure, a localized
+ * `errorMessage`. Removal delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in
+ * flight. Cross-platform peer of the web container; the picker (`expo-image-picker`) and the real S3 upload
+ * require on-device verification. The existing `disabled={uploading}` Pressable guard already closed B24 on
+ * this platform — it now reads `uploading` from the shared hook instead of local state.
  */
 import { RecipePhotoManager } from '@commise/features-recipes';
+import { useRecipePhotoUpload } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import {
-    useConfirmPhotoUpload,
-    useCreatePhotoUploadUrl,
-    useDeleteRecipePhoto,
-    useRecipePhotos,
-} from '@kitchensink/recipe-service-client/hooks';
+import { useDeleteRecipePhoto, useRecipePhotos } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
@@ -39,19 +38,23 @@ export interface RecipePhotoUploaderProps {
 export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX.Element {
     const { recipePhotos: t } = useMessages(mobileMessages);
     const photosQuery = useRecipePhotos(recipeId);
-    const createUploadUrl = useCreatePhotoUploadUrl();
-    const confirm = useConfirmPhotoUpload();
     const deletePhoto = useDeleteRecipePhoto();
+    const { uploading, errorMessage: uploadErrorMessage, upload } = useRecipePhotoUpload(recipeId, t.uploadError);
 
-    const [uploading, setUploading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+    // Two local error slots the upload hook deliberately knows nothing about: `pickErrorMessage` covers a
+    // failed local Blob read of the picked asset's URI (before `upload` is ever called, so the hook's own
+    // `errorMessage` can't carry it); `removeErrorMessage` covers a failed delete. A fresh attempt at either
+    // action clears its own slot; the displayed error prefers the more likely-current source.
+    const [pickErrorMessage, setPickErrorMessage] = useState<string | undefined>(undefined);
+    const [removeErrorMessage, setRemoveErrorMessage] = useState<string | undefined>(undefined);
+    const errorMessage = removeErrorMessage ?? pickErrorMessage ?? uploadErrorMessage;
 
     const photos = photosQuery.data ?? [];
     // The delete mutation carries its target in `variables`; busy only that row while its deletion is pending.
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
 
-    // Pick an image, then presign → PUT-to-S3 → confirm. Any failure clears the busy state and shows a
-    // localized error; a canceled pick is a silent no-op.
+    // Pick an image, then delegate the presign → PUT-to-S3 → confirm sequence to the shared, single-flight
+    // `useRecipePhotoUpload` hook. A canceled pick is a silent no-op.
     const addPhoto = async (): Promise<void> => {
         // Load the native picker lazily (on first use). `expo-image-picker` pulls in `expo-modules-core`,
         // which can only be evaluated inside the native runtime — deferring the import keeps it out of the
@@ -76,37 +79,25 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
         const fileName = asset.fileName ?? 'photo.jpg';
         const fileSize = asset.fileSize ?? 0;
 
-        setErrorMessage(undefined);
-        setUploading(true);
+        setRemoveErrorMessage(undefined);
+        setPickErrorMessage(undefined);
+
+        let blob: Blob;
 
         try {
-            const { uploadUrl, key } = await createUploadUrl.mutateAsync({
-                id: recipeId,
-                request: { fileName, contentType, fileSize },
-            });
-
-            const blob = await (await fetch(asset.uri)).blob();
-            const putResponse = await fetch(uploadUrl, {
-                method: 'PUT',
-                body: blob,
-                headers: { 'Content-Type': contentType },
-            });
-
-            if (!putResponse.ok) {
-                throw new Error(`Photo upload failed with status ${putResponse.status}`);
-            }
-
-            await confirm.mutateAsync({ id: recipeId, request: { key, contentType } });
+            blob = await (await fetch(asset.uri)).blob();
         } catch {
-            setErrorMessage(t.uploadError);
-        } finally {
-            setUploading(false);
+            setPickErrorMessage(t.uploadError);
+
+            return;
         }
+
+        await upload({ blob, fileName, contentType, fileSize });
     };
 
     const removePhoto = (photoId: string): void => {
-        setErrorMessage(undefined);
-        deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setErrorMessage(t.removeError) });
+        setRemoveErrorMessage(undefined);
+        deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setRemoveErrorMessage(t.removeError) });
     };
 
     const addControl = (

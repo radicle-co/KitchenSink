@@ -21,19 +21,12 @@
  * @sideEffect Every `search` call reads `recipes` (and `recipe_ingredients` when filtering by ingredient).
  */
 import { sql, type SQL } from 'drizzle-orm';
-import { RecipeSearchSortBy, usesPremiumCapability } from '@kitchensink/recipe-core';
-import type {
-    Recipe,
-    RecipeDifficulty,
-    RecipeFacetCount,
-    RecipeSearchResult,
-    RecipeSourceType,
-    RecipeStatus,
-    RecipeVisibility,
-} from '@kitchensink/recipe-core';
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
+import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
+import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipe-row-to-domain.js';
 import { resolveCdnUrl } from '../../photos/photo-view.js';
 
 /** Default page size when the caller does not specify one (mirrors the list endpoint's default). */
@@ -159,75 +152,73 @@ interface RawFacetRow {
     count: number | string;
 }
 
-/** Normalize a `timestamptz` (a `Date` from pg, or an ISO string in tests) to an ISO-8601 string. Pure. */
-function toIsoString(value: Date | string): string {
-    return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
-}
-
 /** Coerce a nullable ranking value (pg may return `real` as number or string) to a number/undefined. Pure. */
 function rankToNumber(value: number | string | null): number | undefined {
     return value === null ? undefined : Number(value);
 }
 
 /**
+ * Adapt the raw snake_case CTE row into the canonical mapper's normalized {@link RecipeRowInput} shape —
+ * a cheap field-rename, NOT a re-encode of any field RULE (no coercion/omission happens here; that is
+ * entirely {@link recipeRowToDomain}'s job). The CTE itself stays raw SQL (FTS/rank need it); only this
+ * adapter bridges it to the ONE shared row→domain mapper. Pure.
+ */
+function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
+    return {
+        id: row.id,
+        ownerId: row.owner_id,
+        title: row.title,
+        description: row.description,
+        prepTimeMinutes: row.prep_time_minutes,
+        cookTimeMinutes: row.cook_time_minutes,
+        totalTimeMinutes: row.total_time_minutes,
+        servings: row.servings,
+        difficulty: row.difficulty,
+        visibility: row.visibility,
+        status: row.status,
+        sourceType: row.source_type,
+        sourceUrl: row.source_url,
+        sourceAttribution: row.source_attribution,
+        clonedFromId: row.cloned_from_id,
+        hasSubstantiveEdit: row.has_substantive_edit,
+        cuisine: row.cuisine,
+        dietaryFlags: row.dietary_flags,
+        tags: row.tags,
+        hasPartialNutrition: row.has_partial_nutrition,
+        leadCaloriesPerServing: row.lead_calories_per_serving,
+        authorHandle: row.author_handle,
+        currentVersion: row.current_version,
+        averageRating: row.average_rating,
+        ratingCount: row.rating_count,
+        deletedAt: row.deleted_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
+/**
  * Map a raw `recipes` row to the canonical `Recipe` domain shape (nulls → `undefined`). Pure.
  *
- * CR-001: `difficulty` (omitted when unstated), the trigger-maintained `averageRating`/`ratingCount`
- * (average omitted when unrated — never `0`), the derived `usesPremiumCapability` (via the ONE
- * authoritative `recipe-core` rule, exactly as the recipes projection does it), and `coverPhotoUrl`
- * (resolved from the cover LATERAL's key against `cloudfrontUrl`). Cover is emitted only when both a key
- * and a CDN base are present, so a caller without the CDN base simply omits it rather than emitting a
- * malformed URL.
+ * Delegates every field rule (S-R4) — `difficulty` omitted when unstated, the trigger-maintained
+ * `averageRating`/`ratingCount` (average omitted when unrated — never `0`), and the derived
+ * `usesPremiumCapability` (via the ONE authoritative `recipe-core` rule) — to the canonical
+ * {@link recipeRowToDomain} Data Mapper, via {@link toRecipeRowInput}'s cheap snake_case→camelCase
+ * adapter. Only `coverPhotoUrl` (resolved from the cover LATERAL's key against `cloudfrontUrl`) is
+ * search-specific and layered on top here: emitted only when both a key and a CDN base are present, so a
+ * caller without the CDN base simply omits it rather than emitting a malformed URL.
  *
  * @param row - The raw snake_case page row.
  * @param cloudfrontUrl - CDN base used to resolve the cover-photo key to an absolute URL. When absent,
  *   `coverPhotoUrl` is omitted.
  */
 export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Recipe {
-    const visibility = row.visibility as RecipeVisibility;
-    const sourceType = row.source_type as RecipeSourceType;
+    const recipe = recipeRowToDomain(toRecipeRowInput(row));
 
     return {
-        id: row.id,
-        ownerId: row.owner_id,
-        title: row.title,
-        description: row.description ?? '',
-        prepTimeMinutes: row.prep_time_minutes ?? 0,
-        cookTimeMinutes: row.cook_time_minutes ?? 0,
-        totalTimeMinutes: row.total_time_minutes ?? 0,
-        servings: row.servings,
-        ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
-        visibility,
-        // Publication status (W8-a.3). buildWhere already excludes other users' drafts, so a non-owner only
-        // ever sees `published`; the owner's own drafts DO appear in their search and must report `draft`.
-        status: row.status as RecipeStatus,
-        sourceType,
-        ...(row.source_url !== null ? { sourceUrl: row.source_url } : {}),
-        ...(row.source_attribution !== null ? { sourceAttribution: row.source_attribution } : {}),
-        ...(row.cloned_from_id !== null ? { clonedFromId: row.cloned_from_id } : {}),
-        hasSubstantiveEdit: row.has_substantive_edit,
-        ...(row.cuisine !== null ? { cuisine: row.cuisine } : {}),
-        dietaryFlags: row.dietary_flags,
-        tags: row.tags,
-        hasPartialNutrition: row.has_partial_nutrition,
-        // Denormalized headline per-serving calories (W8-a.1) — search cards read it here (no N+1);
-        // OMITTED when NULL (no accounted nutrition), never a misleading 0.
-        ...(row.lead_calories_per_serving !== null
-            ? { leadCaloriesPerServing: Number(row.lead_calories_per_serving) }
-            : {}),
-        // Denormalized author handle (W8-a.2) — search cards read it here; OMITTED when NULL.
-        ...(row.author_handle !== null ? { authorHandle: row.author_handle } : {}),
-        currentVersion: row.current_version,
-        // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
-        ...(row.average_rating !== null ? { averageRating: Number(row.average_rating) } : {}),
-        ratingCount: row.rating_count,
-        usesPremiumCapability: usesPremiumCapability({ visibility, sourceType }),
+        ...recipe,
         ...(row.cover_photo_key !== null && cloudfrontUrl !== undefined
             ? { coverPhotoUrl: resolveCdnUrl(cloudfrontUrl, row.cover_photo_key) }
             : {}),
-        ...(row.deleted_at !== null ? { deletedAt: toIsoString(row.deleted_at) } : {}),
-        createdAt: toIsoString(row.created_at),
-        updatedAt: toIsoString(row.updated_at),
     };
 }
 

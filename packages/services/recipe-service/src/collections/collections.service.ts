@@ -11,26 +11,17 @@
  * never the recipes themselves — a recipe in multiple collections survives the delete of any one.
  */
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import {
-    RecipeCollectionAddedVia,
-    RecipeSourceType,
-    RecipeVisibility,
-    usesPremiumCapability,
-    type PaginatedResponse,
-    type Recipe,
-    type RecipeStatus,
-    type RecipeDifficulty,
-} from '@kitchensink/recipe-core';
+import { RecipeCollectionAddedVia, type PaginatedResponse } from '@kitchensink/recipe-core';
 
 import {
     COLLECTION_VISIBILITIES,
     type CollectionRow,
     type CollectionVisibility,
 } from '../database/schema/collections.js';
-import type { RecipeRow } from '../database/schema/recipes.js';
 import { AuthorHandlesDal } from '../authors/dal/author-handles.dal.js';
 import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
+import { recipeRowToDomain } from '../recipes/mappers/recipe-row-to-domain.js';
 import {
     collectionNotClonedError,
     collectionNotOwnedError,
@@ -69,56 +60,6 @@ function toCollectionResponse(row: CollectionRow, recipeCount?: number): Collect
         ...(row.sourceCollectionName !== null ? { sourceCollectionName: row.sourceCollectionName } : {}),
         ...(row.lastPulledAt !== null ? { lastPulledAt: row.lastPulledAt.toISOString() } : {}),
         ...(recipeCount !== undefined ? { recipeCount } : {}),
-    };
-}
-
-/** Map a `recipes` row to the shared `Recipe` domain type (nullable numerics defaulted, dates → ISO). */
-function toRecipe(row: RecipeRow): Recipe {
-    const recipe: Recipe = {
-        id: row.id,
-        ownerId: row.ownerId,
-        title: row.title,
-        description: row.description ?? '',
-        prepTimeMinutes: row.prepTimeMinutes ?? 0,
-        cookTimeMinutes: row.cookTimeMinutes ?? 0,
-        totalTimeMinutes: row.totalTimeMinutes ?? 0,
-        servings: row.servings,
-        visibility: row.visibility as RecipeVisibility,
-        // Publication status (W8-a.3) — always present; listRecipes already excludes other users' drafts.
-        status: row.status as RecipeStatus,
-        sourceType: row.sourceType as RecipeSourceType,
-        hasSubstantiveEdit: row.hasSubstantiveEdit,
-        dietaryFlags: row.dietaryFlags,
-        tags: row.tags,
-        hasPartialNutrition: row.hasPartialNutrition,
-        currentVersion: row.currentVersion,
-        // CR-001 read-model: the trigger-maintained aggregate + the derived PRO badge (same authoritative
-        // `recipe-core` rule the recipes/search projections use). `coverPhotoUrl` is deliberately NOT
-        // resolved on the collection-embedded projection — no cover LATERAL runs here — so it is absent
-        // (a valid state); the collection card owns its no-image visual until a cover path is added.
-        ratingCount: row.ratingCount,
-        usesPremiumCapability: usesPremiumCapability({
-            visibility: row.visibility as RecipeVisibility,
-            sourceType: row.sourceType as RecipeSourceType,
-        }),
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-    };
-
-    return {
-        ...recipe,
-        ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
-        ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
-        // Denormalized headline per-serving calories (W8-a.1) — the collection-embed card reads it here
-        // (no N+1 nutrition read); OMITTED when NULL, never a misleading 0.
-        ...(row.leadCaloriesPerServing !== null ? { leadCaloriesPerServing: Number(row.leadCaloriesPerServing) } : {}),
-        // Denormalized author handle (W8-a.2) — the collection-embed card reads it here; OMITTED when NULL.
-        ...(row.authorHandle !== null ? { authorHandle: row.authorHandle } : {}),
-        ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
-        ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
-        ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),
-        ...(row.cuisine !== null ? { cuisine: row.cuisine } : {}),
-        ...(row.deletedAt !== null ? { deletedAt: row.deletedAt.toISOString() } : {}),
     };
 }
 
@@ -163,8 +104,10 @@ export class CollectionsService {
         // never another user's private recipe that was added to (or left in) this collection.
         const recipeRows = await this.dal.listRecipes(id, ownerId);
         // W5 Task 4: carry each member's provenance through onto the embedded recipe (source-indicator
-        // checkbox, C3) — the `Recipe` projection plus the DAL row's `addedVia`, nothing more.
-        const recipes = recipeRows.map((row) => ({ ...toRecipe(row), addedVia: row.addedVia }));
+        // checkbox, C3) — the canonical `Recipe` Data Mapper (S-R4) plus the DAL row's `addedVia`, nothing
+        // more. `coverPhotoUrl` is deliberately NOT resolved here — no cover LATERAL runs on this embed —
+        // so it stays absent; the collection card owns its no-image visual until a cover path is added.
+        const recipes = recipeRows.map((row) => ({ ...recipeRowToDomain(row), addedVia: row.addedVia }));
 
         return { ...toCollectionResponse(collection, recipes.length), recipes };
     }

@@ -34,14 +34,14 @@ import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
 import { defaultCloneVisibility, evaluateVisibility } from './domain/visibility-policy.js';
 import { isRecipeViewableBy } from './domain/recipe-visibility.js';
+import { recipeRowToDomain } from './mappers/recipe-row-to-domain.js';
 import { resolveCdnUrl } from '../photos/photo-view.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
-import { RecipeSourceType, RecipeVisibility, usesPremiumCapability } from '@kitchensink/recipe-core';
-import type { RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 
@@ -127,43 +127,30 @@ interface RecipeResponseExtras {
  * caller passes the embedded `photos` + per-serving `nutrition` so the client renders the whole recipe in
  * one round-trip; on list/search metadata reads both are omitted (their keys are absent).
  *
- * CR-001 read-model fields are populated here for EVERY path that shares this mapper (create/get/list/
- * update/clone/set-visibility): `difficulty` (nullable → omitted when unstated), the trigger-maintained
- * `averageRating`/`ratingCount` (average omitted when unrated — never `0`), and the derived
- * `usesPremiumCapability` (via the single authoritative `recipe-core` fn — the ONLY place the PRO rule is
- * evaluated on the server). `coverPhotoUrl` arrives via {@link RecipeResponseExtras} because the two read
- * paths resolve it differently (list via a cover LATERAL, detail from the first embedded photo).
+ * The base recipe-level fields (S-R4) come from the canonical {@link recipeRowToDomain} Data Mapper — the
+ * SAME `difficulty` (omitted when unstated), trigger-maintained `averageRating`/`ratingCount` (average
+ * omitted when unrated — never `0`), and derived `usesPremiumCapability` (via the single authoritative
+ * `recipe-core` fn) that the collections/search projections share. This function then layers the
+ * `RecipeResponse` SUPERSET on top: `ingredients`/`steps` (always), and `viewerRating`/`coverPhotoUrl`/
+ * `photos`/`nutrition` via {@link RecipeResponseExtras} (the two read paths resolve `coverPhotoUrl`
+ * differently — list via a cover LATERAL, detail from the first embedded photo).
+ *
+ * `description` is the ONE base field NOT taken from the canonical mapper: `RecipeResponse.description`
+ * is optional and OMITTED when unset, whereas the canonical `Recipe.description` is required and defaults
+ * to `''` — a genuinely different wire rule (not a duplicate to collapse), so it is re-derived here from
+ * the raw row, exactly as before.
  */
 function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtras = {}): RecipeResponse {
     const { recipe, steps, ingredients } = aggregate;
+    // `description` is excluded from the canonical base (see the doc comment above) and re-applied below
+    // under RecipeResponse's own omit-when-null rule.
+    const { description: _canonicalDescription, ...base } = recipeRowToDomain(recipe);
 
     return {
-        id: recipe.id,
-        ownerId: recipe.ownerId,
-        title: recipe.title,
+        ...base,
+        // RecipeResponse.description is OPTIONAL — OMITTED (not `''`) when unset, unlike the canonical
+        // Recipe.description (required, `''` default).
         ...(recipe.description !== null ? { description: recipe.description } : {}),
-        ...(recipe.cuisine !== null ? { cuisine: recipe.cuisine } : {}),
-        // Difficulty is nullable with no default: OMITTED (not `null`) when unstated → the client renders
-        // no badge. The DB CHECK guarantees any non-null value is one of easy|medium|hard.
-        ...(recipe.difficulty !== null ? { difficulty: recipe.difficulty as RecipeDifficulty } : {}),
-        visibility: recipe.visibility as RecipeVisibility,
-        // Publication status (W8-a.3) — always present (NOT NULL column). The owner's own list renders a
-        // "Draft" badge off this; non-owner read paths never receive a draft row (predicate-filtered).
-        status: recipe.status as RecipeStatus,
-        sourceType: recipe.sourceType as RecipeSourceType,
-        ...(recipe.sourceUrl !== null ? { sourceUrl: recipe.sourceUrl } : {}),
-        ...(recipe.sourceAttribution !== null ? { sourceAttribution: recipe.sourceAttribution } : {}),
-        ...(recipe.clonedFromId !== null ? { clonedFromId: recipe.clonedFromId } : {}),
-        hasSubstantiveEdit: recipe.hasSubstantiveEdit,
-        hasPartialNutrition: recipe.hasPartialNutrition,
-        // Denormalized headline per-serving calories (W8-a.1) — a `numeric` column surfaced as a string|null;
-        // OMITTED (not `0`) when NULL (no accounted nutrition), so a card renders no misleading calorie badge.
-        ...(recipe.leadCaloriesPerServing !== null
-            ? { leadCaloriesPerServing: Number(recipe.leadCaloriesPerServing) }
-            : {}),
-        // Denormalized author handle (W8-a.2) — the "by @handle" cards render; OMITTED when NULL (no handle
-        // known yet), so the UI falls back to a neutral label rather than a fabricated name.
-        ...(recipe.authorHandle !== null ? { authorHandle: recipe.authorHandle } : {}),
         // Composed from the `recipe_ingredients` junction (persisted atomically with the recipe), in
         // author order (`sortOrder`). Empty only when the recipe genuinely has no ingredient lines.
         ingredients: ingredients.map(toIngredientResponse),
@@ -172,37 +159,15 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
             instruction: step.instruction,
             ...(step.timerSeconds !== null ? { timerSeconds: step.timerSeconds } : {}),
         })),
-        servings: recipe.servings,
-        prepTimeMinutes: recipe.prepTimeMinutes,
-        cookTimeMinutes: recipe.cookTimeMinutes,
-        totalTimeMinutes: recipe.totalTimeMinutes,
-        tags: recipe.tags,
-        dietaryFlags: recipe.dietaryFlags,
-        currentVersion: recipe.currentVersion,
-        // Trigger-maintained aggregate. `average_rating` is a numeric column → pg returns a string|null;
-        // the average is OMITTED (not `0`) when unrated, coherent with `ratingCount = 0`.
-        ...(recipe.averageRating !== null ? { averageRating: Number(recipe.averageRating) } : {}),
-        ratingCount: recipe.ratingCount,
         // The viewer's OWN rating (per-viewer, distinct from the community average) — present only on the
         // detail read and only when the viewer has rated; OMITTED (not `0`) otherwise. The caller resolves
         // it viewer-scoped, so it can only ever be THIS viewer's stars.
         ...(extras.viewerRating !== undefined ? { viewerRating: extras.viewerRating } : {}),
-        // The derived PRO badge — evaluated ONCE, here, from the same `recipe-core` rule the search
-        // projection uses; never `visibility === 'private'`, never a stored column.
-        usesPremiumCapability: usesPremiumCapability({
-            visibility: recipe.visibility as RecipeVisibility,
-            sourceType: recipe.sourceType as RecipeSourceType,
-        }),
-        // Tombstone: present only when the recipe is soft-deleted; OMITTED (not `null`) otherwise, to match
-        // the optional `Recipe.deletedAt` contract (a `null` would fail `recipeSchema`).
-        ...(recipe.deletedAt !== null ? { deletedAt: recipe.deletedAt.toISOString() } : {}),
         // Cover photo (FR-001c) — absent when the recipe has no photos.
         ...(extras.coverPhotoUrl !== undefined ? { coverPhotoUrl: extras.coverPhotoUrl } : {}),
         // Embedded photos + per-serving nutrition for the detail read (absent on list/search metadata).
         ...(extras.photos !== undefined ? { photos: extras.photos } : {}),
         ...(extras.nutrition !== undefined ? { nutrition: extras.nutrition } : {}),
-        createdAt: recipe.createdAt.toISOString(),
-        updatedAt: recipe.updatedAt.toISOString(),
     };
 }
 

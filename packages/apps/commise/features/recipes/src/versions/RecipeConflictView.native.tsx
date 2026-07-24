@@ -1,13 +1,12 @@
 /**
- * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 building block).
+ * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building
+ * block).
  *
  * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
- * controlled, presentational contract for FR-007c (CP-6/P1: merge selections live in the `useRecipeEditor`
- * machine, not here): the user's in-progress version and the latest saved version side-by-side, plus all
- * three resolutions — keep mine, use theirs, or MERGE field-by-field. The merge panel is a per-field chooser
- * (a radio group per editable field, defaulting to the user's draft) whose selections are the caller's own
- * (`selections` in, `onSelectionsChange` out); this leaf reports the current selections upward via `onMerge`
- * and the caller composes + submits. Nothing is auto-merged.
+ * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
+ * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and a
+ * minimal changed-fields list driven by the precomputed `ConflictDiff` (W7 Task 1; Task 4 replaces this).
+ * The merge panel (Option C) is unchanged from the pre-W7 shape.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useState } from 'react';
@@ -18,39 +17,23 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { recipeVersionMessages } from './messages.js';
 import {
     buildRecipeMergeFields,
+    conflictFieldKindLabel,
     fillTemplate,
-    toConflictSideFields,
-    type ConflictField,
+    formatServerBanner,
     type MergeSide,
     type RecipeConflictViewProps,
 } from './model.js';
 
-/** Render one side of the conflict — a labelled group with a heading, its fields, and its choice. */
-const ConflictSide: FC<{
-    readonly heading: string;
-    readonly fields: readonly ConflictField[];
-    readonly actionLabel: string;
+/** One A/B/C option card — a title, a description, and the choice it fires. */
+const OptionCard: FC<{
+    readonly title: string;
+    readonly description: string;
     readonly onChoose: () => void;
-}> = ({ heading, fields, actionLabel, onChoose }) => (
-    <View accessibilityLabel={heading} style={styles.side}>
-        <Text accessibilityRole="header" style={styles.sideHeading}>
-            {heading}
-        </Text>
-        {fields.map((field) => (
-            <View key={field.key} style={styles.field}>
-                <Text style={styles.fieldLabel}>{field.label}</Text>
-                <Text style={styles.fieldValue}>{field.value}</Text>
-            </View>
-        ))}
-        <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={actionLabel}
-            onPress={onChoose}
-            style={styles.chooseButton}
-        >
-            <Text style={styles.chooseLabel}>{actionLabel}</Text>
-        </Pressable>
-    </View>
+}> = ({ title, description, onChoose }) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onChoose} style={styles.optionCard}>
+        <Text style={styles.optionTitle}>{title}</Text>
+        <Text style={styles.optionDescription}>{description}</Text>
+    </Pressable>
 );
 
 /** One radio option in a field's merge chooser. */
@@ -72,15 +55,14 @@ const MergeOption: FC<{
 );
 
 export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
-    mineTitle,
-    theirs,
-    mine,
+    server,
+    diff,
     mineValues,
     theirsValues,
     selections,
     onSelectionsChange,
-    onKeepMine,
-    onUseTheirs,
+    onKeepServer,
+    onOverwrite,
     onMerge,
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
@@ -88,6 +70,8 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     // Whether the merge panel is showing is pure UI navigation — stays local. `selections` is fully
     // controlled by the caller (the `useRecipeEditor` machine).
     const [merging, setMerging] = useState(false);
+    // Reading the clock is THIS component's own side effect — see the web leaf's own note.
+    const now = new Date();
 
     const optionLabel = (side: string, value: string): string =>
         fillTemplate(conflict.mergeOptionLabel, { side, value });
@@ -113,12 +97,12 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                     >
                         <Text style={styles.fieldLabel}>{field.label}</Text>
                         <MergeOption
-                            label={optionLabel(conflict.mineHeading, field.mineValue)}
+                            label={optionLabel(conflict.mergeMineLabel, field.mineValue)}
                             checked={sideOf(field.key) === 'mine'}
                             onSelect={() => choose(field.key, 'mine')}
                         />
                         <MergeOption
-                            label={optionLabel(conflict.theirsHeading, field.theirsValue)}
+                            label={optionLabel(conflict.mergeServerLabel, field.theirsValue)}
                             checked={sideOf(field.key) === 'theirs'}
                             onSelect={() => choose(field.key, 'theirs')}
                         />
@@ -153,26 +137,46 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 {conflict.heading}
             </Text>
             <Text style={styles.explanation}>{conflict.explanation}</Text>
-            <ConflictSide
-                heading={conflict.mineHeading}
-                fields={toConflictSideFields(mineTitle, mine, conflict, locale)}
-                actionLabel={conflict.keepMine}
-                onChoose={onKeepMine}
+
+            {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
+            <View style={styles.banner}>
+                <Text style={styles.bannerLine}>{formatServerBanner(server, now, conflict, locale)}</Text>
+                <Text style={styles.bannerLine}>{conflict.mineBanner}</Text>
+            </View>
+
+            {/* Three A/B/C option cards (X2). */}
+            <OptionCard
+                title={conflict.optionServerTitle}
+                description={conflict.optionServerDescription}
+                onChoose={onKeepServer}
             />
-            <ConflictSide
-                heading={conflict.theirsHeading}
-                fields={toConflictSideFields(theirs.title, theirs, conflict, locale)}
-                actionLabel={conflict.useTheirs}
-                onChoose={onUseTheirs}
+            <OptionCard
+                title={conflict.optionOverwriteTitle}
+                description={conflict.optionOverwriteDescription}
+                onChoose={onOverwrite}
             />
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={conflict.mergeAction}
-                onPress={() => setMerging(true)}
-                style={styles.secondaryButton}
-            >
-                <Text style={styles.secondaryLabel}>{conflict.mergeAction}</Text>
-            </Pressable>
+            <OptionCard
+                title={conflict.optionMergeTitle}
+                description={conflict.optionMergeDescription}
+                onChoose={() => setMerging(true)}
+            />
+
+            {/* Minimal changed-fields list (W7 Task 4 replaces this with the full marker/legend panel). */}
+            {diff.rows.length > 0 && (
+                <View accessibilityLabel={conflict.changedFieldsHeading} style={styles.changedFields}>
+                    {diff.rows.map((row) => (
+                        <View key={row.key} style={styles.changedFieldRow}>
+                            <Text style={styles.fieldLabel}>{conflictFieldKindLabel(row.fieldKind, conflict)}</Text>
+                            <Text style={styles.changedFieldValue}>
+                                {optionLabel(conflict.mergeMineLabel, row.mine)}
+                            </Text>
+                            <Text style={styles.changedFieldValue}>
+                                {optionLabel(conflict.mergeServerLabel, row.theirs)}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
         </View>
     );
 };
@@ -181,18 +185,25 @@ const styles = StyleSheet.create({
     container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
     heading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     explanation: { fontSize: 14, color: palette.slate },
-    side: {
+    banner: {
         backgroundColor: palette.white,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 16,
-        gap: 8,
+        gap: 4,
     },
-    sideHeading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
-    field: { gap: 2 },
-    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
-    fieldValue: { fontSize: 15, color: palette.charcoal },
+    bannerLine: { fontSize: 15, color: palette.charcoal },
+    optionCard: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 16,
+        gap: 4,
+    },
+    optionTitle: { fontSize: 17, fontWeight: '600', color: palette.charcoal },
+    optionDescription: { fontSize: 13, color: palette.slate },
     group: {
         backgroundColor: palette.white,
         borderRadius: 16,
@@ -201,6 +212,17 @@ const styles = StyleSheet.create({
         padding: 16,
         gap: 8,
     },
+    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
+    changedFields: { gap: 8 },
+    changedFieldRow: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 12,
+        gap: 2,
+    },
+    changedFieldValue: { fontSize: 14, color: palette.charcoal },
     option: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
     radioDot: {
         width: 18,

@@ -52,31 +52,54 @@ export interface RecipeVersionListMessages {
     readonly backToRecipe: string;
 }
 
-/** Shared copy for the concurrent-edit conflict resolution view (T070 / C-005). */
+/** Shared copy for the concurrent-edit conflict resolution view (T070 / C-005 / W7). */
 export interface RecipeConflictMessages {
     /** Heading for the conflict panel. */
     readonly heading: string;
     /** Explanatory copy describing why the conflict is shown. */
     readonly explanation: string;
-    /** Heading for the user's own (in-progress) version column. */
-    readonly mineHeading: string;
-    /** Heading for the latest saved (their) version column. */
-    readonly theirsHeading: string;
-    /** Label of the "keep my version" choice. */
-    readonly keepMine: string;
-    /** Label of the "use the latest version" choice. */
-    readonly useTheirs: string;
+    /** The per-side server banner template (W7 Task 3 / X3; contains `{version}` and `{time}`, where `{time}`
+     *  is an already-formatted "N units ago" string — see {@link import('./model.js').formatRelativeTimeAgo}).
+     *  Server is ALWAYS the first/left side (X7). */
+    readonly serverBanner: string;
+    /** The server banner's device suffix template (contains `{device}`), appended after {@link serverBanner}
+     *  ONLY when the server side carries a `deviceLabel` — mirrors {@link RecipeVersionListMessages.fromDevice}'s
+     *  own optional-suffix split. `deviceLabel` is untrusted free text — always rendered as text, never
+     *  `dangerouslySetInnerHTML`. */
+    readonly serverBannerDevice: string;
+    /** The user's own banner line (W7 Task 3 / X3) — the in-progress draft was never persisted, so it carries
+     *  no version number of its own; static copy, no template. */
+    readonly mineBanner: string;
     /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
      *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
      *  user is never left staring at an unchanged form with no feedback. */
     readonly dataUnavailable: string;
-    /** Label of the "merge field by field" choice (enters the per-field merge panel — FR-007c option c). */
-    readonly mergeAction: string;
+    /** Heading for the minimal changed-fields list rendered below the three options (W7 Task 3; Task 4
+     *  replaces this with the full marker/legend panel). */
+    readonly changedFieldsHeading: string;
+    /** Option A's title: keep the server version. */
+    readonly optionServerTitle: string;
+    /** Option A's description. */
+    readonly optionServerDescription: string;
+    /** Option B's title: overwrite the server version with the user's own draft. */
+    readonly optionOverwriteTitle: string;
+    /** Option B's description. */
+    readonly optionOverwriteDescription: string;
+    /** Option C's title: merge field by field (enters the per-field merge panel — FR-007c option c). */
+    readonly optionMergeTitle: string;
+    /** Option C's description. */
+    readonly optionMergeDescription: string;
     /** Heading for the per-field merge panel. */
     readonly mergeHeading: string;
     /** Explanatory copy for the per-field merge panel. */
     readonly mergeExplanation: string;
+    /** The merge panel's per-field "mine" radio side label (contains `{side}` in
+     *  {@link mergeOptionLabel} — the panel's own within-field ordering keeps the user's draft first, since
+     *  Option C's whole point is to let the user's OWN edits win field by field). */
+    readonly mergeMineLabel: string;
+    /** The merge panel's per-field "server" radio side label — see {@link mergeMineLabel}. */
+    readonly mergeServerLabel: string;
     /** Per-field radio option template (contains `{side}` and `{value}`). */
     readonly mergeOptionLabel: string;
     /** Label of the "save the merged result" action in the merge panel. */
@@ -236,15 +259,22 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
         conflict: {
             heading: 'This recipe changed while you were editing',
             explanation: 'Someone saved a new version while you were making changes. Choose which version to keep.',
-            mineHeading: 'Your version',
-            theirsHeading: 'Latest saved version',
-            keepMine: 'Keep my version',
-            useTheirs: 'Use the latest version',
+            serverBanner: 'Server version (v{version}): Saved {time}',
+            serverBannerDevice: ' on {device}',
+            mineBanner: 'Your version: local unsaved changes',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
-            mergeAction: 'Merge field by field',
+            changedFieldsHeading: 'Changed fields',
+            optionServerTitle: 'Keep server version',
+            optionServerDescription: 'Discard your local changes and keep the server version.',
+            optionOverwriteTitle: 'Overwrite with your version',
+            optionOverwriteDescription: 'Your local changes win and become the new version.',
+            optionMergeTitle: 'Merge manually',
+            optionMergeDescription: 'Review each changed field and choose which version to keep.',
             mergeHeading: 'Merge changes field by field',
             mergeExplanation:
                 'For each field, choose which version to keep. Your version is selected by default — change any field to pull in the latest saved value.',
+            mergeMineLabel: 'Your version',
+            mergeServerLabel: 'Latest saved version',
             mergeOptionLabel: '{side}: {value}',
             mergeSubmit: 'Save merged version',
             mergeBack: 'Back to options',

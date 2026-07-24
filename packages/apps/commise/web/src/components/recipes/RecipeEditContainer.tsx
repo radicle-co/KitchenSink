@@ -106,19 +106,20 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     };
 
     if (editor.state.status === 'conflict') {
-        const { theirs, mine, draft, mergeSelections } = editor.state;
+        const { theirs, draft, mergeSelections, server, base, diff, versionsBehind } = editor.state;
 
         return (
             <RecipeConflictView
-                mineTitle={draft.title}
-                mine={mine}
-                theirs={theirs}
+                server={server}
+                {...(base === undefined ? {} : { base })}
+                diff={diff}
+                versionsBehind={versionsBehind}
                 mineValues={draft}
                 theirsValues={toRecipeFormValues(theirs)}
                 selections={mergeSelections}
                 onSelectionsChange={editor.resolutions.setMergeSelections}
-                onKeepMine={editor.resolutions.keepMine}
-                onUseTheirs={editor.resolutions.useTheirs}
+                onKeepServer={editor.resolutions.keepServer}
+                onOverwrite={editor.resolutions.overwrite}
                 onMerge={editor.resolutions.merge}
             />
         );

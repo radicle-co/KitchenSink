@@ -26,6 +26,7 @@ import {
     type RecipeFormValues,
 } from '../form/model.js';
 import { fillTemplate, formatDurationMinutes, formatRecipeCount } from '../list/model.js';
+import type { ConflictDiff, ConflictFieldKind } from './conflictDiff.js';
 import { diffSnapshots, type DiffTally, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
 import type {
     RecipeConflictMessages,
@@ -82,34 +83,50 @@ export interface RecipeVersionListProps {
 }
 
 /**
- * Props for the concurrent-edit conflict view (T070 / C-005 / CP-6 P1) — a FULLY controlled, presentational
- * component. It presents the user's in-progress version and the latest saved version side-by-side and
- * delegates every choice upward, including the field-by-field merge panel's own selection state: `selections`
- * comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every toggle
- * reports back via `onSelectionsChange` — this view owns no merge data of its own (only the "is the merge
- * panel showing" UI toggle stays local, since that is pure navigation, not data the machine needs).
+ * Props for the concurrent-edit conflict view (T070 / C-005 / CP-6 P1 / W7) — a FULLY controlled,
+ * presentational component. Server-first ordering (X7): `server` is always the FIRST/LEFT side, everywhere
+ * this view renders anything two-sided — the per-side banner, and (Option C) the field-by-field merge panel.
+ * It delegates every choice upward, including the field-by-field merge panel's own selection state:
+ * `selections` comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every
+ * toggle reports back via `onSelectionsChange` — this view owns no merge data of its own (only the "is the
+ * merge panel showing" UI toggle stays local, since that is pure navigation, not data the machine needs).
+ *
+ * `mine`/`theirs` `RecipeDetail` display sides and the `mineTitle` override (the pre-W7 contract) are GONE:
+ * the W7 body (`VersionConflictSide`) already carries everything the banner needs (`server`/`base`), and the
+ * changed-only `diff` (W7 Task 1) is what the changed-fields panel below the cards renders — a `RecipeDetail`
+ * projection of either side is no longer needed for THIS view (the Task 4 diff panel and Task 5 per-element
+ * merge both read `diff.rows` instead).
  */
 export interface RecipeConflictViewProps {
-    /** The title of the user's in-progress edit (may differ from `mine.title`). */
-    readonly mineTitle: string;
-    /** The latest saved version that landed while the user was editing. */
-    readonly theirs: RecipeDetail;
-    /** The user's in-progress version. */
-    readonly mine: RecipeDetail;
-    /** The user's in-progress draft, as the editable form shape — the "mine" side of the field-by-field merge. */
+    /** The 409's winning server side (version/device/updatedAt/snapshot, W8-a.5) — the view's LEFT/FIRST side
+     *  everywhere (X7). Drives the per-side banner (X3). */
+    readonly server: VersionConflictSide;
+    /** The version the draft was edited from, when still retained in the DB window; ABSENT when evicted (the
+     *  base-evicted fallback — see `conflictDiff.ts`). Carried through for the changed-fields panel/staleness
+     *  warning; this view does not read it directly. */
+    readonly base?: VersionConflictSide;
+    /** The precomputed 3-way diff (`computeConflictDiff`, W7 Task 1) — changed-or-conflicting rows only.
+     *  Rendered as a minimal changed-fields list below the three options; W7 Task 4 replaces this with the
+     *  full marker/legend panel. */
+    readonly diff: ConflictDiff;
+    /** `server.versionNumber - (base?.versionNumber ?? 0)` (the X6 staleness signal) — carried through for
+     *  W7 Task 5's staleness warning; this view does not render it yet. */
+    readonly versionsBehind: number;
+    /** The user's in-progress draft, as the editable form shape — the "mine" side of the field-by-field merge
+     *  (Option C). */
     readonly mineValues: RecipeFormValues;
-    /** The latest saved recipe projected to the editable form shape — the "theirs" side of the merge. */
+    /** The latest saved recipe projected to the editable form shape — the "server" side of the merge. */
     readonly theirsValues: RecipeFormValues;
     /** The current per-field merge resolution (an absent key defaults to `'mine'`); owned by the caller. */
     readonly selections: RecipeMergeSelections;
     /** Invoked with the next selections on every per-field radio toggle, and to reset on merge-panel exit. */
     readonly onSelectionsChange: (selections: RecipeMergeSelections) => void;
-    /** Invoked when the user chooses to keep their own version. */
-    readonly onKeepMine: () => void;
-    /** Invoked when the user chooses to take the latest saved version. */
-    readonly onUseTheirs: () => void;
-    /** Invoked with the current per-field selections when the user saves a merge (FR-007c option c); the
-     *  caller composes the merged draft (`composeMergedRecipe`) and submits it. */
+    /** Option A: keep the server version, discarding the user's local changes. */
+    readonly onKeepServer: () => void;
+    /** Option B: overwrite the server version with the user's own draft. */
+    readonly onOverwrite: () => void;
+    /** Option C submit: invoked with the current per-field selections when the user saves a merge (FR-007c
+     *  option c); the caller composes the merged draft (`composeConflictMerge`) and submits it. */
     readonly onMerge: (selections: RecipeMergeSelections) => void;
 }
 
@@ -265,62 +282,105 @@ export const formatVersionAttribution = (
     return deviceLabel === undefined ? byEditor : byEditor + fillTemplate(messages.fromDevice, { device: deviceLabel });
 };
 
-/** One labelled field rendered for a side of the conflict view. */
-export interface ConflictField {
-    /** Stable key for React reconciliation and test lookup. */
-    readonly key: string;
-    /** The localized field label. */
-    readonly label: string;
-    /** The formatted field value. */
-    readonly value: string;
-}
+// ─── Per-side banner (W7 Task 3 / X3) ────────────────────────────────────────────────────────────────
+//
+// The conflict view's top banner names each side plainly: the server's winning version (its version number,
+// when it was saved, and — when known — which device saved it) and the user's own in-progress draft (which
+// was never persisted, so it carries no version number of its own). Server is ALWAYS first (X7).
 
 /**
- * Project one side of a conflict (a title plus a {@link RecipeDetail}) into the ordered, labelled,
- * pre-formatted fields both platforms render — title, servings, prep/cook/total times, and the ingredient
- * and step counts. Centralizing this here keeps the web and native views from drifting on which fields
- * differ or how they are formatted. Pure.
+ * Format an ISO 8601 instant as a localized "N units ago" relative-time string via `Intl.RelativeTimeFormat`
+ * (library-first — never hand-rolled pluralization/wording; mirrors `formatHomeDate`'s split of "the caller
+ * reads the clock, this module only formats an instant"). Buckets to the largest whole unit that has elapsed
+ * at least once — minutes, then hours, then days — floored, so e.g. 90 elapsed seconds reads as "1 minute
+ * ago", not "90 seconds ago". An instant within the same minute (or, degenerately, in the future — clock
+ * skew) reads as "0 minutes ago". Pure — the caller supplies `now`.
  *
- * @param title - The title to show for this side (the caller's own draft title, or `theirs.title`).
- * @param detail - The recipe detail for this side.
- * @param messages - The localized conflict copy (labels + templates).
- * @param locale - The active BCP-47 locale (for locale-correct count pluralization).
- * @returns The ordered fields to render for this side.
+ * @param isoDateTime - The past instant to render, in ISO 8601.
+ * @param now - The current instant, supplied by the caller (its own `new Date()` read is the side effect).
+ * @param locale - The active BCP-47 locale.
+ * @returns The localized "N units ago" string.
  */
-export const toConflictSideFields = (
-    title: string,
-    detail: RecipeDetail,
+export const formatRelativeTimeAgo = (isoDateTime: string, now: Date, locale: Locale): string => {
+    const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - new Date(isoDateTime).getTime()) / 1000));
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'always' });
+
+    const [amount, unit]: [number, Intl.RelativeTimeFormatUnit] =
+        elapsedSeconds < 60
+            ? [0, 'minute']
+            : elapsedSeconds < 3600
+              ? [Math.floor(elapsedSeconds / 60), 'minute']
+              : elapsedSeconds < 86400
+                ? [Math.floor(elapsedSeconds / 3600), 'hour']
+                : [Math.floor(elapsedSeconds / 86400), 'day'];
+
+    // `-amount` even at `amount === 0`: `Intl.RelativeTimeFormat` reads the SIGN, not the magnitude, to pick
+    // "ago" vs. "in" — `format(0, 'minute')` renders "in 0 minutes" (treated as the future direction), while
+    // `format(-0, 'minute')` renders "0 minutes ago". A sub-minute-old server side must still read "ago", not
+    // "in 0 minutes", so this always negates (JS's `-0` is a distinct, valid float from `0`).
+    return rtf.format(-amount, unit);
+};
+
+/**
+ * Render the server-side banner line: "Server version (v{n}): Saved {time}", with " on {device}" appended
+ * ONLY when `server.deviceLabel` is present — mirroring {@link formatVersionAttribution}'s own
+ * base-template-plus-optional-device-suffix split, the same reuse pattern for the same reason (a
+ * caller-supplied device label is optional free text, never fabricated). `deviceLabel` is untrusted: this
+ * returns a plain string for the caller to render as TEXT (React/RN escape it) — NEVER via
+ * `dangerouslySetInnerHTML`. Pure — the caller supplies `now`.
+ *
+ * @param server - The 409's winning server side.
+ * @param now - The current instant, supplied by the caller.
+ * @param messages - The localized conflict copy.
+ * @param locale - The active BCP-47 locale.
+ * @returns The formatted server-side banner line.
+ */
+export const formatServerBanner = (
+    server: VersionConflictSide,
+    now: Date,
     messages: RecipeConflictMessages,
     locale: Locale,
-): readonly ConflictField[] => [
-    { key: 'title', label: messages.titleLabel, value: title },
-    { key: 'servings', label: messages.servingsLabel, value: String(detail.servings) },
-    { key: 'prep', label: messages.prepLabel, value: formatDurationMinutes(detail.prepTimeMinutes, messages.minutes) },
-    { key: 'cook', label: messages.cookLabel, value: formatDurationMinutes(detail.cookTimeMinutes, messages.minutes) },
-    {
-        key: 'total',
-        label: messages.totalLabel,
-        value: formatDurationMinutes(detail.totalTimeMinutes, messages.minutes),
-    },
-    {
-        key: 'ingredients',
-        label: messages.ingredientsLabel,
-        value: formatRecipeCount(
-            detail.ingredients.length,
-            { one: messages.ingredientCountOne, other: messages.ingredientCountOther },
-            locale,
-        ),
-    },
-    {
-        key: 'steps',
-        label: messages.stepsLabel,
-        value: formatRecipeCount(
-            detail.steps.length,
-            { one: messages.stepCountOne, other: messages.stepCountOther },
-            locale,
-        ),
-    },
-];
+): string => {
+    const relative = formatRelativeTimeAgo(server.updatedAt, now, locale);
+    const base = fillTemplate(messages.serverBanner, { version: server.versionNumber, time: relative });
+
+    return server.deviceLabel === undefined
+        ? base
+        : base + fillTemplate(messages.serverBannerDevice, { device: server.deviceLabel });
+};
+
+// ─── Changed-field labeling (W7 Task 1 → Task 3) ─────────────────────────────────────────────────────
+
+/**
+ * Which localized field-label key (from the SHARED {@link RecipeConflictMessages} field labels — the SAME
+ * labels {@link snapshotFieldLabel} resolves, reused rather than duplicated) names each
+ * {@link ConflictFieldKind}. `step`/`ingredient` (the per-element row kinds — one row PER changed
+ * step/ingredient, `conflictDiff.ts`) reuse the PLURAL `stepsLabel`/`ingredientsLabel` — there is no singular
+ * "Step"/"Ingredient" field label anywhere else in this shared copy, and inventing one for a single row would
+ * be a second, drifting representation of the same field name.
+ */
+const CONFLICT_FIELD_KIND_LABEL_KEY: Readonly<Record<ConflictFieldKind, keyof RecipeConflictMessages>> = {
+    title: 'titleLabel',
+    description: 'descriptionLabel',
+    servings: 'servingsLabel',
+    prepTimeMinutes: 'prepLabel',
+    cookTimeMinutes: 'cookLabel',
+    step: 'stepsLabel',
+    ingredient: 'ingredientsLabel',
+};
+
+/**
+ * The localized field label (see {@link CONFLICT_FIELD_KIND_LABEL_KEY}) for one
+ * {@link ./conflictDiff.js!ConflictFieldRow}'s `fieldKind` — a `ConflictFieldRow` carries no `label` of its
+ * own (`fieldKind` is an ENUM; localization is this function's job, not the row's), mirroring
+ * {@link snapshotFieldLabel}'s own row→label indirection for the two-way diff. Pure.
+ *
+ * @param fieldKind - The changed row's field kind.
+ * @param messages - The shared conflict-panel field labels.
+ * @returns The localized field label.
+ */
+export const conflictFieldKindLabel = (fieldKind: ConflictFieldKind, messages: RecipeConflictMessages): string =>
+    messages[CONFLICT_FIELD_KIND_LABEL_KEY[fieldKind]];
 
 // ─── Field-by-field merge (T070 / FR-007c option c) ─────────────────────────────────────────────────
 //
@@ -834,14 +894,14 @@ export const changedFromCurrentCounts = (
 
 /**
  * Render the "Changed from current: {ingredients}, {steps}" summary line from a {@link SnapshotDiff}, with
- * each count correctly pluralized via the SAME `ingredientCount*`/`stepCount*` templates the conflict
- * panel's own ingredient/step counts already use ({@link toConflictSideFields}) — a count of 1 reads "1
+ * each count correctly pluralized via the SAME `ingredientCount*`/`stepCount*` templates the merge panel's
+ * own ingredient/step counts already use ({@link buildRecipeMergeFields}) — a count of 1 reads "1
  * ingredient"/"1 step", never a hard-coded plural ("1 ingredients"/"1 steps"). The field label is one piece
  * of knowledge regardless of which version surface renders it; so is its pluralization. Pure.
  *
  * @param diff - This version's diff vs. the recipe's current version.
  * @param previewMessages - The localized preview copy (the summary line's own template).
- * @param conflictMessages - The shared singular/plural count templates (reused — see {@link toConflictSideFields}).
+ * @param conflictMessages - The shared singular/plural count templates (reused — see {@link buildRecipeMergeFields}).
  * @param locale - The active BCP-47 locale (for locale-correct count pluralization).
  * @returns The formatted "Changed from current" summary line.
  */
@@ -946,9 +1006,9 @@ export interface CompareFieldRow {
 type ScalarFieldKey = Exclude<SnapshotFieldKey, 'steps' | 'ingredients'>;
 
 /** Render one scalar field's raw value for display — `prepTimeMinutes`/`cookTimeMinutes` through the shared
- *  duration template (matching {@link toConflictSideFields}'s formatting so the two surfaces can't disagree
- *  on how a duration reads); every other scalar (`title`/`description`/`servings`) as its own string form.
- *  Pure. */
+ *  duration template (the SAME template every duration-rendering surface in this module uses, so they can
+ *  never disagree on how a duration reads); every other scalar (`title`/`description`/`servings`) as its own
+ *  string form. Pure. */
 const scalarFieldValue = (field: ScalarFieldKey, snapshot: RecipeSnapshot, messages: RecipeConflictMessages): string =>
     field === 'prepTimeMinutes' || field === 'cookTimeMinutes'
         ? formatDurationMinutes(snapshot[field], messages.minutes)

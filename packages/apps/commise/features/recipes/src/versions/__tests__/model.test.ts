@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 import type { RecipeIngredient, RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import type { RecipeFormValues } from '../../form/model.js';
-import { makeRecipeDetail, makeRecipeFormValues } from '../../__fixtures__/index.js';
-import { makeRecipeVersion } from '../__fixtures__/index.js';
+import { makeRecipeFormValues } from '../../__fixtures__/index.js';
+import { makeRecipeVersion, makeVersionConflictSide } from '../__fixtures__/index.js';
 import type { SnapshotDiff } from '../diff.js';
 import { recipeVersionMessages } from '../messages.js';
 import {
@@ -17,13 +17,15 @@ import {
     changedFromCurrentCounts,
     changeSummaryForVersion,
     composeMergedRecipe,
+    conflictFieldKindLabel,
     findPriorVersion,
     formatChangedFieldNames,
     formatChangedFromCurrent,
+    formatRelativeTimeAgo,
+    formatServerBanner,
     formatVersionAttribution,
     formatVersionTimestamp,
     sortVersionsDescending,
-    toConflictSideFields,
     toVersionPreviewIngredientLines,
     type RecipeMergeSelections,
 } from '../model.js';
@@ -84,57 +86,76 @@ describe('formatVersionTimestamp', () => {
     });
 });
 
-describe('toConflictSideFields', () => {
-    it('projects the title, servings, times, and counts in order', () => {
-        const detail = makeRecipeDetail({
-            servings: 6,
-            prepTimeMinutes: 15,
-            cookTimeMinutes: 25,
-            totalTimeMinutes: 50,
-            ingredients: [
-                { ingredientId: 'ing_1', name: 'A', quantity: 1, isUserEntered: false },
-                { ingredientId: 'ing_2', name: 'B', quantity: 1, isUserEntered: false },
-                { ingredientId: 'ing_3', name: 'C', quantity: 1, isUserEntered: false },
-            ],
-            steps: [
-                { stepNumber: 1, instruction: 'One' },
-                { stepNumber: 2, instruction: 'Two' },
-            ],
-        });
-
-        const fields = toConflictSideFields('My Draft Title', detail, conflict, 'en');
-
-        expect(fields.map((field) => field.key)).toEqual([
-            'title',
-            'servings',
-            'prep',
-            'cook',
-            'total',
-            'ingredients',
-            'steps',
-        ]);
-        expect(fields.map((field) => field.value)).toEqual([
-            'My Draft Title',
-            '6',
-            '15 min',
-            '25 min',
-            '50 min',
-            '3 ingredients',
-            '2 steps',
-        ]);
+describe('formatRelativeTimeAgo (W7 Task 3 / X3)', () => {
+    it('buckets to minutes under an hour', () => {
+        expect(formatRelativeTimeAgo('2026-05-09T14:30:00.000Z', new Date('2026-05-09T14:32:00.000Z'), 'en')).toBe(
+            '2 minutes ago',
+        );
     });
 
-    it('pluralizes single-item counts correctly', () => {
-        const detail = makeRecipeDetail({
-            ingredients: [{ ingredientId: 'ing_1', name: 'A', quantity: 1, isUserEntered: false }],
-            steps: [{ stepNumber: 1, instruction: 'One' }],
+    it('floors sub-minute elapsed time to "0 minutes ago" rather than surfacing seconds', () => {
+        expect(formatRelativeTimeAgo('2026-05-09T14:30:00.000Z', new Date('2026-05-09T14:30:45.000Z'), 'en')).toBe(
+            '0 minutes ago',
+        );
+    });
+
+    it('buckets to hours once an hour has elapsed', () => {
+        expect(formatRelativeTimeAgo('2026-05-09T12:00:00.000Z', new Date('2026-05-09T14:30:00.000Z'), 'en')).toBe(
+            '2 hours ago',
+        );
+    });
+
+    it('buckets to days once a day has elapsed', () => {
+        expect(formatRelativeTimeAgo('2026-05-07T14:30:00.000Z', new Date('2026-05-09T14:30:00.000Z'), 'en')).toBe(
+            '2 days ago',
+        );
+    });
+
+    it('never reports a negative/future elapsed time (clock skew degrades to "0 minutes ago")', () => {
+        expect(formatRelativeTimeAgo('2026-05-09T14:35:00.000Z', new Date('2026-05-09T14:30:00.000Z'), 'en')).toBe(
+            '0 minutes ago',
+        );
+    });
+});
+
+describe('formatServerBanner (W7 Task 3 / X3)', () => {
+    it('renders "Server version (vN): Saved {time} ago on {device}" when a device is known', () => {
+        const server = makeVersionConflictSide({
+            versionNumber: 6,
+            deviceLabel: 'iPhone',
+            updatedAt: '2026-05-09T14:30:00.000Z',
         });
 
-        const fields = toConflictSideFields('Solo', detail, conflict, 'en');
-        const byKey = Object.fromEntries(fields.map((field) => [field.key, field.value]));
+        expect(formatServerBanner(server, new Date('2026-05-09T14:32:00.000Z'), conflict, 'en')).toBe(
+            'Server version (v6): Saved 2 minutes ago on iPhone',
+        );
+    });
 
-        expect(byKey['ingredients']).toBe('1 ingredient');
-        expect(byKey['steps']).toBe('1 step');
+    it('omits the device clause when deviceLabel is absent', () => {
+        const server = makeVersionConflictSide({
+            versionNumber: 6,
+            deviceLabel: undefined,
+            updatedAt: '2026-05-09T14:30:00.000Z',
+        });
+
+        expect(formatServerBanner(server, new Date('2026-05-09T14:32:00.000Z'), conflict, 'en')).toBe(
+            'Server version (v6): Saved 2 minutes ago',
+        );
+    });
+});
+
+describe('conflictFieldKindLabel (W7 Task 1 → Task 3)', () => {
+    it('resolves each scalar field kind to its shared field label', () => {
+        expect(conflictFieldKindLabel('title', conflict)).toBe('Title');
+        expect(conflictFieldKindLabel('description', conflict)).toBe('Description');
+        expect(conflictFieldKindLabel('servings', conflict)).toBe('Servings');
+        expect(conflictFieldKindLabel('prepTimeMinutes', conflict)).toBe('Prep time');
+        expect(conflictFieldKindLabel('cookTimeMinutes', conflict)).toBe('Cook time');
+    });
+
+    it('resolves the per-element step/ingredient row kinds to the shared PLURAL field labels', () => {
+        expect(conflictFieldKindLabel('step', conflict)).toBe('Steps');
+        expect(conflictFieldKindLabel('ingredient', conflict)).toBe('Ingredients');
     });
 });
 

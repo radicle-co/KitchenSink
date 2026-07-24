@@ -81,13 +81,15 @@ describe('CollectionDetailContainer', () => {
     it('deletes the collection and navigates back to the list', async () => {
         const user = userEvent.setup();
         const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-        vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
+        const deleteSpy = vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
 
         renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
 
         await user.click(await screen.findByRole('button', { name: 'Delete' }));
 
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections'));
+        // A wrong-id delete must fail here (the assertion the T3 migration dropped).
+        expect(deleteSpy).toHaveBeenCalledWith('col_9');
     });
 
     it('navigates to the rename form when rename is activated', async () => {

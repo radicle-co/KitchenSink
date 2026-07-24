@@ -54,9 +54,11 @@ beforeEach(() => {
         isError: false,
         data: [makeIngredient({ id: 'ing_1', name: 'Olive oil' })],
     } as unknown as ReturnType<typeof useSearchIngredients>);
-    useCreateIngredientMock.mockReturnValue({ mutate: vi.fn(), isPending: false } as unknown as ReturnType<
-        typeof useCreateIngredient
-    >);
+    useCreateIngredientMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        reset: vi.fn(),
+    } as unknown as ReturnType<typeof useCreateIngredient>);
 });
 
 describe('RecipeCreateScreen — chrome', () => {
@@ -94,7 +96,9 @@ describe('RecipeCreateScreen — happy path', () => {
 
         // Title.
         fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Weeknight Pasta' } });
-        // Resolve an ingredient via the typeahead (appends a resolved line with quantity 1).
+        // Resolve an ingredient via the typeahead (appends a resolved line with quantity 1). The picker only
+        // surfaces search results once a query is typed (`deriveViewState` gates on a non-empty `trimmed`).
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'olive' } });
         fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
         // Add and fill an instruction step.
         fireEvent.click(screen.getByRole('button', { name: 'Add step' }));

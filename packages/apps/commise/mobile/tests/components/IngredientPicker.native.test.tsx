@@ -108,7 +108,11 @@ describe('IngredientPicker — search + select', () => {
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'bas' } });
         fireEvent.click(screen.getByRole('button', { name: 'Basil' }));
 
-        expect(onResolve).toHaveBeenCalledWith({ id: 'ing_7', name: 'Basil' });
+        expect(onResolve).toHaveBeenCalledWith({
+            id: 'ing_7',
+            name: 'Basil',
+            resolutionStatus: FoodResolutionStatus.RESOLVED,
+        });
         expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('');
     });
 });
@@ -138,7 +142,11 @@ describe('IngredientPicker — create freeform', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Create “Nduja”' }));
 
         expect(mutate).toHaveBeenCalledWith('Nduja', expect.objectContaining({ onSuccess: expect.any(Function) }));
-        expect(onResolve).toHaveBeenCalledWith({ id: 'ing_new', name: 'Nduja' });
+        expect(onResolve).toHaveBeenCalledWith({
+            id: 'ing_new',
+            name: 'Nduja',
+            resolutionStatus: FoodResolutionStatus.RESOLVED,
+        });
     });
 });
 

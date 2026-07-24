@@ -15,10 +15,10 @@ import {
     useCreateRecipe,
     useDeleteRecipe,
     useDeleteRecipeRating,
+    useInfiniteSearchRecipes,
     useRecipe,
     useRecipes,
     useSearchIngredients,
-    useSearchRecipes,
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
@@ -53,7 +53,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientStatus: () => ({ data: undefined }),
     useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
     useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
-    useSearchRecipes: vi.fn(),
+    useInfiniteSearchRecipes: vi.fn(),
     useCollections: vi.fn(),
     useSetRecipeRating: vi.fn(),
     useDeleteRecipeRating: vi.fn(),
@@ -105,8 +105,15 @@ beforeEach(() => {
     vi.mocked(useDeleteRecipeRating).mockReturnValue(mutation<ReturnType<typeof useDeleteRecipeRating>>());
     vi.mocked(useSearchIngredients).mockReturnValue(query<ReturnType<typeof useSearchIngredients>>({ data: [] }));
     vi.mocked(useCreateIngredient).mockReturnValue(mutation<ReturnType<typeof useCreateIngredient>>());
-    vi.mocked(useSearchRecipes).mockReturnValue(
-        query<ReturnType<typeof useSearchRecipes>>({ data: makeSearchResponse([]) }),
+    // The discover tab reads the PAGINATED search hook (S4) — an inert single-page, no-next-page shape keeps
+    // it in the "ready, no results" state without exercising pagination.
+    vi.mocked(useInfiniteSearchRecipes).mockReturnValue(
+        query<ReturnType<typeof useInfiniteSearchRecipes>>({
+            data: { pages: [makeSearchResponse([])] },
+            hasNextPage: false,
+            isFetchingNextPage: false,
+            fetchNextPage: vi.fn(),
+        }),
     );
     vi.mocked(useCollections).mockReturnValue(
         query<ReturnType<typeof useCollections>>({ data: makeCollectionPage([]) }),

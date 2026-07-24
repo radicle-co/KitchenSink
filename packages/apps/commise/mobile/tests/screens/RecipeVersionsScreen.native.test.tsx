@@ -124,10 +124,15 @@ describe('RecipeVersionsScreen — populated', () => {
 });
 
 describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () => {
-    const recipeRefetch = vi.fn();
-    const versionsRefetch = vi.fn();
+    // Fresh spies per test — the vitest config runs without `clearMocks`, so a `vi.fn()` shared across `it`s
+    // in this describe would carry stale call counts (the "refetches on conflict" test's calls would leak
+    // into the "does NOT refetch" assertion that follows it).
+    let recipeRefetch: ReturnType<typeof vi.fn>;
+    let versionsRefetch: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
+        recipeRefetch = vi.fn();
+        versionsRefetch = vi.fn();
         useRecipeMock.mockReturnValue(
             recipeResult({ data: makeRecipeDetail({ currentVersion: 2 }), refetch: recipeRefetch as never }),
         );

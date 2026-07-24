@@ -34,6 +34,9 @@ type AuthorHandlesMock = {
     [K in keyof AuthorHandlesDal]: ReturnType<typeof vi.fn>;
 };
 
+/** The stub tx handle `transaction`'s mock hands `fn` — an opaque sentinel, asserted on by identity. */
+const FAKE_TX = Symbol('fake-tx');
+
 function makeDal(): DalMock {
     return {
         create: vi.fn(),
@@ -43,11 +46,15 @@ function makeDal(): DalMock {
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),
         addRecipe: vi.fn(),
+        addRecipes: vi.fn(),
         findMembership: vi.fn(),
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
         touchLastPulled: vi.fn(),
+        // S-R1: runs `fn` against FAKE_TX, mirroring the real DAL's `db.transaction(fn)` — so
+        // `cloneCollection`'s `create`/`addRecipes` calls inside the callback actually execute.
+        transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(FAKE_TX)),
     };
 }
 
@@ -87,15 +94,18 @@ describe('CollectionsService.cloneCollection', () => {
 
         const result = await service.cloneCollection(CLONER, SOURCE_ID);
 
+        // S-R1: `create` runs INSIDE the Unit-of-Work `transaction` opened — the tx handle it receives is
+        // the very one `dal.transaction` handed the callback.
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 ownerId: CLONER,
                 name: 'Sunday Roasts',
                 sourceCollectionId: SOURCE_ID,
             }),
+            FAKE_TX,
         );
         // A clone is the cloner's own collection — private by default (FR-010), never auto-public.
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }), FAKE_TX);
         expect(result.ownerId).toBe(CLONER);
         expect(result.ownerId).not.toBe(SOURCE_OWNER);
     });
@@ -109,9 +119,10 @@ describe('CollectionsService.cloneCollection', () => {
         dal.create.mockResolvedValue(
             makeCollectionRow({ id: CLONE_ID, ownerId: CLONER, sourceCollectionId: SOURCE_ID }),
         );
-        dal.addRecipe.mockImplementation(async (collectionId: string, recipeId: string, addedVia: string) =>
-            makeMembershipRow({ collectionId, recipeId, addedVia: addedVia as 'clone_seed' }),
-        );
+        dal.addRecipes.mockResolvedValue([
+            makeMembershipRow({ collectionId: CLONE_ID, recipeId: 'rec-a', addedVia: 'clone_seed' }),
+            makeMembershipRow({ collectionId: CLONE_ID, recipeId: 'rec-b', addedVia: 'clone_seed' }),
+        ]);
         const service = makeService(dal);
 
         await service.cloneCollection(CLONER, SOURCE_ID);
@@ -120,9 +131,8 @@ describe('CollectionsService.cloneCollection', () => {
         // `public OR owner_id = viewer`, so passing SOURCE_OWNER here would seed the clone with the
         // source owner's PRIVATE recipes — an access leak FR-011 forbids.
         expect(dal.listRecipes).toHaveBeenCalledWith(SOURCE_ID, CLONER);
-        expect(dal.addRecipe).toHaveBeenCalledTimes(2);
-        expect(dal.addRecipe).toHaveBeenCalledWith(CLONE_ID, 'rec-a', 'clone_seed');
-        expect(dal.addRecipe).toHaveBeenCalledWith(CLONE_ID, 'rec-b', 'clone_seed');
+        // S-R1: ONE bulk call carrying every seeded id, not a per-recipe loop (kills the N+1 too).
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, ['rec-a', 'rec-b'], 'clone_seed', FAKE_TX);
     });
 
     it('refuses to clone a PRIVATE collection (404 — a private collection is not discoverable)', async () => {
@@ -176,7 +186,9 @@ describe('CollectionsService.cloneCollection', () => {
 
         const result = await service.cloneCollection(CLONER, SOURCE_ID);
 
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        // Still called (so the DAL's own empty-array no-op is what prevents any SQL, not a service-level
+        // branch) — but with an EMPTY id list, so zero membership rows are ever written.
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, [], 'clone_seed', FAKE_TX);
         expect(result.id).toBe(CLONE_ID);
     });
 
@@ -199,7 +211,7 @@ describe('CollectionsService.cloneCollection', () => {
 
         await service.cloneCollection(CLONER, SOURCE_ID);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ sourceCollectionId: SOURCE_ID }));
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ sourceCollectionId: SOURCE_ID }), FAKE_TX);
     });
 
     it('surfaces a domain error rather than a raw throw when the source id is malformed', async () => {
@@ -254,6 +266,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
         expect(authorHandles.findHandle).toHaveBeenCalledWith(SOURCE_OWNER);
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({ sourceOwnerHandle: 'clara', sourceCollectionName: 'Keto Staples' }),
+            FAKE_TX,
         );
         expect(result.sourceOwnerHandle).toBe('clara');
         expect(result.sourceCollectionName).toBe('Keto Staples');
@@ -281,6 +294,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
 
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({ sourceOwnerHandle: null, sourceCollectionName: 'Keto Staples' }),
+            FAKE_TX,
         );
         // Omitted (not `null`) on the wire — the omit-null DTO convention (mirrors `sourceCollectionId`).
         expect(result.sourceOwnerHandle).toBeUndefined();

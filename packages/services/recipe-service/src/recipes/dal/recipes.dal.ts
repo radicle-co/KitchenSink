@@ -21,6 +21,7 @@ import {
     type RecipeStepRow,
     type RecipeVersionRow,
 } from '../../database/schema/index.js';
+import { type Writer } from '../../database/unit-of-work.js';
 import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
 import { activeRecipe } from './recipe-predicates.js';
@@ -165,9 +166,6 @@ export interface FindAllResult {
     rows: ListRecipeAggregate[];
     total: number;
 }
-
-/** A minimal writer surface satisfied by both the Drizzle client and a transaction handle. */
-type Writer = Pick<RecipeDrizzle, 'insert' | 'select' | 'update' | 'delete'>;
 
 /** Build the `recipe_steps` insert rows, assigning 1-based `stepNumber` from array order. Pure. */
 function toStepRows(

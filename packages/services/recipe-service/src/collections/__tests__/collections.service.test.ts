@@ -29,11 +29,14 @@ function makeDal(): DalMock {
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),
         addRecipe: vi.fn(),
+        addRecipes: vi.fn(),
         findMembership: vi.fn(),
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
         touchLastPulled: vi.fn(),
+        // Not exercised outside `cloneCollection`/`pullFromSource` here — runs `fn` against a stub tx.
+        transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
     };
 }
 

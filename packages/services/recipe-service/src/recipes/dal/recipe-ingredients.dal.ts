@@ -14,6 +14,7 @@ import { asc, eq, inArray } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeIngredients, type RecipeIngredientRow } from '../../database/schema/index.js';
+import { type Writer } from '../../database/unit-of-work.js';
 
 /**
  * A recipe ingredient line resolved to a catalog ingredient, ready to persist. `quantity` is a real
@@ -34,9 +35,6 @@ export interface ResolvedIngredientLine {
     userCarbsG?: number;
     userFatG?: number;
 }
-
-/** A writer surface satisfied by both the Drizzle client and a transaction handle. */
-type Writer = Pick<RecipeDrizzle, 'insert' | 'select' | 'delete'>;
 
 /** A read-only surface satisfied by both the Drizzle client and a transaction handle. */
 type Reader = Pick<RecipeDrizzle, 'select'>;

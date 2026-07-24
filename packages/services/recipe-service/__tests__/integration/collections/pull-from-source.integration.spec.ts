@@ -13,14 +13,20 @@
  *
  * Runs only when the harness DB is configured.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import pg from 'pg';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
 import { DrizzleProvider } from '../../../src/database/database.module.js';
-import type { RecipeDrizzle } from '../../../src/database/client.js';
+import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { collections, recipeCollections } from '../../../src/database/schema/collections.js';
 import { recipes } from '../../../src/database/schema/recipes.js';
+import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
+import { CollectionsService } from '../../../src/collections/collections.service.js';
+import { AuthorHandlesDal } from '../../../src/authors/dal/author-handles.dal.js';
+
+const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
 const CLONER = '01JPULL000CLONER000000000A';
 const SOURCE_OWNER = '01JPULL000SRCOWNER0000000B';
@@ -225,5 +231,110 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
 
         expect(res.status).toBe(400);
         expect(((await res.json()) as { code: string }).code).toBe('COLLECTION_NOT_CLONED');
+    });
+});
+
+/**
+ * S-R1 — atomicity of `pullFromSource`'s Unit-of-Work. Before the fix, the `diff.added` `addRecipe` loop
+ * and the trailing `touchLastPulled` were independent, auto-committed statements: a failure AFTER some
+ * memberships had already been inserted left them stranded while `last_pulled_at` never advanced (or vice
+ * versa). Instantiates the DAL/service directly over a real pool (mirroring
+ * `photos/reorder.integration.spec.ts`) and spies on `touchLastPulled` to fail INSIDE the transaction
+ * `pullFromSource` opens AFTER the bulk seed has run, proving the seed rolls back with it.
+ */
+describe.skipIf(!hasDatabaseUrl)('CollectionsService.pullFromSource atomicity (S-R1 unit-of-work)', () => {
+    let pool: pg.Pool;
+    let db: RecipeDrizzle;
+    let dal: CollectionsDal;
+    let service: CollectionsService;
+    let sourceId: string;
+
+    const ATOMIC_CLONER = '01JATOMICPULLCLONER0000AA';
+    const ATOMIC_SOURCE_OWNER = '01JATOMICPULLSRCOWNER00BB';
+
+    async function insertRecipe(title: string): Promise<string> {
+        const [row] = await db
+            .insert(recipes)
+            .values({
+                ownerId: ATOMIC_SOURCE_OWNER,
+                title,
+                visibility: 'public',
+                ingredientNamesText: title.toLowerCase(),
+                servings: 1,
+                prepTimeMinutes: 5,
+                cookTimeMinutes: 10,
+                totalTimeMinutes: 15,
+            })
+            .returning({ id: recipes.id });
+
+        return row!.id;
+    }
+
+    beforeAll(async () => {
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        db = createRecipeDrizzle(pool);
+        dal = new CollectionsDal(db);
+        service = new CollectionsService(dal, new AuthorHandlesDal(db));
+
+        const [source] = await db
+            .insert(collections)
+            .values({ ownerId: ATOMIC_SOURCE_OWNER, name: 'Atomic Pull Source', visibility: 'public' })
+            .returning({ id: collections.id });
+        sourceId = source!.id;
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    afterAll(async () => {
+        await db.delete(collections).where(eq(collections.ownerId, ATOMIC_CLONER));
+        await db.delete(collections).where(eq(collections.ownerId, ATOMIC_SOURCE_OWNER));
+        await db.delete(recipes).where(eq(recipes.ownerId, ATOMIC_SOURCE_OWNER));
+        await pool.end();
+    });
+
+    it('rolls back the newly-pulled memberships and leaves lastPulledAt untouched when the commit fails mid-transaction', async () => {
+        const clone = await service.cloneCollection(ATOMIC_CLONER, sourceId);
+        expect(clone.lastPulledAt).toBeUndefined();
+
+        // The source gains a recipe AFTER the clone, so the pull has something new to seed.
+        const addedLater = await insertRecipe('Added After Clone');
+        await db.insert(recipeCollections).values({ collectionId: sourceId, recipeId: addedLater, addedVia: 'manual' });
+
+        vi.spyOn(dal, 'touchLastPulled').mockRejectedValueOnce(new Error('simulated post-seed failure'));
+
+        await expect(service.pullFromSource(ATOMIC_CLONER, clone.id)).rejects.toThrow('simulated post-seed failure');
+
+        // THE no-orphan invariant for pull: `addRecipes` (the bulk seed) and `touchLastPulled` are the
+        // SAME transaction, so the membership the seed inserted must roll back when the commit fails —
+        // never left stranded while `last_pulled_at` stays unadvanced.
+        const members = await db
+            .select({ recipeId: recipeCollections.recipeId })
+            .from(recipeCollections)
+            .where(eq(recipeCollections.collectionId, clone.id));
+        expect(members.map((m) => m.recipeId)).not.toContain(addedLater);
+
+        const [row] = await db
+            .select({ lastPulledAt: collections.lastPulledAt })
+            .from(collections)
+            .where(eq(collections.id, clone.id));
+        expect(row?.lastPulledAt).toBeNull();
+    });
+
+    it('a pull that succeeds normally still seeds every added recipe AND stamps lastPulledAt (bulk path is not lossy)', async () => {
+        const clone = await service.cloneCollection(ATOMIC_CLONER, sourceId);
+        const addedLater = await insertRecipe('Second Successful Add');
+        await db.insert(recipeCollections).values({ collectionId: sourceId, recipeId: addedLater, addedVia: 'manual' });
+
+        const result = await service.pullFromSource(ATOMIC_CLONER, clone.id);
+
+        expect(result.addedRecipeIds).toEqual([addedLater]);
+        expect(result.collection.lastPulledAt).toBeDefined();
+        const members = await db
+            .select({ recipeId: recipeCollections.recipeId })
+            .from(recipeCollections)
+            .where(eq(recipeCollections.collectionId, clone.id));
+        expect(members.map((m) => m.recipeId)).toContain(addedLater);
     });
 });

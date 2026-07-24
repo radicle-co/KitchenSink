@@ -31,6 +31,9 @@ type DalMock = {
     [K in keyof CollectionsDal]: ReturnType<typeof vi.fn>;
 };
 
+/** The stub tx handle `transaction`'s mock hands `fn` — an opaque sentinel, asserted on by identity. */
+const FAKE_TX = Symbol('fake-tx');
+
 function makeDal(): DalMock {
     return {
         create: vi.fn(),
@@ -40,6 +43,7 @@ function makeDal(): DalMock {
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),
         addRecipe: vi.fn(),
+        addRecipes: vi.fn().mockResolvedValue([]),
         findMembership: vi.fn(),
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
@@ -47,6 +51,9 @@ function makeDal(): DalMock {
         // Default: a valid row so tests that don't care about `lastPulledAt` specifically (most of the
         // pre-Task-3 cases below) don't have to wire it — `toCollectionResponse` always needs a real row.
         touchLastPulled: vi.fn().mockResolvedValue(makeCollectionRow({ id: CLONE_ID })),
+        // S-R1: runs `fn` against FAKE_TX, mirroring the real DAL's `db.transaction(fn)` — so
+        // `pullFromSource`'s `addRecipes`/`touchLastPulled` calls inside the callback actually execute.
+        transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(FAKE_TX)),
     };
 }
 
@@ -103,14 +110,13 @@ describe('CollectionsService.pullFromSource', () => {
         wireFindById(dal);
         // Clone already has rec-a; the source has since gained rec-b.
         wireListRecipes(dal, ['rec-a'], ['rec-a', 'rec-b']);
-        dal.addRecipe.mockImplementation(async (collectionId: string, recipeId: string, addedVia: string) =>
-            makeMembershipRow({ collectionId, recipeId, addedVia: addedVia as 'pull' }),
-        );
+        dal.addRecipes.mockResolvedValue([makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' })]);
         const service = makeService(dal);
 
         const result = await service.pullFromSource(CLONER, CLONE_ID);
 
-        expect(dal.addRecipe).toHaveBeenCalledExactlyOnceWith(CLONE_ID, 'rec-b', 'pull');
+        // S-R1: ONE bulk call carrying every added id, not a per-recipe loop.
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, ['rec-b'], 'pull', FAKE_TX);
         expect(result.addedRecipeIds).toEqual(['rec-b']);
     });
 
@@ -132,7 +138,7 @@ describe('CollectionsService.pullFromSource', () => {
         wireFindById(dal);
         // rec-a is in the clone but no longer in the source — the clone keeps it.
         wireListRecipes(dal, ['rec-a'], ['rec-b']);
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' }));
+        dal.addRecipes.mockResolvedValue([makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' })]);
         const service = makeService(dal);
 
         await service.pullFromSource(CLONER, CLONE_ID);
@@ -150,8 +156,10 @@ describe('CollectionsService.pullFromSource', () => {
 
         const result = await service.pullFromSource(CLONER, CLONE_ID);
 
-        // It is already present, so it is not re-added — its `manual` provenance survives untouched.
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        // It is already present, so nothing is re-added — its `manual` provenance survives untouched. The
+        // bulk call still runs (the DAL's own empty-array guard is what prevents any SQL, not a
+        // service-level branch), but with an EMPTY id list, so zero membership rows are ever written.
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, [], 'pull', FAKE_TX);
         expect(result.addedRecipeIds).toEqual([]);
     });
 
@@ -163,7 +171,7 @@ describe('CollectionsService.pullFromSource', () => {
 
         const result = await service.pullFromSource(CLONER, CLONE_ID);
 
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, [], 'pull', FAKE_TX);
         expect(dal.removeRecipe).not.toHaveBeenCalled();
         expect(result.addedRecipeIds).toEqual([]);
     });
@@ -172,7 +180,7 @@ describe('CollectionsService.pullFromSource', () => {
         const dal = makeDal();
         wireFindById(dal);
         wireListRecipes(dal, ['rec-a'], ['rec-a', 'rec-b']);
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' }));
+        dal.addRecipes.mockResolvedValue([makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' })]);
         const touchedAt = new Date('2026-07-24T12:00:00.000Z');
         dal.touchLastPulled.mockResolvedValue(
             makeCollectionRow({
@@ -186,7 +194,9 @@ describe('CollectionsService.pullFromSource', () => {
 
         const result = await service.pullFromSource(CLONER, CLONE_ID);
 
-        expect(dal.touchLastPulled).toHaveBeenCalledExactlyOnceWith(CLONE_ID);
+        // S-R1: `touchLastPulled` runs in the SAME tx `addRecipes` did (the tx `dal.transaction` handed
+        // the callback).
+        expect(dal.touchLastPulled).toHaveBeenCalledExactlyOnceWith(CLONE_ID, FAKE_TX);
         expect(result.collection.lastPulledAt).toBe(touchedAt.toISOString());
     });
 
@@ -207,8 +217,8 @@ describe('CollectionsService.pullFromSource', () => {
 
         const result = await service.pullFromSource(CLONER, CLONE_ID);
 
-        expect(dal.addRecipe).not.toHaveBeenCalled();
-        expect(dal.touchLastPulled).toHaveBeenCalledExactlyOnceWith(CLONE_ID);
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, [], 'pull', FAKE_TX);
+        expect(dal.touchLastPulled).toHaveBeenCalledExactlyOnceWith(CLONE_ID, FAKE_TX);
         expect(result.collection.lastPulledAt).toBe(touchedAt.toISOString());
         expect(typeof result.collection.lastPulledAt).toBe('string');
         expect(Number.isNaN(Date.parse(result.collection.lastPulledAt as string))).toBe(false);
@@ -228,7 +238,7 @@ describe('CollectionsService.pullFromSource', () => {
         // A distinguishable domain error, not a silent no-op: the client asked for something the
         // collection cannot do, and 400 says so.
         expect(isRecipeDomainError(error)).toBe(true);
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
     });
 
     it('refuses a pull by anyone other than the clone owner', async () => {
@@ -237,7 +247,7 @@ describe('CollectionsService.pullFromSource', () => {
         const service = makeService(dal);
 
         await expect(service.pullFromSource('someone-else', CLONE_ID)).rejects.toBeDefined();
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
     });
 
     it('404s when the clone itself does not exist', async () => {
@@ -261,7 +271,7 @@ describe('CollectionsService.pullFromSource', () => {
         );
 
         expect(error).toBeDefined();
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
     });
 });
 
@@ -277,7 +287,7 @@ describe('CollectionsService.previewPull (W8-a.8 — read-only preview)', () => 
 
         expect(diff).toEqual({ added: ['rec-b'], removed: ['rec-c'], unchanged: ['rec-a'] });
         // A preview NEVER writes.
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
         expect(dal.removeRecipe).not.toHaveBeenCalled();
         // It reads through the read-only-transaction membership read, viewer-scoped to the cloner.
         expect(dal.previewMembershipIds).toHaveBeenCalledWith(CLONE_ID, SOURCE_ID, CLONER);
@@ -289,13 +299,13 @@ describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7
         const dal = makeDal();
         wireFindById(dal);
         wireListRecipes(dal, ['rec-a'], ['rec-a', 'rec-b']);
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' }));
+        dal.addRecipes.mockResolvedValue([makeMembershipRow({ recipeId: 'rec-b', addedVia: 'pull' })]);
         const service = makeService(dal);
 
         const previewed = { added: ['rec-b'], removed: [], unchanged: ['rec-a'] };
         const result = await service.pullFromSource(CLONER, CLONE_ID, previewed);
 
-        expect(dal.addRecipe).toHaveBeenCalledExactlyOnceWith(CLONE_ID, 'rec-b', 'pull');
+        expect(dal.addRecipes).toHaveBeenCalledExactlyOnceWith(CLONE_ID, ['rec-b'], 'pull', FAKE_TX);
         expect(result.addedRecipeIds).toEqual(['rec-b']);
     });
 
@@ -321,7 +331,7 @@ describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7
             'rec-a',
         ]);
         // And it did NOT silently re-add the recipe the user just deleted.
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
         // A drift 409 must not advance the last-pulled stamp either.
         expect(dal.touchLastPulled).not.toHaveBeenCalled();
     });
@@ -334,7 +344,7 @@ describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7
 
         const stalePreview = { added: ['rec-a'], removed: [], unchanged: [] };
         await expect(service.pullFromSource(CLONER, CLONE_ID, stalePreview)).rejects.toBeDefined();
-        expect(dal.addRecipe).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
         // A drift 409 must not advance the last-pulled stamp either.
         expect(dal.touchLastPulled).not.toHaveBeenCalled();
     });

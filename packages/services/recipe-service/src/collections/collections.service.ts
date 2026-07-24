@@ -291,21 +291,34 @@ export class CollectionsService {
         // never re-read on a later source-owner rename (CR-003).
         const sourceOwnerHandle = await this.authorHandles.findHandle(source.ownerId);
 
-        const clone = await this.dal.create({
-            ownerId: clonerId,
-            name: overrides.name ?? source.name,
-            description: overrides.description ?? source.description ?? undefined,
-            // A clone starts private regardless of the source's visibility — publishing is the
-            // cloner's own, separate decision (FR-010).
-            visibility: 'private',
-            sourceCollectionId: sourceId,
-            sourceOwnerHandle: sourceOwnerHandle ?? null,
-            sourceCollectionName: source.name,
-        });
+        // S-R1: the create + the bulk membership seed run in ONE transaction — a mid-seed failure (a
+        // constraint violation, a dropped connection) must roll back the collection insert too, never
+        // leaving an orphaned `collections` row with zero or a partial membership set behind.
+        const clone = await this.dal.transaction(async (tx) => {
+            const created = await this.dal.create(
+                {
+                    ownerId: clonerId,
+                    name: overrides.name ?? source.name,
+                    description: overrides.description ?? source.description ?? undefined,
+                    // A clone starts private regardless of the source's visibility — publishing is the
+                    // cloner's own, separate decision (FR-010).
+                    visibility: 'private',
+                    sourceCollectionId: sourceId,
+                    sourceOwnerHandle: sourceOwnerHandle ?? null,
+                    sourceCollectionName: source.name,
+                },
+                tx,
+            );
 
-        for (const recipe of seedRecipes) {
-            await this.dal.addRecipe(clone.id, recipe.id, RecipeCollectionAddedVia.CLONE_SEED);
-        }
+            await this.dal.addRecipes(
+                created.id,
+                seedRecipes.map((recipe) => recipe.id),
+                RecipeCollectionAddedVia.CLONE_SEED,
+                tx,
+            );
+
+            return created;
+        });
 
         return toCollectionResponse(clone, seedRecipes.length);
     }
@@ -352,14 +365,18 @@ export class CollectionsService {
             throw pullDriftError(collectionId, diff);
         }
 
-        // `addRecipe` is idempotent (ON CONFLICT DO NOTHING), so a benign concurrent double-submit is safe.
-        for (const recipeId of diff.added) {
-            await this.dal.addRecipe(collectionId, recipeId, RecipeCollectionAddedVia.PULL);
-        }
+        // S-R1: the bulk seed + the `last_pulled_at` stamp run in ONE transaction — a failure between the
+        // two (or inside the bulk insert itself) must roll back any memberships already written, never
+        // leaving a pull half-applied (some new recipes seeded, the "last synced" stamp not advanced, or
+        // vice versa). `addRecipes` is idempotent (ON CONFLICT DO NOTHING), so a benign concurrent
+        // double-submit inside the tx is still safe.
+        const touched = await this.dal.transaction(async (tx) => {
+            await this.dal.addRecipes(collectionId, diff.added, RecipeCollectionAddedVia.PULL, tx);
 
-        // W5 Task 3: "last pulled" means the user SYNCED, not "something changed" — stamp it even when
-        // `diff.added` is empty. Build the response from the UPDATED row so `lastPulledAt` is present.
-        const touched = await this.dal.touchLastPulled(collectionId);
+            // W5 Task 3: "last pulled" means the user SYNCED, not "something changed" — stamp it even
+            // when `diff.added` is empty.
+            return this.dal.touchLastPulled(collectionId, tx);
+        });
 
         return {
             collection: toCollectionResponse(touched, cloneIds.length + diff.added.length),

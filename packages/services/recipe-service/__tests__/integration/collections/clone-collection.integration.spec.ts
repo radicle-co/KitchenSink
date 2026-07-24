@@ -18,15 +18,21 @@
  * booted app, so the source's rows are seeded directly via the app's Drizzle client and the HTTP calls
  * run as the cloner. Runs only when the harness DB is configured.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
+import pg from 'pg';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
 import { DrizzleProvider } from '../../../src/database/database.module.js';
-import type { RecipeDrizzle } from '../../../src/database/client.js';
+import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { collections, recipeCollections } from '../../../src/database/schema/collections.js';
 import { recipes } from '../../../src/database/schema/recipes.js';
 import { authorHandles } from '../../../src/database/schema/author-handles.js';
+import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
+import { CollectionsService } from '../../../src/collections/collections.service.js';
+import { AuthorHandlesDal } from '../../../src/authors/dal/author-handles.dal.js';
+
+const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
 /** The dev-bypass principal every HTTP call below authenticates as. */
 const CLONER = '01JCLONE00CLONER000000000A';
@@ -196,5 +202,106 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
             .from(collections)
             .where(and(eq(collections.ownerId, CLONER), eq(collections.sourceCollectionId, priv!.id)));
         expect(created).toEqual([]);
+    });
+});
+
+/**
+ * S-R1 — atomicity of `cloneCollection`'s Unit-of-Work. Before the fix, `create` and the per-recipe
+ * `addRecipe` loop were independent, auto-committed statements: a mid-seed failure left an ORPHANED
+ * `collections` row with zero (or a partial set of) memberships. Instantiates the DAL/service directly
+ * over a real pool (mirroring `photos/reorder.integration.spec.ts`) and spies on the DAL's bulk seed
+ * method to fail INSIDE the transaction `cloneCollection` opens, proving the created row rolls back with
+ * it rather than surviving as an orphan.
+ */
+describe.skipIf(!hasDatabaseUrl)('CollectionsService.cloneCollection atomicity (S-R1 unit-of-work)', () => {
+    let pool: pg.Pool;
+    let db: RecipeDrizzle;
+    let dal: CollectionsDal;
+    let service: CollectionsService;
+    let sourceId: string;
+
+    const ATOMIC_CLONER = '01JATOMICCLONER00000000AA';
+    const ATOMIC_SOURCE_OWNER = '01JATOMICSRCOWNER0000000B';
+
+    async function insertRecipe(title: string): Promise<string> {
+        const [row] = await db
+            .insert(recipes)
+            .values({
+                ownerId: ATOMIC_SOURCE_OWNER,
+                title,
+                visibility: 'public',
+                ingredientNamesText: title.toLowerCase(),
+                servings: 1,
+                prepTimeMinutes: 5,
+                cookTimeMinutes: 10,
+                totalTimeMinutes: 15,
+            })
+            .returning({ id: recipes.id });
+
+        return row!.id;
+    }
+
+    beforeAll(async () => {
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        db = createRecipeDrizzle(pool);
+        dal = new CollectionsDal(db);
+        service = new CollectionsService(dal, new AuthorHandlesDal(db));
+
+        const [source] = await db
+            .insert(collections)
+            .values({ ownerId: ATOMIC_SOURCE_OWNER, name: 'Atomicity Source', visibility: 'public' })
+            .returning({ id: collections.id });
+        sourceId = source!.id;
+
+        const recipeIds = [await insertRecipe('Atomic One'), await insertRecipe('Atomic Two')];
+        await db
+            .insert(recipeCollections)
+            .values(recipeIds.map((recipeId) => ({ collectionId: sourceId, recipeId, addedVia: 'manual' as const })));
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    afterAll(async () => {
+        await db.delete(collections).where(eq(collections.ownerId, ATOMIC_CLONER));
+        await db.delete(collections).where(eq(collections.ownerId, ATOMIC_SOURCE_OWNER));
+        await db.delete(recipes).where(eq(recipes.ownerId, ATOMIC_SOURCE_OWNER));
+        await pool.end();
+    });
+
+    it('rolls back the created clone row (no orphan) when the bulk membership seed fails mid-transaction', async () => {
+        vi.spyOn(dal, 'addRecipes').mockRejectedValueOnce(new Error('simulated mid-seed failure'));
+
+        await expect(service.cloneCollection(ATOMIC_CLONER, sourceId)).rejects.toThrow('simulated mid-seed failure');
+
+        // THE no-orphan invariant: the collection insert and the membership seed are the SAME transaction,
+        // so a failure in the seed must roll back the already-inserted collection row too.
+        const orphaned = await db
+            .select({ id: collections.id })
+            .from(collections)
+            .where(eq(collections.ownerId, ATOMIC_CLONER));
+        expect(orphaned).toEqual([]);
+
+        // And no partial membership set survives either (nothing to seed a non-existent clone with, but
+        // asserted explicitly so a future refactor that decouples the two writes cannot regress silently).
+        const anyMemberships = await db
+            .select({ recipeId: recipeCollections.recipeId })
+            .from(recipeCollections)
+            .innerJoin(collections, eq(recipeCollections.collectionId, collections.id))
+            .where(eq(collections.ownerId, ATOMIC_CLONER));
+        expect(anyMemberships).toEqual([]);
+    });
+
+    it('a clone that succeeds normally still seeds every eligible member (bulk path is not silently lossy)', async () => {
+        const result = await service.cloneCollection(ATOMIC_CLONER, sourceId);
+
+        const members = await db
+            .select({ recipeId: recipeCollections.recipeId, addedVia: recipeCollections.addedVia })
+            .from(recipeCollections)
+            .where(eq(recipeCollections.collectionId, result.id));
+
+        expect(members).toHaveLength(2);
+        expect(members.every((m) => m.addedVia === 'clone_seed')).toBe(true);
     });
 });

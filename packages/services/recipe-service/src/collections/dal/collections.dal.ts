@@ -27,6 +27,7 @@ import {
 } from '../../database/schema/collections.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
 import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
+import { withTransaction, type RecipeTx, type Writer } from '../../database/unit-of-work.js';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
 export interface CreateCollectionRow {
@@ -67,9 +68,23 @@ export interface CollectionPage {
 export class CollectionsDal {
     public constructor(@Inject(DrizzleProvider) private readonly db: RecipeDrizzle) {}
 
-    /** Insert a new collection and return the persisted row. */
-    public async create(input: CreateCollectionRow): Promise<CollectionRow> {
-        const inserted = await this.db
+    /**
+     * Run `fn` as one Postgres Unit-of-Work over this DAL's client (S-R1). The service layer calls this
+     * to atomize a create + bulk seed (`cloneCollection`) or a bulk seed + timestamp stamp
+     * (`pullFromSource`) so a mid-write failure rolls back everything already written in `fn`, rather than
+     * leaving an orphaned `collections` row or a partial membership set. `create`/`addRecipe`/`addRecipes`/
+     * `touchLastPulled` all accept the `tx` this hands `fn`, so they enlist instead of auto-committing.
+     */
+    public async transaction<T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> {
+        return withTransaction(this.db, fn);
+    }
+
+    /**
+     * Insert a new collection and return the persisted row. Pass `tx` (from {@link transaction}) to enlist
+     * this insert in a caller-managed Unit-of-Work; defaults to running standalone over this DAL's client.
+     */
+    public async create(input: CreateCollectionRow, tx: Writer = this.db): Promise<CollectionRow> {
+        const inserted = await tx
             .insert(collections)
             .values({
                 ownerId: input.ownerId,
@@ -141,12 +156,14 @@ export class CollectionsDal {
      * Stamp `last_pulled_at` (W5 Task 3) with the CURRENT time, server-derived — never client input.
      * `updated_at` is bumped alongside it, matching {@link update}'s convention. Called once per
      * successful `pullFromSource` commit, regardless of whether the pull added any recipes: "last
-     * pulled" means "the user last synced", not "the last time something changed".
+     * pulled" means "the user last synced", not "the last time something changed". Pass `tx` (from
+     * {@link transaction}) to enlist this in the same Unit-of-Work as the bulk membership seed, so a pull
+     * commits (or rolls back) its stamp and its new memberships together.
      *
      * @sideEffect Updates the collection row's `last_pulled_at` + `updated_at`.
      */
-    public async touchLastPulled(id: string): Promise<CollectionRow> {
-        const updated = await this.db
+    public async touchLastPulled(id: string, tx: Writer = this.db): Promise<CollectionRow> {
+        const updated = await tx
             .update(collections)
             .set({ lastPulledAt: new Date(), updatedAt: new Date() })
             .where(eq(collections.id, id))
@@ -188,13 +205,15 @@ export class CollectionsDal {
     /**
      * Add a recipe to a collection (idempotent). Returns the membership row whether it was newly
      * inserted or already present. Many-to-many: the same recipe can live in any number of collections.
+     * Pass `tx` (from {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
      */
     public async addRecipe(
         collectionId: string,
         recipeId: string,
         addedVia: RecipeCollectionAddedVia = 'manual',
+        tx: Writer = this.db,
     ): Promise<RecipeCollectionRow> {
-        const inserted = await this.db
+        const inserted = await tx
             .insert(recipeCollections)
             .values({ collectionId, recipeId, addedVia })
             .onConflictDoNothing()
@@ -206,7 +225,7 @@ export class CollectionsDal {
             return row;
         }
 
-        const existing = await this.findMembership(collectionId, recipeId);
+        const existing = await this.findMembership(collectionId, recipeId, tx);
 
         if (!existing) {
             throw new Error('Membership insert conflicted but no existing row was found.');
@@ -215,9 +234,45 @@ export class CollectionsDal {
         return existing;
     }
 
-    /** Look up a single membership row, or `undefined`. */
-    public async findMembership(collectionId: string, recipeId: string): Promise<RecipeCollectionRow | undefined> {
-        const rows = await this.db
+    /**
+     * Bulk-add recipes to a collection in ONE `insert().values([...])` statement (S-R1) — the atomic,
+     * N+1-free replacement for looping {@link addRecipe} per recipe. Idempotent per row via the same
+     * `ON CONFLICT DO NOTHING` {@link addRecipe} uses; unlike `addRecipe`, a conflicted row is simply
+     * absent from the returned array rather than re-fetched (the callers — `cloneCollection`'s seed count
+     * and `pullFromSource`'s added-id list — already derive their counts from the pre-computed id set, not
+     * from this return value). A no-op (no statement at all) when `recipeIds` is empty, so a clone/pull
+     * with nothing new to seed never issues a zero-row `INSERT`.
+     *
+     * @sideEffect Inserts 0..N `recipe_collections` rows.
+     */
+    public async addRecipes(
+        collectionId: string,
+        recipeIds: readonly string[],
+        addedVia: RecipeCollectionAddedVia,
+        tx: Writer = this.db,
+    ): Promise<RecipeCollectionRow[]> {
+        if (recipeIds.length === 0) {
+            return [];
+        }
+
+        return tx
+            .insert(recipeCollections)
+            .values(recipeIds.map((recipeId) => ({ collectionId, recipeId, addedVia })))
+            .onConflictDoNothing()
+            .returning();
+    }
+
+    /**
+     * Look up a single membership row, or `undefined`. Accepts an optional reader (a `tx`, when called
+     * from inside {@link addRecipe}'s conflict fallback) so the lookup reads through the SAME transaction
+     * as the insert it followed, rather than a second, out-of-band connection.
+     */
+    public async findMembership(
+        collectionId: string,
+        recipeId: string,
+        reader: Pick<Writer, 'select'> = this.db,
+    ): Promise<RecipeCollectionRow | undefined> {
+        const rows = await reader
             .select()
             .from(recipeCollections)
             .where(and(eq(recipeCollections.collectionId, collectionId), eq(recipeCollections.recipeId, recipeId)))

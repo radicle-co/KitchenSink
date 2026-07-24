@@ -16,6 +16,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipePhotos, type RecipePhotoRow } from '../../database/schema/index.js';
+import { type Writer } from '../../database/unit-of-work.js';
 import { maxPhotosExceeded } from '../photo.error.js';
 import { isExactReorder } from '../photo-reorder.js';
 
@@ -37,9 +38,6 @@ export interface CreatePhotoInput {
     /** The object's byte size from the S3 HEAD (validated ≤ 5 MB upstream). */
     sizeBytes: number;
 }
-
-/** A minimal writer surface satisfied by both the Drizzle client and a transaction handle. */
-type Writer = Pick<RecipeDrizzle, 'insert' | 'select' | 'update' | 'delete'>;
 
 export class PhotosDal {
     public constructor(private readonly db: RecipeDrizzle) {}

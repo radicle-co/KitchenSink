@@ -238,6 +238,60 @@ describe('CollectionsDal.addRecipe', () => {
     });
 });
 
+describe('CollectionsDal.addRecipes (S-R1 — bulk membership seed)', () => {
+    it('inserts N membership rows in ONE insert statement, with onConflictDoNothing idempotency', async () => {
+        const fake = createFakeDb();
+        const rows = [
+            makeMembershipRow({ recipeId: 'r1', addedVia: 'clone_seed' }),
+            makeMembershipRow({ recipeId: 'r2', addedVia: 'clone_seed' }),
+            makeMembershipRow({ recipeId: 'r3', addedVia: 'clone_seed' }),
+        ];
+        fake.queue(rows);
+        const dal = new CollectionsDal(fake.db);
+
+        const result = await dal.addRecipes('c1', ['r1', 'r2', 'r3'], 'clone_seed');
+
+        expect(result).toBe(rows);
+        // ONE `insert` call (not one per recipe) — the whole point of the bulk path (kills the N+1).
+        expect(methodsOf(fake)).toEqual(['insert', 'values', 'onConflictDoNothing', 'returning']);
+        expect(fake.calls.filter((call) => call.method === 'insert')).toHaveLength(1);
+        // All N rows passed to a SINGLE `.values([...])` call, each carrying the given provenance.
+        const valuesArg = fake.calls[1]?.args[0] as Array<Record<string, unknown>>;
+        expect(valuesArg).toHaveLength(3);
+        expect(valuesArg).toEqual([
+            { collectionId: 'c1', recipeId: 'r1', addedVia: 'clone_seed' },
+            { collectionId: 'c1', recipeId: 'r2', addedVia: 'clone_seed' },
+            { collectionId: 'c1', recipeId: 'r3', addedVia: 'clone_seed' },
+        ]);
+    });
+
+    it('is a no-op (no insert call at all) when given an empty recipe id list', async () => {
+        const fake = createFakeDb();
+        const dal = new CollectionsDal(fake.db);
+
+        const result = await dal.addRecipes('c1', [], 'pull');
+
+        expect(result).toEqual([]);
+        expect(methodsOf(fake)).toEqual([]);
+    });
+
+    it('accepts an optional tx handle so it can enlist in a caller-supplied Unit-of-Work', async () => {
+        const fake = createFakeDb();
+        const outerFake = createFakeDb();
+        const rows = [makeMembershipRow({ recipeId: 'r1', addedVia: 'pull' })];
+        outerFake.queue(rows);
+        // Construct the DAL over one (unused) db, but pass a DIFFERENT fake as the tx — proves the write
+        // goes through the passed tx, not `this.db`, when one is supplied.
+        const dal = new CollectionsDal(fake.db);
+
+        const result = await dal.addRecipes('c1', ['r1'], 'pull', outerFake.db);
+
+        expect(result).toBe(rows);
+        expect(methodsOf(fake)).toEqual([]); // nothing ran against the DAL's own db
+        expect(methodsOf(outerFake)).toEqual(['insert', 'values', 'onConflictDoNothing', 'returning']);
+    });
+});
+
 describe('CollectionsDal.removeRecipe', () => {
     it('returns true when a membership was removed', async () => {
         const fake = createFakeDb();

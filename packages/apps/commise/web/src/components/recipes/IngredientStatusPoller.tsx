@@ -13,9 +13,8 @@
  * repeated callback fires cannot loop, and for unmounting this poller once the line is no longer `PENDING`
  * (which also stops the query).
  */
-import { useIngredientStatus } from '@kitchensink/recipe-service-client/hooks';
+import { usePollIngredientStatus } from '@commise/features-recipes/hooks';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import { useEffect } from 'react';
 import type { FC } from 'react';
 
 /** Props for {@link IngredientStatusPoller}. */
@@ -33,14 +32,7 @@ export interface IngredientStatusPollerProps {
  * @returns Nothing (headless) — the line's badge is rendered by the form.
  */
 export const IngredientStatusPoller: FC<IngredientStatusPollerProps> = ({ ingredientId, onStatus }) => {
-    const status = useIngredientStatus(ingredientId);
-    const observed = status.data?.foodResolutionStatus;
-
-    useEffect(() => {
-        if (observed !== undefined) {
-            onStatus(ingredientId, observed);
-        }
-    }, [ingredientId, observed, onStatus]);
+    usePollIngredientStatus(ingredientId, onStatus);
 
     return null;
 };

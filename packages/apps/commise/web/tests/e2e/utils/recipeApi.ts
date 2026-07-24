@@ -8,7 +8,9 @@ import {
     type RecipeDifficulty,
     type RecipeFacetCount,
     type RecipePhoto,
+    type RecipeSnapshot,
     type RecipeStatus,
+    type RecipeVersion,
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type {
@@ -20,6 +22,7 @@ import type {
     PullFromSourceResponse,
     RecipeSearchFacets,
     RecipeSearchResponse,
+    RestoreVersionResponse,
     UploadUrlResponse,
 } from '@kitchensink/recipe-service-client';
 
@@ -50,6 +53,8 @@ const MOCK_S3_ORIGIN = 'https://mock-s3.recipe-photos.e2e.example.com';
 const ISO = '2026-01-01T00:00:00.000Z';
 /** Distinct from {@link ISO} so a spec can observe `lastPulledAt` actually CHANGING after a pull commits. */
 const PULLED_ISO = '2026-01-02T00:00:00.000Z';
+/** Distinct from {@link ISO}/{@link PULLED_ISO} — the `createdAt` a version-restore records (W6 Task 6). */
+const RESTORED_ISO = '2026-01-03T00:00:00.000Z';
 
 /** The contract's `ErrorResponse` body for a 404 (`required: [code, message]`). */
 const NOT_FOUND_BODY = { code: 'NOT_FOUND', message: 'Resource not found' };
@@ -184,6 +189,50 @@ export function makeRecipeDetail(over: Partial<RecipeDetail> = {}): RecipeDetail
         steps: over.steps ?? [{ stepNumber: 1, instruction: 'Combine and cook.' }],
         photos: over.photos ?? [],
         nutrition: over.nutrition ?? { calories: 420, proteinG: 12, carbsG: 40, fatG: 18, isComplete: true },
+    };
+}
+
+/** A fully-valid version snapshot (W6 Task 6) — the full domain shape `RecipeVersion.snapshot` carries
+ *  (distinct from `RecipeDetail`'s lighter wire-projection ingredients/steps); overrides win. */
+function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot {
+    return {
+        version: 1,
+        title: 'Seed Recipe',
+        description: 'A seeded recipe.',
+        steps: [{ id: 'step_seed_1', recipeId: 'rec_seed', stepNumber: 1, instruction: 'Combine and cook.' }],
+        ingredients: [
+            {
+                id: 'ri_seed_1',
+                recipeId: 'rec_seed',
+                ingredientId: 'ing_salt',
+                quantity: 1,
+                unit: 'tsp',
+                sortOrder: 1,
+                ingredientName: 'Salt',
+                isUserEntered: false,
+            },
+        ],
+        servings: 4,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 20,
+        ...over,
+    };
+}
+
+/** A fully-valid recipe version-history row (W6 Task 6); overrides win. Derives a matching snapshot
+ *  `version` from `versionNumber` (mirroring `@kitchensink/recipe-core/testing`'s `makeRecipeVersion`) so an
+ *  override of `versionNumber` alone still produces an internally-consistent pair. */
+export function makeRecipeVersion(over: Partial<RecipeVersion> = {}): RecipeVersion {
+    const versionNumber = over.versionNumber ?? 1;
+
+    return {
+        id: `ver_${versionNumber}`,
+        recipeId: 'rec_seed',
+        versionNumber,
+        snapshot: makeVersionSnapshot({ version: versionNumber }),
+        createdBy: 'usr_e2e',
+        createdAt: ISO,
+        ...over,
     };
 }
 
@@ -463,6 +512,15 @@ export interface MockRecipeApiOptions {
      * `hasMore`; a pagination spec overrides this to a small number rather than seeding 21+ collections.
      */
     readonly collectionsPageSize?: number;
+    /**
+     * A recipe's version history (W6 Task 6), keyed by recipe id — `GET /v1/recipes/{id}/versions` serves
+     * these DESCENDING by `versionNumber` regardless of the array order given here (mirrors the service's
+     * real `ORDER BY version_number DESC`, `versions.dal.ts`). A recipe absent here has no version history
+     * (an empty list) — the honest default for a recipe seeded without one. Restoring a version APPENDS a
+     * new, higher-numbered version (never rewrites history) and advances the recipe's `currentVersion`,
+     * exactly as the real restore endpoint does.
+     */
+    readonly recipeVersions?: Readonly<Record<string, readonly RecipeVersion[]>>;
 }
 
 /**
@@ -483,6 +541,11 @@ export async function mockRecipeApi(
     const collectionsPageSize = options.collectionsPageSize ?? 20;
     const store = new Map<string, RecipeDetail>();
     const collections = new Map<string, MockCollection>();
+    // Version history (W6 Task 6) — id -> its versions, MUTATED in place by a restore (appended, never
+    // rewritten) so a subsequent `GET .../versions` reflects it.
+    const recipeVersions = new Map<string, RecipeVersion[]>(
+        Object.entries(options.recipeVersions ?? {}).map(([id, versions]) => [id, [...versions]]),
+    );
     // Ratings (FR-013). The viewer's OWN rating per recipe (id → stars), held apart from the base aggregate of
     // OTHER users' ratings captured at seed time, so the recomputed `averageRating`/`ratingCount` model the
     // real trigger: a per-user upsert (re-rating REPLACES, never adds — Sc7) plus an idempotent remove (Sc10).
@@ -643,6 +706,95 @@ export async function mockRecipeApi(
             const id = photosListPath[1] as string;
 
             return route.fulfill({ json: photoStore.get(id) ?? [] });
+        }
+
+        // ─── Version history (W6 Task 6) ───────────────────────────────────────────────────────────
+        // Ordered most-specific-first (restore, then a single version, then the list) so a longer path
+        // always wins — the same discipline the photo/rating routes above follow.
+
+        // Restore: rewrite the recipe from the target version's snapshot and APPEND a new, higher-numbered
+        // version recording the restore (never rewrites history — mirrors `RecipesService.restore`).
+        const restoreVersionPath = path.match(/\/v1\/recipes\/([^/]+)\/versions\/([^/]+)\/restore$/);
+
+        if (restoreVersionPath && method === 'POST') {
+            const id = restoreVersionPath[1] as string;
+            const versionNumber = Number(restoreVersionPath[2]);
+            const current = store.get(id);
+            const versions = recipeVersions.get(id) ?? [];
+            const target = versions.find((version) => version.versionNumber === versionNumber);
+
+            if (!current || !target) {
+                return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+            }
+
+            const nextVersionNumber =
+                Math.max(current.currentVersion, ...versions.map((version) => version.versionNumber)) + 1;
+            const { snapshot } = target;
+            const restoredDetail: RecipeDetail = {
+                ...current,
+                title: snapshot.title,
+                description: snapshot.description,
+                servings: snapshot.servings,
+                prepTimeMinutes: snapshot.prepTimeMinutes,
+                cookTimeMinutes: snapshot.cookTimeMinutes,
+                totalTimeMinutes: snapshot.prepTimeMinutes + snapshot.cookTimeMinutes,
+                currentVersion: nextVersionNumber,
+                ingredients: snapshot.ingredients.map((ingredient) => ({
+                    ingredientId: ingredient.ingredientId,
+                    name: ingredient.ingredientName,
+                    quantity: ingredient.quantity,
+                    ...(ingredient.unit !== undefined ? { unit: ingredient.unit } : {}),
+                    ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                    isUserEntered: ingredient.isUserEntered,
+                })),
+                steps: snapshot.steps.map((step) => ({
+                    stepNumber: step.stepNumber,
+                    instruction: step.instruction,
+                    ...(step.timerSeconds !== undefined ? { timerSeconds: step.timerSeconds } : {}),
+                })),
+            };
+            store.set(id, restoredDetail);
+
+            const restoredVersion: RecipeVersion = {
+                id: `ver_restore_${nextVersionNumber}`,
+                recipeId: id,
+                versionNumber: nextVersionNumber,
+                snapshot: { ...snapshot, version: nextVersionNumber },
+                createdBy: viewerId,
+                changeSummary: `Restored from version ${versionNumber}`,
+                createdAt: RESTORED_ISO,
+            };
+            recipeVersions.set(id, [...versions, restoredVersion]);
+
+            const response: RestoreVersionResponse = {
+                recipe: restoredDetail,
+                restoredFromVersion: versionNumber,
+                currentVersion: nextVersionNumber,
+            };
+
+            return route.fulfill({ json: response });
+        }
+
+        // A single version snapshot — served for completeness; the version-history container reads
+        // Preview/Compare data straight off the already-loaded list (`useRecipeVersions`), never this route.
+        const singleVersionPath = path.match(/\/v1\/recipes\/([^/]+)\/versions\/([^/]+)$/);
+
+        if (singleVersionPath && method === 'GET') {
+            const id = singleVersionPath[1] as string;
+            const versionNumber = Number(singleVersionPath[2]);
+            const version = (recipeVersions.get(id) ?? []).find((v) => v.versionNumber === versionNumber);
+
+            return version ? route.fulfill({ json: version }) : route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+        }
+
+        // The version list — newest-first, mirroring the service's real `ORDER BY version_number DESC`.
+        const versionsListPath = path.match(/\/v1\/recipes\/([^/]+)\/versions$/);
+
+        if (versionsListPath && method === 'GET') {
+            const id = versionsListPath[1] as string;
+            const versions = [...(recipeVersions.get(id) ?? [])].sort((a, b) => b.versionNumber - a.versionNumber);
+
+            return route.fulfill({ json: versions });
         }
 
         // Clone → a new recipe owned by the viewer, attributed to the source.

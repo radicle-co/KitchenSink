@@ -1,0 +1,148 @@
+appId: io.commise.mobile
+---
+# Recipe version history — preview, compare, and restore (W6 Task 6, FR-007b). Mobile mirror of the web
+# Playwright `versions.spec.ts`. Signs in, opens the seeded recipe, and performs TWO separate edits/saves:
+# `recipe-service`'s seed inserts the recipe row directly via SQL (`database/seed.ts`) — bypassing
+# `RecipesService.recordSnapshot`, the ONE place create/update/clone record a version row — so the seeded
+# recipe starts with NO version history at all. The FIRST save (EDIT 1) records the first version row
+# (versionNumber 2 — the seed's `currentVersion` starts at 1 and this bumps it); the SECOND save (EDIT 2)
+# records a second (versionNumber 3, the new current). That gives the version-history screen exactly the two
+# entries this flow needs to drive Preview, Compare, and Restore for real, against a real backend.
+#
+# LIMITATION — editor/device attribution ("by @handle (from device)", W6 Task 2 row copy) is NOT asserted
+# here. `RecipesService.update` (recipe-service/src/recipes/recipes.service.ts) never passes an
+# `editorHandle` to `recordSnapshot` — only `create` does — so EVERY version an edit produces (the only kind
+# reachable through this flow; the seed itself records none) carries no `editorHandle`, and
+# `formatVersionAttribution` renders no attribution line at all when it is absent. There is no reachable
+# real-backend path to a version WITH attribution today. The attribution copy is covered end-to-end by the
+# web Playwright spec (`versions.spec.ts`, which controls the mock and injects it) and by
+# `RecipeVersionList.test.tsx`/`.native.test.tsx`. Mirrors `photos.yaml`'s precedent of documenting an
+# undrivable step inline rather than silently skipping it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to it rather than a
+# `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+
+# ── EDIT 1 (creates version 2) ── the seed carries no ingredients/steps; Publish (whole-form validation)
+# needs >= 1 of each, added via the freeform create exactly as `edit.yaml` does.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (v2)'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Marinate for two hours.'
+# Publish is the sticky top-bar action, present on every step — no scroll (and no forward `Next` to step 4)
+# needed to reach it (same reasoning as `conflict-merge.yaml`).
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible:
+          text: 'Mediterranean Grilled Lamb .v2.*'
+      timeout: 40000
+
+# ── EDIT 2 (creates version 3, the new current) ── the ingredient/step added in EDIT 1 already persist, so
+# this pass changes ONLY the title and Publishes straight from Step 1 — a deliberately lighter second pass
+# (see the module note above on Publish's sticky top-bar availability), keeping this flow's cost down while
+# still producing a second, DIFFERENT version to preview/compare/restore against.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (v3)'
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible:
+          text: 'Mediterranean Grilled Lamb .v3.*'
+      timeout: 40000
+
+# ── VERSION HISTORY ── the owner-action entry point sits alongside "Edit recipe" at the foot of the detail.
+- scrollUntilVisible:
+      element: 'Version history'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Version history'
+- assertVisible: 'Version history'
+
+# v3 (current, not restorable) changed ONLY the title versus its immediate prior (v2, the OLDEST recorded
+# version — the seed itself recorded none, so v2 has no prior of its own and reads "Initial version").
+- assertVisible: 'Current version'
+- assertVisible: 'Changed: Title'
+- assertVisible: 'Initial version'
+
+# PREVIEW — a past version's own content, plus its changed-from-current summary. v2 and v3 share the SAME
+# ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero.
+- tapOn: 'Preview version 2'
+- assertVisible:
+      text: 'Version 2 Preview: Mediterranean Grilled Lamb .v2.*'
+- assertVisible: 'Changed from current: 0 ingredients, 0 steps'
+- tapOn: 'Keep current version'
+- assertNotVisible: 'Keep current version'
+
+# COMPARE — select the past version and the current one; the Diff Summary + changed-only fields render. Only
+# the title changed between v2 and v3, so Modified: 1 and no adds/removes.
+- tapOn: 'Select version 2 to compare'
+- tapOn: 'Select version 3 to compare'
+- assertVisible: 'Compare v3 vs v2'
+- assertVisible: 'Added: 0'
+- assertVisible: 'Removed: 0'
+- assertVisible: 'Modified: 1'
+- assertVisible: 'Title'
+- tapOn: 'Close compare'
+- assertNotVisible: 'Close compare'
+
+# RESTORE — restoring v2 records a NEW version (4) and advances `currentVersion` past 3: observable as v3
+# losing its current status and becoming restorable again, once the post-restore refetch lands.
+- assertNotVisible: 'Restore version 3'
+- tapOn: 'Restore version 2'
+- extendedWaitUntil:
+      visible: 'Restore version 3'
+      timeout: 30000

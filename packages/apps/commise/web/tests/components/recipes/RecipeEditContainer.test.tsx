@@ -248,11 +248,15 @@ describe('RecipeEditContainer', () => {
         expect(pushMock).not.toHaveBeenCalled();
     });
 
-    it('Save Draft persists with a draft status, then navigates back to the detail route (onSaved)', async () => {
+    it('Save Draft on a recipe seeded as "draft" persists with a draft status, then navigates (onSaved)', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
-        const updateSpy = vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ title: 'Weeknight Pasta', status: 'draft' }),
+        );
+        const updateSpy = vi
+            .spyOn(client, 'updateRecipe')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', status: 'draft' }));
 
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
@@ -264,6 +268,30 @@ describe('RecipeEditContainer', () => {
         expect(input.status).toBe('draft');
         // `useRecipeEditor`'s `onSaved` fires on every successful save (draft or publish) — same navigation
         // the pre-wizard "Save changes" always used.
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+    });
+
+    // Regression (opus review, Important #1): Save Draft must never downgrade an already-published recipe —
+    // it used to send `status: 'draft'` unconditionally, which would silently unpublish a live recipe.
+    it('Save Draft on a recipe seeded as "published" does NOT downgrade — preserves status: "published"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ title: 'Weeknight Pasta', status: 'published' }),
+        );
+        const updateSpy = vi
+            .spyOn(client, 'updateRecipe')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', status: 'published' }));
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await screen.findByRole('textbox', { name: 'Title' });
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+        const [, input] = updateSpy.mock.calls[0]!;
+        expect(input.status).toBe('published');
+        expect(input.status).not.toBe('draft');
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 

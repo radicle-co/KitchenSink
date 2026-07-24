@@ -12,6 +12,7 @@
  * implementations, so the 409-detection path is exercised for real, not stubbed.
  */
 import { act, renderHook } from '@testing-library/react';
+import { RecipeStatus } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -574,7 +575,7 @@ describe('useRecipeEditor — publish (w3: whole-form validate, then submit with
 
 describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingredients/steps may be empty)', () => {
     it('blocks when the draft floor fails (a blank title, which the wire schema itself would reject)', () => {
-        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
+        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
         useUpdateRecipeMock.mockReturnValue(mutation);
@@ -587,10 +588,10 @@ describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingre
         expect(result.current.errors.title).toBe('titleRequired');
     });
 
-    it('submits with status: "draft" even when ingredients/steps are empty (the relaxed floor)', () => {
-        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
+    it('when editing a recipe seeded as "draft", submits status: "draft" even when ingredients/steps are empty (the relaxed floor)', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
-        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4, status: RecipeStatus.DRAFT });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
@@ -605,8 +606,31 @@ describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingre
         expect(onSaved).toHaveBeenCalledWith(saved);
     });
 
+    // Regression (opus review, Important #1): `saveDraft` used to send `status: 'draft'` UNCONDITIONALLY, so a
+    // user editing an ALREADY-PUBLISHED recipe who clicked Save Draft would silently unpublish it (it would
+    // vanish from public listings). Save Draft must NEVER downgrade a published recipe — the wireframe's own
+    // words are "saves metadata without publishing; visibility stays as-is", and "as-is" covers the recipe's
+    // publication state too, not just its `visibility` field.
+    it('when editing a recipe seeded as "published", does NOT downgrade — preserves status: "published"', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.PUBLISHED });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4, status: RecipeStatus.PUBLISHED });
+        const mutation = updateMutation([{ type: 'success', recipe: saved }]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const onSaved = vi.fn();
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+
+        act(() => result.current.saveDraft());
+
+        const [vars] = mutation.mutate.mock.calls[0] as [{ id: string; input: Record<string, unknown> }];
+        // The recipe stays published — this is the crux of the regression: never 'draft' here.
+        expect(vars.input['status']).toBe('published');
+        expect(vars.input['status']).not.toBe('draft');
+        expect(onSaved).toHaveBeenCalledWith(saved);
+    });
+
     it('does not carry a status onto the plain submit() path (never a side-effecting publication flip)', () => {
-        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
+        const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.PUBLISHED });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);

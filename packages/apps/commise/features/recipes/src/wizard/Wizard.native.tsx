@@ -268,7 +268,7 @@ const WizardTopBar: FC = () => {
     const publishLabel = model.mode === 'create' ? m.publishCreate : m.publishEdit;
 
     return (
-        <View accessibilityLabel={m.railLabel} style={styles.topBar}>
+        <View accessibilityLabel={m.topBarLabel} style={styles.topBar}>
             <Button
                 variant="secondary"
                 icon={<Feather name="save" size={16} color={palette.charcoal} />}
@@ -311,7 +311,7 @@ const WizardControls: FC = () => {
     const nextName = index < WIZARD_TOTAL_STEPS - 1 ? m.stepNames[index + 1] : undefined;
 
     return (
-        <View accessibilityLabel="Wizard step navigation" style={styles.controlsRow}>
+        <View accessibilityLabel={m.controlsLabel} style={styles.controlsRow}>
             {prevName !== undefined ? (
                 <Button
                     variant="secondary"

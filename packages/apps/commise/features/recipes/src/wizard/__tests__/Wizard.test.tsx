@@ -262,6 +262,21 @@ describe('Wizard (web) — discard guard', () => {
     });
 });
 
+describe('Wizard (web) — chrome landmark labels (a11y, localized, not shared)', () => {
+    it('gives the rail nav and the top-bar toolbar their OWN distinct localized accessible names', () => {
+        render(<Harness />);
+
+        expect(screen.getByRole('navigation', { name: 'Recipe wizard steps' })).toBeTruthy();
+        expect(screen.getByRole('toolbar', { name: 'Recipe wizard actions' })).toBeTruthy();
+    });
+
+    it('gives the footer step-navigation region a localized accessible name (not a raw literal)', () => {
+        render(<Harness />);
+
+        expect(screen.getByLabelText('Wizard step navigation')).toBeTruthy();
+    });
+});
+
 describe('Wizard (web) — Preview', () => {
     it('shows the current draft values and can be closed', async () => {
         const user = userEvent.setup();
@@ -274,6 +289,36 @@ describe('Wizard (web) — Preview', () => {
         expect(within(preview).getByText('4')).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'Close preview' }));
+        expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
+    });
+
+    // Minor a11y gap (opus review): the hand-rolled preview dialog previously had no Escape/backdrop
+    // dismissal, unlike the Radix ConfirmDialog rendered in the same file.
+    it('closes on Escape', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={validValues()} />);
+
+        await user.click(screen.getByRole('button', { name: 'Preview' }));
+        expect(screen.getByRole('dialog', { name: 'Preview' })).toBeTruthy();
+
+        await user.keyboard('{Escape}');
+
+        expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
+    });
+
+    it('closes on a backdrop click, but NOT on a click inside the panel card', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={validValues()} />);
+
+        await user.click(screen.getByRole('button', { name: 'Preview' }));
+        const preview = screen.getByRole('dialog', { name: 'Preview' });
+
+        // A click on content INSIDE the card must not dismiss the panel.
+        await user.click(within(preview).getByText('Herb Risotto'));
+        expect(screen.getByRole('dialog', { name: 'Preview' })).toBeTruthy();
+
+        // A click on the backdrop itself (the dialog element, outside the card) dismisses it.
+        fireEvent.click(preview);
         expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
     });
 });

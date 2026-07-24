@@ -17,6 +17,9 @@ export interface WizardMessages {
     readonly railLabel: string;
     /** Accessible label template for one rail step's status announcement (contains `{name}`, `{state}`). */
     readonly railStepLabel: string;
+    /** Accessible label for the persistent top-bar (Save Draft/Preview/Cancel/Publish) toolbar region — its OWN
+     * landmark name, deliberately distinct from {@link railLabel} so two different regions never share one name. */
+    readonly topBarLabel: string;
     /** Rail step-state word: completed. */
     readonly stateCompleted: string;
     /** Rail step-state word: current. */
@@ -41,6 +44,8 @@ export interface WizardMessages {
     readonly prevLabel: string;
     /** Footer Next-nav label template (contains `{name}`, the FOLLOWING step's name). */
     readonly nextLabel: string;
+    /** Accessible label for the footer step-navigation (`< Prev` / `Next >`) region. */
+    readonly controlsLabel: string;
 
     /** Heading of the minimal read-only preview panel. */
     readonly previewHeading: string;
@@ -79,6 +84,7 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
         stepProgress: 'Step {current} of {total}',
         railLabel: 'Recipe wizard steps',
         railStepLabel: '{name}: {state}',
+        topBarLabel: 'Recipe wizard actions',
         stateCompleted: 'completed',
         stateCurrent: 'current step',
         stateInvalid: 'needs attention',
@@ -92,6 +98,7 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
 
         prevLabel: '< Prev: {name}',
         nextLabel: 'Next: {name} >',
+        controlsLabel: 'Wizard step navigation',
 
         previewHeading: 'Preview',
         previewClose: 'Close preview',

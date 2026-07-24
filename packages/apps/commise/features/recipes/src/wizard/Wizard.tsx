@@ -35,7 +35,7 @@
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { useMessages } from '@commise/i18n/react';
-import { createContext, useContext, useState, type FC, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type FC, type ReactNode } from 'react';
 
 import { fillTemplate } from '../list/model.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
@@ -156,6 +156,27 @@ const WizardRoot: FC<WizardProps> = (props) => {
     };
 
     const togglePreview = (): void => setPreviewOpen((open) => !open);
+    const closePreview = (): void => setPreviewOpen(false);
+
+    // Minor a11y gap (opus review): the hand-rolled preview panel is a `role="dialog"` with no Escape/backdrop
+    // dismissal, unlike the Radix `ConfirmDialog` this same file renders below. Escape-to-close needs a
+    // document-level listener (the panel itself never has DOM focus to catch a bubbled keydown), scoped to
+    // exactly the window `previewOpen` is true so it never fires — or leaks a listener — while closed.
+    useEffect(() => {
+        if (!previewOpen) {
+            return undefined;
+        }
+
+        const onKeyDown = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') {
+                closePreview();
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [previewOpen]);
 
     const model: WizardModel = {
         ...props,
@@ -177,6 +198,14 @@ const WizardRoot: FC<WizardProps> = (props) => {
                 <div
                     role="dialog"
                     aria-label={m.previewHeading}
+                    // Backdrop-click-to-close: the click target check keeps a click that STARTS inside the
+                    // card (then bubbles to this backdrop, e.g. a drag that ends outside) from closing it —
+                    // only a click whose target IS the backdrop itself dismisses.
+                    onClick={(event) => {
+                        if (event.target === event.currentTarget) {
+                            closePreview();
+                        }
+                    }}
                     className="fixed inset-0 z-40 flex items-center justify-center bg-charcoal/40 p-4"
                 >
                     <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-card p-6 shadow-lg">
@@ -320,7 +349,7 @@ const WizardTopBar: FC = () => {
     const publishLabel = model.mode === 'create' ? m.publishCreate : m.publishEdit;
 
     return (
-        <div role="toolbar" aria-label={m.railLabel} className="flex flex-wrap items-center justify-between gap-3">
+        <div role="toolbar" aria-label={m.topBarLabel} className="flex flex-wrap items-center justify-between gap-3">
             <Button variant="secondary" icon={<SaveIcon />} busy={model.submitting} onPress={model.saveDraft}>
                 {m.saveDraft}
             </Button>
@@ -348,7 +377,7 @@ const WizardControls: FC = () => {
     const nextName = index < WIZARD_TOTAL_STEPS - 1 ? m.stepNames[index + 1] : undefined;
 
     return (
-        <div aria-label="Wizard step navigation" className="flex items-center justify-between gap-3">
+        <div aria-label={m.controlsLabel} className="flex items-center justify-between gap-3">
             {prevName !== undefined ? (
                 <Button variant="secondary" icon={<ChevronLeftIcon />} onPress={model.requestGoPrev}>
                     {fillTemplate(m.prevLabel, { name: prevName })}

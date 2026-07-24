@@ -236,6 +236,21 @@ describe('Wizard (native) — discard guard', () => {
     });
 });
 
+describe('Wizard (native) — chrome landmark labels (a11y, localized, not shared)', () => {
+    it('gives the rail region and the top-bar their OWN distinct localized accessible labels', () => {
+        render(<Harness />);
+
+        expect(screen.getByLabelText('Recipe wizard steps')).toBeTruthy();
+        expect(screen.getByLabelText('Recipe wizard actions')).toBeTruthy();
+    });
+
+    it('gives the footer step-navigation region a localized accessible label (not a raw literal)', () => {
+        render(<Harness />);
+
+        expect(screen.getByLabelText('Wizard step navigation')).toBeTruthy();
+    });
+});
+
 describe('Wizard (native) — Preview', () => {
     it('shows the current draft values and can be closed', () => {
         render(<Harness initialValues={validValues()} />);

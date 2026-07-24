@@ -64,6 +64,16 @@
  * the wire body and a routine "Save changes" edit never flips an existing recipe's publication state as a
  * side effect.
  *
+ * **Save Draft must never downgrade an already-published recipe.** `saveDraft` only sends `status: 'draft'`
+ * when the loaded recipe is NOT already published (i.e. it is itself still a draft); when
+ * `query.data.status === 'published'`, it sends `status: 'published'` (an explicit no-op re-assertion, not an
+ * omit, but behaviorally identical either way — see `toUpdateRecipeInput`'s optional `status` parameter).
+ * Before this, `saveDraft` sent `status: 'draft'` UNCONDITIONALLY, so a user editing a live, published recipe
+ * — tweaking a field and clicking Save Draft to persist WIP without publishing — would silently pull that
+ * recipe out of public listings. This matches the wireframe's own words for Save Draft: "saves metadata
+ * without publishing; visibility stays as-is" — "as-is" includes an already-published recipe's publication
+ * state, not just its `visibility` field. `publish()` is unaffected — it always sends `status: 'published'`.
+ *
  * **`defaultMergeSelections` (`versions/model.ts`) was DELETED, not consumed, by this change.** It built a
  * fully-materialized `{[key]: 'mine'}` record from a LOCALIZED `RecipeMergeField[]` (itself built from
  * `messages`/`locale`, which this platform-agnostic hook does not have and must not import). Both live
@@ -163,9 +173,11 @@ export interface UseRecipeEditorResult {
      */
     readonly publish: () => void;
     /**
-     * Submit with `status: 'draft'` under a RELAXED floor (step 1's fields only — title, servings, times):
-     * ingredients/steps may be empty, matching "Saves metadata without publishing" (the wireframe's own
-     * words). See the module doc for why the floor is exactly step 1.
+     * Submit under a RELAXED floor (step 1's fields only — title, servings, times): ingredients/steps may be
+     * empty, matching "Saves metadata without publishing" (the wireframe's own words). Sends `status: 'draft'`
+     * UNLESS the recipe is already published, in which case it sends `status: 'published'` — Save Draft must
+     * never downgrade a live recipe out of publication. See the module doc for why the floor is exactly step 1
+     * and why the published case is preserved.
      */
     readonly saveDraft: () => void;
     /** Whether the last submit failed for a reason OTHER than a version conflict (a handled 409 is never this). */
@@ -310,8 +322,14 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     const publish = (): void => validateThenSubmit(validateRecipeForm(values), RecipeStatus.PUBLISHED);
 
     // The relaxed draft floor: only step 1's fields (title/servings/times) — see the module doc for why this
-    // is exactly step 1, not the whole form.
-    const saveDraft = (): void => validateThenSubmit(stepErrorsFor(values, 1), RecipeStatus.DRAFT);
+    // is exactly step 1, not the whole form. The status argument NEVER downgrades an already-published
+    // recipe: only a not-yet-published (still-draft) recipe gets `status: 'draft'` sent; a published one keeps
+    // `status: 'published'` explicitly (see the module doc's "Save Draft must never downgrade" section).
+    const saveDraft = (): void => {
+        const draftStatus = query.data?.status === RecipeStatus.PUBLISHED ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT;
+
+        validateThenSubmit(stepErrorsFor(values, 1), draftStatus);
+    };
 
     const goToStep = (next: RecipeWizardStep): void => setStep(next);
 

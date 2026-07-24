@@ -15,9 +15,8 @@
  * partial estimate rather than a false-precise number. Volumetric/count units (cup/tbsp/clove) are
  * converted via the ingredient's household-measure `portions` when the food service supplied one (#11).
  */
-import type { IngredientPortion, RecipeNutrition } from '@kitchensink/recipe-core';
-
-import { unitToGrams } from '../../common/units.js';
+import type { IngredientPortion, RecipeNutrition } from './recipe.types.js';
+import { unitToGrams } from './units.js';
 
 /** One ingredient line's nutrition inputs: its measure, any user override, the catalog per-100g, + portions. */
 export interface NutritionLine {

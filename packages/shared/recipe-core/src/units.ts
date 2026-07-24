@@ -8,7 +8,7 @@
  * for a volumetric/count unit (cup/tbsp/clove) whose weight depends on the food — a matching household
  * portion the food service supplied (grams-per-unit).
  */
-import type { IngredientPortion } from '@kitchensink/recipe-core';
+import type { IngredientPortion } from './recipe.types.js';
 
 /** Canonical unit → grams for the units whose conversion is exact and ingredient-independent (mass). */
 export const MASS_UNIT_TO_GRAMS: Readonly<Record<string, number>> = {

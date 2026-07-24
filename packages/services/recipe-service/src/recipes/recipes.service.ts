@@ -13,18 +13,21 @@
  */
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { deriveDisplayName } from '@kitchensink/identity-core';
-import type { RecipeNutrition, RecipePhoto, RecipeSnapshot, VersionConflictSide } from '@kitchensink/recipe-core';
-
-import { VersionsService } from '../versions/versions.service.js';
-import { PhotosDal } from '../photos/dal/photos.dal.js';
-import { resolveCoverUrl, resolvePhotoView } from '../photos/photo-view.js';
 import {
     computeRecipeNutrition,
     leadCaloriesPerServing,
     toNutritionLine,
     type LineMeasure,
     type NutritionLine,
-} from './domain/nutrition.js';
+    type RecipeNutrition,
+    type RecipePhoto,
+    type RecipeSnapshot,
+    type VersionConflictSide,
+} from '@kitchensink/recipe-core';
+
+import { VersionsService } from '../versions/versions.service.js';
+import { PhotosDal } from '../photos/dal/photos.dal.js';
+import { resolveCoverUrl, resolvePhotoView } from '../photos/photo-view.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipe-ingredients.dal.js';

@@ -4,3 +4,5 @@ export * from './accountErasure.js';
 export * from './ids.js';
 export * from './viewer.js';
 export * from './recipeAccessPolicy.js';
+export * from './units.js';
+export * from './nutrition.js';

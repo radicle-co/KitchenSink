@@ -20,13 +20,12 @@
  * @implements FR-007 FR-007a
  */
 import { Injectable } from '@nestjs/common';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, normalizeUnit } from '@kitchensink/recipe-core';
 import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
 import { FoodServiceClient, isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, FoodStatus, FoodView, SearchResultView } from '@kitchensink/food-service-client';
 
 import { IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
-import { normalizeUnit } from '../common/units.js';
 import { ingredientNotFound } from '../recipes/recipe.error.js';
 
 /**

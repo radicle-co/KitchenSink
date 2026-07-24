@@ -62,12 +62,12 @@ beforeEach(() => {
 });
 
 describe('RecipeCreateScreen — chrome', () => {
-    it('renders the create wizard, seeded at step 1, with the PRESERVED submit label', () => {
+    it('renders the create wizard, seeded at step 1, with the Publish submit label (w3/e7)', () => {
         render(<RecipeCreateScreen onCreated={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.getByText('Step 1 of 4')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Create recipe' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
     });
 });
 
@@ -77,7 +77,7 @@ describe('RecipeCreateScreen — validation gate', () => {
         useCreateRecipeMock.mockReturnValue(createRecipeMutation({ mutate: mutate as never }));
 
         render(<RecipeCreateScreen onCreated={vi.fn()} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Create recipe' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(screen.getByText('A title is required.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
@@ -110,8 +110,8 @@ describe('RecipeCreateScreen — happy path', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
         fireEvent.change(screen.getByLabelText('Step 1 instruction'), { target: { value: 'Boil the pasta.' } });
 
-        // Publish (the top-bar action, reachable from any step) carries the PRESERVED "Create recipe" name.
-        fireEvent.click(screen.getByRole('button', { name: 'Create recipe' }));
+        // Publish is the top-bar action, reachable from any step (w3/e7: labeled "Publish" in every mode).
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(mutate).toHaveBeenCalledTimes(1);
         const [input] = mutate.mock.calls[0] as [{ title: string; ingredients: unknown[]; steps: unknown[] }];

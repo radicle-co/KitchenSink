@@ -1,7 +1,9 @@
 appId: io.commise.mobile
 ---
-# Concurrent-edit conflict — field-by-field MERGE (US1, T070 / FR-007c option c). Mobile mirror of the web
-# Playwright `recipeConflict.spec.ts` (cross-platform mandate).
+# Concurrent-edit conflict — field-by-field MERGE (US1, T070 / FR-007c option c; updated w3/e8 for the
+# screen-per-step wizard — the merge panel itself is untouched, since the wizard composes the SAME
+# `useRecipeEditor` 409→conflict transition as before). Mobile mirror of the web Playwright
+# `recipeConflict.spec.ts` (cross-platform mandate).
 #
 # A real conflict needs the recipe to change on the server BETWEEN this session's load and its save, so this
 # flow is GUARDED on the conflict view appearing: in an ordinary single-writer run it is a safe no-op (the
@@ -26,11 +28,25 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-# Editor: the heading confirms edit mode ("Save changes" is reached by the scroll below, not asserted here).
-- assertVisible: 'Edit recipe'
 
-# The seed recipe carries no ingredients or steps, but the editor requires >= 1 of each to save. Add one of
-# each via the picker (freeform Create, exactly as the create flow) so the title edit can be saved.
+# Step 1 of 4 (Basic) — the wizard opens here; no page heading of its own (that copy belonged to the retired
+# flat `RecipeForm`), so the step-progress label is the entry checkpoint instead. Change the title FIRST,
+# before moving forward: once the draft is dirty, the wizard's discard guard intercepts any BACKWARD rail/Prev
+# navigation with a confirmation dialog (by design — see `Wizard.tsx`'s `guardIfBackward`), so this flow never
+# revisits an earlier step after leaving it, only advances via `Next: …`.
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (my edit)'
+
+# The seed recipe carries no ingredients or steps, but Publish (whole-form validation, unchanged by the
+# wizard) requires >= 1 of each. Add one of each via the picker (freeform Create, exactly as the create flow).
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Search ingredients'
       direction: UP
@@ -49,25 +65,22 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
-      element: 'Add step'
+      element: 'Next: Instructions'
       direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
       timeout: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
 
-# Change the title (the field is near the top, under the picker).
-- scrollUntilVisible:
-      element: 'Title'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Title'
-- eraseText
-- inputText: 'Mediterranean Grilled Lamb (my edit)'
-- scrollUntilVisible:
-      element: 'Save changes'
-      direction: DOWN
-- tapOn: 'Save changes'
+# Publish is the sticky top-bar action, present on every step — no scroll (and no forward `Next` to step 4)
+# needed to reach it.
+- tapOn: 'Publish'
 # If a concurrent save landed first, the conflict view offers all three FR-007c resolutions.
 - runFlow:
       when:

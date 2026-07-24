@@ -233,7 +233,7 @@ describe('RecipeEditScreen — save', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(mutate).toHaveBeenCalledTimes(1);
         const [vars] = mutate.mock.calls[0] as [{ id: string; input: { expectedVersion: number; title: string } }];
@@ -278,7 +278,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         );
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
         const mineGroup = screen.getByLabelText('Your version');
@@ -303,7 +303,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Keep my version' }));
 
         expect(mutate).toHaveBeenCalledTimes(2);
@@ -328,7 +328,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Keep my version' }));
 
         expect(await screen.findByText('Saved At Six')).toBeTruthy();
@@ -357,7 +357,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         // Enter the merge panel, keep my title (default), pull servings from the latest saved version.
         fireEvent.click(await screen.findByRole('button', { name: 'Merge field by field' }));
@@ -392,7 +392,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Use the latest version' }));
 
         expect(await screen.findByLabelText('Title')).toBeTruthy();

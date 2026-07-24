@@ -5,11 +5,20 @@ import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
- * Recipe CRUD happy path (T079): create → view → edit → delete, driven through the real web UI (Next dev
- * server + Clerk session + client hooks + routing) with the recipe-service HTTP contract intercepted
- * (`utils/recipeApi`). The real backend is covered separately by the recipe-service's own e2e + k6. Owner
- * actions (edit/delete) gate on the Clerk `external_id` claim, so the mock seeds recipes owned by the live
- * viewer (see `readViewerAppId`). Selectors are role/label only (per repo policy). Serial (Clerk-authed).
+ * Recipe CRUD happy path (T079; rewritten w3/e7 for the 4-step edit/create wizard): create → view → edit →
+ * delete, driven through the real web UI (Next dev server + Clerk session + client hooks + routing) with the
+ * recipe-service HTTP contract intercepted (`utils/recipeApi`). The real backend is covered separately by the
+ * recipe-service's own e2e + k6. Owner actions (edit/delete) gate on the Clerk `external_id` claim, so the
+ * mock seeds recipes owned by the live viewer (see `readViewerAppId`). Selectors are role/label only (per
+ * repo policy). Serial (Clerk-authed).
+ *
+ * The wizard walk (both create and edit): Basic (`Title`/`Description`/`Cuisine`/`Servings`/`Prep time
+ * (minutes)`/`Cook time (minutes)`/`Difficulty`) → `Next: Ingredients` → Ingredients (`Search ingredients` +
+ * pick a result) → `Next: Instructions` → Instructions (`Add step` + `Step 1 instruction`) → `Next: Photos` →
+ * Photos → `Publish` (w3/e7: the wizard's final CTA is named for what it DOES — sets `status: 'published'` —
+ * in both create and edit mode, replacing the old mode-named `Create recipe`/`Save changes` labels). `Publish`
+ * is also reachable from the top bar on any earlier step (it is not step-4-gated), used below on the edit
+ * path since the edit form seeds fully valid and needs no ingredient/step changes.
  */
 test.describe('recipe CRUD (T079)', () => {
     test('create → view → edit → delete a recipe', async ({ page }) => {
@@ -26,23 +35,40 @@ test.describe('recipe CRUD (T079)', () => {
         await page.getByRole('button', { name: /New recipe|Create your first recipe/ }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
+        // Step 1 (Basic) — the wizard opens here (Step 1 of 4).
+        await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await page.getByLabel('Title').fill('E2E Ratatouille');
+        await page.getByLabel('Description').fill('A rustic roasted vegetable stew.');
+        await page.getByLabel('Cuisine').selectOption('French');
         await page.getByLabel('Servings').fill('4');
         await page.getByLabel('Prep time (minutes)').fill('15');
         await page.getByLabel('Cook time (minutes)').fill('30');
         // State a difficulty (FR-001b) — the picker is a radiogroup; select Hard.
         await page.getByRole('radio', { name: 'Hard' }).click();
 
+        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
+
+        // Step 2 (Ingredients).
+        await expect(page.getByText('Step 2 of 4')).toBeVisible();
         await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('salt');
         // Wait for the search RESULT button (exact 'Salt'), not the freeform "Add 'salt' as a custom
         // ingredient" fallback (which a substring match on 'Salt' would also hit); clicking it resolves the
         // ingredient line synchronously.
         await page.getByRole('button', { name: 'Salt', exact: true }).click();
 
+        await page.getByRole('button', { name: 'Next: Instructions' }).click();
+
+        // Step 3 (Instructions).
+        await expect(page.getByText('Step 3 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Roast the vegetables.');
 
-        await page.getByRole('button', { name: 'Create recipe' }).click();
+        await page.getByRole('button', { name: 'Next: Photos' }).click();
+
+        // Step 4 (Photos) — a fresh create has no recipe id yet, so this step is a "save first" notice, not
+        // the photo manager; Publish is the top-bar action, present on every step.
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await page.getByRole('button', { name: 'Publish' }).click();
 
         // VIEW — landed on the new recipe's detail.
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille' })).toBeVisible();
@@ -56,16 +82,17 @@ test.describe('recipe CRUD (T079)', () => {
         await saltCheckbox.click();
         await expect(saltCheckbox).toBeChecked();
 
-        // EDIT — reach the editor through the RESTORED Edit entry point (W2/D1), not a raw URL. The edit form
-        // seeds from the recipe (already valid); the difficulty stated at create round-tripped, so Hard is
-        // pre-selected. Change the title and CLEAR the difficulty ("Not stated"), then save — the three-state
-        // update sends an explicit clear, not an omit.
+        // EDIT — reach the editor through the RESTORED Edit entry point (W2/D1), not a raw URL. The wizard
+        // seeds at step 1 (already valid); the difficulty stated at create round-tripped, so Hard is
+        // pre-selected. Change the title and CLEAR the difficulty ("Not stated"), then Publish from step 1
+        // (reachable from any step) — the three-state update sends an explicit clear, not an omit.
         await page.getByRole('link', { name: 'Edit recipe' }).click();
         await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}/edit`));
+        await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await expect(page.getByRole('radio', { name: 'Hard' })).toBeChecked();
         await page.getByLabel('Title').fill('E2E Ratatouille (edited)');
         await page.getByRole('radio', { name: 'Not stated' }).click();
-        await page.getByRole('button', { name: 'Save changes' }).click();
+        await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toBeVisible();
 
         // The clear persisted: re-opening the editor shows Not stated selected, never the stale Hard.

@@ -38,7 +38,7 @@ import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js'
 
 /** Props for {@link RecipeEditor}. */
 export interface RecipeEditorProps {
-    /** Create vs edit — selects the wizard's PRESERVED Publish accessible name. */
+    /** Create vs edit, forwarded to the `Wizard`. Informational only (w3/e7) — Publish is named the same in both modes. */
     readonly mode: RecipeFormMode;
     /** The controlled draft (blank for create, seeded from the loaded recipe for edit). */
     readonly values: RecipeFormValues;

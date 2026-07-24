@@ -45,7 +45,12 @@ import { wizardMessages } from './messages.js';
 
 /** Props for {@link Wizard} (Root). */
 export interface WizardProps {
-    /** Create vs edit — selects the Publish action's PRESERVED accessible name (`Create recipe`/`Save changes`). */
+    /**
+     * Create vs edit. Informational only (w3/e7): the Publish action's accessible name is `Publish` in BOTH
+     * modes — it no longer selects between two labels, since the button's behavior (always sets
+     * `status: 'published'`) never differed by mode either. Retained so a caller's create/edit distinction
+     * stays available to the wizard for any future mode-specific chrome.
+     */
     readonly mode: 'create' | 'edit';
     /** The active step (from `useRecipeEditor`'s `step`). */
     readonly step: RecipeWizardStep;
@@ -346,7 +351,6 @@ const WizardRail: FC = () => {
 const WizardTopBar: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
-    const publishLabel = model.mode === 'create' ? m.publishCreate : m.publishEdit;
 
     return (
         <div role="toolbar" aria-label={m.topBarLabel} className="flex flex-wrap items-center justify-between gap-3">
@@ -361,7 +365,7 @@ const WizardTopBar: FC = () => {
                     {m.cancel}
                 </Button>
                 <Button icon={<ChevronRightIcon />} busy={model.submitting} onPress={model.requestPublish}>
-                    {publishLabel}
+                    {m.publish}
                 </Button>
             </div>
         </div>

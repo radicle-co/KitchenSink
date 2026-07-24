@@ -46,7 +46,7 @@ describe('RecipeCreateContainer', () => {
 
         expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument();
         expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Create recipe' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
     });
 
     it('blocks submission and surfaces validation on the current step when the form is invalid', async () => {
@@ -56,7 +56,7 @@ describe('RecipeCreateContainer', () => {
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
-        await user.click(screen.getByRole('button', { name: 'Create recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(createSpy).not.toHaveBeenCalled();
         expect(screen.getByText('A title is required.')).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe('RecipeCreateContainer', () => {
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
 
         // Publish is reachable from any step (the top bar renders it throughout).
-        await user.click(screen.getByRole('button', { name: 'Create recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         const createSpy = vi.mocked(client.createRecipe);
         await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
@@ -164,7 +164,7 @@ describe('RecipeCreateContainer', () => {
         await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
-        await user.click(screen.getByRole('button', { name: 'Create recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t save this recipe. Please try again.');
     });

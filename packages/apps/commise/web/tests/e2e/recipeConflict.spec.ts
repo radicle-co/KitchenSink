@@ -14,6 +14,12 @@ import { signInWithTicket } from './utils/auth';
  * the fresh version. The keep-mine / use-theirs paths are covered by the container component tests. Owner
  * actions gate on the Clerk `external_id` claim, so the seed is owned by the live viewer. Selectors are
  * role/label only (repo policy).
+ *
+ * w3/e7: the wizard's final-submit CTA is now named `Publish` (label reconciled with its always-publishing
+ * behavior — see `wizard/messages.ts`), replacing the old edit-mode `Save changes` label; the conflict path
+ * itself is untouched — the wizard composes the SAME `useRecipeEditor` 409→conflict transition, and the edit
+ * form seeds at step 1 where `Publish` is reachable without any step navigation, exactly as `Save changes`
+ * was before.
  */
 test.describe('recipe concurrent-edit merge (T070 / FR-007c)', () => {
     test('a 409 conflict resolves by merging field-by-field and re-submitting against the fresh version', async ({
@@ -40,7 +46,7 @@ test.describe('recipe concurrent-edit merge (T070 / FR-007c)', () => {
         await page.getByLabel('Title').fill('My Merged Title');
 
         // Saving loses the optimistic-concurrency race → the conflict view replaces the form.
-        await page.getByRole('button', { name: 'Save changes' }).click();
+        await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
 
         // Merge field-by-field: keep my title (default), pull the latest saved servings.

@@ -25,6 +25,10 @@ import { wizardMessages } from './messages.js';
 
 /** Props for {@link Wizard} (Root) — identical contract to the web leaf. */
 export interface WizardProps {
+    /**
+     * Create vs edit. Informational only (w3/e7): the Publish action's accessible name is `Publish` in BOTH
+     * modes — see the web leaf's doc for the full rationale.
+     */
     readonly mode: 'create' | 'edit';
     readonly step: RecipeWizardStep;
     readonly values: RecipeFormValues;
@@ -265,7 +269,6 @@ const WizardRail: FC = () => {
 const WizardTopBar: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
-    const publishLabel = model.mode === 'create' ? m.publishCreate : m.publishEdit;
 
     return (
         <View accessibilityLabel={m.topBarLabel} style={styles.topBar}>
@@ -296,7 +299,7 @@ const WizardTopBar: FC = () => {
                 busy={model.submitting}
                 onPress={model.requestPublish}
             >
-                {publishLabel}
+                {m.publish}
             </Button>
         </View>
     );

@@ -175,20 +175,20 @@ describe('Wizard (web) — top-bar actions', () => {
         expect(onSaveDraft).toHaveBeenCalledTimes(1);
     });
 
-    it('Publish calls the given action and carries the PRESERVED create-mode accessible name', async () => {
+    it('Publish calls the given action and carries the "Publish" accessible name in create mode (w3/e7)', async () => {
         const user = userEvent.setup();
         const onPublish = vi.fn();
         render(<Harness mode="create" onPublish={onPublish} />);
 
-        await user.click(screen.getByRole('button', { name: 'Create recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(onPublish).toHaveBeenCalledTimes(1);
     });
 
-    it('Publish carries the PRESERVED edit-mode accessible name', () => {
+    it('Publish carries the SAME "Publish" accessible name in edit mode (w3/e7: label matches behavior, not mode)', () => {
         render(<Harness mode="edit" />);
 
-        expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
     });
 
     it('Publish while another step is invalid flags that OTHER step in the rail (no navigation occurs)', async () => {
@@ -198,7 +198,7 @@ describe('Wizard (web) — top-bar actions', () => {
         const partial: RecipeFormValues = { ...defaultRecipeFormValues(), title: 'Herb Risotto', servings: 4 };
         render(<Harness initialValues={partial} initialStep={1} onPublish={onPublish} />);
 
-        await user.click(screen.getByRole('button', { name: 'Create recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(onPublish).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: /Ingredients: needs attention/ })).toBeTruthy();

@@ -35,10 +35,13 @@ export interface WizardMessages {
     readonly preview: string;
     /** Cancel top-bar action label. */
     readonly cancel: string;
-    /** The final-submit action's label in create mode — PRESERVED verbatim (existing E2E net). */
-    readonly publishCreate: string;
-    /** The final-submit action's label in edit mode — PRESERVED verbatim (existing E2E net). */
-    readonly publishEdit: string;
+    /**
+     * The final-submit action's label, in BOTH create and edit mode (w3/e7: reconciled with its behavior —
+     * this button always sets `status: 'published'`, so it is named `Publish` regardless of mode; `Save
+     * Draft` is the separate, non-publishing action). Previously two distinct PRESERVED labels
+     * (`Create recipe` / `Save changes`) that named the action's MODE rather than what it actually DID.
+     */
+    readonly publish: string;
 
     /** Footer Prev-nav label template (contains `{name}`, the PRECEDING step's name). */
     readonly prevLabel: string;
@@ -93,8 +96,7 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
         saveDraft: 'Save Draft',
         preview: 'Preview',
         cancel: 'Cancel',
-        publishCreate: 'Create recipe',
-        publishEdit: 'Save changes',
+        publish: 'Publish',
 
         prevLabel: '< Prev: {name}',
         nextLabel: 'Next: {name} >',

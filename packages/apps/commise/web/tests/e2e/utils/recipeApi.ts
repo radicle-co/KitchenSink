@@ -75,6 +75,10 @@ function applyUpdate(current: RecipeDetail, input: Record<string, unknown>): Rec
         'cookTimeMinutes',
         'totalTimeMinutes',
         'visibility',
+        // Draft/publish (w3/e7): the wizard's Save Draft / Publish actions both PATCH an explicit `status`
+        // onto the update body (`toUpdateRecipeInput`'s optional second parameter) — apply it exactly like
+        // any other provided scalar so a spec can observe the persisted status on the next read/list.
+        'status',
     ] as const;
 
     for (const key of scalars) {
@@ -379,6 +383,13 @@ export interface MockRecipeApiOptions {
      * so the 409 is deterministic regardless of any client-side refetch timing.
      */
     readonly concurrentEdits?: Readonly<Record<string, Partial<RecipeDetail>>>;
+    /**
+     * How many of the NEXT photo-upload presign calls (across every recipe) fail with a `500`, one-shot —
+     * decremented per call, so the (N+1)th and later presigns succeed normally (w3/e7 per-file photo status:
+     * lets a spec drive a queue item to `failed` deterministically, then prove Retry recovers it). Defaults
+     * to `0` (every upload succeeds), matching every existing photo spec's behavior unchanged.
+     */
+    readonly failPhotoUploads?: number;
 }
 
 /**
@@ -413,6 +424,8 @@ export async function mockRecipeApi(
     // embedded list AND `GET /v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
     const photoStore = new Map<string, RecipePhoto[]>();
     let nextPhotoId = 1;
+    // One-shot photo-upload failure countdown (w3/e7): decremented on every presign call while positive.
+    let remainingPhotoUploadFailures = options.failPhotoUploads ?? 0;
 
     const seed = options.recipes ?? [makeRecipeDetail({ id: 'rec_seed', ownerId: viewerId, title: 'Seed Recipe' })];
 
@@ -494,6 +507,24 @@ export async function mockRecipeApi(
         const uploadUrlPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/upload-url$/);
 
         if (uploadUrlPath && method === 'POST') {
+            // A short artificial delay so the busy affordance the hook drives (`uploading`) is observable
+            // by the spec rather than resolving within the same event-loop turn as the click.
+            await new Promise((resolve) => setTimeout(resolve, 200));
+
+            // One-shot failure injection (w3/e7 per-file photo status): the presign step is the single
+            // simplest point to fail an upload deterministically — `useRecipePhotoUpload` treats a rejected
+            // presign identically to a failed PUT or a failed confirm (its `catch` doesn't distinguish),
+            // so failing HERE exercises the exact same `errorMessage` → queue-item-`failed` path a real S3
+            // or confirm failure would.
+            if (remainingPhotoUploadFailures > 0) {
+                remainingPhotoUploadFailures -= 1;
+
+                return route.fulfill({
+                    status: 500,
+                    json: { code: 'INTERNAL_ERROR', message: 'Simulated upload failure' },
+                });
+            }
+
             const id = uploadUrlPath[1] as string;
             const key = `uploads/${id}/mock_${nextPhotoId}.jpg`;
             const response: UploadUrlResponse = {
@@ -502,10 +533,6 @@ export async function mockRecipeApi(
                 expiresIn: 900,
                 maxBytes: 5_242_880,
             };
-
-            // A short artificial delay so the busy affordance the hook drives (`uploading`) is observable
-            // by the spec rather than resolving within the same event-loop turn as the click.
-            await new Promise((resolve) => setTimeout(resolve, 200));
 
             return route.fulfill({ json: response });
         }
@@ -708,6 +735,10 @@ export async function mockRecipeApi(
                     ...(typeof input['difficulty'] === 'string'
                         ? { difficulty: input['difficulty'] as RecipeDifficulty }
                         : {}),
+                    // Draft/publish (w3/e7): the wizard's create-flow always sends an explicit `status`
+                    // (Save Draft → 'draft', Publish → 'published') — carry it so a spec can assert the
+                    // created recipe's persisted status (e.g. the "Draft" card badge appearing in the list).
+                    ...(typeof input['status'] === 'string' ? { status: input['status'] as RecipeStatus } : {}),
                 });
                 store.set(created.id, created);
 

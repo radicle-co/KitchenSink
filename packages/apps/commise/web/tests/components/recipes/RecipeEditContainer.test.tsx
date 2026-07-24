@@ -136,7 +136,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
         const [id, input] = updateSpy.mock.calls[0]!;
@@ -156,7 +156,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         // The conflict view replaces the form and shows both sides.
         expect(await screen.findByText('This recipe changed while you were editing')).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await user.click(await screen.findByRole('button', { name: 'Keep my version' }));
 
@@ -207,7 +207,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         // Enter the merge panel and pull servings from the latest saved version, keeping my title.
         await user.click(await screen.findByRole('button', { name: 'Merge field by field' }));
@@ -237,7 +237,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
-        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         await user.click(await screen.findByRole('button', { name: 'Use the latest version' }));
 
@@ -306,7 +306,7 @@ describe('RecipeEditContainer', () => {
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         await screen.findByRole('textbox', { name: 'Title' });
-        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(updateSpy).not.toHaveBeenCalled();
         expect(screen.getByRole('button', { name: /Ingredients: needs attention/ })).toBeInTheDocument();

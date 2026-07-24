@@ -10,7 +10,7 @@
  *   effect has run) — the baseline captured then is the just-seeded, unedited draft.
  *
  * The baseline is RE-CAPTURED every time `justSaved` is true (the container passes
- * `editor.state.status === 'saved'`): a successful Save Draft / Publish / Save changes moves the
+ * `editor.state.status === 'saved'`): a successful Save Draft / Publish moves the
  * "nothing to lose" line forward, so a wizard that stays mounted past a save (this is exactly that case —
  * see `useRecipeEditor`'s own module doc on why `saved` resets rather than latching forever) never reports
  * its own just-persisted state as "unsaved edits".

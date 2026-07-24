@@ -1,42 +1,30 @@
 'use client';
 
 /**
- * Container for the recipe-edit route: loads the recipe via `useRecipe(id)`, seeds the editable
- * {@link RecipeFormValues} from the loaded {@link RecipeDetail} once, renders the shared presentational
- * `RecipeForm` in edit mode plus the app-owned {@link IngredientPicker}, validates with the feature's
- * `validateRecipeForm`, and persists via `useUpdateRecipe` — carrying `expectedVersion` for the server's
- * optimistic-concurrency check. On success it navigates back to the recipe's detail route. The loading /
- * not-found / error affordances mirror the detail route and are localized through the web dictionary.
- *
- * The recipe stays in TanStack Query; the form draft is local, seeded from the query exactly once (guarded
- * by the seeded id) so a background refetch never clobbers in-progress edits.
- *
- * Concurrent-edit conflict (T070): when the update is rejected for a stale `expectedVersion` (a `409` →
- * {@link isVersionConflictError}), the container refetches the recipe to obtain the latest saved version and
- * renders the shared {@link RecipeConflictView} in place of the form. "Keep mine" re-submits the draft against
- * that FRESH server version (forcing the user's edit to win) and navigates on success — or re-enters conflict
- * mode with the newer server version if it races again. "Use theirs" discards the draft, reseeds the form from
- * the latest saved recipe, and stays on the edit form.
+ * Container for the recipe-edit route (CP-6/P1: rewired onto the shared `useRecipeEditor` headless hook,
+ * `@commise/features-recipes/hooks`). The hook owns the whole edit lifecycle — seed-once, validation,
+ * submit-with-`expectedVersion`, the 409-to-conflict transition, and the three FR-007c resolutions — as a
+ * discriminated-union statechart (`EditorState`); this container is now a thin renderer that switches on
+ * `state.status` and wires the shared presentational `RecipeForm`/`RecipeConflictView` building blocks plus
+ * the app-owned {@link IngredientPicker}/{@link RecipePhotoUploaderContainer}. See the hook's module doc for
+ * the full statechart, the seed-once guard, and the reseed-incompatibility fix it resolves (web previously
+ * reseeded in place; mobile previously remounted via a `seedNonce`/`seedOverride` hack — both platforms now
+ * drive the SAME `setValues` transition).
  */
 import {
-    applyDraftToRecipeDetail,
     pendingIngredientIds,
     RecipeConflictView,
     RecipeForm,
     setIngredientStatusById,
-    toUpdateRecipeInput,
-    validateRecipeForm,
-    type RecipeFormErrors,
+    toRecipeFormValues,
     type RecipeFormIngredient,
-    type RecipeFormValues,
 } from '@commise/features-recipes';
+import { useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import { isNotFoundError, isVersionConflictError } from '@kitchensink/recipe-service-client';
-import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
-import type { FoodResolutionStatus, RecipeDetail, UpdateRecipeInput } from '@kitchensink/recipe-core';
+import { isNotFoundError } from '@kitchensink/recipe-service-client';
+import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FC } from 'react';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
@@ -53,55 +41,6 @@ export interface RecipeEditContainerProps {
 }
 
 /**
- * Project a loaded {@link RecipeDetail} onto the editor's {@link RecipeFormValues}. Persisted ingredient
- * lines already reference a catalog id, so they seed with their `ingredientId`; the async food-resolution
- * status is not carried on the detail projection, so no status badge is fabricated here. Pure.
- *
- * @param detail - The loaded recipe detail.
- * @returns The seeded form values.
- */
-function toRecipeFormValues(detail: RecipeDetail): RecipeFormValues {
-    return {
-        title: detail.title,
-        description: detail.description,
-        cuisine: detail.cuisine ?? '',
-        // Seed the current difficulty so the edit form shows it; absence stays "not stated" (FR-001b).
-        ...(detail.difficulty === undefined ? {} : { difficulty: detail.difficulty }),
-        tags: [...detail.tags],
-        dietaryFlags: [...detail.dietaryFlags],
-        servings: detail.servings,
-        prepTimeMinutes: detail.prepTimeMinutes,
-        cookTimeMinutes: detail.cookTimeMinutes,
-        visibility: detail.visibility,
-        ingredients: detail.ingredients.map((line) => ({
-            ingredientId: line.ingredientId,
-            name: line.name,
-            quantity: line.quantity,
-            ...(line.unit === undefined ? {} : { unit: line.unit }),
-            ...(line.notes === undefined ? {} : { notes: line.notes }),
-        })),
-        steps: detail.steps.map((step) => ({
-            instruction: step.instruction,
-            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-        })),
-    };
-}
-
-/**
- * A pending concurrent-edit conflict: the draft the user tried to save (`draft`), the latest saved recipe
- * that landed while they were editing (`theirs`, freshly refetched), and the projection of the draft onto
- * that latest recipe (`mine`) shown side-by-side by {@link RecipeConflictView}.
- */
-interface ConflictState {
-    /** The draft the user attempted to save (source of the re-submit and the "mine" title). */
-    readonly draft: RecipeFormValues;
-    /** The latest saved recipe (its `currentVersion` is the fresh optimistic-concurrency token). */
-    readonly theirs: RecipeDetail;
-    /** The user's draft projected onto `theirs` for display. */
-    readonly mine: RecipeDetail;
-}
-
-/**
  * The live recipe-edit container.
  *
  * @param props - The active locale and the recipe id to edit.
@@ -110,37 +49,17 @@ interface ConflictState {
 export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, recipeId }) => {
     const router = useRouter();
     const { recipes } = useMessages(webMessages);
-    const query = useRecipe(recipeId);
-    const updateRecipe = useUpdateRecipe();
+    const detailRoute = `/${locale}/recipes/${recipeId}` as Route;
+    const editor = useRecipeEditor(recipeId, { onSaved: () => router.push(detailRoute) });
 
-    const [values, setValues] = useState<RecipeFormValues | null>(null);
-    const [errors, setErrors] = useState<RecipeFormErrors>({});
-    const [conflict, setConflict] = useState<ConflictState | null>(null);
-    const seededIdRef = useRef<string | null>(null);
-
-    // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. Declared with the
-    // other hooks (BEFORE the early returns below) to honor the rules of hooks. Idempotent — a repeat of the
-    // same status returns the same reference — so the per-line pollers cannot loop.
-    const applyLineStatus = useCallback((ingredientId: string, status: FoodResolutionStatus): void => {
-        setValues((current) => (current === null ? current : setIngredientStatusById(current, ingredientId, status)));
-    }, []);
-
-    // Seed the draft from the loaded recipe once; the guard keeps a background refetch from overwriting edits.
-    useEffect(() => {
-        if (query.data !== undefined && seededIdRef.current !== query.data.id) {
-            seededIdRef.current = query.data.id;
-            setValues(toRecipeFormValues(query.data));
-        }
-    }, [query.data]);
-
-    if (query.isError) {
-        const notFound = isNotFoundError(query.error);
+    if (editor.query.isError) {
+        const notFound = isNotFoundError(editor.query.error);
 
         return (
             <div role="alert">
                 <p>{notFound ? recipes.detail.notFoundTitle : recipes.detail.errorTitle}</p>
                 {!notFound && (
-                    <button type="button" onClick={() => void query.refetch()}>
+                    <button type="button" onClick={() => void editor.query.refetch()}>
                         {recipes.detail.retry}
                     </button>
                 )}
@@ -148,104 +67,33 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
         );
     }
 
-    if (values === null || query.data === undefined) {
+    if (editor.state.status === 'loading') {
         return <div role="status" aria-label={recipes.detail.loadingLabel} />;
     }
 
-    const currentVersion = query.data.currentVersion;
-    const detailRoute = `/${locale}/recipes/${recipeId}` as Route;
-
     const addIngredient = (line: RecipeFormIngredient): void => {
-        setValues((current) =>
-            current === null ? current : { ...current, ingredients: [...current.ingredients, line] },
-        );
+        editor.setValues({ ...editor.values, ingredients: [...editor.values.ingredients, line] });
     };
 
-    // A rejected update for a stale version enters conflict mode against the freshly-refetched server recipe;
-    // any other error falls through to the generic submit-error affordance below.
-    const handleUpdateError = async (err: unknown, draft: RecipeFormValues): Promise<void> => {
-        if (!isVersionConflictError(err)) {
-            return;
-        }
-
-        const refetched = await query.refetch();
-        const theirs = refetched.data ?? query.data;
-
-        if (theirs === undefined) {
-            return;
-        }
-
-        setConflict({ draft, theirs, mine: applyDraftToRecipeDetail(theirs, draft) });
+    const applyLineStatus = (ingredientId: string, status: FoodResolutionStatus): void => {
+        editor.setValues(setIngredientStatusById(editor.values, ingredientId, status));
     };
 
-    // Persist `draft` with the given optimistic-concurrency token; navigate on success, resolve conflicts on 409.
-    const submitDraft = (draft: RecipeFormValues, expectedVersion: number): void => {
-        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft), expectedVersion };
+    if (editor.state.status === 'conflict') {
+        const { theirs, mine, draft, mergeSelections } = editor.state;
 
-        updateRecipe.mutate(
-            { id: recipeId, input },
-            {
-                onSuccess: () => router.push(detailRoute),
-                onError: (err) => void handleUpdateError(err, draft),
-            },
-        );
-    };
-
-    const handleSubmit = (): void => {
-        const nextErrors = validateRecipeForm(values);
-        setErrors(nextErrors);
-
-        if (Object.keys(nextErrors).length > 0) {
-            return;
-        }
-
-        submitDraft(values, currentVersion);
-    };
-
-    // "Keep mine": re-submit the draft against the FRESH server version so the user's edit wins.
-    const handleKeepMine = (): void => {
-        if (conflict === null) {
-            return;
-        }
-
-        submitDraft(conflict.draft, conflict.theirs.currentVersion);
-    };
-
-    // "Merge": re-submit the field-by-field merged draft against the FRESH server version (so the resubmit
-    // does not itself 409 on the stale version the original save carried).
-    const handleMerge = (merged: RecipeFormValues): void => {
-        if (conflict === null) {
-            return;
-        }
-
-        submitDraft(merged, conflict.theirs.currentVersion);
-    };
-
-    // "Use theirs": abandon the draft, reseed the form from the latest saved recipe, and stay on the form.
-    const handleUseTheirs = (): void => {
-        if (conflict === null) {
-            return;
-        }
-
-        setValues(toRecipeFormValues(conflict.theirs));
-        setErrors({});
-        setConflict(null);
-        // The conflicting update left the mutation in an error state; clear it so the reseeded form does not
-        // render the generic submit-error alert the user has just resolved.
-        updateRecipe.reset();
-    };
-
-    if (conflict !== null) {
         return (
             <RecipeConflictView
-                mineTitle={conflict.draft.title}
-                mine={conflict.mine}
-                theirs={conflict.theirs}
-                mineValues={conflict.draft}
-                theirsValues={toRecipeFormValues(conflict.theirs)}
-                onKeepMine={handleKeepMine}
-                onUseTheirs={handleUseTheirs}
-                onMerge={handleMerge}
+                mineTitle={draft.title}
+                mine={mine}
+                theirs={theirs}
+                mineValues={draft}
+                theirsValues={toRecipeFormValues(theirs)}
+                selections={mergeSelections}
+                onSelectionsChange={editor.resolutions.setMergeSelections}
+                onKeepMine={editor.resolutions.keepMine}
+                onUseTheirs={editor.resolutions.useTheirs}
+                onMerge={editor.resolutions.merge}
             />
         );
     }
@@ -253,19 +101,19 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     return (
         <div>
             <IngredientPicker onSelect={addIngredient} />
-            {pendingIngredientIds(values).map((id) => (
+            {pendingIngredientIds(editor.values).map((id) => (
                 <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
             ))}
             <RecipeForm
                 mode="edit"
-                values={values}
-                errors={errors}
-                submitting={updateRecipe.isPending}
-                onChange={setValues}
-                onSubmit={handleSubmit}
+                values={editor.values}
+                errors={editor.errors}
+                submitting={editor.state.status === 'submitting'}
+                onChange={editor.setValues}
+                onSubmit={editor.submit}
                 onCancel={() => router.push(detailRoute)}
             />
-            {updateRecipe.isError && <p role="alert">{recipes.form.submitError}</p>}
+            {editor.submitError && <p role="alert">{recipes.form.submitError}</p>}
             <RecipePhotoUploaderContainer recipeId={recipeId} />
         </div>
     );

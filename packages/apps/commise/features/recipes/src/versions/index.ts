@@ -10,7 +10,6 @@ export { RecipeConflictView } from './RecipeConflictView.js';
 export {
     buildRecipeMergeFields,
     composeMergedRecipe,
-    defaultMergeSelections,
     formatVersionTimestamp,
     sortVersionsDescending,
     toConflictSideFields,

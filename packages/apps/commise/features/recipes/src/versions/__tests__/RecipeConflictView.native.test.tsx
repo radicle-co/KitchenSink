@@ -7,11 +7,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { useState } from 'react';
 
 import { makeIngredientView, makeRecipeDetail, makeRecipeFormValues, makeStepView } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeConflictView } from '../RecipeConflictView.native.js';
-import type { RecipeConflictViewProps } from '../model.js';
+import type { RecipeConflictViewProps, RecipeMergeSelections } from '../model.js';
 
 afterEach(cleanup);
 
@@ -52,12 +53,43 @@ function renderConflict(overrides: Partial<RecipeConflictViewProps> = {}) {
         mine,
         mineValues,
         theirsValues,
+        selections: {},
+        onSelectionsChange: noop,
         onKeepMine: noop,
         onUseTheirs: noop,
         onMerge: noop,
         ...overrides,
     };
     render(<RecipeConflictView {...props} />);
+
+    return props;
+}
+
+/**
+ * A stateful wrapper mirroring how a real caller (the `useRecipeEditor` machine) owns `selections` — the
+ * view itself is fully controlled and holds no merge data.
+ */
+function ControlledConflict(props: Omit<RecipeConflictViewProps, 'selections' | 'onSelectionsChange'>) {
+    const [selections, setSelections] = useState<RecipeMergeSelections>({});
+
+    return <RecipeConflictView {...props} selections={selections} onSelectionsChange={setSelections} />;
+}
+
+function renderControlledConflict(
+    overrides: Partial<Omit<RecipeConflictViewProps, 'selections' | 'onSelectionsChange'>> = {},
+) {
+    const props: Omit<RecipeConflictViewProps, 'selections' | 'onSelectionsChange'> = {
+        mineTitle: 'My Draft Title',
+        theirs,
+        mine,
+        mineValues,
+        theirsValues,
+        onKeepMine: noop,
+        onUseTheirs: noop,
+        onMerge: noop,
+        ...overrides,
+    };
+    render(<ControlledConflict {...props} />);
 
     return props;
 }
@@ -137,11 +169,11 @@ describe('RecipeConflictView (native) — choices', () => {
     });
 });
 
-describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c)', () => {
+describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c, controlled selections)', () => {
     const enterMerge = () => fireEvent.click(screen.getByRole('button', { name: 'Merge field by field' }));
 
     it('enters merge mode with a per-field chooser defaulting to the user’s draft', () => {
-        renderConflict();
+        renderControlledConflict();
         enterMerge();
 
         expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
@@ -152,8 +184,8 @@ describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c
         expect(theirsRadio.getAttribute('aria-checked')).toBe('false');
     });
 
-    it('toggles a field between mine and theirs', () => {
-        renderConflict();
+    it('toggles a field between mine and theirs (round-trips through onSelectionsChange)', () => {
+        renderControlledConflict();
         enterMerge();
 
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
@@ -166,9 +198,9 @@ describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c
         );
     });
 
-    it('submits the merged draft reflecting each per-field choice (my title + their servings)', () => {
+    it('reports the current selections to onMerge (my title left default + their servings chosen)', () => {
         const onMerge = vi.fn();
-        renderConflict({ onMerge });
+        renderControlledConflict({ onMerge });
         enterMerge();
 
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
@@ -176,15 +208,17 @@ describe('RecipeConflictView (native) — field-by-field merge (FR-007c option c
         fireEvent.click(screen.getByRole('button', { name: 'Save merged version' }));
 
         expect(onMerge).toHaveBeenCalledTimes(1);
-        expect(onMerge.mock.calls[0]?.[0]).toMatchObject({ title: 'My Draft Title', servings: 4 });
+        expect(onMerge).toHaveBeenCalledWith({ servings: 'theirs' });
     });
 
-    it('returns to the three options via back', () => {
-        renderConflict();
+    it('resets selections and returns to the three options via back', () => {
+        const onSelectionsChange = vi.fn();
+        renderConflict({ onSelectionsChange, selections: { title: 'theirs' } });
         enterMerge();
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to options' }));
 
+        expect(onSelectionsChange).toHaveBeenCalledWith({});
         expect(screen.getByRole('button', { name: 'Keep my version' })).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
     });

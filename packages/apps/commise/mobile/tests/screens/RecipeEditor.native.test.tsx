@@ -12,8 +12,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 
-import { defaultRecipeFormValues } from '@commise/features-recipes';
+import { defaultRecipeFormValues, type RecipeFormValues } from '@commise/features-recipes';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import {
     useAddIngredientByName,
@@ -89,19 +90,30 @@ beforeEach(() => {
     } as unknown as ReturnType<typeof useResolveIngredient>);
 });
 
+/**
+ * A stateful wrapper mirroring how a real caller (`useRecipeEditor`, or the create screen's own local
+ * state) owns `values` for the now-fully-controlled `RecipeEditor` — the editor itself holds no state.
+ */
+function ControlledEditor(): ReturnType<typeof RecipeEditor> {
+    const [values, setValues] = useState<RecipeFormValues>(defaultRecipeFormValues());
+
+    return (
+        <RecipeEditor
+            mode="create"
+            values={values}
+            onChange={setValues}
+            submitting={false}
+            onSubmit={vi.fn()}
+            onCancel={vi.fn()}
+        />
+    );
+}
+
 /** Render the editor and add "Quinoa" through the addByName (find-nutrition) path. */
 function addByNameFlow(added: ReturnType<typeof makeIngredient>): void {
     useAddIngredientByNameMock.mockReturnValue(addByNameMutation(added));
 
-    render(
-        <RecipeEditor
-            mode="create"
-            initialValues={defaultRecipeFormValues()}
-            submitting={false}
-            onSubmit={vi.fn()}
-            onCancel={vi.fn()}
-        />,
-    );
+    render(<ControlledEditor />);
 
     fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Quinoa' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find nutrition for “Quinoa”' }));

@@ -1,11 +1,13 @@
 /**
  * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 building block).
  *
- * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same controlled,
- * presentational contract for FR-007c: the user's in-progress version and the latest saved version
- * side-by-side, plus all three resolutions — keep mine, use theirs, or MERGE field-by-field. The merge panel
- * is a per-field chooser (a radio group per editable field, defaulting to the user's draft) that composes a
- * new draft and delegates it upward via `onMerge`; nothing is auto-merged.
+ * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
+ * controlled, presentational contract for FR-007c (CP-6/P1: merge selections live in the `useRecipeEditor`
+ * machine, not here): the user's in-progress version and the latest saved version side-by-side, plus all
+ * three resolutions — keep mine, use theirs, or MERGE field-by-field. The merge panel is a per-field chooser
+ * (a radio group per editable field, defaulting to the user's draft) whose selections are the caller's own
+ * (`selections` in, `onSelectionsChange` out); this leaf reports the current selections upward via `onMerge`
+ * and the caller composes + submits. Nothing is auto-merged.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useState } from 'react';
@@ -16,7 +18,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { recipeVersionMessages } from './messages.js';
 import {
     buildRecipeMergeFields,
-    composeMergedRecipe,
     fillTemplate,
     toConflictSideFields,
     type ConflictField,
@@ -76,24 +77,26 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     mine,
     mineValues,
     theirsValues,
+    selections,
+    onSelectionsChange,
     onKeepMine,
     onUseTheirs,
     onMerge,
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
+    // Whether the merge panel is showing is pure UI navigation — stays local. `selections` is fully
+    // controlled by the caller (the `useRecipeEditor` machine).
     const [merging, setMerging] = useState(false);
-    // Sparse per-field resolution — an absent field defaults to the user's own draft ("mine").
-    const [selections, setSelections] = useState<Record<string, MergeSide>>({});
 
     const optionLabel = (side: string, value: string): string =>
         fillTemplate(conflict.mergeOptionLabel, { side, value });
 
     if (merging) {
         const fields = buildRecipeMergeFields(mineValues, theirsValues, conflict, locale);
+        // Sparse per-field resolution: an absent field defaults to "mine", matching `composeMergedRecipe`.
         const sideOf = (key: string): MergeSide => selections[key] ?? 'mine';
-        const choose = (key: string, side: MergeSide): void =>
-            setSelections((current) => ({ ...current, [key]: side }));
+        const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
 
         return (
             <View accessibilityLabel={conflict.mergeHeading} style={styles.container}>
@@ -124,7 +127,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={conflict.mergeSubmit}
-                    onPress={() => onMerge(composeMergedRecipe(mineValues, theirsValues, selections))}
+                    onPress={() => onMerge(selections)}
                     style={styles.chooseButton}
                 >
                     <Text style={styles.chooseLabel}>{conflict.mergeSubmit}</Text>
@@ -133,7 +136,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel={conflict.mergeBack}
                     onPress={() => {
-                        setSelections({});
+                        onSelectionsChange({});
                         setMerging(false);
                     }}
                     style={styles.secondaryButton}

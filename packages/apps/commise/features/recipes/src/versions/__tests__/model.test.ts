@@ -12,7 +12,6 @@ import { recipeVersionMessages } from '../messages.js';
 import {
     buildRecipeMergeFields,
     composeMergedRecipe,
-    defaultMergeSelections,
     formatVersionTimestamp,
     sortVersionsDescending,
     toConflictSideFields,
@@ -188,18 +187,6 @@ describe('buildRecipeMergeFields (T070 / FR-007c field-by-field merge)', () => {
     });
 });
 
-describe('defaultMergeSelections', () => {
-    it('starts every field on the user’s own draft', () => {
-        const fields = buildRecipeMergeFields(makeRecipeFormValues(), makeRecipeFormValues(), conflict, 'en');
-
-        const selections = defaultMergeSelections(fields);
-
-        expect(Object.values(selections).every((side) => side === 'mine')).toBe(true);
-        expect(Object.keys(selections)).toContain('title');
-        expect(Object.keys(selections)).toContain('ingredients');
-    });
-});
-
 describe('composeMergedRecipe (FR-007c — per-field, never last-write-wins)', () => {
     const mine = makeRecipeFormValues({
         title: 'My Title',
@@ -217,10 +204,8 @@ describe('composeMergedRecipe (FR-007c — per-field, never last-write-wins)', (
         ],
     });
 
-    it('all-mine selections reproduce the draft exactly', () => {
-        const fields = buildRecipeMergeFields(mine, theirs, conflict, 'en');
-
-        expect(composeMergedRecipe(mine, theirs, defaultMergeSelections(fields))).toEqual(mine);
+    it('all-mine selections reproduce the draft exactly (an absent key defaults to "mine")', () => {
+        expect(composeMergedRecipe(mine, theirs, {})).toEqual(mine);
     });
 
     it('takes each field from its chosen side — a real merge, not one whole side (mutation lens)', () => {

@@ -13,6 +13,7 @@ export {
     pendingIngredientIds,
     setIngredientStatusById,
     toCreateRecipeInput,
+    toRecipeFormValues,
     toUpdateRecipeInput,
     validateRecipeForm,
 } from './model.js';

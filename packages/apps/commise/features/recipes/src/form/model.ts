@@ -145,6 +145,46 @@ export const toUpdateRecipeInput = (values: RecipeFormValues): Omit<UpdateRecipe
 });
 
 /**
+ * Project a loaded {@link RecipeDetail} onto the editor's {@link RecipeFormValues} seed shape (T067, unified
+ * B2 — the ONE seed adapter both platforms and the `useRecipeEditor` headless hook use; a web-local and a
+ * mobile-local copy of this exact mapping existed before this change and have been collapsed into this
+ * single, package-level export). Persisted ingredient lines already reference a catalog id, so each is
+ * marked `RESOLVED` — a saved recipe's lines are, by definition, resolved, and marking them explicitly
+ * (rather than leaving `resolutionStatus` absent) lets the form's "Resolved" badge render for them exactly
+ * as it does for a freshly-resolved line, instead of showing no badge at all. Optional fields (`unit`,
+ * `notes`, `timerSeconds`, `difficulty`) are OMITTED rather than set to `undefined`, so the result stays
+ * valid under `exactOptionalPropertyTypes`. Pure.
+ *
+ * @param detail - The loaded recipe detail (from `useRecipe`).
+ * @returns The seeded form values.
+ */
+export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
+    title: detail.title,
+    description: detail.description,
+    cuisine: detail.cuisine ?? '',
+    // Seed the current difficulty so the edit form shows it; absence stays "not stated" (FR-001b).
+    ...(detail.difficulty === undefined ? {} : { difficulty: detail.difficulty }),
+    tags: [...detail.tags],
+    dietaryFlags: [...detail.dietaryFlags],
+    servings: detail.servings,
+    prepTimeMinutes: detail.prepTimeMinutes,
+    cookTimeMinutes: detail.cookTimeMinutes,
+    visibility: detail.visibility,
+    ingredients: detail.ingredients.map((line) => ({
+        ingredientId: line.ingredientId,
+        name: line.name,
+        quantity: line.quantity,
+        resolutionStatus: 'RESOLVED',
+        ...(line.unit === undefined ? {} : { unit: line.unit }),
+        ...(line.notes === undefined ? {} : { notes: line.notes }),
+    })),
+    steps: detail.steps.map((step) => ({
+        instruction: step.instruction,
+        ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+    })),
+});
+
+/**
  * Project the in-progress draft onto a base {@link RecipeDetail} so the concurrent-edit conflict view (T070)
  * can show "mine" (the edit the user was about to save) beside "theirs" (the latest saved recipe). The
  * conflict view renders only aggregate fields — title, servings, prep/cook/total times, and ingredient/step

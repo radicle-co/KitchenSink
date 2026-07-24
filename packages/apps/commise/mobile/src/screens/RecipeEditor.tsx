@@ -1,23 +1,28 @@
 /**
- * Recipe editor (mobile, T067). The controlled state layer shared by the create and edit screens: it owns
- * the in-progress {@link RecipeFormValues} and the validation errors, wires the ingredient typeahead
- * ({@link IngredientPicker}) so each resolved line carries a catalog id, and hands the presentational
- * `RecipeForm` building block its props. It performs NO data fetching and runs NO mutation — the composing
- * screen owns those and passes `submitting`/`submitError`/`onSubmit`. Submission is gated on a clean
- * validation pass so an incomplete form never reaches the network.
+ * Recipe editor (mobile, T067; CP-6/P1 — now FULLY CONTROLLED). The presentational orchestration layer
+ * shared by the create and edit screens: it wires the ingredient typeahead ({@link IngredientPicker}) and
+ * poll-after-add, and hands the presentational `RecipeForm` building block its props. It performs NO data
+ * fetching and runs NO mutation, and — since CP-6/P1 — it owns NO state of its own either: `values`/`errors`
+ * come in from the caller and every edit reports back via `onChange`, exactly mirroring the web container's
+ * direct use of `RecipeForm`. This closes the mobile-vs-web reseed incompatibility (see
+ * `useRecipeEditor`'s module doc): the old `useState(initialValues)`-seeded-once-on-mount design was WHY the
+ * edit screen needed a `seedNonce`/`seedOverride` remount hack to reseed after "use theirs" — a controlled
+ * component has no such need, because the caller can always just call `onChange` again.
+ *
+ * The create screen (no seed/conflict/version concerns) owns its own local `values`/`errors` `useState` and
+ * passes them down the same way the edit screen's `useRecipeEditor` hook does — same controlled contract,
+ * different state owner.
  */
 import {
     pendingIngredientIds,
     RecipeForm,
     setIngredientStatusById,
-    validateRecipeForm,
     type RecipeFormErrors,
     type RecipeFormMode,
     type RecipeFormValues,
 } from '@commise/features-recipes';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
-import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
@@ -27,14 +32,18 @@ import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js'
 export interface RecipeEditorProps {
     /** Create vs edit — selects the form's heading and submit copy. */
     readonly mode: RecipeFormMode;
-    /** The seed form values (blank for create, mapped from the loaded recipe for edit). */
-    readonly initialValues: RecipeFormValues;
+    /** The controlled draft (blank for create, seeded from the loaded recipe for edit). */
+    readonly values: RecipeFormValues;
+    /** Field-level validation errors to surface; absent/empty when the form is valid. */
+    readonly errors?: RecipeFormErrors;
+    /** Called with the next values on every field/row edit (add, remove, or change). */
+    readonly onChange: (next: RecipeFormValues) => void;
     /** Whether the composing screen's create/update mutation is in flight. */
     readonly submitting: boolean;
     /** A localized error to surface above the form when the mutation failed. */
     readonly submitError?: string;
-    /** Called with the validated values when the user submits a valid form. */
-    readonly onSubmit: (values: RecipeFormValues) => void;
+    /** Called when the user submits the form — the caller validates (see `useRecipeEditor.submit`). */
+    readonly onSubmit: () => void;
     /** Called when the user cancels the editor. */
     readonly onCancel: () => void;
 }
@@ -42,37 +51,27 @@ export interface RecipeEditorProps {
 /**
  * The recipe create/edit editor.
  *
- * @param props - Mode, seed values, submission state, and the submit/cancel callbacks.
+ * @param props - Mode, the controlled draft + its change handler, submission state, and the submit/cancel callbacks.
  * @returns The typeahead + controlled recipe form.
  */
 export function RecipeEditor({
     mode,
-    initialValues,
+    values,
+    errors,
+    onChange,
     submitting,
     submitError,
     onSubmit,
     onCancel,
 }: RecipeEditorProps): JSX.Element {
-    const [values, setValues] = useState<RecipeFormValues>(initialValues);
-    const [errors, setErrors] = useState<RecipeFormErrors>({});
-
-    const handleSubmit = (): void => {
-        const nextErrors = validateRecipeForm(values);
-        setErrors(nextErrors);
-
-        if (Object.keys(nextErrors).length === 0) {
-            onSubmit(values);
-        }
-    };
-
     // Carry the line's ACTUAL resolution status from the picker (a food added by name may be PENDING and
     // resolve later) — never assume RESOLVED, or a still-resolving line would never be polled. A line with no
     // status (a plain freeform create) simply carries none.
     const appendResolved = (ingredient: ResolvedIngredient): void => {
-        setValues((current) => ({
-            ...current,
+        onChange({
+            ...values,
             ingredients: [
-                ...current.ingredients,
+                ...values.ingredients,
                 {
                     ingredientId: ingredient.id,
                     name: ingredient.name,
@@ -82,14 +81,15 @@ export function RecipeEditor({
                         : { resolutionStatus: ingredient.resolutionStatus }),
                 },
             ],
-        }));
+        });
     };
 
-    // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. Idempotent — a repeat
-    // of the same status returns the same reference — so the per-line pollers below cannot loop.
-    const applyLineStatus = useCallback((ingredientId: string, status: FoodResolutionStatus): void => {
-        setValues((current) => setIngredientStatusById(current, ingredientId, status));
-    }, []);
+    // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. `setIngredientStatusById`
+    // is idempotent (returns the same reference when the status is unchanged) so the per-line pollers below
+    // cannot loop.
+    const applyLineStatus = (ingredientId: string, status: FoodResolutionStatus): void => {
+        onChange(setIngredientStatusById(values, ingredientId, status));
+    };
 
     return (
         // flex:1 so the child RecipeForm's ScrollView inherits a bounded height and can actually scroll — the
@@ -107,8 +107,8 @@ export function RecipeEditor({
                 errors={errors}
                 mode={mode}
                 submitting={submitting}
-                onChange={setValues}
-                onSubmit={handleSubmit}
+                onChange={onChange}
+                onSubmit={onSubmit}
                 onCancel={onCancel}
             />
         </View>

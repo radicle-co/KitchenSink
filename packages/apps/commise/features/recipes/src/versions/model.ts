@@ -40,9 +40,12 @@ export interface RecipeVersionListProps {
 }
 
 /**
- * Props for the concurrent-edit conflict view (T070 / C-005) — a controlled, presentational component. It
- * presents the user's in-progress version and the latest saved version side-by-side and delegates the
- * resolution choice upward.
+ * Props for the concurrent-edit conflict view (T070 / C-005 / CP-6 P1) — a FULLY controlled, presentational
+ * component. It presents the user's in-progress version and the latest saved version side-by-side and
+ * delegates every choice upward, including the field-by-field merge panel's own selection state: `selections`
+ * comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every toggle
+ * reports back via `onSelectionsChange` — this view owns no merge data of its own (only the "is the merge
+ * panel showing" UI toggle stays local, since that is pure navigation, not data the machine needs).
  */
 export interface RecipeConflictViewProps {
     /** The title of the user's in-progress edit (may differ from `mine.title`). */
@@ -55,12 +58,17 @@ export interface RecipeConflictViewProps {
     readonly mineValues: RecipeFormValues;
     /** The latest saved recipe projected to the editable form shape — the "theirs" side of the merge. */
     readonly theirsValues: RecipeFormValues;
+    /** The current per-field merge resolution (an absent key defaults to `'mine'`); owned by the caller. */
+    readonly selections: RecipeMergeSelections;
+    /** Invoked with the next selections on every per-field radio toggle, and to reset on merge-panel exit. */
+    readonly onSelectionsChange: (selections: RecipeMergeSelections) => void;
     /** Invoked when the user chooses to keep their own version. */
     readonly onKeepMine: () => void;
     /** Invoked when the user chooses to take the latest saved version. */
     readonly onUseTheirs: () => void;
-    /** Invoked with the field-by-field merged draft when the user saves a merge (FR-007c option c). */
-    readonly onMerge: (merged: RecipeFormValues) => void;
+    /** Invoked with the current per-field selections when the user saves a merge (FR-007c option c); the
+     *  caller composes the merged draft (`composeMergedRecipe`) and submits it. */
+    readonly onMerge: (selections: RecipeMergeSelections) => void;
 }
 
 /**
@@ -288,16 +296,17 @@ export const buildRecipeMergeFields = (
     });
 };
 
-/**
- * The default per-field resolution: every field starts on the user's own draft ("mine"). A clearly-labelled
- * default (never a silent combine) — the user then flips individual fields to "theirs" to pull the latest
- * saved value in. Pure.
- *
- * @param fields - The merge fields to seed selections for.
- * @returns Selections mapping every field key to `'mine'`.
- */
-export const defaultMergeSelections = (fields: readonly RecipeMergeField[]): RecipeMergeSelections =>
-    Object.fromEntries(fields.map((field): [string, MergeSide] => [field.key, 'mine']));
+// A NAMED `defaultMergeSelections` helper (materializing every known field key to `'mine'`) was deliberately
+// NOT reintroduced here (CP-6/P1). Both live readers of a per-field selection already treat an ABSENT key as
+// `'mine'` — `composeMergedRecipe` below (`selections[key] === 'theirs' ? theirs : mine`) and the conflict
+// view's `sideOf` (`selections[key] ?? 'mine'`) — so seeding the `useRecipeEditor` machine's
+// `conflict.mergeSelections` with `{}` on conflict entry is BEHAVIORALLY IDENTICAL to seeding it with a
+// materialized default record. A `defaultMergeSelections(fields: RecipeMergeField[])` also could not be
+// called from the platform-agnostic hook anyway — `RecipeMergeField[]` is a LOCALIZED projection
+// (`buildRecipeMergeFields` needs `messages`/`locale`), which the hook does not have. The prior version of
+// this module exported such a helper with zero production callers (confirmed before this change); keeping
+// an unconsumed third statement of "mine is the default" alongside the two above would be a DRY liability,
+// not a DRY win, so it — and its dedicated test — were removed rather than force-fed a caller.
 
 /**
  * Compose the merged draft from the per-field selections: each field is taken from "theirs" when the user

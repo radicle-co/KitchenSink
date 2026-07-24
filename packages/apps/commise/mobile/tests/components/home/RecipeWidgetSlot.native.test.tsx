@@ -6,9 +6,9 @@
  * list when populated, and the empty state when the viewer has none — plus the "see all recipes" entry.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeWidgetSlot } from '../../../src/components/home/RecipeWidgetSlot.js';
@@ -26,11 +26,7 @@ function listResult(overrides: Partial<ReturnType<typeof useRecipes>> = {}): Ret
 const noop = (): void => undefined;
 
 const renderSlot = (onSeeAllRecipes: () => void = noop): void => {
-    render(
-        <LocaleProvider locale="en">
-            <RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} />
-        </LocaleProvider>,
-    );
+    renderWithProviders(<RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} />);
 };
 
 afterEach(cleanup);

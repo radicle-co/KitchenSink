@@ -8,11 +8,11 @@
  * for every shared roadmap id.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import type { FC } from 'react';
 
-import { LocaleProvider } from '@commise/i18n/react';
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
+import { renderWithProviders } from '@commise/test-utils';
 
 import { MealPlanWidgetSkeleton } from '../../../src/components/home/skeletons/MealPlanWidgetSkeleton.js';
 import { NutritionWidgetSkeleton } from '../../../src/components/home/skeletons/NutritionWidgetSkeleton.js';
@@ -21,7 +21,7 @@ import { ResumeCookingWidgetSkeleton } from '../../../src/components/home/skelet
 afterEach(cleanup);
 
 const renderIn = (ui: React.ReactElement): void => {
-    render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
+    renderWithProviders(ui);
 };
 
 const SKELETONS: Readonly<Record<RoadmapWidgetId, { readonly Component: FC; readonly title: string }>> = {

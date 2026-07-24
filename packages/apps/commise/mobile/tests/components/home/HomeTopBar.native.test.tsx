@@ -4,9 +4,9 @@
  * "your account" accessible name, never invented letters. The avatar routes to the account surface.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 
 import { HomeTopBar } from '../../../src/components/home/chrome/HomeTopBar.js';
 import { mobileMessages } from '../../../src/i18n/messages.js';
@@ -17,10 +17,8 @@ const chrome = mobileMessages.en.home.chrome;
 
 const renderTopBar = (overrides: Partial<Parameters<typeof HomeTopBar>[0]> = {}): (() => void) => {
     const onOpenAccount = vi.fn();
-    render(
-        <LocaleProvider locale="en">
-            <HomeTopBar chrome={chrome} displayName="Jane Doe" onOpenAccount={onOpenAccount} {...overrides} />
-        </LocaleProvider>,
+    renderWithProviders(
+        <HomeTopBar chrome={chrome} displayName="Jane Doe" onOpenAccount={onOpenAccount} {...overrides} />,
     );
 
     return onOpenAccount;

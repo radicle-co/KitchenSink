@@ -5,9 +5,9 @@
  * destination is marked current. The viewer-profile hook is mocked; the locale comes from a provider.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
@@ -18,12 +18,10 @@ const { AppShell } = await import('../AppShell');
 afterEach(cleanup);
 
 const renderShell = (activeId: 'home' | 'recipes') =>
-    render(
-        <LocaleProvider locale="en">
-            <AppShell activeId={activeId}>
-                <p>surface content</p>
-            </AppShell>
-        </LocaleProvider>,
+    renderWithProviders(
+        <AppShell activeId={activeId}>
+            <p>surface content</p>
+        </AppShell>,
     );
 
 describe('AppShell', () => {

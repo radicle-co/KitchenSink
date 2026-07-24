@@ -7,7 +7,7 @@
  * `RecipeWidgetSlot.test.tsx`, the chrome in `chrome/__tests__`, and the greeting in `HomeGreeting.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, JSX } from 'react';
 
@@ -19,7 +19,7 @@ import {
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 import * as Sentry from '@sentry/nextjs';
 import { createContainer, type Container } from 'ditox';
 
@@ -75,11 +75,7 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
 };
 
 const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0]): void => {
-    render(
-        <LocaleProvider locale="en">
-            <HomeWidgetSurface {...props} />
-        </LocaleProvider>,
-    );
+    renderWithProviders(<HomeWidgetSurface {...props} />);
 };
 
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
@@ -140,6 +136,7 @@ describe('HomeWidgetSurface (web) — host composition', () => {
 
     it('reports a widget render failure to Sentry and shows a fallback, not a blank (B23)', () => {
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
         const Boom: FC = () => {
             throw new Error('widget boom');
         };

@@ -7,7 +7,7 @@
  * the chrome pieces in their own tests.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import type { FC, JSX } from 'react';
 
 import {
@@ -18,7 +18,7 @@ import {
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 import { createContainer, type Container } from 'ditox';
 import { Pressable, Text } from 'react-native';
 
@@ -80,11 +80,7 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
 };
 
 const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> = {}): void => {
-    render(
-        <LocaleProvider locale="en">
-            <HomeWidgetSurface onSeeAllRecipes={noop} onOpenAccount={noop} {...props} />
-        </LocaleProvider>,
-    );
+    renderWithProviders(<HomeWidgetSurface onSeeAllRecipes={noop} onOpenAccount={noop} {...props} />);
 };
 
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;

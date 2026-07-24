@@ -11,11 +11,11 @@
  *  - WCAG 2.1 AA (1.1.1, 1.3.1, 4.1.2) — a screen-reader user must be told the same thing a sighted user is
  *    told: the panel exists and is coming soon. It must NOT be told there is nutrition data.
  */
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { LocaleProvider } from '@commise/i18n/react';
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
+import { renderWithProviders } from '@commise/test-utils';
 
 import { MealPlanWidgetSkeleton } from '../MealPlanWidgetSkeleton';
 import { NutritionWidgetSkeleton } from '../NutritionWidgetSkeleton';
@@ -24,7 +24,7 @@ import { ResumeCookingWidgetSkeleton } from '../ResumeCookingWidgetSkeleton';
 afterEach(cleanup);
 
 const renderIn = (ui: React.ReactElement): void => {
-    render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
+    renderWithProviders(ui);
 };
 
 /** Every roadmap skeleton, keyed by its widget id and paired with the heading the mockup shows. */
@@ -76,11 +76,7 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
     });
 
     it('hides its skeleton shapes from assistive tech (they carry no information)', () => {
-        const { container } = render(
-            <LocaleProvider locale="en">
-                <Component />
-            </LocaleProvider>,
-        );
+        const { container } = renderWithProviders(<Component />);
 
         const shapes = container.querySelectorAll('.bg-pearl');
 
@@ -92,11 +88,7 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
     });
 
     it('does not animate — a pulse means "loading", and this is not loading', () => {
-        const { container } = render(
-            <LocaleProvider locale="en">
-                <Component />
-            </LocaleProvider>,
-        );
+        const { container } = renderWithProviders(<Component />);
 
         // Also sidesteps prefers-reduced-motion entirely: there is no motion to reduce.
         expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0);

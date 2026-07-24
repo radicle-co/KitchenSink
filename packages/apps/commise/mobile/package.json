@@ -59,6 +59,7 @@
     },
     "devDependencies": {
         "@babel/core": "^8.0.1",
+        "@commise/test-utils": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-core": "*",

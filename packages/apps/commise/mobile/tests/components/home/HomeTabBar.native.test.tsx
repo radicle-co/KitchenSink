@@ -5,10 +5,10 @@
  * destination is the selected tab; and activating a reachable tab routes its id.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 
 import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
 import { mobileMessages } from '../../../src/i18n/messages.js';
@@ -20,17 +20,15 @@ const LIVE = [RECIPE_HOME_WIDGET_CAPABILITY];
 
 const renderTabBar = (overrides: Partial<Parameters<typeof HomeTabBar>[0]> = {}): ((id: string) => void) => {
     const onSelect = vi.fn();
-    render(
-        <LocaleProvider locale="en">
-            <HomeTabBar
-                chrome={chrome}
-                liveCapabilities={LIVE}
-                activeId="home"
-                onSelect={onSelect}
-                bottomInset={0}
-                {...overrides}
-            />
-        </LocaleProvider>,
+    renderWithProviders(
+        <HomeTabBar
+            chrome={chrome}
+            liveCapabilities={LIVE}
+            activeId="home"
+            onSelect={onSelect}
+            bottomInset={0}
+            {...overrides}
+        />,
     );
 
     return onSelect;

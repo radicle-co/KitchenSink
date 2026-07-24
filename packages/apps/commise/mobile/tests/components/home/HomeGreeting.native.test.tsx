@@ -5,9 +5,9 @@
  * greeting that ignored the hour would fail every non-matching case.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
-import { LocaleProvider } from '@commise/i18n/react';
+import { renderWithProviders } from '@commise/test-utils';
 
 import { HomeGreeting } from '../../../src/components/home/HomeGreeting.js';
 
@@ -20,11 +20,7 @@ const renderAt = (year: number, monthIndex: number, day: number, hour: number, l
     vi.useFakeTimers();
     vi.setSystemTime(new Date(year, monthIndex, day, hour, 0, 0));
 
-    render(
-        <LocaleProvider locale={locale}>
-            <HomeGreeting />
-        </LocaleProvider>,
-    );
+    renderWithProviders(<HomeGreeting />, { locale });
 };
 
 describe('HomeGreeting (mobile) — time-of-day bucket', () => {

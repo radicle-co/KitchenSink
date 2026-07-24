@@ -23,7 +23,7 @@
  *     chunk-load seam is removed (real browsers exercise it; the Playwright suite covers it).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import type { ComponentType, ReactElement } from 'react';
 
 // Render the real recipe widget synchronously in place of the `next/dynamic` code-split (see DETERMINISM #2).
@@ -34,10 +34,11 @@ vi.mock('next/dynamic', async () => {
     return { default: (): ComponentType<{ recipesPromise: Promise<readonly Recipe[]> }> => widgetModule.default };
 });
 
-import { LocaleProvider } from '@commise/i18n/react';
 import type { Recipe } from '@kitchensink/recipe-core';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+
+import { renderWithProviders } from '@commise/test-utils';
 
 import { RecipeWidgetSlot } from '../RecipeWidgetSlot';
 
@@ -75,17 +76,15 @@ const clientReturning = (page: () => Promise<{ data: readonly Recipe[] }>): Reci
     ({ listRecipes: () => page() }) as unknown as RecipeServiceClient;
 
 const slot = (client: RecipeServiceClient): ReactElement => (
-    <LocaleProvider locale="en">
-        <RecipeServiceProvider client={client}>
-            <RecipeWidgetSlot />
-        </RecipeServiceProvider>
-    </LocaleProvider>
+    <RecipeServiceProvider client={client}>
+        <RecipeWidgetSlot />
+    </RecipeServiceProvider>
 );
 
 /** Render the slot and flush the recipes-promise resolution + Suspense retry, so `getBy*` sees the content. */
 const renderResolved = async (client: RecipeServiceClient): Promise<void> => {
     await act(async () => {
-        render(slot(client));
+        renderWithProviders(slot(client));
     });
 };
 
@@ -93,7 +92,7 @@ describe('RecipeWidgetSlot (web)', () => {
     it('shows the skeleton card (widget title, no recipes) while the recipes promise is pending', () => {
         // A pending (never-settling) promise keeps the widget suspended → the skeleton fallback renders. This is
         // a synchronous render with no `await`, so it leaves no resolved Suspense work (and nothing to flush).
-        render(slot(clientReturning(() => new Promise<{ data: readonly Recipe[] }>(() => {}))));
+        renderWithProviders(slot(clientReturning(() => new Promise<{ data: readonly Recipe[] }>(() => {}))));
 
         expect(screen.getByText('Recent recipes')).toBeTruthy(); // the skeleton card title
         expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();

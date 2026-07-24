@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/card — web mockup-parity recipe card (compound component, W9-f P7).
  *

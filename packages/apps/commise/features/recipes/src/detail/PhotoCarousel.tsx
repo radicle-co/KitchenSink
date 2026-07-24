@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2).
  *

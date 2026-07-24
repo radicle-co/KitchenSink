@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — cooking-progress React binding (W2 Task 2.4, D4/D5).
  *

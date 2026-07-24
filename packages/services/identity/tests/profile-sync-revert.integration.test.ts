@@ -18,6 +18,13 @@ import type { UserId } from '../src/types/index.js';
  * path never updates — so a revert back to A compared against the stale, never-moved `users.name`
  * baseline and looked like a no-op, dropping both the write and the handle-sync publish.
  *
+ * Also covers the two scenarios that motivate gating on `users.name`/`users.picture` (the Clerk
+ * mirror) rather than the current `profiles` row: a self-service `PATCH /me` override of
+ * `profiles.displayName` MUST survive a subsequent non-name `user.updated` event (avatar-only change,
+ * redelivery) since the mirror is unchanged and the sync correctly no-ops; and a genuine Clerk-side
+ * name change MUST still win and move both the mirror and `profiles`, even after a prior self-service
+ * override.
+ *
  * Runs against a real Postgres (CI service; locally set DATABASE_URL); skips cleanly when none is
  * configured — see `packages/services/identity/infra/docker/docker-compose.yml` to run locally.
  */

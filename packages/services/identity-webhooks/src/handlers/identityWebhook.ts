@@ -166,10 +166,14 @@ const handleUserUpdated = async (
         await db.update(users).set({ email, updatedAt: now }).where(eq(users.id, existing.id));
     }
 
-    // Coherent users/profiles sync (S-I3): gate on the CURRENT profiles row (the real baseline), not
-    // `users.name` (which this path never wrote — the stale baseline that froze an A->B->A revert at
-    // B). One transaction, both tables. Returns whether displayName actually changed, so the handle-sync
-    // publish below fires on every genuine transition, including a revert back to a prior value.
+    // Coherent users/profiles sync (S-I3): gate on `users.name`/`users.picture` as the Clerk MIRROR,
+    // moving the mirror on every genuine Clerk-side change. This fires the `profiles` write only when
+    // Clerk's incoming value actually differs from the mirror (so an A->B->A rename still round-trips,
+    // since the mirror always tracks Clerk's last-seen value) while leaving `profiles` untouched on a
+    // non-name event (avatar-only change, redelivery), which preserves any self-service `PATCH /me`
+    // override. One transaction, both tables. Returns whether displayName actually changed, so the
+    // handle-sync publish below fires on every genuine transition, including a revert back to a prior
+    // value.
     const newPicture = data.image_url ?? null;
     const { displayNameChanged } = await userDao.syncNameAndPicture(existing.id as UserId, {
         name: displayName,

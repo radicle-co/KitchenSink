@@ -7,6 +7,7 @@
 export { RecipeVersionList } from './RecipeVersionList.js';
 export { RecipeConflictView } from './RecipeConflictView.js';
 
+export { diffSnapshots, type SnapshotDiff, type SnapshotFieldKey } from './diff.js';
 export {
     buildRecipeMergeFields,
     composeMergedRecipe,

@@ -52,6 +52,18 @@ describe('CollectionActions (native) — Pull Updates visibility (FR-011)', () =
 
         expect(onPullUpdates).toHaveBeenCalledTimes(1);
     });
+
+    it('disables the action and shows a busy affordance while pulling updates, and cannot re-fire', () => {
+        const onPullUpdates = vi.fn();
+        renderActions({ isCloned: true, isPulling: true, onPullUpdates });
+
+        const button = screen.getByRole('button', { name: 'Pull Updates from Source' });
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText('Pulling updates…')).toBeTruthy();
+
+        fireEvent.click(button);
+        expect(onPullUpdates).not.toHaveBeenCalled();
+    });
 });
 
 describe('CollectionActions (native) — Add Recipes', () => {

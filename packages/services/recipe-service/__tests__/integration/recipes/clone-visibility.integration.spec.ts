@@ -196,21 +196,37 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         }
     });
 
-    it('a NON-owner cannot clone a PRIVATE recipe (403 NOT_OWNER)', async () => {
-        const sourceId = await seedRecipe(db, {
+    // W8-a.4 (IDOR): clone is an owner-only verb over a viewability-gated read. A recipe the caller CANNOT
+    // SEE — a PRIVATE one, OR a public DRAFT (a free-tier draft is `visibility='public'`, so status is the
+    // real boundary) — owned by someone else must be INDISTINGUISHABLE from a missing id: 404
+    // RECIPE_NOT_FOUND, NEVER 403 NOT_OWNER. A 403 here would confirm the id exists and expose its status —
+    // the exact existence/status oracle the contract closes. Both not-viewable shapes are asserted so a
+    // regression on either (e.g. `status` dropped from the projection) is caught.
+    it('a NON-owner CANNOT clone a not-viewable recipe: 404 RECIPE_NOT_FOUND, not a 403 oracle (private + public-draft)', async () => {
+        const privateId = await seedRecipe(db, {
             ownerId: AUTHOR,
             title: 'Author Private Dish',
             visibility: 'private',
             sourceType: 'user_created',
         });
-
-        const res = await fetch(`${baseUrl}/v1/recipes/${sourceId}/clone`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({}),
+        const publicDraftId = await seedRecipe(db, {
+            ownerId: AUTHOR,
+            title: 'Author Public Draft',
+            visibility: 'public',
+            status: 'draft',
+            sourceType: 'user_created',
         });
 
-        expect(res.status).toBe(403);
+        for (const notViewableId of [privateId, publicDraftId]) {
+            const res = await fetch(`${baseUrl}/v1/recipes/${notViewableId}/clone`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+
+            expect(res.status).toBe(404);
+            expect((await res.json()).code).toBe('RECIPE_NOT_FOUND');
+        }
     });
 
     it('a content (steps) edit flips has_substantive_edit; a metadata-only edit does not', async () => {

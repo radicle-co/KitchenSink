@@ -56,7 +56,7 @@
 import type { RecipeDetail, UpdateRecipeInput } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
     applyDraftToRecipeDetail,
@@ -76,6 +76,13 @@ import { composeMergedRecipe, type RecipeMergeSelections } from '../versions/mod
  * sides of the conflict, the draft that lost the race, and the in-progress merge selections); `saved` once a
  * write has succeeded (the caller's `onSaved` fires on the SAME transition — most callers navigate away
  * immediately, so this status is normally transient).
+ *
+ * **`saved` is reset on every transition that resumes editing**, not just set-once: a consumer that does NOT
+ * unmount on `onSaved` (a multi-step wizard) can keep the machine alive past a successful save, so the
+ * `saved` flag is cleared on `setValues`/`setField` (any fresh edit), on a reseed (the seed-once effect and
+ * `useTheirs`), and on entering/resolving `conflict` (`keepMine`/`merge`'s resubmit, and `useTheirs`).
+ * Without this, a save followed by further editing and a 409 could exit `conflict` back into a stale `saved`
+ * display instead of `editing` — see the hook's tests under "saved latch".
  */
 export type EditorState =
     | { readonly status: 'loading' }
@@ -166,6 +173,9 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         if (query.data !== undefined && seededId !== query.data.id) {
             setSeededId(query.data.id);
             setValuesState(toRecipeFormValues(query.data));
+            // A reseed (a real navigation to a different recipe) always resumes editing, never leaves `saved`
+            // dangling from whatever the PREVIOUS recipe's edit lifecycle last did.
+            setSaved(false);
         }
     }, [query.data, seededId]);
 
@@ -190,6 +200,9 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
             draft,
             mergeSelections: {},
         });
+        // Entering conflict always resumes editing (the user must resolve it); never let a stale `saved` from
+        // an earlier successful save in this same hook instance resurface once the conflict itself clears.
+        setSaved(false);
     };
 
     // Persist `draft` with the given optimistic-concurrency token; report success upward, resolve conflicts on 409.
@@ -209,6 +222,21 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         );
     };
 
+    // The controlled draft's public mutators. Both reset the `saved` latch — resuming an edit after a
+    // successful save (a wizard that stays mounted past `onSaved`) must fall back to `editing`, not keep
+    // reporting a stale `saved` from before this edit. `useCallback` (empty deps: `setSaved`/`setValuesState`
+    // are the stable dispatchers `useState` returns) keeps these referentially stable across renders, same as
+    // the raw `useState` setter `setValues` wrapped before this fix.
+    const setValues = useCallback((next: RecipeFormValues): void => {
+        setSaved(false);
+        setValuesState(next);
+    }, []);
+
+    const setField = useCallback(<K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]): void => {
+        setSaved(false);
+        setValuesState((current) => ({ ...current, [field]: value }));
+    }, []);
+
     const submit = (): void => {
         const nextErrors = validateRecipeForm(values);
         setErrors(nextErrors);
@@ -226,6 +254,8 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
                 return;
             }
 
+            // Resuming into a resubmit is a fresh editing attempt, not a continuation of a prior `saved`.
+            setSaved(false);
             submitDraft(conflict.draft, conflict.theirs.currentVersion);
         },
         useTheirs: (): void => {
@@ -238,6 +268,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
             setValuesState(toRecipeFormValues(conflict.theirs));
             setErrors({});
             setConflict(null);
+            setSaved(false);
         },
         merge: (selections: RecipeMergeSelections): void => {
             if (conflict === null) {
@@ -245,6 +276,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
             }
 
             const merged = composeMergedRecipe(conflict.draft, toRecipeFormValues(conflict.theirs), selections);
+            setSaved(false);
             submitDraft(merged, conflict.theirs.currentVersion);
         },
         setMergeSelections: (selections: RecipeMergeSelections): void => {
@@ -266,8 +298,8 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         state,
         values,
         errors,
-        setValues: setValuesState,
-        setField: (field, value) => setValuesState((current) => ({ ...current, [field]: value })),
+        setValues,
+        setField,
         submit,
         submitError: updateRecipe.isError && !isVersionConflictError(updateRecipe.error),
         query: { isLoading: query.isLoading, isError: query.isError, error: query.error, refetch: query.refetch },

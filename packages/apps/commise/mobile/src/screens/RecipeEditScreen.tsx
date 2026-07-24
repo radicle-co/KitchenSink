@@ -38,21 +38,28 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     const { recipes: t } = useMessages(mobileMessages);
     const editor = useRecipeEditor(recipeId, { onSaved: (recipe) => onSaved(recipe.id) });
 
-    if (editor.query.isLoading) {
-        return (
-            <View accessibilityLabel={t.detailLoading} style={styles.center}>
-                <ActivityIndicator />
-            </View>
-        );
-    }
-
-    if (editor.query.isError || editor.state.status === 'loading') {
+    // `isError` MUST be checked before the loading condition below: on a genuine failure `query.data` stays
+    // `undefined` forever, which would otherwise keep `editor.state.status === 'loading'` true forever too
+    // (the seed effect never runs without data) and mask the error behind an infinite spinner.
+    if (editor.query.isError) {
         return (
             <View style={styles.center}>
                 <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onCancel}>
                     <Text>{t.back}</Text>
                 </Pressable>
                 <Text accessibilityRole="alert">{t.detailError}</Text>
+            </View>
+        );
+    }
+
+    // The query's own `isLoading` covers the network fetch; `state.status === 'loading'` ALSO covers the
+    // committed-render gap after data lands but before the hook's seed-once effect has run (`query.isLoading`
+    // already false, `values` not yet seeded). Both are loading, NOT error — routing the seed-gap into the
+    // alert branch above would announce a false load-failure to screen readers on every successful edit-open.
+    if (editor.query.isLoading || editor.state.status === 'loading') {
+        return (
+            <View accessibilityLabel={t.detailLoading} style={styles.center}>
+                <ActivityIndicator />
             </View>
         );
     }

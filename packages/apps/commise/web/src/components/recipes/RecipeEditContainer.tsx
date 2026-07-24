@@ -25,6 +25,7 @@ import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
+import { useCallback } from 'react';
 import type { FC } from 'react';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
@@ -52,6 +53,17 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     const detailRoute = `/${locale}/recipes/${recipeId}` as Route;
     const editor = useRecipeEditor(recipeId, { onSaved: () => router.push(detailRoute) });
 
+    // `editor.setValues` takes the next full value (no functional-updater form, unlike `useState`'s setter), so
+    // this callback must close over `editor.values` and is only as stable as the draft itself — it still avoids
+    // rebuilding an identical function on every unrelated re-render (e.g. `submitting`/conflict-selection churn).
+    // Declared before the early returns below (Rules of Hooks: no conditional hook calls).
+    const applyLineStatus = useCallback(
+        (ingredientId: string, status: FoodResolutionStatus): void => {
+            editor.setValues(setIngredientStatusById(editor.values, ingredientId, status));
+        },
+        [editor.setValues, editor.values],
+    );
+
     if (editor.query.isError) {
         const notFound = isNotFoundError(editor.query.error);
 
@@ -73,10 +85,6 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
 
     const addIngredient = (line: RecipeFormIngredient): void => {
         editor.setValues({ ...editor.values, ingredients: [...editor.values.ingredients, line] });
-    };
-
-    const applyLineStatus = (ingredientId: string, status: FoodResolutionStatus): void => {
-        editor.setValues(setIngredientStatusById(editor.values, ingredientId, status));
     };
 
     if (editor.state.status === 'conflict') {

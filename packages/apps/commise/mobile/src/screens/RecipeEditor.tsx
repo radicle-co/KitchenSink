@@ -23,6 +23,7 @@ import {
 } from '@commise/features-recipes';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
@@ -86,10 +87,15 @@ export function RecipeEditor({
 
     // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. `setIngredientStatusById`
     // is idempotent (returns the same reference when the status is unchanged) so the per-line pollers below
-    // cannot loop.
-    const applyLineStatus = (ingredientId: string, status: FoodResolutionStatus): void => {
-        onChange(setIngredientStatusById(values, ingredientId, status));
-    };
+    // cannot loop. `onChange` takes the next full value (no functional-updater form), so this callback must
+    // close over `values` and is only as stable as the draft itself — it still avoids rebuilding an identical
+    // function on every unrelated re-render (e.g. `submitting` churn).
+    const applyLineStatus = useCallback(
+        (ingredientId: string, status: FoodResolutionStatus): void => {
+            onChange(setIngredientStatusById(values, ingredientId, status));
+        },
+        [onChange, values],
+    );
 
     return (
         // flex:1 so the child RecipeForm's ScrollView inherits a bounded height and can actually scroll — the

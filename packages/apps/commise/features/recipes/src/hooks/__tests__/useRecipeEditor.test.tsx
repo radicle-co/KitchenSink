@@ -181,6 +181,74 @@ describe('useRecipeEditor — submit success', () => {
     });
 });
 
+describe('useRecipeEditor — the "saved" latch resets on resumed editing', () => {
+    // Regression: `saved` used to be a one-way latch (`setSaved(true)` on submit-success, never cleared), and
+    // the state derivation read `saved ? 'saved' : ...` ABOVE `editing`. A consumer that does NOT unmount on
+    // `onSaved` (e.g. a multi-step wizard) could resume editing after a save, hit a later conflict, resolve it,
+    // and have the machine wrongly re-derive `'saved'` instead of `'editing'`.
+    it('returns to "editing" when the user resumes editing via setField after a successful save', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', servings: 4, currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
+        const mutation = updateMutation([{ type: 'success', recipe: saved }]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+        expect(result.current.state).toEqual({ status: 'saved' });
+
+        act(() => result.current.setField('servings', 6));
+
+        expect(result.current.state).toEqual({ status: 'editing' });
+    });
+
+    it('returns to "editing" when the user resumes editing via setValues after a successful save', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
+        const mutation = updateMutation([{ type: 'success', recipe: saved }]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+        expect(result.current.state).toEqual({ status: 'saved' });
+
+        act(() => result.current.setValues({ ...result.current.values, title: 'Sunday Roast' }));
+
+        expect(result.current.state).toEqual({ status: 'editing' });
+    });
+
+    it('does not resurrect "saved" after a post-save conflict is resolved via useTheirs (the exact trap: save -> resume editing -> 409 -> useTheirs)', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        const saved = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 4 });
+        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Title', currentVersion: 5 });
+        const refetch = vi.fn().mockResolvedValue({ data: theirs });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded, refetch }));
+        const mutation = updateMutation([
+            { type: 'success', recipe: saved },
+            { type: 'conflict', error: new VersionConflictError(5, 4) },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+
+        act(() => result.current.submit());
+        expect(result.current.state).toEqual({ status: 'saved' });
+
+        // Resume editing WITHOUT unmounting (the wizard case) and hit a conflict on the next save.
+        act(() => result.current.setField('title', 'My Second Draft'));
+        await act(async () => {
+            result.current.submit();
+            await Promise.resolve();
+        });
+        expect(result.current.state.status).toBe('conflict');
+
+        act(() => result.current.resolutions.useTheirs());
+
+        // The stale `saved` latch must NOT resurface once the conflict clears — the machine is editing again.
+        expect(result.current.state).toEqual({ status: 'editing' });
+    });
+});
+
 describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () => {
     it('a version-conflict submit transitions to "conflict", never to a generic submitError', async () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });

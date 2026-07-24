@@ -22,8 +22,26 @@ import {
     useUpdateRecipe,
 } from '@kitchensink/recipe-service-client/hooks';
 
+import type { UseRecipeEditorResult } from '@commise/features-recipes/hooks';
+
 import { RecipeEditScreen } from '../../src/screens/RecipeEditScreen.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+
+const { useRecipeEditorMock } = vi.hoisted(() => ({ useRecipeEditorMock: vi.fn() }));
+
+// Partial mock: every OTHER export (`usePollIngredientStatus`, `useRecipePhotoUpload`, `useIngredientResolver`)
+// stays the REAL implementation — the picker/poller/uploader children this screen renders depend on them.
+// `useRecipeEditor` itself defaults to delegating to the REAL hook too (still exercised end-to-end against the
+// mocked `useRecipe`/`useUpdateRecipe` below, for every existing test); only the seed-gap regression test
+// overrides it with `mockReturnValueOnce`, to construct — deterministically, without racing React's effect
+// flush — the exact `query.isLoading: false` + `state.status: 'loading'` combination a committed render can
+// land on between a successful query and the hook's (real, synchronous-in-tests) seed-once effect.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
+    useRecipeEditorMock.mockImplementation(actual.useRecipeEditor);
+
+    return { ...actual, useRecipeEditor: useRecipeEditorMock };
+});
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipe: vi.fn(),
@@ -154,6 +172,40 @@ describe('RecipeEditScreen — loading and error', () => {
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByRole('alert')).toBeTruthy();
+    });
+
+    // Regression for the seed-gap false-alert bug: on a SUCCESSFUL load there is a committed render where
+    // `query.isLoading` is already false (data present) but the hook's seed-once effect has not yet run, so
+    // `editor.state.status` is still `'loading'`. That combination must route to the SAME loading affordance as
+    // the network fetch — never to the error/alert branch, which would announce a false load-failure to screen
+    // readers on every successful edit-open. `useRecipeEditor` itself is overridden (see the mock above) to
+    // construct this exact combination deterministically — a real render's seed effect flushes synchronously
+    // within `act()`/`render()`, so it converges to `'editing'` before any query could observe the transient
+    // state through the real hook.
+    it('shows the loading affordance — never the error alert — at the seed-gap between query success and the seed effect', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ isLoading: false, isError: false, data: makeRecipeDetail() }));
+        useRecipeEditorMock.mockReturnValueOnce({
+            state: { status: 'loading' },
+            values: undefined,
+            errors: {},
+            setValues: vi.fn(),
+            setField: vi.fn(),
+            submit: vi.fn(),
+            submitError: false,
+            query: { isLoading: false, isError: false, error: undefined, refetch: vi.fn() },
+            resolutions: {
+                keepMine: vi.fn(),
+                useTheirs: vi.fn(),
+                merge: vi.fn(),
+                setMergeSelections: vi.fn(),
+            },
+        } as unknown as UseRecipeEditorResult);
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText('We couldn’t load this recipe.')).toBeNull();
+        expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
     });
 });
 

@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
     RecipeDifficulty,
     RecipeStatus,
+    createRecipeInputSchema,
     recipeDetailSchema,
     recipeDifficultySchema,
     recipeSchema,
@@ -287,6 +288,50 @@ describe('updateRecipeInputSchema — three-state difficulty', () => {
 
     it('rejects a non-enum difficulty value', () => {
         expect(updateRecipeInputSchema.safeParse({ expectedVersion: 1, difficulty: 'trivial' }).success).toBe(false);
+    });
+});
+
+describe('createRecipeInputSchema / updateRecipeInputSchema — status (W3, draft/publish)', () => {
+    /** A minimal well-formed create body the individual cases layer `status` onto. */
+    const baseCreate = {
+        title: 'Herb Risotto',
+        ingredients: [],
+        steps: [],
+        servings: 4,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 25,
+        totalTimeMinutes: 35,
+    };
+
+    it('create: accepts an absent status (server defaults to published)', () => {
+        const parsed = createRecipeInputSchema.parse(baseCreate);
+        expect(parsed.status).toBeUndefined();
+    });
+
+    it('create: accepts "draft" and "published"', () => {
+        expect(createRecipeInputSchema.parse({ ...baseCreate, status: RecipeStatus.DRAFT }).status).toBe('draft');
+        expect(createRecipeInputSchema.parse({ ...baseCreate, status: RecipeStatus.PUBLISHED }).status).toBe(
+            'published',
+        );
+    });
+
+    it('create: rejects a non-enum status value', () => {
+        expect(createRecipeInputSchema.safeParse({ ...baseCreate, status: 'archived' }).success).toBe(false);
+    });
+
+    it('update: accepts an absent status (leave unchanged)', () => {
+        expect(updateRecipeInputSchema.parse({ expectedVersion: 1 }).status).toBeUndefined();
+    });
+
+    it('update: accepts "draft" and "published"', () => {
+        expect(updateRecipeInputSchema.parse({ expectedVersion: 1, status: RecipeStatus.DRAFT }).status).toBe('draft');
+        expect(updateRecipeInputSchema.parse({ expectedVersion: 1, status: RecipeStatus.PUBLISHED }).status).toBe(
+            'published',
+        );
+    });
+
+    it('update: rejects a non-enum status value', () => {
+        expect(updateRecipeInputSchema.safeParse({ expectedVersion: 1, status: 'archived' }).success).toBe(false);
     });
 });
 

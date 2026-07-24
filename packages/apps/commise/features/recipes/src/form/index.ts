@@ -8,17 +8,25 @@ export { RecipeForm } from './RecipeForm.js';
 
 export {
     applyDraftToRecipeDetail,
+    canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
     pendingIngredientIds,
     setIngredientStatusById,
+    stepErrorsFor,
     toCreateRecipeInput,
     toNutritionLine,
     toRecipeFormValues,
     toUpdateRecipeInput,
     validateRecipeForm,
 } from './model.js';
-export type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
+export type {
+    RecipeFormErrors,
+    RecipeFormIngredient,
+    RecipeFormStep,
+    RecipeFormValues,
+    RecipeWizardStep,
+} from './model.js';
 
 export {
     addIngredient,

@@ -16,6 +16,7 @@ import type {
     RecipeDetail,
     RecipeDifficulty,
     RecipeIngredientView,
+    RecipeStatus,
     RecipeStepView,
     RecipeVisibility,
     UpdateRecipeInput,
@@ -158,12 +159,16 @@ export const defaultRecipeFormValues = (): RecipeFormValues => ({
 /**
  * Map form values to the `CreateRecipeInput` wire contract: computes total time, drops unresolved
  * ingredient lines (no `ingredientId`), omits empty optional strings, and carries a step timer only when
- * set. Pure. (Validate BEFORE submitting — this does not throw on an incomplete form.)
+ * set. `status` (w3, draft/publish) is a SUBMISSION-time concern, not part of the form's own values — it is
+ * threaded as a separate argument and OMITTED when not given, so the plain (non-wizard) save path never
+ * touches publication state as a side effect. Pure. (Validate BEFORE submitting — this does not throw on an
+ * incomplete form.)
  *
  * @param values - The editor's form values.
+ * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
  * @returns The `CreateRecipeInput` payload.
  */
-export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput => ({
+export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeStatus): CreateRecipeInput => ({
     title: values.title.trim(),
     ...(values.description.trim() === '' ? {} : { description: values.description.trim() }),
     ...(values.cuisine.trim() === '' ? {} : { cuisine: values.cuisine.trim() }),
@@ -189,6 +194,7 @@ export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput
     dietaryFlags: [...values.dietaryFlags],
     tags: [...values.tags],
     visibility: values.visibility,
+    ...(status === undefined ? {} : { status }),
 });
 
 /**
@@ -204,10 +210,14 @@ export const toCreateRecipeInput = (values: RecipeFormValues): CreateRecipeInput
  * replacement of every other field on update. Pure. (Validate BEFORE submitting.)
  *
  * @param values - The editor's form values.
+ * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
  * @returns The `UpdateRecipeInput` body, without `expectedVersion`.
  */
-export const toUpdateRecipeInput = (values: RecipeFormValues): Omit<UpdateRecipeInput, 'expectedVersion'> => ({
-    ...toCreateRecipeInput(values),
+export const toUpdateRecipeInput = (
+    values: RecipeFormValues,
+    status?: RecipeStatus,
+): Omit<UpdateRecipeInput, 'expectedVersion'> => ({
+    ...toCreateRecipeInput(values, status),
     // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
     difficulty: values.difficulty ?? null,
 });
@@ -407,3 +417,60 @@ export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors =
 
     return errors;
 };
+
+/**
+ * The 4-step recipe-edit wizard (w3): `1` Basic Info, `2` Ingredients, `3` Instructions, `4` Photos. This is
+ * orthogonal, presentational-navigation state — it is NOT a variant of the edit lifecycle's `EditorState`
+ * (`useRecipeEditor.ts`'s `loading/editing/submitting/conflict/saved` statechart); a step change never
+ * affects that machine (no reseed, no `saved`-latch reset).
+ */
+export type RecipeWizardStep = 1 | 2 | 3 | 4;
+
+/**
+ * The field->step map (w3): which {@link RecipeFormErrors} keys belong to which wizard step. Step 4
+ * (photos) has NO validation-error key at all — photo upload is decoupled from form validation (the
+ * wireframe: "Metadata saves immediately; photos upload independently") — so it maps to an empty field list
+ * and is therefore always advanceable. This is the ONE place the field<->step association is stated; both
+ * {@link stepErrorsFor} and {@link canAdvanceFromStep} read it rather than re-deriving it.
+ */
+const STEP_ERROR_FIELDS: Readonly<Record<RecipeWizardStep, readonly (keyof RecipeFormErrors)[]>> = {
+    1: ['title', 'servings', 'times'],
+    2: ['ingredients'],
+    3: ['steps'],
+    4: [],
+};
+
+/**
+ * The subset of {@link validateRecipeForm}'s errors that belong to `step` — filters the ONE validator's
+ * output by the field->step map ({@link STEP_ERROR_FIELDS}) rather than forking a step-scoped validator.
+ * Pure.
+ *
+ * @param values - The editor's form values.
+ * @param step - The wizard step whose errors to isolate.
+ * @returns The {@link RecipeFormErrors} subset belonging to `step` (empty when that step is valid).
+ */
+export const stepErrorsFor = (values: RecipeFormValues, step: RecipeWizardStep): RecipeFormErrors => {
+    const allErrors = validateRecipeForm(values);
+    const errors: RecipeFormErrors = {};
+
+    for (const field of STEP_ERROR_FIELDS[step]) {
+        const code = allErrors[field];
+
+        if (code !== undefined) {
+            errors[field] = code;
+        }
+    }
+
+    return errors;
+};
+
+/**
+ * Whether `step` is valid enough to advance past (the wizard's `[Next: …]` gate) — `true` exactly when
+ * {@link stepErrorsFor} returns no errors for that step. Pure.
+ *
+ * @param values - The editor's form values.
+ * @param step - The wizard step to check.
+ * @returns Whether the step has no validation errors.
+ */
+export const canAdvanceFromStep = (values: RecipeFormValues, step: RecipeWizardStep): boolean =>
+    Object.keys(stepErrorsFor(values, step)).length === 0;

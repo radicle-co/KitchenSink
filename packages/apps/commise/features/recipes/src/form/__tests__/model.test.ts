@@ -5,15 +5,17 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { computeRecipeNutrition, RecipeDifficulty } from '@kitchensink/recipe-core';
+import { computeRecipeNutrition, RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
 
 import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
 import {
     applyDraftToRecipeDetail,
+    canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
     pendingIngredientIds,
     setIngredientStatusById,
+    stepErrorsFor,
     toCreateRecipeInput,
     toNutritionLine,
     toUpdateRecipeInput,
@@ -101,6 +103,18 @@ describe('toCreateRecipeInput', () => {
         expect(input.difficulty).toBeUndefined();
         expect('difficulty' in input).toBe(false);
     });
+
+    it('OMITS status when not given (the plain non-wizard save path never touches publication state)', () => {
+        const input = toCreateRecipeInput(filledValues());
+
+        expect(input.status).toBeUndefined();
+        expect('status' in input).toBe(false);
+    });
+
+    it('carries a given status verbatim (draft or published)', () => {
+        expect(toCreateRecipeInput(filledValues(), RecipeStatus.DRAFT).status).toBe('draft');
+        expect(toCreateRecipeInput(filledValues(), RecipeStatus.PUBLISHED).status).toBe('published');
+    });
 });
 
 describe('toUpdateRecipeInput (three-state difficulty)', () => {
@@ -134,6 +148,18 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
         // The one behavioral difference between the two mappers, pinned so neither drifts onto the other.
         expect('difficulty' in toCreateRecipeInput(filledValues())).toBe(false);
         expect(toUpdateRecipeInput(filledValues()).difficulty).toBeNull();
+    });
+
+    it('OMITS status when not given — a plain update never flips draft/published as a side effect', () => {
+        const input = toUpdateRecipeInput(filledValues());
+
+        expect(input.status).toBeUndefined();
+        expect('status' in input).toBe(false);
+    });
+
+    it('carries a given status verbatim (draft or published)', () => {
+        expect(toUpdateRecipeInput(filledValues(), RecipeStatus.DRAFT).status).toBe('draft');
+        expect(toUpdateRecipeInput(filledValues(), RecipeStatus.PUBLISHED).status).toBe('published');
     });
 });
 
@@ -259,6 +285,55 @@ describe('validateRecipeForm', () => {
     it('requires positive servings and non-negative times', () => {
         expect(validateRecipeForm(filledValues({ servings: 0 })).servings).toBe('servingsPositive');
         expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBe('timesNonNegative');
+    });
+});
+
+describe('stepErrorsFor / canAdvanceFromStep (W3 — the wizard field->step map)', () => {
+    // The field->step map: step 1 = title/servings/times (the "Basic Info" fields validateRecipeForm can
+    // flag — description/cuisine/tags/dietary/difficulty/visibility have no invalid state to flag); step 2 =
+    // ingredients; step 3 = steps; step 4 = photos, decoupled from form validation entirely (always valid).
+
+    it('step 1 surfaces ONLY title/servings/times errors, never ingredients/steps', () => {
+        const values = filledValues({ title: '', servings: 0, ingredients: [], steps: [] });
+
+        expect(stepErrorsFor(values, 1)).toEqual({ title: 'titleRequired', servings: 'servingsPositive' });
+    });
+
+    it('step 2 surfaces ONLY the ingredients error', () => {
+        const values = filledValues({ title: '', ingredients: [] });
+
+        expect(stepErrorsFor(values, 2)).toEqual({ ingredients: 'ingredientsEmpty' });
+    });
+
+    it('step 3 surfaces ONLY the steps error', () => {
+        const values = filledValues({ title: '', steps: [] });
+
+        expect(stepErrorsFor(values, 3)).toEqual({ steps: 'stepsRequired' });
+    });
+
+    it('step 4 (photos) is always empty — decoupled from form validation', () => {
+        expect(stepErrorsFor(defaultRecipeFormValues(), 4)).toEqual({});
+        expect(stepErrorsFor(filledValues(), 4)).toEqual({});
+    });
+
+    it('a fully valid form has no errors on any step', () => {
+        const values = filledValues();
+
+        expect(stepErrorsFor(values, 1)).toEqual({});
+        expect(stepErrorsFor(values, 2)).toEqual({});
+        expect(stepErrorsFor(values, 3)).toEqual({});
+        expect(stepErrorsFor(values, 4)).toEqual({});
+    });
+
+    it('canAdvanceFromStep mirrors stepErrorsFor being empty', () => {
+        const invalidTitle = filledValues({ title: '' });
+
+        expect(canAdvanceFromStep(invalidTitle, 1)).toBe(false);
+        expect(canAdvanceFromStep(filledValues(), 1)).toBe(true);
+        expect(canAdvanceFromStep(filledValues({ ingredients: [] }), 2)).toBe(false);
+        expect(canAdvanceFromStep(filledValues({ steps: [] }), 3)).toBe(false);
+        // Step 4 is always advanceable — photos are decoupled from form validation.
+        expect(canAdvanceFromStep(defaultRecipeFormValues(), 4)).toBe(true);
     });
 });
 

@@ -42,6 +42,28 @@
  * selections were produced. That is also what makes it directly unit-testable with a hand-built selections
  * object, with no UI interaction required.
  *
+ * **Wizard step state is orthogonal (w3).** `step`/`goToStep`/`goNext`/`goPrev`/`canAdvanceFrom`/`stepErrors`
+ * are pure UI-navigation state layered ON TOP of the statechart above — NOT a 6th `EditorState` variant. A
+ * step change never touches `seededId`, `conflict`, or the `saved` latch, so every `switch (state.status)`
+ * consumer is unaffected and the four core invariants (seed-once, 409→conflict, `expectedVersion`, the
+ * `saved` latch) hold identically regardless of which step is active. Step-scoped validation
+ * (`canAdvanceFrom`/`stepErrors`) filters {@link validateRecipeForm}'s ONE output by the field->step map in
+ * `form/model.ts` (`stepErrorsFor`/`canAdvanceFromStep`) rather than forking a second validator.
+ *
+ * **Draft vs Publish (w3).** `saveDraft`/`publish` both persist through the SAME `submitDraft` path `submit`
+ * uses, just with a `status` argument threaded onto the wire input (`toUpdateRecipeInput`'s new optional
+ * second parameter). `publish` reuses `submit`'s WHOLE-form `validateRecipeForm` gate (a published recipe
+ * must be complete). `saveDraft` uses a deliberately RELAXED floor — `stepErrorsFor(values, 1)` (title,
+ * servings, times) — not `validateRecipeForm`'s full requirement of resolved ingredients and steps: a draft's
+ * entire point (wireframe: "Saves metadata without publishing") is that ingredients/steps may still be empty.
+ * The floor is exactly step 1's fields because those are the ONLY fields `toUpdateRecipeInput` sends
+ * unconditionally that the wire schema itself can reject outright (a blank title fails `z.string().min(1)`;
+ * `servings`/`prepTimeMinutes`/`cookTimeMinutes` have their own positive/non-negative wire constraints) —
+ * ingredients/steps are wire-legal as empty arrays, so nothing stricter is needed to avoid a 400. The plain
+ * `submit()` path is UNCHANGED: it calls `submitDraft` with no `status` argument, so `status` is omitted from
+ * the wire body and a routine "Save changes" edit never flips an existing recipe's publication state as a
+ * side effect.
+ *
  * **`defaultMergeSelections` (`versions/model.ts`) was DELETED, not consumed, by this change.** It built a
  * fully-materialized `{[key]: 'mine'}` record from a LOCALIZED `RecipeMergeField[]` (itself built from
  * `messages`/`locale`, which this platform-agnostic hook does not have and must not import). Both live
@@ -53,19 +75,22 @@
  * unconsumed third statement of "mine is the default" would have been a DRY liability, not a DRY win, so it
  * (and its dedicated test) were removed rather than force-fed an artificial caller.
  */
-import type { RecipeDetail, UpdateRecipeInput } from '@kitchensink/recipe-core';
+import { RecipeStatus, type RecipeDetail, type UpdateRecipeInput } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
     applyDraftToRecipeDetail,
+    canAdvanceFromStep,
     defaultRecipeFormValues,
+    stepErrorsFor,
     toRecipeFormValues,
     toUpdateRecipeInput,
     validateRecipeForm,
     type RecipeFormErrors,
     type RecipeFormValues,
+    type RecipeWizardStep,
 } from '../form/model.js';
 import { composeMergedRecipe, type RecipeMergeSelections } from '../versions/model.js';
 
@@ -132,8 +157,31 @@ export interface UseRecipeEditorResult {
     readonly setField: <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]) => void;
     /** Validate the draft and, if valid, submit it against the loaded recipe's current version. */
     readonly submit: () => void;
+    /**
+     * Whole-form validate (same gate as {@link submit}), then submit with `status: 'published'`. A publish
+     * requires a COMPLETE recipe — resolved ingredients, non-empty steps — same as any other save.
+     */
+    readonly publish: () => void;
+    /**
+     * Submit with `status: 'draft'` under a RELAXED floor (step 1's fields only — title, servings, times):
+     * ingredients/steps may be empty, matching "Saves metadata without publishing" (the wireframe's own
+     * words). See the module doc for why the floor is exactly step 1.
+     */
+    readonly saveDraft: () => void;
     /** Whether the last submit failed for a reason OTHER than a version conflict (a handled 409 is never this). */
     readonly submitError: boolean;
+    /** The wizard's current step (w3) — orthogonal to {@link state}; a step change never affects the statechart. */
+    readonly step: RecipeWizardStep;
+    /** Jump directly to `step` (the step-rail's free navigation — no validity gate). */
+    readonly goToStep: (step: RecipeWizardStep) => void;
+    /** Advance one step, but only when {@link canAdvanceFrom} the current step; a no-op past step 4. */
+    readonly goNext: () => void;
+    /** Go back one step; a no-op before step 1. */
+    readonly goPrev: () => void;
+    /** Whether `step` has no validation errors (the `[Next: …]` gate) — see {@link stepErrors}. */
+    readonly canAdvanceFrom: (step: RecipeWizardStep) => boolean;
+    /** The subset of the draft's validation errors that belong to `step` (filters the ONE validator's output). */
+    readonly stepErrors: (step: RecipeWizardStep) => RecipeFormErrors;
     /** The underlying recipe query's load state, for the container's own loading/error/not-found rendering. */
     readonly query: RecipeEditorQueryState;
     /** The three FR-007c conflict resolutions, plus the merge-selection setter the controlled conflict view binds to. */
@@ -165,6 +213,10 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     const [seededId, setSeededId] = useState<string | null>(null);
     const [conflict, setConflict] = useState<ConflictInfo | null>(null);
     const [saved, setSaved] = useState(false);
+    // The wizard's step (w3) — deliberately a SEPARATE `useState`, not folded into any of the above: it must
+    // never be touched by the seed-once effect, `handleUpdateError`, or the `saved`-latch resets below, so a
+    // step change can never clobber the seed or trip/untrip `saved` (see the module doc).
+    const [step, setStep] = useState<RecipeWizardStep>(1);
 
     // Seed the draft from the loaded recipe once; the STATE guard (not a ref, per the coding standards' "refs
     // near-forbidden" rule) keeps a background refetch of the SAME recipe from overwriting in-progress edits —
@@ -205,9 +257,12 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setSaved(false);
     };
 
-    // Persist `draft` with the given optimistic-concurrency token; report success upward, resolve conflicts on 409.
-    const submitDraft = (draft: RecipeFormValues, expectedVersion: number): void => {
-        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft), expectedVersion };
+    // Persist `draft` with the given optimistic-concurrency token; report success upward, resolve conflicts on
+    // 409. `status` (w3) is OPTIONAL and OMITTED by default — `submit()` and the three conflict resolutions
+    // call this with no status so a routine save/resubmit never touches publication state; `publish`/
+    // `saveDraft` are the only callers that pass one.
+    const submitDraft = (draft: RecipeFormValues, expectedVersion: number, status?: RecipeStatus): void => {
+        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft, status), expectedVersion };
 
         updateRecipe.mutate(
             { id: recipeId, input },
@@ -237,16 +292,44 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setValuesState((current) => ({ ...current, [field]: value }));
     }, []);
 
-    const submit = (): void => {
-        const nextErrors = validateRecipeForm(values);
+    // Shared by `submit`/`publish`/`saveDraft`: run `nextErrors` (each caller's own gate), record them for the
+    // container to render, and only proceed to persistence when the gate passed AND the recipe has loaded.
+    const validateThenSubmit = (nextErrors: RecipeFormErrors, status?: RecipeStatus): void => {
         setErrors(nextErrors);
 
         if (Object.keys(nextErrors).length > 0 || query.data === undefined) {
             return;
         }
 
-        submitDraft(values, query.data.currentVersion);
+        submitDraft(values, query.data.currentVersion, status);
     };
+
+    const submit = (): void => validateThenSubmit(validateRecipeForm(values));
+
+    // Whole-form validate (same gate as `submit`) — a published recipe must be complete.
+    const publish = (): void => validateThenSubmit(validateRecipeForm(values), RecipeStatus.PUBLISHED);
+
+    // The relaxed draft floor: only step 1's fields (title/servings/times) — see the module doc for why this
+    // is exactly step 1, not the whole form.
+    const saveDraft = (): void => validateThenSubmit(stepErrorsFor(values, 1), RecipeStatus.DRAFT);
+
+    const goToStep = (next: RecipeWizardStep): void => setStep(next);
+
+    const goNext = (): void => {
+        if (step < 4 && canAdvanceFromStep(values, step)) {
+            setStep((step + 1) as RecipeWizardStep);
+        }
+    };
+
+    const goPrev = (): void => {
+        if (step > 1) {
+            setStep((step - 1) as RecipeWizardStep);
+        }
+    };
+
+    const canAdvanceFrom = (checkStep: RecipeWizardStep): boolean => canAdvanceFromStep(values, checkStep);
+
+    const stepErrors = (checkStep: RecipeWizardStep): RecipeFormErrors => stepErrorsFor(values, checkStep);
 
     const resolutions: UseRecipeEditorResult['resolutions'] = {
         keepMine: (): void => {
@@ -301,7 +384,15 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setValues,
         setField,
         submit,
+        publish,
+        saveDraft,
         submitError: updateRecipe.isError && !isVersionConflictError(updateRecipe.error),
+        step,
+        goToStep,
+        goNext,
+        goPrev,
+        canAdvanceFrom,
+        stepErrors,
         query: { isLoading: query.isLoading, isError: query.isError, error: query.error, refetch: query.refetch },
         resolutions,
     };

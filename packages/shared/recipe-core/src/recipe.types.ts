@@ -1025,6 +1025,13 @@ export interface CreateRecipeInput {
     dietaryFlags?: string[];
     tags?: string[];
     visibility?: RecipeVisibility;
+    /**
+     * Publication status (W8-a.3). OPTIONAL: absent leaves it unchanged on update (the server defaults a
+     * create to `published` when omitted). The wizard's Save Draft sends `draft`; Publish sends `published`;
+     * the plain (non-wizard) "Save changes" path omits it entirely so it never flips an existing recipe's
+     * publication state as a side effect of an unrelated edit.
+     */
+    status?: RecipeStatus;
 }
 
 /**
@@ -1044,6 +1051,7 @@ export const createRecipeInputSchema = z.object({
     dietaryFlags: z.array(z.string().min(1)).optional(),
     tags: z.array(z.string().min(1)).optional(),
     visibility: recipeVisibilitySchema.optional(),
+    status: recipeStatusSchema.optional(),
 });
 
 /**

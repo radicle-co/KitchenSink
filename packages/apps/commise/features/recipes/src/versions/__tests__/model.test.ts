@@ -5,14 +5,16 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+import type { RecipeIngredient, RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import type { RecipeFormValues } from '../../form/model.js';
 import { makeRecipeDetail, makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { makeRecipeVersion } from '../__fixtures__/index.js';
+import type { SnapshotDiff } from '../diff.js';
 import { recipeVersionMessages } from '../messages.js';
 import {
     buildRecipeMergeFields,
+    changedFromCurrentCounts,
     changeSummaryForVersion,
     composeMergedRecipe,
     findPriorVersion,
@@ -21,11 +23,26 @@ import {
     formatVersionTimestamp,
     sortVersionsDescending,
     toConflictSideFields,
+    toVersionPreviewIngredientLines,
     type RecipeMergeSelections,
 } from '../model.js';
 
 const conflict = recipeVersionMessages.en.conflict;
 const versionList = recipeVersionMessages.en.versionList;
+const preview = recipeVersionMessages.en.preview;
+
+/** A default {@link RecipeIngredient} snapshot line, overridable per field. */
+const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngredient => ({
+    id: 'ri_1',
+    recipeId: 'rec_1',
+    ingredientId: 'ing_1',
+    quantity: 200,
+    unit: 'g',
+    sortOrder: 1,
+    ingredientName: 'Pasta',
+    isUserEntered: false,
+    ...overrides,
+});
 
 /** A default {@link RecipeSnapshot}, overridable per field — mirrors the default `makeRecipeVersion` shape. */
 const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot => ({
@@ -355,5 +372,105 @@ describe('formatVersionAttribution (W6 Task 2)', () => {
 
     it('renders undefined when only the device is present (no editor to attribute to)', () => {
         expect(formatVersionAttribution(undefined, 'iPhone', versionList)).toBeUndefined();
+    });
+});
+
+describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
+    it('maps snapshot ingredients to formatted display lines, in order', () => {
+        const lines = toVersionPreviewIngredientLines(
+            [
+                makeIngredient({ id: 'ri_1', quantity: 200, unit: 'g', ingredientName: 'Pasta' }),
+                makeIngredient({ id: 'ri_2', quantity: 1, unit: 'cup', ingredientName: 'Cherry tomatoes' }),
+            ],
+            preview,
+            'en',
+        );
+
+        expect(lines).toEqual([
+            { key: 'ri_1', text: '200 g Pasta' },
+            { key: 'ri_2', text: '1 cup Cherry tomatoes' },
+        ]);
+    });
+
+    it('renders a calorie chip when the ingredient carries userCalories', () => {
+        const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: 420 })], preview, 'en');
+
+        expect(line?.calories).toBe('420 cal');
+    });
+
+    it('renders a calorie chip for userCalories: 0 (a real zero override, not "no override")', () => {
+        // CRITICAL: guards the `!== undefined` check in the implementation. A regression to a truthy
+        // `if (userCalories)` check would silently drop the chip for this real (zero) override, which is
+        // exactly what {@link RecipeIngredient.userCalories} is for — this test MUST fail in that case.
+        const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: 0 })], preview, 'en');
+
+        expect(line).toBeDefined();
+        expect('calories' in (line as object)).toBe(true);
+        expect(line?.calories).toBe('0 cal');
+    });
+
+    it('omits the calorie chip entirely when the ingredient has no userCalories', () => {
+        const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: undefined })], preview, 'en');
+
+        expect(line).toBeDefined();
+        expect('calories' in (line as object)).toBe(false);
+        expect(line?.calories).toBeUndefined();
+    });
+
+    it('appends displayText as a parenthesized suffix to the ingredient name', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [makeIngredient({ quantity: 2, unit: 'tbsp', ingredientName: 'Olive oil', displayText: 'extra virgin' })],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toBe('2 tbsp Olive oil (extra virgin)');
+    });
+
+    it('renders the bare ingredient name when displayText is absent', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [makeIngredient({ quantity: 3, unit: 'oz', ingredientName: 'Basil' })],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toBe('3 oz Basil');
+    });
+});
+
+describe('changedFromCurrentCounts (W6 Task 3)', () => {
+    const zeroTally = { added: 0, removed: 0, modified: 0 };
+
+    it("sums each collection's added+removed+modified into its total count", () => {
+        const diff: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 1, removed: 2, modified: 3 },
+            ingredients: { added: 4, removed: 5, modified: 6 },
+            summary: zeroTally,
+        };
+
+        expect(changedFromCurrentCounts(diff)).toEqual({ ingredients: 15, steps: 6 });
+    });
+
+    it('keeps ingredients and steps distinct — a mapping swap must fail this', () => {
+        const diff: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 1, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 2 },
+            summary: zeroTally,
+        };
+
+        expect(changedFromCurrentCounts(diff)).toEqual({ ingredients: 2, steps: 1 });
+    });
+
+    it('reports 0 ingredients, 0 steps for a zero diff', () => {
+        const diff: SnapshotDiff = {
+            changedFields: [],
+            steps: zeroTally,
+            ingredients: zeroTally,
+            summary: zeroTally,
+        };
+
+        expect(changedFromCurrentCounts(diff)).toEqual({ ingredients: 0, steps: 0 });
     });
 });

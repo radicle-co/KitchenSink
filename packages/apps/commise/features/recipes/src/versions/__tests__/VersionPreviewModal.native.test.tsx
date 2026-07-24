@@ -139,6 +139,8 @@ describe('VersionPreviewModal (native) — populated version', () => {
         expect(screen.getByText('200 g Pasta')).toBeTruthy();
         expect(screen.getByText('420 cal')).toBeTruthy();
         expect(screen.getByText('1 cup Cherry tomatoes')).toBeTruthy();
+        // Cherry tomatoes carries no userCalories — no calorie chip is fabricated for it.
+        expect(screen.queryByText(/^\s*cal$/)).toBeNull();
     });
 
     it('renders the "changed from current" summary from diffFromCurrent', () => {

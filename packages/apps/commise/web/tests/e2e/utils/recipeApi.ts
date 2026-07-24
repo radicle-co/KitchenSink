@@ -12,6 +12,7 @@ import {
     type RecipeStatus,
     type RecipeVersion,
     type RecipeVisibility,
+    type VersionConflictSide,
 } from '@kitchensink/recipe-core';
 import type {
     Collection,
@@ -216,6 +217,50 @@ function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
         ...over,
+    };
+}
+
+/**
+ * Project a stored {@link RecipeDetail} into the {@link RecipeSnapshot} shape a 409's `server`/`base`
+ * {@link VersionConflictSide} carries (W7 Task 7 / W8-a.5) — the mock-side inverse of the conflict view's own
+ * `applyServerSnapshotToRecipeDetail`. Synthesizes `id`/`recipeId`/`sortOrder` (never read by
+ * `computeConflictDiff`'s content comparisons — only the 7 diffable fields carry real content) so an
+ * enriched-conflict seed needs to state only the fields that actually changed. Pure.
+ *
+ * @param detail - The stored recipe to project.
+ * @param version - The snapshot's own sequence number (the side's `versionNumber`).
+ * @returns The `RecipeSnapshot`-shaped projection.
+ */
+function detailToConflictSnapshot(detail: RecipeDetail, version: number): RecipeSnapshot {
+    return {
+        version,
+        title: detail.title,
+        description: detail.description,
+        servings: detail.servings,
+        prepTimeMinutes: detail.prepTimeMinutes,
+        cookTimeMinutes: detail.cookTimeMinutes,
+        steps: detail.steps.map((step, index) => ({
+            id: `snap_step_${index}`,
+            recipeId: detail.id,
+            stepNumber: step.stepNumber,
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        })),
+        ingredients: detail.ingredients.map((ingredient, index) => ({
+            id: `snap_ingredient_${index}`,
+            recipeId: detail.id,
+            ingredientId: ingredient.ingredientId,
+            quantity: ingredient.quantity,
+            // `RecipeIngredient.unit` is REQUIRED non-empty (`versionConflictDetailsSchema` rejects an empty
+            // string), unlike the view's OPTIONAL `unit` — a view ingredient with no stated unit (e.g. "2
+            // eggs") falls back to a neutral placeholder rather than producing a body the client's own
+            // `safeParse` would silently drop `server`/`base` from.
+            unit: ingredient.unit !== undefined && ingredient.unit.length > 0 ? ingredient.unit : 'unit',
+            sortOrder: index,
+            ingredientName: ingredient.name,
+            isUserEntered: ingredient.isUserEntered,
+            ...(ingredient.notes === undefined || ingredient.notes === '' ? {} : { displayText: ingredient.notes }),
+        })),
     };
 }
 
@@ -473,6 +518,28 @@ export async function readViewerAppId(page: Page): Promise<string> {
     return externalId;
 }
 
+/**
+ * Seed for a one-shot ENRICHED `409 VERSION_CONFLICT` (W7 Task 7) — unlike {@link
+ * MockRecipeApiOptions.concurrentEdits}'s bare `{ currentVersion, conflictingVersion }` body, this produces
+ * the full W8-a.5 wire shape (`details.server`/`details.base`, each a `VersionConflictSide`) the rebuilt
+ * conflict resolver's banner + changed-only diff + A/B/C cards + per-element merge actually read, with
+ * `server`'s content DIFFERING from `base`'s (via {@link serverChanges}) so a spec observes real changed-only
+ * rows instead of a diff-empty phantom conflict.
+ */
+export interface EnrichedConflictSeed {
+    /** Fields to overlay onto the recipe's CURRENT stored state to produce the winning "server" side (e.g.
+     *  `{ servings: 8 }`) — applied to the store immediately the 409 fires, mirroring how the real service
+     *  already committed the other device's write by the time a client observes this conflict. */
+    readonly serverChanges: Partial<RecipeDetail>;
+    /** The server side's `deviceLabel` (W8-a.6), when a spec needs to assert the banner's device suffix.
+     *  Omitted → the server side carries no device (the banner renders with no " on {device}" suffix). */
+    readonly deviceLabel?: string;
+    /** How many versions the server side is ahead of the base (the X6 staleness signal) — defaults to `1`
+     *  (a single intervening save). A spec exercising the >10-versions-behind stale-base warning overrides
+     *  this directly rather than the mock replaying N literal intervening writes. */
+    readonly versionsAhead?: number;
+}
+
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
     /** Recipes to seed the store with (defaults to one public "Seed Recipe" owned by the viewer). */
@@ -492,6 +559,16 @@ export interface MockRecipeApiOptions {
      * so the 409 is deterministic regardless of any client-side refetch timing.
      */
     readonly concurrentEdits?: Readonly<Record<string, Partial<RecipeDetail>>>;
+    /**
+     * One-shot ENRICHED conflicts keyed by recipe id (W7 Task 7) — like {@link concurrentEdits} but producing
+     * the full W8-a.5 `server`/`base` wire shape the rebuilt conflict resolver (banner, changed-only diff,
+     * A/B/C cards, per-element merge) actually reads, instead of the bare `{ currentVersion, conflictingVersion
+     * }` body {@link concurrentEdits} returns. The FIRST update to a listed recipe id fires the enriched 409
+     * and applies its `serverChanges`, bumping the store; the entry is then cleared, so a retry against the
+     * fresh version succeeds normally. A recipe id present in BOTH this and `concurrentEdits` is not a
+     * supported combination — no spec needs both, and this entry is checked first.
+     */
+    readonly enrichedConflicts?: Readonly<Record<string, EnrichedConflictSeed>>;
     /**
      * How many of the NEXT photo-upload presign calls (across every recipe) fail with a `500`, one-shot —
      * decremented per call, so the (N+1)th and later presigns succeed normally (w3/e7 per-file photo status:
@@ -554,6 +631,11 @@ export async function mockRecipeApi(
     // One-shot concurrent edits (T070): consumed on the first update to each listed recipe.
     const pendingConcurrentEdits = new Map<string, Partial<RecipeDetail>>(
         Object.entries(options.concurrentEdits ?? {}),
+    );
+    // One-shot ENRICHED conflicts (W7 Task 7): consumed on the first update to each listed recipe, ahead of
+    // `pendingConcurrentEdits` (see its own JSDoc — the two are not meant to be combined for the same id).
+    const pendingEnrichedConflicts = new Map<string, EnrichedConflictSeed>(
+        Object.entries(options.enrichedConflicts ?? {}),
     );
     let nextId = 1;
     let nextCollectionId = 1;
@@ -904,6 +986,51 @@ export async function mockRecipeApi(
                 const expectedVersion = input['expectedVersion'];
                 const conflictingVersion =
                     typeof expectedVersion === 'number' ? expectedVersion : current.currentVersion;
+
+                // One-shot ENRICHED conflict (W7 Task 7): another device saved first, reported with the full
+                // W8-a.5 `server`/`base` wire shape the rebuilt conflict resolver reads — see
+                // `EnrichedConflictSeed`'s own JSDoc. Checked ahead of the bare `pendingConcurrentEdits` below.
+                const enrichedSeed = pendingEnrichedConflicts.get(id);
+
+                if (enrichedSeed) {
+                    pendingEnrichedConflicts.delete(id);
+
+                    const baseVersion = current.currentVersion;
+                    const baseSide: VersionConflictSide = {
+                        versionNumber: baseVersion,
+                        updatedAt: current.updatedAt,
+                        snapshot: detailToConflictSnapshot(current, baseVersion),
+                    };
+                    const serverVersion = baseVersion + (enrichedSeed.versionsAhead ?? 1);
+                    const serverDetail: RecipeDetail = {
+                        ...current,
+                        ...enrichedSeed.serverChanges,
+                        currentVersion: serverVersion,
+                    };
+                    const serverSide: VersionConflictSide = {
+                        versionNumber: serverVersion,
+                        updatedAt: new Date().toISOString(),
+                        snapshot: detailToConflictSnapshot(serverDetail, serverVersion),
+                        ...(enrichedSeed.deviceLabel === undefined ? {} : { deviceLabel: enrichedSeed.deviceLabel }),
+                    };
+                    // The other device's write already landed — the store reflects it from here on, exactly
+                    // as the real service already committed it by the time this 409 is observed.
+                    store.set(id, serverDetail);
+
+                    return route.fulfill({
+                        status: 409,
+                        json: {
+                            code: 'VERSION_CONFLICT',
+                            message: 'Recipe version conflict',
+                            details: {
+                                currentVersion: serverVersion,
+                                conflictingVersion,
+                                server: serverSide,
+                                base: baseSide,
+                            },
+                        },
+                    });
+                }
 
                 // One-shot concurrent edit: another device saved first. Apply it, bump the version, and reject
                 // this write with a 409 so the client refetches and enters conflict mode.

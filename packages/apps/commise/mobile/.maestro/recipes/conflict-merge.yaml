@@ -1,15 +1,20 @@
 appId: io.commise.mobile
 ---
-# Concurrent-edit conflict — field-by-field MERGE (US1, T070 / FR-007c option c; updated w3/e8 for the
-# screen-per-step wizard — the merge panel itself is untouched, since the wizard composes the SAME
-# `useRecipeEditor` 409→conflict transition as before). Mobile mirror of the web Playwright
-# `recipeConflict.spec.ts` (cross-platform mandate).
+# Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — banner + changed-only diff + A/B/C
+# cards + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
+# "Merge field by field" flow this file used to drive). Mobile mirror of the web Playwright
+# `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same per-side banner copy, same
+# changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`.
 #
-# A real conflict needs the recipe to change on the server BETWEEN this session's load and its save, so this
+# A real conflict needs the recipe to change on the SERVER between this session's load and its save, so this
 # flow is GUARDED on the conflict view appearing: in an ordinary single-writer run it is a safe no-op (the
-# save just succeeds), and in a conflict-seeded run (a harness that performs a concurrent write to the opened
-# recipe while the editor is open) it drives the full merge. Cannot be verified locally — no emulator here —
-# so it is written to the shipped conflict/merge UI (labels match `versions/messages.ts`).
+# save just succeeds and the flow exits at the detail screen); in a conflict-seeded run (a harness performing
+# a concurrent write to the opened recipe while the editor is open) it drives the full W7 resolution. There is
+# no such harness wired into local/CI Maestro today (confirmed against `versions.yaml`'s own precedent and
+# the CI reseed loop — neither performs a concurrent write), so every assertion INSIDE the guard is
+# UN-DRIVABLE in the current harness; it is written to the shipped W7 UI (labels/copy verified verbatim
+# against `versions/messages.ts`) for the day a conflict-seeding harness exists, exactly as `conflict-merge.yaml`
+# already did pre-rebuild. Cannot be verified locally — no emulator here.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -81,20 +86,47 @@ appId: io.commise.mobile
 # Publish is the sticky top-bar action, present on every step — no scroll (and no forward `Next` to step 4)
 # needed to reach it.
 - tapOn: 'Publish'
-# If a concurrent save landed first, the conflict view offers all three FR-007c resolutions.
+# If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
+# all three W7 FR-007c resolutions (A/B/C). UN-DRIVABLE without a conflict-seeding harness — see module note.
 - runFlow:
       when:
           visible: 'This recipe changed while you were editing'
       commands:
-          - assertVisible: 'Keep my version'
-          - assertVisible: 'Use the latest version'
-          - assertVisible: 'Merge field by field'
-          # Enter the per-field merge panel.
-          - tapOn: 'Merge field by field'
+          # Per-side banner (X3): server names its winning version/save-time/device; mine has no version of
+          # its own (never persisted) — the ONE piece of banner copy with no dynamic version/device content,
+          # so it is the only banner line assertable without knowing the concurrent write's exact shape.
+          - assertVisible: 'Your version: local unsaved changes'
+          - assertVisible:
+                text: 'Server version \(v\d+\): Saved.*'
+
+          # Changed-only diff panel (X1/X7) — guaranteed non-empty whenever this view is showing at all (a
+          # phantom zero-diff 409 auto-resolves BEFORE reaching the conflict view — `useRecipeEditor`'s own
+          # fast path), so both the heading and the legend are unconditionally present here.
+          - assertVisible: 'Changed fields'
+          - assertVisible: 'Legend'
+
+          # The three W7 A/B/C option cards (X2) — server-keep, overwrite, and manual merge.
+          - assertVisible: 'Keep server version'
+          - assertVisible: 'Overwrite with your version'
+          - assertVisible: 'Merge manually'
+
+          # Enter the per-field/per-element merge panel (Option C).
+          - tapOn: 'Merge manually'
           - assertVisible: 'Merge changes field by field'
-          # Pull one field from the latest saved version (my other fields stay on my draft by default),
-          # then save the merged result — it re-submits against the fresh server version.
+
+          # Gating (X5): before any selection, Save is disabled with an inline hint explaining why.
+          - assertVisible:
+                text: 'Save merged version'
+                enabled: false
+          - assertVisible: 'Choose a value for at least one field to save the merged version.'
+
+          # Pull one row from the latest saved version (every other row stays on my draft by default — the
+          # per-element `steps[N]`/`ingredients:<id>` keys this W7 panel adds have no bearing on the FIRST
+          # matching row Maestro's substring match picks, same as the pre-W7 flow's own approach).
           - tapOn: 'Latest saved version'
+          - assertVisible:
+                text: 'Save merged version'
+                enabled: true
           - scrollUntilVisible:
                 element: 'Save merged version'
                 direction: DOWN

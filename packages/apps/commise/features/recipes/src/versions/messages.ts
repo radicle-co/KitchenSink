@@ -43,6 +43,10 @@ export interface RecipeVersionListMessages {
     readonly preview: string;
     /** Accessible name of the Preview action, disambiguated per version (contains `{version}`). */
     readonly previewAction: string;
+    /** Visible label of the per-row Compare-selection checkbox (W6 Task 5). */
+    readonly compare: string;
+    /** Accessible name of the Compare-selection checkbox, disambiguated per version (contains `{version}`). */
+    readonly compareAction: string;
     /** Visible label of the "back to the recipe" affordance (V6 — rendered by the web leaf only; native
      *  screens, e.g. `RecipeVersionsScreen`, already compose their own back chrome). */
     readonly backToRecipe: string;
@@ -144,6 +148,9 @@ export interface RecipeVersionPreviewMessages {
     readonly keepCurrent: string;
     /** Label of the "restore this version" action. */
     readonly restoreThis: string;
+    /** Label of the Restore action while a restore-from-preview is in flight (W6 Task 5) — replaces
+     *  {@link restoreThis} so the busy state doesn't rely on styling alone to signal "don't click again". */
+    readonly restoringThis: string;
 }
 
 /** Shared copy for the two-version compare panel (W6 Task 4 / FR-007b, FR-007c). Field labels are
@@ -214,6 +221,8 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             initialVersion: 'Initial version',
             preview: 'Preview',
             previewAction: 'Preview version {version}',
+            compare: 'Compare',
+            compareAction: 'Select version {version} to compare',
             backToRecipe: 'Back to Recipe',
         },
         conflict: {
@@ -261,6 +270,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             error: 'We couldn’t load that version. Please try again.',
             keepCurrent: 'Keep current version',
             restoreThis: 'Restore this version',
+            restoringThis: 'Restoring…',
         },
         compare: {
             title: 'Compare v{versionB} vs v{versionA}',

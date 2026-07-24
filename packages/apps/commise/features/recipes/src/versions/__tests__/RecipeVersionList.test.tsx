@@ -273,6 +273,71 @@ describe('RecipeVersionList (web) — back to recipe (V6)', () => {
     });
 });
 
+describe('RecipeVersionList (web) — compare selection (W6 Task 5)', () => {
+    it('renders no Compare controls when onToggleCompare is not provided', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        expect(screen.queryByRole('checkbox')).toBeNull();
+    });
+
+    it('fires onToggleCompare with the version number when its checkbox is toggled', () => {
+        const onToggleCompare = vi.fn();
+        renderList({ versions: threeVersions, currentVersion: 3, onToggleCompare, selectedForCompare: [] });
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+
+        expect(onToggleCompare).toHaveBeenCalledWith(2);
+    });
+
+    it('shows a selected version as checked', () => {
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            onToggleCompare: vi.fn(),
+            selectedForCompare: [2],
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 2 to compare' }).checked).toBe(
+            true,
+        );
+    });
+
+    it('renders a Compare checkbox for the current version too (compare is not restore-gated)', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, onToggleCompare: vi.fn(), selectedForCompare: [] });
+
+        expect(screen.getByRole('checkbox', { name: 'Select version 3 to compare' })).toBeTruthy();
+    });
+
+    it('caps selection at two — disables every unselected checkbox once two are chosen', () => {
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            onToggleCompare: vi.fn(),
+            selectedForCompare: [1, 2],
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 3 to compare' }).disabled).toBe(
+            true,
+        );
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 1 to compare' }).disabled).toBe(
+            false,
+        );
+    });
+
+    it('does not disable an already-selected checkbox even once two are chosen (it must stay toggleable off)', () => {
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            onToggleCompare: vi.fn(),
+            selectedForCompare: [1, 2],
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 2 to compare' }).disabled).toBe(
+            false,
+        );
+    });
+});
+
 describe('RecipeVersionList (web) — restore error (B17: no silent failure)', () => {
     it('surfaces the conflict copy when a restore fails because the recipe changed underneath', () => {
         renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'conflict' });

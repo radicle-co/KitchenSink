@@ -31,6 +31,8 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     restoreError,
     onRestore,
     onPreview,
+    selectedForCompare,
+    onToggleCompare,
 }) => {
     const { versionList, conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
@@ -108,6 +110,31 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                 </View>
                             )}
                         </View>
+                        {onToggleCompare !== undefined &&
+                            (() => {
+                                const isSelected = selectedForCompare?.includes(version.versionNumber) ?? false;
+                                const isCapped = !isSelected && (selectedForCompare?.length ?? 0) >= 2;
+
+                                return (
+                                    <Pressable
+                                        accessibilityRole="checkbox"
+                                        accessibilityLabel={fillTemplate(versionList.compareAction, {
+                                            version: version.versionNumber,
+                                        })}
+                                        accessibilityState={{ checked: isSelected, disabled: isCapped }}
+                                        disabled={isCapped}
+                                        onPress={() => onToggleCompare(version.versionNumber)}
+                                        style={styles.compareButton}
+                                    >
+                                        {/* react-native-web renders role="checkbox" but not `aria-checked` — the
+                                            check glyph is the assertable "is it checked" signal for tests
+                                            (mirrors `RecipeDetailView.native.tsx`'s ingredient-checkbox pattern). */}
+                                        <Text style={styles.compareLabel}>
+                                            {isSelected ? '☑' : '☐'} {versionList.compare}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })()}
                         <Text style={styles.muted}>{formatVersionTimestamp(version.createdAt, locale)}</Text>
                         {attribution !== undefined && <Text style={styles.muted}>{attribution}</Text>}
                         {!hasPrior ? (
@@ -157,4 +184,6 @@ const styles = StyleSheet.create({
     restoreButton: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
     restoreLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
     restoreError: { fontSize: 13, color: palette.error },
+    compareButton: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
+    compareLabel: { color: palette.slate, fontWeight: '500', fontSize: 13 },
 });

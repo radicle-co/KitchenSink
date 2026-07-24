@@ -5,7 +5,7 @@
  * dead end), Restore, and dismissal (Cancel) — so the two platform renders can't drift on behaviour.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
@@ -167,6 +167,43 @@ describe('VersionPreviewModal (native) — populated version', () => {
         await user.click(screen.getByRole('button', { name: 'Restore this version' }));
 
         expect(onRestore).toHaveBeenCalledExactlyOnceWith(10);
+    });
+});
+
+describe('VersionPreviewModal (native) — restoring (W6 Task 5)', () => {
+    it('shows the busy Restore label while a restore is in flight', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff, isRestoring: true })}
+            />,
+        );
+
+        expect(screen.getByRole('button', { name: 'Restoring…' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
+    });
+
+    it('does not fire onRestore when the busy Restore action is activated', () => {
+        const onRestore = vi.fn();
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    diffFromCurrent: populatedDiff,
+                    isRestoring: true,
+                    onRestore,
+                })}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Restoring…' }));
+
+        expect(onRestore).not.toHaveBeenCalled();
+    });
+
+    it('shows the idle Restore label (not busy) when isRestoring is omitted', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        expect(screen.getByRole('button', { name: 'Restore this version' })).toBeTruthy();
     });
 });
 

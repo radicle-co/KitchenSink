@@ -2,16 +2,42 @@
  * Component tests for the mobile RecipeVersionsScreen (react-native-web under jsdom). The screen drives the
  * shared native `RecipeVersionList` from (mocked) `useRecipe` (current version) + `useRecipeVersions`
  * (history), wiring restore to (mocked) `useRestoreRecipeVersion`. Covers loading, error, the populated list
- * (current version marked), and the restore wiring.
+ * (current version marked), and the restore wiring. W6 Task 5 adds: the Preview full-screen modal (reading
+ * the target's snapshot straight off the already-loaded versions list — no extra fetch — with a "changed
+ * from current" line and a busy Restore-from-preview action), and the two-version Compare full-screen sheet
+ * (a checkbox-per-row selection capped at two, diffed via `diffSnapshots`) — mirroring the web container's
+ * `RecipeVersionsContainer.tsx` wiring (see its module docs for the fuller rationale, shared verbatim here).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeVersionsScreen } from '../../src/screens/RecipeVersionsScreen.js';
 import { makeRecipeDetail, makeRecipeVersion } from '../__fixtures__/recipes.js';
+
+/** Two hand-authored snapshots (mirroring the web container test's identical fixture) whose title AND step
+ *  content differ — so Preview/Compare's diff output is meaningful rather than the all-zero tally the
+ *  default `makeRecipeVersion` fixture produces (successive versions there differ only in `snapshot.version`,
+ *  a field `diffSnapshots` deliberately excludes). */
+const priorSnapshot: RecipeSnapshot = {
+    version: 1,
+    title: 'Weeknight Pasta',
+    description: 'A fast, comforting weeknight dinner.',
+    steps: [{ id: 'step_1', recipeId: 'rec_1', stepNumber: 1, instruction: 'Boil water.' }],
+    ingredients: [],
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 20,
+};
+const revisedSnapshot: RecipeSnapshot = {
+    ...priorSnapshot,
+    version: 2,
+    title: 'Weeknight Pasta, Revised',
+    steps: [{ id: 'step_1', recipeId: 'rec_1', stepNumber: 1, instruction: 'Boil salted water.' }],
+};
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipe: vi.fn(),
@@ -195,5 +221,143 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
 
         expect(versionsRefetch).not.toHaveBeenCalled();
         expect(recipeRefetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
+    beforeEach(() => {
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ currentVersion: 2 }) }));
+        useRecipeVersionsMock.mockReturnValue(
+            versionsResult({
+                data: [
+                    makeRecipeVersion({ id: 'ver_1', versionNumber: 1, snapshot: priorSnapshot }),
+                    makeRecipeVersion({ id: 'ver_2', versionNumber: 2, snapshot: revisedSnapshot }),
+                ],
+            }),
+        );
+    });
+
+    it("opens the preview with the row's version and the changed-from-current summary", () => {
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+
+        expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeTruthy();
+        // v1 (previewed) vs v2 (current): 0 ingredient changes, 1 step (instruction) changed.
+        expect(screen.getByText('Changed from current: 0 ingredients, 1 steps')).toBeTruthy();
+    });
+
+    it('Keep current version closes the preview without restoring', () => {
+        const mutate = vi.fn();
+        useRestoreRecipeVersionMock.mockReturnValue(restoreMutation({ mutate: mutate as never }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep current version' }));
+
+        expect(screen.queryByText('Version 1 Preview: Weeknight Pasta')).toBeNull();
+        expect(mutate).not.toHaveBeenCalled();
+    });
+
+    it('restores from the preview and closes it on success', () => {
+        const mutate = vi.fn();
+        useRestoreRecipeVersionMock.mockReturnValue(restoreMutation({ mutate: mutate as never }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Restore this version' }));
+
+        expect(mutate).toHaveBeenCalledWith(
+            { id: 'rec_1', versionNumber: 1 },
+            expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+        );
+
+        const onSuccess = mutate.mock.calls[0]?.[1]?.onSuccess as () => void;
+        act(() => {
+            onSuccess();
+        });
+
+        expect(screen.queryByText('Version 1 Preview: Weeknight Pasta')).toBeNull();
+    });
+
+    it('shows the Restore action as busy while a restore-from-preview is in flight (no double-submit)', () => {
+        useRestoreRecipeVersionMock.mockReturnValue(
+            restoreMutation({ isPending: true, variables: { id: 'rec_1', versionNumber: 1 } as never }),
+        );
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+
+        expect(screen.getByRole('button', { name: 'Restoring…' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
+    });
+});
+
+describe('RecipeVersionsScreen — compare (W6 Task 5)', () => {
+    beforeEach(() => {
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ currentVersion: 2 }) }));
+        useRecipeVersionsMock.mockReturnValue(
+            versionsResult({
+                data: [
+                    makeRecipeVersion({ id: 'ver_1', versionNumber: 1, snapshot: priorSnapshot }),
+                    makeRecipeVersion({ id: 'ver_2', versionNumber: 2, snapshot: revisedSnapshot }),
+                ],
+            }),
+        );
+    });
+
+    it('opens the compare view once exactly two versions are selected, ordered older/newer', () => {
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        // Select newer (2) first, then older (1) — the sheet must still read "v2 vs v1" (newer vs older).
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
+
+        expect(screen.getByText('Compare v2 vs v1')).toBeTruthy();
+        // title changed (1 scalar) + steps modified (1) = 2 modified; no adds/removes.
+        expect(screen.getByText('Modified: 2')).toBeTruthy();
+    });
+
+    it('deselecting a version before a second pick keeps the compare sheet closed', () => {
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        const versionOneCheckbox = screen.getByRole('checkbox', { name: 'Select version 1 to compare' });
+        fireEvent.click(versionOneCheckbox);
+        fireEvent.click(versionOneCheckbox);
+
+        expect(screen.queryByText('Compare v2 vs v1')).toBeNull();
+    });
+
+    it('closing the compare sheet clears the selection (both checkboxes uncheck)', () => {
+        // react-native-web renders role="checkbox" but not `aria-checked` — assert the checked glyph
+        // (mirrors `RecipeDetailView.native.test.tsx`'s ingredient-checkbox convention).
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close compare' }));
+
+        expect(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }).textContent).toContain('☐');
+        expect(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }).textContent).toContain('☐');
+    });
+
+    it('caps selection at two — a third checkbox does not fire onToggleCompare once two are chosen', () => {
+        useRecipeVersionsMock.mockReturnValue(
+            versionsResult({
+                data: [
+                    makeRecipeVersion({ id: 'ver_1', versionNumber: 1 }),
+                    makeRecipeVersion({ id: 'ver_2', versionNumber: 2 }),
+                    makeRecipeVersion({ id: 'ver_3', versionNumber: 3 }),
+                ],
+            }),
+        );
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 3 to compare' }));
+
+        expect(screen.getByRole('checkbox', { name: 'Select version 3 to compare' }).textContent).toContain('☐');
     });
 });

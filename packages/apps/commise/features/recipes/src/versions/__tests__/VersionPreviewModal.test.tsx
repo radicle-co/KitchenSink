@@ -8,7 +8,7 @@
  * dismissal (Cancel + Escape/focus-return).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
@@ -172,6 +172,43 @@ describe('VersionPreviewModal (web) — populated version', () => {
         await user.click(screen.getByRole('button', { name: 'Restore this version' }));
 
         expect(onRestore).toHaveBeenCalledExactlyOnceWith(10);
+    });
+});
+
+describe('VersionPreviewModal (web) — restoring (W6 Task 5)', () => {
+    it('shows the busy Restore label and disables the action while a restore is in flight', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff, isRestoring: true })}
+            />,
+        );
+
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restoring…' }).disabled).toBe(true);
+        expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
+    });
+
+    it('does not fire onRestore when the busy Restore action is activated', () => {
+        const onRestore = vi.fn();
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    diffFromCurrent: populatedDiff,
+                    isRestoring: true,
+                    onRestore,
+                })}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Restoring…' }));
+
+        expect(onRestore).not.toHaveBeenCalled();
+    });
+
+    it('shows the idle Restore label (not busy) when isRestoring is omitted', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restore this version' }).disabled).toBe(false);
     });
 });
 

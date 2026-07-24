@@ -49,6 +49,18 @@ export interface RecipeVersionListProps {
      *  preview modal itself lands separately). ABSENT → no Preview affordance is rendered for any row; a
      *  caller not yet wired to the preview flow simply omits this prop rather than showing a dead control. */
     readonly onPreview?: (versionNumber: number) => void;
+    /** The version numbers currently picked for the two-version compare (W6 Task 5), in the composing
+     *  container's own selection state — 0, 1, or 2 entries. Read-only here; the container owns the
+     *  selection (see {@link onToggleCompare}). ABSENT (together with `onToggleCompare`) → no Compare
+     *  affordance is rendered for any row, mirroring `onPreview`'s "no prop, no dead control" contract. */
+    readonly selectedForCompare?: readonly number[];
+    /** Invoked with a version number when its Compare checkbox is toggled (selected when unchecked,
+     *  deselected when checked). Capped at two selections by the CALLER: once `selectedForCompare` already
+     *  has two entries, every row NOT already selected renders its checkbox disabled instead of silently
+     *  evicting the oldest pick — an explicit "deselect one first" UX beats a selection changing out from
+     *  under the viewer (W6 Task 5). ABSENT (together with `selectedForCompare`) → no Compare affordance is
+     *  rendered for any row. */
+    readonly onToggleCompare?: (versionNumber: number) => void;
     /** Invoked when the "Back to Recipe" affordance is activated (V6). Rendered ONLY by the web leaf —
      *  native screens (`RecipeVersionsScreen`) already compose their own back chrome outside this shared
      *  component, so the native leaf intentionally does not read this prop. */
@@ -510,6 +522,11 @@ export interface VersionPreviewModalProps {
     readonly onCancel: () => void;
     /** Invoked with the previewed version's number when "Restore this version" is activated. */
     readonly onRestore: (versionNumber: number) => void;
+    /** Whether the previewed version is CURRENTLY being restored (W6 Task 5) — the composing container
+     *  derives this from its restore mutation's pending state for THIS version's number. Busies and disables
+     *  the Restore action (swapping its label for the busy copy) so an in-flight restore-from-preview cannot
+     *  be double-submitted. Defaults to idle (`false`) when omitted. */
+    readonly isRestoring?: boolean;
     /** The active BCP-47 locale (calorie-formatting input only; this component owns no locale state). */
     readonly locale: Locale;
 }

@@ -37,6 +37,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     diffFromCurrent,
     onCancel,
     onRestore,
+    isRestoring = false,
     locale,
 }) => {
     const { preview, conflict } = useMessages(recipeVersionMessages);
@@ -149,11 +150,15 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     {showContent && version !== undefined && (
                         <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={preview.restoreThis}
+                            accessibilityLabel={isRestoring ? preview.restoringThis : preview.restoreThis}
+                            accessibilityState={{ disabled: isRestoring, busy: isRestoring }}
+                            disabled={isRestoring}
                             onPress={() => onRestore(version.versionNumber)}
                             style={styles.restoreButton}
                         >
-                            <Text style={styles.restoreLabel}>{preview.restoreThis}</Text>
+                            <Text style={styles.restoreLabel}>
+                                {isRestoring ? preview.restoringThis : preview.restoreThis}
+                            </Text>
                         </Pressable>
                     )}
                 </View>

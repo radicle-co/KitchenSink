@@ -47,6 +47,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     diffFromCurrent,
     onCancel,
     onRestore,
+    isRestoring = false,
     locale,
 }) => {
     const { preview, conflict } = useMessages(recipeVersionMessages);
@@ -162,9 +163,11 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             <button
                                 type="button"
                                 onClick={() => onRestore(version.versionNumber)}
-                                className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
+                                disabled={isRestoring}
+                                aria-busy={isRestoring}
+                                className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {preview.restoreThis}
+                                {isRestoring ? preview.restoringThis : preview.restoreThis}
                             </button>
                         )}
                     </div>

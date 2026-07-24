@@ -52,6 +52,8 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     restoreError,
     onRestore,
     onPreview,
+    selectedForCompare,
+    onToggleCompare,
     onBack,
 }) => {
     const { versionList, conflict } = useMessages(recipeVersionMessages);
@@ -121,6 +123,23 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                             )}
                             {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
                                 <span className="w-full text-body-sm text-slate">{version.changeSummary}</span>
+                            )}
+                            {onToggleCompare !== undefined && (
+                                <label className="flex items-center gap-1.5 text-body-sm text-slate">
+                                    <input
+                                        type="checkbox"
+                                        aria-label={fillTemplate(versionList.compareAction, {
+                                            version: version.versionNumber,
+                                        })}
+                                        checked={selectedForCompare?.includes(version.versionNumber) ?? false}
+                                        disabled={
+                                            !(selectedForCompare?.includes(version.versionNumber) ?? false) &&
+                                            (selectedForCompare?.length ?? 0) >= 2
+                                        }
+                                        onChange={() => onToggleCompare(version.versionNumber)}
+                                    />
+                                    {versionList.compare}
+                                </label>
                             )}
                             {isCurrent ? (
                                 <span className="ml-auto rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-seafoam">

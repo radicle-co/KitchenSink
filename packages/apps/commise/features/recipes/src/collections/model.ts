@@ -7,6 +7,7 @@
  */
 import type { Locale } from '@commise/i18n';
 import type { Collection, Recipe, RecipeCollectionAddedVia, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { PullDiff } from '@kitchensink/recipe-service-client';
 
 /**
  * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
@@ -267,6 +268,43 @@ export interface CloneInfoPanelProps {
     readonly locale: Locale;
     /** Invoked with `sourceCollectionId` when the View Source control is activated. */
     readonly onViewSource: (sourceCollectionId: string) => void;
+}
+
+/**
+ * Props for the Pull-Updates preview dialog (W5 Task 10, C2 / FR-011) — a controlled, presentational render
+ * of the collection-view wireframe's "Pull Updates Preview Dialog": the source `@owner / name` attribution,
+ * the three-way {@link PullDiff} counts (added/removed/unchanged — id-count only, this block never resolves
+ * recipe titles), the "recipes you added directly will not be overwritten" note, and the count-templated
+ * Pull action. It fetches nothing and performs no mutation — the composing container (W5 Task 12) owns the
+ * preview query and the commit mutation, re-running the preview when `error` is `'drift'` (a 409: the
+ * source changed since the preview was taken, so the previewed `diff` is stale).
+ *
+ * State precedence mirrors the sibling dialogs in this feature: a progress affordance while
+ * `isLoadingPreview` (or before any `diff` has arrived); an alert for a failed preview (`'drift'` — NOT a
+ * dead end, Cancel/Escape still close the dialog so the caller can re-run the preview — or `'generic'`);
+ * otherwise the loaded `diff`, with the Pull action disabled while `isCommitting` or when there is nothing
+ * to add (`diff.added.length === 0`).
+ */
+export interface PullUpdatesDialogProps {
+    readonly open: boolean;
+    /** The previewed three-way diff; absent before the first successful preview resolves. */
+    readonly diff?: PullDiff;
+    /** Whether the preview request is in flight. */
+    readonly isLoadingPreview: boolean;
+    /** Whether the commit (pull) mutation is in flight; disables and marks the Pull action busy. */
+    readonly isCommitting: boolean;
+    /** The last failed preview/commit, if any: `'drift'` is the 409 stale-diff path, `'generic'` any other
+     *  failure. Absent when the last attempt (if any) succeeded. */
+    readonly error?: 'drift' | 'generic';
+    /** The source collection owner's display handle, frozen at clone time; may be absent (unresolved owner). */
+    readonly sourceOwnerHandle?: string;
+    /** The source collection's name, frozen at clone time. */
+    readonly sourceCollectionName?: string;
+    /** Invoked when Cancel is activated, or the dialog is dismissed via Escape/backdrop (one exit path). */
+    readonly onCancel: () => void;
+    /** Invoked when the Pull action is activated; commits the pull. Suppressed while nothing can be pulled
+     *  or a commit is already in flight — see {@link PullUpdatesDialogProps.isCommitting}. */
+    readonly onConfirm: () => void;
 }
 
 /**

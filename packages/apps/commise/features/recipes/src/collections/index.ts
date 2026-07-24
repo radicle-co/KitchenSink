@@ -12,6 +12,7 @@ export { CollectionForm } from './CollectionForm.js';
 export { CollectionHeader } from './CollectionHeader.js';
 export { CollectionMemberRow } from './CollectionMemberRow.js';
 export { CollectionRecipePicker } from './CollectionRecipePicker.js';
+export { PullUpdatesDialog } from './PullUpdatesDialog.js';
 
 export {
     formatCollectionDate,
@@ -28,8 +29,9 @@ export {
     type CollectionMemberRowProps,
     type CollectionRecipePickerProps,
     type CollectionWithRecipes,
+    type PullUpdatesDialogProps,
     type RecipePickerStatus,
 } from './model.js';
 
 export { collectionMessages } from './messages.js';
-export type { CloneInfoPanelMessages, CollectionMessages } from './messages.js';
+export type { CloneInfoPanelMessages, CollectionMessages, PullUpdatesDialogMessages } from './messages.js';

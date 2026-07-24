@@ -190,6 +190,42 @@ export interface CloneInfoPanelMessages {
     readonly viewSource: string;
 }
 
+/**
+ * Copy for the Pull-Updates preview dialog (W5 Task 10, C2 / FR-011): the source attribution, the three-way
+ * diff counts, the own-members protection note, and the cancel/count-templated-confirm actions, rendered by
+ * both the web and native leaves. Templates carry `{handle}`/`{name}` (source attribution) or `{count}`
+ * (the diff counts and the confirm action) placeholders.
+ */
+export interface PullUpdatesDialogMessages {
+    /** Dialog heading. */
+    readonly title: string;
+    /** Source attribution template with a resolved owner handle (contains `{handle}` and `{name}`). */
+    readonly attribution: string;
+    /** Source attribution template with no resolved owner handle (contains `{name}`). */
+    readonly attributionNoHandle: string;
+    /** Accessible label/text of the preview-loading progress affordance. */
+    readonly loadingLabel: string;
+    /** "N new public recipes will be added" template (contains `{count}`). */
+    readonly addedCount: string;
+    /** "N recipes removed from source" template (contains `{count}`). */
+    readonly removedCount: string;
+    /** "N already in this collection (no changes)" template (contains `{count}`). */
+    readonly unchangedCount: string;
+    /** The "recipes you added directly will not be overwritten" protection note. */
+    readonly ownMembersNote: string;
+    /** Shown in place of/alongside the confirm action when there is nothing to pull (`added.length === 0`). */
+    readonly upToDate: string;
+    /** Shown when `error === 'drift'` (409): the source changed since the preview, NOT a dead end — the
+     *  caller can Cancel and re-open to re-preview. */
+    readonly driftMessage: string;
+    /** Shown when `error === 'generic'`: any other preview/commit failure. */
+    readonly genericErrorMessage: string;
+    /** Label of the cancel action. */
+    readonly cancel: string;
+    /** "Pull N Recipes" template (contains `{count}`). */
+    readonly confirm: string;
+}
+
 /** The shape of the collections feature's shared copy. */
 export interface CollectionMessages {
     /** Copy for the collection-list screen. */
@@ -206,6 +242,8 @@ export interface CollectionMessages {
     readonly actions: CollectionActionsMessages;
     /** Copy for the clone-info panel (source attribution, cloned date, View Source). */
     readonly cloneInfo: CloneInfoPanelMessages;
+    /** Copy for the Pull-Updates preview dialog (diff counts, protection note, cancel/confirm). */
+    readonly pull: PullUpdatesDialogMessages;
 }
 
 export const collectionMessages: LocalizedMessages<CollectionMessages> = {
@@ -292,6 +330,22 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             clonedFromUnknown: 'a source collection',
             clonedOn: 'Cloned {date}',
             viewSource: 'View Source',
+        },
+        pull: {
+            title: 'Pull Updates from Source Collection',
+            attribution: '@{handle} / {name}',
+            attributionNoHandle: '{name}',
+            loadingLabel: 'Loading pull preview',
+            addedCount: '{count} new public recipes will be added',
+            removedCount: '{count} recipes removed from source',
+            unchangedCount: '{count} already in this collection (no changes)',
+            ownMembersNote: 'Recipes you added directly will not be overwritten.',
+            upToDate: 'You’re all caught up — there’s nothing new to pull.',
+            driftMessage:
+                'The source collection changed since you last checked. Cancel and choose Pull Updates again to see the latest changes.',
+            genericErrorMessage: 'We couldn’t check for updates. Please try again.',
+            cancel: 'Cancel',
+            confirm: 'Pull {count} Recipes',
         },
     },
 };

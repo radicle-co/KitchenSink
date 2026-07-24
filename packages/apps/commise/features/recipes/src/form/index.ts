@@ -13,7 +13,6 @@ export {
 } from './RecipeFormSections.js';
 
 export {
-    applyDraftToRecipeDetail,
     canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,

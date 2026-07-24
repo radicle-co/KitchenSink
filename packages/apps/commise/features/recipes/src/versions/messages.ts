@@ -168,20 +168,6 @@ export interface RecipeConflictMessages {
     readonly titleLabel: string;
     /** Field label: description. */
     readonly descriptionLabel: string;
-    /** Field label: cuisine. */
-    readonly cuisineLabel: string;
-    /** Field label: tags. */
-    readonly tagsLabel: string;
-    /** Field label: dietary flags. */
-    readonly dietaryFlagsLabel: string;
-    /** Field label: visibility. */
-    readonly visibilityLabel: string;
-    /** Rendered value for a public recipe. */
-    readonly visibilityPublic: string;
-    /** Rendered value for a private recipe. */
-    readonly visibilityPrivate: string;
-    /** Rendered value for an empty field (no title, no tags, etc.). */
-    readonly emptyValue: string;
     /** Field label: servings. */
     readonly servingsLabel: string;
     /** Field label: prep time. */
@@ -359,13 +345,6 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             staleBaseConfirmLabel: 'I understand — continue anyway',
             titleLabel: 'Title',
             descriptionLabel: 'Description',
-            cuisineLabel: 'Cuisine',
-            tagsLabel: 'Tags',
-            dietaryFlagsLabel: 'Dietary flags',
-            visibilityLabel: 'Visibility',
-            visibilityPublic: 'Public',
-            visibilityPrivate: 'Private',
-            emptyValue: 'None',
             servingsLabel: 'Servings',
             prepLabel: 'Prep time',
             cookLabel: 'Cook time',

@@ -19,12 +19,7 @@
  * which pops the pushed edit screen back to the detail screen already underneath it on the stack, so
  * `onCancel` lands on the SAME detail destination `onSaved` does, without implying a write happened.
  */
-import {
-    RecipeConflictView,
-    recipeVersionMessages,
-    toRecipeFormValues,
-    useDiscardGuard,
-} from '@commise/features-recipes';
+import { RecipeConflictView, recipeVersionMessages, useDiscardGuard } from '@commise/features-recipes';
 import { useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
@@ -103,7 +98,7 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     }
 
     if (editor.state.status === 'conflict') {
-        const { theirs, draft, mergeSelections, server, base, diff, versionsBehind } = editor.state;
+        const { mergeSelections, server, base, diff, versionsBehind } = editor.state;
 
         return (
             <RecipeConflictView
@@ -111,8 +106,6 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
                 {...(base === undefined ? {} : { base })}
                 diff={diff}
                 versionsBehind={versionsBehind}
-                mineValues={draft}
-                theirsValues={toRecipeFormValues(theirs)}
                 selections={mergeSelections}
                 onSelectionsChange={editor.resolutions.setMergeSelections}
                 onKeepServer={editor.resolutions.keepServer}

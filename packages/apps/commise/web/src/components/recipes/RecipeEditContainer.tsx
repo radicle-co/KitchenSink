@@ -34,7 +34,6 @@ import {
     RecipeInstructionsFields,
     RecipeVisibilityField,
     setIngredientStatusById,
-    toRecipeFormValues,
     useDiscardGuard,
     Wizard,
     type RecipeFormIngredient,
@@ -130,7 +129,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     };
 
     if (editor.state.status === 'conflict') {
-        const { theirs, draft, mergeSelections, server, base, diff, versionsBehind } = editor.state;
+        const { mergeSelections, server, base, diff, versionsBehind } = editor.state;
 
         return (
             <RecipeConflictView
@@ -138,8 +137,6 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 {...(base === undefined ? {} : { base })}
                 diff={diff}
                 versionsBehind={versionsBehind}
-                mineValues={draft}
-                theirsValues={toRecipeFormValues(theirs)}
                 selections={mergeSelections}
                 onSelectionsChange={editor.resolutions.setMergeSelections}
                 onKeepServer={editor.resolutions.keepServer}

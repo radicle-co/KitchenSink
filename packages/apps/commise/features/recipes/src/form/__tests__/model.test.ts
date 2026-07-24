@@ -7,9 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { computeRecipeNutrition, RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
 
-import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
 import {
-    applyDraftToRecipeDetail,
     canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
@@ -162,104 +160,6 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
     it('carries a given status verbatim (draft or published)', () => {
         expect(toUpdateRecipeInput(filledValues(), RecipeStatus.DRAFT).status).toBe('draft');
         expect(toUpdateRecipeInput(filledValues(), RecipeStatus.PUBLISHED).status).toBe('published');
-    });
-});
-
-describe('applyDraftToRecipeDetail', () => {
-    // The in-progress draft projected onto a base RecipeDetail so the conflict view (T070) can show
-    // "mine" (the edit you were about to save) beside "theirs" (the latest saved recipe). The view renders
-    // only aggregate fields — title, servings, prep/cook/total times, and ingredient/step counts.
-
-    const base = makeRecipeDetail({
-        id: 'rec_1',
-        title: 'Server Title',
-        servings: 2,
-        prepTimeMinutes: 5,
-        cookTimeMinutes: 5,
-        totalTimeMinutes: 10,
-        ingredients: [makeIngredientView(), makeIngredientView()],
-        steps: [makeStepView()],
-    });
-
-    it('overlays the draft scalars and recomputes total time', () => {
-        const result = applyDraftToRecipeDetail(
-            base,
-            filledValues({ title: 'My Draft', servings: 6, prepTimeMinutes: 12, cookTimeMinutes: 18 }),
-        );
-
-        expect(result.title).toBe('My Draft');
-        expect(result.servings).toBe(6);
-        expect(result.prepTimeMinutes).toBe(12);
-        expect(result.cookTimeMinutes).toBe(18);
-        expect(result.totalTimeMinutes).toBe(30);
-    });
-
-    it('reflects the draft ingredient and step counts (mapped to view rows)', () => {
-        const result = applyDraftToRecipeDetail(
-            base,
-            filledValues({
-                ingredients: [
-                    { ingredientId: 'ing_1', name: 'Rice', quantity: 1, unit: 'cup' },
-                    { ingredientId: 'ing_2', name: 'Stock', quantity: 500, unit: 'ml' },
-                ],
-                steps: [{ instruction: 'Toast.' }, { instruction: 'Simmer.' }, { instruction: 'Serve.' }],
-            }),
-        );
-
-        expect(result.ingredients).toHaveLength(2);
-        expect(result.steps).toHaveLength(3);
-        expect(result.ingredients[0]).toMatchObject({ ingredientId: 'ing_1', name: 'Rice', quantity: 1, unit: 'cup' });
-        expect(result.steps[2]).toMatchObject({ stepNumber: 3, instruction: 'Serve.' });
-    });
-
-    it('drops unresolved ingredient lines so the count matches what will actually save', () => {
-        const result = applyDraftToRecipeDetail(
-            base,
-            filledValues({
-                ingredients: [
-                    { ingredientId: 'ing_1', name: 'Rice', quantity: 1 },
-                    { ingredientId: null, name: 'Pending', quantity: 1 },
-                ],
-            }),
-        );
-
-        expect(result.ingredients).toHaveLength(1);
-        expect(result.ingredients).toHaveLength(
-            toCreateRecipeInput(
-                filledValues({
-                    ingredients: [
-                        { ingredientId: 'ing_1', name: 'Rice', quantity: 1 },
-                        { ingredientId: null, name: 'Pending', quantity: 1 },
-                    ],
-                }),
-            ).ingredients.length,
-        );
-    });
-
-    it('preserves base identity + fields the conflict view never reads (id, photos, nutrition)', () => {
-        const result = applyDraftToRecipeDetail(base, filledValues());
-
-        expect(result.id).toBe('rec_1');
-        expect(result.photos).toBe(base.photos);
-        expect(result.nutrition).toBe(base.nutrition);
-    });
-
-    it('reflects the draft difficulty over the base', () => {
-        const withDifficulty = makeRecipeDetail({ difficulty: RecipeDifficulty.EASY });
-
-        const result = applyDraftToRecipeDetail(withDifficulty, filledValues({ difficulty: RecipeDifficulty.HARD }));
-
-        expect(result.difficulty).toBe('hard');
-    });
-
-    it('reflects a CLEARED draft difficulty as absent, not the stale base value', () => {
-        // Base carries a difficulty; the draft cleared it. Mutation guard: a plain `...base` spread would
-        // leak the stale server difficulty into "mine".
-        const withDifficulty = makeRecipeDetail({ difficulty: RecipeDifficulty.HARD });
-
-        const result = applyDraftToRecipeDetail(withDifficulty, filledValues());
-
-        expect(result.difficulty).toBeUndefined();
     });
 });
 

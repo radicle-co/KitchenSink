@@ -113,11 +113,6 @@ export interface RecipeConflictViewProps {
      *  `isConflictBaseStale` alongside `base` to render W7 Task 5's staleness warning and gate
      *  Overwrite/Save-merged on an explicit confirm. */
     readonly versionsBehind: number;
-    /** The user's in-progress draft, as the editable form shape — the "mine" side of the field-by-field merge
-     *  (Option C). */
-    readonly mineValues: RecipeFormValues;
-    /** The latest saved recipe projected to the editable form shape — the "server" side of the merge. */
-    readonly theirsValues: RecipeFormValues;
     /** The current per-field merge resolution (an absent key defaults to `'mine'`); owned by the caller. */
     readonly selections: RecipeMergeSelections;
     /** Invoked with the next selections on every per-field radio toggle, and to reset on merge-panel exit. */
@@ -538,10 +533,9 @@ export const composeMergedRecipe = (
  * {@link ./conflictDiff.js!computeConflictDiff}'s content comparisons — see `diff.ts`'s module docs on why those fields are
  * structural, not authored content); `sortOrder` is the line's array position, mirroring how the service
  * assigns it on save. An unresolved ingredient line (no `ingredientId` yet) is dropped, matching every
- * other draft→wire projection ({@link ../form/model.js!toCreateRecipeInput}, {@link ../form/model.js!applyDraftToRecipeDetail}) — an
+ * other draft→wire projection ({@link ../form/model.js!toCreateRecipeInput}) — an
  * unresolved line was never going to reach the server, so it cannot appear in what the server sees either.
- * `isUserEntered` defaults to `false` (the draft carries no provenance flag — same documented limitation as
- * {@link ../form/model.js!applyDraftToRecipeDetail}). Pure.
+ * `isUserEntered` defaults to `false` (the draft carries no provenance flag). Pure.
  *
  * @param values - The editor's current draft.
  * @param version - The snapshot's own sequence number (excluded from every diff — see `diff.ts` — so any

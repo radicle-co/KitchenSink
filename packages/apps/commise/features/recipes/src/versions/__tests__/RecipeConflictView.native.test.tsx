@@ -9,7 +9,6 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState } from 'react';
 
-import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import type { ConflictDiff } from '../conflictDiff.js';
 import { makeVersionConflictSide } from '../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -57,9 +56,6 @@ const diff: ConflictDiff = {
     isEmpty: false,
 };
 
-const mineValues = makeRecipeFormValues({ title: 'My Draft Title', servings: 6 });
-const theirsValues = makeRecipeFormValues({ title: 'Latest Saved Title', servings: 4 });
-
 /** Freeze the clock 2 minutes after `server.updatedAt` so the banner's relative time is deterministic. */
 const freezeClock = (): void => {
     vi.useFakeTimers();
@@ -72,8 +68,6 @@ function renderConflict(overrides: Partial<RecipeConflictViewProps> = {}) {
         base,
         diff,
         versionsBehind: 1,
-        mineValues,
-        theirsValues,
         selections: {},
         onSelectionsChange: noop,
         onKeepServer: noop,
@@ -104,8 +98,6 @@ function renderControlledConflict(
         base,
         diff,
         versionsBehind: 1,
-        mineValues,
-        theirsValues,
         onKeepServer: noop,
         onOverwrite: noop,
         onMerge: noop,
@@ -168,8 +160,6 @@ describe('RecipeConflictView (native) — per-side banner (X3)', () => {
                     base,
                     diff,
                     versionsBehind: 1,
-                    mineValues,
-                    theirsValues,
                     selections: {},
                     onSelectionsChange: noop,
                     onKeepServer: noop,
@@ -588,8 +578,6 @@ describe('RecipeConflictView (native) — stale-base warning + confirm gate (W7 
             base,
             diff,
             versionsBehind: 11,
-            mineValues,
-            theirsValues,
             selections: {},
             onSelectionsChange: noop,
             onKeepServer: noop,

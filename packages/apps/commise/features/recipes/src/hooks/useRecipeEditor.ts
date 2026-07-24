@@ -126,7 +126,6 @@ import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/h
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-    applyDraftToRecipeDetail,
     canAdvanceFromStep,
     defaultRecipeFormValues,
     stepErrorsFor,
@@ -175,8 +174,6 @@ export type EditorState =
            *  `currentVersion` is the fresh CAS token) — built from the 409's OWN `server` side, never a
            *  refetch (W7 Task 2). */
           readonly theirs: RecipeDetail;
-          /** The user's in-progress draft projected onto `theirs`, for side-by-side display. */
-          readonly mine: RecipeDetail;
           /** The draft the user attempted to save (source of a "keep mine"/`overwrite` resubmit). */
           readonly draft: RecipeFormValues;
           /** The in-progress per-field/per-element merge resolution; owned here so `RecipeConflictView` can
@@ -372,7 +369,6 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setConflict({
             status: 'conflict',
             theirs,
-            mine: applyDraftToRecipeDetail(theirs, draft),
             draft,
             mergeSelections: {},
             server,

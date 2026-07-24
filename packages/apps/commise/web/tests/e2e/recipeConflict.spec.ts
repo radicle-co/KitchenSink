@@ -98,6 +98,31 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         await expect(page.getByRole('button', { name: 'Merge manually' })).toBeVisible();
     });
 
+    test('[A] Keep server discards the local changes with NO write and lands on the recipe detail', async ({
+        page,
+    }) => {
+        const store = await enterConflict(page, { serverChanges: { servings: 8 } });
+
+        // The other device's write already landed: the store holds the server side (v2, servings 8, the
+        // server's title) at conflict time. Capturing it lets us prove Keep server writes NOTHING further.
+        expect(store.get('rec_conflict')?.currentVersion).toBe(2);
+
+        await page.getByRole('button', { name: 'Keep server version' }).click();
+
+        // Lands on the recipe detail (OQ-1 / Task-6 discarded→detail wiring) showing the SERVER's title —
+        // the local 'My Merged Title' edit was discarded, never persisted.
+        await expect(page.getByRole('heading', { name: 'Original Title' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'My Merged Title' })).toHaveCount(0);
+
+        // No write happened: the stored recipe is byte-for-byte the server version from the conflict — its
+        // `currentVersion` did NOT advance past v2 (a resubmit would have bumped it to v3 via `applyUpdate`)
+        // and its title stayed the server's, proving Keep server is a pure discard, not a last-write-wins save.
+        const persisted = store.get('rec_conflict');
+        expect(persisted?.currentVersion).toBe(2);
+        expect(persisted?.title).toBe('Original Title');
+        expect(persisted?.servings).toBe(8);
+    });
+
     test('[B] Overwrite resubmits the draft as-is and lands on the recipe detail', async ({ page }) => {
         const store = await enterConflict(page, { serverChanges: { servings: 8 } });
 

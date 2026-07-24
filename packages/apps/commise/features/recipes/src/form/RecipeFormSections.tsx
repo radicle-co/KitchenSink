@@ -19,11 +19,18 @@ import type { FC, ReactElement } from 'react';
 
 import { fillTemplate } from '../list/model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
-import { computeTotalTime, lineCalories, recipeNutritionTotal } from './model.js';
+import {
+    computeTotalTime,
+    DESCRIPTION_MAX_LENGTH,
+    lineCalories,
+    recipeNutritionTotal,
+    TITLE_MAX_LENGTH,
+} from './model.js';
 import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
     addStep,
+    cuisineOptions,
     difficultyOptions,
     parseCommaList,
     parseNumericInput,
@@ -35,6 +42,16 @@ import {
     updateStepAt,
     type RecipeFormSectionProps,
 } from './props.js';
+
+// B8: static ids for the Basics section's singleton fields — the alert paragraph an invalid field's
+// `aria-describedby` points at. Ingredient/step rows build their own per-index ids (see below) since those
+// sections repeat.
+const titleErrorId = 'recipe-title-error';
+const servingsErrorId = 'recipe-servings-error';
+const timesErrorId = 'recipe-times-error';
+const ingredientsErrorId = 'recipe-ingredients-error';
+const stepsErrorId = 'recipe-steps-error';
+const caption = 'text-caption text-slate';
 
 const sectionCard = 'flex flex-col gap-4 rounded-2xl bg-card p-6 shadow-sm';
 const sectionHeading = 'font-display text-heading-md font-semibold text-charcoal';
@@ -56,6 +73,9 @@ const difficultyChipSelected = 'border-seafoam bg-seafoam text-white';
 export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
     const totalTime = computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes);
+    const titleInvalid = errors?.title !== undefined;
+    const servingsInvalid = errors?.servings !== undefined;
+    const timesInvalid = errors?.times !== undefined;
 
     return (
         <section aria-label={m.basicsHeading} className={sectionCard}>
@@ -65,14 +85,20 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                 <input
                     type="text"
                     aria-label={m.titleLabel}
+                    aria-invalid={titleInvalid || undefined}
+                    aria-describedby={titleInvalid ? titleErrorId : undefined}
                     placeholder={m.titlePlaceholder}
                     value={values.title}
+                    maxLength={TITLE_MAX_LENGTH}
                     onChange={(event) => onChange({ ...values, title: event.target.value })}
                     className={field}
                 />
+                <span className={caption}>
+                    {fillTemplate(m.charCounterTemplate, { count: values.title.length, max: TITLE_MAX_LENGTH })}
+                </span>
             </label>
             {errors?.title !== undefined && (
-                <p className={errorText} role="alert">
+                <p id={titleErrorId} className={errorText} role="alert">
                     {m.errors[errors.title]}
                 </p>
             )}
@@ -81,20 +107,32 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                 <textarea
                     aria-label={m.descriptionLabel}
                     value={values.description}
+                    maxLength={DESCRIPTION_MAX_LENGTH}
                     onChange={(event) => onChange({ ...values, description: event.target.value })}
                     className={`${field} min-h-24 resize-y`}
                 />
+                <span className={caption}>
+                    {fillTemplate(m.charCounterTemplate, {
+                        count: values.description.length,
+                        max: DESCRIPTION_MAX_LENGTH,
+                    })}
+                </span>
             </label>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="flex flex-col gap-1">
                     <span className={fieldLabel}>{m.cuisineLabel}</span>
-                    <input
-                        type="text"
+                    <select
                         aria-label={m.cuisineLabel}
                         value={values.cuisine}
                         onChange={(event) => onChange({ ...values, cuisine: event.target.value })}
                         className={field}
-                    />
+                    >
+                        {cuisineOptions(values.cuisine, m).map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
                 </label>
                 <label className="flex flex-col gap-1">
                     <span className={fieldLabel}>{m.tagsLabel}</span>
@@ -123,6 +161,8 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     <input
                         type="number"
                         aria-label={m.servingsLabel}
+                        aria-invalid={servingsInvalid || undefined}
+                        aria-describedby={servingsInvalid ? servingsErrorId : undefined}
                         value={String(values.servings)}
                         onChange={(event) => onChange({ ...values, servings: parseNumericInput(event.target.value) })}
                         className={field}
@@ -133,6 +173,8 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     <input
                         type="number"
                         aria-label={m.prepTimeLabel}
+                        aria-invalid={timesInvalid || undefined}
+                        aria-describedby={timesInvalid ? timesErrorId : undefined}
                         value={String(values.prepTimeMinutes)}
                         onChange={(event) =>
                             onChange({ ...values, prepTimeMinutes: parseNumericInput(event.target.value) })
@@ -145,6 +187,8 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     <input
                         type="number"
                         aria-label={m.cookTimeLabel}
+                        aria-invalid={timesInvalid || undefined}
+                        aria-describedby={timesInvalid ? timesErrorId : undefined}
                         value={String(values.cookTimeMinutes)}
                         onChange={(event) =>
                             onChange({ ...values, cookTimeMinutes: parseNumericInput(event.target.value) })
@@ -181,12 +225,12 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                 </div>
             </div>
             {errors?.servings !== undefined && (
-                <p className={errorText} role="alert">
+                <p id={servingsErrorId} className={errorText} role="alert">
                     {m.errors[errors.servings]}
                 </p>
             )}
             {errors?.times !== undefined && (
-                <p className={errorText} role="alert">
+                <p id={timesErrorId} className={errorText} role="alert">
                     {m.errors[errors.times]}
                 </p>
             )}
@@ -205,15 +249,24 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const m = useMessages(recipeFormMessages);
     const total = recipeNutritionTotal(values);
 
+    // B8: an unresolved/invalid LINE is marked invalid only when it is itself the reason `errors.ingredients`
+    // is set (WCAG 3.3.1 — identify the specific control, not the whole list) — never the whole list on an
+    // `ingredientsEmpty` error, since there are no line inputs to mark in that case.
+    const ingredientsInvalid = errors?.ingredients !== undefined;
+
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
         const calories = lineCalories(line);
+        const nameInvalid = ingredientsInvalid && line.ingredientId === null;
+        const quantityInvalid = ingredientsInvalid && line.quantity <= 0;
 
         return (
             <li key={index} className="flex flex-wrap items-center gap-2">
                 <input
                     type="text"
                     aria-label={fillTemplate(m.ingredientNameLabel, { number })}
+                    aria-invalid={nameInvalid || undefined}
+                    aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
                     value={line.name}
                     onChange={(event) => onChange(updateIngredientAt(values, index, { name: event.target.value }))}
                     className={rowField}
@@ -221,6 +274,8 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 <input
                     type="number"
                     aria-label={fillTemplate(m.ingredientQuantityLabel, { number })}
+                    aria-invalid={quantityInvalid || undefined}
+                    aria-describedby={quantityInvalid ? ingredientsErrorId : undefined}
                     value={String(line.quantity)}
                     onChange={(event) =>
                         onChange(updateIngredientAt(values, index, { quantity: parseNumericInput(event.target.value) }))
@@ -262,7 +317,7 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         <section aria-label={m.ingredientsHeading} className={sectionCard}>
             <h2 className={sectionHeading}>{m.ingredientsHeading}</h2>
             {errors?.ingredients !== undefined && (
-                <p className={errorText} role="alert">
+                <p id={ingredientsErrorId} className={errorText} role="alert">
                     {m.errors[errors.ingredients]}
                 </p>
             )}
@@ -294,9 +349,13 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
 /** Step 3: the dynamic instruction-step list. */
 export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
+    // B8: mirrors the ingredients section — a step is marked invalid only when it is ITSELF the reason
+    // `errors.steps` is set (a blank instruction), never every row on a `stepsRequired` (empty-list) error.
+    const stepsInvalid = errors?.steps !== undefined;
 
     const stepRows: ReactElement[] = values.steps.map((step, index) => {
         const number = index + 1;
+        const instructionInvalid = stepsInvalid && step.instruction.trim() === '';
 
         return (
             <li key={index} className="flex items-start gap-3">
@@ -306,6 +365,8 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                 <input
                     type="text"
                     aria-label={fillTemplate(m.stepInstructionLabel, { number })}
+                    aria-invalid={instructionInvalid || undefined}
+                    aria-describedby={instructionInvalid ? stepsErrorId : undefined}
                     value={step.instruction}
                     onChange={(event) => onChange(updateStepAt(values, index, { instruction: event.target.value }))}
                     className={rowField}
@@ -339,7 +400,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
         <section aria-label={m.stepsHeading} className={sectionCard}>
             <h2 className={sectionHeading}>{m.stepsHeading}</h2>
             {errors?.steps !== undefined && (
-                <p className={errorText} role="alert">
+                <p id={stepsErrorId} className={errorText} role="alert">
                     {m.errors[errors.steps]}
                 </p>
             )}

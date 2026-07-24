@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { isRecipeError, RecipeErrorCode } from '../index.js';
+import { CUISINES, isRecipeError, RecipeErrorCode } from '../index.js';
 import type { RecipeError } from '../index.js';
 
 describe('isRecipeError', () => {
@@ -54,5 +54,19 @@ describe('isRecipeError', () => {
         expect(isRecipeError('RECIPE_NOT_FOUND')).toBe(false);
         expect(isRecipeError(42)).toBe(false);
         expect(isRecipeError([])).toBe(false);
+    });
+});
+
+describe('CUISINES (w3/e5)', () => {
+    it('is a non-empty readonly array of unique, non-blank strings', () => {
+        expect(Array.isArray(CUISINES)).toBe(true);
+        expect(CUISINES.length).toBeGreaterThan(0);
+
+        for (const cuisine of CUISINES) {
+            expect(typeof cuisine).toBe('string');
+            expect(cuisine.trim().length).toBeGreaterThan(0);
+        }
+
+        expect(new Set(CUISINES).size).toBe(CUISINES.length);
     });
 });

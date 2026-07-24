@@ -83,6 +83,15 @@ export interface RecipeFormValues {
     readonly steps: readonly RecipeFormStep[];
 }
 
+/** Maximum title length (w3/e6) — enforced client-side via `maxLength` and surfaced by a live "N/64" counter. */
+export const TITLE_MAX_LENGTH = 64;
+
+/**
+ * Maximum description length (w3/e6) — enforced client-side via `maxLength` and surfaced by a live "N/256"
+ * counter.
+ */
+export const DESCRIPTION_MAX_LENGTH = 256;
+
 /**
  * Total time = prep + cook (FR-001 auto-computed; the editor shows it read-only). Pure.
  *

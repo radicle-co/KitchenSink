@@ -8,7 +8,7 @@
  * ingredient (the container owns the food-service typeahead). Every edit produces the next
  * {@link RecipeFormValues} and is handed back up via `onChange`.
  */
-import { RecipeDifficulty, type FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { CUISINES, RecipeDifficulty, type FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
 import type { RecipeFormMessages } from './messages.js';
@@ -177,6 +177,35 @@ export const difficultyOptions = (messages: RecipeFormMessages): DifficultyOptio
     { value: RecipeDifficulty.HARD, label: messages.difficultyHard },
     { label: messages.difficultyNotStated },
 ];
+
+/** One selectable cuisine choice in the dropdown/picker. `''` is the explicit "no cuisine stated" choice. */
+export interface CuisineOption {
+    /** The wire value this option sets (`''` clears the field). */
+    readonly value: string;
+    /** The visible/accessible label for this option. */
+    readonly label: string;
+}
+
+/**
+ * The ordered cuisine dropdown/picker options (w3/e5): an explicit "no cuisine" clear option, THEN — only
+ * when `currentCuisine` is a non-blank value not already in the curated {@link CUISINES} list — that exact
+ * custom value (so an existing recipe's non-curated cuisine stays selected/visible instead of silently
+ * disappearing), THEN the curated list itself. Shared by both platform leaves so the option set, order, and
+ * custom-value handling cannot drift between web's `<select>` and native's picker. Pure.
+ *
+ * @param currentCuisine - The form's current `cuisine` value (may be blank, curated, or custom).
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The picker options in display order.
+ */
+export const cuisineOptions = (currentCuisine: string, messages: RecipeFormMessages): CuisineOption[] => {
+    const isCustom = currentCuisine !== '' && !(CUISINES as readonly string[]).includes(currentCuisine);
+
+    return [
+        { value: '', label: messages.cuisineUnsetOption },
+        ...(isCustom ? [{ value: currentCuisine, label: currentCuisine }] : []),
+        ...CUISINES.map((cuisine) => ({ value: cuisine, label: cuisine })),
+    ];
+};
 
 /**
  * Parse a numeric text input to a finite number, coercing blank/invalid entries to 0 (validation, not this

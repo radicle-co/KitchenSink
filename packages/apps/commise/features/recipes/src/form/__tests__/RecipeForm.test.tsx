@@ -10,10 +10,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { RecipeForm } from '../RecipeForm.js';
-import { defaultRecipeFormValues, type RecipeFormValues } from '../model.js';
+import { DESCRIPTION_MAX_LENGTH, defaultRecipeFormValues, TITLE_MAX_LENGTH, type RecipeFormValues } from '../model.js';
 import type { RecipeFormProps } from '../props.js';
 
 afterEach(cleanup);
@@ -71,7 +71,7 @@ describe('RecipeForm (web) — basics fields', () => {
 
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Title' }).value).toBe('Herb Risotto');
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Description' }).value).toBe('Creamy and quick.');
-        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Cuisine' }).value).toBe('Italian');
+        expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Cuisine' }).value).toBe('Italian');
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Tags' }).value).toBe('quick, dinner');
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Dietary flags' }).value).toBe('vegetarian');
         expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Servings' }).value).toBe('4');
@@ -112,6 +112,197 @@ describe('RecipeForm (web) — basics fields', () => {
         fireEvent.change(screen.getByRole('textbox', { name: 'Tags' }), { target: { value: 'quick,  easy , ' } });
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'easy'] }));
+    });
+});
+
+describe('RecipeForm (web) — cuisine dropdown (w3/e5)', () => {
+    it('lists every curated CUISINES option plus the explicit "no cuisine" choice', () => {
+        renderForm({ values: filledValues({ cuisine: '' }) });
+
+        const select = screen.getByRole('combobox', { name: 'Cuisine' });
+        for (const cuisine of CUISINES) {
+            expect(screen.getByRole('option', { name: cuisine })).toBeTruthy();
+        }
+        expect(select).toBeTruthy();
+    });
+
+    it('selects the curated value bound to the form', () => {
+        renderForm({ values: filledValues({ cuisine: 'Mexican' }) });
+
+        expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Cuisine' }).value).toBe('Mexican');
+    });
+
+    it('keeps a preselected CUSTOM cuisine (not in CUISINES) visible and selected, never lost', () => {
+        renderForm({ values: filledValues({ cuisine: 'Grandma’s Secret Blend' }) });
+
+        const select = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Cuisine' });
+        expect(select.value).toBe('Grandma’s Secret Blend');
+        expect(screen.getByRole('option', { name: 'Grandma’s Secret Blend' })).toBeTruthy();
+    });
+
+    it('does NOT add an extra option for a blank cuisine', () => {
+        renderForm({ values: filledValues({ cuisine: '' }) });
+
+        expect(screen.getAllByRole('option').filter((option) => option.textContent === '')).toHaveLength(0);
+    });
+
+    it('reports a cuisine selection upward, preserving the free-text wire contract', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
+
+        fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'Thai' } });
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: 'Thai' }));
+    });
+});
+
+describe('RecipeForm (web) — title/description char counters (w3/e6)', () => {
+    it('shows a live "N/64" counter for the title and caps input at 64', () => {
+        renderForm({ values: filledValues({ title: 'Herb Risotto' }) });
+
+        expect(screen.getByText(`${'Herb Risotto'.length}/${TITLE_MAX_LENGTH}`)).toBeTruthy();
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Title' }).maxLength).toBe(TITLE_MAX_LENGTH);
+    });
+
+    it('shows a live "N/256" counter for the description and caps input at 256', () => {
+        renderForm({ values: filledValues({ description: 'Creamy and quick.' }) });
+
+        expect(screen.getByText(`${'Creamy and quick.'.length}/${DESCRIPTION_MAX_LENGTH}`)).toBeTruthy();
+        expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Description' }).maxLength).toBe(
+            DESCRIPTION_MAX_LENGTH,
+        );
+    });
+
+    it('updates the title counter as the value changes', () => {
+        const { rerender } = render(
+            <RecipeForm
+                {...{
+                    values: filledValues({ title: 'A' }),
+                    mode: 'create',
+                    onChange: noop,
+                    onSubmit: noop,
+                    onCancel: noop,
+                }}
+            />,
+        );
+
+        expect(screen.getByText(`1/${TITLE_MAX_LENGTH}`)).toBeTruthy();
+
+        rerender(
+            <RecipeForm
+                {...{
+                    values: filledValues({ title: 'Abc' }),
+                    mode: 'create',
+                    onChange: noop,
+                    onSubmit: noop,
+                    onCancel: noop,
+                }}
+            />,
+        );
+
+        expect(screen.getByText(`3/${TITLE_MAX_LENGTH}`)).toBeTruthy();
+    });
+});
+
+describe('RecipeForm (web) — B8 error accessibility wiring (aria-invalid + aria-describedby)', () => {
+    it('wires the title field to its alert when invalid, and clears the wiring when valid', () => {
+        renderForm({ errors: { title: 'titleRequired' } });
+
+        const title = screen.getByRole('textbox', { name: 'Title' });
+        const alert = screen.getByRole('alert');
+        expect(title.getAttribute('aria-invalid')).toBe('true');
+        expect(title.getAttribute('aria-describedby')).toBe(alert.id);
+        expect(alert.id).toBeTruthy();
+
+        cleanup();
+        renderForm();
+        expect(screen.getByRole('textbox', { name: 'Title' }).getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByRole('textbox', { name: 'Title' }).getAttribute('aria-describedby')).toBeNull();
+    });
+
+    it('wires the servings field to its alert when invalid', () => {
+        renderForm({ errors: { servings: 'servingsPositive' } });
+
+        const servings = screen.getByRole('spinbutton', { name: 'Servings' });
+        const alert = screen.getByRole('alert');
+        expect(servings.getAttribute('aria-invalid')).toBe('true');
+        expect(servings.getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('wires BOTH prep and cook time fields to the shared times alert when invalid', () => {
+        renderForm({ errors: { times: 'timesNonNegative' } });
+
+        const alert = screen.getByRole('alert');
+        const prep = screen.getByRole('spinbutton', { name: 'Prep time (minutes)' });
+        const cook = screen.getByRole('spinbutton', { name: 'Cook time (minutes)' });
+
+        expect(prep.getAttribute('aria-invalid')).toBe('true');
+        expect(prep.getAttribute('aria-describedby')).toBe(alert.id);
+        expect(cook.getAttribute('aria-invalid')).toBe('true');
+        expect(cook.getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('wires only the offending ingredient line(s) to the ingredients alert, per field (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: null, name: 'Unresolved', quantity: 1 },
+                    { ingredientId: 'ing_2', name: 'Salt', quantity: 0 },
+                    { ingredientId: 'ing_3', name: 'Pepper', quantity: 1 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsUnresolved' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        // Line 1: unresolved name should be invalid, its quantity (1, valid) should not.
+        expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-describedby')).toBe(
+            alert.id,
+        );
+        expect(
+            screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }).getAttribute('aria-invalid'),
+        ).toBeNull();
+
+        // Line 2: resolved name should be valid, its zero quantity should be invalid.
+        expect(screen.getByRole('textbox', { name: 'Ingredient 2 name' }).getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }).getAttribute('aria-invalid')).toBe(
+            'true',
+        );
+        expect(screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }).getAttribute('aria-describedby')).toBe(
+            alert.id,
+        );
+
+        // Line 3: fully valid — neither input marked invalid.
+        expect(screen.getByRole('textbox', { name: 'Ingredient 3 name' }).getAttribute('aria-invalid')).toBeNull();
+        expect(
+            screen.getByRole('spinbutton', { name: 'Ingredient 3 quantity' }).getAttribute('aria-invalid'),
+        ).toBeNull();
+    });
+
+    it('does not mark any ingredient line invalid on an ingredientsEmpty error (no lines exist)', () => {
+        renderForm({ values: filledValues({ ingredients: [] }), errors: { ingredients: 'ingredientsEmpty' } });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.queryByRole('textbox', { name: /Ingredient \d+ name/ })).toBeNull();
+    });
+
+    it('wires only the offending step(s) to the steps alert, per field', () => {
+        renderForm({
+            values: filledValues({
+                steps: [{ instruction: '' }, { instruction: 'Toast the rice.' }],
+            }),
+            errors: { steps: 'stepsRequired' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(screen.getByRole('textbox', { name: 'Step 1 instruction' }).getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByRole('textbox', { name: 'Step 1 instruction' }).getAttribute('aria-describedby')).toBe(
+            alert.id,
+        );
+        expect(screen.getByRole('textbox', { name: 'Step 2 instruction' }).getAttribute('aria-invalid')).toBeNull();
     });
 });
 

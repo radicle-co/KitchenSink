@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 // The native leaf renders its button glyphs via `@expo/vector-icons` (Feather), which needs the Expo font
 // runtime — absent under jsdom. Stub it to a decorative no-op; the Button primitive hides the icon from the
@@ -18,7 +18,7 @@ vi.mock('@expo/vector-icons', () => ({ Feather: () => null }));
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeForm } from '../RecipeForm.native.js';
-import { defaultRecipeFormValues, type RecipeFormValues } from '../model.js';
+import { DESCRIPTION_MAX_LENGTH, defaultRecipeFormValues, TITLE_MAX_LENGTH, type RecipeFormValues } from '../model.js';
 import type { RecipeFormProps } from '../props.js';
 
 afterEach(cleanup);
@@ -78,7 +78,8 @@ describe('RecipeForm (native) — basics fields', () => {
 
         expect(inputValue('Title')).toBe('Herb Risotto');
         expect(inputValue('Description')).toBe('Creamy and quick.');
-        expect(inputValue('Cuisine')).toBe('Italian');
+        expect(screen.getByRole('radiogroup', { name: 'Cuisine' })).toBeTruthy();
+        expect(screen.getByRole<HTMLElement>('radio', { name: 'Italian' }).getAttribute('aria-checked')).toBe('true');
         expect(inputValue('Tags')).toBe('quick, dinner');
         expect(inputValue('Dietary flags')).toBe('vegetarian');
         expect(inputValue('Servings')).toBe('4');
@@ -117,6 +118,156 @@ describe('RecipeForm (native) — basics fields', () => {
         fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'quick,  easy , ' } });
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'easy'] }));
+    });
+});
+
+describe('RecipeForm (native) — cuisine picker (w3/e5)', () => {
+    const isChecked = (label: string): boolean =>
+        screen.getByRole('radio', { name: label }).getAttribute('aria-checked') === 'true';
+
+    it('renders a radiogroup with every curated CUISINES option plus the explicit "no cuisine" choice', () => {
+        renderForm({ values: filledValues({ cuisine: '' }) });
+
+        expect(screen.getByRole('radiogroup', { name: 'Cuisine' })).toBeTruthy();
+        for (const cuisine of CUISINES) {
+            expect(screen.getByRole('radio', { name: cuisine })).toBeTruthy();
+        }
+        expect(screen.getByRole('radio', { name: 'No cuisine' })).toBeTruthy();
+    });
+
+    it('checks the curated option bound to the form', () => {
+        renderForm({ values: filledValues({ cuisine: 'Mexican' }) });
+
+        expect(isChecked('Mexican')).toBe(true);
+        expect(isChecked('Italian')).toBe(false);
+    });
+
+    it('keeps a preselected CUSTOM cuisine (not in CUISINES) visible and checked, never lost', () => {
+        renderForm({ values: filledValues({ cuisine: 'Grandma’s Secret Blend' }) });
+
+        expect(screen.getByRole('radio', { name: 'Grandma’s Secret Blend' })).toBeTruthy();
+        expect(isChecked('Grandma’s Secret Blend')).toBe(true);
+    });
+
+    it('reports a cuisine selection upward, preserving the free-text wire contract', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Thai' }));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: 'Thai' }));
+    });
+
+    it('reports the explicit clear ("No cuisine") selection upward', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'No cuisine' }));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: '' }));
+    });
+});
+
+describe('RecipeForm (native) — title/description char counters (w3/e6)', () => {
+    it('shows a live "N/64" counter for the title and caps input at 64', () => {
+        renderForm({ values: filledValues({ title: 'Herb Risotto' }) });
+
+        expect(screen.getByText(`${'Herb Risotto'.length}/${TITLE_MAX_LENGTH}`)).toBeTruthy();
+        expect(screen.getByLabelText<HTMLInputElement>('Title').maxLength).toBe(TITLE_MAX_LENGTH);
+    });
+
+    it('shows a live "N/256" counter for the description and caps input at 256', () => {
+        renderForm({ values: filledValues({ description: 'Creamy and quick.' }) });
+
+        expect(screen.getByText(`${'Creamy and quick.'.length}/${DESCRIPTION_MAX_LENGTH}`)).toBeTruthy();
+        expect(screen.getByLabelText<HTMLInputElement>('Description').maxLength).toBe(DESCRIPTION_MAX_LENGTH);
+    });
+});
+
+describe('RecipeForm (native) — B8 error accessibility wiring (aria-invalid + aria-describedby)', () => {
+    it('wires the title field to its alert when invalid, and clears the wiring when valid', () => {
+        renderForm({ errors: { title: 'titleRequired' } });
+
+        const title = screen.getByLabelText('Title');
+        const alert = screen.getByRole('alert');
+        expect(title.getAttribute('aria-invalid')).toBe('true');
+        expect(title.getAttribute('aria-describedby')).toBe(alert.id);
+        expect(alert.id).toBeTruthy();
+
+        cleanup();
+        renderForm();
+        expect(screen.getByLabelText('Title').getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByLabelText('Title').getAttribute('aria-describedby')).toBeNull();
+    });
+
+    it('wires the servings field to its alert when invalid', () => {
+        renderForm({ errors: { servings: 'servingsPositive' } });
+
+        const servings = screen.getByLabelText('Servings');
+        const alert = screen.getByRole('alert');
+        expect(servings.getAttribute('aria-invalid')).toBe('true');
+        expect(servings.getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('wires BOTH prep and cook time fields to the shared times alert when invalid', () => {
+        renderForm({ errors: { times: 'timesNonNegative' } });
+
+        const alert = screen.getByRole('alert');
+        const prep = screen.getByLabelText('Prep time (minutes)');
+        const cook = screen.getByLabelText('Cook time (minutes)');
+
+        expect(prep.getAttribute('aria-invalid')).toBe('true');
+        expect(prep.getAttribute('aria-describedby')).toBe(alert.id);
+        expect(cook.getAttribute('aria-invalid')).toBe('true');
+        expect(cook.getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('wires only the offending ingredient line(s) to the ingredients alert, per field (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: null, name: 'Unresolved', quantity: 1 },
+                    { ingredientId: 'ing_2', name: 'Salt', quantity: 0 },
+                    { ingredientId: 'ing_3', name: 'Pepper', quantity: 1 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsUnresolved' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-describedby')).toBe(alert.id);
+        expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-invalid')).toBeNull();
+
+        expect(screen.getByLabelText('Ingredient 2 name').getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-describedby')).toBe(alert.id);
+
+        expect(screen.getByLabelText('Ingredient 3 name').getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByLabelText('Ingredient 3 quantity').getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('does not mark any ingredient line invalid on an ingredientsEmpty error (no lines exist)', () => {
+        renderForm({ values: filledValues({ ingredients: [] }), errors: { ingredients: 'ingredientsEmpty' } });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.queryByLabelText('Ingredient 1 name')).toBeNull();
+    });
+
+    it('wires only the offending step(s) to the steps alert, per field', () => {
+        renderForm({
+            values: filledValues({
+                steps: [{ instruction: '' }, { instruction: 'Toast the rice.' }],
+            }),
+            errors: { steps: 'stepsRequired' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(screen.getByLabelText('Step 1 instruction').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Step 1 instruction').getAttribute('aria-describedby')).toBe(alert.id);
+        expect(screen.getByLabelText('Step 2 instruction').getAttribute('aria-invalid')).toBeNull();
     });
 });
 

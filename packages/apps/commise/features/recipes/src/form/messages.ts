@@ -28,8 +28,12 @@ export interface RecipeFormMessages {
     readonly titlePlaceholder: string;
     /** Accessible label for the description field. */
     readonly descriptionLabel: string;
+    /** Live character-counter template shown under title/description (contains `{count}`, `{max}`; w3/e6). */
+    readonly charCounterTemplate: string;
     /** Accessible label for the cuisine field. */
     readonly cuisineLabel: string;
+    /** The cuisine dropdown/picker's explicit "no cuisine stated" option label (w3/e5). */
+    readonly cuisineUnsetOption: string;
     /** Group label for the difficulty radio group (FR-001b). */
     readonly difficultyLabel: string;
     /** Difficulty option: easy. */
@@ -134,7 +138,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         titleLabel: 'Title',
         titlePlaceholder: 'e.g. Weeknight Pasta',
         descriptionLabel: 'Description',
+        charCounterTemplate: '{count}/{max}',
         cuisineLabel: 'Cuisine',
+        cuisineUnsetOption: 'No cuisine',
         difficultyLabel: 'Difficulty',
         difficultyEasy: 'Easy',
         difficultyMedium: 'Medium',

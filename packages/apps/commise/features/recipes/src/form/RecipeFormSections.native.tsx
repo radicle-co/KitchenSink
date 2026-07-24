@@ -12,11 +12,18 @@ import type { FC, ReactElement, ReactNode } from 'react';
 import { StyleSheet, Switch, Text, TextInput, View, Pressable } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
-import { computeTotalTime, lineCalories, recipeNutritionTotal } from './model.js';
+import {
+    computeTotalTime,
+    DESCRIPTION_MAX_LENGTH,
+    lineCalories,
+    recipeNutritionTotal,
+    TITLE_MAX_LENGTH,
+} from './model.js';
 import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
     addStep,
+    cuisineOptions,
     difficultyOptions,
     parseCommaList,
     parseNumericInput,
@@ -28,6 +35,15 @@ import {
     updateStepAt,
     type RecipeFormSectionProps,
 } from './props.js';
+
+// B8: static ids for the Basics section's singleton fields — the alert `<Text>` an invalid field's
+// `aria-describedby` points at (react-native-web maps both straight through to DOM attributes). Ingredient/
+// step rows build their own per-index ids (see below) since those sections repeat.
+const titleErrorId = 'recipe-title-error';
+const servingsErrorId = 'recipe-servings-error';
+const timesErrorId = 'recipe-times-error';
+const ingredientsErrorId = 'recipe-ingredients-error';
+const stepsErrorId = 'recipe-steps-error';
 
 /** A labeled field wrapper (visible label above its control) for the Basics section. */
 const Field: FC<{ label: string; children: ReactNode }> = ({ label, children }) => (
@@ -41,6 +57,9 @@ const Field: FC<{ label: string; children: ReactNode }> = ({ label, children }) 
 export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
     const totalTime = computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes);
+    const titleInvalid = errors?.title !== undefined;
+    const servingsInvalid = errors?.servings !== undefined;
+    const timesInvalid = errors?.times !== undefined;
 
     return (
         <View accessibilityLabel={m.basicsHeading} style={styles.card}>
@@ -50,15 +69,21 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
             <Field label={m.titleLabel}>
                 <TextInput
                     accessibilityLabel={m.titleLabel}
+                    aria-invalid={titleInvalid || undefined}
+                    aria-describedby={titleInvalid ? titleErrorId : undefined}
                     placeholder={m.titlePlaceholder}
                     placeholderTextColor={palette.mist}
                     value={values.title}
+                    maxLength={TITLE_MAX_LENGTH}
                     onChangeText={(text) => onChange({ ...values, title: text })}
                     style={styles.input}
                 />
+                <Text style={styles.charCounter}>
+                    {fillTemplate(m.charCounterTemplate, { count: values.title.length, max: TITLE_MAX_LENGTH })}
+                </Text>
             </Field>
             {errors?.title !== undefined && (
-                <Text accessibilityRole="alert" style={styles.error}>
+                <Text id={titleErrorId} accessibilityRole="alert" style={styles.error}>
                     {m.errors[errors.title]}
                 </Text>
             )}
@@ -67,18 +92,42 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     accessibilityLabel={m.descriptionLabel}
                     multiline
                     value={values.description}
+                    maxLength={DESCRIPTION_MAX_LENGTH}
                     onChangeText={(text) => onChange({ ...values, description: text })}
                     style={[styles.input, styles.multiline]}
                 />
+                <Text style={styles.charCounter}>
+                    {fillTemplate(m.charCounterTemplate, {
+                        count: values.description.length,
+                        max: DESCRIPTION_MAX_LENGTH,
+                    })}
+                </Text>
             </Field>
-            <Field label={m.cuisineLabel}>
-                <TextInput
-                    accessibilityLabel={m.cuisineLabel}
-                    value={values.cuisine}
-                    onChangeText={(text) => onChange({ ...values, cuisine: text })}
-                    style={styles.input}
-                />
-            </Field>
+            <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{m.cuisineLabel}</Text>
+                <View role="radiogroup" aria-label={m.cuisineLabel} style={styles.difficultyRow}>
+                    {cuisineOptions(values.cuisine, m).map((option) => {
+                        const selected = values.cuisine === option.value;
+
+                        return (
+                            <Pressable
+                                key={option.value}
+                                role="radio"
+                                aria-label={option.label}
+                                aria-checked={selected}
+                                onPress={() => onChange({ ...values, cuisine: option.value })}
+                                style={[styles.difficultyChip, selected && styles.difficultyChipSelected]}
+                            >
+                                <Text
+                                    style={[styles.difficultyChipLabel, selected && styles.difficultyChipLabelSelected]}
+                                >
+                                    {option.label}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+            </View>
             <View style={styles.field}>
                 <Text style={styles.fieldLabel}>{m.difficultyLabel}</Text>
                 <View role="radiogroup" aria-label={m.difficultyLabel} style={styles.difficultyRow}>
@@ -127,6 +176,8 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
             <Field label={m.servingsLabel}>
                 <TextInput
                     accessibilityLabel={m.servingsLabel}
+                    aria-invalid={servingsInvalid || undefined}
+                    aria-describedby={servingsInvalid ? servingsErrorId : undefined}
                     keyboardType="numeric"
                     value={String(values.servings)}
                     onChangeText={(text) => onChange({ ...values, servings: parseNumericInput(text) })}
@@ -134,13 +185,15 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                 />
             </Field>
             {errors?.servings !== undefined && (
-                <Text accessibilityRole="alert" style={styles.error}>
+                <Text id={servingsErrorId} accessibilityRole="alert" style={styles.error}>
                     {m.errors[errors.servings]}
                 </Text>
             )}
             <Field label={m.prepTimeLabel}>
                 <TextInput
                     accessibilityLabel={m.prepTimeLabel}
+                    aria-invalid={timesInvalid || undefined}
+                    aria-describedby={timesInvalid ? timesErrorId : undefined}
                     keyboardType="numeric"
                     value={String(values.prepTimeMinutes)}
                     onChangeText={(text) => onChange({ ...values, prepTimeMinutes: parseNumericInput(text) })}
@@ -150,6 +203,8 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
             <Field label={m.cookTimeLabel}>
                 <TextInput
                     accessibilityLabel={m.cookTimeLabel}
+                    aria-invalid={timesInvalid || undefined}
+                    aria-describedby={timesInvalid ? timesErrorId : undefined}
                     keyboardType="numeric"
                     value={String(values.cookTimeMinutes)}
                     onChangeText={(text) => onChange({ ...values, cookTimeMinutes: parseNumericInput(text) })}
@@ -157,7 +212,7 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                 />
             </Field>
             {errors?.times !== undefined && (
-                <Text accessibilityRole="alert" style={styles.error}>
+                <Text id={timesErrorId} accessibilityRole="alert" style={styles.error}>
                     {m.errors[errors.times]}
                 </Text>
             )}
@@ -173,20 +228,30 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const m = useMessages(recipeFormMessages);
     const total = recipeNutritionTotal(values);
 
+    // B8: mirrors the web leaf — a line is invalid only when it is ITSELF the reason `errors.ingredients` is
+    // set, never every row on an `ingredientsEmpty` (empty-list) error.
+    const ingredientsInvalid = errors?.ingredients !== undefined;
+
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
         const calories = lineCalories(line);
+        const nameInvalid = ingredientsInvalid && line.ingredientId === null;
+        const quantityInvalid = ingredientsInvalid && line.quantity <= 0;
 
         return (
             <View key={index} style={styles.row}>
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientNameLabel, { number })}
+                    aria-invalid={nameInvalid || undefined}
+                    aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
                     value={line.name}
                     onChangeText={(text) => onChange(updateIngredientAt(values, index, { name: text }))}
                     style={[styles.input, styles.rowGrow]}
                 />
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientQuantityLabel, { number })}
+                    aria-invalid={quantityInvalid || undefined}
+                    aria-describedby={quantityInvalid ? ingredientsErrorId : undefined}
                     keyboardType="numeric"
                     value={String(line.quantity)}
                     onChangeText={(text) =>
@@ -228,7 +293,7 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 {m.ingredientsHeading}
             </Text>
             {errors?.ingredients !== undefined && (
-                <Text accessibilityRole="alert" style={styles.error}>
+                <Text id={ingredientsErrorId} accessibilityRole="alert" style={styles.error}>
                     {m.errors[errors.ingredients]}
                 </Text>
             )}
@@ -260,15 +325,21 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
 /** Step 3: the dynamic instruction-step list. */
 export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
+    // B8: mirrors the web leaf — a step is invalid only when it is ITSELF the reason `errors.steps` is set
+    // (a blank instruction), never every row on a `stepsRequired` (empty-list) error.
+    const stepsInvalid = errors?.steps !== undefined;
 
     const stepRows: ReactElement[] = values.steps.map((step, index) => {
         const number = index + 1;
+        const instructionInvalid = stepsInvalid && step.instruction.trim() === '';
 
         return (
             <View key={index} style={styles.stepRow}>
                 <Text style={styles.stepMarker}>{number}</Text>
                 <TextInput
                     accessibilityLabel={fillTemplate(m.stepInstructionLabel, { number })}
+                    aria-invalid={instructionInvalid || undefined}
+                    aria-describedby={instructionInvalid ? stepsErrorId : undefined}
                     value={step.instruction}
                     onChangeText={(text) => onChange(updateStepAt(values, index, { instruction: text }))}
                     style={[styles.input, styles.rowGrow]}
@@ -304,7 +375,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                 {m.stepsHeading}
             </Text>
             {errors?.steps !== undefined && (
-                <Text accessibilityRole="alert" style={styles.error}>
+                <Text id={stepsErrorId} accessibilityRole="alert" style={styles.error}>
                     {m.errors[errors.steps]}
                 </Text>
             )}
@@ -395,6 +466,7 @@ const styles = StyleSheet.create({
     caloriesBadge: { fontSize: 12, fontWeight: '600', color: palette.seafoam },
     error: { color: palette.error, fontSize: 13 },
     emptyText: { color: palette.slate, fontSize: 13 },
+    charCounter: { color: palette.slate, fontSize: 12 },
     totalTime: { color: palette.slate, fontSize: 13 },
     nutritionTotal: {
         gap: 4,

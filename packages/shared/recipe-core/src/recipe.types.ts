@@ -110,6 +110,38 @@ export type RecipeDifficulty = (typeof RecipeDifficulty)[keyof typeof RecipeDiff
 export const recipeDifficultySchema = z.enum([RecipeDifficulty.EASY, RecipeDifficulty.MEDIUM, RecipeDifficulty.HARD]);
 
 /**
+ * Curated cuisine choices offered by the recipe editor's cuisine dropdown (w3/e5). UNLIKE
+ * {@link RecipeDifficulty}/{@link RecipeStatus}, this is deliberately NOT a closed enum on the wire: `cuisine`
+ * stays `string | undefined` on every recipe/create/update type and schema (`z.string().min(1).optional()`,
+ * unchanged) so an existing recipe whose cuisine predates this list — or a future cuisine nobody curated yet
+ * — is never rejected or silently coerced. `CUISINES` exists purely to drive the editor's suggested-choices
+ * dropdown; the array is ordered for display, not for lookup.
+ */
+export const CUISINES = [
+    'Italian',
+    'Mexican',
+    'Chinese',
+    'Indian',
+    'Japanese',
+    'Thai',
+    'French',
+    'Mediterranean',
+    'American',
+    'Middle Eastern',
+    'Korean',
+    'Vietnamese',
+    'Spanish',
+    'Greek',
+    'Other',
+] as const;
+
+/**
+ * One curated cuisine choice from {@link CUISINES}. NOT the type of the `cuisine` wire field (which stays
+ * `string`) — this only types a value drawn from the curated list itself.
+ */
+export type Cuisine = (typeof CUISINES)[number];
+
+/**
  * Sort options supported by recipe search.
  */
 export const RecipeSearchSortBy = {

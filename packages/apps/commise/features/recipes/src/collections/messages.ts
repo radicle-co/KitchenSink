@@ -24,6 +24,10 @@ export interface CollectionListMessages {
     readonly errorTitle: string;
     /** Label of the retry action in the error state. */
     readonly retry: string;
+    /** Visible label for the server-paged load-more control (W5/C7). */
+    readonly loadMore: string;
+    /** Visible label for the load-more control while the next page is loading. */
+    readonly loadingMore: string;
 }
 
 /** Copy for the collection-detail screen (T072), rendered by both the web and native detail views. */
@@ -55,6 +59,9 @@ export interface CollectionDetailMessages {
     /** A member row's author-attribution template (contains `{handle}`); rendered only when the member
      *  recipe carries an author handle — omitted rather than showing `by @undefined`. */
     readonly byAuthor: string;
+    /** Client-side member-list load-more template naming how many more are hidden (contains `{count}`,
+     *  W5/C7 — "Load more (4 more)" in the collection-view wireframe). */
+    readonly loadMore: string;
 }
 
 /**
@@ -256,6 +263,8 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             emptyBody: 'Create a collection to organize your recipes.',
             errorTitle: 'We couldn’t load your collections.',
             retry: 'Try again',
+            loadMore: 'Load more',
+            loadingMore: 'Loading…',
         },
         detail: {
             membersHeading: 'Recipes',
@@ -270,6 +279,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             sourceIndicatorOwned: 'Added by you',
             sourceIndicatorFromSource: 'From source collection',
             byAuthor: 'by @{handle}',
+            loadMore: 'Load more ({count} more)',
         },
         picker: {
             heading: 'Add recipes to {name}',

@@ -181,18 +181,34 @@ export function recipeQueries(client: RecipeServiceClient) {
 // ─── Collection queries ─────────────────────────────────────────────────────────────────────────
 
 /**
- * `queryOptions` factories for every collection read.
+ * `queryOptions` factories for every collection read. `list`/`listInfinite` (W5/C7) is the same deliberate
+ * pair as `recipeQueries`' `list`/`listInfinite`: the flat variant renders the current page, the infinite
+ * variant backs a "load more" flow, and both share ONE query key (a flat and an infinite read of the same
+ * params are the same logical cache entry).
  *
  * @param client - The configured client the factories' fetchers call through.
- * @returns One `queryOptions` builder per collection read.
+ * @returns One `queryOptions`/`infiniteQueryOptions` builder per collection read.
  */
 export function collectionQueries(client: RecipeServiceClient) {
     return {
-        /** `GET /v1/collections` — the caller's collections (paginated). */
+        /** `GET /v1/collections` — the caller's collections (paginated, flat page). */
         list: (params: ListCollectionsParams = {}) =>
             queryOptions({
                 queryKey: recipeServiceKeys.collectionList(params),
                 queryFn: () => client.listCollections(params),
+                staleTime: COLLECTION_STALE_TIME_MS,
+            }),
+        /**
+         * `GET /v1/collections` — the same list, paginated for a "Load more" flow (W5/C7). Shares its query
+         * key with `list` (same "flat + infinite share one key" contract as `recipeQueries`) — a flat and an
+         * infinite read of the same params are the same logical cache entry.
+         */
+        listInfinite: (params: ListCollectionsParams = {}) =>
+            infiniteQueryOptions({
+                queryKey: recipeServiceKeys.collectionList(params),
+                queryFn: ({ pageParam }) => client.listCollections({ ...params, page: pageParam }),
+                initialPageParam: 1,
+                getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
                 staleTime: COLLECTION_STALE_TIME_MS,
             }),
         /** `GET /v1/collections/{id}` — a collection with its member recipes. */

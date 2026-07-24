@@ -6,15 +6,23 @@
  * {@link CollectionMemberRow} (W5 Task 9, C3), which composes the shared `RecipeCard` with its
  * source-indicator and remove control — with an empty state when the collection has no members. Rendered
  * with RN primitives.
+ *
+ * Member-list windowing (W5/C7): the detail embed returns EVERY member in one round trip (no
+ * member-pagination endpoint — out of scope), so this view reveals them client-side in
+ * {@link MEMBER_WINDOW_SIZE}-row windows behind a `[Load more (K more)]` control, tracked as local
+ * `useState` reveal-count VIEW state (not server data) — the reveal count is otherwise a pure function of
+ * `collection.recipes.length`. If a caller reuses this component across DIFFERENT collections without
+ * remounting it, key it by `collection.id` so the reveal count resets for the new collection's member list.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CollectionMemberRow } from './CollectionMemberRow.native.js';
 import { collectionMessages } from './messages.js';
-import type { CollectionDetailViewProps } from './model.js';
+import { MEMBER_WINDOW_SIZE, type CollectionDetailViewProps } from './model.js';
+import { fillTemplate } from '../list/model.js';
 
 export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     collection,
@@ -26,7 +34,10 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     error,
 }) => {
     const { detail } = useMessages(collectionMessages);
+    const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
     const recipes = collection.recipes ?? [];
+    const visibleRecipes = recipes.slice(0, revealCount);
+    const remainingCount = recipes.length - visibleRecipes.length;
     // B17 — a failed delete/remove is a mandated UI state, never a frozen no-op. Resolve the container's error
     // code to localized copy here so the block stays self-contained on its own copy.
     const errorMessage = error === undefined ? undefined : error === 'delete' ? detail.deleteError : detail.removeError;
@@ -82,14 +93,31 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                     <Text style={styles.description}>{detail.emptyBody}</Text>
                 </View>
             ) : (
-                recipes.map((recipe) => (
-                    <CollectionMemberRow
-                        key={recipe.id}
-                        member={recipe}
-                        onSelect={onSelectRecipe}
-                        onRemove={onRemoveRecipe}
-                    />
-                ))
+                <>
+                    {visibleRecipes.map((recipe) => (
+                        <CollectionMemberRow
+                            key={recipe.id}
+                            member={recipe}
+                            onSelect={onSelectRecipe}
+                            onRemove={onRemoveRecipe}
+                        />
+                    ))}
+                    {remainingCount > 0 && (
+                        // W5/C7 — client-side member-list windowing (no member-pagination endpoint).
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={fillTemplate(detail.loadMore, { count: remainingCount })}
+                            onPress={() =>
+                                setRevealCount((count) => Math.min(recipes.length, count + MEMBER_WINDOW_SIZE))
+                            }
+                            style={styles.loadMore}
+                        >
+                            <Text style={styles.loadMoreLabel}>
+                                {fillTemplate(detail.loadMore, { count: remainingCount })}
+                            </Text>
+                        </Pressable>
+                    )}
+                </>
             )}
         </View>
     );
@@ -119,4 +147,13 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     emptyTitle: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
+    loadMore: {
+        alignSelf: 'center',
+        backgroundColor: palette.pearl,
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 24,
+        marginTop: 8,
+    },
+    loadMoreLabel: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
 });

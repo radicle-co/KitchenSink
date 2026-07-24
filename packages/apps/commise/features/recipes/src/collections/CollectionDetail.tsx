@@ -5,13 +5,21 @@
  * delete actions) and the member recipe rows — each a {@link CollectionMemberRow} (W5 Task 9, C3), which
  * composes the shared `RecipeCard` with its source-indicator and remove control — with an empty state when
  * the collection has no members. Fetch states belong to the composing app, not here.
+ *
+ * Member-list windowing (W5/C7): the detail embed returns EVERY member in one round trip (no
+ * member-pagination endpoint — out of scope), so this view reveals them client-side in
+ * {@link MEMBER_WINDOW_SIZE}-row windows behind a `[Load more (K more)]` control, tracked as local
+ * `useState` reveal-count VIEW state (not server data) — the reveal count is otherwise a pure function of
+ * `collection.recipes.length`. If a caller reuses this component across DIFFERENT collections without
+ * remounting it, key it by `collection.id` so the reveal count resets for the new collection's member list.
  */
 import { useMessages } from '@commise/i18n/react';
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 
 import { CollectionMemberRow } from './CollectionMemberRow.js';
 import { collectionMessages } from './messages.js';
-import type { CollectionDetailViewProps } from './model.js';
+import { MEMBER_WINDOW_SIZE, type CollectionDetailViewProps } from './model.js';
+import { fillTemplate } from '../list/model.js';
 
 export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     collection,
@@ -23,7 +31,10 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     error,
 }) => {
     const { detail } = useMessages(collectionMessages);
+    const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
     const recipes = collection.recipes ?? [];
+    const visibleRecipes = recipes.slice(0, revealCount);
+    const remainingCount = recipes.length - visibleRecipes.length;
     // B17 — a failed delete/remove is a mandated UI state, never a frozen no-op. Resolve the container's error
     // code to localized copy here so the block stays self-contained on its own copy.
     const errorMessage = error === undefined ? undefined : error === 'delete' ? detail.deleteError : detail.removeError;
@@ -77,17 +88,31 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                         <p>{detail.emptyBody}</p>
                     </div>
                 ) : (
-                    <ul className="flex flex-col gap-3">
-                        {recipes.map((recipe) => (
-                            <li key={recipe.id}>
-                                <CollectionMemberRow
-                                    member={recipe}
-                                    onSelect={onSelectRecipe}
-                                    onRemove={onRemoveRecipe}
-                                />
-                            </li>
-                        ))}
-                    </ul>
+                    <>
+                        <ul className="flex flex-col gap-3">
+                            {visibleRecipes.map((recipe) => (
+                                <li key={recipe.id}>
+                                    <CollectionMemberRow
+                                        member={recipe}
+                                        onSelect={onSelectRecipe}
+                                        onRemove={onRemoveRecipe}
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                        {remainingCount > 0 && (
+                            // W5/C7 — client-side member-list windowing (no member-pagination endpoint).
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setRevealCount((count) => Math.min(recipes.length, count + MEMBER_WINDOW_SIZE))
+                                }
+                                className="self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40"
+                            >
+                                {fillTemplate(detail.loadMore, { count: remainingCount })}
+                            </button>
+                        )}
+                    </>
                 )}
             </section>
         </section>

@@ -24,6 +24,9 @@ function renderList(overrides: Partial<CollectionListViewProps> = {}) {
         onSelect: noop,
         onCreate: noop,
         onRetry: noop,
+        hasMore: false,
+        isFetchingNextPage: false,
+        onLoadMore: noop,
         ...overrides,
     };
     render(<CollectionList {...props} />);
@@ -99,5 +102,35 @@ describe('CollectionList (native) — populated state', () => {
         renderList({ status: 'ready', collections: threeCollections });
 
         expect(screen.getByText('Batch-cook staples.')).toBeTruthy();
+    });
+});
+
+describe('CollectionList (native) — server-paged load-more (W5/C7)', () => {
+    it('renders a load-more control when another page exists and reports activation upward', () => {
+        const onLoadMore = vi.fn();
+        renderList({ status: 'ready', collections: threeCollections, hasMore: true, onLoadMore });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+        expect(onLoadMore).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders no load-more control when there is no next page', () => {
+        renderList({ status: 'ready', collections: threeCollections, hasMore: false });
+
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+
+    it('disables the load-more control and swaps its label while the next page is fetching', () => {
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            hasMore: true,
+            isFetchingNextPage: true,
+        });
+
+        const button = screen.getByRole('button', { name: 'Loading…' });
+        expect(button.hasAttribute('disabled')).toBe(true);
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     });
 });

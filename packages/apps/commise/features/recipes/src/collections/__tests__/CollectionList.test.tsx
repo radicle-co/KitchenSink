@@ -25,6 +25,9 @@ function renderList(overrides: Partial<CollectionListViewProps> = {}) {
         onSelect: noop,
         onCreate: noop,
         onRetry: noop,
+        hasMore: false,
+        isFetchingNextPage: false,
+        onLoadMore: noop,
         ...overrides,
     };
     render(<CollectionList {...props} />);
@@ -121,5 +124,35 @@ describe('CollectionList (web) — populated state', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Holiday Baking' }));
 
         expect(onSelect).toHaveBeenCalledWith('col_2');
+    });
+});
+
+describe('CollectionList (web) — server-paged load-more (W5/C7)', () => {
+    it('renders a load-more control when another page exists and reports activation upward', () => {
+        const onLoadMore = vi.fn();
+        renderList({ status: 'ready', collections: threeCollections, hasMore: true, onLoadMore });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+        expect(onLoadMore).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders no load-more control when there is no next page', () => {
+        renderList({ status: 'ready', collections: threeCollections, hasMore: false });
+
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+
+    it('disables and marks the load-more control busy while the next page is fetching', () => {
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            hasMore: true,
+            isFetchingNextPage: true,
+        });
+
+        const button = screen.getByRole('button', { name: 'Loading…' });
+        expect(button.hasAttribute('disabled')).toBe(true);
+        expect(button.getAttribute('aria-busy')).toBe('true');
     });
 });

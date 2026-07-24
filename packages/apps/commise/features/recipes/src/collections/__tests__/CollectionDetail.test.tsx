@@ -139,6 +139,40 @@ describe('CollectionDetail (web) — empty state', () => {
     });
 });
 
+describe('CollectionDetail (web) — member-list windowing (W5/C7)', () => {
+    const eightMembers = Array.from({ length: 8 }, (_, index) =>
+        makeCollectionMemberRecipe({ id: `rec_${index + 1}`, title: `Recipe ${index + 1}` }),
+    );
+
+    it('renders only the first window and a templated load-more control when over the window size', () => {
+        renderDetail({ collection: makeCollectionWithRecipes({ recipes: eightMembers }) });
+
+        const list = screen.getByRole('list');
+        expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+        expect(screen.getByRole('button', { name: 'Recipe 1' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Recipe 4' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Recipe 5' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Load more (4 more)' })).toBeTruthy();
+    });
+
+    it('reveals the next window when the load-more control is activated', () => {
+        renderDetail({ collection: makeCollectionWithRecipes({ recipes: eightMembers }) });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more (4 more)' }));
+
+        const list = screen.getByRole('list');
+        expect(within(list).getAllByRole('listitem')).toHaveLength(8);
+        expect(screen.getByRole('button', { name: 'Recipe 8' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull();
+    });
+
+    it('renders no load-more control when the member count is within the window', () => {
+        renderDetail({ collection: makeCollectionWithRecipes({ recipes: eightMembers.slice(0, 4) }) });
+
+        expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull();
+    });
+});
+
 describe('CollectionDetail (web) — mutation error (B17: no frozen no-op)', () => {
     it('surfaces the delete-failed copy when a delete errored', () => {
         renderDetail({ error: 'delete' });

@@ -67,7 +67,28 @@ export interface CollectionListViewProps {
     readonly onCreate: () => void;
     /** Invoked when the retry action is activated in the error state. */
     readonly onRetry: () => void;
+    /** Whether another server page exists (W5/C7); renders a `[Load more]` control at the list's end. The
+     *  composing container wires this off `useCollectionsInfinite`'s `hasNextPage` (Task 12). Optional so a
+     *  caller not yet wired to the infinite query (e.g. the flat `useCollections` screens/containers this
+     *  view already had) can omit it; defaults to `false` — no control. */
+    readonly hasMore?: boolean;
+    /** Whether the next page is currently being fetched; the load-more control shows a busy/disabled state.
+     *  Defaults to `false`. */
+    readonly isFetchingNextPage?: boolean;
+    /** Invoked when the load-more control is activated. Suppressed while `!hasMore`; optional for the same
+     *  reason as `hasMore` (unreachable when `hasMore` is `false`). */
+    readonly onLoadMore?: () => void;
 }
+
+/**
+ * The member-list reveal window (W5/C7): the detail embed (`CollectionWithRecipes.recipes`) returns EVERY
+ * member in one round trip — there is no member-pagination endpoint, and adding one is out of scope (see
+ * the W5 plan's Task 11) — so the view itself windows the list client-side, revealing this many rows at a
+ * time behind a `[Load more (K more)]` control. Pinned to `4` to match the collection-view wireframe
+ * (`specs/001-commise-recipe-app/product-spec/wireframes/collection-view.md`): 4 rows rendered, "Load more
+ * (4 more)" for an 8-recipe collection.
+ */
+export const MEMBER_WINDOW_SIZE = 4;
 
 /**
  * Props for the collection-detail view — a presentational render of a loaded {@link CollectionWithRecipes}

@@ -189,6 +189,24 @@ describe('collectionQueries (P5 repository read seam)', () => {
         await options.queryFn?.({} as never);
         expect(getCollectionById).toHaveBeenCalledExactlyOnceWith('col_1');
     });
+
+    it('keys listInfinite() under the SAME list key and preserves the hasMore→page+1 pager contract', async () => {
+        const listCollections = vi.fn().mockResolvedValue({ data: [], total: 0, page: 2, pageSize: 20, hasMore: true });
+        const client = makeFakeClient({ listCollections });
+        const params = { pageSize: 20 };
+        const options = collectionQueries(client).listInfinite(params);
+
+        expect(options.queryKey).toEqual(recipeServiceKeys.collectionList(params));
+        expect(options.initialPageParam).toBe(1);
+        expect(options.getNextPageParam({ data: [], total: 0, page: 2, pageSize: 20, hasMore: true }, [], 1, [])).toBe(
+            3,
+        );
+        expect(
+            options.getNextPageParam({ data: [], total: 0, page: 2, pageSize: 20, hasMore: false }, [], 1, []),
+        ).toBeUndefined();
+        await options.queryFn?.({ pageParam: 3 } as never);
+        expect(listCollections).toHaveBeenCalledExactlyOnceWith({ ...params, page: 3 });
+    });
 });
 
 describe('ingredientQueries (P5 repository read seam)', () => {

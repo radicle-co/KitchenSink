@@ -2,8 +2,8 @@
  * @module @commise/features-recipes — native collection-list view (T071 building block).
  *
  * The React Native leaf of {@link import('./CollectionList.js').CollectionList} — same controlled,
- * presentational contract and the same four states (loading, error, empty, populated), rendered with RN
- * primitives.
+ * presentational contract and the same four states (loading, error, empty, populated), plus the server-paged
+ * `[Load more]` control (W5/C7), rendered with RN primitives.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
@@ -13,7 +13,16 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { collectionMessages } from './messages.js';
 import type { CollectionListViewProps } from './model.js';
 
-export const CollectionList: FC<CollectionListViewProps> = ({ status, collections, onSelect, onCreate, onRetry }) => {
+export const CollectionList: FC<CollectionListViewProps> = ({
+    status,
+    collections,
+    onSelect,
+    onCreate,
+    onRetry,
+    hasMore = false,
+    isFetchingNextPage = false,
+    onLoadMore = () => undefined,
+}) => {
     const { list } = useMessages(collectionMessages);
 
     let body: ReactElement;
@@ -53,6 +62,21 @@ export const CollectionList: FC<CollectionListViewProps> = ({ status, collection
                         )}
                     </Pressable>
                 ))}
+                {hasMore && (
+                    // W5/C7 — server-paged "Load more" (no infinite scroll); vanishes once the last page loads.
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={isFetchingNextPage ? list.loadingMore : list.loadMore}
+                        accessibilityState={{ busy: isFetchingNextPage, disabled: isFetchingNextPage }}
+                        disabled={isFetchingNextPage}
+                        onPress={onLoadMore}
+                        style={[styles.loadMore, isFetchingNextPage && styles.loadMoreBusy]}
+                    >
+                        <Text style={styles.loadMoreLabel}>
+                            {isFetchingNextPage ? list.loadingMore : list.loadMore}
+                        </Text>
+                    </Pressable>
+                )}
             </View>
         );
     }
@@ -84,6 +108,16 @@ const styles = StyleSheet.create({
     createButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
     createLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     cards: { gap: 12 },
+    loadMore: {
+        alignSelf: 'center',
+        backgroundColor: palette.pearl,
+        borderRadius: 999,
+        paddingVertical: 10,
+        paddingHorizontal: 24,
+        marginTop: 8,
+    },
+    loadMoreBusy: { opacity: 0.6 },
+    loadMoreLabel: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
     card: {
         backgroundColor: palette.white,
         borderRadius: 16,

@@ -27,6 +27,7 @@ import { NotFoundError, UnauthorizedError } from '../errors.js';
 import {
     useCollection,
     useCollections,
+    useCollectionsInfinite,
     useRecipe,
     useRecipePhotos,
     useRecipeVersion,
@@ -461,6 +462,56 @@ describe('useCollections', () => {
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+    });
+});
+
+describe('useCollectionsInfinite', () => {
+    it('fetches the first page (page 1) with the given params', async () => {
+        const client = makeGuardedClient();
+        const listCollections = vi
+            .spyOn(client, 'listCollections')
+            .mockResolvedValue(makePaginatedResponse([makeCollection()], { hasMore: false, page: 1 }));
+
+        const { result } = renderRecipeHook(() => useCollectionsInfinite({ pageSize: 10 }), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(listCollections).toHaveBeenCalledWith({ pageSize: 10, page: 1 });
+    });
+
+    it('offers a next page while the last page reports hasMore', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'listCollections').mockResolvedValue(
+            makePaginatedResponse([makeCollection()], { hasMore: true, page: 1 }),
+        );
+
+        const { result } = renderRecipeHook(() => useCollectionsInfinite(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.hasNextPage).toBe(true);
+    });
+
+    it('stops paging when the last page reports no more (no infinite scroll)', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'listCollections').mockResolvedValue(
+            makePaginatedResponse([makeCollection()], { hasMore: false, page: 1 }),
+        );
+
+        const { result } = renderRecipeHook(() => useCollectionsInfinite(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.hasNextPage).toBe(false);
+    });
+
+    it('caches under the SAME key as the flat useCollections list (one logical cache entry)', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'listCollections').mockResolvedValue(
+            makePaginatedResponse([makeCollection()], { hasMore: false, page: 1 }),
+        );
+
+        const { result, queryClient } = renderRecipeHook(() => useCollectionsInfinite({ pageSize: 10 }), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'collections', 'list', { pageSize: 10 }]]);
     });
 });
 

@@ -2,8 +2,10 @@
  * @module @commise/features-recipes — web collection-list view (T071 building block).
  *
  * Controlled, presentational collection list: persistent chrome (heading + create) over a body that renders
- * one of four states — loading, error, empty, populated — derived from `status` + `collections`. It fetches
- * nothing; the composing app wires the query layer (and navigation) to these props.
+ * one of four states — loading, error, empty, populated — derived from `status` + `collections`. The
+ * populated state also renders a server-paged `[Load more]` control (W5/C7) when `hasMore`, mirroring the
+ * discovery list's S4 load-more contract. It fetches nothing; the composing app wires the query layer
+ * (`useCollectionsInfinite` — Task 12) and navigation to these props.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
@@ -20,7 +22,16 @@ const LoadingBody: FC<{ label: string }> = ({ label }) => (
     </div>
 );
 
-export const CollectionList: FC<CollectionListViewProps> = ({ status, collections, onSelect, onCreate, onRetry }) => {
+export const CollectionList: FC<CollectionListViewProps> = ({
+    status,
+    collections,
+    onSelect,
+    onCreate,
+    onRetry,
+    hasMore = false,
+    isFetchingNextPage = false,
+    onLoadMore = () => undefined,
+}) => {
     const { list } = useMessages(collectionMessages);
 
     let body: ReactElement;
@@ -45,25 +56,39 @@ export const CollectionList: FC<CollectionListViewProps> = ({ status, collection
         );
     } else {
         body = (
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {collections.map((collection) => (
-                    <li key={collection.id} className="group">
-                        <button
-                            type="button"
-                            onClick={() => onSelect(collection.id)}
-                            aria-label={collection.name}
-                            className="flex w-full flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md"
-                        >
-                            <span className="font-display text-heading-md font-semibold text-charcoal transition-colors group-hover:text-seafoam">
-                                {collection.name}
-                            </span>
-                            {collection.description !== undefined && collection.description.length > 0 && (
-                                <span className="text-body-sm text-slate">{collection.description}</span>
-                            )}
-                        </button>
-                    </li>
-                ))}
-            </ul>
+            <div className="flex flex-col gap-4">
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {collections.map((collection) => (
+                        <li key={collection.id} className="group">
+                            <button
+                                type="button"
+                                onClick={() => onSelect(collection.id)}
+                                aria-label={collection.name}
+                                className="flex w-full flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md"
+                            >
+                                <span className="font-display text-heading-md font-semibold text-charcoal transition-colors group-hover:text-seafoam">
+                                    {collection.name}
+                                </span>
+                                {collection.description !== undefined && collection.description.length > 0 && (
+                                    <span className="text-body-sm text-slate">{collection.description}</span>
+                                )}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+                {hasMore && (
+                    // W5/C7 — server-paged "Load more" (no infinite scroll); vanishes once the last page loads.
+                    <button
+                        type="button"
+                        onClick={onLoadMore}
+                        disabled={isFetchingNextPage}
+                        aria-busy={isFetchingNextPage || undefined}
+                        className="self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 disabled:opacity-60"
+                    >
+                        {isFetchingNextPage ? list.loadingMore : list.loadMore}
+                    </button>
+                )}
+            </div>
         );
     }
 

@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 
 import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
 
+import { getConfig } from '../config/env.js';
 import { getJsonSecret } from './secrets.js';
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-IF-008 REQ-IF-010 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
@@ -39,14 +40,16 @@ export const getDb = async (dbSecretArn: string) => {
         throw new Error(`Database secret '${dbSecretArn}' missing dbname/database`);
     }
 
+    const { STAGE, DB_POOL_MAX } = getConfig();
+
     pool = new Pool({
         user: secret.username,
         password: secret.password,
         host: secret.host,
         port: Number(secret.port),
         database,
-        ssl: process.env.STAGE === 'local' ? false : { rejectUnauthorized: false },
-        max: Number(process.env.DB_POOL_MAX ?? '5'),
+        ssl: STAGE === 'local' ? false : { rejectUnauthorized: false },
+        max: DB_POOL_MAX,
     });
 
     dbInstance = drizzle<{ users: typeof users; accounts: typeof accounts; profiles: typeof profiles }>(pool, {

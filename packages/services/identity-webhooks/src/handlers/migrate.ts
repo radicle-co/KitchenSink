@@ -8,7 +8,7 @@ import { Pool } from 'pg';
 
 import * as schema from '@kitchensink/identity-service/database/schema';
 
-import { requireEnv } from '../common/config.js';
+import { getConfig } from '../config/env.js';
 import { getJsonSecret } from '../common/secrets.js';
 
 // Migrations are plain ordered .sql (not drizzle-kit's journal). identity-service owns the files;
@@ -54,12 +54,14 @@ interface MigrateResult {
  * @sideEffect Connects to PostgreSQL and executes DDL.
  */
 export const handler = async (): Promise<MigrateResult> => {
-    const dbSecretArn = requireEnv('DB_SECRET_ARN');
-    const secret = (await getJsonSecret(dbSecretArn)) as unknown as DbSecret;
+    // Resolved (and cached) via the typed config as the first statement — S-I5: a missing DB_SECRET_ARN
+    // now fails fast on the first invocation of a cold container, rather than a hand-rolled requireEnv.
+    const { DB_SECRET_ARN, STAGE } = getConfig();
+    const secret = (await getJsonSecret(DB_SECRET_ARN)) as unknown as DbSecret;
     const database = secret.dbname ?? secret.database;
 
     if (!database) {
-        throw new Error(`Database secret '${dbSecretArn}' missing dbname/database`);
+        throw new Error(`Database secret '${DB_SECRET_ARN}' missing dbname/database`);
     }
 
     const pool = new Pool({
@@ -68,7 +70,7 @@ export const handler = async (): Promise<MigrateResult> => {
         host: secret.host,
         port: Number(secret.port),
         database,
-        ssl: process.env['STAGE'] === 'local' ? false : { rejectUnauthorized: false },
+        ssl: STAGE === 'local' ? false : { rejectUnauthorized: false },
         max: 1,
     });
 

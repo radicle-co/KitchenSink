@@ -25,6 +25,7 @@ vi.mock('../../common/observability.js', () => ({
 
 import { handler as rawHandler } from '../deletion-worker.js';
 import { getDb } from '../../common/db.js';
+import { resetConfigCacheForTests } from '../../config/env.js';
 
 type TestHandler = (event: SQSEvent, ctx: Context) => Promise<void>;
 const handler = rawHandler as unknown as TestHandler;
@@ -56,8 +57,13 @@ const makeSqsEvent = (identityId: string): SQSEvent => ({
 
 beforeEach(() => {
     vi.clearAllMocks();
+    resetConfigCacheForTests();
     mockGetDb.mockResolvedValue({} as never);
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    // The real deletion-worker Lambda's env always carries AUTH_SECRET_ARN (part of the CDK stack's
+    // shared commonEnv), even though this handler's own code never reads it — the schema's
+    // IDP_SECRET_KEY/AUTH_SECRET_ARN refine reflects that real, always-present surface.
+    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('deletion-worker handler', () => {
@@ -71,6 +77,8 @@ describe('deletion-worker handler', () => {
         await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
 
         expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
+        // Reads DB_SECRET_ARN from the typed config (getConfig()), not a hand-rolled requireEnv lookup.
+        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
     });
 
     it('missing user → no error thrown (idempotent)', async () => {
@@ -83,9 +91,17 @@ describe('deletion-worker handler', () => {
         expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
     });
 
-    it('missing DB_SECRET_ARN → throws', async () => {
+    it('missing DB_SECRET_ARN → fails fast on the typed config before touching the DB', async () => {
         delete process.env.DB_SECRET_ARN;
 
         await expect(handler(makeSqsEvent('user_abc'), makeContext())).rejects.toThrow();
+        expect(mockGetDb).not.toHaveBeenCalled();
+    });
+
+    it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
+        delete process.env.AUTH_SECRET_ARN;
+
+        await expect(handler(makeSqsEvent('user_abc'), makeContext())).rejects.toThrow();
+        expect(mockGetDb).not.toHaveBeenCalled();
     });
 });

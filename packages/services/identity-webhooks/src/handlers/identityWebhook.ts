@@ -16,7 +16,7 @@ import {
 
 import { setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
-import { requireEnv } from '../common/config.js';
+import { getWebhookConfig } from '../config/env.js';
 import { getDb } from '../common/db.js';
 import { resolveRequestId } from '../common/error-envelope.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
@@ -57,13 +57,13 @@ const handleSyncPublisher = ((): ReturnType<typeof createSnsHandleSyncPublisher>
 const sqsClient = new SQSClient({});
 
 const enqueueDeletion = async (identityId: string): Promise<void> => {
-    const queueUrl = requireEnv('DELETION_QUEUE_URL');
+    const { DELETION_QUEUE_URL } = getWebhookConfig();
     // The deletion-worker's parseMessage reads `identityId`; the message body must carry that field.
     // Sending `{ userId }` silently no-ops every webhook-driven deletion once the worker actually
     // consumes the queue (findByIdentityId(undefined) → not found → skip).
     await sqsClient.send(
         new SendMessageCommand({
-            QueueUrl: queueUrl,
+            QueueUrl: DELETION_QUEUE_URL,
             MessageBody: JSON.stringify({ identityId }),
         }),
     );
@@ -212,14 +212,16 @@ const handleUserDeleted = async (data: { id: string }, requestId: string): Promi
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
+    // Resolved first, outside any try/catch: a genuine env misconfig must fail the invocation outright
+    // (the S-I5 cold-start contract), not be swallowed into the signature-verification 401 branch below.
+    const config = getWebhookConfig();
     const requestId = resolveRequestId(context, event.requestContext?.requestId);
 
     let payload: ReturnType<typeof verifyWebhook>;
 
     try {
-        const secret = requireEnv('IDP_WEBHOOK_SECRET');
         const rawBody = event.body ?? '';
-        payload = verifyWebhook(event.headers as Record<string, string>, rawBody, secret);
+        payload = verifyWebhook(event.headers as Record<string, string>, rawBody, config.IDP_WEBHOOK_SECRET);
     } catch (err) {
         logger.warn('identity-webhook: signature verification failed', { requestId, error: (err as Error).message });
 
@@ -229,8 +231,7 @@ const idpWebhookHandlerCore = async (event: APIGatewayProxyEvent, context: Conte
         };
     }
 
-    const dbSecretArn = requireEnv('DB_SECRET_ARN');
-    const db = (await getDb(dbSecretArn)) as unknown as PostgresJsDatabase<Record<string, never>>;
+    const db = (await getDb(config.DB_SECRET_ARN)) as unknown as PostgresJsDatabase<Record<string, never>>;
     const svixId = event.headers?.['svix-id'] ?? '';
 
     const identityId = (payload.data as { id?: string }).id ?? 'unknown';

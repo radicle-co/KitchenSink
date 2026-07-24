@@ -51,6 +51,7 @@ import { setExternalId } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { captureProvisioningFailure } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
+import { resetConfigCacheForTests } from '../../config/env.js';
 
 type TestHandler = (event: APIGatewayProxyEvent, ctx: Context) => Promise<APIGatewayProxyResult>;
 const handler = rawHandler as unknown as TestHandler;
@@ -205,6 +206,7 @@ const buildMockDb = () => {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    resetConfigCacheForTests();
     // clearAllMocks resets call history but NOT implementations, so re-assert the per-test defaults
     // to prevent a `hasProcessed → true` set in one test from leaking into the next.
     mockHasProcessed.mockResolvedValue(false);
@@ -214,6 +216,9 @@ beforeEach(() => {
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
     process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
     process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
+    // The real webhook Lambda's env always carries at least one Clerk backend secret (IDP_SECRET_KEY
+    // via clerkBackendEnv, AUTH_SECRET_ARN via commonEnv) — the schema's either-or refine reflects that.
+    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('identity-webhook handler', () => {
@@ -592,5 +597,39 @@ describe('identity-webhook handler', () => {
 
         expect(result.statusCode).toBe(401);
         expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('missing IDP_WEBHOOK_SECRET -> fails fast on the typed config, not a 401', async () => {
+        // S-I5: an env misconfig is a cold-start failure now, distinct from a genuine bad-signature
+        // 401 — it must propagate (reject), not be swallowed into the signature-verification branch.
+        delete process.env.IDP_WEBHOOK_SECRET;
+
+        await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
+        expect(mockVerifyWebhook).not.toHaveBeenCalled();
+    });
+
+    it('missing DELETION_QUEUE_URL -> fails fast on the typed config before verifying the signature', async () => {
+        delete process.env.DELETION_QUEUE_URL;
+
+        await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
+        expect(mockVerifyWebhook).not.toHaveBeenCalled();
+    });
+
+    it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN -> fails fast on the typed config', async () => {
+        delete process.env.AUTH_SECRET_ARN;
+
+        await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
+        expect(mockVerifyWebhook).not.toHaveBeenCalled();
+    });
+
+    it('reads IDP_WEBHOOK_SECRET and DB_SECRET_ARN from the typed config (not requireEnv)', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_config' }), makeContext());
+
+        expect(mockVerifyWebhook).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'whsec_test');
+        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
     });
 });

@@ -4,7 +4,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 
 import { getDb } from '../common/db.js';
-import { buildErrorEnvelope, resolveRequestId } from '../common/error-envelope.js';
+import { getConfig } from '../config/env.js';
 import { logger, withObservability } from '../common/observability.js';
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
@@ -42,18 +42,14 @@ const processRecord = async (record: SQSRecord, dbSecretArn: string): Promise<vo
 };
 
 /** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
-const innerHandler = async (event: SQSEvent, context: Context): Promise<void> => {
-    const requestId = resolveRequestId(context);
-    const dbSecretArn = process.env.DB_SECRET_ARN;
-
-    if (!dbSecretArn) {
-        const envelope = buildErrorEnvelope('DELETION_WORKER_MISSING_ENV', 'Missing DB_SECRET_ARN', requestId);
-        logger.error('deletion-worker invalid config', { ...envelope });
-        throw new Error(JSON.stringify(envelope));
-    }
+const innerHandler = async (event: SQSEvent, _context: Context): Promise<void> => {
+    // Resolved (and cached) via the typed config at the top of the handler — S-I5: a missing/invalid
+    // DB_SECRET_ARN now fails fast on the first invocation of a cold container, rather than being
+    // hand-rolled per handler as a truthiness check + ad hoc error envelope.
+    const { DB_SECRET_ARN } = getConfig();
 
     for (const record of event.Records) {
-        await processRecord(record, dbSecretArn);
+        await processRecord(record, DB_SECRET_ARN);
     }
 };
 

@@ -38,6 +38,7 @@ import { listUsers } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 import { UserDAO } from '@kitchensink/identity-service/database/dao';
 import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
+import { resetConfigCacheForTests } from '../../config/env.js';
 
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
@@ -71,6 +72,7 @@ const idpUserExisting = {
 describe('reconciliation handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        resetConfigCacheForTests();
         process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
         process.env.IDP_SECRET_KEY = 'sk_test_abc';
         process.env.STAGE = 'test';
@@ -136,10 +138,26 @@ describe('reconciliation handler', () => {
         expect(mockEmitMetric).toHaveBeenCalledWith('ReconciliationDrift', expect.any(Number));
     });
 
-    it('throws when env vars are missing', async () => {
+    it('missing DB_SECRET_ARN → fails fast on the typed config before listing IdP users', async () => {
         delete process.env.DB_SECRET_ARN;
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
+        expect(mockListIdpUsers).not.toHaveBeenCalled();
+    });
+
+    it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
+        delete process.env.IDP_SECRET_KEY;
+
+        await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
+        expect(mockListIdpUsers).not.toHaveBeenCalled();
+    });
+
+    it('reads DB_SECRET_ARN from the typed config (not requireEnv)', async () => {
+        mockListIdpUsers.mockResolvedValue([]);
+
+        await handler(makeEvent(), makeContext());
+
+        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
     });
 
     it('continues past a genuinely failing user, signals it, and counts it as failed', async () => {

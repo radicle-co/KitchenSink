@@ -322,6 +322,8 @@ describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7
         ]);
         // And it did NOT silently re-add the recipe the user just deleted.
         expect(dal.addRecipe).not.toHaveBeenCalled();
+        // A drift 409 must not advance the last-pulled stamp either.
+        expect(dal.touchLastPulled).not.toHaveBeenCalled();
     });
 
     it('409s PULL_DRIFT when the SOURCE drifted (gained a recipe) since the preview', async () => {
@@ -333,5 +335,7 @@ describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7
         const stalePreview = { added: ['rec-a'], removed: [], unchanged: [] };
         await expect(service.pullFromSource(CLONER, CLONE_ID, stalePreview)).rejects.toBeDefined();
         expect(dal.addRecipe).not.toHaveBeenCalled();
+        // A drift 409 must not advance the last-pulled stamp either.
+        expect(dal.touchLastPulled).not.toHaveBeenCalled();
     });
 });

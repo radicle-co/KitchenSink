@@ -237,7 +237,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         });
     });
 
-    it('collections (T014 + T119 source_collection_id)', () => {
+    it('collections (T014 + T119 source_collection_id + W5 pull provenance)', () => {
         expect(getTableName(collections)).toBe('collections');
         expectColumns(collections, {
             id: { type: 'uuid', notNull: true },
@@ -246,6 +246,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             description: { type: 'text', notNull: false },
             visibility: { type: 'text', notNull: true },
             source_collection_id: { type: 'uuid', notNull: false },
+            // W5 Task 1: pull-refresh provenance (populated by later tasks; nullable, no default).
+            last_pulled_at: { type: 'timestamp with time zone', notNull: false },
+            source_owner_handle: { type: 'text', notNull: false },
+            source_collection_name: { type: 'text', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
             updated_at: { type: 'timestamp with time zone', notNull: true },
         });
@@ -318,5 +322,25 @@ describe('recipe-service schema — inferred row types compile with correct null
         expectTypeOf<RecipeVersionRow['createdBy']>().toEqualTypeOf<string>();
         expectTypeOf<CollectionRow['sourceCollectionId']>().toEqualTypeOf<string | null>();
         expectTypeOf<AccountErasureJobRow['status']>().toBeString();
+    });
+
+    it('CollectionRow: W5 pull provenance columns are nullable', () => {
+        expectTypeOf<CollectionRow['lastPulledAt']>().toEqualTypeOf<Date | null>();
+        expectTypeOf<CollectionRow['sourceOwnerHandle']>().toEqualTypeOf<string | null>();
+        expectTypeOf<CollectionRow['sourceCollectionName']>().toEqualTypeOf<string | null>();
+
+        const fixture: Pick<CollectionRow, 'lastPulledAt' | 'sourceOwnerHandle' | 'sourceCollectionName'> = {
+            lastPulledAt: null,
+            sourceOwnerHandle: null,
+            sourceCollectionName: null,
+        };
+        expect(fixture.lastPulledAt).toBeNull();
+
+        const populated: Pick<CollectionRow, 'lastPulledAt' | 'sourceOwnerHandle' | 'sourceCollectionName'> = {
+            lastPulledAt: new Date('2026-07-24T00:00:00.000Z'),
+            sourceOwnerHandle: '@chef',
+            sourceCollectionName: 'Weeknight Dinners',
+        };
+        expect(populated.sourceOwnerHandle).toBe('@chef');
     });
 });

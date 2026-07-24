@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, ilike } from 'drizzle-orm';
 
@@ -6,18 +6,20 @@ import { users, DrizzleProvider } from '../database/index.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
 
+// Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
+// `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
+// service therefore no longer performs its own `assertAdmin` check; a request cannot reach these methods
+// without having already satisfied the guard. `ctx: AuthorizerContext` is dropped from `listUsers` (its
+// only prior use was the authz check the guard now owns) but KEPT on the other four methods for ACTOR
+// identity — suspend/unsuspend log the acting admin's id for the audit trail, and impersonation also
+// needs it in the session id and response contract. None of these remaining uses are authorization.
 @Injectable()
 export class AdminService {
     private readonly logger = createServiceLogger(AdminService.name);
 
     constructor(@Inject(DrizzleProvider) private readonly db: NodePgDatabase) {}
 
-    async listUsers(
-        adminCtx: AuthorizerContext,
-        filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number },
-    ) {
-        this.assertAdmin(adminCtx);
-
+    async listUsers(filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number }) {
         const predicates = [
             filters.email ? ilike(users.email, `%${filters.email}%`) : undefined,
             filters.name ? ilike(users.name, `%${filters.name}%`) : undefined,
@@ -50,8 +52,6 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'suspended'; suspendedAt: string }> {
-        this.assertAdmin(adminCtx);
-
         const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
 
         if (!existing) {
@@ -70,8 +70,6 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ sub: string; status: 'active'; unsuspendedAt: string }> {
-        this.assertAdmin(adminCtx);
-
         const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
 
         if (!existing) {
@@ -90,8 +88,6 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ impersonatorSub: string; impersonatedSub: string; sessionId: string; startedAt: string }> {
-        this.assertAdmin(adminCtx);
-
         const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
 
         if (!existing) {
@@ -119,8 +115,6 @@ export class AdminService {
         targetSub: string,
         adminCtx: AuthorizerContext,
     ): Promise<{ impersonatorSub: string; impersonatedSub: string; stoppedAt: string; message: string }> {
-        this.assertAdmin(adminCtx);
-
         const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
 
         if (!existing) {
@@ -140,11 +134,5 @@ export class AdminService {
             stoppedAt: now.toISOString(),
             message: 'Impersonation session ended',
         };
-    }
-
-    private assertAdmin(ctx: AuthorizerContext): void {
-        if (!ctx.scopes.includes('admin:users') && !ctx.permissions.includes('admin:users')) {
-            throw new ForbiddenException('Admin user scope required');
-        }
     }
 }

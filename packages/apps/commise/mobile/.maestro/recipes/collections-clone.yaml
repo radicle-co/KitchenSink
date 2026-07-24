@@ -1,0 +1,64 @@
+appId: io.commise.mobile
+---
+# Collection clone happy path (W5 Task 13, FR-011) — the mobile mirror of the web Playwright clone spec
+# (`collections.spec.ts`). Signs in, creates its own OWNED collection (HERMETIC — same reasoning as
+# `collections.yaml`: the FREE-tier Maestro signer sees an empty collections list, `recipe-service`'s
+# `SEED_COLLECTION` is owned by the PRO subject and private, so there is no pre-existing collection to open),
+# clones it, and asserts landing on the new clone with the Clone Info attribution panel visible.
+#
+# Cloning one's OWN collection is a legitimate, REACHABLE exercise of the clone endpoint/UI wiring even
+# though the source and clone share an owner: `collections.service.ts`'s `cloneCollection` guard only blocks
+# a NON-owned, NON-public source — a self-owned collection (public OR private) clones unconditionally. There
+# is also no collection-DISCOVERY surface in this app (only `/discover` for public RECIPES), so "open a
+# public collection and clone it" is, in practice, reached through a collection the caller already owns —
+# exactly what this flow drives, same as the web spec.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+# CREATE the source. A fresh collection is PRIVATE by default (no visibility control on the create form),
+# which does not block self-cloning (see above).
+- tapOn: 'New collection'
+- assertVisible: 'Collection name'
+- tapOn: 'Collection name'
+- inputText: 'Maestro clone source'
+- tapOn: 'Create'
+
+- extendedWaitUntil:
+      visible: 'Maestro clone source'
+      timeout: 40000
+- tapOn: 'Maestro clone source'
+- assertVisible: 'Rename'
+
+# CLONE. "Clone Collection" is always offered — every collection detail the caller can open is their own,
+# since there is no cross-owner detail read. A successful clone navigates to the new clone's OWN detail.
+- tapOn: 'Clone Collection'
+- extendedWaitUntil:
+      visible: 'Clone Info'
+      timeout: 40000
+
+# The Clone Info panel (C5) renders ONLY when `sourceCollectionId` is present — proving this is a REAL
+# clone, not merely a same-named collection. "View Source" names the reconciliation entry point (FR-011's
+# pull-updates half, covered by `collections-pull.yaml`).
+- assertVisible: 'View Source'
+
+# CLEANUP (hermetic). Delete the clone first, while its name still collides with the source's (the clone
+# action passes no name override) — no name-based lookup is needed here since we are already ON its detail.
+# Back on the list, the source is now the ONLY "Maestro clone source" row, so it can be found by name and
+# deleted too.
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- tapOn: 'Maestro clone source'
+- assertVisible: 'Rename'
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro clone source'

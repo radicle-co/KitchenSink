@@ -1,7 +1,6 @@
 import type { Page } from '@playwright/test';
 import {
     usesPremiumCapability,
-    type Collection,
     type Ingredient,
     type PaginatedResponse,
     type Recipe,
@@ -13,7 +12,12 @@ import {
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type {
+    Collection,
+    CollectionMemberRecipe,
+    CollectionRecipeAddedVia,
     CollectionRecipeMembership,
+    PullDiff,
+    PullFromSourceResponse,
     RecipeSearchFacets,
     RecipeSearchResponse,
     UploadUrlResponse,
@@ -44,6 +48,8 @@ const MOCK_S3_ORIGIN = 'https://mock-s3.recipe-photos.e2e.example.com';
  */
 
 const ISO = '2026-01-01T00:00:00.000Z';
+/** Distinct from {@link ISO} so a spec can observe `lastPulledAt` actually CHANGING after a pull commits. */
+const PULLED_ISO = '2026-01-02T00:00:00.000Z';
 
 /** The contract's `ErrorResponse` body for a 404 (`required: [code, message]`). */
 const NOT_FOUND_BODY = { code: 'NOT_FOUND', message: 'Resource not found' };
@@ -182,17 +188,22 @@ export function makeRecipeDetail(over: Partial<RecipeDetail> = {}): RecipeDetail
 }
 
 /**
- * The collection record the mock STORES. It is the service's `Collection` wire shape (see the service's
- * `collections.types.ts` → `CollectionResponse`: the shared `Collection` plus the boundary-only
- * `visibility`), with the MEMBERSHIP held alongside as `recipeIds` — a join, exactly as the service holds
- * one, rather than an embedded recipe array. `GET /v1/collections/{id}` composes `recipes` from the recipe
- * store at read time, so removing a member is observable for the same reason it is in production.
+ * The collection record the mock STORES. It is the service's `Collection` wire shape — the WIDENED
+ * `@kitchensink/recipe-service-client` `Collection` (core `Collection` plus the pull-provenance projections
+ * `sourceOwnerHandle`/`sourceCollectionName`/`lastPulledAt`, W5 Task 5) — with the MEMBERSHIP held alongside
+ * as `recipeIds` — a join, exactly as the service holds one, rather than an embedded recipe array. `GET
+ * /v1/collections/{id}` composes `recipes` from the recipe store at read time, so removing a member is
+ * observable for the same reason it is in production.
  */
 export interface MockCollection extends Collection {
-    /** Collection visibility (FR-010) — emitted by the service; `recipe-core`'s `Collection` omits it. */
-    readonly visibility: RecipeVisibility;
     /** Ids of the recipes in this collection (the `collection_recipes` join), in insertion order. */
     readonly recipeIds: readonly string[];
+    /**
+     * Per-member provenance (recipe id -> `addedVia`, W5 Task 4) — mirrors the service's per-row
+     * `RecipeCollectionAddedVia`. An id with no entry here defaults to `'manual'` (the honest default for a
+     * hand-added member); a clone/pull route stamps `'clone_seed'`/`'pull'` for the ids it seeds/adds.
+     */
+    readonly memberAddedVia?: Readonly<Record<string, CollectionRecipeAddedVia>>;
 }
 
 /** A fully-valid, private collection owned by the viewer with no members; overrides win. */
@@ -211,13 +222,12 @@ export function makeCollection(over: Partial<MockCollection> = {}): MockCollecti
 
 /** The `Collection` wire shape the service emits: the stored record minus its join, plus a derived count. */
 interface CollectionResponse extends Collection {
-    readonly visibility: RecipeVisibility;
     readonly recipeCount: number;
 }
 
-/** The `CollectionWithRecipes` wire shape: a collection plus its member recipes as METADATA. */
+/** The `CollectionWithRecipes` wire shape: a collection plus its member recipes as METADATA + provenance. */
 interface CollectionWithRecipesResponse extends CollectionResponse {
-    readonly recipes: readonly Recipe[];
+    readonly recipes: readonly CollectionMemberRecipe[];
 }
 
 /**
@@ -257,15 +267,17 @@ function toRecipeListRow(detail: RecipeDetail): Recipe {
  * @returns The `Collection` wire response.
  */
 function toCollectionResponse(record: MockCollection): CollectionResponse {
-    const { recipeIds, ...collection } = record;
+    const { recipeIds, memberAddedVia: _memberAddedVia, ...collection } = record;
 
     return { ...collection, recipeCount: recipeIds.length };
 }
 
 /**
  * Compose the `CollectionWithRecipes` read: the collection plus its live members, resolved through the
- * recipe store and projected to metadata. Tombstoned (soft-deleted) recipes are excluded, as the service
- * excludes them from every read path (C-007). Pure.
+ * recipe store, projected to metadata, and tagged with each member's `addedVia` provenance (W5 Task 4/9 —
+ * absent from `memberAddedVia` defaults to `'manual'`, the honest default for a hand-added member).
+ * Tombstoned (soft-deleted) recipes are excluded, as the service excludes them from every read path (C-007).
+ * Pure.
  *
  * @param record - The stored collection.
  * @param recipes - The recipe store to resolve members against.
@@ -280,8 +292,56 @@ function toCollectionWithRecipes(
         recipes: record.recipeIds
             .map((id) => recipes.get(id))
             .filter((recipe): recipe is RecipeDetail => recipe !== undefined && recipe.deletedAt === undefined)
-            .map(toRecipeMetadata),
+            .map(
+                (recipe): CollectionMemberRecipe => ({
+                    ...toRecipeMetadata(recipe),
+                    addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
+                }),
+            ),
     };
+}
+
+/**
+ * The three-way pull-from-source diff (W5 Task 5) between a clone's CURRENT membership and its source's
+ * membership as VISIBLE to the pulling viewer — mirrors the recipe service's pure `computePullDiff` over two
+ * id sets. `sourceVisibleIds` must already be scoped to what the viewer can see (public + their own); this
+ * function performs no visibility filtering of its own. Pure.
+ *
+ * @param sourceVisibleIds - The source collection's member ids the viewer can currently see.
+ * @param cloneIds - The clone's current member ids.
+ * @returns The `{ added, removed, unchanged }` partition of `source ∪ clone`.
+ */
+function computePullDiff(sourceVisibleIds: readonly string[], cloneIds: readonly string[]): PullDiff {
+    const sourceSet = new Set(sourceVisibleIds);
+    const cloneSet = new Set(cloneIds);
+
+    return {
+        added: sourceVisibleIds.filter((id) => !cloneSet.has(id)),
+        removed: cloneIds.filter((id) => !sourceSet.has(id)),
+        unchanged: cloneIds.filter((id) => sourceSet.has(id)),
+    };
+}
+
+/** Order-independent id-set equality — the building block of {@link pullDiffsAgree}. Pure. */
+function sameIdSet(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+
+    return sortedA.every((id, index) => id === sortedB[index]);
+}
+
+/**
+ * Whether a previously-previewed diff still matches the LIVE one — the drift guard `pullFromSource` applies
+ * (Decision 7): a caller-echoed `previewedDiff` that disagrees with a freshly-computed diff means the source
+ * (or the clone's own membership) changed since the preview, and the commit must be rejected with a fresh
+ * diff rather than silently applying a different set. Pure.
+ */
+function pullDiffsAgree(a: PullDiff, b: PullDiff): boolean {
+    return sameIdSet(a.added, b.added) && sameIdSet(a.removed, b.removed) && sameIdSet(a.unchanged, b.unchanged);
 }
 
 /** Wrap rows in the API's paginated envelope. The mock never pages — one page holds every row. Pure. */
@@ -390,6 +450,19 @@ export interface MockRecipeApiOptions {
      * to `0` (every upload succeeds), matching every existing photo spec's behavior unchanged.
      */
     readonly failPhotoUploads?: number;
+    /**
+     * Author handles resolved for a collection's source owner AT CLONE time (mirrors the service's
+     * `AuthorHandlesDal.findHandle`, W5 Task 2) — keyed by app-user id. An owner with no entry here clones
+     * with `sourceOwnerHandle` OMITTED, exactly as the real service degrades when a handle hasn't resolved
+     * yet (the attribution falls back to the collection name only).
+     */
+    readonly authorHandles?: Readonly<Record<string, string>>;
+    /**
+     * Page size for `GET /v1/collections` (W5/C7 "Load more" pagination). Defaults to the service's own
+     * default (20, `pageQuerySchema`) so every existing small seed still renders on a single page with no
+     * `hasMore`; a pagination spec overrides this to a small number rather than seeding 21+ collections.
+     */
+    readonly collectionsPageSize?: number;
 }
 
 /**
@@ -406,6 +479,8 @@ export async function mockRecipeApi(
 ): Promise<Map<string, RecipeDetail>> {
     const viewerId = options.viewerId ?? 'usr_e2e';
     const tier = options.tier ?? 'premium';
+    const authorHandles = options.authorHandles ?? {};
+    const collectionsPageSize = options.collectionsPageSize ?? 20;
     const store = new Map<string, RecipeDetail>();
     const collections = new Map<string, MockCollection>();
     // Ratings (FR-013). The viewer's OWN rating per recipe (id → stars), held apart from the base aggregate of
@@ -791,6 +866,160 @@ export async function mockRecipeApi(
             return route.fulfill({ status: 201, json: membership });
         }
 
+        // Clone (FR-011): a new PRIVATE collection owned by the viewer, seeded from the source's current
+        // (viewer-visible) members as `clone_seed`, with source attribution FROZEN at clone time (W5 Task 2)
+        // — matched BEFORE the single-collection route so the longer path wins.
+        const cloneCollectionPath = path.match(/\/v1\/collections\/([^/]+)\/clone$/);
+
+        if (cloneCollectionPath && method === 'POST') {
+            const sourceId = cloneCollectionPath[1] as string;
+            const source = collections.get(sourceId);
+
+            // 404 (not 403) for someone else's private collection — a private collection's existence is
+            // never revealed (mirrors the service's `cloneCollection` guard).
+            if (!source || (source.visibility !== 'public' && source.ownerId !== viewerId)) {
+                return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+            }
+
+            const overrides = body();
+            const clonedId = `col_clone_${nextCollectionId++}`;
+            const seededAddedVia: Record<string, CollectionRecipeAddedVia> = {};
+
+            for (const recipeId of source.recipeIds) {
+                seededAddedVia[recipeId] = 'clone_seed';
+            }
+
+            const clone: MockCollection = {
+                id: clonedId,
+                ownerId: viewerId,
+                name: typeof overrides['name'] === 'string' ? overrides['name'] : source.name,
+                ...(typeof overrides['description'] === 'string'
+                    ? { description: overrides['description'] }
+                    : source.description !== undefined
+                      ? { description: source.description }
+                      : {}),
+                // A clone always starts PRIVATE regardless of the source's visibility — publishing is the
+                // cloner's own, separate decision (FR-010).
+                visibility: 'private',
+                recipeIds: [...source.recipeIds],
+                memberAddedVia: seededAddedVia,
+                sourceCollectionId: sourceId,
+                ...(authorHandles[source.ownerId] !== undefined
+                    ? { sourceOwnerHandle: authorHandles[source.ownerId] }
+                    : {}),
+                sourceCollectionName: source.name,
+                createdAt: ISO,
+                updatedAt: ISO,
+            };
+            collections.set(clonedId, clone);
+
+            return route.fulfill({ status: 201, json: toCollectionResponse(clone) });
+        }
+
+        // PREVIEW a pull without mutating (W5 Task 5 / decision 7) — 200 with the `{ added, removed,
+        // unchanged }` diff, echoed back on commit as the drift baseline. Matched BEFORE the commit route
+        // (`/pull-from-source$`) so the longer, more specific path wins.
+        const previewPullPath = path.match(/\/v1\/collections\/([^/]+)\/pull-from-source\/preview$/);
+
+        if (previewPullPath && method === 'POST') {
+            const id = previewPullPath[1] as string;
+            const collection = collections.get(id);
+
+            if (!collection) {
+                return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+            }
+
+            const source = collection.sourceCollectionId ? collections.get(collection.sourceCollectionId) : undefined;
+
+            if (!source) {
+                return route.fulfill({
+                    status: 400,
+                    json: { code: 'COLLECTION_NOT_CLONED', message: 'Collection has no source to pull from' },
+                });
+            }
+
+            const sourceVisible = source.recipeIds.filter((recipeId) => {
+                const recipe = store.get(recipeId);
+
+                return (
+                    recipe !== undefined &&
+                    recipe.deletedAt === undefined &&
+                    (recipe.visibility === 'public' || recipe.ownerId === viewerId)
+                );
+            });
+
+            return route.fulfill({ json: computePullDiff(sourceVisible, collection.recipeIds) });
+        }
+
+        // Pull new recipes from a clone's source (FR-011 / W5 Task 5). A caller-echoed `previewedDiff` that
+        // disagrees with the freshly-computed live diff is rejected with `409 PULL_DRIFT` + the fresh diff
+        // (decision 7 — never silently apply a different set than the caller confirmed). Otherwise, the
+        // `added` set is appended as `'pull'`-provenance members and `lastPulledAt` is stamped — even when
+        // `added` is empty, "last pulled" means the user synced, not "something changed" (W5 Task 3).
+        const commitPullPath = path.match(/\/v1\/collections\/([^/]+)\/pull-from-source$/);
+
+        if (commitPullPath && method === 'POST') {
+            const id = commitPullPath[1] as string;
+            const collection = collections.get(id);
+
+            if (!collection) {
+                return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+            }
+
+            const source = collection.sourceCollectionId ? collections.get(collection.sourceCollectionId) : undefined;
+
+            if (!source) {
+                return route.fulfill({
+                    status: 400,
+                    json: { code: 'COLLECTION_NOT_CLONED', message: 'Collection has no source to pull from' },
+                });
+            }
+
+            const sourceVisible = source.recipeIds.filter((recipeId) => {
+                const recipe = store.get(recipeId);
+
+                return (
+                    recipe !== undefined &&
+                    recipe.deletedAt === undefined &&
+                    (recipe.visibility === 'public' || recipe.ownerId === viewerId)
+                );
+            });
+            const diff = computePullDiff(sourceVisible, collection.recipeIds);
+            const previewedDiff = body()['previewedDiff'] as PullDiff | undefined;
+
+            if (previewedDiff !== undefined && !pullDiffsAgree(previewedDiff, diff)) {
+                return route.fulfill({
+                    status: 409,
+                    json: {
+                        code: 'PULL_DRIFT',
+                        message: 'The source collection changed since you last checked.',
+                        details: { diff },
+                    },
+                });
+            }
+
+            const nextMemberAddedVia: Record<string, CollectionRecipeAddedVia> = { ...collection.memberAddedVia };
+
+            for (const addedId of diff.added) {
+                nextMemberAddedVia[addedId] = 'pull';
+            }
+
+            const updated: MockCollection = {
+                ...collection,
+                recipeIds: [...collection.recipeIds, ...diff.added],
+                memberAddedVia: nextMemberAddedVia,
+                lastPulledAt: PULLED_ISO,
+            };
+            collections.set(id, updated);
+
+            const result: PullFromSourceResponse = {
+                collection: toCollectionResponse(updated),
+                addedRecipeIds: [...diff.added],
+            };
+
+            return route.fulfill({ json: result });
+        }
+
         // Single collection: get (with members) / update / delete.
         const singleCollection = path.match(/\/v1\/collections\/([^/]+)$/);
 
@@ -829,12 +1058,23 @@ export async function mockRecipeApi(
             }
         }
 
-        // Collections: list (the caller's own) + create.
+        // Collections: list (the caller's own, REALLY paginated — W5/C7 "Load more") + create.
         if (path.endsWith('/v1/collections')) {
             if (method === 'GET') {
                 const owned = [...collections.values()].filter((collection) => collection.ownerId === viewerId);
+                const requestedPage = Number(url.searchParams.get('page') ?? '1');
+                const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+                const start = (page - 1) * collectionsPageSize;
+                const rows = owned.slice(start, start + collectionsPageSize);
+                const response: PaginatedResponse<CollectionResponse> = {
+                    data: rows.map(toCollectionResponse),
+                    total: owned.length,
+                    page,
+                    pageSize: collectionsPageSize,
+                    hasMore: start + rows.length < owned.length,
+                };
 
-                return route.fulfill({ json: paginate(owned.map(toCollectionResponse)) });
+                return route.fulfill({ json: response });
             }
 
             if (method === 'POST') {

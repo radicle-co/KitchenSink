@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/wizard — the discard guard's dirty tracking (w3/e1,e2). Platform-agnostic
  * (pure React, no DOM/native APIs), so both `Wizard.tsx` and `Wizard.native.tsx` import the SAME hook.

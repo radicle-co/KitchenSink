@@ -1,0 +1,133 @@
+appId: io.commise.mobile
+---
+# Pull-updates preview -> commit happy path (W5 Task 13, C2/FR-011) — the mobile mirror of the web Playwright
+# `collections.spec.ts` pull-preview-then-commit spec, and the highest-value of the three new collection
+# flows: it drives clone -> the source drifts ahead -> preview -> confirm -> the pulled member (and "Last
+# pulled") actually appearing, not merely the dialog opening and closing.
+#
+# Self-clone setup (see `collections-clone.yaml` for why cloning one's own collection is the reachable path
+# in this app, and why it is a legitimate exercise of the same endpoint a cross-owner clone would use):
+# creates a SOURCE collection, seeds it with ONE seeded recipe (-> the clone's `clone_seed` member, the
+# diff's "unchanged" count), clones it, RENAMES the clone (the clone action passes no name override, so right
+# after cloning the two collections are identically named — renaming makes later list lookups by name
+# unambiguous), returns to the source via "View Source" (deterministic navigation — no name lookup needed)
+# and adds a SECOND seeded recipe there only, so the source is now ahead of the clone by exactly one recipe.
+# Pulling on the (renamed) clone should then offer exactly that second recipe.
+#
+# Recipe seed rows: CI reseeds before every flow (see `recipes/delete.yaml`'s note), so "Mediterranean
+# Grilled Lamb" and "Asparagus with Green Sauce" (both owned by the FREE subject, `recipe-service`'s
+# `seed.ts`) are guaranteed present and unmutated at the start of THIS flow — scrolled to directly rather
+# than gated behind a `when: visible` guard, since a silently-skipped add would desync the diff counts this
+# flow asserts further down.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+# CREATE the source.
+- tapOn: 'New collection'
+- assertVisible: 'Collection name'
+- tapOn: 'Collection name'
+- inputText: 'Maestro pull source'
+- tapOn: 'Create'
+- extendedWaitUntil:
+      visible: 'Maestro pull source'
+      timeout: 40000
+- tapOn: 'Maestro pull source'
+- assertVisible: 'Rename'
+
+# SEED it with ONE recipe.
+- tapOn: 'Add a recipe'
+- assertVisible: 'Add recipes to Maestro pull source'
+- scrollUntilVisible:
+      element: 'Add Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add Mediterranean Grilled Lamb'
+- assertVisible: 'In this collection'
+- tapOn: 'Done'
+- assertVisible: 'Rename'
+
+# CLONE, then rename the clone so later list lookups by name are unambiguous.
+- tapOn: 'Clone Collection'
+- extendedWaitUntil:
+      visible: 'Clone Info'
+      timeout: 40000
+- tapOn: 'Rename'
+- assertVisible: 'Rename collection'
+- tapOn: 'Collection name'
+- eraseText
+- inputText: 'Maestro pull clone'
+- tapOn: 'Save'
+# Maestro's `inputText` intermittently duplicates the final typed character on this emulator (same artifact
+# `collections.yaml` notes for its own rename step) — the trailing `.*` absorbs it while still proving the
+# rename applied.
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro pull clone.*'
+      timeout: 40000
+
+# BACK to the source via "View Source" (deterministic — no ambiguous name lookup) and add the SECOND
+# recipe: the source has now drifted ahead of the (renamed) clone by exactly one recipe.
+- tapOn: 'View Source'
+- extendedWaitUntil:
+      visible: 'Maestro pull source'
+      timeout: 40000
+- tapOn: 'Add a recipe'
+- assertVisible: 'Add recipes to Maestro pull source'
+- scrollUntilVisible:
+      element: 'Add Asparagus with Green Sauce'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add Asparagus with Green Sauce'
+- assertVisible: 'In this collection'
+- tapOn: 'Done'
+- assertVisible: 'Rename'
+
+# BACK to the list, then open the clone — uniquely named now, so the tap cannot land on the source.
+- tapOn: 'Back'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro pull clone.*'
+      timeout: 40000
+- tapOn:
+      text: 'Maestro pull clone.*'
+- assertVisible: 'Rename'
+
+# PULL. Opening the dialog runs the preview: one new recipe available (Asparagus), nothing removed, one
+# already there (Mediterranean Grilled Lamb, seeded at clone time).
+- tapOn: 'Pull Updates from Source'
+- extendedWaitUntil:
+      visible: 'Pull Updates from Source Collection'
+      timeout: 40000
+- assertVisible: '1 new public recipes will be added'
+- assertVisible: '0 recipes removed from source'
+- assertVisible: '1 already in this collection (no changes)'
+
+# CONFIRM. A successful commit closes the dialog; the pulled recipe becomes a visible member and "Last
+# pulled" appears in the header — the two signals that prove the pull actually APPLIED, not merely closed.
+- tapOn: 'Pull 1 Recipes'
+- extendedWaitUntil:
+      notVisible: 'Pull Updates from Source Collection'
+      timeout: 40000
+- extendedWaitUntil:
+      visible: 'Asparagus with Green Sauce'
+      timeout: 40000
+- assertVisible:
+      text: 'Last pulled:.*'
+
+# CLEANUP (hermetic): delete the clone, then the source.
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- tapOn: 'Maestro pull source'
+- assertVisible: 'Rename'
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro pull source'

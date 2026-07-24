@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — web collection-detail view (T072 building block).
  *

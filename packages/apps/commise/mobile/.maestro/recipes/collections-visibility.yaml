@@ -1,0 +1,83 @@
+appId: io.commise.mobile
+---
+# Collection visibility tier-gate (W5 Task 13, C1/FR-010) — the mobile mirror of the web Playwright
+# visibility-toggle spec, adapted the same way `recipes/visibility.yaml` had to be: READ BEFORE "fixing"
+# this flow into an actual Public->Private save.
+#
+# WHY THIS FLOW ASSERTS THE GATE RATHER THAN PERFORMING A SAVE — same root cause as `recipes/visibility.yaml`:
+#
+#   The Maestro signer (`commise-e2e-signin+clerk_test@example.com`) is read-through-created FREE-tier
+#   (identity `accounts` schema default). `canGoPrivate` — the SAME shared predicate the web container, the
+#   mobile collection screen, AND the recipe visibility toggle all evaluate — gates the collection-actions
+#   sidebar's "Private" option exactly as it gates the recipe one, so this signer can never successfully save
+#   a collection private; a flow that tried would just prove the gate is broken, not exercise a real save.
+#   The web Playwright suite covers the successful save (it fully controls the mocked viewer tier via
+#   `mockRecipeApi`'s `tier: 'premium'`); this flow covers what the REAL FREE-tier identity can honestly
+#   exercise end-to-end — the tier-gate STATE MACHINE (disabled option + localized reason), not a mutation.
+#   Covering the successful save on-device needs a PREMIUM e2e identity; until one exists, that path is
+#   verified only by the component tests (`CollectionDetailContainer.native.test.tsx`) and the web Playwright
+#   spec, not end-to-end on mobile.
+#
+# Creates its own OWNED collection (HERMETIC — same reasoning as `collections.yaml`). A fresh collection is
+# PRIVATE by default, so the "Private" option starts CHECKED — the same starting state
+# `recipes/visibility.yaml` asserts against its seeded-private recipe. The header's visibility BADGE and the
+# radio's own LABEL render the identical text ("Private") on this screen; every assertion below disambiguates
+# with `checked:`, which only the radio — a real accessibility-checkable control — can satisfy (the header
+# badge is a plain, non-checkable text node, so it can never match a `checked:` filter).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- tapOn: 'New collection'
+- assertVisible: 'Collection name'
+- tapOn: 'Collection name'
+- inputText: 'Maestro visibility gate'
+- tapOn: 'Create'
+
+- extendedWaitUntil:
+      visible: 'Maestro visibility gate'
+      timeout: 40000
+- tapOn: 'Maestro visibility gate'
+- assertVisible: 'Rename'
+
+# The current visibility (private, the create default) is reported through the radio's CHECKED state, not
+# colour/position alone.
+- assertVisible:
+      text: '^Private$'
+      checked: true
+- assertVisible:
+      text: '^Public$'
+      checked: false
+
+# C1 tier gate: a free-tier owner cannot select private, and the control says why in TEXT, not appearance
+# alone. Falsifiable: if the gate regressed to allow free accounts through, the option would report enabled
+# and the reason would not render.
+- assertVisible:
+      text: '^Private$'
+      checked: true
+      enabled: false
+- assertVisible: 'Upgrade to premium to make a collection private.'
+
+# The gate is enforced in the press handler too (`CollectionActions` deliberately re-checks `canGoPrivate` in
+# `selectPrivate`), not only via `disabled` — tapping the gated option must be inert: no mutation, and Save
+# stays unavailable (`canSave` never flips true because the pending selection never actually changes).
+- tapOn:
+      text: '^Private$'
+      checked: true
+- assertVisible:
+      text: '^Private$'
+      checked: true
+- assertVisible:
+      text: 'Save changes'
+      enabled: false
+
+# CLEANUP (hermetic).
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro visibility gate'

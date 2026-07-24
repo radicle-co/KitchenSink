@@ -109,6 +109,28 @@ export interface CollectionFormMessages {
     readonly cancel: string;
 }
 
+/** Copy for the collection-header view (W5 Task 6), rendered by both the web and native header leaves. */
+export interface CollectionHeaderMessages {
+    /** Visibility-badge label when the collection is public. */
+    readonly visibilityPublic: string;
+    /** Visibility-badge label when the collection is private. */
+    readonly visibilityPrivate: string;
+    /** Recipe-count label template for exactly one recipe (contains `{count}`). */
+    readonly recipeCountOne: string;
+    /** Recipe-count label template for any other count (contains `{count}`). */
+    readonly recipeCountOther: string;
+    /** Source-attribution template for a cloned collection with a resolved source owner handle (contains
+     *  `{handle}` and `{name}`). */
+    readonly sourceAttribution: string;
+    /** Source-attribution template for a cloned collection with no resolved source owner (contains
+     *  `{name}`). */
+    readonly sourceAttributionNoHandle: string;
+    /** Last-pulled template (contains `{date}`). */
+    readonly lastPulled: string;
+    /** Label of the web back-to-collections affordance (C6). */
+    readonly backToCollections: string;
+}
+
 /** The shape of the collections feature's shared copy. */
 export interface CollectionMessages {
     /** Copy for the collection-list screen. */
@@ -119,6 +141,8 @@ export interface CollectionMessages {
     readonly picker: CollectionRecipePickerMessages;
     /** Copy for the collection create/rename form. */
     readonly form: CollectionFormMessages;
+    /** Copy for the collection-header view (badge, count, source attribution, last-pulled, back). */
+    readonly header: CollectionHeaderMessages;
 }
 
 export const collectionMessages: LocalizedMessages<CollectionMessages> = {
@@ -171,6 +195,16 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             createSubmit: 'Create',
             renameSubmit: 'Save',
             cancel: 'Cancel',
+        },
+        header: {
+            visibilityPublic: 'Public',
+            visibilityPrivate: 'Private',
+            recipeCountOne: '{count} recipe',
+            recipeCountOther: '{count} recipes',
+            sourceAttribution: 'Source: @{handle}’s "{name}"',
+            sourceAttributionNoHandle: 'Source: "{name}"',
+            lastPulled: 'Last pulled: {date}',
+            backToCollections: 'Back to My Collections',
         },
     },
 };

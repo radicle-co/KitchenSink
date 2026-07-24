@@ -5,7 +5,8 @@
  * building blocks, so the two renders can never drift on shape. No React, no platform APIs. These are
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
-import type { Collection, Recipe } from '@kitchensink/recipe-core';
+import type { Locale } from '@commise/i18n';
+import type { Collection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /**
  * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
@@ -139,3 +140,45 @@ export interface CollectionFormProps {
     readonly onSubmit: () => void;
     readonly onCancel: () => void;
 }
+
+/**
+ * Props for the collection-header view (W5 Task 6) — a presentational render of the collection-view
+ * wireframe's header zone: the collection name with its Edit/Delete affordances (C4), a visibility badge,
+ * the recipe count, source attribution for a cloned collection, its last-pulled date, and a Back affordance
+ * (C6). Takes individual scalar fields rather than a `Collection`/`CollectionWithRecipes` object so this
+ * block stays decoupled from the recipe-service client's response-only provenance widening (`./types.js`'s
+ * `Collection`) — the composing screen projects whatever collection shape it holds down to these fields.
+ * It fetches nothing and delegates every interaction upward.
+ */
+export interface CollectionHeaderViewProps {
+    readonly name: string;
+    readonly description?: string;
+    readonly visibility: RecipeVisibility;
+    readonly recipeCount: number;
+    /** The source collection's name, present only when this collection was cloned (FR-011). */
+    readonly sourceCollectionName?: string;
+    /** The source owner's display handle; may be absent even for a cloned collection (unresolved owner). */
+    readonly sourceOwnerHandle?: string;
+    /** ISO 8601 timestamp of the last successful pull from source (FR-011); absent if never pulled. */
+    readonly lastPulledAt?: string;
+    /** Invoked when the back affordance is activated; omit to render no Back control (C6). */
+    readonly onBack?: () => void;
+    /** Invoked when the edit/rename action is activated (C4). */
+    readonly onEdit: () => void;
+    /** Invoked when the delete action is activated (C4). */
+    readonly onDelete: () => void;
+}
+
+/**
+ * Format an ISO 8601 timestamp as a date-only string for the collection header's "Last pulled" line, in
+ * the active locale. Distinct from {@link import('../versions/model.js').formatVersionTimestamp}: the
+ * wireframe shows a DATE only (no time) for this field. Formatted in UTC so the output is deterministic
+ * regardless of the runtime's timezone (`lastPulledAt` is an absolute instant, not a local wall-clock
+ * time). Pure.
+ *
+ * @param isoDate - The ISO 8601 timestamp.
+ * @param locale - The active BCP-47 locale.
+ * @returns The localized date string.
+ */
+export const formatCollectionDate = (isoDate: string, locale: Locale): string =>
+    new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(isoDate));

@@ -1,7 +1,7 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
+import { UserDAO } from '@kitchensink/identity-db';
 
 import { getConfig, getWebhookConfig } from '../config/env.js';
 import { getDb } from './db.js';

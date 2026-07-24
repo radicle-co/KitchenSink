@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-import { accounts, profiles, users } from '@kitchensink/identity-service/database/schema';
+import { accounts, profiles, users } from '@kitchensink/identity-db';
 
 import { getConfig } from '../config/env.js';
 import { getJsonSecret } from './secrets.js';

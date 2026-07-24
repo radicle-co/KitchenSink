@@ -20,6 +20,12 @@ COPY packages/utils/identity/dist ./packages/utils/identity/dist
 # ERR_MODULE_NOT_FOUND. (food-service already copies it the same way.)
 COPY packages/shared/clerk-verify/prod.package.json ./packages/shared/clerk-verify/package.json
 COPY packages/shared/clerk-verify/dist ./packages/shared/clerk-verify/dist
+# Shared @kitchensink/identity-db (S-I7) — same pattern as identity-utils/clerk-verify above. The
+# schema/DAO/ulid code that used to live in this service's own src/database (Nest-coupled path, no
+# COPY needed) now resolves via the root node_modules symlink, so its built dist + dist-pointing prod
+# manifest must be in the image or the bare-specifier import crash-loops at boot (KTD2a).
+COPY packages/shared/identity-db/prod.package.json ./packages/shared/identity-db/package.json
+COPY packages/shared/identity-db/dist ./packages/shared/identity-db/dist
 
 EXPOSE 3000
 # Preload Sentry instrumentation before app modules (native ESM — a top-level import is not a

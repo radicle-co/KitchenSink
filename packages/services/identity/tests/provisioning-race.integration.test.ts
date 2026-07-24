@@ -9,8 +9,7 @@ import { eq } from 'drizzle-orm';
 
 import { provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { users, accounts, profiles } from '../src/database/index.js';
-import { UserDAO } from '../src/database/dao/index.js';
-import { newUserId } from '../src/database/ulid.js';
+import { UserDAO, newUserId } from '@kitchensink/identity-db';
 
 /**
  * Proves R3 against a real Postgres: the shared provisioning routine is idempotent and race-safe

@@ -47,7 +47,7 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     listUsers: vi.fn().mockResolvedValue([]),
     deleteUser: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(function () {
         return {
             upsertByIdentityId: mockUpsert,
@@ -60,6 +60,9 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
     }),
     recordOnce: mockRecordOnce,
     hasProcessedWebhookEvent: mockHasProcessed,
+    // `users` is only ever forwarded to the (also-mocked) `db.update` call as an opaque table-identity
+    // argument here — never queried for real — so a stub object is sufficient.
+    users: { id: 'users-table-stub' },
 }));
 // user.created provisions the complete unit through the shared routine; the handler no longer drives
 // the user/account/profile writes itself, so mock the routine (its real behavior is proven by the

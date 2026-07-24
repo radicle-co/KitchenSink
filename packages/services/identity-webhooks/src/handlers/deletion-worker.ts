@@ -1,5 +1,5 @@
 import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
-import type { UserDAO } from '@kitchensink/identity-service/database/dao';
+import type { UserDAO } from '@kitchensink/identity-db';
 
 import { withDb, type DbContext } from '../common/handler-pipeline.js';
 import { logger, withObservability } from '../common/observability.js';

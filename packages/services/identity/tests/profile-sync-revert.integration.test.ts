@@ -8,7 +8,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
 import { users, accounts, profiles } from '../src/database/index.js';
-import { UserDAO } from '../src/database/dao/index.js';
+import { UserDAO } from '@kitchensink/identity-db';
 import type { UserId } from '../src/types/index.js';
 
 /**

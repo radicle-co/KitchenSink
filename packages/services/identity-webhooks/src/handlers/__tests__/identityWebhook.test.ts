@@ -14,7 +14,7 @@ vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
 vi.mock('../../common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
 vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
 
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
         return {
             upsertByIdentityId: vi.fn(),
@@ -25,6 +25,9 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
     }),
     recordOnce: vi.fn().mockResolvedValue(undefined),
     hasProcessedWebhookEvent: vi.fn().mockResolvedValue(false),
+    // `users` is only ever forwarded to the (also-mocked) `db.update`/`.select` calls as an opaque
+    // table-identity argument here — never queried for real — so a stub object is sufficient.
+    users: { id: 'users-table-stub' },
 }));
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function SQSClient() {
@@ -42,8 +45,7 @@ vi.mock('../../common/observability.js', () => ({
 }));
 
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
-import { recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-service/database/dao';
+import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/identity-db';
 
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';

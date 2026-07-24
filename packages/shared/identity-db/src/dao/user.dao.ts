@@ -3,7 +3,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import { users, accounts, profiles } from '../schema/index.js';
 import type { NewUserRow, ProfileRow, UserRow } from '../schema/index.js';
-import { newUserId, type UserId } from '../../types/index.js';
+import { newUserId, type UserId } from '../ulid.js';
 
 /**
  * Minimal structural logging contract. `UserDAO` is shared between the NestJS identity service

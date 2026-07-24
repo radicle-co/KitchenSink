@@ -1,7 +1,7 @@
 import { eq, type InferInsertModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { webhookEvents } from '@kitchensink/identity-service/database/schema';
+import { webhookEvents } from '../schema/index.js';
 
 /**
  * Dedup pre-check: has this svix-id already been processed? Webhook handling is confirm-after-process

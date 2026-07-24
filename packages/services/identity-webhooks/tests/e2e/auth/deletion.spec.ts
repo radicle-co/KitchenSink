@@ -32,7 +32,7 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     deleteUser: vi.fn(),
     setExternalId: vi.fn(),
 }));
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(function () {
         return {
             findByIdentityId: mockFindByIdentityId,

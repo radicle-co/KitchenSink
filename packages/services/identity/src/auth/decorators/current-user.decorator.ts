@@ -3,16 +3,6 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 export type { AuthorizerContext };
 
-export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthorizerContext => {
-    const request = ctx.switchToHttp().getRequest<{ user?: AuthorizerContext }>();
-
-    if (!request.user) {
-        throw new Error('Missing authorizer context — ensure AuthMiddleware is applied');
-    }
-
-    return request.user;
-});
-
 export const CurrentAuthorizerContext = createParamDecorator(
     (_data: unknown, ctx: ExecutionContext): AuthorizerContext => {
         const request = ctx.switchToHttp().getRequest<{ user?: AuthorizerContext }>();

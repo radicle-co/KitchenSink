@@ -12,7 +12,7 @@ vi.mock('../svix.js', () => ({ verifyWebhook: vi.fn() }));
 vi.mock('../observability.js', () => ({
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn().mockImplementation(function (db: unknown) {
         return { __isUserDao: true, db };
     }),
@@ -21,7 +21,7 @@ vi.mock('@kitchensink/identity-service/database/dao', () => ({
 import { withDb, withVerifiedWebhook } from '../handler-pipeline.js';
 import { getDb } from '../db.js';
 import { verifyWebhook } from '../svix.js';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
+import { UserDAO } from '@kitchensink/identity-db';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
 const mockGetDb = vi.mocked(getDb);

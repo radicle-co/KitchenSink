@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isUserId, newUserId } from './ulid.js';
+import { isUserId, newUserId } from '../ulid.js';
 
 describe('ULID user ids', () => {
     it('creates a 26 character UserId that round-trips', () => {

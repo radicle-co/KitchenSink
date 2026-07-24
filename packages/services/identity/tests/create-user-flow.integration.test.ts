@@ -8,7 +8,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
 import { users, accounts, profiles } from '../src/database/index.js';
-import { UserDAO } from '../src/database/dao/index.js';
+import { UserDAO } from '@kitchensink/identity-db';
 import { UsersService } from '../src/users/users.service.js';
 import { noopHandleSyncPublisher } from '../src/users/handle-sync.publisher.js';
 import type { VerifiedClerkClaims } from '../src/auth/clerk-auth.service.js';

@@ -3,7 +3,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import { accounts } from '../schema/index.js';
 import type { AccountRow, NewAccountRow } from '../schema/index.js';
-import type { UserId } from '../../types/index.js';
+import type { UserId } from '../ulid.js';
 
 export type AccountTier = 'free' | 'premium';
 

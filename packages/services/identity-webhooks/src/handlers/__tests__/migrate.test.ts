@@ -4,9 +4,22 @@ vi.mock('../../common/secrets.js', () => ({
     getJsonSecret: vi.fn(),
 }));
 
-import { handler } from '../migrate.js';
+// S-I7: migrate is now wrapped in `withObservability` (parity with the other three handlers), whose
+// real implementation reads `context.awsRequestId` before ever reaching the core — matching the
+// sibling handler tests (deletion-worker/reconciliation/identityWebhook), this bypasses Sentry
+// instrumentation entirely so `handler()` can still be invoked with no event/context, exactly as
+// these config-boundary tests already do.
+vi.mock('../../common/observability.js', () => ({
+    withObservability: <T, R>(fn: (event: T, ctx: unknown) => Promise<R>) => fn,
+}));
+
+import { handler as rawHandler } from '../migrate.js';
 import { getJsonSecret } from '../../common/secrets.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
+import type { MigrateResult } from '../migrate.js';
+
+type TestHandler = () => Promise<MigrateResult>;
+const handler = rawHandler as unknown as TestHandler;
 
 const mockGetJsonSecret = vi.mocked(getJsonSecret);
 

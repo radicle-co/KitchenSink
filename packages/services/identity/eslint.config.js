@@ -10,7 +10,7 @@ export default [
         // These files are intentionally NOT renamed here (they are referenced across the
         // codebase and docs); the filename rule is disabled for them only, so no NEW
         // non-conforming name can slip in. Rename to kebab-case in a dedicated follow-up.
-        files: ['src/auth/middleware/wsAuth.ts', 'src/users/resolveUser.ts', 'src/database/schema/webhook_events.ts'],
+        files: ['src/auth/middleware/wsAuth.ts', 'src/users/resolveUser.ts'],
         rules: {
             'check-file/filename-naming-convention': 'off',
         },

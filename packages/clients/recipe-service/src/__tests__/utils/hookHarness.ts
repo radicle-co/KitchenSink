@@ -11,10 +11,10 @@
  *
  * The double is `vi.spyOn` over a **real client instance** rather than a hand-built fake object, so every
  * stub is type-checked against the real method signature (a renamed method, a reordered parameter, or a
- * wrong-shaped resolved value fails `tsc`, not just the assertion). The instance is constructed with
- * {@link rejectingFetch} (the package's existing `fetch` double) as a network guard: any client method a
- * hook calls that a test forgot to stub surfaces loudly as a rejected request instead of a silent real
- * fetch.
+ * wrong-shaped resolved value fails `tsc`, not just the assertion). The instance itself now comes from the
+ * package's public `./testing` subpath ({@link createFakeRecipeServiceClient}, CP-6 T3) — this module keeps
+ * the `makeGuardedClient`/`NETWORK_GUARD_MESSAGE` names its existing callers already import, but delegates
+ * construction so there is exactly one network-guard-client implementation, not two.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
@@ -22,13 +22,11 @@ import type { RenderHookResult } from '@testing-library/react';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
 
-import { RecipeServiceClient } from '../../client.js';
+import type { RecipeServiceClient } from '../../client.js';
 import { RecipeServiceProvider } from '../../hooks.js';
-import { rejectingFetch } from './fetchDouble.js';
+import { NETWORK_GUARD_MESSAGE, createFakeRecipeServiceClient } from '../../testing/fakeClient.js';
 
-/** Raised by the guard `fetch` when a hook reaches the network — i.e. a client method was left unstubbed. */
-export const NETWORK_GUARD_MESSAGE =
-    'recipe-service hook tests must not touch the network — spy on the client method under test.';
+export { NETWORK_GUARD_MESSAGE };
 
 /**
  * A real {@link RecipeServiceClient} whose transport can never fire, for `vi.spyOn` to stub per test.
@@ -37,11 +35,7 @@ export const NETWORK_GUARD_MESSAGE =
  * @sideEffect Constructs a client holding a `vi.fn`-backed `fetch` double.
  */
 export function makeGuardedClient(): RecipeServiceClient {
-    return new RecipeServiceClient({
-        baseUrl: 'https://recipes.hooks.invalid',
-        token: 'tok_hooks',
-        fetch: rejectingFetch(new Error(NETWORK_GUARD_MESSAGE)),
-    });
+    return createFakeRecipeServiceClient();
 }
 
 /**

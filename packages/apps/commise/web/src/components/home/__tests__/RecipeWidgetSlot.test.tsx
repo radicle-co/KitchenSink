@@ -26,6 +26,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen } from '@testing-library/react';
 import type { ComponentType, ReactElement } from 'react';
 
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+
 // Render the real recipe widget synchronously in place of the `next/dynamic` code-split (see DETERMINISM #2).
 // The mock resolves the SAME module the descriptor's loader imports — nothing about the widget is stubbed.
 vi.mock('next/dynamic', async () => {
@@ -71,9 +73,27 @@ const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
     ...overrides,
 });
 
-/** A minimal recipe client whose `listRecipes` returns the supplied page promise. */
-const clientReturning = (page: () => Promise<{ data: readonly Recipe[] }>): RecipeServiceClient =>
-    ({ listRecipes: () => page() }) as unknown as RecipeServiceClient;
+/**
+ * A real, network-guarded {@link RecipeServiceClient} (see `@kitchensink/recipe-service-client/testing`)
+ * whose `listRecipes` is stubbed via a type-checked `vi.spyOn` to resolve the supplied recipes — replacing
+ * the former hand-built `{ listRecipes }` object force-cast `as unknown as RecipeServiceClient`, which let a
+ * client-method rename/reshape pass `tsc` silently.
+ */
+const clientReturning = (recipes: () => Promise<readonly Recipe[]>): RecipeServiceClient => {
+    const client = createFakeRecipeServiceClient();
+
+    vi.spyOn(client, 'listRecipes').mockImplementation(() =>
+        recipes().then((data) => ({
+            data: [...data],
+            total: data.length,
+            page: 1,
+            pageSize: data.length,
+            hasMore: false,
+        })),
+    );
+
+    return client;
+};
 
 const slot = (client: RecipeServiceClient): ReactElement => (
     <RecipeServiceProvider client={client}>
@@ -92,28 +112,26 @@ describe('RecipeWidgetSlot (web)', () => {
     it('shows the skeleton card (widget title, no recipes) while the recipes promise is pending', () => {
         // A pending (never-settling) promise keeps the widget suspended → the skeleton fallback renders. This is
         // a synchronous render with no `await`, so it leaves no resolved Suspense work (and nothing to flush).
-        renderWithProviders(slot(clientReturning(() => new Promise<{ data: readonly Recipe[] }>(() => {}))));
+        renderWithProviders(slot(clientReturning(() => new Promise<readonly Recipe[]>(() => {}))));
 
         expect(screen.getByText('Recent recipes')).toBeTruthy(); // the skeleton card title
         expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();
     });
 
     it('renders the recent recipes once the promise resolves', async () => {
-        await renderResolved(
-            clientReturning(() => Promise.resolve({ data: [makeRecipe({ title: 'Weeknight Pasta' })] })),
-        );
+        await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ title: 'Weeknight Pasta' })])));
 
         expect(screen.getByText('Weeknight Pasta')).toBeTruthy();
     });
 
     it('renders the empty state when the viewer has no recipes', async () => {
-        await renderResolved(clientReturning(() => Promise.resolve({ data: [] })));
+        await renderResolved(clientReturning(() => Promise.resolve([])));
 
         expect(screen.getByText('No recipes yet. Create your first recipe to see it here.')).toBeTruthy();
     });
 
     it('renders a "see all recipes" entry point into the recipes surface', async () => {
-        await renderResolved(clientReturning(() => Promise.resolve({ data: [] })));
+        await renderResolved(clientReturning(() => Promise.resolve([])));
 
         const link = screen.getByRole('link', { name: 'See all recipes' });
         expect(link.getAttribute('href')).toContain('/recipes');

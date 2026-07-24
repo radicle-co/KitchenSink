@@ -2,48 +2,34 @@
  * Component tests for RecipeDiscoveryContainer (T076 web public-discovery wiring). Covers every state the
  * container projects onto the shared RecipeDiscoveryList building block — loading, populated, empty, error
  * (with retry) — plus search-query wiring, recipe selection navigation, and the clone flow (mutation wired
- * with the row id, per-row busy state, and navigation to the cloned recipe on success). The search + clone
- * hooks and the Next router are mocked, so no backend or QueryClient is needed.
+ * with the row id, per-row busy state, and navigation to the cloned recipe on success).
+ *
+ * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
+ * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL `useInfiniteSearchRecipes`
+ * / `useCloneRecipe` hooks over a real, network-guarded `RecipeServiceClient`
+ * (`createFakeRecipeServiceClient`), stubbed per test with type-checked
+ * `vi.spyOn(client, 'searchRecipes' | 'cloneRecipe')`. The Next router mocks (`useRouter`/`usePathname`/
+ * `useSearchParams`) and the `window.history.replaceState` spy stay exactly as before — URL-driven filter
+ * state is outside this migration's scope (the recipe-service hooks are the seam being migrated).
  */
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 
 import { makeSearchResponse, makeSearchResult } from './__fixtures__/discoveryFixtures';
 import { makeRecipe, makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { useSearchRecipesMock, useCloneRecipeMock, pushMock, refetchMock, fetchNextPageMock, cloneMutateMock, nav } =
-    vi.hoisted(() => ({
-        useSearchRecipesMock: vi.fn(),
-        useCloneRecipeMock: vi.fn(),
-        pushMock: vi.fn(),
-        refetchMock: vi.fn(),
-        fetchNextPageMock: vi.fn(),
-        cloneMutateMock: vi.fn(),
-        // The container reads the search criteria from the URL. `nav.params` is the current query; a test sets
-        // it to simulate a shared/reloaded filtered link, and criteria writes go through
-        // `window.history.replaceState` (spied per-test), which updates `useSearchParams()` reactively.
-        nav: { params: new URLSearchParams(), pathname: '/en/discover' },
-    }));
-
-// The container now uses the PAGINATED search hook (S4). Adapt the flat mock (`{ data: response }`) into the
-// infinite-query shape (`{ data: { pages: [response] }, hasNextPage, fetchNextPage, … }`) so the existing
-// per-test `useSearchRecipesMock.mockReturnValue(...)` calls stay unchanged.
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useInfiniteSearchRecipes: (...args: unknown[]) => {
-        const flat = useSearchRecipesMock(...args) as { data?: { hasMore?: boolean } } & Record<string, unknown>;
-
-        return {
-            ...flat,
-            data: flat.data === undefined ? undefined : { pages: [flat.data] },
-            hasNextPage: flat.data?.hasMore ?? false,
-            isFetchingNextPage: false,
-            fetchNextPage: fetchNextPageMock,
-        };
-    },
-    useCloneRecipe: useCloneRecipeMock,
+const { pushMock, nav } = vi.hoisted(() => ({
+    pushMock: vi.fn(),
+    // The container reads the search criteria from the URL. `nav.params` is the current query; a test sets
+    // it to simulate a shared/reloaded filtered link, and criteria writes go through
+    // `window.history.replaceState` (spied per-test), which updates `useSearchParams()` reactively.
+    nav: { params: new URLSearchParams(), pathname: '/en/discover' },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -51,15 +37,6 @@ vi.mock('next/navigation', () => ({
     usePathname: () => nav.pathname,
     useSearchParams: () => nav.params,
 }));
-
-function mockClone(overrides: Record<string, unknown> = {}): void {
-    useCloneRecipeMock.mockReturnValue({
-        mutate: cloneMutateMock,
-        isPending: false,
-        variables: undefined,
-        ...overrides,
-    });
-}
 
 afterEach(() => {
     vi.clearAllMocks();
@@ -69,83 +46,61 @@ afterEach(() => {
 
 describe('RecipeDiscoveryContainer', () => {
     it('renders the loading state while the search query is pending', () => {
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: true,
-            isError: false,
-            data: undefined,
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
         expect(screen.getByRole('status', { name: 'Loading recipes' })).toBeInTheDocument();
     });
 
-    it('renders the populated results with a count when the search loads', () => {
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([
+    it('renders the populated results with a count when the search loads', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(
+            makeSearchResponse([
                 makeSearchResult({ recipe: makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) }),
                 makeSearchResult({ recipe: makeRecipe({ id: 'rec_2', title: 'Sunday Roast' }) }),
             ]),
-            refetch: refetchMock,
-        });
-        mockClone();
+        );
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
         expect(screen.getByText('2 recipes')).toBeInTheDocument();
     });
 
-    it('renders the empty state when the search succeeds with no hits', () => {
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([]),
-            refetch: refetchMock,
-        });
-        mockClone();
+    it('renders the empty state when the search succeeds with no hits', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        expect(screen.getByText('No recipes found')).toBeInTheDocument();
+        expect(await screen.findByText('No recipes found')).toBeInTheDocument();
     });
 
     it('renders the error state and retries on demand', async () => {
         const user = userEvent.setup();
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: true,
-            data: undefined,
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockRejectedValue(new Error('boom'));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(searchSpy).toHaveBeenCalledTimes(1);
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-        expect(refetchMock).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledTimes(2));
     });
 
     it('writes the typed search term to the URL (shareable), not to local state', async () => {
         const user = userEvent.setup();
         const replaceState = vi.spyOn(window.history, 'replaceState');
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([]),
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
         // A single keystroke — the input is URL-controlled, so cumulative typing depends on the router
         // reactivity that only the real runtime (Playwright) provides; the container's job here is to WRITE.
@@ -155,133 +110,106 @@ describe('RecipeDiscoveryContainer', () => {
     });
 
     it('searches with no query param before the user types', () => {
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([]),
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        // The default sort (relevance, S3) rides along with the search params.
-        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ sortBy: 'relevance' });
+        // The default sort (relevance, S3) rides along with the search params; `page: 1` is the infinite
+        // query's initial page param (S4) — invisible in the old flat-mock shim, real over the real hook.
+        expect(searchSpy).toHaveBeenLastCalledWith({ sortBy: 'relevance', page: 1 });
     });
 
-    it('projects the filters from the URL onto the search params and the pressed chips', () => {
+    it('projects the filters from the URL onto the search params and the pressed chips', async () => {
         nav.params = new URLSearchParams('dietaryFlags=vegan');
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }),
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi
+            .spyOn(client, 'searchRecipes')
+            .mockResolvedValue(makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ dietaryFlags: ['vegan'], sortBy: 'relevance' });
-        expect(screen.getByRole('button', { name: 'vegan, 2 recipes' }).getAttribute('aria-pressed')).toBe('true');
+        const chip = await screen.findByRole('button', { name: 'vegan, 2 recipes' });
+        expect(chip.getAttribute('aria-pressed')).toBe('true');
+        expect(searchSpy).toHaveBeenLastCalledWith({ dietaryFlags: ['vegan'], sortBy: 'relevance', page: 1 });
     });
 
     it('re-runs the search with the chosen sort (S3)', async () => {
         const user = userEvent.setup();
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([]),
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
         await user.click(screen.getByRole('radio', { name: 'Quickest' }));
 
-        expect(useSearchRecipesMock).toHaveBeenLastCalledWith({ sortBy: 'quickest' });
+        expect(searchSpy).toHaveBeenLastCalledWith({ sortBy: 'quickest', page: 1 });
     });
 
     it('writes a toggled facet to the URL', async () => {
         const user = userEvent.setup();
         const replaceState = vi.spyOn(window.history, 'replaceState');
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }),
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(
+            makeSearchResponse([], { facets: { dietaryFlags: [{ value: 'vegan', count: 2 }] } }),
+        );
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        await user.click(screen.getByRole('button', { name: 'vegan, 2 recipes' }));
+        await user.click(await screen.findByRole('button', { name: 'vegan, 2 recipes' }));
 
         expect(replaceState).toHaveBeenLastCalledWith(null, '', '/en/discover?dietaryFlags=vegan');
     });
 
     it('navigates to the recipe detail route when a result is selected', async () => {
         const user = userEvent.setup();
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([
-                makeSearchResult({ recipe: makeRecipe({ id: 'rec_42', title: 'Weeknight Pasta' }) }),
-            ]),
-            refetch: refetchMock,
-        });
-        mockClone();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(
+            makeSearchResponse([makeSearchResult({ recipe: makeRecipe({ id: 'rec_42', title: 'Weeknight Pasta' }) })]),
+        );
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        await user.click(screen.getByRole('button', { name: 'Weeknight Pasta' }));
+        await user.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_42');
     });
 
     it('clones the selected recipe and navigates to the clone on success', async () => {
         const user = userEvent.setup();
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([
-                makeSearchResult({ recipe: makeRecipe({ id: 'rec_7', title: 'Sunday Roast' }) }),
-            ]),
-            refetch: refetchMock,
-        });
-        mockClone();
-
-        render(<RecipeDiscoveryContainer locale="en" />);
-
-        await user.click(screen.getByRole('button', { name: 'Clone Sunday Roast' }));
-
-        expect(cloneMutateMock).toHaveBeenCalledWith(
-            'rec_7',
-            expect.objectContaining({ onSuccess: expect.any(Function) }),
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(
+            makeSearchResponse([makeSearchResult({ recipe: makeRecipe({ id: 'rec_7', title: 'Sunday Roast' }) })]),
         );
+        const cloneSpy = vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_clone' }));
 
-        // Drive the success callback the container passed to the mutation and assert navigation to the clone.
-        const onSuccess = cloneMutateMock.mock.calls[0]?.[1]?.onSuccess as (recipe: { id: string }) => void;
-        onSuccess(makeRecipeDetail({ id: 'rec_clone' }));
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
 
-        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_clone');
+        await user.click(await screen.findByRole('button', { name: 'Clone Sunday Roast' }));
+
+        expect(cloneSpy).toHaveBeenCalledWith('rec_7');
+
+        // Drive the REAL mutation to resolution and assert navigation to the clone.
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_clone'));
     });
 
-    it('busies only the row whose clone is in flight', () => {
-        useSearchRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeSearchResponse([
+    it('busies only the row whose clone is in flight', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(
+            makeSearchResponse([
                 makeSearchResult({ recipe: makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) }),
                 makeSearchResult({ recipe: makeRecipe({ id: 'rec_2', title: 'Sunday Roast' }) }),
             ]),
-            refetch: refetchMock,
-        });
-        mockClone({ isPending: true, variables: 'rec_2' });
+        );
+        vi.spyOn(client, 'cloneRecipe').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipeDiscoveryContainer locale="en" />);
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+        await screen.findByRole('button', { name: 'Weeknight Pasta' });
 
-        const busy = screen.getByRole('button', { name: 'Cloning Sunday Roast' });
+        await user.click(screen.getByRole('button', { name: 'Clone Sunday Roast' }));
+
+        const busy = await screen.findByRole('button', { name: 'Cloning Sunday Roast' });
         expect(busy).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Clone Weeknight Pasta' })).toBeEnabled();
     });

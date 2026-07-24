@@ -5,168 +5,113 @@
  * valid edit mapping to the update wire shape (carrying `expectedVersion` for optimistic concurrency) then
  * navigating back to the detail on success; and the version-conflict path — a 409 enters conflict mode
  * (rendering both sides), "keep mine" re-submits against the FRESH server version then navigates, and
- * "use theirs" reseeds the form from the latest recipe without navigating. The recipe-service hooks + Next
- * router are mocked. Queries use role/label/text only.
+ * "use theirs" reseeds the form from the latest recipe without navigating. The Next router stays mocked;
+ * the photo uploader (its own container, its own hooks) stays stubbed out. Queries use role/label/text only.
+ *
+ * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
+ * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks
+ * (including the embedded `IngredientPicker`'s four supporting hooks) over a real, network-guarded
+ * `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with type-checked
+ * `vi.spyOn(client, '<method>')`. The `IngredientPicker`'s `useAddIngredientByName`/`useIngredientStatus`/
+ * `useIngredientCandidates`/`useResolveIngredient` need NO stubbing at all: `useSearchIngredients`/
+ * `useIngredientCandidates` stay `enabled: false` (empty query / no active disambiguation), and the two
+ * mutations never fire unless a test actually drives the picker's search/disambiguate UI, which none here
+ * do — so they never reach the network guard. The hand-rolled `versionAwareMutation` fake (inspecting
+ * `vars.input.expectedVersion` to decide success vs conflict) becomes `conflictClient`'s
+ * `vi.spyOn(client, 'updateRecipe').mockImplementation(...)`, doing the same job against the REAL client
+ * method signature — a rename/reshape there now fails `tsc`. The 409-triggered refetch that used to be a
+ * hand-wired `refetchMock` is now the container's own `query.refetch()` calling the REAL `getRecipeById` a
+ * second time, modeled with `mockResolvedValueOnce` twice (seed, then the fresh "theirs").
  */
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotFoundError, VersionConflictError } from '@kitchensink/recipe-service-client';
-import type { UpdateRecipeInput } from '@kitchensink/recipe-core';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import type { RecipeDetail } from '@kitchensink/recipe-core';
+import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipeEditContainer } from '@/components/recipes/RecipeEditContainer';
 
 import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { useRecipeMock, useUpdateRecipeMock, useSearchIngredientsMock, useCreateIngredientMock, pushMock, refetchMock } =
-    vi.hoisted(() => ({
-        useRecipeMock: vi.fn(),
-        useUpdateRecipeMock: vi.fn(),
-        useSearchIngredientsMock: vi.fn(),
-        useCreateIngredientMock: vi.fn(),
-        pushMock: vi.fn(),
-        refetchMock: vi.fn(),
-    }));
-
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipe: useRecipeMock,
-    useUpdateRecipe: useUpdateRecipeMock,
-    useSearchIngredients: useSearchIngredientsMock,
-    useCreateIngredient: useCreateIngredientMock,
-    // The ingredient picker also reads the async-resolution hooks; inert idle defaults keep it in its
-    // search branch (this container never drives an UNRESOLVED disambiguation or a poll-after-add).
-    useAddIngredientByName: () => ({
-        mutate: () => undefined,
-        isPending: false,
-        isError: false,
-        reset: () => undefined,
-    }),
-    useIngredientStatus: () => ({ data: undefined }),
-    useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
-    useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
-}));
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
 }));
 
 // The photo uploader is its own container with its own hooks (covered by RecipePhotoUploaderContainer.test);
-// stub it here so this suite exercises only the edit form / conflict logic and needs no photo-hook mocks.
+// stub it here so this suite exercises only the edit form / conflict logic and needs no photo-hook stubs.
 vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({
     RecipePhotoUploaderContainer: () => null,
 }));
 
-/** An update-recipe mutation whose `mutate` invokes `onSuccess`. */
-function updateRecipeMutation(): Record<string, unknown> {
-    return {
-        mutate: vi.fn((_vars: unknown, options?: { onSuccess?: (value: unknown) => void }) => {
-            options?.onSuccess?.(makeRecipeDetail({ id: 'rec_1' }));
-        }),
-        isPending: false,
-        isError: false,
-        reset: vi.fn(),
-    };
-}
-
-type MutateVars = { id: string; input: UpdateRecipeInput };
-type MutateOptions = { onSuccess?: (value: unknown) => void; onError?: (err: unknown) => void };
-
 /**
- * An update-recipe mutation that models optimistic concurrency: a `mutate` carrying the FRESH
- * `expectedVersion` succeeds; any stale version fails with a {@link VersionConflictError} reporting
- * `freshVersion` as the server's current version. Mirrors what the server does on a 409.
+ * A client whose `getRecipeById` seeds `mine` on the initial load then resolves the fresh `theirs` on the
+ * conflict-triggered refetch, and whose `updateRecipe` models optimistic concurrency: a submit carrying
+ * `theirs.currentVersion` (the server's fresh CAS token) succeeds; any other `expectedVersion` 409s with a
+ * {@link VersionConflictError} reporting `theirs.currentVersion` as the server's actual current version —
+ * mirroring what the real server does on a stale write.
  */
-function versionAwareMutation(freshVersion: number): Record<string, unknown> {
-    return {
-        mutate: vi.fn((vars: MutateVars, options?: MutateOptions) => {
-            if (vars.input.expectedVersion === freshVersion) {
-                options?.onSuccess?.(makeRecipeDetail({ id: 'rec_1', currentVersion: freshVersion + 1 }));
-            } else {
-                options?.onError?.(new VersionConflictError(freshVersion, vars.input.expectedVersion));
-            }
-        }),
-        isPending: false,
-        isError: false,
-        reset: vi.fn(),
-    };
-}
+function conflictClient(mine: RecipeDetail, theirs: RecipeDetail): RecipeServiceClient {
+    const client = createFakeRecipeServiceClient();
+    vi.spyOn(client, 'getRecipeById').mockResolvedValueOnce(mine).mockResolvedValueOnce(theirs);
+    vi.spyOn(client, 'updateRecipe').mockImplementation((_id, input) =>
+        input.expectedVersion === theirs.currentVersion
+            ? Promise.resolve(makeRecipeDetail({ id: 'rec_1', currentVersion: theirs.currentVersion + 1 }))
+            : Promise.reject(new VersionConflictError(theirs.currentVersion, input.expectedVersion)),
+    );
 
-function idleSearch(): Record<string, unknown> {
-    return { isLoading: false, isError: false, isSuccess: false, data: undefined };
-}
-
-function idleCreateIngredient(): Record<string, unknown> {
-    return { mutate: vi.fn(), isPending: false, isError: false, reset: vi.fn() };
+    return client;
 }
 
 afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
 });
 
 describe('RecipeEditContainer', () => {
     it('renders the loading state while the recipe loads', () => {
-        useRecipeMock.mockReturnValue({ isLoading: true, isError: false, data: undefined, refetch: refetchMock });
-        useUpdateRecipeMock.mockReturnValue(updateRecipeMutation());
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
         expect(screen.getByRole('status', { name: 'Loading recipe' })).toBeInTheDocument();
     });
 
-    it('renders a distinct not-found message with no retry for a 404', () => {
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: true,
-            error: new NotFoundError(),
-            data: undefined,
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(updateRecipeMutation());
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+    it('renders a distinct not-found message with no retry for a 404', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError());
 
-        render(<RecipeEditContainer locale="en" recipeId="missing" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="missing" />, client);
 
-        expect(screen.getByText(/couldn.t find that recipe/i)).toBeInTheDocument();
+        expect(await screen.findByText(/couldn.t find that recipe/i)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
     });
 
     it('renders a generic error with retry when the load fails', async () => {
         const user = userEvent.setup();
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: true,
-            error: new Error('network down'),
-            data: undefined,
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(updateRecipeMutation());
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = createFakeRecipeServiceClient();
+        const getRecipeSpy = vi.spyOn(client, 'getRecipeById').mockRejectedValue(new Error('network down'));
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        await user.click(screen.getByRole('button', { name: 'Try again' }));
+        await user.click(await screen.findByRole('button', { name: 'Try again' }));
 
-        expect(refetchMock).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(getRecipeSpy).toHaveBeenCalledTimes(2));
     });
 
-    it('seeds the form from the loaded recipe', () => {
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipeDetail({ title: 'Weeknight Pasta' }),
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(updateRecipeMutation());
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+    it('seeds the form from the loaded recipe', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        expect(screen.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { level: 1, name: 'Edit recipe' })).toBeInTheDocument();
         expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Weeknight Pasta');
         expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' })).toHaveValue('Olive oil');
         expect(screen.getByRole('textbox', { name: 'Step 1 instruction' })).toHaveValue('Combine the ingredients.');
@@ -174,52 +119,35 @@ describe('RecipeEditContainer', () => {
 
     it('maps the edited form to the update input (with expectedVersion) and navigates on success', async () => {
         const user = userEvent.setup();
-        const mutation = updateRecipeMutation();
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(mutation);
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
+        );
+        const updateSpy = vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        await user.type(screen.getByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
-        expect(mutation['mutate']).toHaveBeenCalledTimes(1);
-        const [vars] = (mutation['mutate'] as ReturnType<typeof vi.fn>).mock.calls[0] as [
-            { id: string; input: UpdateRecipeInput },
-        ];
-        expect(vars.id).toBe('rec_1');
-        expect(vars.input.title).toBe('Weeknight Pasta Deluxe');
-        expect(vars.input.expectedVersion).toBe(3);
-        expect(vars.input.ingredients).toEqual([
-            { ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' },
-        ]);
-        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+        await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+        const [id, input] = updateSpy.mock.calls[0]!;
+        expect(id).toBe('rec_1');
+        expect(input.title).toBe('Weeknight Pasta Deluxe');
+        expect(input.expectedVersion).toBe(3);
+        expect(input.ingredients).toEqual([{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }]);
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 
     it('enters conflict mode on a 409, rendering the user’s edit beside the latest saved version', async () => {
         const user = userEvent.setup();
+        const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
         const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4 });
-        refetchMock.mockResolvedValue({ data: theirs });
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(versionAwareMutation(4));
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = conflictClient(mine, theirs);
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        await user.type(screen.getByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
         // The conflict view replaces the form and shows both sides.
@@ -238,56 +166,39 @@ describe('RecipeEditContainer', () => {
 
     it('keep-mine re-submits against the server’s fresh currentVersion and navigates on success', async () => {
         const user = userEvent.setup();
+        const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
         const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4 });
-        refetchMock.mockResolvedValue({ data: theirs });
-        const mutation = versionAwareMutation(4);
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(mutation);
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = conflictClient(mine, theirs);
+        const updateSpy = vi.mocked(client.updateRecipe);
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        await user.type(screen.getByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
         await user.click(await screen.findByRole('button', { name: 'Keep my version' }));
 
-        const mutate = mutation['mutate'] as ReturnType<typeof vi.fn>;
-        expect(mutate).toHaveBeenCalledTimes(2);
+        await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(2));
         // First submit carried the stale version (3, → 409); the re-submit carries the fresh server version (4).
-        const [firstVars] = mutate.mock.calls[0] as [MutateVars];
-        const [secondVars] = mutate.mock.calls[1] as [MutateVars];
-        expect(firstVars.input.expectedVersion).toBe(3);
-        expect(secondVars.input.expectedVersion).toBe(4);
-        expect(secondVars.input.title).toBe('Weeknight Pasta Deluxe');
-        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+        const [, firstInput] = updateSpy.mock.calls[0]!;
+        const [, secondInput] = updateSpy.mock.calls[1]!;
+        expect(firstInput.expectedVersion).toBe(3);
+        expect(secondInput.expectedVersion).toBe(4);
+        expect(secondInput.title).toBe('Weeknight Pasta Deluxe');
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 
     it('merge re-submits the field-by-field merged draft against the fresh version and navigates', async () => {
         const user = userEvent.setup();
         // Theirs differs on both title and servings; the merged result keeps MY title but takes THEIR servings.
+        const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3, servings: 4 });
         const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4, servings: 8 });
-        refetchMock.mockResolvedValue({ data: theirs });
-        const mutation = versionAwareMutation(4);
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3, servings: 4 }),
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(mutation);
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = conflictClient(mine, theirs);
+        const updateSpy = vi.mocked(client.updateRecipe);
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        await user.type(screen.getByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
         // Enter the merge panel and pull servings from the latest saved version, keeping my title.
@@ -296,37 +207,28 @@ describe('RecipeEditContainer', () => {
         await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 8' }));
         await user.click(screen.getByRole('button', { name: 'Save merged version' }));
 
-        const mutate = mutation['mutate'] as ReturnType<typeof vi.fn>;
-        expect(mutate).toHaveBeenCalledTimes(2);
-        const [firstVars] = mutate.mock.calls[0] as [MutateVars];
-        const [secondVars] = mutate.mock.calls[1] as [MutateVars];
+        await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(2));
+        const [, firstInput] = updateSpy.mock.calls[0]!;
+        const [, secondInput] = updateSpy.mock.calls[1]!;
         // Mutation lens (stale version): the resubmit MUST carry the fresh server version (4), not the stale
         // 3 the first save carried — otherwise the merge would re-409 and never navigate.
-        expect(firstVars.input.expectedVersion).toBe(3);
-        expect(secondVars.input.expectedVersion).toBe(4);
+        expect(firstInput.expectedVersion).toBe(3);
+        expect(secondInput.expectedVersion).toBe(4);
         // Mutation lens (per-field): the merged write is my title + their servings, not one whole side.
-        expect(secondVars.input.title).toBe('Weeknight Pasta Deluxe');
-        expect(secondVars.input.servings).toBe(8);
-        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+        expect(secondInput.title).toBe('Weeknight Pasta Deluxe');
+        expect(secondInput.servings).toBe(8);
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 
     it('use-theirs reseeds the form from the latest saved recipe and stays on the edit form', async () => {
         const user = userEvent.setup();
+        const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
         const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4 });
-        refetchMock.mockResolvedValue({ data: theirs });
-        useRecipeMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
-            refetch: refetchMock,
-        });
-        useUpdateRecipeMock.mockReturnValue(versionAwareMutation(4));
-        useSearchIngredientsMock.mockReturnValue(idleSearch());
-        useCreateIngredientMock.mockReturnValue(idleCreateIngredient());
+        const client = conflictClient(mine, theirs);
 
-        render(<RecipeEditContainer locale="en" recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
 
-        await user.type(screen.getByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
         await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
         await user.click(await screen.findByRole('button', { name: 'Use the latest version' }));

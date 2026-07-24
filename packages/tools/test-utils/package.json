@@ -17,7 +17,9 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
-        "@commise/i18n": "*"
+        "@commise/i18n": "*",
+        "@kitchensink/recipe-service-client": "*",
+        "@tanstack/react-query": "^5.62.0"
     },
     "peerDependencies": {
         "react": "^19.0.0"

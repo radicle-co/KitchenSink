@@ -8,30 +8,24 @@
  * uploading state; the in-flight uploading status while the sequence is pending; a second file pick while an
  * upload is in flight being rejected at the DOM AND orchestration level (B24 — the double-submit race the
  * shared `useRecipePhotoUpload` hook closes); remove invoking the delete mutation with the photo id; and the
- * 10-photo cap hiding the add control. The recipe-service photo hooks are mocked and `fetch` is stubbed.
- * Queries use role/label/text only — no test ids.
+ * 10-photo cap hiding the add control. Queries use role/label/text only — no test ids.
+ *
+ * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
+ * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks over
+ * a real, network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with
+ * type-checked `vi.spyOn(client, '<method>')`. `fetch` stays stubbed exactly as before — the raw S3 PUT is
+ * orthogonal to the client seam.
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import type { UploadUrlResponse } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { renderWithRecipeClient } from '@commise/test-utils';
+
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
-
-const { useRecipePhotosMock, useCreatePhotoUploadUrlMock, useConfirmPhotoUploadMock, useDeleteRecipePhotoMock } =
-    vi.hoisted(() => ({
-        useRecipePhotosMock: vi.fn(),
-        useCreatePhotoUploadUrlMock: vi.fn(),
-        useConfirmPhotoUploadMock: vi.fn(),
-        useDeleteRecipePhotoMock: vi.fn(),
-    }));
-
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipePhotos: useRecipePhotosMock,
-    useCreatePhotoUploadUrl: useCreatePhotoUploadUrlMock,
-    useConfirmPhotoUpload: useConfirmPhotoUploadMock,
-    useDeleteRecipePhoto: useDeleteRecipePhotoMock,
-}));
 
 /** Build a complete {@link RecipePhoto} with sensible defaults. */
 function makeRecipePhoto(overrides: Partial<RecipePhoto> = {}): RecipePhoto {
@@ -47,24 +41,15 @@ function makeRecipePhoto(overrides: Partial<RecipePhoto> = {}): RecipePhoto {
     };
 }
 
-/** A photos query in its resolved state carrying `photos`. */
-function photosQuery(photos: readonly RecipePhoto[]): Record<string, unknown> {
-    return { data: photos, isLoading: false, isError: false };
-}
-
-/** A presign mutation whose `mutateAsync` resolves to a presigned S3 target. */
-function presignMutation(mutateAsync = vi.fn().mockResolvedValue({ uploadUrl: UPLOAD_URL, key: OBJECT_KEY })) {
-    return { mutateAsync, isPending: false };
-}
-
-/** A confirm mutation whose `mutateAsync` resolves to the stored photo. */
-function confirmMutation(mutateAsync = vi.fn().mockResolvedValue(makeRecipePhoto())) {
-    return { mutateAsync, isPending: false };
-}
-
-/** A delete mutation exposing `mutate` + in-flight `variables` (drives `removingPhotoId`). */
-function deleteMutation(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
-    return { mutate: vi.fn(), isPending: false, variables: undefined, ...overrides };
+/** Build a complete {@link UploadUrlResponse} with sensible defaults. */
+function makeUploadUrlResponse(overrides: Partial<UploadUrlResponse> = {}): UploadUrlResponse {
+    return {
+        uploadUrl: UPLOAD_URL,
+        key: OBJECT_KEY,
+        expiresIn: 900,
+        maxBytes: 5 * 1024 * 1024,
+        ...overrides,
+    };
 }
 
 const UPLOAD_URL = 'https://s3.example.com/upload/presigned';
@@ -79,46 +64,43 @@ function stubFetch(ok: boolean): ReturnType<typeof vi.fn> {
 }
 
 afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
 });
 
 describe('RecipePhotoUploaderContainer', () => {
-    it('renders the recipe photos from the query', () => {
-        useRecipePhotosMock.mockReturnValue(photosQuery([makeRecipePhoto({ id: 'photo_1', order: 1 })]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation());
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation());
-        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
+    it('renders the recipe photos from the query', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_1', order: 1 })]);
 
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        expect(screen.getByRole('img', { name: 'Recipe photo 1' })).toBeInTheDocument();
+        expect(await screen.findByRole('img', { name: 'Recipe photo 1' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Remove photo 1' })).toBeInTheDocument();
     });
 
     it('runs presign → PUT → confirm in order with the right args when a file is selected', async () => {
         const user = userEvent.setup();
-        const presign = vi.fn().mockResolvedValue({ uploadUrl: UPLOAD_URL, key: OBJECT_KEY });
-        const confirm = vi.fn().mockResolvedValue(makeRecipePhoto());
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
+        const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         const fetchMock = stubFetch(true);
 
-        useRecipePhotosMock.mockReturnValue(photosQuery([]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation(presign));
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation(confirm));
-        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
-
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
-        const input = screen.getByLabelText('Add photo');
+        const input = await screen.findByLabelText('Add photo');
         await user.upload(input, file);
 
         await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
 
         // Step 1: presign with the file's name / content type / size.
-        expect(presign).toHaveBeenCalledWith({
-            id: 'rec_1',
-            request: { fileName: 'dinner.png', contentType: 'image/png', fileSize: file.size },
+        expect(presign).toHaveBeenCalledWith('rec_1', {
+            fileName: 'dinner.png',
+            contentType: 'image/png',
+            fileSize: file.size,
         });
         // Step 2: a direct PUT of the raw file body to the presigned URL (the hook also passes an
         // AbortController signal, used for abort-on-unmount — not part of this contract).
@@ -131,10 +113,7 @@ describe('RecipePhotoUploaderContainer', () => {
             }),
         );
         // Step 3: confirm with the presigned key + content type.
-        expect(confirm).toHaveBeenCalledWith({
-            id: 'rec_1',
-            request: { key: OBJECT_KEY, contentType: 'image/png' },
-        });
+        expect(confirm).toHaveBeenCalledWith('rec_1', { key: OBJECT_KEY, contentType: 'image/png' });
         // Ordering: presign before the PUT before the confirm.
         expect(presign.mock.invocationCallOrder[0]).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
         expect(fetchMock.mock.invocationCallOrder[0]).toBeLessThan(confirm.mock.invocationCallOrder[0]);
@@ -144,18 +123,16 @@ describe('RecipePhotoUploaderContainer', () => {
 
     it('surfaces a localized error and clears uploading when the direct upload fails', async () => {
         const user = userEvent.setup();
-        const confirm = vi.fn().mockResolvedValue(makeRecipePhoto());
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
+        const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(false);
 
-        useRecipePhotosMock.mockReturnValue(photosQuery([]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation());
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation(confirm));
-        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
-
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
-        await user.upload(screen.getByLabelText('Add photo'), file);
+        await user.upload(await screen.findByLabelText('Add photo'), file);
 
         const alert = await screen.findByRole('alert');
         expect(alert).toHaveTextContent(/couldn.t upload that photo/i);
@@ -167,52 +144,48 @@ describe('RecipePhotoUploaderContainer', () => {
 
     it('shows the uploading status while the upload sequence is in flight', async () => {
         const user = userEvent.setup();
-        let resolvePresign: (value: { uploadUrl: string; key: string }) => void = () => undefined;
-        const presign = vi.fn().mockReturnValue(
-            new Promise<{ uploadUrl: string; key: string }>((resolve) => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        let resolvePresign: (value: UploadUrlResponse) => void = () => undefined;
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockReturnValue(
+            new Promise<UploadUrlResponse>((resolve) => {
                 resolvePresign = resolve;
             }),
         );
+        vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(true);
 
-        useRecipePhotosMock.mockReturnValue(photosQuery([]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation(presign));
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation());
-        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
-
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
-        await user.upload(screen.getByLabelText('Add photo'), file);
+        await user.upload(await screen.findByLabelText('Add photo'), file);
 
         // Presign is still pending → the block shows its uploading busy status.
         expect(await screen.findByRole('status', { name: 'Uploading photo' })).toBeInTheDocument();
 
-        resolvePresign({ uploadUrl: UPLOAD_URL, key: OBJECT_KEY });
+        resolvePresign(makeUploadUrlResponse());
 
         await waitFor(() => expect(screen.queryByRole('status', { name: 'Uploading photo' })).not.toBeInTheDocument());
+        expect(presign).toHaveBeenCalledTimes(1);
     });
 
     it('rejects a second file pick while an upload is already in flight (B24 regression guard)', async () => {
         const user = userEvent.setup();
-        let resolvePresign: (value: { uploadUrl: string; key: string }) => void = () => undefined;
-        const presign = vi.fn().mockReturnValue(
-            new Promise<{ uploadUrl: string; key: string }>((resolve) => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        let resolvePresign: (value: UploadUrlResponse) => void = () => undefined;
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockReturnValue(
+            new Promise<UploadUrlResponse>((resolve) => {
                 resolvePresign = resolve;
             }),
         );
-        const confirm = vi.fn().mockResolvedValue(makeRecipePhoto());
+        const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(true);
 
-        useRecipePhotosMock.mockReturnValue(photosQuery([]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation(presign));
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation(confirm));
-        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
-
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
-        const input = screen.getByLabelText('Add photo');
+        const input = await screen.findByLabelText('Add photo');
         await user.upload(input, file);
 
         // The presign is still pending: the input is disabled at the DOM level, the B24 guard.
@@ -226,55 +199,50 @@ describe('RecipePhotoUploaderContainer', () => {
 
         expect(presign).toHaveBeenCalledTimes(1);
 
-        resolvePresign({ uploadUrl: UPLOAD_URL, key: OBJECT_KEY });
+        resolvePresign(makeUploadUrlResponse());
 
         await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
         // The confirmed upload is for the FIRST file only.
-        expect(confirm).toHaveBeenCalledWith({ id: 'rec_1', request: { key: OBJECT_KEY, contentType: 'image/png' } });
+        expect(confirm).toHaveBeenCalledWith('rec_1', { key: OBJECT_KEY, contentType: 'image/png' });
         expect(input).not.toBeDisabled();
     });
 
     it('removes a photo by invoking the delete mutation with the photo id', async () => {
         const user = userEvent.setup();
-        const del = deleteMutation();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
+        const del = vi.spyOn(client, 'deleteRecipePhoto').mockReturnValue(new Promise(() => {}));
 
-        useRecipePhotosMock.mockReturnValue(photosQuery([makeRecipePhoto({ id: 'photo_42', order: 1 })]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation());
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation());
-        useDeleteRecipePhotoMock.mockReturnValue(del);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
 
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
-
-        expect(del['mutate']).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'photo_42' });
+        expect(del).toHaveBeenCalledWith('rec_1', 'photo_42');
     });
 
-    it('busies the removing photo row from the delete mutation’s in-flight variables', () => {
-        useRecipePhotosMock.mockReturnValue(photosQuery([makeRecipePhoto({ id: 'photo_42', order: 1 })]));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation());
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation());
-        useDeleteRecipePhotoMock.mockReturnValue(
-            deleteMutation({ isPending: true, variables: { id: 'rec_1', photoId: 'photo_42' } }),
-        );
+    it('busies the removing photo row from the delete mutation’s in-flight variables', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
+        vi.spyOn(client, 'deleteRecipePhoto').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
-        expect(screen.getByRole('button', { name: 'Remove photo 1' })).toHaveAttribute('aria-busy', 'true');
+        await user.click(await screen.findByRole('button', { name: 'Remove photo 1' }));
+
+        expect(await screen.findByRole('button', { name: 'Remove photo 1' })).toHaveAttribute('aria-busy', 'true');
     });
 
-    it('hides the add control at the 10-photo cap', () => {
+    it('hides the add control at the 10-photo cap', async () => {
+        const client = createFakeRecipeServiceClient();
         const photos = Array.from({ length: 10 }, (_unused, index) =>
             makeRecipePhoto({ id: `photo_${index + 1}`, order: index + 1 }),
         );
-        useRecipePhotosMock.mockReturnValue(photosQuery(photos));
-        useCreatePhotoUploadUrlMock.mockReturnValue(presignMutation());
-        useConfirmPhotoUploadMock.mockReturnValue(confirmMutation());
-        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(photos);
 
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
 
+        expect(await screen.findByText(/maximum of 10 photos reached/i)).toBeInTheDocument();
         expect(screen.queryByLabelText('Add photo')).not.toBeInTheDocument();
-        expect(screen.getByText(/maximum of 10 photos reached/i)).toBeInTheDocument();
     });
 });

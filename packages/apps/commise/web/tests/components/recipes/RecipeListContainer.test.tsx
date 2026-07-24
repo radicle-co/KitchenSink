@@ -1,150 +1,139 @@
 /**
  * Component tests for RecipeListContainer (T09x web recipe-list wiring). Covers every state the
  * container projects onto the shared RecipeList building block — loading, populated, empty, error (with
- * retry) — plus search filtering and navigation on select/create. The recipe hook + Next router are
- * mocked, so no backend or QueryClient is needed.
+ * retry) — plus search filtering and navigation on select/create.
+ *
+ * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
+ * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL `useRecipes` hook over a
+ * real, network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with a
+ * type-checked `vi.spyOn(client, 'listRecipes')`. The Next router stays mocked — routing is not part of the
+ * recipe-service hooks seam this migration targets.
  */
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipeListContainer } from '@/components/recipes/RecipeListContainer';
 
 import { makeRecipe, makeRecipesPage } from './__fixtures__/recipeFixtures';
 
-const { useRecipesMock, pushMock, refetchMock } = vi.hoisted(() => ({
-    useRecipesMock: vi.fn(),
-    pushMock: vi.fn(),
-    refetchMock: vi.fn(),
-}));
-
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipes: useRecipesMock,
-}));
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock }),
 }));
 
 afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
 });
 
 describe('RecipeListContainer', () => {
     it('renders the loading state while the query is pending', () => {
-        useRecipesMock.mockReturnValue({ isLoading: true, isError: false, data: undefined, refetch: refetchMock });
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         expect(screen.getByRole('status', { name: 'Loading recipes' })).toBeInTheDocument();
     });
 
-    it('renders the populated list with a count when recipes load', () => {
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([
+    it('renders the populated list with a count when recipes load', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([
                 makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
                 makeRecipe({ id: 'rec_2', title: 'Sunday Roast' }),
             ]),
-            refetch: refetchMock,
-        });
+        );
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
         expect(screen.getByText('2 recipes')).toBeInTheDocument();
     });
 
-    it('renders the empty state when the load succeeds with no recipes', () => {
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([]),
-            refetch: refetchMock,
-        });
+    it('renders the empty state when the load succeeds with no recipes', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipesPage([]));
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        expect(screen.getByText('No recipes yet')).toBeInTheDocument();
+        expect(await screen.findByText('No recipes yet')).toBeInTheDocument();
     });
 
     it('renders the error state and retries on demand', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({ isLoading: false, isError: true, data: undefined, refetch: refetchMock });
+        const client = createFakeRecipeServiceClient();
+        const listRecipesSpy = vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('boom'));
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(listRecipesSpy).toHaveBeenCalledTimes(1);
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-        expect(refetchMock).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(listRecipesSpy).toHaveBeenCalledTimes(2));
     });
 
     it('navigates to the recipe detail route when a recipe is selected', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([makeRecipe({ id: 'rec_42', title: 'Weeknight Pasta' })]),
-            refetch: refetchMock,
-        });
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([makeRecipe({ id: 'rec_42', title: 'Weeknight Pasta' })]),
+        );
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        await user.click(screen.getByRole('button', { name: 'Weeknight Pasta' }));
+        await user.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_42');
     });
 
     it('navigates to the create route from the empty-state create CTA', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([]),
-            refetch: refetchMock,
-        });
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipesPage([]));
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         // Empty list → the create control is the empty-state CTA (the FAB is suppressed on empty; L1).
-        await user.click(screen.getByRole('button', { name: 'Create your first recipe' }));
+        await user.click(await screen.findByRole('button', { name: 'Create your first recipe' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
 
     it('navigates to the create route from the pinned FAB when the list is populated', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
-            refetch: refetchMock,
-        });
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
+        );
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+        await user.click(await screen.findByRole('button', { name: 'New recipe' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
 
     it('filters the loaded recipes by the search term', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([
                 makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
                 makeRecipe({ id: 'rec_2', title: 'Sunday Roast' }),
             ]),
-            refetch: refetchMock,
-        });
+        );
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await screen.findByRole('button', { name: 'Weeknight Pasta' });
 
         await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'roast');
 
@@ -154,14 +143,13 @@ describe('RecipeListContainer', () => {
 
     it('navigates to the discover surface when the Community tab is chosen (L5)', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
-            refetch: refetchMock,
-        });
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
+        );
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await screen.findByRole('button', { name: 'Weeknight Pasta' });
 
         await user.click(screen.getByRole('tab', { name: 'Community' }));
 
@@ -170,17 +158,16 @@ describe('RecipeListContainer', () => {
 
     it('derives quick-filter chips from the loaded dietary flags + cuisine and filters by one (L4)', async () => {
         const user = userEvent.setup();
-        useRecipesMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            data: makeRecipesPage([
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([
                 makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta', dietaryFlags: ['Vegetarian'], cuisine: 'Italian' }),
                 makeRecipe({ id: 'rec_2', title: 'Sunday Roast', dietaryFlags: [], cuisine: 'British' }),
             ]),
-            refetch: refetchMock,
-        });
+        );
 
-        render(<RecipeListContainer locale="en" />);
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await screen.findByRole('button', { name: 'Weeknight Pasta' });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
         // Real facet dimensions surface as chips (dietary flags + cuisines), not free-form tags.

@@ -170,6 +170,50 @@ export interface CollectionHeaderViewProps {
 }
 
 /**
+ * Props for the collection-actions sidebar (W5 Task 7) — a presentational render of the collection-view
+ * wireframe's "COLLECTION ACTIONS" panel: Add Recipes, Pull Updates from Source (clones only, FR-011),
+ * Clone Collection, and a premium-gated Public/Private visibility toggle with a Save action (C1, FR-010).
+ *
+ * The premium gate is carried as the plain boolean `canGoPrivate` (+ an already-localized `disabledReason`),
+ * NOT a `Viewer` — the composing container computes `canGoPrivate(viewer)` from `@kitchensink/recipe-core`'s
+ * policy module and passes the result down, so this component stays pure `props → JSX` with no tier/policy
+ * logic of its own (mirrors {@link import('../actions/model.js').RecipeVisibilityToggleProps}, the sibling
+ * recipe-visibility gate this block was modeled on).
+ *
+ * The toggle is two-stage, unlike the recipe toggle it mirrors: `pendingVisibility` is the control's current
+ * selection and may differ from the saved `visibility` until the caller commits it via `onSaveVisibility`
+ * (wired to the Save action, enabled only while the two differ). It fetches nothing and performs no
+ * mutations — the composing container (W5 Task 12) owns every mutation this panel triggers.
+ */
+export interface CollectionActionsProps {
+    /** Whether this collection was cloned from another — gates the Pull Updates action (FR-011). */
+    readonly isCloned: boolean;
+    /** The collection's current saved visibility. */
+    readonly visibility: RecipeVisibility;
+    /** The visibility toggle's current selection; may differ from `visibility` until saved. */
+    readonly pendingVisibility: RecipeVisibility;
+    /** Whether the viewer's tier permits a private collection (C1), computed by the composing container via
+     *  `canGoPrivate(viewer)`. This component reads only the boolean result. */
+    readonly canGoPrivate: boolean;
+    /** Localized explanation shown when the private option is gated off (rendered only when `!canGoPrivate`). */
+    readonly disabledReason?: string;
+    /** Whether the clone mutation is in flight — disables and marks Clone Collection busy. */
+    readonly isCloning: boolean;
+    /** Whether the pull-updates mutation is in flight — disables and marks Pull Updates busy. */
+    readonly isPulling: boolean;
+    /** Invoked when the add-recipes action is activated. */
+    readonly onAddRecipes: () => void;
+    /** Invoked when Pull Updates is activated; opens the preview flow (dialog lands in W5 Task 10/12). */
+    readonly onPullUpdates: () => void;
+    /** Invoked when Clone Collection is activated. */
+    readonly onClone: () => void;
+    /** Invoked with the requested next visibility when the user selects an enabled toggle option. */
+    readonly onVisibilityChange: (next: RecipeVisibility) => void;
+    /** Invoked to commit `pendingVisibility`; enabled only while it differs from `visibility`. */
+    readonly onSaveVisibility: () => void;
+}
+
+/**
  * Format an ISO 8601 timestamp as a date-only string for the collection header's "Last pulled" line, in
  * the active locale. Distinct from {@link import('../versions/model.js').formatVersionTimestamp}: the
  * wireframe shows a DATE only (no time) for this field. Formatted in UTC so the output is deterministic

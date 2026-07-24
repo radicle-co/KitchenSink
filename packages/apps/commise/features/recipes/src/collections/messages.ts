@@ -131,6 +131,37 @@ export interface CollectionHeaderMessages {
     readonly backToCollections: string;
 }
 
+/**
+ * Copy for the collection-actions sidebar (W5 Task 7): Add Recipes / Pull Updates (clones only) / Clone
+ * Collection / the premium-gated visibility toggle (C1, FR-010), rendered by both the web and native leaves.
+ */
+export interface CollectionActionsMessages {
+    /** Accessible name for the sidebar's wrapping landmark. */
+    readonly heading: string;
+    /** Label of the add-recipes action. */
+    readonly addRecipes: string;
+    /** Label of the pull-updates-from-source action (rendered only for a cloned collection, FR-011). */
+    readonly pullUpdates: string;
+    /** Busy indicator shown while a pull is in flight. */
+    readonly pullingLabel: string;
+    /** Label of the clone-collection action. */
+    readonly cloneCollection: string;
+    /** Busy indicator shown while a clone is in flight. */
+    readonly cloningLabel: string;
+    /** Accessible group label for the visibility toggle. */
+    readonly visibilityGroupLabel: string;
+    /** Label for the public visibility option. */
+    readonly makePublic: string;
+    /** Label for the private visibility option. */
+    readonly makePrivate: string;
+    /** Localized "private is premium-only" copy (C1). NOT read by this component — `disabledReason` always
+     *  arrives as an already-localized prop from the composing container (W5 Task 12), which sources this
+     *  string; it is homed here so the collections feature owns its own copy instead of the container. */
+    readonly privatePremiumGated: string;
+    /** Label of the action that commits the pending visibility selection. */
+    readonly saveVisibility: string;
+}
+
 /** The shape of the collections feature's shared copy. */
 export interface CollectionMessages {
     /** Copy for the collection-list screen. */
@@ -143,6 +174,8 @@ export interface CollectionMessages {
     readonly form: CollectionFormMessages;
     /** Copy for the collection-header view (badge, count, source attribution, last-pulled, back). */
     readonly header: CollectionHeaderMessages;
+    /** Copy for the collection-actions sidebar. */
+    readonly actions: CollectionActionsMessages;
 }
 
 export const collectionMessages: LocalizedMessages<CollectionMessages> = {
@@ -205,6 +238,19 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             sourceAttributionNoHandle: 'Source: "{name}"',
             lastPulled: 'Last pulled: {date}',
             backToCollections: 'Back to My Collections',
+        },
+        actions: {
+            heading: 'Collection actions',
+            addRecipes: 'Add Recipes',
+            pullUpdates: 'Pull Updates from Source',
+            pullingLabel: 'Pulling updates…',
+            cloneCollection: 'Clone Collection',
+            cloningLabel: 'Cloning…',
+            visibilityGroupLabel: 'Visibility',
+            makePublic: 'Public',
+            makePrivate: 'Private',
+            privatePremiumGated: 'Upgrade to premium to make a collection private.',
+            saveVisibility: 'Save changes',
         },
     },
 };

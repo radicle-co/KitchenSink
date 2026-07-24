@@ -4,6 +4,7 @@
  * Each component specifier resolves to its web (`*.tsx`) or native (`*.native.tsx`) leaf at bundle time;
  * the model + message layers are platform-agnostic. The apps compose these into their collections pages.
  */
+export { CollectionActions } from './CollectionActions.js';
 export { CollectionList } from './CollectionList.js';
 export { CollectionDetail } from './CollectionDetail.js';
 export { CollectionForm } from './CollectionForm.js';
@@ -12,6 +13,7 @@ export { CollectionRecipePicker } from './CollectionRecipePicker.js';
 
 export {
     formatCollectionDate,
+    type CollectionActionsProps,
     type CollectionDetailError,
     type CollectionDetailViewProps,
     type CollectionFormMode,

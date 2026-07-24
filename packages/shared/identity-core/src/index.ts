@@ -1,2 +1,2 @@
-export * from './display-name.js';
-export * from './handle-sync.js';
+export * from './displayName.js';
+export * from './handleSync.js';

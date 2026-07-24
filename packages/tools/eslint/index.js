@@ -173,14 +173,21 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                         patterns: [
                             {
                                 // Block reaching into another package's internals, but allow its
-                                // *declared* granular export barrels (database/*, types/*, hooks, testing).
-                                // Consumers such as the webhook Lambdas import those directly so they
-                                // don't pull the whole package (e.g. the NestJS service) in via the top
-                                // barrel; the `hooks` subpath likewise keeps React out of non-React
-                                // consumers of a client package (e.g. `recipe-service-client/hooks`); the
-                                // `testing` subpath is the declared home for a package's shared Object
-                                // Mother fixtures (e.g. `recipe-core/testing`, T1) so downstream tests
-                                // import fixtures without pulling the runtime barrel's full surface.
+                                // *declared* granular export barrels (database/*, types/*, hooks, testing,
+                                // users/handle-sync-publisher). Consumers such as the webhook Lambdas import
+                                // those directly so they don't pull the whole package (e.g. the NestJS
+                                // service) in via the top barrel; the `hooks` subpath likewise keeps React
+                                // out of non-React consumers of a client package (e.g.
+                                // `recipe-service-client/hooks`); the `testing` subpath is the declared home
+                                // for a package's shared Object Mother fixtures (e.g. `recipe-core/testing`,
+                                // T1) so downstream tests import fixtures without pulling the runtime
+                                // barrel's full surface; `users/handle-sync-publisher` is identity-service's
+                                // declared export for the SNS handle-sync publisher that identity-webhooks
+                                // consumes to publish rename events (W8-a.2).
+                                // `ignore` (gitignore semantics) refuses to un-ignore a deep path whose
+                                // enclosing directory is still ignored, so `users/handle-sync-publisher`
+                                // needs the 3-line un-ignore/re-ignore/un-ignore dance below rather than a
+                                // single negation like the shallower subpaths above.
                                 group: [
                                     '@kitchensink/*/*',
                                     '!@kitchensink/*/database',
@@ -189,9 +196,12 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/types/*',
                                     '!@kitchensink/*/hooks',
                                     '!@kitchensink/*/testing',
+                                    '!@kitchensink/*/users',
+                                    '@kitchensink/*/users/*',
+                                    '!@kitchensink/*/users/handle-sync-publisher',
                                 ],
                                 message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks, testing) — don't reach into other internals.",
+                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks, testing, users/handle-sync-publisher) — don't reach into other internals.",
                             },
                         ],
                     },

@@ -32,6 +32,7 @@ function makeFakeDb(txExecute: (statement: SQL) => Promise<{ rows: unknown[] }>)
     const tx = {
         execute: (statement: SQL) => {
             texts.push(dialect.sqlToQuery(statement).sql.toLowerCase());
+
             return txExecute(statement);
         },
     };
@@ -102,9 +103,11 @@ describe('handler batch isolation', () => {
         const fakeDb = {
             transaction: () => {
                 call += 1;
+
                 if (call === 2) {
                     return Promise.reject(new Error('db down'));
                 }
+
                 return Promise.resolve(true);
             },
         } as unknown as NodePgDatabase<Record<string, never>>;

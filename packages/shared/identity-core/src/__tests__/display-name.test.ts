@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { deriveDisplayName } from '../display-name.js';
+import { deriveDisplayName } from '../displayName.js';
 
 describe('deriveDisplayName', () => {
     it('joins first + last with a single space', () => {

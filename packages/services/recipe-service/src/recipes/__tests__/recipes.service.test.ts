@@ -756,6 +756,7 @@ describe('RecipesService.update', () => {
         const error = await catchError(newService(dal).update(OWNER, 'r-1', { expectedVersion: 3, title: 'x' }));
 
         expect(isRecipeDomainError(error)).toBe(true);
+
         if (isRecipeDomainError(error)) {
             expect(error.code).toBe(RecipeErrorCode.VERSION_CONFLICT);
             const details = error.details as {

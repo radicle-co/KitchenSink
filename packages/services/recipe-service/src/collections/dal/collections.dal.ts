@@ -123,12 +123,29 @@ export class CollectionsDal {
             .limit(limit)
             .offset(offset);
 
+        const total = await this.countCollections(ownerId);
+
+        return { rows, total };
+    }
+
+    /**
+     * COUNT of an owner's collections — the REQ-049b 50-collection-per-owner cap read. The service checks
+     * this BEFORE `create` and rejects with `COLLECTION_LIMIT_REACHED` at the cap; every `collections` row
+     * counts (there is no soft-delete on this table — `deleteById` is a hard `DELETE`, so a removed
+     * collection is already absent here without a `deleted_at` filter).
+     */
+    public async countByOwner(ownerId: string): Promise<number> {
+        return this.countCollections(ownerId);
+    }
+
+    /** Shared COUNT query behind {@link listByOwner}'s total and {@link countByOwner} (same SQL, one place). */
+    private async countCollections(ownerId: string): Promise<number> {
         const totals = await this.db
             .select({ value: count() })
             .from(collections)
             .where(eq(collections.ownerId, ownerId));
 
-        return { rows, total: Number(totals[0]?.value ?? 0) };
+        return Number(totals[0]?.value ?? 0);
     }
 
     /** Apply a partial patch (always bumping `updated_at`); returns the updated row, or `undefined`. */

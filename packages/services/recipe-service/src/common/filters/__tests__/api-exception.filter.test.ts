@@ -49,6 +49,7 @@ describe('ApiExceptionFilter', () => {
             [RecipeErrorCode.ARCHIVE_PENDING, HttpStatus.CONFLICT],
             [RecipeErrorCode.ARCHIVE_DLQ, HttpStatus.INTERNAL_SERVER_ERROR],
             [RecipeErrorCode.COLLECTION_NOT_CLONED, HttpStatus.BAD_REQUEST],
+            [RecipeErrorCode.COLLECTION_LIMIT_REACHED, HttpStatus.CONFLICT],
             [RecipeErrorCode.ERASURE_IN_PROGRESS, 423],
         ];
 

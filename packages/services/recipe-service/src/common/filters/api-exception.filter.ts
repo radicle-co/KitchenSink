@@ -30,6 +30,10 @@ export const RECIPE_ERROR_STATUS: Record<RecipeErrorCodeType, number> = {
     // A pull-from-source drift (W8-a.8) is an optimistic-concurrency conflict — the previewed set no longer
     // matches; the client re-previews with the fresh diff carried in `details`.
     [RecipeErrorCode.PULL_DRIFT]: HttpStatus.CONFLICT,
+    // REQ-049b: the 50-collection-per-owner cap is a resource-count limit, mapped the same way as
+    // MAX_PHOTOS_EXCEEDED — 409, not 400/422: the request is well-formed, it is the caller's existing
+    // state that conflicts with creating one more.
+    [RecipeErrorCode.COLLECTION_LIMIT_REACHED]: HttpStatus.CONFLICT,
     [RecipeErrorCode.ERASURE_IN_PROGRESS]: HTTP_STATUS_LOCKED,
     [RecipeErrorCode.UNKNOWN_INGREDIENT]: HttpStatus.BAD_REQUEST,
     // Rating your OWN recipe is a 403, not a 404: the caller demonstrably already knows the recipe

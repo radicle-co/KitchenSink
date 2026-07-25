@@ -81,6 +81,34 @@ describe('CollectionsDal.listByOwner', () => {
     });
 });
 
+describe('CollectionsDal.countByOwner (REQ-049b cap read)', () => {
+    it("returns the owner's collection count", async () => {
+        const fake = createFakeDb();
+        fake.enqueue([{ value: 7 }]);
+        const dal = new CollectionsDal(fake.db);
+
+        expect(await dal.countByOwner('owner-1')).toBe(7);
+        expect(methodsOf(fake)).toEqual(['select', 'from', 'where']);
+    });
+
+    it('returns 0 when the owner has no collections', async () => {
+        const fake = createFakeDb();
+        fake.enqueue([]);
+        const dal = new CollectionsDal(fake.db);
+
+        expect(await dal.countByOwner('owner-1')).toBe(0);
+    });
+
+    it('coerces the driver-returned count to a number', async () => {
+        const fake = createFakeDb();
+        // Postgres COUNT(*) comes back as a string over node-postgres; the DAL must coerce it.
+        fake.enqueue([{ value: '50' }]);
+        const dal = new CollectionsDal(fake.db);
+
+        expect(await dal.countByOwner('owner-1')).toBe(50);
+    });
+});
+
 describe('CollectionsDal.update', () => {
     it('always bumps updated_at and sets only the provided fields', async () => {
         const fake = createFakeDb();

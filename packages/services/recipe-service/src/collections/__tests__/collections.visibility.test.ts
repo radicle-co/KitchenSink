@@ -21,6 +21,7 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
         create: vi.fn(),
         findById: vi.fn(),
         listByOwner: vi.fn(),
+        countByOwner: vi.fn().mockResolvedValue(0),
         update: vi.fn(),
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),

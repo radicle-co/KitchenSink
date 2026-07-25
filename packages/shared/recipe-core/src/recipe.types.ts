@@ -1245,6 +1245,12 @@ export const RecipeErrorCode = {
      * applying a different set than the user confirmed.
      */
     PULL_DRIFT: 'PULL_DRIFT',
+    /**
+     * REQ-049b — the caller already owns the maximum of 50 (non-deleted) collections, so a further
+     * `POST /v1/collections` is rejected before any row is written. A 409, matching `MAX_PHOTOS_EXCEEDED`'s
+     * treatment of a resource-count cap; `details` carries the `limit` for the client.
+     */
+    COLLECTION_LIMIT_REACHED: 'COLLECTION_LIMIT_REACHED',
     ERASURE_IN_PROGRESS: 'ERASURE_IN_PROGRESS',
     UNKNOWN_INGREDIENT: 'UNKNOWN_INGREDIENT',
     /**
@@ -1288,6 +1294,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.ARCHIVE_DLQ,
     RecipeErrorCode.COLLECTION_NOT_CLONED,
     RecipeErrorCode.PULL_DRIFT,
+    RecipeErrorCode.COLLECTION_LIMIT_REACHED,
     RecipeErrorCode.ERASURE_IN_PROGRESS,
     RecipeErrorCode.UNKNOWN_INGREDIENT,
     RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,

@@ -24,6 +24,7 @@ import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
 import { recipeRowToDomain } from '../recipes/mappers/recipe-row-to-domain.js';
 import {
+    collectionLimitReachedError,
     collectionNotClonedError,
     collectionNotOwnedError,
     invalidVisibilityError,
@@ -41,6 +42,9 @@ import type {
     PullFromSourceResult,
     UpdateCollectionInput,
 } from './collections.types.js';
+
+/** REQ-049b — the hard cap on collections a single owner may hold, enforced by {@link CollectionsService.createCollection}. */
+export const MAX_COLLECTIONS_PER_OWNER = 50;
 
 /** Map a `collections` row to the `Collection` wire shape (ISO dates; nulls → absent). */
 function toCollectionResponse(row: CollectionRow, recipeCount?: number): CollectionResponse {
@@ -71,8 +75,23 @@ export class CollectionsService {
         @Inject(AuthorHandlesDal) private readonly authorHandles: AuthorHandlesDal,
     ) {}
 
-    /** Create a collection owned by `ownerId`. Visibility defaults to `private` (FR-010). */
+    /**
+     * Create a collection owned by `ownerId`. Visibility defaults to `private` (FR-010).
+     *
+     * REQ-049b: an owner may hold at most {@link MAX_COLLECTIONS_PER_OWNER} collections. The COUNT is
+     * checked BEFORE the insert and the write is skipped entirely once at the cap, surfacing
+     * `COLLECTION_LIMIT_REACHED` (→ 409) rather than a silently-accepted 51st collection.
+     *
+     * @throws `COLLECTION_LIMIT_REACHED` when the owner already holds {@link MAX_COLLECTIONS_PER_OWNER}
+     *   collections.
+     */
     public async createCollection(ownerId: string, input: CreateCollectionInput): Promise<CollectionResponse> {
+        const existingCount = await this.dal.countByOwner(ownerId);
+
+        if (existingCount >= MAX_COLLECTIONS_PER_OWNER) {
+            throw collectionLimitReachedError(ownerId, MAX_COLLECTIONS_PER_OWNER);
+        }
+
         const row = await this.dal.create({
             ownerId,
             name: input.name,

@@ -58,3 +58,14 @@ export const pullDriftError = (collectionId: string, freshDiff: PullDiff): Recip
         'The source changed since you previewed this pull. Review the updated changes before applying.',
         { collectionId, diff: freshDiff },
     );
+
+/**
+ * REQ-049b — the owner already holds `limit` (non-deleted) collections, so the requested CREATE is
+ * refused before any row is written (→ 409). `details` carries the cap for the client.
+ */
+export const collectionLimitReachedError = (ownerId: string, limit: number): RecipeDomainError =>
+    new RecipeDomainError(
+        RecipeErrorCode.COLLECTION_LIMIT_REACHED,
+        `You already have the maximum of ${limit} collections.`,
+        { ownerId, limit },
+    );

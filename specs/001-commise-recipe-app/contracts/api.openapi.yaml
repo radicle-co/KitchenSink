@@ -677,6 +677,11 @@ paths:
         post:
             tags: [Collections]
             summary: Create collection
+            description: |
+                Creates a collection owned by the authenticated caller. Visibility
+                defaults to `private` (FR-010). REQ-049b: an owner may hold at most
+                50 collections; a request past the cap is rejected with 409
+                `COLLECTION_LIMIT_REACHED` before any row is written.
             operationId: createCollection
             requestBody:
                 required: true
@@ -695,6 +700,15 @@ paths:
                     $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
+                '409':
+                    description: Collection limit reached (REQ-049b — max 50 collections per owner)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                            example:
+                                code: COLLECTION_LIMIT_REACHED
+                                message: You already have the maximum of 50 collections.
         get:
             tags: [Collections]
             summary: List user's collections

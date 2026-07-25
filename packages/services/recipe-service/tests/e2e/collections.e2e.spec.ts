@@ -170,6 +170,36 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         expect(page2Ids[page2Ids.length - 1]).toBe(ids[0]);
     });
 
+    it(
+        'enforces the 50-collection-per-user cap (REQ-049b): the 50th create succeeds, the 51st is ' +
+            '409 COLLECTION_LIMIT_REACHED',
+        async () => {
+            // Force a known zero baseline, independent of sibling-test ordering (matches the pagination test above).
+            await pool.query('DELETE FROM collections WHERE owner_id = $1', [OWNER]);
+
+            // Seed the first 49 directly (bypassing HTTP, like `seedOtherCollection` above) so this test
+            // exercises the REAL create endpoint only at the two ids that matter — the 50th (still under
+            // the cap) and the 51st (over it) — rather than burning 51 requests against the service's
+            // `RATE_LIMIT_WRITE` throttle (30/min per authenticated user, shared across this whole file's
+            // `beforeAll`-booted OWNER session).
+            const seedValues = Array.from({ length: 49 }, (_, index) => `('${OWNER}', 'Cap Seed ${index}', 'private')`);
+            await pool.query(`INSERT INTO collections (owner_id, name, visibility) VALUES ${seedValues.join(', ')}`);
+
+            const fiftieth = await createCollection('Cap E2E 50th');
+            expect(fiftieth.status).toBe(201);
+
+            const rejected = await createCollection('Cap E2E 51st');
+            expect(rejected.status).toBe(409);
+            const body = (await rejected.json()) as ApiErrorBody;
+            expect(body.code).toBe('COLLECTION_LIMIT_REACHED');
+
+            // The rejected attempt did not write a row: the total stays at exactly 50.
+            const listed = await fetch(`${booted.baseUrl}/v1/collections?page=1&pageSize=1`);
+            const listedBody = (await listed.json()) as CollectionPageBody;
+            expect(listedBody.total).toBe(50);
+        },
+    );
+
     it("ownership boundary: another user's collection is 403 NOT_OWNER for get/rename/delete (not 404, not leaked-through), and is left untouched", async () => {
         const otherId = await seedOtherCollection('Not yours');
 

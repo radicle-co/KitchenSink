@@ -40,6 +40,7 @@ function makeDal(): DalMock {
         create: vi.fn(),
         findById: vi.fn(),
         listByOwner: vi.fn(),
+        countByOwner: vi.fn(),
         update: vi.fn(),
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),

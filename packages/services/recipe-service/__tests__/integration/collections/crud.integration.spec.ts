@@ -98,6 +98,34 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         expect(page.data[0]?.id).toBe(created.id);
     });
 
+    it(
+        'enforces the 50-collection-per-owner cap (REQ-049b): the 50th succeeds, the 51st is ' +
+            'rejected COLLECTION_LIMIT_REACHED, and a DIFFERENT owner is unaffected',
+        async () => {
+            for (let index = 0; index < 50; index += 1) {
+                const created = await service.createCollection(OWNER, { name: `Cap ${index}` });
+                expect(created.id).toBeTruthy();
+            }
+
+            const page = await service.listCollections(OWNER, { page: 1, pageSize: 1 });
+            expect(page.total).toBe(50);
+
+            await expect(service.createCollection(OWNER, { name: 'Cap 51' })).rejects.toSatisfy(
+                (err: unknown) => isRecipeDomainError(err) && err.code === 'COLLECTION_LIMIT_REACHED',
+            );
+
+            // The rejected 51st attempt did not write a row: the count stays at exactly 50.
+            const pageAfterRejection = await service.listCollections(OWNER, { page: 1, pageSize: 1 });
+            expect(pageAfterRejection.total).toBe(50);
+
+            // Per-owner isolation: OWNER being at the cap must not block a DIFFERENT owner's create.
+            const otherCreated = await service.createCollection(OTHER_OWNER, { name: 'Other owner unaffected' });
+            expect(otherCreated.id).toBeTruthy();
+            const otherPage = await service.listCollections(OTHER_OWNER, { page: 1, pageSize: 1 });
+            expect(otherPage.total).toBe(1);
+        },
+    );
+
     it('adds and removes recipes (idempotent add), excluding tombstoned recipes from the listing', async () => {
         const collection = await service.createCollection(OWNER, { name: 'Mains' });
         const recipeId = await insertRecipe(db, OWNER, 'Soup');
@@ -221,6 +249,35 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         expect(addedViaById.get(cloneRecipeId)).toBe('clone_seed');
         expect(addedViaById.get(pullRecipeId)).toBe('pull');
         expect(fetched.recipes).toHaveLength(3);
+    });
+
+    // REQ-056b characterization: a member recipe's soft-delete must NOT cascade-delete the collection
+    // itself. The recipe simply drops from the membership/read view (already exercised above for the
+    // idempotent-add case); this test isolates the assertion the gap analysis flagged as untested — the
+    // COLLECTION survives and stays fully retrievable (by id AND in the owner's list) after one of its
+    // members is tombstoned.
+    it('REQ-056b: the collection survives (and stays retrievable) after a member recipe is soft-deleted', async () => {
+        const collection = await service.createCollection(OWNER, { name: 'Outlives Its Members' });
+        const recipeId = await insertRecipe(db, OWNER, 'Doomed Soup');
+
+        await service.addRecipe(OWNER, collection.id, recipeId);
+        const beforeDelete = await service.getCollection(OWNER, collection.id);
+        expect(beforeDelete.recipes.map((recipe) => recipe.id)).toContain(recipeId);
+
+        // Soft-delete the member recipe (tombstone, not a hard delete — matches C-007).
+        await db.update(recipes).set({ deletedAt: new Date() }).where(eq(recipes.id, recipeId));
+
+        // The collection itself is untouched: still resolvable by id, with its identity intact.
+        const afterDelete = await service.getCollection(OWNER, collection.id);
+        expect(afterDelete.id).toBe(collection.id);
+        expect(afterDelete.name).toBe('Outlives Its Members');
+        // The deleted recipe is gone from the membership view; the collection is not itself deleted.
+        expect(afterDelete.recipes.map((recipe) => recipe.id)).not.toContain(recipeId);
+        expect(afterDelete.recipes).toHaveLength(0);
+
+        // It also still appears in the owner's collection list (not silently removed there either).
+        const page = await service.listCollections(OWNER, { page: 1, pageSize: 10 });
+        expect(page.data.map((c) => c.id)).toContain(collection.id);
     });
 
     // ADV-4 authoritative (read-side) half — the case add-time validation CANNOT catch: a member that

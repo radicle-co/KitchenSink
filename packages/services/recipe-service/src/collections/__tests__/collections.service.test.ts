@@ -25,6 +25,9 @@ function makeDal(): DalMock {
         create: vi.fn(),
         findById: vi.fn(),
         listByOwner: vi.fn(),
+        // Defaults to "no existing collections" so tests exercising createCollection's happy path do not
+        // need to stub the REQ-049b cap check explicitly.
+        countByOwner: vi.fn().mockResolvedValue(0),
         update: vi.fn(),
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),
@@ -94,6 +97,53 @@ describe('CollectionsService.createCollection', () => {
 
         expect(result.visibility).toBe('public');
         expect(result.description).toBe('Fast meals');
+    });
+});
+
+describe('CollectionsService.createCollection — 50-collection-per-owner cap (REQ-049b)', () => {
+    it('creates the 50th collection (count already at 49, still under the cap)', async () => {
+        const dal = makeDal();
+        dal.countByOwner.mockResolvedValue(49);
+        dal.create.mockResolvedValue(makeCollectionRow());
+        const service = makeService(dal);
+
+        await service.createCollection(OWNER, { name: 'Fiftieth' });
+
+        expect(dal.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects the 51st collection with COLLECTION_LIMIT_REACHED, without writing anything', async () => {
+        const dal = makeDal();
+        dal.countByOwner.mockResolvedValue(50);
+        const service = makeService(dal);
+
+        await expect(service.createCollection(OWNER, { name: 'Fifty-first' })).rejects.toSatisfy(
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.COLLECTION_LIMIT_REACHED,
+        );
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('also rejects when the count is already past the cap (defense in depth)', async () => {
+        const dal = makeDal();
+        dal.countByOwner.mockResolvedValue(51);
+        const service = makeService(dal);
+
+        await expect(service.createCollection(OWNER, { name: 'Way over' })).rejects.toSatisfy(
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.COLLECTION_LIMIT_REACHED,
+        );
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it("counts the CALLING owner's collections, not a hardcoded/other owner", async () => {
+        const dal = makeDal();
+        dal.countByOwner.mockResolvedValue(0);
+        dal.create.mockResolvedValue(makeCollectionRow());
+        const service = makeService(dal);
+
+        await service.createCollection(OWNER, { name: 'X' });
+
+        expect(dal.countByOwner).toHaveBeenCalledWith(OWNER);
+        expect(dal.countByOwner).toHaveBeenCalledTimes(1);
     });
 });
 

@@ -11,6 +11,7 @@
  * "Once per session" is deliberately **component state** (a ref guard), not persisted — the requirement is
  * per-session, and a page reload legitimately starts a new session.
  */
+import * as Dialog from '@radix-ui/react-dialog';
 import { createContext, useCallback, useContext, useRef, useState, type JSX } from 'react';
 
 import { useMessages } from '@commise/i18n/react';
@@ -88,39 +89,64 @@ export interface SubscriptionNudgeProps {
  *
  * The upgrade action currently dismisses (the subscription surface is owned by 010, not yet shipped); it is
  * wired as a distinct action so it becomes a real destination without a structural change when 010 lands.
+ *
+ * Built on Radix `Dialog` (B6/CR-003, mirrors `PullUpdatesDialog`'s pattern): Radix owns the focus trap,
+ * Escape-to-dismiss, and background inert, so this component hand-rolls none of that (no `role="dialog"`
+ * div). `onOpenChange` maps every Radix close path (Escape, backdrop) onto the same `onDismiss` the explicit
+ * controls use — one exit path, not two.
+ *
+ * Focus-return is handled explicitly, NOT left to Radix's default: the gated widget's own control that calls
+ * `useHomeNudge().trigger()` (wired in `HomeWidgetSurface`) is a SIBLING elsewhere in the tree, not an owned
+ * `Dialog.Trigger`, so Radix's built-in `onCloseAutoFocus` (which only restores an OWNED trigger — see
+ * `PullUpdatesDialog`'s module doc) would silently focus nothing. `triggerRef` captures
+ * `document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its own
+ * autofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own
+ * no-op default.
  */
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element | null {
     const { home } = useMessages(webMessages);
 
-    if (!open) {
-        return null;
+    // Capture whatever had focus right before this dialog opened, during render (not an effect) — see the
+    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while open.
+    const triggerRef = useRef<HTMLElement | null>(null);
+    const wasOpenRef = useRef(false);
+
+    if (open && !wasOpenRef.current) {
+        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     }
 
+    wasOpenRef.current = open;
+
     return (
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={home.nudge.title}
-            className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-6 shadow-xl"
-        >
-            <h2 className="font-display text-lg font-semibold text-charcoal">{home.nudge.title}</h2>
-            <p className="text-sm text-slate">{home.nudge.body}</p>
-            <div className="flex justify-end gap-3">
-                <button
-                    type="button"
-                    onClick={onDismiss}
-                    className="rounded-full px-4 py-2 text-sm font-medium text-slate"
+        <Dialog.Root open={open} onOpenChange={(next) => !next && onDismiss()}>
+            <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Content
+                    aria-modal="true"
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        triggerRef.current?.focus();
+                    }}
+                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-6 shadow-xl"
                 >
-                    {home.nudge.dismiss}
-                </button>
-                <button
-                    type="button"
-                    onClick={onDismiss}
-                    className="rounded-full bg-seafoam px-5 py-2 text-sm font-semibold text-white"
-                >
-                    {home.nudge.upgrade}
-                </button>
-            </div>
-        </div>
+                    <Dialog.Title className="font-display text-lg font-semibold text-charcoal">
+                        {home.nudge.title}
+                    </Dialog.Title>
+                    <p className="text-sm text-slate">{home.nudge.body}</p>
+                    <div className="flex justify-end gap-3">
+                        <Dialog.Close type="button" className="rounded-full px-4 py-2 text-sm font-medium text-slate">
+                            {home.nudge.dismiss}
+                        </Dialog.Close>
+                        <button
+                            type="button"
+                            onClick={onDismiss}
+                            className="rounded-full bg-seafoam px-5 py-2 text-sm font-semibold text-white"
+                        >
+                            {home.nudge.upgrade}
+                        </button>
+                    </div>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
     );
 }

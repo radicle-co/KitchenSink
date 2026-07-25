@@ -51,31 +51,61 @@ describe('HomeChrome', () => {
         expect(screen.getByRole('banner')).toBeTruthy();
     });
 
-    it('opens the mobile nav drawer from the hamburger and dismisses it', async () => {
+    it('opens the mobile nav drawer from the hamburger and dismisses it, returning focus to the hamburger', async () => {
         const user = userEvent.setup();
         renderChrome();
 
         // Closed by default.
         expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
 
-        await user.click(screen.getByRole('button', { name: chrome.openNav }));
+        const hamburger = screen.getByRole('button', { name: chrome.openNav });
+        await user.click(hamburger);
         const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
         expect(drawer).toBeTruthy();
 
         // The close control inside the drawer dismisses it.
         await user.click(within(drawer).getByRole('button', { name: chrome.closeNav }));
         expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
+
+        // Radix's FocusScope restores focus via an unmount-cleanup `setTimeout(0)` — a real macrotask, not a
+        // React state update — so this needs one real tick to elapse.
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(document.activeElement).toBe(hamburger);
     });
 
-    it('closes the mobile drawer on Escape', async () => {
+    it('closes the mobile drawer on Escape and returns focus to the hamburger (Radix B6/CR-003)', async () => {
         const user = userEvent.setup();
         renderChrome();
 
-        await user.click(screen.getByRole('button', { name: chrome.openNav }));
+        const hamburger = screen.getByRole('button', { name: chrome.openNav });
+        await user.click(hamburger);
         expect(screen.getByRole('dialog', { name: chrome.primaryNavLabel })).toBeTruthy();
 
         await user.keyboard('{Escape}');
         expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(document.activeElement).toBe(hamburger);
+    });
+
+    it('moves focus to the close control when the mobile drawer opens, and traps it while open', async () => {
+        const user = userEvent.setup();
+        renderChrome();
+
+        await user.click(screen.getByRole('button', { name: chrome.openNav }));
+        const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
+        const closeControl = within(drawer).getByRole('button', { name: chrome.closeNav });
+
+        expect(document.activeElement).toBe(closeControl);
+
+        // Radix marks everything outside the drawer `aria-hidden` while trapped, so the collapse control is
+        // intentionally unreachable through `getByRole` while open — assert by the surviving accessible name.
+        expect(screen.queryByRole('button', { name: chrome.collapseNav })).toBeNull();
+
+        for (let index = 0; index < 8; index += 1) {
+            await user.tab();
+            expect(drawer.contains(document.activeElement)).toBe(true);
+        }
     });
 
     it('flips the collapse control between collapse and expand', async () => {

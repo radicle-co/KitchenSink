@@ -1,20 +1,30 @@
 'use client';
 
 /**
- * @module home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046).
+ * @module home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046, B6/CR-003).
  *
  * The slide-over the top-bar hamburger opens below the `md` breakpoint. The bottom tab bar carries the
  * primary mobile nav as compact icons; this drawer is the fuller rendering — the same destinations with
  * their text labels and the product wordmark, and the "coming soon" context that the icon-only tab bar
  * cannot show. It renders the SAME shared nav model, so it cannot drift from the sidebar or the tab bar.
  *
- * A11y: it is a labelled dialog. It closes on the backdrop, on the close control, and on Escape, and focus
- * moves to the close control on open — so a keyboard or screen-reader user can open it, read the nav, and
- * dismiss it without a trap.
+ * A11y: built on Radix `Dialog` (mirrors `PullUpdatesDialog`'s pattern) — Radix owns the focus TRAP,
+ * Escape-to-dismiss, backdrop-click dismiss, and background inert, so this component hand-rolls none of
+ * that (no manual `keydown` listener, no `role="dialog"` div, no scrim button standing in for Radix's own
+ * outside-click dismissal). `onOpenChange` maps every Radix close path onto the same `onClose` the explicit
+ * close control uses — one exit path, not two.
+ *
+ * Focus is moved explicitly, NOT left to Radix's defaults, in both directions: `onOpenAutoFocus` focuses the
+ * close control (`closeRef`) on open (preserving the drawer's pre-Radix behavior), and `onCloseAutoFocus`
+ * restores focus to the hamburger that opened it. The hamburger is a SIBLING control in `HomeTopBar`, not an
+ * owned `Dialog.Trigger`, so Radix's own default `onCloseAutoFocus` (which only restores an OWNED trigger —
+ * see `PullUpdatesDialog`'s module doc) would silently focus nothing; `triggerRef` captures
+ * `document.activeElement` at the render where `open` flips true, before `Dialog.Content` ever commits.
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
-import { useEffect, useRef, type JSX } from 'react';
+import { useRef, type JSX } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
@@ -44,7 +54,7 @@ export interface HomeMobileNavProps {
  * The mobile navigation drawer.
  *
  * @param props - Open state + close handler, the chrome copy, locale, live capabilities, and active id.
- * @returns The drawer when open, otherwise nothing.
+ * @returns The Radix `Dialog.Root` — its `Content` (the drawer) is present in the DOM only while `open`.
  */
 export function HomeMobileNav({
     open,
@@ -53,102 +63,89 @@ export function HomeMobileNav({
     locale,
     liveCapabilities,
     activeId,
-}: HomeMobileNavProps): JSX.Element | null {
+}: HomeMobileNavProps): JSX.Element {
     const closeRef = useRef<HTMLButtonElement>(null);
 
-    // Move focus into the drawer on open (so keyboard users land inside it), and close on Escape. The effect
-    // is a no-op while closed, so nothing runs until the drawer is actually shown.
-    useEffect(() => {
-        if (!open) {
-            return undefined;
-        }
+    // Capture whatever had focus right before this drawer opened, during render (not an effect) — see the
+    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while open.
+    const triggerRef = useRef<HTMLElement | null>(null);
+    const wasOpenRef = useRef(false);
 
-        closeRef.current?.focus();
-
-        const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === 'Escape') {
-                onClose();
-            }
-        };
-
-        document.addEventListener('keydown', onKeyDown);
-
-        return () => document.removeEventListener('keydown', onKeyDown);
-    }, [open, onClose]);
-
-    if (!open) {
-        return null;
+    if (open && !wasOpenRef.current) {
+        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     }
+
+    wasOpenRef.current = open;
 
     const destinations = resolveHomeNav(liveCapabilities);
 
     return (
-        <div className="fixed inset-0 z-50 md:hidden">
-            {/* The scrim. A button (not a bare div) so it is a real, labelled dismiss affordance. */}
-            <button
-                type="button"
-                aria-label={chrome.closeNav}
-                onClick={onClose}
-                className="absolute inset-0 bg-charcoal/30 backdrop-blur-[2px]"
-            />
+        <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+            <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/30 backdrop-blur-[2px] md:hidden" />
+                <Dialog.Content
+                    aria-label={chrome.primaryNavLabel}
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        closeRef.current?.focus();
+                    }}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        triggerRef.current?.focus();
+                    }}
+                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-gradient-to-b from-[#F5F8FA] to-[#EDF5F8] shadow-[var(--shadow-xl)] md:hidden"
+                >
+                    <div className="flex items-center justify-between p-6">
+                        <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>
+                        <Dialog.Close
+                            ref={closeRef}
+                            aria-label={chrome.closeNav}
+                            className="rounded-full p-1 text-slate transition-colors hover:text-charcoal"
+                        >
+                            <HomeIcon name="collapse-left" className="size-6" />
+                        </Dialog.Close>
+                    </div>
 
-            <div
-                role="dialog"
-                aria-label={chrome.primaryNavLabel}
-                className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-white/20 bg-gradient-to-b from-[#F5F8FA] to-[#EDF5F8] shadow-[var(--shadow-xl)]"
-            >
-                <div className="flex items-center justify-between p-6">
-                    <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>
-                    <button
-                        ref={closeRef}
-                        type="button"
-                        onClick={onClose}
-                        aria-label={chrome.closeNav}
-                        className="rounded-full p-1 text-slate transition-colors hover:text-charcoal"
-                    >
-                        <HomeIcon name="collapse-left" className="size-6" />
-                    </button>
-                </div>
+                    <nav aria-label={chrome.primaryNavLabel} className="flex-1 space-y-1 px-3">
+                        {destinations.map((item) => {
+                            const label = chrome.destinations[item.id];
+                            const isActive = item.id === activeId;
 
-                <nav aria-label={chrome.primaryNavLabel} className="flex-1 space-y-1 px-3">
-                    {destinations.map((item) => {
-                        const label = chrome.destinations[item.id];
-                        const isActive = item.id === activeId;
+                            if (!item.reachable) {
+                                return (
+                                    <span
+                                        key={item.id}
+                                        role="link"
+                                        aria-disabled="true"
+                                        aria-label={`${label}, ${chrome.comingSoonSuffix}`}
+                                        className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-slate/60"
+                                    >
+                                        <HomeIcon name={item.id} className="size-6 shrink-0" />
+                                        <span className="font-medium">{label}</span>
+                                    </span>
+                                );
+                            }
 
-                        if (!item.reachable) {
                             return (
-                                <span
+                                <Link
                                     key={item.id}
-                                    role="link"
-                                    aria-disabled="true"
-                                    aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                                    className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-slate/60"
+                                    href={homeNavHref(item.id, locale) ?? (`/${locale}` as never)}
+                                    aria-current={isActive ? 'page' : undefined}
+                                    onClick={onClose}
+                                    className={`flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 transition-colors ${
+                                        isActive
+                                            ? 'bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-seafoam'
+                                            : 'text-slate hover:bg-white/40 hover:text-charcoal'
+                                    }`}
                                 >
                                     <HomeIcon name={item.id} className="size-6 shrink-0" />
                                     <span className="font-medium">{label}</span>
-                                </span>
+                                </Link>
                             );
-                        }
-
-                        return (
-                            <Link
-                                key={item.id}
-                                href={homeNavHref(item.id, locale) ?? (`/${locale}` as never)}
-                                aria-current={isActive ? 'page' : undefined}
-                                onClick={onClose}
-                                className={`flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 transition-colors ${
-                                    isActive
-                                        ? 'bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-seafoam'
-                                        : 'text-slate hover:bg-white/40 hover:text-charcoal'
-                                }`}
-                            >
-                                <HomeIcon name={item.id} className="size-6 shrink-0" />
-                                <span className="font-medium">{label}</span>
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </div>
-        </div>
+                        })}
+                    </nav>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
     );
 }

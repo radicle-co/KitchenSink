@@ -73,9 +73,9 @@ function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
 
 function fakeIngredientsDal(overrides: Partial<IngredientsDal> = {}): IngredientsDal {
     return {
-        findById: vi.fn().mockResolvedValue(makeIngredient({ id: ONION_ID, name: 'Onion', isUserEntered: false })),
+        findById: vi.fn(),
+        findByIds: vi.fn().mockResolvedValue([makeIngredient({ id: ONION_ID, name: 'Onion', isUserEntered: false })]),
         ...overrides,
-        findByIds: vi.fn().mockResolvedValue([]),
     } as unknown as IngredientsDal;
 }
 
@@ -114,8 +114,9 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
 
         const response = await service.create(OWNER_PRINCIPAL, CREATE_DTO);
 
-        // The catalog was consulted for the line's canonical identity.
-        expect(ingredientsDal.findById).toHaveBeenCalledWith(ONION_ID);
+        // The catalog was consulted for the line's canonical identity — via the batch call, not a per-line loop.
+        expect(ingredientsDal.findByIds).toHaveBeenCalledWith([ONION_ID]);
+        expect(ingredientsDal.findById).not.toHaveBeenCalled();
         // Resolved link rows are handed to the DAL (persisted atomically with the recipe).
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -165,7 +166,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
 
     it('rejects an unresolved ingredientId with UNKNOWN_INGREDIENT (not a raw FK error)', async () => {
         const dal = fakeRecipesDal();
-        const ingredientsDal = fakeIngredientsDal({ findById: vi.fn().mockResolvedValue(undefined) });
+        const ingredientsDal = fakeIngredientsDal({ findByIds: vi.fn().mockResolvedValue([]) });
         const service = new RecipesService(
             dal,
             ingredientsDal,
@@ -224,7 +225,8 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
         };
         await service.update(OWNER_PRINCIPAL, 'r-1', patch);
 
-        expect(ingredientsDal.findById).toHaveBeenCalledWith(ONION_ID);
+        expect(ingredientsDal.findByIds).toHaveBeenCalledWith([ONION_ID]);
+        expect(ingredientsDal.findById).not.toHaveBeenCalled();
         expect(dal.update).toHaveBeenCalledWith(
             'r-1',
             expect.objectContaining({ ingredients: [expect.objectContaining({ ingredientId: ONION_ID })] }),
@@ -248,6 +250,9 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
 
         await service.update(OWNER_PRINCIPAL, 'r-1', { expectedVersion: 1, title: 'Renamed' });
 
+        // The link SET is untouched: no per-line lookup fires. (The response's embedded `nutrition` still
+        // consults the catalog via a separate batch call — that's `computeDetailNutrition`, not the
+        // ingredient-line RESOLUTION this test is pinning, and it is unconditional on every response.)
         expect(ingredientsDal.findById).not.toHaveBeenCalled();
         const updateArg = (dal.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
             string,

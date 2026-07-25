@@ -71,13 +71,18 @@ function fakeDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
     } as unknown as RecipesDal;
 }
 
-/** A catalog DAL whose `findById` resolves every line to a freeform ingredient (composition off-path). */
-function fakeIngredientsDal(): IngredientsDal {
+/** A catalog DAL whose `findByIds` resolves every requested id to a freeform ingredient (composition off-path). */
+function fakeIngredientsDal(overrides: Partial<IngredientsDal> = {}): IngredientsDal {
     return {
         findById: vi
             .fn()
             .mockResolvedValue(makeIngredient({ id: '00000000-0000-4000-8000-0000000000ff', name: 'Onion' })),
-        findByIds: vi.fn().mockResolvedValue([]),
+        findByIds: vi
+            .fn()
+            .mockImplementation((ids: readonly string[]) =>
+                Promise.resolve(ids.map((id) => makeIngredient({ id, name: 'Onion' }))),
+            ),
+        ...overrides,
     } as unknown as IngredientsDal;
 }
 
@@ -1393,5 +1398,115 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         const error = await catchError(newService(dal).clone(principal(), 'missing'));
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+});
+
+// ── S-R6: ingredient-line resolution is a SINGLE batch `findByIds`, never a serial per-line loop ────
+describe('RecipesService — ingredient-line resolution batching (S-R6)', () => {
+    const ID_A = '00000000-0000-4000-8000-0000000000a1';
+    const ID_B = '00000000-0000-4000-8000-0000000000b2';
+    const ID_C = '00000000-0000-4000-8000-0000000000c3';
+
+    /** A 3-line create DTO: A, B, then A again (a repeated ingredientId across two lines). */
+    const MULTI_LINE_DTO: CreateRecipeDto = {
+        title: 'Stew',
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 10,
+        totalTimeMinutes: 15,
+        ingredients: [
+            { ingredientId: ID_A, name: 'Carrot', quantity: 1 },
+            { ingredientId: ID_B, name: 'Potato', quantity: 2 },
+            { ingredientId: ID_A, name: 'Carrot', quantity: 3 },
+        ],
+        steps: [{ instruction: 'Simmer' }],
+    };
+
+    /** A catalog DAL whose `findByIds` resolves the given ids to named ingredients; `findById` must never fire. */
+    function catalogDal(entries: Record<string, string>): IngredientsDal {
+        return {
+            findById: vi.fn(),
+            findByIds: vi
+                .fn()
+                .mockImplementation((ids: readonly string[]) =>
+                    Promise.resolve(
+                        ids.filter((id) => id in entries).map((id) => makeIngredient({ id, name: entries[id]! })),
+                    ),
+                ),
+        } as unknown as IngredientsDal;
+    }
+
+    function serviceWith(ingredientsDal: IngredientsDal): RecipesService {
+        return new RecipesService(
+            fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) }),
+            ingredientsDal,
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+    }
+
+    it('resolves M lines with ONE findByIds call over the deduped ids — findById is never looped', async () => {
+        const ingredientsDal = catalogDal({ [ID_A]: 'Carrot', [ID_B]: 'Potato' });
+
+        await serviceWith(ingredientsDal).create(principal(), MULTI_LINE_DTO);
+
+        // resolveIngredientLines runs FIRST in `create` (before the lead-calories/detail-nutrition batch
+        // calls that legitimately also hit findByIds) — its call is a SINGLE batch over the 2 unique ids
+        // for the 3 input lines, not 3 separate per-line queries.
+        const calls = (ingredientsDal.findByIds as unknown as ReturnType<typeof vi.fn>).mock.calls;
+        expect(calls[0]).toEqual([[ID_A, ID_B]]);
+        // findByIds is never called once per line (which would be 3 calls of length-1 arrays) — every
+        // recorded call is a multi-id (or empty) batch.
+        expect(calls.every((call) => (call[0] as string[]).length !== 1)).toBe(true);
+        expect(ingredientsDal.findById).not.toHaveBeenCalled();
+    });
+
+    it('a line with an unknown ingredientId still throws unknownIngredient(id) (fail-fast preserved)', async () => {
+        // The catalog resolves B but not A — A's line must fail fast with the SAME error the old loop threw.
+        const ingredientsDal = catalogDal({ [ID_B]: 'Potato' });
+
+        const error = await catchError(serviceWith(ingredientsDal).create(principal(), MULTI_LINE_DTO));
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.UNKNOWN_INGREDIENT);
+    });
+
+    it('resolves lines in INPUT order, and a duplicate id dedupes in the query but resolves BOTH lines', async () => {
+        const ingredientsDal = catalogDal({ [ID_A]: 'Carrot', [ID_B]: 'Potato', [ID_C]: 'Onion' });
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+        const service = new RecipesService(
+            dal,
+            ingredientsDal,
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+        );
+
+        await service.create(principal(), {
+            ...MULTI_LINE_DTO,
+            ingredients: [
+                { ingredientId: ID_C, name: 'Onion', quantity: 1 },
+                { ingredientId: ID_A, name: 'Carrot', quantity: 2 },
+                { ingredientId: ID_B, name: 'Potato', quantity: 3 },
+                { ingredientId: ID_A, name: 'Carrot', quantity: 4 },
+            ],
+        });
+
+        const createArg = (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+            ingredients: Array<{ ingredientId: string; sortOrder: number }>;
+        };
+        // Input order preserved (C, A, B, A) with sortOrder matching position — NOT catalog/query order.
+        expect(createArg.ingredients.map((line) => [line.ingredientId, line.sortOrder])).toEqual([
+            [ID_C, 0],
+            [ID_A, 1],
+            [ID_B, 2],
+            [ID_A, 3],
+        ]);
+        // The duplicate id (ID_A) was deduped in the query...
+        expect(ingredientsDal.findByIds).toHaveBeenCalledWith([ID_C, ID_A, ID_B]);
+        // ...but BOTH of its lines still resolved (not dropped).
+        expect(createArg.ingredients.filter((line) => line.ingredientId === ID_A)).toHaveLength(2);
     });
 });

@@ -528,18 +528,22 @@ export class RecipesService {
      * via `/v1/ingredients` first); an unknown id fails fast with `UNKNOWN_INGREDIENT`. The catalog is
      * the source of truth for the persisted `ingredientName` / `isUserEntered`, and array order becomes
      * `sortOrder`.
+     *
+     * S-R6: a SINGLE batch `findByIds` over the deduped ids — not one `findById` per line — so a recipe
+     * with M lines costs one catalog round-trip regardless of M (mirrors {@link assembleNutritionLines}).
      */
     private async resolveIngredientLines(lines: RecipeIngredientInputDto[]): Promise<ResolvedIngredientLine[]> {
-        const resolved: ResolvedIngredientLine[] = [];
+        const ids = [...new Set(lines.map((line) => line.ingredientId))];
+        const catalog = new Map((await this.ingredientsDal.findByIds(ids)).map((ing) => [ing.id, ing]));
 
-        for (const [index, line] of lines.entries()) {
-            const ingredient = await this.ingredientsDal.findById(line.ingredientId);
+        return lines.map((line, index) => {
+            const ingredient = catalog.get(line.ingredientId);
 
             if (!ingredient) {
                 throw unknownIngredient(line.ingredientId);
             }
 
-            resolved.push({
+            return {
                 ingredientId: ingredient.id,
                 ingredientName: ingredient.name,
                 quantity: line.quantity,
@@ -552,10 +556,8 @@ export class RecipesService {
                 ...(line.userProteinG !== undefined ? { userProteinG: line.userProteinG } : {}),
                 ...(line.userCarbsG !== undefined ? { userCarbsG: line.userCarbsG } : {}),
                 ...(line.userFatG !== undefined ? { userFatG: line.userFatG } : {}),
-            });
-        }
-
-        return resolved;
+            };
+        });
     }
 
     /** Fetch one recipe. Allowed for the owner, or for any `public` recipe. */

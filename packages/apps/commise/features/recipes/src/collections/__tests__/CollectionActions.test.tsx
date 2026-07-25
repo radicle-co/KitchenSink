@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -45,16 +45,18 @@ describe('CollectionActions (web) — Pull Updates visibility (FR-011)', () => {
         expect(screen.queryByRole('button', { name: 'Pull Updates from Source' })).toBeNull();
     });
 
-    it('renders Pull Updates for a cloned collection and reports activation upward', () => {
+    it('renders Pull Updates for a cloned collection and reports activation upward', async () => {
+        const user = userEvent.setup();
         const onPullUpdates = vi.fn();
         renderActions({ isCloned: true, onPullUpdates });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Pull Updates from Source' }));
+        await user.click(screen.getByRole('button', { name: 'Pull Updates from Source' }));
 
         expect(onPullUpdates).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the action and shows a busy affordance while pulling updates, and cannot re-fire', () => {
+    it('disables the action and shows a busy affordance while pulling updates, and cannot re-fire', async () => {
+        const user = userEvent.setup();
         const onPullUpdates = vi.fn();
         renderActions({ isCloned: true, isPulling: true, onPullUpdates });
 
@@ -63,33 +65,36 @@ describe('CollectionActions (web) — Pull Updates visibility (FR-011)', () => {
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(screen.getByText('Pulling updates…')).toBeTruthy();
 
-        fireEvent.click(button);
+        await user.click(button);
         expect(onPullUpdates).not.toHaveBeenCalled();
     });
 });
 
 describe('CollectionActions (web) — Add Recipes', () => {
-    it('reports activation upward', () => {
+    it('reports activation upward', async () => {
+        const user = userEvent.setup();
         const onAddRecipes = vi.fn();
         renderActions({ onAddRecipes });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add Recipes' }));
+        await user.click(screen.getByRole('button', { name: 'Add Recipes' }));
 
         expect(onAddRecipes).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('CollectionActions (web) — Clone Collection', () => {
-    it('reports activation upward', () => {
+    it('reports activation upward', async () => {
+        const user = userEvent.setup();
         const onClone = vi.fn();
         renderActions({ onClone });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Clone Collection' }));
+        await user.click(screen.getByRole('button', { name: 'Clone Collection' }));
 
         expect(onClone).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the action and shows a busy affordance while cloning, and cannot re-fire', () => {
+    it('disables the action and shows a busy affordance while cloning, and cannot re-fire', async () => {
+        const user = userEvent.setup();
         const onClone = vi.fn();
         renderActions({ isCloning: true, onClone });
 
@@ -98,20 +103,21 @@ describe('CollectionActions (web) — Clone Collection', () => {
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(screen.getByText('Cloning…')).toBeTruthy();
 
-        fireEvent.click(button);
+        await user.click(button);
         expect(onClone).not.toHaveBeenCalled();
     });
 });
 
 describe('CollectionActions (web) — visibility toggle, premium viewer (canGoPrivate: true)', () => {
-    it('enables the Private option and reports a selection upward', () => {
+    it('enables the Private option and reports a selection upward', async () => {
+        const user = userEvent.setup();
         const onVisibilityChange = vi.fn();
         renderActions({ canGoPrivate: true, onVisibilityChange });
 
         const priv = screen.getByRole<HTMLInputElement>('radio', { name: 'Private' });
         expect(priv.disabled).toBe(false);
 
-        fireEvent.click(priv);
+        await user.click(priv);
         expect(onVisibilityChange).toHaveBeenCalledWith('private');
     });
 
@@ -126,7 +132,8 @@ describe('CollectionActions (web) — visibility toggle, premium viewer (canGoPr
         expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Save changes' }).disabled).toBe(true);
     });
 
-    it('fires onSaveVisibility from an enabled Save changes when pending differs from saved', () => {
+    it('fires onSaveVisibility from an enabled Save changes when pending differs from saved', async () => {
+        const user = userEvent.setup();
         const onSaveVisibility = vi.fn();
         renderActions({
             visibility: RecipeVisibility.PUBLIC,
@@ -137,7 +144,7 @@ describe('CollectionActions (web) — visibility toggle, premium viewer (canGoPr
         const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save changes' });
         expect(save.disabled).toBe(false);
 
-        fireEvent.click(save);
+        await user.click(save);
         expect(onSaveVisibility).toHaveBeenCalledTimes(1);
     });
 });
@@ -154,7 +161,8 @@ describe('CollectionActions (web) — visibility toggle, free viewer (canGoPriva
         expect(screen.getByText('Upgrade to premium to make a collection private.')).toBeTruthy();
     });
 
-    it('keeps Public selectable', () => {
+    it('keeps Public selectable', async () => {
+        const user = userEvent.setup();
         const onVisibilityChange = vi.fn();
         renderActions({
             canGoPrivate: false,
@@ -166,15 +174,16 @@ describe('CollectionActions (web) — visibility toggle, free viewer (canGoPriva
         const pub = screen.getByRole<HTMLInputElement>('radio', { name: 'Public' });
         expect(pub.disabled).toBe(false);
 
-        fireEvent.click(pub);
+        await user.click(pub);
         expect(onVisibilityChange).toHaveBeenCalledWith('public');
     });
 
-    it('never emits a transition to private, however the disabled control is clicked', () => {
+    it('never emits a transition to private, however the disabled control is clicked', async () => {
+        const user = userEvent.setup();
         const onVisibilityChange = vi.fn();
         renderActions({ canGoPrivate: false, onVisibilityChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Private' }));
+        await user.click(screen.getByRole('radio', { name: 'Private' }));
 
         expect(onVisibilityChange).not.toHaveBeenCalledWith('private');
     });

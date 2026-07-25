@@ -11,7 +11,7 @@
  * current draft values.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 
@@ -288,7 +288,7 @@ describe('Wizard (web) — Preview', () => {
         expect(within(preview).getByText('Herb Risotto')).toBeTruthy();
         expect(within(preview).getByText('4')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Close preview' }));
+        await user.click(screen.getByRole('button', { name: 'Close preview' }));
         expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
     });
 
@@ -318,7 +318,7 @@ describe('Wizard (web) — Preview', () => {
         expect(screen.getByRole('dialog', { name: 'Preview' })).toBeTruthy();
 
         // A click on the backdrop itself (the dialog element, outside the card) dismisses it.
-        fireEvent.click(preview);
+        await user.click(preview);
         expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
     });
 });

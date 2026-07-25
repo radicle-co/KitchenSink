@@ -8,7 +8,7 @@
  * dismissal (Cancel + Escape/focus-return).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
@@ -199,7 +199,8 @@ describe('VersionPreviewModal (web) — restoring (W6 Task 5)', () => {
         expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
     });
 
-    it('does not fire onRestore when the busy Restore action is activated', () => {
+    it('does not fire onRestore when the busy Restore action is activated', async () => {
+        const user = userEvent.setup();
         const onRestore = vi.fn();
         render(
             <VersionPreviewModal
@@ -212,7 +213,7 @@ describe('VersionPreviewModal (web) — restoring (W6 Task 5)', () => {
             />,
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restoring…' }));
+        await user.click(screen.getByRole('button', { name: 'Restoring…' }));
 
         expect(onRestore).not.toHaveBeenCalled();
     });

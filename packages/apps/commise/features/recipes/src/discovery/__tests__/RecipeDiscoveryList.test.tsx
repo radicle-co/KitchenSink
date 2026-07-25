@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -60,11 +60,21 @@ describe('RecipeDiscoveryList (web) — chrome', () => {
         expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('risotto');
     });
 
-    it('reports search input changes upward', () => {
+    it('reports search input changes upward', async () => {
+        const user = userEvent.setup();
         const onSearchChange = vi.fn();
         renderDiscovery({ onSearchChange });
 
-        fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'lamb' } });
+        // user.paste (not user.type): this is a controlled input backed by an inert vi.fn() — with no
+        // state update between keystrokes, React's controlled-input value enforcement resets the DOM node
+        // back to the unchanged `searchValue` prop after every keystroke, so char-by-char typing would
+        // report 'l', 'a', 'm', 'b' as four separate single-character calls instead of the full string. A
+        // paste fires one atomic input event carrying the whole value, sidestepping that test-harness
+        // artifact (a real consumer re-renders with the updated value each keystroke, so this does not
+        // reflect a production bug) while still exercising the same onChange wiring.
+        const searchbox = screen.getByRole('searchbox');
+        await user.click(searchbox);
+        await user.paste('lamb');
 
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
@@ -80,13 +90,14 @@ describe('RecipeDiscoveryList (web) — loading state', () => {
 });
 
 describe('RecipeDiscoveryList (web) — error state', () => {
-    it('shows an alert with a retry action that reports upward', () => {
+    it('shows an alert with a retry action that reports upward', async () => {
+        const user = userEvent.setup();
         const onRetry = vi.fn();
         renderDiscovery({ status: 'error', onRetry });
 
         expect(screen.getByRole('alert')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
@@ -148,7 +159,8 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
     });
 
-    it('renders the sort control with the active option checked and reports a change (S3)', () => {
+    it('renders the sort control with the active option checked and reports a change (S3)', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderDiscovery({
             status: 'ready',
@@ -160,7 +172,7 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(within(group).getByRole('radio', { name: 'Relevance' }).getAttribute('aria-checked')).toBe('true');
         expect(within(group).getByRole('radio', { name: 'Quickest' }).getAttribute('aria-checked')).toBe('false');
 
-        fireEvent.click(within(group).getByRole('radio', { name: 'Quickest' }));
+        await user.click(within(group).getByRole('radio', { name: 'Quickest' }));
         expect(onChange).toHaveBeenCalledWith('quickest');
     });
 
@@ -170,7 +182,8 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
     });
 
-    it('renders a Load more button that fetches the next page when more pages exist (S4)', () => {
+    it('renders a Load more button that fetches the next page when more pages exist (S4)', async () => {
+        const user = userEvent.setup();
         const onLoadMore = vi.fn();
         renderDiscovery({
             status: 'ready',
@@ -178,7 +191,7 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
             loadMore: { hasMore: true, loading: false, onLoadMore },
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+        await user.click(screen.getByRole('button', { name: 'Load more' }));
         expect(onLoadMore).toHaveBeenCalledTimes(1);
     });
 
@@ -202,11 +215,12 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.getByRole('button', { name: 'Gourmet Garden Salad' })).toBeTruthy();
     });
 
-    it('reports the selected recipe id upward', () => {
+    it('reports the selected recipe id upward', async () => {
+        const user = userEvent.setup();
         const onSelectRecipe = vi.fn();
         renderDiscovery({ status: 'ready', results: threeResults, onSelectRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Asparagus with Green Sauce' }));
+        await user.click(screen.getByRole('button', { name: 'Asparagus with Green Sauce' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
@@ -247,16 +261,18 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
 });
 
 describe('RecipeDiscoveryList (web) — clone', () => {
-    it('reports the cloned recipe id upward', () => {
+    it('reports the cloned recipe id upward', async () => {
+        const user = userEvent.setup();
         const onClone = vi.fn();
         renderDiscovery({ status: 'ready', results: threeResults, onClone });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Clone Asparagus with Green Sauce' }));
+        await user.click(screen.getByRole('button', { name: 'Clone Asparagus with Green Sauce' }));
 
         expect(onClone).toHaveBeenCalledWith('rec_2');
     });
 
-    it('marks only the cloning row busy and disabled, leaving the others actionable', () => {
+    it('marks only the cloning row busy and disabled, leaving the others actionable', async () => {
+        const user = userEvent.setup();
         const onClone = vi.fn();
         renderDiscovery({ status: 'ready', results: threeResults, cloningId: 'rec_2', onClone });
 
@@ -264,13 +280,14 @@ describe('RecipeDiscoveryList (web) — clone', () => {
         expect(busy.getAttribute('aria-busy')).toBe('true');
         expect((busy as HTMLButtonElement).disabled).toBe(true);
 
-        // A disabled busy row must not re-fire clone.
-        fireEvent.click(busy);
+        // A disabled busy row must not re-fire clone. userEvent respects the native `disabled` state
+        // (matching real browsers), so this click is a documented no-op rather than a thrown error.
+        await user.click(busy);
         expect(onClone).not.toHaveBeenCalled();
 
         // Sibling rows are still cloneable.
         expect(screen.getByRole('button', { name: 'Clone Mediterranean Grilled Lamb' })).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'Clone Gourmet Garden Salad' }));
+        await user.click(screen.getByRole('button', { name: 'Clone Gourmet Garden Salad' }));
         expect(onClone).toHaveBeenCalledWith('rec_3');
     });
 });

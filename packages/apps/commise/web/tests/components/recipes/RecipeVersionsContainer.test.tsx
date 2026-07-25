@@ -20,7 +20,7 @@
  * the container reads `locale` off `useParams` and navigates "Back to Recipe" via `useRouter`, both of which
  * throw/return `null` outside an actual Next app-router tree.
  */
-import { screen, fireEvent } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -246,13 +246,14 @@ describe('RecipeVersionsContainer', () => {
             expect(screen.getByRole('button', { name: 'Back to Recipe' })).toBeInTheDocument();
         });
 
-        it('navigates to the recipe from the loading state’s Back control', () => {
+        it('navigates to the recipe from the loading state’s Back control', async () => {
+            const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
             vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
             renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            fireEvent.click(screen.getByRole('button', { name: 'Back to Recipe' }));
+            await user.click(screen.getByRole('button', { name: 'Back to Recipe' }));
 
             expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
         });

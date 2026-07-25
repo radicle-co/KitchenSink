@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { makeCollection } from '@kitchensink/recipe-core/testing';
 
@@ -46,11 +46,12 @@ describe('CollectionList (web) — chrome', () => {
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
     });
 
-    it('reports create requests upward', () => {
+    it('reports create requests upward', async () => {
+        const user = userEvent.setup();
         const onCreate = vi.fn();
         renderList({ onCreate });
 
-        fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+        await user.click(screen.getByRole('button', { name: 'New collection' }));
 
         expect(onCreate).toHaveBeenCalledTimes(1);
     });
@@ -66,13 +67,14 @@ describe('CollectionList (web) — loading state', () => {
 });
 
 describe('CollectionList (web) — error state', () => {
-    it('shows an alert with a retry action that reports upward', () => {
+    it('shows an alert with a retry action that reports upward', async () => {
+        const user = userEvent.setup();
         const onRetry = vi.fn();
         renderList({ status: 'error', onRetry });
 
         expect(screen.getByRole('alert')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
@@ -114,18 +116,20 @@ describe('CollectionList (web) — populated state', () => {
         expect(screen.getByText('Batch-cook staples.')).toBeTruthy();
     });
 
-    it('reports the selected collection id upward', () => {
+    it('reports the selected collection id upward', async () => {
+        const user = userEvent.setup();
         const onSelect = vi.fn();
         renderList({ status: 'ready', collections: threeCollections, onSelect });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Holiday Baking' }));
+        await user.click(screen.getByRole('button', { name: 'Holiday Baking' }));
 
         expect(onSelect).toHaveBeenCalledWith('col_2');
     });
 });
 
 describe('CollectionList (web) — server-paged load-more (W5/C7)', () => {
-    it('renders a load-more control when another page exists and reports activation upward', () => {
+    it('renders a load-more control when another page exists and reports activation upward', async () => {
+        const user = userEvent.setup();
         const onLoadMore = vi.fn();
         renderList({
             status: 'ready',
@@ -133,7 +137,7 @@ describe('CollectionList (web) — server-paged load-more (W5/C7)', () => {
             loadMore: { hasMore: true, loading: false, onLoadMore },
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+        await user.click(screen.getByRole('button', { name: 'Load more' }));
 
         expect(onLoadMore).toHaveBeenCalledTimes(1);
     });

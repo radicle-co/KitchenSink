@@ -12,7 +12,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { CollectionRecipePicker } from '../CollectionRecipePicker.js';
 import type { CollectionRecipePickerProps } from '../model.js';
@@ -52,11 +52,17 @@ describe('CollectionRecipePicker (web) — chrome', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Add recipes to Holiday Baking' })).toBeTruthy();
     });
 
-    it('reports search input upward', () => {
+    it('reports search input upward', async () => {
+        const user = userEvent.setup();
         const onQueryChange = vi.fn();
         renderPicker({ onQueryChange });
 
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'pasta' } });
+        // This is a controlled input backed by a `vi.fn()` onChange (no state update between keystrokes), so
+        // `user.type` would fire once per character with the char alone, never the full string — paste
+        // fires a single change event with the whole value, matching the "one edit" intent of this test.
+        const input = screen.getByLabelText('Search your recipes');
+        await user.click(input);
+        await user.paste('pasta');
 
         expect(onQueryChange).toHaveBeenCalledWith('pasta');
     });
@@ -67,11 +73,12 @@ describe('CollectionRecipePicker (web) — chrome', () => {
         expect((screen.getByLabelText('Search your recipes') as HTMLInputElement).value).toBe('chicken');
     });
 
-    it('reports done upward', () => {
+    it('reports done upward', async () => {
+        const user = userEvent.setup();
         const onDone = vi.fn();
         renderPicker({ onDone });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+        await user.click(screen.getByRole('button', { name: 'Done' }));
 
         expect(onDone).toHaveBeenCalledTimes(1);
     });
@@ -85,26 +92,28 @@ describe('CollectionRecipePicker (web) — fetch states', () => {
         expect(screen.queryByRole('list')).toBeNull();
     });
 
-    it('shows an alert and retries on request when the load fails', () => {
+    it('shows an alert and retries on request when the load fails', async () => {
+        const user = userEvent.setup();
         const onRetry = vi.fn();
         renderPicker({ status: 'error', recipes: [], onRetry });
 
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.queryByRole('list')).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
 
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('offers to create a recipe when the caller owns none', () => {
+    it('offers to create a recipe when the caller owns none', async () => {
+        const user = userEvent.setup();
         const onCreateRecipe = vi.fn();
         renderPicker({ recipes: [], query: '', onCreateRecipe });
 
         expect(screen.getByText('No recipes yet')).toBeTruthy();
         expect(screen.queryByRole('list')).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
@@ -130,11 +139,12 @@ describe('CollectionRecipePicker (web) — adding', () => {
         expect(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' })).toBeTruthy();
     });
 
-    it('reports the added recipe id upward', () => {
+    it('reports the added recipe id upward', async () => {
+        const user = userEvent.setup();
         const onAdd = vi.fn();
         renderPicker({ onAdd });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
+        await user.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
 
         expect(onAdd).toHaveBeenCalledWith('rec_2');
     });
@@ -148,7 +158,8 @@ describe('CollectionRecipePicker (web) — adding', () => {
         expect(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' })).toBeTruthy();
     });
 
-    it('keeps a member row control mounted, focusable and aria-disabled, and suppresses re-adds', () => {
+    it('keeps a member row control mounted, focusable and aria-disabled, and suppresses re-adds', async () => {
+        const user = userEvent.setup();
         const onAdd = vi.fn();
         renderPicker({ memberRecipeIds: ['rec_1'], onAdd });
 
@@ -159,12 +170,13 @@ describe('CollectionRecipePicker (web) — adding', () => {
         // who just activated it would lose focus to <body>.
         expect((control as HTMLButtonElement).disabled).toBe(false);
 
-        fireEvent.click(control);
+        await user.click(control);
 
         expect(onAdd).not.toHaveBeenCalled();
     });
 
-    it('marks the in-flight row as busy and suppresses duplicate submissions', () => {
+    it('marks the in-flight row as busy and suppresses duplicate submissions', async () => {
+        const user = userEvent.setup();
         const onAdd = vi.fn();
         renderPicker({ pendingRecipeId: 'rec_1', onAdd });
 
@@ -174,11 +186,11 @@ describe('CollectionRecipePicker (web) — adding', () => {
         expect(control.getAttribute('aria-disabled')).toBe('true');
         expect((control as HTMLButtonElement).disabled).toBe(false);
 
-        fireEvent.click(control);
+        await user.click(control);
 
         expect(onAdd).not.toHaveBeenCalled();
         // Other rows stay live while one add is in flight.
-        fireEvent.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
+        await user.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
         expect(onAdd).toHaveBeenCalledWith('rec_2');
     });
 

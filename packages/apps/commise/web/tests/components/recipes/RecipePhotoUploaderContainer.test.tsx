@@ -20,7 +20,7 @@
  * type-checked `vi.spyOn(client, '<method>')`. `fetch` stays stubbed exactly as before — the raw S3 PUT is
  * orthogonal to the client seam.
  */
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -249,7 +249,7 @@ describe('RecipePhotoUploaderContainer', () => {
         expect(presign).toHaveBeenCalledTimes(1);
 
         const secondFile = new File(['more-bytes'], 'lunch.png', { type: 'image/png' });
-        fireEvent.change(input, { target: { files: [secondFile] } });
+        await user.upload(input, secondFile);
 
         // The second file is QUEUED, not started — its presign must not have fired yet.
         expect(presign).toHaveBeenCalledTimes(1);

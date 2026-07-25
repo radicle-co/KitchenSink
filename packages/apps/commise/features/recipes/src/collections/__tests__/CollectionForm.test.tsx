@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { CollectionForm } from '../CollectionForm.js';
 import type { CollectionFormProps } from '../model.js';
@@ -55,33 +55,39 @@ describe('CollectionForm (web) — name input', () => {
         );
     });
 
-    it('reports name changes upward', () => {
+    it('reports name changes upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'Collection name' }), {
-            target: { value: 'Holiday Baking' },
-        });
+        // This is a controlled input backed by a `vi.fn()` onChange (no state update between keystrokes), so
+        // `user.type` would fire once per character with the char alone, never the full string — paste
+        // fires a single change event with the whole value, matching the "one edit" intent of this test.
+        const input = screen.getByRole('textbox', { name: 'Collection name' });
+        await user.click(input);
+        await user.paste('Holiday Baking');
 
         expect(onChange).toHaveBeenCalledWith('Holiday Baking');
     });
 });
 
 describe('CollectionForm (web) — submit & cancel', () => {
-    it('reports submit upward', () => {
+    it('reports submit upward', async () => {
+        const user = userEvent.setup();
         const onSubmit = vi.fn();
         renderForm({ mode: 'create', name: 'Weeknight Dinners', onSubmit });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+        await user.click(screen.getByRole('button', { name: 'Create' }));
 
         expect(onSubmit).toHaveBeenCalledTimes(1);
     });
 
-    it('reports cancel upward', () => {
+    it('reports cancel upward', async () => {
+        const user = userEvent.setup();
         const onCancel = vi.fn();
         renderForm({ onCancel });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
@@ -110,11 +116,12 @@ describe('CollectionForm (web) — submitting state', () => {
         expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel' }).disabled).toBe(true);
     });
 
-    it('does not fire submit while submitting', () => {
+    it('does not fire submit while submitting', async () => {
+        const user = userEvent.setup();
         const onSubmit = vi.fn();
         renderForm({ submitting: true, onSubmit });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+        await user.click(screen.getByRole('button', { name: 'Create' }));
 
         expect(onSubmit).not.toHaveBeenCalled();
     });

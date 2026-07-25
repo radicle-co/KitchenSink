@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { makeRecipeVersion } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.js';
@@ -96,11 +96,12 @@ describe('RecipeVersionList (web) — current version', () => {
 });
 
 describe('RecipeVersionList (web) — restore interaction', () => {
-    it('reports the chosen version number upward', () => {
+    it('reports the chosen version number upward', async () => {
+        const user = userEvent.setup();
         const onRestore = vi.fn();
         renderList({ versions: threeVersions, currentVersion: 3, onRestore });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 2' }));
+        await user.click(screen.getByRole('button', { name: 'Restore version 2' }));
 
         expect(onRestore).toHaveBeenCalledWith(2);
     });
@@ -120,11 +121,12 @@ describe('RecipeVersionList (web) — restoring state', () => {
         expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restore version 2' }).disabled).toBe(true);
     });
 
-    it('does not fire restore when a disabled action is activated', () => {
+    it('does not fire restore when a disabled action is activated', async () => {
+        const user = userEvent.setup();
         const onRestore = vi.fn();
         renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2, onRestore });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        await user.click(screen.getByRole('button', { name: 'Restore version 1' }));
 
         expect(onRestore).not.toHaveBeenCalled();
     });
@@ -226,11 +228,12 @@ describe('RecipeVersionList (web) — changed-fields summary', () => {
 });
 
 describe('RecipeVersionList (web) — preview control', () => {
-    it('fires onPreview with the version number for every non-current row', () => {
+    it('fires onPreview with the version number for every non-current row', async () => {
+        const user = userEvent.setup();
         const onPreview = vi.fn();
         renderList({ versions: threeVersions, currentVersion: 3, onPreview });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Preview version 2' }));
+        await user.click(screen.getByRole('button', { name: 'Preview version 2' }));
 
         expect(onPreview).toHaveBeenCalledWith(2);
     });
@@ -249,11 +252,12 @@ describe('RecipeVersionList (web) — preview control', () => {
 });
 
 describe('RecipeVersionList (web) — back to recipe (V6)', () => {
-    it('renders a back-to-recipe control that activates onBack', () => {
+    it('renders a back-to-recipe control that activates onBack', async () => {
+        const user = userEvent.setup();
         const onBack = vi.fn();
         renderList({ versions: threeVersions, currentVersion: 3, onBack });
 
-        fireEvent.click(screen.getByRole('button', { name: /back/i }));
+        await user.click(screen.getByRole('button', { name: /back/i }));
 
         expect(onBack).toHaveBeenCalledTimes(1);
     });
@@ -280,11 +284,12 @@ describe('RecipeVersionList (web) — compare selection (W6 Task 5)', () => {
         expect(screen.queryByRole('checkbox')).toBeNull();
     });
 
-    it('fires onToggleCompare with the version number when its checkbox is toggled', () => {
+    it('fires onToggleCompare with the version number when its checkbox is toggled', async () => {
+        const user = userEvent.setup();
         const onToggleCompare = vi.fn();
         renderList({ versions: threeVersions, currentVersion: 3, onToggleCompare, selectedForCompare: [] });
 
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+        await user.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
 
         expect(onToggleCompare).toHaveBeenCalledWith(2);
     });

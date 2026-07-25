@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { CloneInfoPanel } from '../CloneInfoPanel.js';
 import type { CloneInfoPanelProps } from '../model.js';
@@ -40,11 +40,12 @@ describe('CloneInfoPanel (web) — full attribution', () => {
         expect(screen.getByText(/Cloned .*Apr(il)? 28, 2026/)).toBeTruthy();
     });
 
-    it('fires onViewSource with the exact sourceCollectionId', () => {
+    it('fires onViewSource with the exact sourceCollectionId', async () => {
+        const user = userEvent.setup();
         const onViewSource = vi.fn();
         renderPanel({ onViewSource, sourceCollectionId: 'col_source_1' });
 
-        fireEvent.click(screen.getByRole('button', { name: /view source/i }));
+        await user.click(screen.getByRole('button', { name: /view source/i }));
 
         expect(onViewSource).toHaveBeenCalledTimes(1);
         expect(onViewSource).toHaveBeenCalledWith('col_source_1');
@@ -52,28 +53,30 @@ describe('CloneInfoPanel (web) — full attribution', () => {
 });
 
 describe('CloneInfoPanel (web) — unresolved source owner', () => {
-    it('shows the name without an @handle, and View Source still fires', () => {
+    it('shows the name without an @handle, and View Source still fires', async () => {
+        const user = userEvent.setup();
         const onViewSource = vi.fn();
         renderPanel({ sourceOwnerHandle: undefined, onViewSource });
 
         expect(screen.getByText('"Keto Staples"')).toBeTruthy();
         expect(screen.queryByText(/@/)).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: /view source/i }));
+        await user.click(screen.getByRole('button', { name: /view source/i }));
 
         expect(onViewSource).toHaveBeenCalledWith('col_source_1');
     });
 });
 
 describe('CloneInfoPanel (web) — no resolved owner or name', () => {
-    it('renders a generic fallback with no "undefined" leaking, and View Source still fires', () => {
+    it('renders a generic fallback with no "undefined" leaking, and View Source still fires', async () => {
+        const user = userEvent.setup();
         const onViewSource = vi.fn();
         renderPanel({ sourceOwnerHandle: undefined, sourceCollectionName: undefined, onViewSource });
 
         expect(screen.queryByText(/undefined/i)).toBeNull();
         expect(screen.queryByText(/@/)).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: /view source/i }));
+        await user.click(screen.getByRole('button', { name: /view source/i }));
 
         expect(onViewSource).toHaveBeenCalledWith('col_source_1');
     });

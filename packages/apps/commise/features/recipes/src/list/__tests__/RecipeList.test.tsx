@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeList } from '../RecipeList.js';
@@ -57,16 +58,23 @@ describe('RecipeList (web) — chrome', () => {
         const onSearchChange = vi.fn();
         renderList({ onSearchChange });
 
+        // Kept as fireEvent.change (not user.type): this harness renders a static, non-stateful
+        // `searchValue` prop, so React's controlled-input DOM-value restoration resets the input back to ''
+        // after every keystroke (onSearchChange never feeds a new value back in). user.type would therefore
+        // report each keystroke's single delta character ('l', 'a', 'm', 'b') instead of the full string —
+        // a React controlled-input artifact of this unit harness, not a bug. fireEvent.change's single
+        // full-value change event is the correct simulation for this contract.
         fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'lamb' } });
 
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
-    it('reports create requests upward from the FAB', () => {
+    it('reports create requests upward from the FAB', async () => {
+        const user = userEvent.setup();
         const onCreateRecipe = vi.fn();
         renderList({ status: 'ready', recipes: threeRecipes, onCreateRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
@@ -99,11 +107,12 @@ describe('RecipeList (web) — create FAB (L1)', () => {
         expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
     });
 
-    it('wires the empty-state CTA to the create handler', () => {
+    it('wires the empty-state CTA to the create handler', async () => {
+        const user = userEvent.setup();
         const onCreateRecipe = vi.fn();
         renderList({ status: 'ready', recipes: [], onCreateRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Create your first recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Create your first recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
@@ -127,7 +136,8 @@ describe('RecipeList (web) — source tabs (L5)', () => {
         expect(screen.getByRole('tab', { name: 'Community' }).getAttribute('aria-selected')).toBe('false');
     });
 
-    it('reports a tab change upward', () => {
+    it('reports a tab change upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderList({
             status: 'ready',
@@ -135,7 +145,7 @@ describe('RecipeList (web) — source tabs (L5)', () => {
             tab: { active: 'mine', onChange },
         });
 
-        fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
+        await user.click(screen.getByRole('tab', { name: 'Community' }));
 
         expect(onChange).toHaveBeenCalledWith('community');
     });
@@ -174,7 +184,8 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         expect(within(chips).getByRole('button', { name: 'Italian' }).getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('renders a leading "All" chip, pressed only when no facet is active, that clears the filters', () => {
+    it('renders a leading "All" chip, pressed only when no facet is active, that clears the filters', async () => {
+        const user = userEvent.setup();
         const onClear = vi.fn();
         renderList({
             status: 'ready',
@@ -186,7 +197,7 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         // A facet is active, so "All" is NOT pressed.
         expect(within(chips).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('false');
 
-        fireEvent.click(within(chips).getByRole('button', { name: 'All' }));
+        await user.click(within(chips).getByRole('button', { name: 'All' }));
         expect(onClear).toHaveBeenCalledTimes(1);
     });
 
@@ -201,7 +212,8 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         expect(within(chips).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('reports a chip toggle upward with the facet value', () => {
+    it('reports a chip toggle upward with the facet value', async () => {
+        const user = userEvent.setup();
         const onToggle = vi.fn();
         renderList({
             status: 'ready',
@@ -210,7 +222,7 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        fireEvent.click(within(chips).getByRole('button', { name: 'Vegetarian' }));
+        await user.click(within(chips).getByRole('button', { name: 'Vegetarian' }));
 
         expect(onToggle).toHaveBeenCalledWith('Vegetarian');
     });
@@ -226,13 +238,14 @@ describe('RecipeList (web) — loading state', () => {
 });
 
 describe('RecipeList (web) — error state', () => {
-    it('shows an alert with a retry action that reports upward', () => {
+    it('shows an alert with a retry action that reports upward', async () => {
+        const user = userEvent.setup();
         const onRetry = vi.fn();
         renderList({ status: 'error', onRetry });
 
         expect(screen.getByRole('alert')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
@@ -291,11 +304,12 @@ describe('RecipeList (web) — populated state', () => {
         expect(screen.getByRole('button', { name: 'Gourmet Garden Salad' })).toBeTruthy();
     });
 
-    it('reports the selected recipe id upward', () => {
+    it('reports the selected recipe id upward', async () => {
+        const user = userEvent.setup();
         const onSelectRecipe = vi.fn();
         renderList({ status: 'ready', recipes: threeRecipes, onSelectRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Asparagus with Green Sauce' }));
+        await user.click(screen.getByRole('button', { name: 'Asparagus with Green Sauce' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });

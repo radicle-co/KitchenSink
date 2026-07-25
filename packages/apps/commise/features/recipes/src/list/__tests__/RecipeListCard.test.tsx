@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListCard } from '../RecipeListCard.js';
@@ -33,13 +33,14 @@ describe('RecipeListCard (web)', () => {
         expect(screen.getByRole('article', { name: 'Herb Risotto' })).toBeTruthy();
     });
 
-    it('activates with the recipe id when its button is pressed', () => {
+    it('activates with the recipe id when its button is pressed', async () => {
+        const user = userEvent.setup();
         const onSelect = vi.fn();
         render(
             <RecipeListCard recipe={makeRecipeListItem({ id: 'rec_42', title: 'Herb Risotto' })} onSelect={onSelect} />,
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Herb Risotto' }));
+        await user.click(screen.getByRole('button', { name: 'Herb Risotto' }));
 
         expect(onSelect).toHaveBeenCalledTimes(1);
         expect(onSelect).toHaveBeenCalledWith('rec_42');

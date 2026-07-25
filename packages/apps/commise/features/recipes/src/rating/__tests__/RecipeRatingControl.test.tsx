@@ -13,7 +13,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
 
@@ -99,11 +99,12 @@ describe('RecipeRatingInput (web) — interactive variant', () => {
         expect(screen.getAllByRole('radio')).toHaveLength(5);
     });
 
-    it('reports the SELECTED star value upward (mutation lens: exact value, not an index)', () => {
+    it('reports the SELECTED star value upward (mutation lens: exact value, not an index)', async () => {
+        const user = userEvent.setup();
         const onRate = vi.fn();
         renderInput({ onRate });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
+        await user.click(screen.getByRole('radio', { name: 'Rate 4 stars' }));
 
         expect(onRate).toHaveBeenCalledWith(4);
     });
@@ -129,21 +130,23 @@ describe('RecipeRatingInput (web) — interactive variant', () => {
         expect(screen.getByRole('img', { name: 'Rated 4.5 out of 5, 12 ratings' })).toBeTruthy();
     });
 
-    it('lets the viewer re-rate to a different value, replacing (Sc7)', () => {
+    it('lets the viewer re-rate to a different value, replacing (Sc7)', async () => {
+        const user = userEvent.setup();
         const onRate = vi.fn();
         renderInput({ selectedStars: 4, onRate });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Rate 2 stars' }));
+        await user.click(screen.getByRole('radio', { name: 'Rate 2 stars' }));
 
         expect(onRate).toHaveBeenCalledWith(2);
     });
 
-    it('offers a remove affordance once a rating is selected, and reports it upward (Sc10)', () => {
+    it('offers a remove affordance once a rating is selected, and reports it upward (Sc10)', async () => {
+        const user = userEvent.setup();
         const onRemove = vi.fn();
         renderInput({ selectedStars: 3, onRemove });
 
         const remove = screen.getByRole('button', { name: 'Remove my rating' });
-        fireEvent.click(remove);
+        await user.click(remove);
 
         expect(onRemove).toHaveBeenCalledTimes(1);
     });

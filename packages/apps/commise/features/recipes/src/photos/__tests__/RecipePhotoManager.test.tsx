@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
 import { RecipePhotoManager } from '../RecipePhotoManager.js';
@@ -65,11 +65,12 @@ describe('RecipePhotoManager (web) — populated', () => {
         expect(img.className).toContain('aspect-square');
     });
 
-    it('reports the photo id to remove upward', () => {
+    it('reports the photo id to remove upward', async () => {
+        const user = userEvent.setup();
         const onRemovePhoto = vi.fn();
         renderManager({ photos: threePhotos, onRemovePhoto });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove photo 2' }));
+        await user.click(screen.getByRole('button', { name: 'Remove photo 2' }));
 
         expect(onRemovePhoto).toHaveBeenCalledWith('ph_2');
     });
@@ -153,26 +154,28 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
     });
 
-    it('invokes onRetryQueueItem with the fileId when Retry is clicked', () => {
+    it('invokes onRetryQueueItem with the fileId when Retry is clicked', async () => {
+        const user = userEvent.setup();
         const onRetryQueueItem = vi.fn();
         renderManager({
             queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
             onRetryQueueItem,
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Retry upload of burnt.png' }));
+        await user.click(screen.getByRole('button', { name: 'Retry upload of burnt.png' }));
 
         expect(onRetryQueueItem).toHaveBeenCalledWith(7);
     });
 
-    it('invokes onRemoveQueueItem with the fileId when Remove is clicked on a failed item', () => {
+    it('invokes onRemoveQueueItem with the fileId when Remove is clicked on a failed item', async () => {
+        const user = userEvent.setup();
         const onRemoveQueueItem = vi.fn();
         renderManager({
             queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
             onRemoveQueueItem,
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove burnt.png' }));
+        await user.click(screen.getByRole('button', { name: 'Remove burnt.png' }));
 
         expect(onRemoveQueueItem).toHaveBeenCalledWith(7);
     });

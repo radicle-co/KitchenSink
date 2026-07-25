@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { CollectionHeader } from '../CollectionHeader.js';
 import type { CollectionHeaderViewProps } from '../model.js';
@@ -73,11 +73,12 @@ describe('CollectionHeader (web) — cloned collection with an unresolved source
 });
 
 describe('CollectionHeader (web) — Back affordance (C6)', () => {
-    it('fires onBack when the Back control is activated', () => {
+    it('fires onBack when the Back control is activated', async () => {
+        const user = userEvent.setup();
         const onBack = vi.fn();
         renderHeader({ onBack });
 
-        fireEvent.click(screen.getByRole('button', { name: /back/i }));
+        await user.click(screen.getByRole('button', { name: /back/i }));
 
         expect(onBack).toHaveBeenCalledTimes(1);
     });
@@ -90,13 +91,14 @@ describe('CollectionHeader (web) — Back affordance (C6)', () => {
 });
 
 describe('CollectionHeader (web) — Edit/Delete affordances (C4)', () => {
-    it('reports edit and delete requests upward', () => {
+    it('reports edit and delete requests upward', async () => {
+        const user = userEvent.setup();
         const onEdit = vi.fn();
         const onDelete = vi.fn();
         renderHeader({ onEdit, onDelete });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        await user.click(screen.getByRole('button', { name: 'Rename' }));
+        await user.click(screen.getByRole('button', { name: 'Delete' }));
 
         expect(onEdit).toHaveBeenCalledTimes(1);
         expect(onDelete).toHaveBeenCalledTimes(1);

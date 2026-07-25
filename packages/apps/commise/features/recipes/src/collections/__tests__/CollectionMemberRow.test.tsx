@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
 
@@ -99,25 +99,28 @@ describe('CollectionMemberRow (web) — composes RecipeCard (not a hand-rolled d
 });
 
 describe('CollectionMemberRow (web) — select / remove', () => {
-    it('reports the recipe id upward when the select target is activated', () => {
+    it('reports the recipe id upward when the select target is activated', async () => {
+        const user = userEvent.setup();
         const onSelect = vi.fn();
         renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), onSelect });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Weeknight Pasta' }));
+        await user.click(screen.getByRole('button', { name: 'Weeknight Pasta' }));
 
         expect(onSelect).toHaveBeenCalledWith('rec_1');
     });
 
-    it('reports the recipe id upward when the remove control is activated', () => {
+    it('reports the recipe id upward when the remove control is activated', async () => {
+        const user = userEvent.setup();
         const onRemove = vi.fn();
         renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), onRemove });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
+        await user.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
 
         expect(onRemove).toHaveBeenCalledWith('rec_1');
     });
 
-    it('does NOT also fire onSelect when Remove is activated (double-fire guard — sibling controls, never nested)', () => {
+    it('does NOT also fire onSelect when Remove is activated (double-fire guard — sibling controls, never nested)', async () => {
+        const user = userEvent.setup();
         const onSelect = vi.fn();
         const onRemove = vi.fn();
         renderRow({
@@ -126,7 +129,7 @@ describe('CollectionMemberRow (web) — select / remove', () => {
             onRemove,
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
+        await user.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
 
         expect(onRemove).toHaveBeenCalledWith('rec_1');
         expect(onSelect).not.toHaveBeenCalled();

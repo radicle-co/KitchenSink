@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { RecipeCloneAction } from '../RecipeCloneAction.js';
 import type { RecipeCloneActionProps } from '../model.js';
@@ -27,16 +27,18 @@ function renderClone(overrides: Partial<RecipeCloneActionProps> = {}) {
 }
 
 describe('RecipeCloneAction (web)', () => {
-    it('reports clone requests upward', () => {
+    it('reports clone requests upward', async () => {
+        const user = userEvent.setup();
         const onClone = vi.fn();
         renderClone({ onClone });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Clone' }));
+        await user.click(screen.getByRole('button', { name: 'Clone' }));
 
         expect(onClone).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the action and shows a busy status while cloning', () => {
+    it('disables the action and shows a busy status while cloning', async () => {
+        const user = userEvent.setup();
         const onClone = vi.fn();
         renderClone({ cloning: true, onClone });
 
@@ -46,7 +48,7 @@ describe('RecipeCloneAction (web)', () => {
         expect(screen.getByRole('status')).toBeTruthy();
         expect(screen.getByText('Cloning…')).toBeTruthy();
 
-        fireEvent.click(button);
+        await user.click(button);
         expect(onClone).not.toHaveBeenCalled();
     });
 

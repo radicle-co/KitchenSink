@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 
 import { Button } from '../Button.js';
@@ -59,7 +60,8 @@ describe('Button (web)', () => {
         expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Create recipe' }).type).toBe('submit');
     });
 
-    it('fires onPress on click', () => {
+    it('fires onPress on click', async () => {
+        const user = userEvent.setup();
         const onPress = vi.fn();
         render(
             <Button icon={markerIcon} onPress={onPress}>
@@ -67,11 +69,12 @@ describe('Button (web)', () => {
             </Button>,
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
+        await user.click(screen.getByRole('button', { name: 'Add step' }));
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('does not fire onPress when disabled', () => {
+    it('does not fire onPress when disabled', async () => {
+        const user = userEvent.setup();
         const onPress = vi.fn();
         render(
             <Button icon={markerIcon} onPress={onPress} disabled>
@@ -81,11 +84,12 @@ describe('Button (web)', () => {
 
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Add step' });
         expect(button.disabled).toBe(true);
-        fireEvent.click(button);
+        await user.click(button);
         expect(onPress).not.toHaveBeenCalled();
     });
 
-    it('marks a busy control as aria-busy AND disabled (cannot double-fire)', () => {
+    it('marks a busy control as aria-busy AND disabled (cannot double-fire)', async () => {
+        const user = userEvent.setup();
         const onPress = vi.fn();
         render(
             <Button icon={markerIcon} onPress={onPress} busy>
@@ -96,7 +100,7 @@ describe('Button (web)', () => {
         const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Create recipe' });
         expect(button.getAttribute('aria-busy')).toBe('true');
         expect(button.disabled).toBe(true);
-        fireEvent.click(button);
+        await user.click(button);
         expect(onPress).not.toHaveBeenCalled();
     });
 

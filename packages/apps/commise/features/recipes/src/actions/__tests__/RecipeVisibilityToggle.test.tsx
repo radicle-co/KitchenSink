@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -38,25 +38,28 @@ describe('RecipeVisibilityToggle (web)', () => {
         expect(screen.getByRole('radio', { name: 'Public', checked: false })).toBeTruthy();
     });
 
-    it('reports selecting private upward', () => {
+    it('reports selecting private upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderToggle({ visibility: RecipeVisibility.PUBLIC, onChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Private' }));
+        await user.click(screen.getByRole('radio', { name: 'Private' }));
 
         expect(onChange).toHaveBeenCalledWith('private');
     });
 
-    it('reports selecting public upward', () => {
+    it('reports selecting public upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderToggle({ visibility: RecipeVisibility.PRIVATE, onChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Public' }));
+        await user.click(screen.getByRole('radio', { name: 'Public' }));
 
         expect(onChange).toHaveBeenCalledWith('public');
     });
 
-    it('disables the private option and shows the reason when the tier cannot go private', () => {
+    it('disables the private option and shows the reason when the tier cannot go private', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderToggle({
             canGoPrivate: false,
@@ -68,7 +71,7 @@ describe('RecipeVisibilityToggle (web)', () => {
         expect(priv.disabled).toBe(true);
         expect(screen.getByText('Upgrade to make recipes private.')).toBeTruthy();
 
-        fireEvent.click(priv);
+        await user.click(priv);
         expect(onChange).not.toHaveBeenCalled();
     });
 

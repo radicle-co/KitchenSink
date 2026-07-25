@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
 
@@ -108,12 +108,13 @@ describe('RecipeCard (web)', () => {
         expect(screen.getByRole('article', { name: 'Herb Risotto' })).toBeTruthy();
     });
 
-    it('is an actionable button reporting the recipe id when onSelect is given (the list card)', () => {
+    it('is an actionable button reporting the recipe id when onSelect is given (the list card)', async () => {
+        const user = userEvent.setup();
         const onSelect = vi.fn();
         renderCard(<RecipeCard recipe={model({ id: 'rec_42', title: 'Herb Risotto' })} onSelect={onSelect} />);
 
         const button = screen.getByRole('button', { name: 'Herb Risotto' });
-        fireEvent.click(button);
+        await user.click(button);
 
         expect(onSelect).toHaveBeenCalledTimes(1);
         expect(onSelect).toHaveBeenCalledWith('rec_42');

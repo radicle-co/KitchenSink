@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import type { Collection } from '@kitchensink/recipe-core';
 
@@ -63,29 +63,32 @@ describe('CollectionDetail (web) — member recipes', () => {
         expect(screen.getByRole('button', { name: 'Sheet-Pan Chicken' })).toBeTruthy();
     });
 
-    it('reports the selected recipe id upward', () => {
+    it('reports the selected recipe id upward', async () => {
+        const user = userEvent.setup();
         const onSelectRecipe = vi.fn();
         renderDetail({ onSelectRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Sheet-Pan Chicken' }));
+        await user.click(screen.getByRole('button', { name: 'Sheet-Pan Chicken' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
 
-    it('reports the removed recipe id upward from a per-row remove control', () => {
+    it('reports the removed recipe id upward from a per-row remove control', async () => {
+        const user = userEvent.setup();
         const onRemoveRecipe = vi.fn();
         renderDetail({ onRemoveRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
+        await user.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
 
         expect(onRemoveRecipe).toHaveBeenCalledWith('rec_1');
     });
 
-    it('reports an add-a-recipe request upward', () => {
+    it('reports an add-a-recipe request upward', async () => {
+        const user = userEvent.setup();
         const onAddRecipe = vi.fn();
         renderDetail({ onAddRecipe });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Add a recipe' }));
 
         expect(onAddRecipe).toHaveBeenCalledTimes(1);
     });
@@ -122,10 +125,11 @@ describe('CollectionDetail (web) — member-list windowing (W5/C7)', () => {
         expect(screen.getByRole('button', { name: 'Load more (4 more)' })).toBeTruthy();
     });
 
-    it('reveals the next window when the load-more control is activated', () => {
+    it('reveals the next window when the load-more control is activated', async () => {
+        const user = userEvent.setup();
         renderDetail({ collection: makeCollectionWithRecipes({ recipes: eightMembers }) });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load more (4 more)' }));
+        await user.click(screen.getByRole('button', { name: 'Load more (4 more)' }));
 
         const list = screen.getByRole('list');
         expect(within(list).getAllByRole('listitem')).toHaveLength(8);
@@ -139,7 +143,8 @@ describe('CollectionDetail (web) — member-list windowing (W5/C7)', () => {
         expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull();
     });
 
-    it('windows a non-multiple member count — 6 members show the first 4 and a "Load more (2 more)" control', () => {
+    it('windows a non-multiple member count — 6 members show the first 4 and a "Load more (2 more)" control', async () => {
+        const user = userEvent.setup();
         const sixMembers = Array.from({ length: 6 }, (_, index) =>
             makeCollectionMemberRecipe({ id: `rec_${index + 1}`, title: `Recipe ${index + 1}` }),
         );
@@ -148,7 +153,7 @@ describe('CollectionDetail (web) — member-list windowing (W5/C7)', () => {
         expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(4);
         expect(screen.getByRole('button', { name: 'Load more (2 more)' })).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load more (2 more)' }));
+        await user.click(screen.getByRole('button', { name: 'Load more (2 more)' }));
 
         expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(6);
         expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull();

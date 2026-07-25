@@ -11,7 +11,6 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
@@ -57,25 +56,28 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(screen.getByText(/Asparagus with Green Sauce/)).toBeTruthy();
     });
 
-    it('reports confirm requests upward', () => {
+    it('reports confirm requests upward', async () => {
+        const user = userEvent.setup();
         const onConfirm = vi.fn();
         renderDialog({ onConfirm });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        await user.click(screen.getByRole('button', { name: 'Delete' }));
 
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
-    it('reports cancel requests upward', () => {
+    it('reports cancel requests upward', async () => {
+        const user = userEvent.setup();
         const onCancel = vi.fn();
         renderDialog({ onCancel });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the confirm action while deleting and does not fire again', () => {
+    it('disables the confirm action while deleting and does not fire again', async () => {
+        const user = userEvent.setup();
         const onConfirm = vi.fn();
         renderDialog({ deleting: true, onConfirm });
 
@@ -83,7 +85,7 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(confirm.disabled).toBe(true);
         expect(confirm.getAttribute('aria-busy')).toBe('true');
 
-        fireEvent.click(confirm);
+        await user.click(confirm);
         expect(onConfirm).not.toHaveBeenCalled();
     });
 

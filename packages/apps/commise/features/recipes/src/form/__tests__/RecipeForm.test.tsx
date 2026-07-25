@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import userEvent from '@testing-library/user-event';
 
 import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
@@ -87,29 +87,49 @@ describe('RecipeForm (web) — basics fields', () => {
         expect(screen.queryByRole('textbox', { name: 'Total time' })).toBeNull();
     });
 
-    it('reports a title edit upward', () => {
+    it('reports a title edit upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), { target: { value: 'Lemon Risotto' } });
+        // tripleClick() (select-all, fires no change event) + paste() (one atomic input event): this is a
+        // controlled field bound to a static `values` prop with an inert vi.fn() onChange — no re-render
+        // happens between keystrokes, so React's controlled-input value-reset kicks in and would fragment a
+        // char-by-char user.type() (or even a clear()-then-type()/paste() sequence spanning two separate
+        // user-event calls) into calls that never carry the full replacement string. Selecting all text
+        // first and replacing it in a single paste is what "reports an edit upward" needs (a real consumer
+        // re-renders each keystroke, so this is a test-harness artifact, not a production bug).
+        const title = screen.getByRole('textbox', { name: 'Title' });
+        await user.tripleClick(title);
+        await user.paste('Lemon Risotto');
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ title: 'Lemon Risotto' }));
     });
 
-    it('parses a numeric field to a number', () => {
+    it('parses a numeric field to a number', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByRole('spinbutton', { name: 'Servings' }), { target: { value: '6' } });
+        // tripleClick() + paste() — see the title test above for why (controlled field, inert mock, no
+        // rerender between keystrokes).
+        const servings = screen.getByRole('spinbutton', { name: 'Servings' });
+        await user.tripleClick(servings);
+        await user.paste('6');
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ servings: 6 }));
     });
 
-    it('parses a comma-separated tags edit into a trimmed list', () => {
+    it('parses a comma-separated tags edit into a trimmed list', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'Tags' }), { target: { value: 'quick,  easy , ' } });
+        // tripleClick() + paste() — see the title test above for why (controlled field, inert mock, no
+        // rerender between keystrokes).
+        const tags = screen.getByRole('textbox', { name: 'Tags' });
+        await user.tripleClick(tags);
+        await user.paste('quick,  easy , ');
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'easy'] }));
     });
@@ -146,11 +166,12 @@ describe('RecipeForm (web) — cuisine dropdown (w3/e5)', () => {
         expect(screen.getAllByRole('option').filter((option) => option.textContent === '')).toHaveLength(0);
     });
 
-    it('reports a cuisine selection upward, preserving the free-text wire contract', () => {
+    it('reports a cuisine selection upward, preserving the free-text wire contract', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
 
-        fireEvent.change(screen.getByRole('combobox', { name: 'Cuisine' }), { target: { value: 'Thai' } });
+        await user.selectOptions(screen.getByRole('combobox', { name: 'Cuisine' }), 'Thai');
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: 'Thai' }));
     });
@@ -337,20 +358,22 @@ describe('RecipeForm (web) — difficulty picker', () => {
         expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Not stated' }).checked).toBe(false);
     });
 
-    it('reports a difficulty selection upward', () => {
+    it('reports a difficulty selection upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues(), onChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Medium' }));
+        await user.click(screen.getByRole('radio', { name: 'Medium' }));
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ difficulty: 'medium' }));
     });
 
-    it('clears the difficulty (removing the field) when Not stated is chosen', () => {
+    it('clears the difficulty (removing the field) when Not stated is chosen', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues({ difficulty: 'hard' }), onChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Not stated' }));
+        await user.click(screen.getByRole('radio', { name: 'Not stated' }));
 
         expect(onChange).toHaveBeenCalledTimes(1);
         const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
@@ -374,18 +397,20 @@ describe('RecipeForm (web) — ingredients', () => {
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 unit' }).value).toBe('g');
     });
 
-    it('appends a blank ingredient line on add', () => {
+    it('appends a blank ingredient line on add', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues({ ingredients: [] }), onChange });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add ingredient' }));
+        await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({ ingredients: [{ ingredientId: null, name: '', quantity: 1 }] }),
         );
     });
 
-    it('removes the targeted ingredient line', () => {
+    it('removes the targeted ingredient line', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({
             values: filledValues({
@@ -397,20 +422,23 @@ describe('RecipeForm (web) — ingredients', () => {
             onChange,
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove ingredient 1' }));
+        await user.click(screen.getByRole('button', { name: 'Remove ingredient 1' }));
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({ ingredients: [{ ingredientId: 'ing_2', name: 'Stock', quantity: 1 }] }),
         );
     });
 
-    it('reports an ingredient name change upward', () => {
+    it('reports an ingredient name change upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByRole('textbox', { name: 'Ingredient 1 name' }), {
-            target: { value: 'Carnaroli rice' },
-        });
+        // tripleClick() + paste() — see the Basics "reports a title edit upward" test for why (controlled
+        // field, inert mock, no rerender between keystrokes).
+        const name = screen.getByRole('textbox', { name: 'Ingredient 1 name' });
+        await user.tripleClick(name);
+        await user.paste('Carnaroli rice');
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -419,13 +447,16 @@ describe('RecipeForm (web) — ingredients', () => {
         );
     });
 
-    it('parses an ingredient quantity change to a number', () => {
+    it('parses an ingredient quantity change to a number', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }), {
-            target: { value: '250' },
-        });
+        // tripleClick() + paste() — see the Basics "reports a title edit upward" test for why (controlled
+        // field, inert mock, no rerender between keystrokes).
+        const quantity = screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' });
+        await user.tripleClick(quantity);
+        await user.paste('250');
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({ ingredients: [expect.objectContaining({ quantity: 250 })] }),
@@ -655,34 +686,35 @@ describe('RecipeForm (web) — instructions', () => {
         expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Step 1 timer (seconds)' }).value).toBe('120');
     });
 
-    it('appends a blank step on add', () => {
+    it('appends a blank step on add', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues({ steps: [] }), onChange });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
+        await user.click(screen.getByRole('button', { name: 'Add step' }));
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ steps: [{ instruction: '' }] }));
     });
 
-    it('removes the targeted step', () => {
+    it('removes the targeted step', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({
             values: filledValues({ steps: [{ instruction: 'First' }, { instruction: 'Second' }] }),
             onChange,
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove step 2' }));
+        await user.click(screen.getByRole('button', { name: 'Remove step 2' }));
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ steps: [{ instruction: 'First' }] }));
     });
 
-    it('clears a step timer to undefined when the field is emptied', () => {
+    it('clears a step timer to undefined when the field is emptied', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues({ steps: [{ instruction: 'Toast', timerSeconds: 60 }] }), onChange });
 
-        fireEvent.change(screen.getByRole('spinbutton', { name: 'Step 1 timer (seconds)' }), {
-            target: { value: '' },
-        });
+        await user.clear(screen.getByRole('spinbutton', { name: 'Step 1 timer (seconds)' }));
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({ steps: [{ instruction: 'Toast', timerSeconds: undefined }] }),
@@ -730,42 +762,46 @@ describe('RecipeForm (web) — visibility', () => {
         expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Private recipe' }).checked).toBe(false);
     });
 
-    it('reports a visibility change upward', () => {
+    it('reports a visibility change upward', async () => {
+        const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ values: filledValues({ visibility: 'public' }), onChange });
 
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Private recipe' }));
+        await user.click(screen.getByRole('checkbox', { name: 'Private recipe' }));
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }));
     });
 });
 
 describe('RecipeForm (web) — submit + cancel', () => {
-    it('submits when the submit button is pressed', () => {
+    it('submits when the submit button is pressed', async () => {
+        const user = userEvent.setup();
         const onSubmit = vi.fn();
         renderForm({ onSubmit });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Create recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Create recipe' }));
 
         expect(onSubmit).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the submit button and does not submit while submitting', () => {
+    it('disables the submit button and does not submit while submitting', async () => {
+        const user = userEvent.setup();
         const onSubmit = vi.fn();
         renderForm({ submitting: true, onSubmit });
 
         const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Create recipe' });
         expect(submit.disabled).toBe(true);
 
-        fireEvent.click(submit);
+        await user.click(submit);
         expect(onSubmit).not.toHaveBeenCalled();
     });
 
-    it('reports cancel upward', () => {
+    it('reports cancel upward', async () => {
+        const user = userEvent.setup();
         const onCancel = vi.fn();
         renderForm({ onCancel });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
     });

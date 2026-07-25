@@ -2204,6 +2204,7 @@ CDK synth fails fast on invalid props.
 **Parent Architecture Modules**: ARCH-032
 **Type**: Utility
 **Target Source File(s)**: `.github/workflows/ci.yml`, `turbo.json`, `packages/tools/test-governance/*`
+**Verification Method**: **Inspection** (reconciled 2026-07-25 — CI/CD pipeline configuration is verified by reading and running the workflow/pipeline definitions themselves, not by an executable unit test of the harness. Evidence artifact: `.github/workflows/{ci-pr,ci-main,ci-full,_ci}.yml`, `turbo.json`, `packages/tools/*`. Previously implied Test-verified by the pre-implementation `traceability-matrix.md` (Matrix D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
 
 #### Interface View
 

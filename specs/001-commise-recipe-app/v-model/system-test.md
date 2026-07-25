@@ -639,12 +639,12 @@ Each test case identifies its technique by name:
 
 **Technique**: Equivalence Partitioning
 **Target View**: Decomposition View
-**Description**: Verifies reconcile classes for add/remove/protect behavior during explicit pull-from-source operations.
+**Description**: Verifies reconcile classes for add/visibility-filter/protect behavior around explicit pull-from-source operations. (reconciled 2026-07-25: as-built — pull is **additive-only**; inaccessible-recipe removal is continuous **read-time visibility filtering** on every collection-membership read, not an action the pull operation itself performs. See `collections.service.ts` `pullFromSource` JSDoc and `collections.dal.ts` `listRecipes`.)
 
 - **System Scenario: STS-012-B1**
     - **Given** cloned collection with source linkage and source collection gains new public recipes while losing access to others
-    - **When** `POST /v1/collections/{id}/pull-from-source` executes
-    - **Then** reconcile adds newly accessible source recipes and removes source-derived recipes that are no longer accessible
+    - **When** `POST /v1/collections/{id}/pull-from-source` executes, and the cloned collection is read before and after
+    - **Then** pull adds the newly accessible source recipes to the cloned collection; the recipe that lost access is absent from both reads (continuous read-time filtering — the pull action itself deletes no membership row) and would reappear on a future read if access were restored
 
 - **System Scenario: STS-012-B2**
     - **Given** cloned collection contains manually added memberships flagged with provenance `manual`
@@ -812,7 +812,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-016-A1**
     - **Given** web runtime with a Clerk session and `NEXT_PUBLIC_API_URL` unset
     - **When** recipe API client initializes and requests protected resources
-    - **Then** base URL resolves to `http://localhost:4000`, bearer credentials are attached, and unauthenticated route access is blocked
+    - **Then** base URL resolves to `http://localhost:3000` (reconciled 2026-07-25: as-built, was `:4000`), bearer credentials are attached, and unauthenticated route access is blocked
 
 - **System Scenario: STS-016-A2**
     - **Given** a recipe update receives HTTP 409 with `currentVersion` and `conflictingVersion`
@@ -850,7 +850,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-017-A1**
     - **Given** mobile runtime with `EXPO_PUBLIC_API_URL` unset and a valid Clerk session token
     - **When** API client bootstrap executes
-    - **Then** base URL resolves to `http://localhost:4000`, protected endpoint calls carry identity tokens, and anonymous API access is blocked
+    - **Then** base URL resolves to `http://localhost:3000` (reconciled 2026-07-25: as-built, was `:4000`), protected endpoint calls carry identity tokens, and anonymous API access is blocked
 
 - **System Scenario: STS-017-A2**
     - **Given** mobile recipe edit flow receives conflict response HTTP 409
@@ -888,7 +888,7 @@ Each test case identifies its technique by name:
 - **System Scenario: STS-018-A1**
     - **Given** web and mobile environment variables for API base URL are unset
     - **When** typed configuration loader resolves runtime values
-    - **Then** both clients resolve to `http://localhost:4000` and local service ports remain `4000/3000/8081/5432/4566`
+    - **Then** both clients resolve to `http://localhost:3000` and local service ports remain `3000/3000/8081/5432/4566` (reconciled 2026-07-25: as-built API port, was `4000/3000/8081/5432/4566`)
 
 - **System Scenario: STS-018-A2**
     - **Given** malformed URL or invalid numeric port values in environment variables
@@ -993,7 +993,7 @@ Each test case identifies its technique by name:
 
 **Parent Requirements**: REQ-058, REQ-059, REQ-060, REQ-061, REQ-062, REQ-063, REQ-064, REQ-065, REQ-IF-004c, REQ-IF-006
 
-_Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by explicit startup registration, composition by `curateHomeWidgets(widgets, ctx)` (capability + subscription-tier gating, personalization ordering), and render via `React.lazy`/`next/dynamic` + Suspense + per-widget `ErrorBoundary` (unknown ids skipped). Design authority: `research/home-widget-architecture.md` (`## DECISION (2026-07-06)`). The Home widget contract (`HomeWidgetId`, `HomeWidgetDescriptor`, `curateHomeWidgets`) lives in `@commise/features-core`; the live recipe widget loads via `@commise/features-recipes/widget/{web|mobile}`. Per-user layout is persisted via `PATCH /v1/profiles/me`, **owned by the identity service (002) and consumed here**._
+_Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by explicit startup registration, composition by `curateHomeWidgets(widgets, ctx)` (capability + subscription-tier gating, personalization ordering), and render via `React.lazy`/`next/dynamic` + Suspense + per-widget `ErrorBoundary` (unknown ids skipped). Design authority: `research/home-widget-architecture.md` (`## DECISION (2026-07-06)`). The Home widget contract (`HomeWidgetId`, `HomeWidgetDescriptor`, `curateHomeWidgets`) lives in `@commise/features-core`; the live recipe widget loads via `@commise/features-recipes/widget/{web|mobile}`. Per-user layout is persisted via `PATCH /v1/users/me`, **owned by the identity service (002) and consumed here** (reconciled 2026-07-25: route corrected from `/v1/profiles/me`; the layout consumption itself is deferred in v1 — WAV-002)._
 
 #### Test Case: STP-021-A (Widget Curation Capability-Gating Decision Matrix)
 
@@ -1024,12 +1024,12 @@ _Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by
 
 **Technique**: Specification-Based Testing
 **Target View**: Interface View
-**Description**: Verifies the v1 recipe-only-live registration contract, absent-not-empty gated-widget behavior, unknown-id skip, and per-widget error isolation of the render chain.
+**Description**: Verifies the v1 recipe-only-live registration contract, skeleton-placeholder (CR-001) gated-widget rendering, unknown-id skip, and per-widget error isolation of the render chain. (reconciled 2026-07-25: as-built — gated widgets render as CR-001 skeleton placeholders, not fully absent/no-tile)
 
 - **System Scenario: STS-021-B1**
-    - **Given** a v1 client build in which **only the recipe (recent-recipes) widget is registered** (the meal-plan/nutrition/shopping/AI-suggestion/resume-cooking widgets are not registered — their `@commise/features-*` packages backed by services 005–009 do not exist yet)
+    - **Given** a v1 client build in which **only the recipe (recent-recipes) widget is live-registered** (the meal-plan/nutrition/shopping/AI-suggestion/resume-cooking widgets have no live `@commise/features-*` package — services 005–009 do not exist yet — so each is registered instead as a roadmap **placeholder** descriptor, per CR-001)
     - **When** the Home host runs discovery + `curateHomeWidgets` and renders the surface
-    - **Then** exactly the recipe widget renders (its empty-state applies only because it is live), and every gated widget is **absent — not present as an empty or dead tile**
+    - **Then** the recipe widget renders live (its empty-state applies only because it is live), and every gated widget renders as a **CR-001 skeleton placeholder** — the real widget's shape with no invented data — not as a live widget and not as the live-widget empty state
 
 - **System Scenario: STS-021-B2**
     - **Given** an ordered widget-id list that includes (a) an id not present in the client render registry and (b) a registered widget whose lazy `load`/render throws
@@ -1040,12 +1040,12 @@ _Verifies US-0 / FR-046: the post-login Home **widget surface** — discovery by
 
 **Technique**: State Transition Testing
 **Target View**: Operational States
-**Description**: Verifies that a gated widget auto-appears when its backing service deploys (capability transitions absent → present) with no client change, using the AI-suggestion widget backed by service **005** as the representative case.
+**Description**: Verifies that a gated widget's CR-001 skeleton placeholder is replaced by the live widget when its backing service deploys (capability transitions absent → present) with no client change, using the AI-suggestion widget backed by service **005** as the representative case. (reconciled 2026-07-25: as-built — the gated widget's placeholder id is present throughout; the capability gate swaps placeholder → live under that id, it does not add a previously-absent id)
 
 - **System Scenario: STS-021-C1**
-    - **Given** the AI-suggestion widget descriptor is registered with `capability='ai-suggestions'` while service 005 is **not deployed** (capability absent), so `curateHomeWidgets` excludes it and the Home surface renders without it
+    - **Given** the AI-suggestion widget descriptor is registered with `capability='ai-suggestions'` while service 005 is **not deployed** (capability absent), so `curateHomeWidgets` admits the roadmap **placeholder** descriptor under that id (per `meetsCapability`'s inverse placeholder rule) and the Home surface renders it as a skeleton tile
     - **When** service 005 deploys and the capability flag transitions **absent → present**, and the same user next views Home (no client redeploy)
-    - **Then** `curateHomeWidgets` now includes the AI-suggestion widget and it renders one AI-generated recipe suggestion; the transition is one-directional for this scenario and no other widget's presence changes
+    - **Then** `curateHomeWidgets` now admits the live AI-suggestion descriptor instead of the placeholder (same id) and it renders one AI-generated recipe suggestion; the transition is one-directional for this scenario and no other widget's presence changes
 
 #### Test Case: STP-021-D (Nudge Suppression and Cross-Platform Parity Partitions)
 

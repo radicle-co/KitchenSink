@@ -651,6 +651,8 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 
 ### ARCH-029: Config Loader
 
+**Verification Method**: **Inspection** (reconciled 2026-07-25 — the ARCH-level scope of this module spans a Zod-validated backend loader with real unit tests (`config/__tests__/load-config.test.ts`, `cors.test.ts`) AND the web/mobile client base-URL default resolution (REQ-NF-018/019/020), which `requirements.md` already correctly classifies as Inspection — not Test. Evidence artifact: `packages/services/recipe-service/src/config/{config.module.ts,load-config.ts,config.types.ts}` plus the client default literals in `recipeServiceConfig.ts` / `RecipeServiceGate.tsx`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
+
 | Direction | Name           | Type        | Format                    | Constraints                        |
 | --------- | -------------- | ----------- | ------------------------- | ---------------------------------- |
 | Input     | env            | process.env | string map                | Validated with Zod schema at boot  |
@@ -658,6 +660,8 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 | Exception | CONFIG_INVALID | startup     | `{ code, fieldErrors[] }` | Process exits non-zero on boot     |
 
 ### ARCH-030: Telemetry & Logger
+
+**Verification Method**: **Inspection** (reconciled 2026-07-25 — telemetry/logging is cross-cutting Sentry SDK + NestJS `Logger` usage wired across providers/filters, not a single dedicated executable-tested module; there is no `observability/logger.ts` file in the shipped tree despite the Target Source File(s) in `module-design.md`. Evidence artifact: Sentry wiring + `Logger` call sites, e.g. `common/filters/api-exception.filter.ts`, `photos/cdn-invalidation.ts`, `photos/photos.service.ts`, `account/erasure.service.ts`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
 
 | Direction | Name  | Type        | Format                               | Constraints                                            |
 | --------- | ----- | ----------- | ------------------------------------ | ------------------------------------------------------ |
@@ -674,6 +678,8 @@ This section is an **IEEE 42010 interface-specification extension** and is not o
 | Exception | none   | —                      | —       | Alarm definitions are infra-as-code                         |
 
 ### ARCH-032: CI & Test Governance Harness
+
+**Verification Method**: **Inspection** (reconciled 2026-07-25 — this module is Turborepo pipelines + GitHub Actions workflow YAML + ESLint/tsc/vitest orchestration config; it is verified by reading/running the CI configuration itself, not by an executable test _of_ the harness. Evidence artifact: `.github/workflows/{ci-pr,ci-main,ci-full,_ci}.yml`, `turbo.json`, `packages/tools/*`. This module was previously implied as Test-verified by the pre-implementation `traceability-matrix.md` (Matrix C/D, superseded per `verify-report.md` WARNING W3); this note is the correction.)
 
 | Direction | Name           | Type      | Format                      | Constraints                                          |
 | --------- | -------------- | --------- | --------------------------- | ---------------------------------------------------- |

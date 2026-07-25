@@ -162,12 +162,12 @@ strict Given/When/Then format.
 **Linked Requirement:** REQ-005
 **Description:** Validates rejection of negative minute values for any time field.
 **Validation Condition:** A recipe save is attempted with one or more negative minute integers.
-**Expected Result:** HTTP 422 is returned; response identifies invalid negative fields; no negative values are persisted.
+**Expected Result:** HTTP 400 is returned; response identifies invalid negative fields; no negative values are persisted. (reconciled 2026-07-25: as-built status — the service's global `ValidationPipe` default returns 400, matching the OpenAPI contract, not 422)
 
 - **User Scenario: SCN-005-B1**
     - **Given** an authenticated user editing a recipe with `cookMinutes=-1`
     - **When** the user submits the save request
-    - **Then** the system returns HTTP 422 and rejects the save for the negative minute value
+    - **Then** the system returns HTTP 400 and rejects the save for the negative minute value
 
 ---
 
@@ -190,12 +190,12 @@ strict Given/When/Then format.
 **Linked Requirement:** REQ-006
 **Description:** Validates rejection of non-positive servings values.
 **Validation Condition:** A recipe save is attempted with `servings=0` or a negative integer.
-**Expected Result:** HTTP 422 is returned with a servings validation error; record is not updated with non-positive servings.
+**Expected Result:** HTTP 400 is returned with a servings validation error; record is not updated with non-positive servings. (reconciled 2026-07-25: as-built status — matches the OpenAPI contract's `ValidationPipe` default, not 422)
 
 - **User Scenario: SCN-006-B1**
     - **Given** an authenticated user editing a recipe with `servings=0`
     - **When** the user submits the save request
-    - **Then** the system returns HTTP 422 and does not persist `servings=0`
+    - **Then** the system returns HTTP 400 and does not persist `servings=0`
 
 ---
 
@@ -539,17 +539,12 @@ strict Given/When/Then format.
     - **When** the owner confirms the explicit GDPR erasure action
     - **Then** all database rows and S3 archives for `R4` are removed and cannot be recovered by normal restore paths
 
-#### Test Case: ATP-020-B (Reject unauthorized hard purge attempt)
+#### Test Case: ATP-020-B — **N/A (reconciled 2026-07-25): erasure is self-service-only by design**
 
 **Linked Requirement:** REQ-020a
-**Description:** Validates hard purge is rejected when a non-owner attempts the operation.
-**Validation Condition:** A request attempts to hard-delete tombstoned data by a user who is not the owning user.
-**Expected Result:** Request is denied with HTTP 403 Forbidden; tombstoned DB/S3 data remains intact.
-
-- **User Scenario: SCN-020-B1**
-    - **Given** a tombstoned recipe exists and the authenticated user is not its owner
-    - **When** the user attempts hard purge without owner authorization
-    - **Then** the system returns HTTP 403 Forbidden and the recipe data remains retained
+**Description:** ~~Validates hard purge is rejected when a non-owner attempts the operation.~~ N/A as originally written — the shipped erasure surface, `POST /v1/account/erasure` (`account.controller.ts`), takes no target-user identifier at all; it always erases the **authenticated caller's own** account data (`ownerId` is read from the verified token, never from the request body/params). There is structurally no code path by which a non-owner could name another user's data for hard purge, so a "reject unauthorized hard purge attempt" 403 scenario does not fit the shipped design — there is nothing to reject; the capability to target someone else's data simply does not exist. This scenario is retained here for audit-trail continuity only and is excluded from the coverage count.
+**Validation Condition:** N/A.
+**Expected Result:** N/A — self-service-only erasure makes cross-user targeting structurally unrepresentable, not merely authorization-denied.
 
 #### Test Case: ATP-020-C (Reject hard purge when explicit erasure is missing)
 
@@ -1030,12 +1025,12 @@ strict Given/When/Then format.
 **Linked Requirement:** REQ-043
 **Description:** Validates exact conflict response code and payload contract.
 **Validation Condition:** A stale-version save request is rejected by optimistic concurrency validation.
-**Expected Result:** HTTP 409 is returned with JSON body containing both `serverVersion` and `clientVersion` fields with correct numeric values.
+**Expected Result:** HTTP 409 is returned with JSON body containing both `currentVersion` and `conflictingVersion` fields with correct numeric values. (reconciled 2026-07-25: as-built field names, were `serverVersion`/`clientVersion`)
 
 - **User Scenario: SCN-043-A1**
     - **Given** recipe `R8` has server version `20`
     - **When** the owner submits a save using client version `19`
-    - **Then** the response is HTTP 409 with body including `serverVersion: 20` and `clientVersion: 19`
+    - **Then** the response is HTTP 409 with body including `currentVersion: 20` and `conflictingVersion: 19`
 
 ---
 
@@ -1313,17 +1308,17 @@ strict Given/When/Then format.
     - **When** the clone owner runs "Pull updates from source"
     - **Then** recipe `R13` is added to the cloned collection
 
-#### Test Case: ATP-055-B (Pull removes recipes no longer accessible)
+#### Test Case: ATP-055-B (Inaccessible source-linked recipes are absent on read, including after pull)
 
 **Linked Requirement:** REQ-055b
-**Description:** Validates pull-updates removes source-linked recipes cloner can no longer access.
-**Validation Condition:** A previously included source recipe becomes inaccessible to cloner before pull-updates.
-**Expected Result:** Pull-updates removes that inaccessible recipe from cloned collection.
+**Description:** Validates that a source-linked recipe the cloner can no longer access does not appear when the cloned collection is read, both before and immediately after "Pull updates from source". (reconciled 2026-07-25: as-built mechanism is continuous read-time visibility filtering on every membership read — `collections.dal.ts` `listRecipes` — not a row deleted by the pull action; no membership row is ever removed because a recipe became inaccessible, so a recipe restored to public reappears without re-adding.)
+**Validation Condition:** A previously included source recipe becomes inaccessible to cloner; the cloned collection is read both before and after "Pull updates from source" is invoked.
+**Expected Result:** The inaccessible recipe is absent from every read of the cloned collection (the pull action itself does not delete its membership row).
 
 - **User Scenario: SCN-055-B1**
     - **Given** cloned collection currently includes source-linked recipe `R14` that became inaccessible to the cloner
-    - **When** the clone owner runs "Pull updates from source"
-    - **Then** recipe `R14` is removed from the cloned collection
+    - **When** the clone owner reads the cloned collection, then runs "Pull updates from source" and reads it again
+    - **Then** recipe `R14` does not appear in either read, and no membership row for `R14` is deleted by the pull action itself
 
 #### Test Case: ATP-055-C (Pull preserves cloner-added recipes)
 
@@ -1404,11 +1399,14 @@ strict Given/When/Then format.
 
 > **US-0 / FR-046 (Home widget surface).** The following ATPs validate the atomic FR-046
 > requirements decomposed in `requirements.md` (REQ-058..REQ-068) and the consumed external
-> dependency REQ-IF-006 (`PATCH /v1/profiles/me`, owned by feature 002). Design authority:
+> dependency REQ-IF-006 (`PATCH /v1/users/me`, owned by feature 002; reconciled 2026-07-25: as-built
+> route name, was `/v1/profiles/me`). Design authority:
 > [`research/home-widget-architecture.md`](../research/home-widget-architecture.md) (the
 > `## DECISION (2026-07-06)` section). In **Home v1 the recent-recipes (recipe) widget is the only
-> live widget**; every other widget (meal-plan, nutrition, shopping, AI, resume-cooking) is
-> capability-gated **absent** until its backing service (005–009) deploys.
+> live widget**; every other widget (meal-plan, nutrition, shopping, AI, resume-cooking) renders as
+> a capability-gated **CR-001 skeleton placeholder** (reconciled 2026-07-25: as-built, was described
+> as fully absent) until its backing service (005–009) deploys, at which point the placeholder is
+> replaced by the live widget.
 
 #### Test Case: ATP-058-A (Home presents a discovered widget surface immediately after login)
 
@@ -1525,31 +1523,31 @@ strict Given/When/Then format.
 
 ---
 
-### Requirement Validation: REQ-065 (Gated widgets absent until 005–009 deploy; auto-appear on deploy)
+### Requirement Validation: REQ-065 (Gated widgets render as skeleton placeholders until 005–009 deploy; live-swap on deploy)
 
-#### Test Case: ATP-065-A (Gated widgets are absent, not empty tiles, in v1)
+#### Test Case: ATP-065-A (Gated widgets render as CR-001 skeleton placeholders, not live/empty tiles, in v1)
 
 **Linked Requirement:** REQ-065
-**Description:** Validates that in Home v1 every widget whose backing service is not yet deployed is **absent** — not registered and not rendered as a dead or empty tile — because its feature package (005–009) does not exist yet. The per-widget empty state applies only to **live** widgets that have no data.
+**Description:** Validates that in Home v1 every widget whose backing service is not yet deployed renders as a **skeleton placeholder** (the real widget's shape with no invented data, per CR-001) — not a live widget and not an empty-state tile — because its feature package (005–009) does not exist yet. The per-widget empty state applies only to **live** widgets that have no data. (reconciled 2026-07-25: as-built — the gated cohort renders CR-001 skeleton placeholders, not a fully absent/no-tile DOM state as originally written; see `HomeWidgetSurface.tsx` web+mobile and `RoadmapWidgetSlot`)
 **Validation Condition:** Home renders in the v1 configuration where only the recipe service is live (005–009 not deployed).
-**Expected Result:** The recipe widget renders; the meal-plan, nutrition, shopping-list, AI-suggestion, and resume-cooking widgets are absent from the DOM/tree (no dead or empty tile is rendered for them).
+**Expected Result:** The recipe widget renders live; the meal-plan, nutrition, shopping-list, AI-suggestion, and resume-cooking widgets render as skeleton placeholder tiles (not live, not the live-widget empty state).
 
 - **User Scenario: SCN-065-A1**
     - **Given** an authenticated user views Home while services 005–009 are not deployed
     - **When** the Home surface renders
-    - **Then** the recipe widget is present and the meal-plan, nutrition, shopping-list, AI-suggestion, and resume-cooking widgets are absent (not shown as empty tiles)
+    - **Then** the recipe widget is live and the meal-plan, nutrition, shopping-list, AI-suggestion, and resume-cooking widgets render as skeleton placeholders (not shown as live-widget empty-state tiles)
 
-#### Test Case: ATP-065-B (A gated widget auto-appears when its feature package ships and its service deploys)
+#### Test Case: ATP-065-B (A gated widget's placeholder is replaced by the live widget when its feature package ships and its service deploys)
 
 **Linked Requirement:** REQ-065
-**Description:** Validates that a capability-gated widget lights up with no client change once its feature package ships and its backing service becomes live — exercised via the AI-suggestion widget backed by feature 005.
-**Validation Condition:** The AI-suggestion widget's feature package (005) is not present in v1 (so the widget is absent); when feature package 005 ships and its backing service deploys, the AI widget registers and its capability turns on.
-**Expected Result:** While 005 is absent the AI-suggestion widget is absent; after feature package 005 ships and its service deploys, the AI widget registers and appears on the same user's next Home view with one AI-generated recipe suggestion, with no client build or code change.
+**Description:** Validates that a capability-gated widget's skeleton placeholder is replaced by the live widget with no client change once its feature package ships and its backing service becomes live — exercised via the AI-suggestion widget backed by feature 005.
+**Validation Condition:** The AI-suggestion widget's feature package (005) is not present in v1 (so the widget renders as a skeleton placeholder); when feature package 005 ships and its backing service deploys, the AI widget registers and its capability turns on.
+**Expected Result:** While 005 is absent the AI-suggestion widget renders as a skeleton placeholder; after feature package 005 ships and its service deploys, the AI widget registers and replaces the placeholder on the same user's next Home view with one AI-generated recipe suggestion, with no client build or code change.
 
 - **User Scenario: SCN-065-B1**
-    - **Given** an authenticated user views Home while the AI feature package (005) is not shipped and the AI-suggestion widget is absent
+    - **Given** an authenticated user views Home while the AI feature package (005) is not shipped and the AI-suggestion widget renders as a skeleton placeholder
     - **When** feature package 005 ships, its backing service deploys and turns its capability on, and the user next views Home
-    - **Then** the AI-suggestion widget registers and appears, showing one AI-generated recipe suggestion, with no client change
+    - **Then** the AI-suggestion widget registers and its placeholder is replaced by the live widget, showing one AI-generated recipe suggestion, with no client change
 
 ---
 
@@ -1587,15 +1585,15 @@ strict Given/When/Then format.
 
 ### Requirement Validation: REQ-068 (Cross-device Home layout persistence via the 002-owned endpoint)
 
-#### Test Case: ATP-068-A (Personalized layout persists across devices via PATCH /v1/profiles/me)
+#### Test Case: ATP-068-A (Personalized layout persists across devices via PATCH /v1/users/me)
 
 **Linked Requirement:** REQ-068
-**Description:** Validates that per-user Home layout (widget order and hidden set) is persisted across devices via `PATCH /v1/profiles/me` — owned by the identity service (002) and **consumed** here — so layout changes made on one device are reflected on another.
+**Description:** Validates that per-user Home layout (widget order and hidden set) is persisted across devices via `PATCH /v1/users/me` — owned by the identity service (002) and **consumed** here — so layout changes made on one device are reflected on another. (reconciled 2026-07-25: route corrected from `/v1/profiles/me` to the real, tested `/v1/users/me`. **Deferred in v1** — see WAV-002 in `waivers.md`: feature 001 does not yet read or write `homeLayout` on any endpoint, so this scenario cannot presently be executed; every device currently renders the default order with nothing hidden.)
 **Validation Condition:** A user changes their Home layout (reorder/hide) on one device; the layout is loaded on a second device.
-**Expected Result:** The layout change is persisted through the 002-owned endpoint and the second device renders Home in the updated order/visibility.
+**Expected Result:** The layout change is persisted through the 002-owned endpoint and the second device renders Home in the updated order/visibility. **Not yet exercisable — WAV-002.**
 
 - **User Scenario: SCN-068-A1**
-    - **Given** an authenticated user reorders and hides a Home widget on device A, persisted via `PATCH /v1/profiles/me`
+    - **Given** an authenticated user reorders and hides a Home widget on device A, persisted via `PATCH /v1/users/me`
     - **When** the same user opens Home on device B and the layout is loaded
     - **Then** device B renders Home in the updated order with the hidden widget omitted
 
@@ -1606,13 +1604,13 @@ strict Given/When/Then format.
 #### Test Case: ATP-IF-006-A (Layout endpoint consumed not implemented; absent layout falls back to default)
 
 **Linked Requirement:** REQ-IF-006
-**Description:** Validates that feature 001 **consumes** — and does not implement — the external `PATCH /v1/profiles/me` endpoint owned by feature 002, and tolerates an absent layout (new user) by falling back to the default Home template.
+**Description:** Validates that feature 001 **consumes** — and does not implement — the external `PATCH /v1/users/me` endpoint owned by feature 002, and tolerates an absent layout (new user) by falling back to the default Home template. (reconciled 2026-07-25: route corrected from `/v1/profiles/me` to the real, tested `/v1/users/me`. As-built, feature 001 does not yet call this endpoint for `homeLayout` at all — deferred, WAV-002 — so every user, not only new users, currently sees the default template; the "falls back to default" outcome is still true today, just for the broader reason that personalization is not wired up yet, not merely because one user's layout key is absent.)
 **Validation Condition:** A new user with no persisted Home layout in the 002-owned store loads Home.
-**Expected Result:** Home renders using the default widget template when the 002-owned layout is absent; feature 001 defines no `PATCH /v1/profiles/me` endpoint in its own API contract (it consumes the 002-owned one).
+**Expected Result:** Home renders using the default widget template when the 002-owned layout is absent; feature 001 defines no `PATCH /v1/users/me` endpoint in its own API contract (it consumes the 002-owned one).
 
 - **User Scenario: SCN-IF-006-A1**
     - **Given** a new authenticated user has no persisted Home layout in the feature-002-owned store
-    - **When** the user opens Home and the layout is loaded from the 002-owned `PATCH /v1/profiles/me` endpoint's store
+    - **When** the user opens Home and the layout is loaded from the 002-owned `PATCH /v1/users/me` endpoint's store
     - **Then** Home falls back to the default widget template and feature 001 defines no home-layout endpoint of its own
 
 ---
@@ -1932,17 +1930,17 @@ strict Given/When/Then format.
     - **When** the web app initializes its API client
     - **Then** outbound API requests target `https://api.example.test`
 
-#### Test Case: ATP-NF-018-B (Fallback to localhost:4000 when unset)
+#### Test Case: ATP-NF-018-B (Fallback to localhost:3000 when unset)
 
 **Linked Requirement:** REQ-NF-018
 **Description:** Validates default web API base URL when env variable is missing.
 **Validation Condition:** Web app starts with `NEXT_PUBLIC_API_URL` unset.
-**Expected Result:** API client base URL defaults to `http://localhost:4000`.
+**Expected Result:** API client base URL defaults to `http://localhost:3000`. (reconciled 2026-07-25: as-built default, was `:4000`)
 
 - **User Scenario: SCN-NF-018-B1**
     - **Given** web runtime environment does not define `NEXT_PUBLIC_API_URL`
     - **When** the web app initializes its API client
-    - **Then** outbound API requests default to `http://localhost:4000`
+    - **Then** outbound API requests default to `http://localhost:3000`
 
 ---
 
@@ -1960,17 +1958,17 @@ strict Given/When/Then format.
     - **When** the mobile app initializes its API client
     - **Then** outbound API requests target `https://api-mobile.example.test`
 
-#### Test Case: ATP-NF-019-B (Fallback to localhost:4000 when unset)
+#### Test Case: ATP-NF-019-B (Fallback to localhost:3000 when unset)
 
 **Linked Requirement:** REQ-NF-019
 **Description:** Validates default mobile API base URL when env variable is missing.
 **Validation Condition:** Mobile app starts with `EXPO_PUBLIC_API_URL` unset.
-**Expected Result:** Mobile API client base URL defaults to `http://localhost:4000`.
+**Expected Result:** Mobile API client base URL defaults to `http://localhost:3000`. (reconciled 2026-07-25: as-built default, was `:4000`; matches the shipped `DEFAULT_API_URL` constant)
 
 - **User Scenario: SCN-NF-019-B1**
     - **Given** mobile runtime environment does not define `EXPO_PUBLIC_API_URL`
     - **When** the mobile app initializes its API client
-    - **Then** outbound API requests default to `http://localhost:4000`
+    - **Then** outbound API requests default to `http://localhost:3000`
 
 ---
 
@@ -1981,12 +1979,12 @@ strict Given/When/Then format.
 **Linked Requirement:** REQ-NF-020
 **Description:** Validates fixed local-development port assignments for API, web, metro, Postgres, and LocalStack.
 **Validation Condition:** Local environment configuration files are inspected for port bindings.
-**Expected Result:** Ports are configured exactly as API `4000`, web `3000`, Expo Metro `8081`, Postgres `5432`, LocalStack `4566`.
+**Expected Result:** Ports are configured exactly as API `3000`, web `3000`, Expo Metro `8081`, Postgres `5432`, LocalStack `4566`. (reconciled 2026-07-25: as-built API port, was `4000`; matches `main.ts`'s `process.env['PORT'] ?? 3000` default, the shared ALB target, and the service security group's :3000 ingress rule)
 
 - **User Scenario: SCN-NF-020-A1**
     - **Given** local development configuration files at HEAD
     - **When** service port bindings are reviewed
-    - **Then** the configured ports exactly match 4000, 3000, 8081, 5432, and 4566 respectively
+    - **Then** the configured ports exactly match 3000, 3000, 8081, 5432, and 4566 respectively
 
 ---
 
@@ -2191,15 +2189,15 @@ strict Given/When/Then format.
 | Metric                   | Count            |
 | ------------------------ | ---------------- |
 | Total Requirements (REQ) | 146              |
-| Total Test Cases (ATP)   | 142              |
-| Total Scenarios (SCN)    | 148              |
+| Total Test Cases (ATP)   | 141              |
+| Total Scenarios (SCN)    | 147              |
 | Requirements with ≥1 ATP | 146 / 146 (100%) |
-| Test Cases with ≥1 SCN   | 142 / 142 (100%) |
+| Test Cases with ≥1 SCN   | 141 / 141 (100%) |
 | **Overall Coverage**     | **100%**         |
 
-Coverage note: The ATP count (142) reflects test cases with dedicated `Linked Requirement` rows. Five functional REQs (REQ-002a, REQ-002b, REQ-003a, REQ-003b, REQ-030f) have no dedicated ATP row — their individual fields are validated as part of their parent REQ's ATP (ATP-002-A for REQ-002a/b, ATP-003-A/B for REQ-003a/b, ATP-030-A for REQ-030f). Coverage is complete at 146/146. REQ-035a/035b, REQ-038a/038b/038c, and REQ-049a/049b are explicitly linked in ATP linked-requirement fields. REQ-049b cap-boundary execution remains blocked pending resolution of `[TBD: per-user collection cap]` in `requirements.md`.
+Coverage note: The ATP count (141; reconciled 2026-07-25, was 142/148 SCN) reflects test cases with dedicated `Linked Requirement` rows. Five functional REQs (REQ-002a, REQ-002b, REQ-003a, REQ-003b, REQ-030f) have no dedicated ATP row — their individual fields are validated as part of their parent REQ's ATP (ATP-002-A for REQ-002a/b, ATP-003-A/B for REQ-003a/b, ATP-030-A for REQ-030f). Coverage is complete at 146/146. REQ-035a/035b, REQ-038a/038b/038c, and REQ-049a/049b are explicitly linked in ATP linked-requirement fields. REQ-049b cap-boundary execution remains blocked pending resolution of `[TBD: per-user collection cap]` in `requirements.md`. ATP-020-B is excluded from the ATP/SCN totals — reconciled 2026-07-25 as N/A (self-service-only erasure design makes the original non-owner-403 scenario structurally unrepresentable); REQ-020a remains fully covered by ATP-020-A and ATP-020-C.
 
-US-0 / FR-046 coverage note: The eleven FR-046 requirements covered here — REQ-058 (widget surface discovered via startup registration), REQ-059 (`curateHomeWidgets` capability gating), REQ-060 (`curateHomeWidgets` subscription-tier gating), REQ-061 (personalization ordering), REQ-062 (lazy render with per-widget error isolation), REQ-063 (graceful unknown-id skip), REQ-064 (Home v1 recipe-only live widget), REQ-065 (gated widgets absent-not-empty until 005–009 deploy; auto-appear on deploy), REQ-066 (per-session premium nudge), REQ-067 (live-widget web/mobile parity), REQ-068 (cross-device layout persistence) — plus REQ-IF-006 (`PATCH /v1/profiles/me`, consumed from feature 002) are the acceptance-plan's decomposition of spec FR-046, matching the REQ-058..REQ-068 + REQ-IF-006 scheme in `requirements.md`. ATP-IF-004-A's parity scope now covers the full functional set (REQ-001 through REQ-068, 99 functional requirements including sub-IDs).
+US-0 / FR-046 coverage note: The eleven FR-046 requirements covered here — REQ-058 (widget surface discovered via startup registration), REQ-059 (`curateHomeWidgets` capability gating), REQ-060 (`curateHomeWidgets` subscription-tier gating), REQ-061 (personalization ordering), REQ-062 (lazy render with per-widget error isolation), REQ-063 (graceful unknown-id skip), REQ-064 (Home v1 recipe-only live widget), REQ-065 (gated widgets render as CR-001 skeleton placeholders until 005–009 deploy; auto-swap to live on deploy), REQ-066 (per-session premium nudge), REQ-067 (live-widget web/mobile parity), REQ-068 (cross-device layout persistence, deferred in v1 — WAV-002) — plus REQ-IF-006 (`PATCH /v1/users/me`, consumed from feature 002) are the acceptance-plan's decomposition of spec FR-046, matching the REQ-058..REQ-068 + REQ-IF-006 scheme in `requirements.md`. ATP-IF-004-A's parity scope now covers the full functional set (REQ-001 through REQ-068, 99 functional requirements including sub-IDs).
 
 ## Uncovered Requirements
 

@@ -74,15 +74,7 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
         expect(callsOf(fetchMock)).toHaveLength(3); // 1 initial + 2 retries
     });
 
-    it('does NOT retry a plain 401 (no IDENTITY_SYNC_PENDING code)', async () => {
-        const fetchMock = sequenceFetch([{ status: 401, body: { code: 'UNAUTHORIZED', message: 'nope' } }]);
-        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
-
-        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
-        expect(callsOf(fetchMock)).toHaveLength(1);
-    });
-
-    it('honors maxIdentitySyncRetries: 0 (never retries)', async () => {
+    it('honors maxIdentitySyncRetries: 0 (never retries the sync-pending case)', async () => {
         const fetchMock = sequenceFetch([{ status: 401, body: SYNC_PENDING }]);
         const client = new RecipeServiceClient({
             baseUrl: BASE,
@@ -93,6 +85,68 @@ describe('RecipeServiceClient — first-token sync-race retry', () => {
         });
 
         await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(callsOf(fetchMock)).toHaveLength(1);
+    });
+});
+
+describe('RecipeServiceClient — expired-token 401 force-refresh + bounded retry (B22)', () => {
+    const instantSleep = (): Promise<void> => Promise.resolve();
+
+    it('force-refreshes the token and retries ONCE on an ordinary expired-token 401, succeeding on the retry', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
+        const fetchMock = sequenceFetch([
+            { status: 401, body: { code: 'TOKEN_EXPIRED', message: 'jwt expired' } },
+            { status: 200, body: recipe },
+        ]);
+        const forceRefreshFlags: (boolean | undefined)[] = [];
+        const getToken = vi.fn((opts?: { forceRefresh?: boolean }) => {
+            forceRefreshFlags.push(opts?.forceRefresh);
+
+            return opts?.forceRefresh === true ? 'fresh-tok' : 'stale-tok';
+        });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            token: getToken,
+            fetch: fetchMock,
+            sleep: instantSleep,
+        });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result).toEqual(recipe);
+        expect(callsOf(fetchMock)).toHaveLength(2);
+        // First attempt uses the (possibly stale) cached token; the retry forces a fresh mint.
+        expect(forceRefreshFlags).toEqual([false, true]);
+        expect(requestAt(fetchMock, 1).headers.get('authorization')).toBe('Bearer fresh-tok');
+    });
+
+    it('surfaces UnauthorizedError with NO third attempt when the refreshed token ALSO 401s (bounded, no loop)', async () => {
+        const fetchMock = sequenceFetch([
+            { status: 401, body: { code: 'TOKEN_EXPIRED', message: 'jwt expired' } },
+            { status: 401, body: { code: 'TOKEN_EXPIRED', message: 'jwt expired' } },
+        ]);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(UnauthorizedError);
+        // 1 initial + 1 bounded retry — the persistent-failure double would keep returning 401 forever if
+        // this looped, so a length of exactly 2 proves the retry is bounded.
+        expect(callsOf(fetchMock)).toHaveLength(2);
+    });
+
+    it('treats a 401 with NO body/code as ordinary too (still one bounded retry, not zero)', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
+        const fetchMock = sequenceFetch([{ status: 401 }, { status: 200, body: recipe }]);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).resolves.toEqual(recipe);
+        expect(callsOf(fetchMock)).toHaveLength(2);
+    });
+
+    it('leaves a non-401 error path unaffected (no extra retry)', async () => {
+        const fetchMock = sequenceFetch([{ status: 403, body: { code: 'FORBIDDEN', message: 'nope' } }]);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep: instantSleep });
+
+        await expect(client.getRecipeById('rec_1')).rejects.toBeInstanceOf(ForbiddenError);
         expect(callsOf(fetchMock)).toHaveLength(1);
     });
 });

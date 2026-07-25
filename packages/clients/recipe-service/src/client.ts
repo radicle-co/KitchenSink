@@ -98,9 +98,10 @@ const pullDiffSchema = z.object({
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
- * receives `{ forceRefresh }` — `true` when the client is retrying the first-token sync race and needs a
- * freshly-minted token (the app wires this to Clerk's `getToken({ skipCache: true })`). A callback that
- * ignores the argument still works — it simply returns its (possibly cached) token.
+ * receives `{ forceRefresh }` — `true` when the client is retrying the first-token sync race, OR
+ * bounded-single-retrying an ordinary expired-token `401`, and needs a freshly-minted token (the app
+ * wires this to Clerk's `getToken({ skipCache: true })`). A callback that ignores the argument still
+ * works — it simply returns its (possibly cached) token.
  */
 export type TokenSource = string | ((options?: { readonly forceRefresh?: boolean }) => string | Promise<string>);
 
@@ -823,9 +824,19 @@ export class RecipeServiceClient {
     // ─── Transport ──────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Issue an authenticated request and normalize the response (status + parsed body), retrying the
-     * first-token sync race (`401` `IDENTITY_SYNC_PENDING`) with a force-refreshed token per the configured
-     * backoff. No other status is retried.
+     * Issue an authenticated request and normalize the response (status + parsed body).
+     *
+     * Two DISTINCT `401` retry paths live here, and they must not be conflated:
+     *  1. **First-token sync race** (`401` `IDENTITY_SYNC_PENDING`) — retried per the configured backoff
+     *     (`maxIdentitySyncRetries` attempts, force-refreshing the token each time).
+     *  2. **Ordinary expired-token `401`** (any other/absent `code`) — once the sync-race loop above has
+     *     run its course (it never even starts when the first response isn't sync-pending), an ordinary
+     *     `401` gets exactly ONE bounded retry: force-refresh the token via the `TokenSource` and replay
+     *     the request. If the retry ALSO 401s, that response is returned as-is (surfacing
+     *     `UnauthorizedError` below) — there is no second retry, so a persistently-invalid token fails
+     *     fast instead of looping.
+     *
+     * No other status is retried.
      *
      * @param method - HTTP method.
      * @param path - Path beginning with `/`.
@@ -840,6 +851,13 @@ export class RecipeServiceClient {
         for (let attempt = 1; attempt <= this.maxIdentitySyncRetries && isIdentitySyncPending(res); attempt += 1) {
             const backoff = this.identitySyncBackoffMs[Math.min(attempt, this.identitySyncBackoffMs.length) - 1] ?? 0;
             await this.sleep(backoff);
+            res = await this.sendOnce(method, path, body, query, true);
+        }
+
+        // Ordinary expired-token 401 (NOT the identity-sync-pending case, which is handled — and possibly
+        // exhausted — by the loop above): force a fresh token and retry exactly once. Bounded — the result
+        // of this single retry (success OR another 401) is returned as-is, never looped.
+        if (res.status === 401 && !isIdentitySyncPending(res)) {
             res = await this.sendOnce(method, path, body, query, true);
         }
 

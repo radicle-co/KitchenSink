@@ -4,9 +4,10 @@
  * `RecipeServiceProvider`. Mount inside both `ClerkProvider` (for `useAuth`) and `QueryClientProvider`
  * (the hooks own no query client of their own).
  *
- * Token attach mirrors `useUserProfile`: the client re-reads the Clerk session token per request, and on
- * an identity-sync retry (`forceRefresh`) it skips Clerk's cache to mint a current one — the same guard the
- * profile fetch uses so a token that expired while backgrounded never 401s a request.
+ * Token attach: the client re-reads the Clerk session token per request, and passes `forceRefresh` through
+ * to `getToken({ skipCache })` on any 401 retry it drives internally — the first-token identity-sync-pending
+ * backoff, AND (B22) a bounded single retry after an ordinary expired-token 401 — so a token that expired
+ * while backgrounded gets one chance to self-heal before the request fails.
  */
 import { useAuth } from '@clerk/expo';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';

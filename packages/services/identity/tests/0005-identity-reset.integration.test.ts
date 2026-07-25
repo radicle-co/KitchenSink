@@ -1,35 +1,46 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 
-const { Client } = pg;
+/**
+ * Integration test for the `0005_identity_reset` migration — pins the ULID-PK + `identity_id` schema
+ * rebuild's DDL contract (columns, indexes, FKs) and its unique-constraint enforcement.
+ *
+ * Runs against a real Postgres (CI service; locally set DATABASE_URL); skips cleanly when none is
+ * configured — the identity integration suite's existing DATABASE_URL/`skipIf` convention (see
+ * `create-user-flow.integration.test.ts`), not `@testcontainers/postgresql` (unused anywhere else in
+ * the monorepo; recipe-service/food-service gate their Docker-requiring specs the same way).
+ *
+ * Applies ONLY the 0005 SQL file to a blank schema — not the full migration chain other integration
+ * suites run via their own `runMigrations` helper — because later migrations change the shape this
+ * suite asserts on (0009 replaces the plain `users_email_unique` index with a partial one scoped to
+ * `deleted_at IS NULL`); running the full chain would pin 0009's contract, not 0005's.
+ */
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const MIGRATION_PATH = join(__dirname, '..', '0005_identity_reset.sql');
+const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
-describe('0005_identity_reset migration', () => {
-    let container: StartedPostgreSqlContainer;
-    let client: InstanceType<typeof Client>;
+const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/database/migrations');
+const MIGRATION_PATH = join(migrationsDir, '0005_identity_reset.sql');
+
+describe.skipIf(!DATABASE_URL)('0005_identity_reset migration (integration)', () => {
+    let pool: pg.Pool;
 
     beforeAll(async () => {
-        container = await new PostgreSqlContainer('postgres:16-alpine').start();
-        client = new Client({ connectionString: container.getConnectionUri() });
-        await client.connect();
-    }, 120_000);
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+        await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+    });
 
     afterAll(async () => {
-        await client?.end();
-        await container?.stop();
-    }, 30_000);
+        await pool?.end();
+    });
 
     it('applies migration without error', async () => {
         const sql = readFileSync(MIGRATION_PATH, 'utf-8');
         // Multi-statement text (no params) is sent over the simple query protocol, so pg resolves an
         // array of one Result per statement — verify all 16 DDL statements in the file ran, in order.
-        await expect(client.query(sql)).resolves.toEqual(
+        await expect(pool.query(sql)).resolves.toEqual(
             [
                 'CREATE', // CREATE EXTENSION citext
                 'DROP', // DROP TABLE profiles
@@ -52,7 +63,7 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('users table has expected columns', async () => {
-        const result = await client.query<{ column_name: string; data_type: string; is_nullable: string }>(
+        const result = await pool.query<{ column_name: string; data_type: string; is_nullable: string }>(
             `SELECT column_name, data_type, is_nullable
              FROM information_schema.columns
              WHERE table_name = 'users'
@@ -68,7 +79,7 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('users.id is text PRIMARY KEY', async () => {
-        const result = await client.query<{
+        const result = await pool.query<{
             column_name: string;
             data_type: string;
             character_maximum_length: number | null;
@@ -82,7 +93,7 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('users has unique index on identity_id', async () => {
-        const result = await client.query<{ indexname: string; indexdef: string }>(
+        const result = await pool.query<{ indexname: string; indexdef: string }>(
             `SELECT indexname, indexdef
              FROM pg_indexes
              WHERE tablename = 'users' AND indexdef ILIKE '%identity_id%'`,
@@ -93,7 +104,7 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('users has unique index on email', async () => {
-        const result = await client.query<{ indexname: string; indexdef: string }>(
+        const result = await pool.query<{ indexname: string; indexdef: string }>(
             `SELECT indexname, indexdef
              FROM pg_indexes
              WHERE tablename = 'users' AND indexdef ILIKE '%email%'`,
@@ -104,7 +115,7 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('accounts.user_id references users(id)', async () => {
-        const result = await client.query<{
+        const result = await pool.query<{
             column_name: string;
             foreign_table_name: string;
             foreign_column_name: string;
@@ -125,7 +136,7 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('profiles.user_id references users(id)', async () => {
-        const result = await client.query<{
+        const result = await pool.query<{
             column_name: string;
             foreign_table_name: string;
             foreign_column_name: string;
@@ -149,7 +160,7 @@ describe('0005_identity_reset migration', () => {
         // Single parameterized statement resolves to one Result (not an array — contrast with the
         // multi-statement migration above); a successful INSERT affects exactly one row.
         await expect(
-            client.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
+            pool.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
                 '01ARYZ6S41TSV4RRFFQ69G5FAV',
                 'user_2abc123',
                 'test@example.com',
@@ -160,7 +171,7 @@ describe('0005_identity_reset migration', () => {
 
     it('enforces unique constraint on identity_id', async () => {
         await expect(
-            client.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
+            pool.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
                 '01ARYZ6S41TSV4RRFFQ69G5FAX',
                 'user_2abc123',
                 'other@example.com',
@@ -171,7 +182,7 @@ describe('0005_identity_reset migration', () => {
 
     it('enforces unique constraint on email', async () => {
         await expect(
-            client.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
+            pool.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
                 '01ARYZ6S41TSV4RRFFQ69G5FAY',
                 'user_different',
                 'test@example.com',

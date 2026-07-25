@@ -45,6 +45,8 @@ paths:
                     $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
         get:
             tags: [Recipes]
             summary: List user's recipes with pagination
@@ -125,6 +127,8 @@ paths:
                     $ref: '#/components/responses/NotFound'
                 '409':
                     $ref: '#/components/responses/VersionConflict'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
         delete:
             tags: [Recipes]
             summary: Soft-delete recipe (tombstone)
@@ -145,6 +149,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/clone:
         post:
@@ -166,6 +172,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/visibility:
         patch:
@@ -195,6 +203,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/rating:
         put:
@@ -243,6 +253,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
         delete:
             tags: [Ratings]
             summary: Remove the caller's rating for a recipe
@@ -263,6 +275,8 @@ paths:
                     $ref: '#/components/responses/Unauthorized'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/instructions:
         get:
@@ -354,6 +368,8 @@ paths:
                     $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/ingredients/by-name:
         post:
@@ -393,6 +409,8 @@ paths:
                     $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/ingredients/{id}/status:
         get:
@@ -476,6 +494,8 @@ paths:
                     $ref: '#/components/responses/Unauthorized'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/versions:
         get:
@@ -546,6 +566,8 @@ paths:
                     $ref: '#/components/responses/NotFound'
                 '409':
                     $ref: '#/components/responses/VersionConflict'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/photos/upload-url:
         post:
@@ -574,6 +596,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/photos/confirm:
         post:
@@ -604,6 +628,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/photos:
         get:
@@ -643,6 +669,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/recipes/{id}/photos/reorder:
         patch:
@@ -672,6 +700,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/collections:
         post:
@@ -709,6 +739,8 @@ paths:
                             example:
                                 code: COLLECTION_LIMIT_REACHED
                                 message: You already have the maximum of 50 collections.
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
         get:
             tags: [Collections]
             summary: List user's collections
@@ -780,6 +812,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
         delete:
             tags: [Collections]
             summary: Delete collection
@@ -795,6 +829,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/collections/{id}/recipes:
         post:
@@ -824,6 +860,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/collections/{id}/recipes/{recipeId}:
         delete:
@@ -842,6 +880,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/collections/{id}/clone:
         post:
@@ -875,6 +915,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/collections/{id}/pull-from-source/preview:
         post:
@@ -913,6 +955,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/collections/{id}/pull-from-source:
         post:
@@ -963,6 +1007,8 @@ paths:
                     $ref: '#/components/responses/NotFound'
                 '409':
                     $ref: '#/components/responses/PullDrift'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
 
     /v1/search/recipes:
         get:
@@ -1207,6 +1253,19 @@ components:
                 application/json:
                     schema:
                         $ref: '#/components/schemas/PullDriftErrorResponse'
+        ErasureLocked:
+            description: |
+                Locked (HAZ-052 write-lock). The caller's account has a queued or running GDPR
+                erasure job, so mutating requests are rejected until the erasure completes or
+                fails. Reads are unaffected. `POST /v1/account/erasure` itself is exempt (its own
+                idempotent status machine governs repeat requests while erasure is in flight).
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+                    example:
+                        code: ERASURE_IN_PROGRESS
+                        message: Account erasure is in progress; mutations are temporarily locked.
 
     schemas:
         ErrorResponse:

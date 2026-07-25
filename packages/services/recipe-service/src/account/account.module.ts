@@ -11,6 +11,11 @@
  * ({@link createSqsErasureQueue} — the real `SQSClient`, adapted to `ErasureQueuePort`), the
  * {@link ErasureService}, and the {@link AccountController}. Mirrors `PhotosModule`. The global
  * `AuthMiddleware` populates `req.principal`; the global `ApiExceptionFilter` maps thrown errors to HTTP.
+ *
+ * `ErasureJobsDal` is ALSO exported (not just `ErasureService`): `AppModule` registers the HAZ-052
+ * {@link ErasureLockGuard} as a global `APP_GUARD`, and that guard depends on this DAL directly — a
+ * guard has no HTTP request of its own to route through `ErasureService`'s C-007 state machine, it only
+ * needs the read `findActiveJob` already exposes.
  */
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -39,6 +44,6 @@ import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './e
         ErasureJobsDal,
         ErasureService,
     ],
-    exports: [ErasureService],
+    exports: [ErasureService, ErasureJobsDal],
 })
 export class AccountModule {}

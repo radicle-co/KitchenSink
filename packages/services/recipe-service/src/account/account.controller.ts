@@ -14,6 +14,7 @@ import { OwnerId } from '../auth/current-principal.decorator.js';
 import { ErasureService } from './erasure.service.js';
 import { ErasureRequestDto, type ErasureRequestAcceptedResponse } from './dto/erasure.dto.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
+import { SkipErasureLock } from './skip-erasure-lock.decorator.js';
 
 @Controller('v1/account')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
@@ -33,10 +34,16 @@ export class AccountController {
      * Rate-limited as a write (not a bespoke tighter limit): erasure is an authenticated, self-only,
      * idempotent async-enqueue (repeat calls return `410 ALREADY_ERASED` or re-accept the same job), so
      * the generous write cap is sufficient and a dedicated group would be unjustified indirection.
+     *
+     * `@SkipErasureLock()` (HAZ-052): this route is a POST — normally exactly what `ErasureLockGuard`
+     * locks — but it is the route that REPORTS "erasure already in flight" via its own idempotent C-007
+     * outcome map (202 with the existing job, never a second enqueue). Locking it would shadow that
+     * behaviour with a 423 the moment the job it is meant to report on exists.
      */
     @Post('erasure')
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
+    @SkipErasureLock()
     public async requestErasure(
         @OwnerId() ownerId: string,
         @Body() body?: ErasureRequestDto,

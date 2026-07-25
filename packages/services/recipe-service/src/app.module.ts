@@ -19,12 +19,15 @@ import { AuthMiddleware } from './auth/auth.middleware.js';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { throttlerModuleOptions } from './common/throttle/throttle.config.js';
 import { UserThrottlerGuard } from './common/throttle/user-throttler.guard.js';
+import { ErasureLockGuard } from './account/erasure-lock.guard.js';
 
 /**
  * Root application module. Wires the config, per-domain feature modules, the global Drizzle provider,
  * and the cross-cutting concerns: the API exception filter (`APP_FILTER`), rate limiting
  * (`ThrottlerModule` + the global {@link UserThrottlerGuard}, which keys per authenticated user — not per
- * ALB-shared IP), and the fail-closed Clerk `AuthMiddleware` applied to every non-public route.
+ * ALB-shared IP), the HAZ-052 erasure write-lock ({@link ErasureLockGuard}, global — see its own
+ * docstring for why a single `APP_GUARD` is the right seam over a per-service check), and the
+ * fail-closed Clerk `AuthMiddleware` applied to every non-public route.
  */
 @Module({
     imports: [
@@ -53,6 +56,12 @@ import { UserThrottlerGuard } from './common/throttle/user-throttler.guard.js';
             // the ALB-shared `req.ip` the stock ThrottlerGuard uses.
             provide: APP_GUARD,
             useClass: UserThrottlerGuard,
+        },
+        {
+            // HAZ-052 (Catastrophic) — rejects mutating requests from an owner with an in-flight erasure
+            // job with 423, on every controller, unconditionally. See ErasureLockGuard's own docstring.
+            provide: APP_GUARD,
+            useClass: ErasureLockGuard,
         },
     ],
 })

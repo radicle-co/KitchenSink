@@ -18,8 +18,25 @@ async function getUserProfile(accessToken: string): Promise<UserProfile> {
     return api.get<UserProfile>('/v1/users/me');
 }
 
-async function ProfileContent({ accessToken }: { accessToken: string }) {
-    const profile = await getUserProfile(accessToken);
+export async function ProfileContent({ accessToken }: { accessToken: string }) {
+    let profile: UserProfile;
+
+    try {
+        profile = await getUserProfile(accessToken);
+    } catch {
+        // The identity service being briefly unreachable (deploy window, cold start, or simply not booted in
+        // the web-e2e job) must not crash this server-rendered page with an unhandled fetch rejection. Degrade
+        // to a recoverable state instead — the client-side `useUserProfile` hook re-fetches and fills it in.
+        return (
+            <AccountStateGate>
+                <main>
+                    <h1>Profile</h1>
+                    <p role="status">We couldn’t load your profile right now. Please try again shortly.</p>
+                    <LogoutButton />
+                </main>
+            </AccountStateGate>
+        );
+    }
 
     return (
         <AccountStateGate>

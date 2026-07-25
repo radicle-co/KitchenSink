@@ -20,6 +20,15 @@
  * owned `Dialog.Trigger`, so Radix's own default `onCloseAutoFocus` (which only restores an OWNED trigger —
  * see `PullUpdatesDialog`'s module doc) would silently focus nothing; `triggerRef` captures
  * `document.activeElement` at the render where `open` flips true, before `Dialog.Content` ever commits.
+ *
+ * ALLOWED REF (§3, `closeRef`) — B14 re-verified this is NOT the render-mutated/state-in-ref smell that task
+ * eliminates elsewhere: `closeRef` wraps the close button's actual DOM node so `onOpenAutoFocus` can call the
+ * imperative `.focus()` the DOM API requires — there is no declarative way to say "focus THIS specific
+ * element" instead of Radix's own default (first-focusable/`Content`). Removing it would silently regress to
+ * Radix's default autofocus target, changing the drawer's documented open-focus behavior (pinned by
+ * `HomeChrome.test.tsx`'s "moves focus to the close control" case). `triggerRef`/`wasOpenRef` are the
+ * separate, React-sanctioned "read the previous render's value" pattern (conditionally captured on the
+ * false→true edge, not an unconditional latest-value bridge) and are unrelated to this ref.
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import * as Dialog from '@radix-ui/react-dialog';

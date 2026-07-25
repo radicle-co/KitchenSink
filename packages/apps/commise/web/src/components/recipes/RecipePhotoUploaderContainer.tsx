@@ -48,11 +48,20 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
     const queue = useRecipePhotoUploadQueue(uploader, photos.length);
 
+    // ALLOWED REF (§3 — wraps a genuinely external, non-declarative system): the DOM `<input type="file">`
+    // element itself. Imperatively clearing `.value` after a pick (below) is the only way to let the SAME
+    // file be re-selected later (e.g. after being removed from the queue) and still fire a fresh `change`
+    // event — there is no declarative/prop-driven equivalent for "reset a file input".
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Object URLs are a browser-only resource this container mints (not the platform-agnostic queue hook) —
-    // revoked as soon as a file is no longer PENDING: removed from the queue, or resolved `ok` (the confirmed
-    // `photos` list — refetched by the same `confirm` call — takes over rendering it via its own `photo.url`).
+    // ALLOWED REF (§3 — external-resource lifecycle, not state-in-a-ref): a browser `Object URL` is a
+    // resource OUTSIDE React's model (leaking memory until explicitly `revokeObjectURL`d), so tracking which
+    // ones are still owed a revoke is bookkeeping for that external system, never read to drive rendering —
+    // the grid renders each queue item's preview from `queue.items[].previewUri` (real React state owned by
+    // `useRecipePhotoUploadQueue`), not from this map. This container mints the URLs (not the
+    // platform-agnostic queue hook) and revokes each one as soon as its file is no longer PENDING: removed
+    // from the queue, or resolved `ok` (the confirmed `photos` list — refetched by the same `confirm` call —
+    // takes over rendering it via its own `photo.url`).
     const previewUrlsRef = useRef(new Map<number, string>());
 
     useEffect(() => {

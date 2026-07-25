@@ -9,18 +9,17 @@
  * The bearer token is minted per fetch from Clerk's session (`useAuth().getToken`); the query is disabled
  * while signed out. It shares the app's `QueryClientProvider` (mounted in `[locale]/layout.tsx`), so the
  * profile is cached and deduped across every consumer under a stable key.
+ *
+ * The query key + `staleTime` are NOT declared here — both live ONCE in `@commise/features-account`'s
+ * `profileQueries` factory (B12), which this hook and the mobile hook both consume, so the two platforms
+ * cannot drift to different cache policies again.
  */
 import { useAuth } from '@clerk/nextjs';
+import { profileQueries } from '@commise/features-account';
 import type { UserProfile } from '@kitchensink/identity-service';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
-
-/** Stable cache key for the current viewer's profile (shared with any future profile consumers). */
-export const USER_PROFILE_QUERY_KEY = ['user', 'me'] as const;
-
-/** Profile cache lifetime — the tier changes rarely, so a 2-minute stale window avoids refetch churn. */
-const PROFILE_STALE_TIME_MS = 2 * 60 * 1000;
 
 /**
  * Read the signed-in viewer's identity profile via TanStack Query.
@@ -31,13 +30,7 @@ export function useUserProfile(): UseQueryResult<UserProfile> {
     const { getToken, isSignedIn } = useAuth();
 
     return useQuery({
-        queryKey: USER_PROFILE_QUERY_KEY,
-        queryFn: async () => {
-            const token = (await getToken()) ?? '';
-
-            return createProfileServiceClient(token).getMe();
-        },
+        ...profileQueries(createProfileServiceClient(async () => (await getToken()) ?? '')).me(),
         enabled: Boolean(isSignedIn),
-        staleTime: PROFILE_STALE_TIME_MS,
     });
 }

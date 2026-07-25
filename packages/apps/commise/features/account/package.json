@@ -17,7 +17,11 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
-        "@kitchensink/identity-service": "*"
+        "@kitchensink/identity-service": "*",
+        "@tanstack/react-query": "^5.62.0"
+    },
+    "peerDependencies": {
+        "react": "^19.0.0"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",

@@ -10,17 +10,19 @@
  * component avoids this by minting a fresh token per SSR request, so this guard is mobile-specific), while
  * the update/delete MUTATIONS allow a cached token. A resolved-but-empty token throws a typed
  * `UnauthorizedError` BEFORE any request is sent — the same fail-fast the old `apiRequest` did.
+ *
+ * B12: the profile query key + `staleTime` come from `@commise/features-account`'s `profileQueries`
+ * factory — the same shared cache policy `useUserProfile` (web) consumes — instead of a locally duplicated
+ * `PROFILE_KEY` constant and `staleTime` literal.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth as useIdpAuth } from '@clerk/expo';
-import { ProfileServiceClient, UnauthorizedError } from '@commise/features-account';
+import { ProfileServiceClient, profileQueries, profileServiceKeys, UnauthorizedError } from '@commise/features-account';
 import type { UserUpdateInput } from '@kitchensink/identity-service';
 import { useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { API_BASE_URL } from '../services/api.js';
-
-const PROFILE_KEY = ['user', 'me'] as const;
 
 /** Build (and memoize per Clerk identity) the typed profile client used by every hook below. */
 function useProfileServiceClient(): ProfileServiceClient {
@@ -52,11 +54,9 @@ export function useUserProfile() {
     const client = useProfileServiceClient();
 
     return useQuery({
-        queryKey: PROFILE_KEY,
         // Force a fresh session token for the profile fetch — see the module doc comment.
-        queryFn: () => client.getMe({ forceRefresh: true }),
+        ...profileQueries(client).me({ forceRefresh: true }),
         enabled: Boolean(isSignedIn),
-        staleTime: 2 * 60 * 1000,
     });
 }
 
@@ -66,7 +66,7 @@ export function useUpdateProfile() {
 
     return useMutation({
         mutationFn: (body: UserUpdateInput) => client.patchMe(body),
-        onSuccess: () => qc.invalidateQueries({ queryKey: PROFILE_KEY }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: profileServiceKeys.me }),
     });
 }
 

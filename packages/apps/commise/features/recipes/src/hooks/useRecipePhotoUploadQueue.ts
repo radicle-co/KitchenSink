@@ -46,10 +46,22 @@
  * upload already runs through `useRecipePhotoUpload`, which owns that single call site. It does not acquire
  * files (no DOM `<input>`, no `expo-image-picker`) — each platform's leaf stays responsible for turning a
  * user's pick into a {@link RecipePhotoQueueFile} and calling `enqueue`.
+ *
+ * **Client-side pre-validation (REQ-011/REQ-012), gated at admission, not at drive-time.** This hook is
+ * also the ADMISSION CONTROL point for the pure {@link validatePhotoFile} guard: the ONLY two places a
+ * stored item's status becomes `'queued'` — `enqueue` (new files) and `retry` (re-attempting a failed
+ * file) — run the file through it first. A file that fails validation is admitted straight into `'failed'`
+ * status, carrying the caller's localized {@link RecipePhotoValidationMessages} copy, and NEVER transitions
+ * through `'queued'`/`'uploading'` — so "start next" never drives it into `uploader.upload`, and its bytes
+ * are never transmitted. Re-validating on `retry` (not just `enqueue`) closes the same gate on a deliberate
+ * re-attempt of an already-rejected file, so "validate before transmission" holds on every path a file can
+ * reach the underlying single-flight hook — including the one arm ("start next"/"settle") this hook shares
+ * with genuine (network/server) upload failures, which never needs to know validation exists at all.
  */
 import { useEffect, useReducer, useState } from 'react';
 
 import { MAX_RECIPE_PHOTOS } from '../photos/model.js';
+import { validatePhotoFile, type PhotoValidationErrorCode } from '../photos/photoValidation.js';
 import type { RecipePhotoUploadFile, UseRecipePhotoUploadResult } from './useRecipePhotoUpload.js';
 
 /** A per-file item's lifecycle, as stored by the reducer. `uploading` is DERIVED (see {@link toPublicItems}). */
@@ -83,6 +95,19 @@ export interface RecipePhotoQueueItem {
     readonly errorMessage?: string;
 }
 
+/**
+ * The caller's own localized copy for the two {@link PhotoValidationErrorCode}s {@link validatePhotoFile}
+ * can return — the i18n-agnostic contract this hook shares with `useRecipePhotoUpload`'s
+ * `uploadErrorMessage` (see its module doc): this hook stores exactly the string the caller supplies, and
+ * carries no strings of its own.
+ */
+export interface RecipePhotoValidationMessages {
+    /** Shown when {@link validatePhotoFile} rejects a file as `'TOO_LARGE'` (REQ-011). */
+    readonly tooLarge: string;
+    /** Shown when {@link validatePhotoFile} rejects a file as `'BAD_TYPE'` (REQ-012). */
+    readonly badType: string;
+}
+
 /** The state + actions {@link useRecipePhotoUploadQueue} exposes to a leaf. */
 export interface UseRecipePhotoUploadQueueResult {
     /** Every queued/in-flight/settled file, in the order they were enqueued. */
@@ -91,10 +116,16 @@ export interface UseRecipePhotoUploadQueueResult {
      * Enqueue one or more newly-picked files. Silently caps the accepted files at however many slots remain
      * under {@link MAX_RECIPE_PHOTOS} (confirmed photos + this queue's own active items) — a caller that
      * wants to surface "you can only add N more" should check that itself before calling (the cap here is a
-     * defensive floor, not the primary UX signal).
+     * defensive floor, not the primary UX signal). Each accepted file is admitted through
+     * {@link validatePhotoFile} (REQ-011/REQ-012) BEFORE it ever becomes eligible for upload — a file that
+     * fails validation is added straight into `failed` status with its localized reason, never `queued`.
      */
     readonly enqueue: (files: readonly RecipePhotoQueueFile[]) => void;
-    /** Re-run exactly the file with this id — a no-op unless that file's status is currently `failed`. */
+    /**
+     * Re-run exactly the file with this id — a no-op unless that file's status is currently `failed`.
+     * Re-validates (not a bare status flip) before re-admitting, so a previously validation-rejected file
+     * stays `failed` on retry rather than reaching the transport layer.
+     */
     readonly retry: (fileId: number) => void;
     /** Drop the file with this id from the queue (any status). */
     readonly remove: (fileId: number) => void;
@@ -115,11 +146,38 @@ interface QueueState {
 const INITIAL_STATE: QueueState = { nextFileId: 1, items: [] };
 
 type QueueAction =
-    | { readonly type: 'enqueue'; readonly files: readonly RecipePhotoQueueFile[] }
+    | {
+          readonly type: 'enqueue';
+          readonly files: readonly RecipePhotoQueueFile[];
+          readonly validationMessages: RecipePhotoValidationMessages;
+      }
     | { readonly type: 'succeed'; readonly fileId: number }
     | { readonly type: 'fail'; readonly fileId: number; readonly errorMessage: string }
-    | { readonly type: 'retry'; readonly fileId: number }
+    | { readonly type: 'retry'; readonly fileId: number; readonly validationMessages: RecipePhotoValidationMessages }
     | { readonly type: 'remove'; readonly fileId: number };
+
+/** Map a {@link PhotoValidationErrorCode} to the caller's own localized copy for it. */
+function validationErrorMessage(code: PhotoValidationErrorCode, messages: RecipePhotoValidationMessages): string {
+    return code === 'TOO_LARGE' ? messages.tooLarge : messages.badType;
+}
+
+/**
+ * Admit one file: run it through {@link validatePhotoFile} and produce the `StoredItem` it becomes — either
+ * `'queued'` (eligible for "start next" to drive) or `'failed'` with the caller's localized validation copy
+ * (never eligible — see the module doc's admission-control note). The ONLY constructor of a `'queued'`
+ * item outside this function is the identity fall-through in `retry` for an already-valid re-check.
+ */
+function admit(
+    fileId: number,
+    file: RecipePhotoQueueFile,
+    validationMessages: RecipePhotoValidationMessages,
+): StoredItem {
+    const validation = validatePhotoFile(file);
+
+    return validation.ok
+        ? { fileId, file, status: 'queued' }
+        : { fileId, file, status: 'failed', errorMessage: validationErrorMessage(validation.code, validationMessages) };
+}
 
 /** Pure reducer for the queue's stored state. Exported for nothing beyond this module — kept file-local. */
 function queueReducer(state: QueueState, action: QueueAction): QueueState {
@@ -134,7 +192,7 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
                 const fileId = nextFileId;
                 nextFileId += 1;
 
-                return { fileId, file, status: 'queued' };
+                return admit(fileId, file, action.validationMessages);
             });
 
             return { nextFileId, items: [...state.items, ...added] };
@@ -157,11 +215,17 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
                 ),
             };
         case 'retry':
+            // Re-runs the SAME admission check `enqueue` uses (not a bare status flip to 'queued'): the
+            // file itself never changed since it was first rejected, so a validation-failed item retried
+            // without re-checking would sail straight into 'queued' and get driven to the transport layer
+            // by "start next" — the exact transmission REQ-011/REQ-012 require blocking. A genuinely
+            // upload-failed item (network/server, not validation) always re-validates `ok` here, since only
+            // an already-valid file could have reached 'uploading' in the first place.
             return {
                 ...state,
                 items: state.items.map((item) =>
                     item.fileId === action.fileId && item.status === 'failed'
-                        ? { fileId: item.fileId, file: item.file, status: 'queued' }
+                        ? admit(item.fileId, item.file, action.validationMessages)
                         : item,
                 ),
             };
@@ -198,11 +262,14 @@ function toPublicItems(items: readonly StoredItem[], activeFileId: number | null
  *   the two callers would race the single-flight guard unpredictably.
  * @param confirmedCount - How many photos the recipe already has confirmed server-side (the caller's live
  *   `photos.length`), read fresh on every `enqueue` call so the cap reflects the latest confirmed count.
+ * @param validationMessages - The caller's own localized copy for the two ways {@link validatePhotoFile} can
+ *   reject a file (REQ-011 `tooLarge`, REQ-012 `badType`) — see the module doc's admission-control note.
  * @returns The queue's items plus `enqueue`/`retry`/`remove`.
  */
 export function useRecipePhotoUploadQueue(
     uploader: Pick<UseRecipePhotoUploadResult, 'uploading' | 'errorMessage' | 'upload'>,
     confirmedCount: number,
+    validationMessages: RecipePhotoValidationMessages,
 ): UseRecipePhotoUploadQueueResult {
     const [state, dispatch] = useReducer(queueReducer, INITIAL_STATE);
     const [activeFileId, setActiveFileId] = useState<number | null>(null);
@@ -251,11 +318,11 @@ export function useRecipePhotoUploadQueue(
         const accepted = files.slice(0, available);
 
         if (accepted.length > 0) {
-            dispatch({ type: 'enqueue', files: accepted });
+            dispatch({ type: 'enqueue', files: accepted, validationMessages });
         }
     };
 
-    const retry = (fileId: number): void => dispatch({ type: 'retry', fileId });
+    const retry = (fileId: number): void => dispatch({ type: 'retry', fileId, validationMessages });
     const remove = (fileId: number): void => dispatch({ type: 'remove', fileId });
 
     return { items: toPublicItems(state.items, activeFileId), enqueue, retry, remove };

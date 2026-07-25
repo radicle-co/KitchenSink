@@ -12,6 +12,11 @@
  * B7: every grid image is `loading="lazy"` plus `decoding="async"`, with an explicit `aspect-square` ratio
  * class, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once
  * (mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).
+ *
+ * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` badge already names
+ * WHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`
+ * (client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same
+ * field) renders as a second, distinct line naming WHY, whenever the caller supplies one.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -108,6 +113,11 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 >
                                     {statusWord}
                                 </span>
+                                {item.status === 'failed' && item.errorMessage !== undefined ? (
+                                    <p className="relative px-2 text-center text-caption text-error">
+                                        {item.errorMessage}
+                                    </p>
+                                ) : null}
                                 {item.status === 'failed' ? (
                                     <div className="relative flex items-center gap-2">
                                         <button

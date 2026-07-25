@@ -172,6 +172,76 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         expect(putOrder).toBeLessThan(confirmOrder);
     });
 
+    it('rejects an oversized picked asset client-side — never calls presign, shows the size error', async () => {
+        launchImageLibraryAsyncMock.mockResolvedValue({
+            canceled: false,
+            assets: [{ ...pickedAsset, fileSize: 5 * 1024 * 1024 + 1 }],
+        } as never);
+        const createMutateAsync = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        // The container reads the picked asset's bytes as a Blob BEFORE enqueueing — that read still
+        // happens (validation is the queue's job, once the file is handed to it); only the S3 PUT it would
+        // otherwise be followed by never fires.
+        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+
+        expect(await screen.findByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeTruthy();
+        expect(createMutateAsync).not.toHaveBeenCalled();
+        // Only the local blob read happened — no second fetch (the S3 PUT) was ever made.
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a disallowed MIME type client-side — never calls presign, shows the type error', async () => {
+        launchImageLibraryAsyncMock.mockResolvedValue({
+            canceled: false,
+            assets: [{ ...pickedAsset, mimeType: 'image/gif', fileName: 'clip.gif' }],
+        } as never);
+        const createMutateAsync = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/gif' }) });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+
+        expect(
+            await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.'),
+        ).toBeTruthy();
+        expect(createMutateAsync).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])(
+        'accepts an allowlisted type (%s) at ≤5 MB and calls presign',
+        async (mimeType) => {
+            launchImageLibraryAsyncMock.mockResolvedValue({
+                canceled: false,
+                assets: [{ ...pickedAsset, mimeType }],
+            } as never);
+            const createMutateAsync = vi.fn().mockResolvedValue({
+                uploadUrl: 'https://s3.example.com/put',
+                key: 'uploads/rec_1/new.jpg',
+                expiresIn: 900,
+                maxBytes: 5_242_880,
+            });
+            useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+            useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(vi.fn().mockResolvedValue(makePhoto())) as never);
+            fetchMock
+                .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: mimeType }) })
+                .mockResolvedValueOnce({ ok: true, status: 200 });
+
+            render(<RecipePhotoUploader recipeId="rec_1" />);
+            fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+
+            await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1));
+            expect(createMutateAsync).toHaveBeenCalledWith({
+                id: 'rec_1',
+                request: { fileName: 'picked.jpg', contentType: mimeType, fileSize: 1234 },
+            });
+        },
+    );
+
     it('surfaces the picked file’s own FAILED badge + Retry when the S3 PUT fails (not a blanket banner)', async () => {
         const createMutateAsync = vi.fn().mockResolvedValue({
             uploadUrl: 'https://s3.example.com/put',

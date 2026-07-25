@@ -33,6 +33,7 @@ import {
 } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
 import {
+    MAX_RECIPE_PHOTO_UPLOAD_BYTES,
     recipePhotoKeyPrefix,
     recipePhotoOriginalKey,
     recipePhotoThumbnailKey,
@@ -55,8 +56,13 @@ export const PHOTOS_STORAGE = 'PHOTOS_STORAGE';
 /** DI token for the photos runtime config (CloudFront base URL for response shaping). */
 export const PHOTOS_CONFIG = 'PHOTOS_CONFIG';
 
-/** The hard upload size limit: 5 MB, enforced at presign (bound) and at confirm (HEAD, authoritative). */
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/**
+ * The hard upload size limit: 5 MB, enforced at presign (bound) and at confirm (HEAD, authoritative).
+ * Re-exports the single recipe-core source (`MAX_RECIPE_PHOTO_UPLOAD_BYTES`) — also the client's
+ * pre-transmission size guard (REQ-011) — under this module's existing local name so callers/tests are
+ * unaffected; see that constant's own doc for why it lives in recipe-core, not here.
+ */
+export const MAX_UPLOAD_BYTES = MAX_RECIPE_PHOTO_UPLOAD_BYTES;
 
 /** The only accepted upload content types (also the only signatures `detectImageContentType` accepts). */
 export const ALLOWED_UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;

@@ -29,6 +29,10 @@ const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
  * w3/e8: the edit route now opens the 4-step wizard at step 1 (Basic); Photos is step 4, reached via the
  * step rail (forward navigation is never gated, only backward navigation while dirty is) rather than being
  * immediately on screen as it was on the old single-scroll form.
+ *
+ * Two further specs cover client-side pre-validation (REQ-011 size, REQ-012 MIME allowlist): an oversized
+ * file and a disallowed MIME type are both rejected LOCALLY, before any presign call — the busy affordance
+ * never appears and the grid stays on its empty state, proving the mocked API was never reached.
  */
 test.describe('recipe photo upload (CP-6/P3)', () => {
     test('pick a photo → busy affordance → uploaded photo appears', async ({ page }) => {
@@ -62,5 +66,60 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         // busy affordance clears once the sequence completes.
         await expect(page.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
         await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
+    });
+
+    /**
+     * Client-side pre-validation (REQ-011 size, REQ-012 MIME allowlist) — the guard `useRecipePhotoUploadQueue`
+     * runs BEFORE a picked file ever reaches presign. Both cases below never touch the mocked recipe-service
+     * API at all (no presign, no S3 PUT, no confirm): the busy affordance never appears and the photo grid
+     * stays empty, because the file is rejected locally.
+     */
+    test('an oversized file is rejected client-side, before any upload starts', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        await page.goto(route('/recipes/rec_seed/edit'));
+        await page.getByRole('button', { name: /Photos:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+
+        const photosRegion = page.getByRole('region', { name: 'Photos' });
+        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+
+        // Just over 5 MB — rejected locally without ever reaching the mocked presign endpoint.
+        await page.getByLabel('Add photo').setInputFiles({
+            name: 'huge.png',
+            mimeType: 'image/png',
+            buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
+        });
+
+        await expect(page.getByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeVisible();
+        await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
+        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+    });
+
+    test('a disallowed file type is rejected client-side, before any upload starts', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        await page.goto(route('/recipes/rec_seed/edit'));
+        await page.getByRole('button', { name: /Photos:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+
+        const photosRegion = page.getByRole('region', { name: 'Photos' });
+        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+
+        await page.getByLabel('Add photo').setInputFiles({
+            name: 'clip.gif',
+            mimeType: 'image/gif',
+            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+        });
+
+        await expect(
+            page.getByText('That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.'),
+        ).toBeVisible();
+        await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
+        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
     });
 });

@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-import { collectionSchema, CUISINES, isRecipeError, RecipeErrorCode } from '../index.js';
+import {
+    ALLOWED_RECIPE_PHOTO_MIME_TYPES,
+    collectionSchema,
+    CUISINES,
+    isRecipeError,
+    MAX_RECIPE_PHOTO_UPLOAD_BYTES,
+    RecipeErrorCode,
+} from '../index.js';
 import type { Collection, RecipeError } from '../index.js';
 
 describe('isRecipeError', () => {
@@ -124,5 +131,21 @@ describe('collectionSchema (W5 collection-view wire fields)', () => {
 
         expect(collection.visibility).toBe('private');
         expect(collection.recipeCount).toBeUndefined();
+    });
+});
+
+describe('recipe photo upload constants (REQ-009/REQ-011/REQ-012/REQ-013)', () => {
+    it('the size bound is exactly 5 MB', () => {
+        expect(MAX_RECIPE_PHOTO_UPLOAD_BYTES).toBe(5 * 1024 * 1024);
+    });
+
+    it('the MIME allowlist is exactly the five REQ-012/REQ-013 types, in spec order', () => {
+        expect(ALLOWED_RECIPE_PHOTO_MIME_TYPES).toEqual([
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/heif',
+        ]);
     });
 });

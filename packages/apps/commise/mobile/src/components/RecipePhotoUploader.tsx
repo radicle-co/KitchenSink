@@ -22,6 +22,10 @@
  * queue is that a second pick during an in-flight upload is accepted and queued, not blocked), and `addPhoto`
  * early-returns if a pick is already underway — so a second tap during the picker/blob-read can't launch
  * `expo-image-picker` a second time concurrently.
+ *
+ * Every enqueued asset also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012
+ * MIME allowlist) — this container's only involvement is supplying the two localized rejection strings;
+ * the admission check itself lives in `useRecipePhotoUploadQueue`.
  */
 import { RecipePhotoManager } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
@@ -51,7 +55,10 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
     const deletePhoto = useDeleteRecipePhoto();
     const uploader = useRecipePhotoUpload(recipeId, t.uploadError);
     const photos = photosQuery.data ?? [];
-    const queue = useRecipePhotoUploadQueue(uploader, photos.length);
+    const queue = useRecipePhotoUploadQueue(uploader, photos.length, {
+        tooLarge: t.tooLargeError,
+        badType: t.unsupportedTypeError,
+    });
 
     // Two local error slots neither the upload hook nor the queue know about: `pickErrorMessage` covers a
     // failed local Blob read of the picked asset's URI (before `enqueue()` is ever called, so no queue item

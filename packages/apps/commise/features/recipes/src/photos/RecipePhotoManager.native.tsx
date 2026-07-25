@@ -7,6 +7,11 @@
  * grid, each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via
  * `accessibilityRole` + visible text — never colour alone) plus Retry (failed only) and Remove, and the
  * caller-supplied `addControl` (the native picker button), hidden at the photo cap. Presentational only.
+ *
+ * REQ-014 (per-file "which photo failed and why"): the generic status badge already names WHICH photo
+ * (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client
+ * validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same field)
+ * renders as a second, distinct line naming WHY, whenever the caller supplies one.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -101,6 +106,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 >
                                     {statusWord}
                                 </Text>
+                                {item.status === 'failed' && item.errorMessage !== undefined ? (
+                                    <Text style={styles.itemError}>{item.errorMessage}</Text>
+                                ) : null}
                                 {item.status === 'failed' ? (
                                     <View style={styles.queueControls}>
                                         <Pressable
@@ -163,6 +171,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
     },
     statusBadgeFailed: { backgroundColor: palette.error },
+    itemError: {
+        position: 'absolute',
+        top: 30,
+        left: 6,
+        right: 6,
+        color: palette.white,
+        fontSize: 10,
+        textAlign: 'center',
+    },
     queueControls: { position: 'absolute', bottom: 6, left: 6, right: 6, flexDirection: 'row', gap: 6 },
     queueControlButton: {
         flex: 1,

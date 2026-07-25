@@ -26,6 +26,15 @@ appId: io.commise.mobile
 # `packages/services/recipe-service/src/database/seed.ts`), so there is nothing to remove; removal needs no
 # picker, so the moment a seeded recipe carries at least one photo this flow should gain a
 # `tapOn: 'Remove photo 1'` + `assertNotVisible` step.
+#
+# CLIENT-SIDE PRE-VALIDATION (REQ-011 5 MB size cap, REQ-012 MIME allowlist) — also not expressible here,
+# for the SAME reason as the picker/upload path above: there is no scripted way to hand the (real, OS-level)
+# picker an oversized or wrong-type fixture, so there is nothing new this flow could assertably drive. The
+# guard itself (rejection + the localized per-file error + presign never firing) is covered by
+# `RecipePhotoUploader.native.test.tsx` (mocked picker, an oversized/GIF asset) and the pure
+# `photoValidation.test.ts` unit tests; the web Playwright spec (`recipePhotos.spec.ts`) is this story's
+# on-device-equivalent integration coverage, since Playwright CAN drive a real file input unlike Maestro +
+# native OS chrome.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'

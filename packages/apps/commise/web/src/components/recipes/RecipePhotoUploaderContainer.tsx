@@ -16,6 +16,10 @@
  * event, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or
  * folded into the confirmed `photos` list on success), and resetting the input so the same file can be
  * re-picked after being removed from the queue.
+ *
+ * Every picked file also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012 MIME
+ * allowlist) — this container's only involvement is supplying the two localized rejection strings; the
+ * admission check itself lives in `useRecipePhotoUploadQueue`.
  */
 import { RecipePhotoManager } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
@@ -46,7 +50,10 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     const uploader = useRecipePhotoUpload(recipeId, recipes.photos.uploadError);
 
     const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
-    const queue = useRecipePhotoUploadQueue(uploader, photos.length);
+    const queue = useRecipePhotoUploadQueue(uploader, photos.length, {
+        tooLarge: recipes.photos.tooLargeError,
+        badType: recipes.photos.unsupportedTypeError,
+    });
 
     // ALLOWED REF (§3 — wraps a genuinely external, non-declarative system): the DOM `<input type="file">`
     // element itself. Imperatively clearing `.value` after a pick (below) is the only way to let the SAME

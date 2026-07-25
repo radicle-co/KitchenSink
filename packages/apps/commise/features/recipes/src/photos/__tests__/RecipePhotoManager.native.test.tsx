@@ -139,6 +139,22 @@ describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
         expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
     });
 
+    it('renders the failed item’s own errorMessage as a distinct line naming WHY it failed (REQ-014)', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
+    });
+
     it('invokes onRetryQueueItem with the fileId when Retry is pressed', () => {
         const onRetryQueueItem = vi.fn();
         renderManager({

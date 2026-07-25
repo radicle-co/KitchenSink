@@ -154,6 +154,30 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
     });
 
+    it('renders the failed item’s own errorMessage as a distinct line naming WHY it failed (REQ-014)', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        // Generic badge names WHICH photo failed (via its Retry/Remove labels); this text names WHY.
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
+    });
+
+    it('renders no error line for a failed item with no errorMessage', () => {
+        renderManager({ queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })] });
+
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(document.querySelector('p.text-error')).toBeNull();
+    });
+
     it('invokes onRetryQueueItem with the fileId when Retry is clicked', async () => {
         const user = userEvent.setup();
         const onRetryQueueItem = vi.fn();

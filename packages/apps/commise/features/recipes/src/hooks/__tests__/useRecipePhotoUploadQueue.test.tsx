@@ -10,7 +10,10 @@
  * settled; (2) each file's status transitions `queued` → `uploading` → `ok`/`failed` as its underlying
  * upload resolves/rejects; (3) `retry(fileId)` re-runs ONLY the failed file, flipping it `uploading` → `ok`,
  * and is a no-op for any other status; (4) `remove(fileId)` drops exactly that item; (5) the 10-photo cap
- * (confirmed + active queue items) caps/rejects an `enqueue` call that would exceed it.
+ * (confirmed + active queue items) caps/rejects an `enqueue` call that would exceed it; (6) client-side
+ * pre-validation (REQ-011/REQ-012) admits an oversized/disallowed-type file straight into `failed` — with
+ * the caller's localized copy — WITHOUT ever calling `uploader.upload` (so presign never fires), and
+ * `retry` on such a file re-validates rather than blindly re-driving it.
  *
  * The mutation lens: a broken "start next" or "settle" effect (interleaved uploads, retrying the wrong file,
  * losing track of which file is active, double-counting the cap) fails these assertions, not just a
@@ -29,13 +32,19 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useConfirmPhotoUpload: useConfirmPhotoUploadMock,
 }));
 
+import { MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
+
 import { MAX_RECIPE_PHOTOS } from '../../photos/model.js';
 import { useRecipePhotoUpload } from '../useRecipePhotoUpload.js';
 import { useRecipePhotoUploadQueue } from '../useRecipePhotoUploadQueue.js';
-import type { RecipePhotoQueueFile } from '../useRecipePhotoUploadQueue.js';
+import type { RecipePhotoQueueFile, RecipePhotoValidationMessages } from '../useRecipePhotoUploadQueue.js';
 
 const UPLOAD_ERROR = 'We couldn’t upload that photo. Please try again.';
 const RECIPE_ID = 'rec_1';
+const VALIDATION_MESSAGES: RecipePhotoValidationMessages = {
+    tooLarge: 'That photo is larger than 5 MB.',
+    badType: 'That file type isn’t supported.',
+};
 
 /** A minimal, complete queue file input. */
 function makeQueueFile(overrides: Partial<RecipePhotoQueueFile> = {}): RecipePhotoQueueFile {
@@ -78,7 +87,7 @@ function makeControllablePresign(): {
 /** Composes the real `useRecipePhotoUpload` with the queue under test — the exact production wiring. */
 function useHarness(confirmedCount: number) {
     const uploader = useRecipePhotoUpload(RECIPE_ID, UPLOAD_ERROR);
-    const queue = useRecipePhotoUploadQueue(uploader, confirmedCount);
+    const queue = useRecipePhotoUploadQueue(uploader, confirmedCount, VALIDATION_MESSAGES);
 
     return { uploader, queue };
 }
@@ -215,6 +224,106 @@ describe('useRecipePhotoUploadQueue — retry', () => {
         // Not failed — retry is a no-op; no additional presign call, status unchanged.
         expect(presign).not.toHaveBeenCalled();
         expect(result.current.queue.items[0]?.status).toBe('uploading');
+    });
+});
+
+describe('useRecipePhotoUploadQueue — client-side pre-validation (REQ-011/REQ-012)', () => {
+    it('admits an oversized file straight into failed, with the localized size error, and never calls upload', () => {
+        const presign = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+        const oversized = makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 });
+
+        act(() => {
+            result.current.queue.enqueue([oversized]);
+        });
+
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+        expect(result.current.queue.items[0]?.errorMessage).toBe(VALIDATION_MESSAGES.tooLarge);
+        // The file never reached the transport layer — no presign call, not even attempted.
+        expect(presign).not.toHaveBeenCalled();
+    });
+
+    it('admits a disallowed MIME type straight into failed, with the localized type error, and never calls upload', () => {
+        const presign = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+        const wrongType = makeQueueFile({ fileName: 'clip.gif', contentType: 'image/gif' });
+
+        act(() => {
+            result.current.queue.enqueue([wrongType]);
+        });
+
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+        expect(result.current.queue.items[0]?.errorMessage).toBe(VALIDATION_MESSAGES.badType);
+        expect(presign).not.toHaveBeenCalled();
+    });
+
+    it.each([['image/jpeg'], ['image/png'], ['image/webp'], ['image/heic'], ['image/heif']] as const)(
+        'admits each allowlisted type (%s) as queued/uploading, driving upload',
+        (contentType) => {
+            const presign = vi.fn(() => new Promise(() => undefined));
+            useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+            useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+            const { result } = renderHook(() => useHarness(0));
+
+            act(() => {
+                result.current.queue.enqueue([makeQueueFile({ fileName: `pic-${contentType}`, contentType })]);
+            });
+
+            // Passed validation — the single item became active and drove the underlying upload's presign call.
+            expect(result.current.queue.items[0]?.status).toBe('uploading');
+            expect(presign).toHaveBeenCalledTimes(1);
+        },
+    );
+
+    it('does not block a second, VALID queued file behind an earlier validation-rejected one', () => {
+        const presign = vi.fn(() => new Promise(() => undefined));
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+        const rejected = makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 });
+        const valid = makeQueueFile({ fileName: 'ok.png' });
+
+        act(() => {
+            result.current.queue.enqueue([rejected, valid]);
+        });
+
+        expect(result.current.queue.items.find((item) => item.fileName === 'huge.png')?.status).toBe('failed');
+        // The rejected file never occupies "active", so the valid file starts immediately in the same tick.
+        expect(result.current.queue.items.find((item) => item.fileName === 'ok.png')?.status).toBe('uploading');
+        expect(presign).toHaveBeenCalledTimes(1);
+    });
+
+    it('retrying a validation-rejected file re-validates and stays failed, without calling upload', () => {
+        const presign = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+        const oversized = makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 });
+
+        act(() => {
+            result.current.queue.enqueue([oversized]);
+        });
+        const fileId = result.current.queue.items[0]?.fileId as number;
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+
+        act(() => {
+            result.current.queue.retry(fileId);
+        });
+
+        // The file itself hasn't changed size — retry re-validates and rejects it again, still without ever
+        // reaching the transport layer.
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+        expect(result.current.queue.items[0]?.errorMessage).toBe(VALIDATION_MESSAGES.tooLarge);
+        expect(presign).not.toHaveBeenCalled();
     });
 });
 

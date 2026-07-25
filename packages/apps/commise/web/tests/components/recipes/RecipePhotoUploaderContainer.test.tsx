@@ -125,6 +125,62 @@ describe('RecipePhotoUploaderContainer', () => {
         expect((input as HTMLInputElement).value).toBe('');
     });
 
+    it('rejects an oversized file client-side — never calls presign, shows the size error', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl');
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'huge.png', { type: 'image/png' });
+        await user.upload(await screen.findByLabelText('Add photo'), oversized);
+
+        expect(await screen.findByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeInTheDocument();
+        expect(presign).not.toHaveBeenCalled();
+    });
+
+    it('rejects a disallowed MIME type client-side — never calls presign, shows the type error', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+        const presign = vi.spyOn(client, 'createPhotoUploadUrl');
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        const wrongType = new File(['bytes'], 'clip.gif', { type: 'image/gif' });
+        await user.upload(await screen.findByLabelText('Add photo'), wrongType);
+
+        expect(
+            await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.'),
+        ).toBeInTheDocument();
+        expect(presign).not.toHaveBeenCalled();
+    });
+
+    it.each(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])(
+        'accepts an allowlisted type (%s) at ≤5 MB and calls presign',
+        async (contentType) => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+            const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
+            vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
+            stubFetch(true);
+
+            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+            const file = new File(['bytes'], 'dinner.img', { type: contentType });
+            await user.upload(await screen.findByLabelText('Add photo'), file);
+
+            await waitFor(() => expect(presign).toHaveBeenCalledTimes(1));
+            expect(presign).toHaveBeenCalledWith('rec_1', {
+                fileName: 'dinner.img',
+                contentType,
+                fileSize: file.size,
+            });
+        },
+    );
+
     it('surfaces the file’s own FAILED badge + Retry when the direct upload fails (not a blanket banner)', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();

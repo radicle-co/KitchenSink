@@ -615,6 +615,39 @@ export const recipeIngredientSchema = z.object({
 export const MAX_RECIPE_PHOTOS = 10;
 
 /**
+ * The hard per-photo upload size bound: 5 MB (REQ-009/REQ-011). Single source shared by the server's
+ * presign/confirm bound (`recipe-service/src/photos/photos.service.ts`'s `MAX_UPLOAD_BYTES`, which
+ * re-exports this constant rather than declaring its own literal) and the client's pre-transmission size
+ * guard (`@commise/features-recipes`'s `validatePhotoFile`, REQ-011) — identical knowledge on both sides,
+ * so it lives in exactly one place.
+ */
+export const MAX_RECIPE_PHOTO_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+/**
+ * The canonical recipe-photo MIME allowlist per REQ-012/REQ-013.
+ *
+ * Consumed today by the CLIENT'S pre-transmission guard only (`@commise/features-recipes`'s
+ * `validatePhotoFile`, REQ-012). It is deliberately NOT (yet) consumed by the server: the server's own
+ * magic-byte allowlist (`recipe-service/src/photos/photos.service.ts`'s `ALLOWED_UPLOAD_CONTENT_TYPES`)
+ * currently accepts only `image/jpeg` / `image/png` / `image/webp` and explicitly rejects HEIC/HEIF (not
+ * yet a served-as-is CloudFront format, and the thumbnail pipeline has not been verified against it) — a
+ * pre-existing REQ-013 conformance gap tracked separately (see the v-model traceability matrix), not
+ * addressed by this constant. The two allowlists are intentionally kept as separate values so widening
+ * this one for REQ-012 never silently widens what the server actually accepts; unify them only once
+ * REQ-013 is remediated to genuinely accept the same five types server-side.
+ */
+export const ALLOWED_RECIPE_PHOTO_MIME_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+] as const;
+
+/** One of the five {@link ALLOWED_RECIPE_PHOTO_MIME_TYPES} the client's pre-transmission guard accepts. */
+export type AllowedRecipePhotoMimeType = (typeof ALLOWED_RECIPE_PHOTO_MIME_TYPES)[number];
+
+/**
  * Image asset metadata for a recipe photo. A photo is a SINGLE stored object served as-is via the CDN —
  * there are no derived variants and no processing lifecycle (data-model.md / T035). The server resolves
  * the full CDN `url` for the object (clients never concatenate a base + key), and `order` is the 1-based

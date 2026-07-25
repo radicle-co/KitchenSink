@@ -111,6 +111,10 @@ export interface MobileMessages {
         readonly uploadError: string;
         /** Alert shown when removing a photo fails. */
         readonly removeError: string;
+        /** Alert shown when a picked asset's size exceeds the 5 MB limit (REQ-011), before upload starts. */
+        readonly tooLargeError: string;
+        /** Alert shown when a picked asset's type is outside the allowlist (REQ-012), before upload starts. */
+        readonly unsupportedTypeError: string;
     };
     readonly ingredientPicker: {
         /** Section heading for the ingredient typeahead. */
@@ -249,6 +253,8 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             addLabel: 'Add photo',
             uploadError: 'We couldn’t add your photo. Please try again.',
             removeError: 'We couldn’t remove this photo. Please try again.',
+            tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
+            unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.',
         },
         ingredientPicker: {
             heading: 'Add an ingredient',

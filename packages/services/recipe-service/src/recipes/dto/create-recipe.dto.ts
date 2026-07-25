@@ -9,6 +9,7 @@
  */
 import { Type } from 'class-transformer';
 import {
+    ArrayMaxSize,
     ArrayMinSize,
     IsArray,
     IsIn,
@@ -47,6 +48,18 @@ export const DEVICE_LABEL_PATTERN = /^[\p{L}\p{N} .,'()-]+$/u;
  * value object. Exported so the update DTO validates against the exact same set (one authoritative list).
  */
 export const RECIPE_DIFFICULTIES = Object.values(RecipeDifficulty);
+
+/**
+ * Max ingredient lines a single recipe may carry (REQ-003a / PRF-REQ-034: "between 1 and 100
+ * ingredients"). Bounds request-body size and the downstream ingredient-composition write.
+ */
+export const RECIPE_INGREDIENTS_MAX_SIZE = 100;
+
+/**
+ * Max tags a single recipe may carry (REQ-007 / PRF-REQ-035: "between 0 and 50 tags") — an explicit
+ * upper bound for tag-filtering performance.
+ */
+export const RECIPE_TAGS_MAX_SIZE = 50;
 
 /** A single ingredient line on a create/update request (wire shape of the domain `RecipeIngredient`). */
 export class RecipeIngredientInputDto {
@@ -160,6 +173,7 @@ export class CreateRecipeDto {
 
     @IsArray()
     @ArrayMinSize(1)
+    @ArrayMaxSize(RECIPE_INGREDIENTS_MAX_SIZE)
     @ValidateNested({ each: true })
     @Type(() => RecipeIngredientInputDto)
     ingredients!: RecipeIngredientInputDto[];
@@ -188,6 +202,7 @@ export class CreateRecipeDto {
 
     @IsOptional()
     @IsArray()
+    @ArrayMaxSize(RECIPE_TAGS_MAX_SIZE)
     @IsString({ each: true })
     tags?: string[];
 

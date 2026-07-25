@@ -8,6 +8,7 @@
  */
 import { Type } from 'class-transformer';
 import {
+    ArrayMaxSize,
     ArrayMinSize,
     IsArray,
     IsIn,
@@ -26,7 +27,9 @@ import {
     DEVICE_LABEL_MAX_LENGTH,
     DEVICE_LABEL_PATTERN,
     RECIPE_DIFFICULTIES,
+    RECIPE_INGREDIENTS_MAX_SIZE,
     RECIPE_STATUSES,
+    RECIPE_TAGS_MAX_SIZE,
     RecipeIngredientInputDto,
 } from './create-recipe.dto.js';
 
@@ -89,6 +92,7 @@ export class UpdateRecipeDto {
     @IsOptional()
     @IsArray()
     @ArrayMinSize(1)
+    @ArrayMaxSize(RECIPE_INGREDIENTS_MAX_SIZE)
     @ValidateNested({ each: true })
     @Type(() => RecipeIngredientInputDto)
     ingredients?: RecipeIngredientInputDto[];
@@ -122,6 +126,7 @@ export class UpdateRecipeDto {
 
     @IsOptional()
     @IsArray()
+    @ArrayMaxSize(RECIPE_TAGS_MAX_SIZE)
     @IsString({ each: true })
     tags?: string[];
 

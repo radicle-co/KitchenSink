@@ -101,4 +101,74 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         const goneRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
         expect(goneRes.status).toBe(404);
     });
+
+    it('rejects a create with 101 ingredients (REQ-003a — cap is 100)', async () => {
+        const res = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                ...CREATE_PAYLOAD,
+                ingredients: Array.from({ length: 101 }, (_, i) => ({
+                    ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                    name: `Ingredient ${i}`,
+                    quantity: 1,
+                })),
+            }),
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects a create with 51 tags (REQ-007 — cap is 50)', async () => {
+        const res = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                ...CREATE_PAYLOAD,
+                tags: Array.from({ length: 51 }, (_, i) => `tag-${i}`),
+            }),
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects a create with a negative prepTimeMinutes (REQ-005a)', async () => {
+        const res = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...CREATE_PAYLOAD, prepTimeMinutes: -1 }),
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects a create with zero servings (REQ-006 — servings must be positive)', async () => {
+        const res = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...CREATE_PAYLOAD, servings: 0 }),
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('allows PATCH to modify a recipe description, and the change persists (REQ-002b)', async () => {
+        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...CREATE_PAYLOAD, title: 'Description Update Recipe', description: 'Original.' }),
+        });
+        expect(createRes.status).toBe(201);
+        const created = (await createRes.json()) as RecipeBody & { description?: string };
+
+        const patchRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ expectedVersion: created.currentVersion, description: 'Updated description.' }),
+        });
+        expect(patchRes.status).toBe(200);
+        const updated = (await patchRes.json()) as RecipeBody & { description?: string };
+        expect(updated.description).toBe('Updated description.');
+
+        // Persisted — not just echoed on the response.
+        const getRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const fetched = (await getRes.json()) as RecipeBody & { description?: string };
+        expect(fetched.description).toBe('Updated description.');
+    });
 });

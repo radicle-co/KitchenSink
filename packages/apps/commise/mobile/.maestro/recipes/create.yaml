@@ -52,7 +52,12 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 - tapOn: 'Search ingredients'
-- inputText: 'Tomato'
+
+# REQ-057 — below the 2-character trigger, no suggestion (and no "Create …" affordance keyed on the
+# in-flight query) is offered yet for a single character.
+- inputText: 'T'
+- assertNotVisible: 'Create .*T.*'
+- inputText: 'omato'
 - scrollUntilVisible:
       element:
           text: 'Create .*Tomato.*'
@@ -101,3 +106,10 @@ appId: io.commise.mobile
       visible:
           text: 'Maestro Weeknight Soup.*'
       timeout: 40000
+
+# REQ-034 — this recipe's Tomato line was resolved via the FREEFORM create (not the food database), so the
+# partial-nutrition disclosure notice must render (the negative, all-catalog case is `list-detail.yaml`).
+- scrollUntilVisible:
+      element: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+      direction: DOWN
+      timeout: 20000

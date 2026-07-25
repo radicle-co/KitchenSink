@@ -7,6 +7,13 @@
  * `resolveLine` from every terminal/dead-end view, never just the happy path. The recipe-service-client
  * hooks are mocked (their own behavior is covered by that package's tests), so no QueryClient/backend is
  * needed.
+ *
+ * Since REQ-057 (CP-9), the search query fed to `useSearchIngredients` is debounced ~300ms and gated on a
+ * 2-character trigger (`useDebouncedValue` + `meetsIngredientSearchThreshold`, `./ingredientResolver.model`).
+ * Because `useSearchIngredients` is mocked to a FIXED return value here, most existing transition tests are
+ * unaffected (the mock ignores its call args) — fake timers (`vi.useFakeTimers()`) are used only where a
+ * test asserts the exact query string/enabled flag the mocked hook was called with, and in the dedicated
+ * "typeahead trigger + debounce" describe block below.
  */
 import { act, renderHook } from '@testing-library/react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -35,6 +42,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useResolveIngredient: useResolveIngredientMock,
 }));
 
+import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../ingredientResolver.model.js';
 import { useIngredientResolver } from '../useIngredientResolver.js';
 
 /** A default (idle) search-query result: not fetching, no data. */
@@ -63,6 +71,7 @@ function mutation(result: unknown | null, extra: Record<string, unknown> = {}): 
 }
 
 beforeEach(() => {
+    vi.useFakeTimers();
     useSearchIngredientsMock.mockReturnValue(idleSearch());
     useIngredientCandidatesMock.mockReturnValue(idleCandidates());
     useAddIngredientByNameMock.mockReturnValue(mutation(null));
@@ -72,7 +81,15 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
 });
+
+/** Advance past the REQ-057 debounce window so `useDebouncedValue`'s pending `setState` settles. */
+function settleDebounce(): void {
+    act(() => {
+        vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS);
+    });
+}
 
 describe('useIngredientResolver — idle -> searching -> results', () => {
     it('starts idle with a blank query', () => {
@@ -292,9 +309,89 @@ describe('useIngredientResolver — enabled gating on the candidates fetch', () 
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('quin'));
+        settleDebounce(); // let the debounced query catch up to 'quin' before it's asserted below
         act(() => result.current.selectMatch(ingredient));
 
         expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('quin', undefined, { enabled: false });
+    });
+});
+
+describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () => {
+    it('never enables search below the 2-character trigger, even after the debounce settles', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('s'));
+        settleDebounce();
+
+        expect(result.current.viewState).toEqual({ kind: 'idle' });
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('s', undefined, { enabled: false });
+    });
+
+    it('does not enable search before the debounce window elapses', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('sp'));
+        act(() => {
+            vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS - 1);
+        });
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('', undefined, { enabled: false });
+    });
+
+    it('enables search with the settled query once the debounce elapses', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('sp'));
+        settleDebounce();
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('sp', undefined, { enabled: true });
+    });
+
+    it('collapses rapid keystrokes into a single settled (debounced) query — never an intermediate one', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('s'));
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
+        act(() => result.current.setQuery('sp'));
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
+        act(() => result.current.setQuery('spi'));
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
+        act(() => result.current.setQuery('spin'));
+
+        // Neither 's', 'sp', nor 'spi' ever reached the search hook as the enabled query.
+        expect(useSearchIngredientsMock).not.toHaveBeenCalledWith('s', undefined, { enabled: true });
+        expect(useSearchIngredientsMock).not.toHaveBeenCalledWith('sp', undefined, { enabled: true });
+        expect(useSearchIngredientsMock).not.toHaveBeenCalledWith('spi', undefined, { enabled: true });
+
+        settleDebounce();
+
+        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('spin', undefined, { enabled: true });
+    });
+
+    it('re-ranks the mocked search results by match quality (prefix > substring > fuzzy)', () => {
+        const prefix = makeIngredient({ id: 'ing_1', name: 'Spinach' });
+        const substring = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
+        useSearchIngredientsMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            isSuccess: true,
+            data: [substring, prefix],
+        });
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('spin'));
+        settleDebounce();
+
+        expect(result.current.viewState).toMatchObject({
+            kind: 'results',
+            results: [prefix, substring],
+        });
     });
 });
 

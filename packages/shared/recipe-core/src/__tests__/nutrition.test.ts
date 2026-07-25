@@ -7,7 +7,13 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { computeRecipeNutrition, leadCaloriesPerServing, toNutritionLine, type NutritionLine } from '../nutrition.js';
+import {
+    computeRecipeNutrition,
+    hasUserEnteredIngredients,
+    leadCaloriesPerServing,
+    toNutritionLine,
+    type NutritionLine,
+} from '../nutrition.js';
 
 describe('computeRecipeNutrition', () => {
     it('sums a user-entered override line (absolute) and divides by servings', () => {
@@ -199,5 +205,37 @@ describe('toNutritionLine', () => {
         ];
 
         expect(leadCaloriesPerServing(assembled, 1)).toBe(100);
+    });
+});
+
+describe('hasUserEnteredIngredients', () => {
+    it('is false for an empty ingredient list', () => {
+        expect(hasUserEnteredIngredients([])).toBe(false);
+    });
+
+    it('is false when every ingredient is resolved from the food database', () => {
+        expect(
+            hasUserEnteredIngredients([
+                { ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp', isUserEntered: false },
+                { ingredientId: 'ing_2', name: 'Garlic', quantity: 3, unit: 'clove', isUserEntered: false },
+            ]),
+        ).toBe(false);
+    });
+
+    it('is true when at least one ingredient is user-entered (REQ-032b), even among resolved ones', () => {
+        expect(
+            hasUserEnteredIngredients([
+                { ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp', isUserEntered: false },
+                { ingredientId: 'ing_2', name: 'Grandma’s spice mix', quantity: 1, unit: 'tsp', isUserEntered: true },
+            ]),
+        ).toBe(true);
+    });
+
+    it('is true when every ingredient is user-entered', () => {
+        expect(
+            hasUserEnteredIngredients([
+                { ingredientId: 'ing_1', name: 'Grandma’s spice mix', quantity: 1, unit: 'tsp', isUserEntered: true },
+            ]),
+        ).toBe(true);
     });
 });

@@ -9,18 +9,23 @@
  * fake-client seam: `renderWithRecipeClient` mounts the picker through the REAL `useIngredientResolver`
  * (`@commise/features-recipes/hooks`), the real query/mutation hooks it composes, and a real,
  * network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with
- * type-checked `vi.spyOn(client, '<method>')`. `useIngredientResolver` has no debounce and mounts all five
- * hooks unconditionally (gated only by TanStack's own `enabled`), so the full idle → searching → results /
- * terminal → disambiguating → resolving matrix drives cleanly through a live `QueryClient` with
- * `findBy*`/`waitFor` — no forced hook-state shortcuts were needed here.
+ * type-checked `vi.spyOn(client, '<method>')`. `useIngredientResolver` mounts all five hooks unconditionally
+ * (gated only by TanStack's own `enabled`), so the full idle → searching → results / terminal →
+ * disambiguating → resolving matrix drives cleanly through a live `QueryClient` with `findBy*`/`waitFor` —
+ * no forced hook-state shortcuts were needed here. Since REQ-057 (CP-9), the search itself is debounced
+ * ~300ms behind the trimmed query and gated on a 2-character trigger — every test below types a query long
+ * enough that Playwright/RTL's default `findBy*` timeout comfortably covers the debounce window; the
+ * dedicated `IngredientPicker — REQ-057 typeahead trigger/debounce/ranking` block below uses fake timers to
+ * pin the debounce/threshold/ranking behavior precisely.
  */
-import { screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
 import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
@@ -370,5 +375,89 @@ describe('IngredientPicker', () => {
             await user.click(await screen.findByRole('button', { name: 'Back to search' }));
             expect(screen.getByRole('searchbox', { name: 'Search ingredients' })).toBeInTheDocument();
         });
+    });
+});
+
+describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking', () => {
+    // Fake timers scoped to this block only (real timers elsewhere so `userEvent`'s own async plumbing
+    // stays untouched) — asserts directly on the CLIENT boundary (`client.searchIngredients`), the actual
+    // network call the debounce/threshold gate is protecting.
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('never calls the search endpoint below the 2-character trigger', async () => {
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), {
+            target: { value: 's' },
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+
+        expect(searchSpy).not.toHaveBeenCalled();
+    });
+
+    it('debounces rapid keystrokes into exactly ONE search call, on the settled (final) query', async () => {
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        const input = () => screen.getByRole('searchbox', { name: 'Search ingredients' });
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        // Fast typing: each keystroke arrives well inside the 300ms debounce window, so only the LAST one
+        // should ever reach the client.
+        for (const value of ['s', 'sp', 'spi', 'spin']) {
+            fireEvent.change(input(), { target: { value } });
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(100);
+            });
+        }
+
+        expect(searchSpy).not.toHaveBeenCalled();
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+
+        expect(searchSpy).toHaveBeenCalledTimes(1);
+        expect(searchSpy).toHaveBeenCalledWith('spin', undefined);
+    });
+
+    // Real timers (no `vi.useFakeTimers()`) for this one — it asserts the RENDERED ranking order, not the
+    // debounce timing itself (already pinned above), and mixing fake timers with TanStack Query's own
+    // internal (micro)task scheduling for a full fetch→render round trip is exactly the kind of brittle
+    // interaction the rest of this file avoids by using real timers + `findBy*`.
+    it('renders results ranked prefix > substring > fuzzy, ties broken alphabetically', async () => {
+        vi.useRealTimers(); // override this block's fake timers — see comment above
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        // Deliberately unordered: the picker must re-rank this, not merely display it as returned.
+        vi.spyOn(client, 'searchIngredients').mockResolvedValue([
+            makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }), // fuzzy — neither prefix nor substring
+            makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }), // substring
+            makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }), // prefix
+            makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }), // substring (alphabetically first)
+        ]);
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'apple');
+
+        const list = await screen.findByRole('list');
+        await vi.waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(4));
+        const names = within(list)
+            .getAllByRole('button')
+            .map((button) => button.textContent);
+
+        expect(names).toEqual(['Apple pie spice', 'Banana apple', 'Zucchini apple', 'Aplpe']);
     });
 });

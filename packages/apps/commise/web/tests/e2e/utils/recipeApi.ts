@@ -639,6 +639,9 @@ export async function mockRecipeApi(
     );
     let nextId = 1;
     let nextCollectionId = 1;
+    // Freeform (user-entered) ingredient create — REQ-032b requires every freeform line to come back
+    // flagged `isUserEntered: true`, distinct from the fixed catalog-resolved `catalogIngredient` double.
+    let nextFreeformIngredientId = 1;
     // Photos (T067/CP-6/P3): a recipe id → its confirmed photos, in display order. Seeded from each
     // recipe's embedded `photos` so a spec that pre-seeds a cover photo sees it on both the detail's
     // embedded list AND `GET /v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
@@ -716,7 +719,15 @@ export async function mockRecipeApi(
         }
 
         if (path.endsWith('/v1/ingredients') && method === 'POST') {
-            return route.fulfill({ status: 201, json: catalogIngredient });
+            const { name } = body() as { name?: string };
+            const freeform: Ingredient = {
+                id: `ing_freeform_${nextFreeformIngredientId++}`,
+                name: name ?? 'Custom ingredient',
+                isUserEntered: true,
+                createdAt: ISO,
+            };
+
+            return route.fulfill({ status: 201, json: freeform });
         }
 
         // Photos (T067/CP-6/P3 — presign → direct S3 PUT → confirm, driven by `useRecipePhotoUpload`).

@@ -15,7 +15,7 @@
  * partial estimate rather than a false-precise number. Volumetric/count units (cup/tbsp/clove) are
  * converted via the ingredient's household-measure `portions` when the food service supplied one (#11).
  */
-import type { IngredientPortion, RecipeNutrition } from './recipe.types.js';
+import type { IngredientPortion, RecipeIngredientView, RecipeNutrition } from './recipe.types.js';
 import { unitToGrams } from './units.js';
 
 /** One ingredient line's nutrition inputs: its measure, any user override, the catalog per-100g, + portions. */
@@ -179,4 +179,18 @@ export function leadCaloriesPerServing(lines: readonly NutritionLine[], servings
     const { calories } = computeRecipeNutrition(lines, servings);
 
     return calories > 0 ? calories : undefined;
+}
+
+/**
+ * Whether the partial-nutrition disclosure notice (REQ-034, FR-007a) should render for a recipe — `true`
+ * iff at least one ingredient line is user-entered (a freeform line not resolved from the food database,
+ * REQ-032b). The ONE authoritative predicate for this gate, shared by the web and native recipe-detail
+ * views, so a recipe composed entirely of resolved catalog ingredients never carries the inapplicable
+ * "nutrition includes USDA database items; user-entered ingredients are marked Custom" disclosure. Pure.
+ *
+ * @param ingredients - The recipe's ingredient lines.
+ * @returns `true` when at least one ingredient is user-entered.
+ */
+export function hasUserEnteredIngredients(ingredients: readonly RecipeIngredientView[]): boolean {
+    return ingredients.some((ingredient) => ingredient.isUserEntered);
 }

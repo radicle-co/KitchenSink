@@ -82,6 +82,13 @@ test.describe('recipe CRUD (T079)', () => {
         await saltCheckbox.click();
         await expect(saltCheckbox).toBeChecked();
 
+        // REQ-034 — the disclosure notice is GATED to recipes with a user-entered ingredient. This recipe's
+        // only ingredient ("Salt") is food-database-resolved, so the notice must NOT render (see
+        // `ingredientTypeahead.spec.ts` for the positive case with a freeform ingredient).
+        await expect(
+            page.getByText('Nutrition includes USDA database items; user-entered ingredients are marked Custom.'),
+        ).toHaveCount(0);
+
         // EDIT — reach the editor through the RESTORED Edit entry point (W2/D1), not a raw URL. The wizard
         // seeds at step 1 (already valid); the difficulty stated at create round-tripped, so Hard is
         // pre-selected. Change the title and CLEAR the difficulty ("Not stated"), then Publish from step 1

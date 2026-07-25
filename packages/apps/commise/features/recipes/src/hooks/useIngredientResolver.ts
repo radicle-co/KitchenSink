@@ -52,8 +52,16 @@ import { useState } from 'react';
 
 import type { RecipeFormIngredient } from '../form/model.js';
 
-import { deriveViewState, nextMatchAction, toIngredientLine } from './ingredientResolver.model.js';
+import {
+    deriveViewState,
+    INGREDIENT_SEARCH_DEBOUNCE_MS,
+    meetsIngredientSearchThreshold,
+    nextMatchAction,
+    rankIngredientResults,
+    toIngredientLine,
+} from './ingredientResolver.model.js';
 import type { IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
+import { useDebouncedValue } from './useDebouncedValue.js';
 
 /** The state + actions {@link useIngredientResolver} exposes to a leaf. */
 export interface UseIngredientResolverResult {
@@ -93,14 +101,22 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     const [query, setQuery] = useState('');
     const [disambiguating, setDisambiguating] = useState<Ingredient | null>(null);
     const trimmed = query.trim();
+    // REQ-057: debounce the search-triggering query ~300ms behind keystrokes, and never search below the
+    // 2-character trigger — `trimmed` (not debounced) still drives every other UI transition (labels,
+    // idle/terminal state) so those react to every keystroke instantly.
+    const debouncedTrimmed = useDebouncedValue(trimmed, INGREDIENT_SEARCH_DEBOUNCE_MS);
 
-    const search = useSearchIngredients(trimmed, undefined, { enabled: disambiguating === null });
+    const search = useSearchIngredients(debouncedTrimmed, undefined, {
+        enabled: disambiguating === null && meetsIngredientSearchThreshold(debouncedTrimmed),
+    });
     const addIngredientByName = useAddIngredientByName();
     const createIngredient = useCreateIngredient();
     const candidates = useIngredientCandidates(disambiguating?.id ?? '', { enabled: disambiguating !== null });
     const resolveIngredient = useResolveIngredient();
 
-    const results = search.data ?? [];
+    // REQ-057: re-rank the backend's results by match quality (prefix > substring > fuzzy) so the picker's
+    // order is deterministic regardless of the search DAL's own ordering.
+    const results = rankIngredientResults(search.data ?? [], trimmed);
 
     /** Append a resolved line and reset the picker back to a blank search (drift #2 — see module doc). */
     const resolveLine = (ingredient: Ingredient): void => {

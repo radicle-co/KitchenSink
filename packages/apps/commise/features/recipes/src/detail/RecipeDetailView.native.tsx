@@ -8,7 +8,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -167,7 +167,9 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                 />
             </View>
             {!recipe.nutrition.isComplete && <Text style={styles.description}>{detail.nutritionPartial}</Text>}
-            <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
+            {hasUserEnteredIngredients(recipe.ingredients) && (
+                <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
+            )}
 
             <View accessibilityLabel={detail.badgesLabel} style={styles.badgeRow}>
                 {recipe.currentVersion > 1 && (

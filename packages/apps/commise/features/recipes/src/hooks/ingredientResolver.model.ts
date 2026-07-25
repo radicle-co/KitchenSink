@@ -15,6 +15,69 @@ import type { IngredientCandidate } from '@kitchensink/recipe-service-client';
 
 import type { RecipeFormIngredient } from '../form/model.js';
 
+/** The minimum trimmed-query length that triggers an ingredient search (REQ-057). */
+export const MIN_INGREDIENT_QUERY_LENGTH = 2;
+
+/** The debounce window (ms) between a keystroke and the search it triggers (REQ-057). */
+export const INGREDIENT_SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * Whether a trimmed query is long enough to trigger the ingredient typeahead (REQ-057 — at least
+ * {@link MIN_INGREDIENT_QUERY_LENGTH} characters). Pure.
+ *
+ * @param trimmed - The trimmed search-box query.
+ * @returns `true` once the query meets the trigger threshold.
+ */
+export function meetsIngredientSearchThreshold(trimmed: string): boolean {
+    return trimmed.length >= MIN_INGREDIENT_QUERY_LENGTH;
+}
+
+/** REQ-057's three match-quality buckets, in descending rank order (0 = best). */
+const enum MatchRank {
+    PREFIX = 0,
+    SUBSTRING = 1,
+    FUZZY = 2,
+}
+
+/** Classify one ingredient name's match quality against the (already lower-cased) query. Pure. */
+function matchRank(name: string, lowerQuery: string): MatchRank {
+    if (lowerQuery.length === 0) {
+        return MatchRank.PREFIX;
+    }
+
+    const lowerName = name.toLowerCase();
+
+    if (lowerName.startsWith(lowerQuery)) {
+        return MatchRank.PREFIX;
+    }
+
+    if (lowerName.includes(lowerQuery)) {
+        return MatchRank.SUBSTRING;
+    }
+
+    return MatchRank.FUZZY;
+}
+
+/**
+ * Rank ingredient search results by match quality (REQ-057): a prefix match beats a substring match beats
+ * everything else (a "fuzzy" match — whatever the backend's trigram/FTS search deemed relevant but that
+ * does not literally contain the query), with ties broken alphabetically by display name. Returns a NEW
+ * array — the input is never mutated. Pure.
+ *
+ * @param results - The unranked search results (in whatever order the backend returned them).
+ * @param query - The raw search-box query the results were matched against.
+ * @returns A new array, re-ordered per REQ-057.
+ */
+export function rankIngredientResults(results: readonly Ingredient[], query: string): Ingredient[] {
+    const lowerQuery = query.toLowerCase();
+
+    return [...results].sort((a, b) => {
+        const rankDiff = matchRank(a.name, lowerQuery) - matchRank(b.name, lowerQuery);
+
+        return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
+    });
+}
+
 /** Whether a food resolution is terminal — no nutrition will ever arrive (FR-007). */
 export function isTerminalStatus(status: FoodResolutionStatus | undefined): status is FoodResolutionStatus {
     return status === FoodResolutionStatus.NOT_FOUND || status === FoodResolutionStatus.FAILED;
@@ -72,7 +135,8 @@ export interface MutationView {
 /**
  * The picker's current view — a discriminated union so a leaf renders it with an exhaustive `switch`
  * instead of re-deriving the same implicit state machine from raw query/mutation flags. Kinds:
- *  - `idle` — no query typed yet, and nothing is being disambiguated.
+ *  - `idle` — no query typed yet, the query is below the {@link MIN_INGREDIENT_QUERY_LENGTH} search trigger
+ *    (REQ-057), and nothing is being disambiguated.
  *  - `searching` — a query is in flight (no data yet).
  *  - `results` — the search settled (`isSuccess`/`isError`), with zero or more catalog matches. A per-row
  *    terminal notice (see {@link isTerminalStatus}) is the LEAF's concern — each row's own
@@ -146,7 +210,7 @@ export function deriveViewState(input: DeriveViewStateInput): IngredientResolver
         };
     }
 
-    if (input.trimmed.length === 0) {
+    if (!meetsIngredientSearchThreshold(input.trimmed)) {
         return { kind: 'idle' };
     }
 

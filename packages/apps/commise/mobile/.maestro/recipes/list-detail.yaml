@@ -28,8 +28,10 @@ appId: io.commise.mobile
           - assertVisible: 'Ingredients'
           - assertVisible: 'Instructions'
           - assertVisible: 'Nutrition (per serving)'
-          # W2/D8 — the standing USDA-source note is always present (distinct from the estimate warning).
-          - assertVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+          # REQ-034 — the USDA-source disclosure is GATED to recipes with a user-entered ingredient; this
+          # seeded recipe's ingredients are all food-database-resolved, so the notice must NOT render (the
+          # positive case — a freeform ingredient — is covered by `create.yaml`).
+          - assertNotVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
           # W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash).
           - runFlow:
                 when:

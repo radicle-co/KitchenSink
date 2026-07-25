@@ -103,12 +103,41 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
     });
 
-    it('always shows the standing USDA-source note, even when nutrition is complete (D8)', () => {
-        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })} />);
+    it('shows the standing USDA-source note when the recipe has a user-entered ingredient (REQ-034)', () => {
+        // Distinct from the incomplete warning (D8): present even when nutrition IS complete, as long as the
+        // recipe has a user-entered ingredient the note explains — never an unconditional standing fact.
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    nutrition: makeNutrition({ isComplete: true }),
+                    ingredients: [makeIngredientView({ isUserEntered: true })],
+                })}
+            />,
+        );
 
         expect(
             screen.getByText('Nutrition includes USDA database items; user-entered ingredients are marked Custom.'),
         ).toBeTruthy();
+    });
+
+    it('hides the standing USDA-source note when no ingredient is user-entered (REQ-034)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ isUserEntered: false })] })}
+            />,
+        );
+
+        expect(
+            screen.queryByText('Nutrition includes USDA database items; user-entered ingredients are marked Custom.'),
+        ).toBeNull();
+    });
+
+    it('hides the standing USDA-source note for a recipe with no ingredients (REQ-034)', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ ingredients: [] })} />);
+
+        expect(
+            screen.queryByText('Nutrition includes USDA database items; user-entered ingredients are marked Custom.'),
+        ).toBeNull();
     });
 
     it('renders the photo gallery only when the recipe has photos', () => {

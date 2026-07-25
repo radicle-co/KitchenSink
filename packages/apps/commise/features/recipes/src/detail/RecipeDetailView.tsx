@@ -10,7 +10,7 @@
  * markers, and a nutrition grid — all via `@commise/ui` design tokens exposed as Tailwind v4 utilities.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -197,7 +197,9 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                     </div>
                 </dl>
                 {!recipe.nutrition.isComplete && <p className="text-body-sm text-slate">{detail.nutritionPartial}</p>}
-                <p className="text-caption text-slate">{detail.nutritionSourceNote}</p>
+                {hasUserEnteredIngredients(recipe.ingredients) && (
+                    <p className="text-caption text-slate">{detail.nutritionSourceNote}</p>
+                )}
             </section>
 
             <footer role="group" aria-label={detail.badgesLabel} className="flex flex-wrap items-center gap-2">

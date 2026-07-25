@@ -15,7 +15,10 @@ import {
     deriveViewState,
     isTerminalStatus,
     isUnresolvedStatus,
+    MIN_INGREDIENT_QUERY_LENGTH,
+    meetsIngredientSearchThreshold,
     nextMatchAction,
+    rankIngredientResults,
     toIngredientLine,
     type DeriveViewStateInput,
 } from '../ingredientResolver.model.js';
@@ -170,6 +173,14 @@ describe('deriveViewState', () => {
         expect(deriveViewState(baseInput({ trimmed: 'oli', searchIsLoading: true }))).toEqual({ kind: 'searching' });
     });
 
+    it('is idle below the 2-character trigger (REQ-057), even with a match already loaded', () => {
+        const hit = makeIngredient({ id: 'ing_9', name: 'Salt' });
+
+        expect(
+            deriveViewState(baseInput({ trimmed: 's', searchIsSuccess: true, searchIsLoading: true, results: [hit] })),
+        ).toEqual({ kind: 'idle' });
+    });
+
     it('is results (empty) once the search settles with no matches', () => {
         expect(deriveViewState(baseInput({ trimmed: 'zzz', searchIsSuccess: true, results: [] }))).toEqual({
             kind: 'results',
@@ -184,7 +195,7 @@ describe('deriveViewState', () => {
         const notFound = makeIngredient({ id: 'ing_2', foodResolutionStatus: FoodResolutionStatus.NOT_FOUND });
         const results = [resolved, notFound];
 
-        expect(deriveViewState(baseInput({ trimmed: 'x', searchIsSuccess: true, results }))).toEqual({
+        expect(deriveViewState(baseInput({ trimmed: 'xy', searchIsSuccess: true, results }))).toEqual({
             kind: 'results',
             results,
             isSuccess: true,
@@ -280,5 +291,67 @@ describe('deriveViewState', () => {
         expect(deriveViewState(baseInput({ disambiguating, trimmed: 'quin', searchIsSuccess: true }))).toMatchObject({
             kind: 'disambiguating',
         });
+    });
+});
+
+describe('meetsIngredientSearchThreshold (REQ-057 — 2-character trigger)', () => {
+    it('is false below MIN_INGREDIENT_QUERY_LENGTH', () => {
+        expect(MIN_INGREDIENT_QUERY_LENGTH).toBe(2);
+        expect(meetsIngredientSearchThreshold('')).toBe(false);
+        expect(meetsIngredientSearchThreshold('s')).toBe(false);
+    });
+
+    it('is true at and above MIN_INGREDIENT_QUERY_LENGTH', () => {
+        expect(meetsIngredientSearchThreshold('sp')).toBe(true);
+        expect(meetsIngredientSearchThreshold('spinach')).toBe(true);
+    });
+});
+
+describe('rankIngredientResults (REQ-057 — prefix > substring > fuzzy, alphabetical ties)', () => {
+    it('orders a prefix match before a substring match before a fuzzy (neither) match', () => {
+        const prefix = makeIngredient({ id: 'ing_1', name: 'Apple pie spice' });
+        const substring = makeIngredient({ id: 'ing_2', name: 'Pineapple' });
+        const fuzzy = makeIngredient({ id: 'ing_3', name: 'Aplpe' });
+
+        // Deliberately scrambled input order — the function must re-sort it, not merely preserve input order.
+        const ranked = rankIngredientResults([substring, fuzzy, prefix], 'apple');
+
+        expect(ranked.map((ingredient) => ingredient.id)).toEqual(['ing_1', 'ing_2', 'ing_3']);
+    });
+
+    it('is case-insensitive when classifying prefix/substring matches', () => {
+        const prefix = makeIngredient({ id: 'ing_1', name: 'APPLE PIE' });
+        const substring = makeIngredient({ id: 'ing_2', name: 'pineapple' });
+
+        expect(rankIngredientResults([substring, prefix], 'Apple').map((ingredient) => ingredient.id)).toEqual([
+            'ing_1',
+            'ing_2',
+        ]);
+    });
+
+    it('breaks ties within the same rank alphabetically by display name', () => {
+        const zucchini = makeIngredient({ id: 'ing_z', name: 'Zucchini apple' }); // substring
+        const banana = makeIngredient({ id: 'ing_b', name: 'Banana apple' }); // substring
+
+        expect(rankIngredientResults([zucchini, banana], 'apple').map((ingredient) => ingredient.id)).toEqual([
+            'ing_b',
+            'ing_z',
+        ]);
+    });
+
+    it('does not mutate the input array (pure)', () => {
+        const results = [
+            makeIngredient({ id: 'ing_2', name: 'Pineapple' }),
+            makeIngredient({ id: 'ing_1', name: 'Apple' }),
+        ];
+        const original = [...results];
+
+        rankIngredientResults(results, 'apple');
+
+        expect(results).toEqual(original);
+    });
+
+    it('returns an empty array unchanged', () => {
+        expect(rankIngredientResults([], 'apple')).toEqual([]);
     });
 });

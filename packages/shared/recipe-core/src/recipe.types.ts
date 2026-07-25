@@ -608,10 +608,17 @@ export const recipeIngredientSchema = z.object({
 });
 
 /**
+ * Per-recipe photo cap (data-model.md / T035) — the single source shared by the server DAL
+ * (`recipe-service/src/photos/dal/photos.dal.ts`, which enforces it as `MAX_PHOTOS_EXCEEDED`) and the
+ * client photo manager (`@commise/features-recipes`'s `isAtPhotoCap`, which hides the add control at cap).
+ */
+export const MAX_RECIPE_PHOTOS = 10;
+
+/**
  * Image asset metadata for a recipe photo. A photo is a SINGLE stored object served as-is via the CDN —
  * there are no derived variants and no processing lifecycle (data-model.md / T035). The server resolves
  * the full CDN `url` for the object (clients never concatenate a base + key), and `order` is the 1-based
- * display position within the recipe's photos (1…{@link MAX_PHOTOS_PER_RECIPE}).
+ * display position within the recipe's photos (1…{@link MAX_RECIPE_PHOTOS}).
  */
 export interface RecipePhoto {
     id: string;

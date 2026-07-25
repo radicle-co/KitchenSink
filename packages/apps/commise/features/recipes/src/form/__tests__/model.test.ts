@@ -188,6 +188,27 @@ describe('validateRecipeForm', () => {
         expect(validateRecipeForm(filledValues({ servings: 0 })).servings).toBe('servingsPositive');
         expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBe('timesNonNegative');
     });
+
+    it('flags an ingredient line with a resolved id but a non-positive quantity', () => {
+        const errors = validateRecipeForm(
+            filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Kale', quantity: 0 }] }),
+        );
+        expect(errors.ingredients).toBe('ingredientsUnresolved');
+    });
+
+    it('requires a non-blank step instruction (whitespace-only fails, mirroring the title rule)', () => {
+        const errors = validateRecipeForm(filledValues({ steps: [{ instruction: '   ' }] }));
+        expect(errors.steps).toBe('stepsRequired');
+    });
+
+    // DA5 no-drift guard: the composed validator deliberately does NOT parse servings/prep/cook time through
+    // the wire schema's `positiveIntSchema`/`nonNegativeIntSchema` (which additionally require an integer) —
+    // a fractional-but-positive value must stay VALID, exactly as it always has.
+    it('accepts fractional-but-positive servings and times (composing the schema must not newly require an integer)', () => {
+        expect(validateRecipeForm(filledValues({ servings: 2.5, prepTimeMinutes: 1.5, cookTimeMinutes: 0.5 }))).toEqual(
+            {},
+        );
+    });
 });
 
 describe('stepErrorsFor / canAdvanceFromStep (W3 — the wizard field->step map)', () => {

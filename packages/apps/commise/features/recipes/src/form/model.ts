@@ -5,7 +5,13 @@
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
  * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
  */
-import { computeRecipeNutrition, toNutritionLine as buildNutritionLine } from '@kitchensink/recipe-core';
+import {
+    computeRecipeNutrition,
+    createRecipeIngredientInputSchema,
+    createRecipeInputSchema,
+    createRecipeStepInputSchema,
+    toNutritionLine as buildNutritionLine,
+} from '@kitchensink/recipe-core';
 import type {
     CreateRecipeInput,
     FoodResolutionStatus,
@@ -375,10 +381,39 @@ export interface RecipeFormErrors {
     times?: RecipeFormErrorCode;
 }
 
+// Field-level validators COMPOSED from the wire schema (parse-don't-validate, DA5) — the single authoritative
+// source for the rules the form and the `CreateRecipeInput` contract genuinely SHARE, so the form can never
+// hand-restate (and drift from) what the wire already encodes:
+//   - `titleSchema`: non-empty title (matches `createRecipeInputSchema.shape.title`).
+//   - `ingredientIdSchema`: a resolved catalog id — REJECTS `null`, which is exactly the form's "unresolved
+//     line" sentinel (`RecipeFormIngredient.ingredientId: string | null`), so composing this schema against a
+//     form line's raw (possibly-`null`) id needs no hand-written `=== null` check.
+//   - `quantitySchema`: a finite, strictly-positive quantity.
+//   - `instructionSchema`: a non-empty step instruction.
+const titleSchema = createRecipeInputSchema.shape.title;
+const ingredientIdSchema = createRecipeIngredientInputSchema.shape.ingredientId;
+const quantitySchema = createRecipeIngredientInputSchema.shape.quantity;
+const instructionSchema = createRecipeStepInputSchema.shape.instruction;
+
 /**
  * Validate the form for submission: title present, ≥1 ingredient with EVERY line resolved to a catalog id
  * and a positive quantity, ≥1 step with a non-empty instruction, positive servings, non-negative times.
  * Pure and locale-free — returns error CODES (the leaf resolves copy). Empty object when submittable.
+ *
+ * COMPOSES the `CreateRecipeInput` wire schema (DA5, parse-don't-validate) for the rules it and the form
+ * genuinely share — title, ingredient id/quantity, step instruction — via the field schemas above, each
+ * `.safeParse`d against the (trimmed, for strings) form value and mapped to the SAME `RecipeFormErrorCode`s
+ * this validator has always returned. Two kinds of rule stay hand-written rather than schema-derived:
+ *   - `ingredientsEmpty` / the empty-`steps`-array half of `stepsRequired` are FORM-ONLY: the wire schema
+ *     places no minimum length on `ingredients`/`steps` (a recipe *record* can exist with zero of either, e.g.
+ *     mid-edit), but the form's submit gate requires at least one of each.
+ *   - `servingsPositive` / `timesNonNegative` are deliberately NOT parsed through the wire's
+ *     `servings`/`prepTimeMinutes`/`cookTimeMinutes` fields, which additionally require an INTEGER
+ *     (`positiveIntSchema`/`nonNegativeIntSchema`). The form has never enforced integer-ness (its numeric
+ *     inputs parse via `parseNumericInput`, which accepts fractional text), so composing those fields would
+ *     newly reject a fractional-but-positive value — a validation-behavior drift the DA5 acceptance bar
+ *     (identical codes for every case) forbids. Only the genuinely shared "positive"/"non-negative" rule is
+ *     kept, as an explicit comparison.
  *
  * @param values - The editor's form values.
  * @returns The {@link RecipeFormErrors} (empty object when the form is submittable).
@@ -386,17 +421,28 @@ export interface RecipeFormErrors {
 export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors => {
     const errors: RecipeFormErrors = {};
 
-    if (values.title.trim() === '') {
+    if (!titleSchema.safeParse(values.title.trim()).success) {
         errors.title = 'titleRequired';
     }
 
     if (values.ingredients.length === 0) {
+        // Form-only: the wire schema allows an empty `ingredients` array.
         errors.ingredients = 'ingredientsEmpty';
-    } else if (values.ingredients.some((line) => line.ingredientId === null || line.quantity <= 0)) {
+    } else if (
+        values.ingredients.some(
+            (line) =>
+                !ingredientIdSchema.safeParse(line.ingredientId).success ||
+                !quantitySchema.safeParse(line.quantity).success,
+        )
+    ) {
         errors.ingredients = 'ingredientsUnresolved';
     }
 
-    if (values.steps.length === 0 || values.steps.some((step) => step.instruction.trim() === '')) {
+    if (
+        // Form-only: the wire schema allows an empty `steps` array.
+        values.steps.length === 0 ||
+        values.steps.some((step) => !instructionSchema.safeParse(step.instruction.trim()).success)
+    ) {
         errors.steps = 'stepsRequired';
     }
 

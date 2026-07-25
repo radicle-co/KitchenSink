@@ -10,13 +10,17 @@
  * stays free of DOM/native APIs. The container owns the presign → PUT → confirm upload orchestration (via
  * `useRecipePhotoUpload` + the `useRecipePhotoUploadQueue` layer above it) and passes results down as props.
  */
+import { MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 
 import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
 
-/** Per-recipe photo cap (server enforces `MAX_PHOTOS_EXCEEDED` at 10); the block hides `addControl` at cap. */
-export const MAX_RECIPE_PHOTOS = 10;
+/**
+ * Per-recipe photo cap — re-exported from the single recipe-core constant (server enforces
+ * `MAX_PHOTOS_EXCEEDED` at the same value); the block hides `addControl` at cap.
+ */
+export { MAX_RECIPE_PHOTOS };
 
 /** Props for the recipe photo manager. Purely presentational — no fetching, no platform APIs. */
 export interface RecipePhotoManagerProps {

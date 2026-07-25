@@ -112,6 +112,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     base,
     diff,
     versionsBehind,
+    isResolving,
     selections,
     onSelectionsChange,
     onKeepServer,
@@ -154,7 +155,9 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
         // this is a display/gating distinction, not a data one (`composeConflictMerge` still defaults to mine).
         const sideOf = (key: string): MergeSide | undefined => selections[key];
         const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
-        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed);
+        // `isResolving` (concurrency/double-submit fix) is combined with, not a replacement for, the existing
+        // selection + stale-base gates — any one of the three blocks the submit.
+        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed) || isResolving;
 
         return (
             <View accessibilityLabel={conflict.mergeHeading} style={styles.container}>
@@ -237,22 +240,26 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
             {staleWarning}
 
-            {/* Three A/B/C option cards (X2). */}
+            {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) disables ALL three
+                — combined with, not replacing, Overwrite's existing stale-base gate — while a resolve is in
+                flight, so a rapid double-tap cannot fire a second resolve before the first settles. */}
             <OptionCard
                 title={conflict.optionServerTitle}
                 description={conflict.optionServerDescription}
                 onChoose={onKeepServer}
+                disabled={isResolving}
             />
             <OptionCard
                 title={conflict.optionOverwriteTitle}
                 description={conflict.optionOverwriteDescription}
                 onChoose={onOverwrite}
-                disabled={isStale && !staleConfirmed}
+                disabled={isResolving || (isStale && !staleConfirmed)}
             />
             <OptionCard
                 title={conflict.optionMergeTitle}
                 description={conflict.optionMergeDescription}
                 onChoose={() => setMerging(true)}
+                disabled={isResolving}
             />
 
             {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}

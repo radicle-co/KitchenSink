@@ -196,12 +196,24 @@ export type EditorState =
            *  degrades this to `server.versionNumber` itself, which is large for any recipe with real history,
            *  so callers should treat "no base" as maximally stale regardless of the raw number. */
           readonly versionsBehind: number;
+          /** Whether a resolve's own resubmit (`overwrite`/`merge`) is currently in flight — mirrors
+           *  `updateRecipe.isPending`, computed fresh on every render rather than latched. `status` stays
+           *  `'conflict'` throughout (the resolver UI must stay mounted, showing disabled controls, not swap
+           *  to a different screen) — this flag is how a container/view disables the option cards and the
+           *  merge-submit button for the duration, mirroring how the primary submit's `state.status ===
+           *  'submitting'` disables the Wizard's Save/Publish buttons. See the resolutions' own in-flight
+           *  guard (`if (updateRecipe.isPending) return;`) this flag is paired with — the guard prevents a
+           *  double-submit even if a caller somehow ignores the disabled affordance. */
+          readonly isResolving: boolean;
       }
     | { readonly status: 'saved' }
     | { readonly status: 'discarded' };
 
-/** A conflict snapshot mirrors the `conflict` variant of {@link EditorState} minus its `status` discriminant. */
-type ConflictInfo = Extract<EditorState, { status: 'conflict' }>;
+/** A conflict snapshot mirrors the `conflict` variant of {@link EditorState} minus its `status` discriminant
+ *  AND minus `isResolving` — `isResolving` is not data the machine stores, it is derived fresh on every
+ *  render from `updateRecipe.isPending` (see the state derivation below), so storing it here would let it go
+ *  stale between renders. */
+type ConflictInfo = Omit<Extract<EditorState, { status: 'conflict' }>, 'isResolving'>;
 
 /** The two mutually-exclusive terminal outcomes {@link EditorState.status} can settle on after `conflict`
  *  resolves (or a plain submit succeeds), plus `'none'` while neither applies — see the module doc's
@@ -468,8 +480,15 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     const stepErrors = (checkStep: RecipeWizardStep): RecipeFormErrors => stepErrorsFor(values, checkStep);
 
     // Option B ("yours win"): forcing the draft to overwrite the server's winning version.
+    //
+    // In-flight guard (double-submit fix): `updateRecipe.isPending` is checked ALONGSIDE `conflict === null`
+    // for every resolution below, not just this one. Without it, a rapid double-click fired TWO PATCH
+    // requests carrying the SAME `expectedVersion` — the loser re-entered a second conflict screen right
+    // after the user thought they had resolved the first. `state.conflict.isResolving` (derived below from
+    // this SAME `updateRecipe.isPending`) is the paired signal a container/view uses to disable its controls
+    // for the duration; this guard is the backstop that holds even if a caller ignores that affordance.
     const resubmitDraftAsIs = (): void => {
-        if (conflict === null) {
+        if (conflict === null || updateRecipe.isPending) {
             return;
         }
 
@@ -481,7 +500,12 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     const resolutions: UseRecipeEditorResult['resolutions'] = {
         overwrite: resubmitDraftAsIs,
         keepServer: (): void => {
-            if (conflict === null) {
+            // `keepServer` issues no write of its own, but it MUST still decline while another resolution's
+            // mutation is in flight: without this guard, discarding here races the outstanding overwrite/
+            // merge's own eventual `onSuccess`/`onError` — that callback still fires afterward and can flip
+            // `terminal` to `'saved'` (or reopen `conflict` on a second 409) out from under a user who was
+            // already navigated away on the `'discarded'` transition below.
+            if (conflict === null || updateRecipe.isPending) {
                 return;
             }
 
@@ -492,7 +516,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
             setTerminal('discarded');
         },
         merge: (selections: RecipeMergeSelections): void => {
-            if (conflict === null) {
+            if (conflict === null || updateRecipe.isPending) {
                 return;
             }
 
@@ -508,14 +532,15 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     const state: EditorState =
         seededId === null
             ? { status: 'loading' }
-            : (conflict ??
-              (terminal === 'saved'
-                  ? { status: 'saved' }
-                  : terminal === 'discarded'
-                    ? { status: 'discarded' }
-                    : updateRecipe.isPending
-                      ? { status: 'submitting' }
-                      : { status: 'editing' }));
+            : conflict !== null
+              ? { ...conflict, isResolving: updateRecipe.isPending }
+              : terminal === 'saved'
+                ? { status: 'saved' }
+                : terminal === 'discarded'
+                  ? { status: 'discarded' }
+                  : updateRecipe.isPending
+                    ? { status: 'submitting' }
+                    : { status: 'editing' };
 
     return {
         state,

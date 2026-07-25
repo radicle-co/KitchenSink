@@ -129,7 +129,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     };
 
     if (editor.state.status === 'conflict') {
-        const { mergeSelections, server, base, diff, versionsBehind } = editor.state;
+        const { mergeSelections, server, base, diff, versionsBehind, isResolving } = editor.state;
 
         return (
             <RecipeConflictView
@@ -137,6 +137,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 {...(base === undefined ? {} : { base })}
                 diff={diff}
                 versionsBehind={versionsBehind}
+                isResolving={isResolving}
                 selections={mergeSelections}
                 onSelectionsChange={editor.resolutions.setMergeSelections}
                 onKeepServer={editor.resolutions.keepServer}

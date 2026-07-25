@@ -113,6 +113,13 @@ export interface RecipeConflictViewProps {
      *  `isConflictBaseStale` alongside `base` to render W7 Task 5's staleness warning and gate
      *  Overwrite/Save-merged on an explicit confirm. */
     readonly versionsBehind: number;
+    /** Whether a resolve (`onOverwrite`/`onMerge`) is currently in flight — mirrors `useRecipeEditor`'s
+     *  `state.isResolving` (concurrency/double-submit fix). While `true`, this FULLY controlled view disables
+     *  all three option cards AND the merge panel's "Save merged version" button (combined with, not instead
+     *  of, the existing stale-base confirm gate) so a rapid double-click/double-tap cannot fire a second
+     *  resolve while the first is still outstanding — mirroring how the primary editor's Save/Publish buttons
+     *  disable on `state.status === 'submitting'`. */
+    readonly isResolving: boolean;
     /** The current per-field merge resolution (an absent key defaults to `'mine'`); owned by the caller. */
     readonly selections: RecipeMergeSelections;
     /** Invoked with the next selections on every per-field radio toggle, and to reset on merge-panel exit. */

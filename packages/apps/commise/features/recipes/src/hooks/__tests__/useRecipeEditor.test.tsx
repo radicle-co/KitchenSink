@@ -616,6 +616,142 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
     });
 });
 
+describe('useRecipeEditor — in-flight guard against double-submit on conflict resolutions', () => {
+    // Regression: a rapid double-click on Overwrite/Save-merged fired TWO PATCH requests with the SAME
+    // `expectedVersion` — the loser re-entered a second conflict screen right after the user thought they had
+    // resolved the first one. `updateRecipe.isPending` is react-query's own in-flight signal (mirrored here by
+    // NOT queuing a settling outcome for the resolve call, so `mutate` never invokes its callbacks — exactly
+    // like a real PATCH still in flight); this describes the guard that must block a SECOND resolve while the
+    // first is still outstanding.
+    it('overwrite (Option B) fires the underlying mutation exactly once when invoked again while the first resolve is still pending', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+            // No outcome queued for the resolve itself — `mutate` is called but never settles, mirroring an
+            // in-flight PATCH still awaiting its response.
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
+
+        act(() => result.current.submit());
+        expect(result.current.state.status).toBe('conflict');
+
+        act(() => result.current.resolutions.overwrite());
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+
+        // The resolve mutation is now in flight — flip `isPending` exactly as react-query would once the
+        // request is outstanding, then re-render so the hook's next closures observe it.
+        useUpdateRecipeMock.mockReturnValue({ ...mutation, isPending: true });
+        rerender();
+
+        act(() => result.current.resolutions.overwrite());
+
+        // The guard must block the second, in-flight resubmit — the call count stays at 2 (the original
+        // submit + the FIRST overwrite only).
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+    });
+
+    it('merge (Option C) fires the underlying mutation exactly once when invoked again while the first resolve is still pending', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
+
+        act(() => result.current.submit());
+        expect(result.current.state.status).toBe('conflict');
+
+        act(() => result.current.resolutions.merge({ title: 'theirs' }));
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+
+        useUpdateRecipeMock.mockReturnValue({ ...mutation, isPending: true });
+        rerender();
+
+        act(() => result.current.resolutions.merge({ title: 'theirs' }));
+
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+    });
+
+    it('keepServer (Option A) is a no-op while another resolution is still in flight — it must not clear the conflict out from under an outstanding overwrite/merge', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
+
+        act(() => result.current.submit());
+        act(() => result.current.resolutions.overwrite());
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+
+        useUpdateRecipeMock.mockReturnValue({ ...mutation, isPending: true });
+        rerender();
+
+        act(() => result.current.resolutions.keepServer());
+
+        // keepServer never calls `mutate` itself, but while a resolve is in flight it must ALSO decline to
+        // discard — otherwise the outstanding overwrite's own eventual onSuccess/onError would fire AFTER the
+        // user was already navigated away on a bogus "discarded" terminal, corrupting the machine's state.
+        expect(mutation.mutate).toHaveBeenCalledTimes(2);
+        expect(result.current.state.status).toBe('conflict');
+    });
+
+    it('exposes isResolving on the conflict state, true only while a resolve mutation is in flight', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
+
+        act(() => result.current.submit());
+        expect(result.current.state).toMatchObject({ status: 'conflict', isResolving: false });
+
+        act(() => result.current.resolutions.overwrite());
+        useUpdateRecipeMock.mockReturnValue({ ...mutation, isPending: true });
+        rerender();
+
+        expect(result.current.state).toMatchObject({ status: 'conflict', isResolving: true });
+    });
+});
+
 describe('useRecipeEditor — merge(selections) composes via composeConflictMerge and submits', () => {
     it('composes top-level field selections (composeMergedRecipe’s own scope) and submits against server.versionNumber', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3, servings: 4 });

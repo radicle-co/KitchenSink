@@ -74,6 +74,7 @@ function renderConflict(overrides: Partial<RecipeConflictViewProps> = {}) {
         base,
         diff,
         versionsBehind: 1,
+        isResolving: false,
         selections: {},
         onSelectionsChange: noop,
         onKeepServer: noop,
@@ -105,6 +106,7 @@ function renderControlledConflict(
         base,
         diff,
         versionsBehind: 1,
+        isResolving: false,
         onKeepServer: noop,
         onOverwrite: noop,
         onMerge: noop,
@@ -167,6 +169,7 @@ describe('RecipeConflictView (web) — per-side banner (X3)', () => {
                     base,
                     diff,
                     versionsBehind: 1,
+                    isResolving: false,
                     selections: {},
                     onSelectionsChange: noop,
                     onKeepServer: noop,
@@ -224,6 +227,139 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
         await user.click(screen.getByRole('button', { name: 'Merge manually' }));
 
         expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+    });
+});
+
+describe('RecipeConflictView (web) — isResolving disables the resolver while a resolve is in flight (double-submit fix)', () => {
+    it('disables all three option cards while isResolving, combined with (not replacing) the stale-base gate', () => {
+        freezeClock();
+        renderConflict({ isResolving: true });
+
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep server version' }).disabled).toBe(true);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
+            true,
+        );
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Merge manually' }).disabled).toBe(true);
+    });
+
+    it('a double-click on Overwrite while isResolving fires onOverwrite at most once (the second click is a no-op because disabled)', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        const onOverwrite = vi.fn();
+        renderConflict({ onOverwrite });
+
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        await user.click(overwrite);
+        expect(onOverwrite).toHaveBeenCalledTimes(1);
+
+        // The resolve is now in flight — the caller (`useRecipeEditor`) re-renders this FULLY controlled view
+        // with `isResolving: true` before the click handler could possibly run again in real usage; assert
+        // the SAME button, now disabled, swallows a second click instead of firing a second resolve.
+        cleanup();
+        renderConflict({ onOverwrite, isResolving: true });
+        await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }));
+
+        expect(onOverwrite).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not disable the option cards when isResolving is false and nothing else gates them', () => {
+        freezeClock();
+        renderConflict({ isResolving: false });
+
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep server version' }).disabled).toBe(false);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
+            false,
+        );
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Merge manually' }).disabled).toBe(false);
+    });
+
+    it('disables "Save merged version" while isResolving, combined with (not replacing) the selection + stale-base gates', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        const onMerge = vi.fn();
+        // Enter the merge panel and select a field while NOT resolving (entering merge mode is itself gated
+        // on `isResolving`), then flip to resolving on the SAME instance — mirrors the real flow where the
+        // caller sets `isResolving` only once a resolve is actually submitted.
+        const { rerender } = render(
+            <ControlledConflict
+                server={server}
+                base={base}
+                diff={diff}
+                versionsBehind={1}
+                isResolving={false}
+                onKeepServer={noop}
+                onOverwrite={noop}
+                onMerge={onMerge}
+            />,
+        );
+        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+
+        rerender(
+            <ControlledConflict
+                server={server}
+                base={base}
+                diff={diff}
+                versionsBehind={1}
+                isResolving
+                onKeepServer={noop}
+                onOverwrite={noop}
+                onMerge={onMerge}
+            />,
+        );
+
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        expect(save.disabled).toBe(true);
+
+        await user.click(save);
+        expect(onMerge).not.toHaveBeenCalled();
+    });
+
+    it('a double-click on Save merged version while resolving fires onMerge at most once', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        const onMerge = vi.fn();
+        // Same mounted instance throughout (via `rerender`), NOT a remount — mirrors the real flow where the
+        // caller flips `isResolving` on the SAME conflict while the merge panel + selections stay live.
+        const { rerender } = render(
+            <ControlledConflict
+                server={server}
+                base={base}
+                diff={diff}
+                versionsBehind={1}
+                isResolving={false}
+                onKeepServer={noop}
+                onOverwrite={noop}
+                onMerge={onMerge}
+            />,
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        await user.click(save);
+        expect(onMerge).toHaveBeenCalledTimes(1);
+
+        // The resolve is now in flight — re-render with `isResolving: true`, same as the real caller would;
+        // a second click on the now-disabled button must be a no-op.
+        rerender(
+            <ControlledConflict
+                server={server}
+                base={base}
+                diff={diff}
+                versionsBehind={1}
+                isResolving
+                onKeepServer={noop}
+                onOverwrite={noop}
+                onMerge={onMerge}
+            />,
+        );
+        await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' }));
+
+        expect(onMerge).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -607,6 +743,7 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
             base,
             diff,
             versionsBehind: 11,
+            isResolving: false,
             selections: {},
             onSelectionsChange: noop,
             onKeepServer: noop,

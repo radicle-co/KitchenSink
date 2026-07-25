@@ -25,7 +25,7 @@ node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
 
 # `auth/login-flow` + `home` first, then the recipe stories; `delete` last (its own "run me last" note).
-FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/visibility recipes/discover-clone recipes/conflict-merge recipes/collections recipes/create recipes/accessibility recipes/delete"
+FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/visibility recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/create recipes/accessibility recipes/delete"
 
 RC=0
 for f in $FLOWS; do

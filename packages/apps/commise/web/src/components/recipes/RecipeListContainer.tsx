@@ -8,7 +8,8 @@
  * Query is the source of truth for the remote list; the visible rows are derived from it.
  */
 import { RecipeList, toRecipeListItem } from '@commise/features-recipes';
-import type { RecipeListItem, RecipeListStatus } from '@commise/features-recipes';
+import type { RecipeListItem } from '@commise/features-recipes';
+import { toQueryStatus } from '@commise/features-core';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
@@ -19,19 +20,6 @@ import type { FC } from 'react';
 export interface RecipeListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-}
-
-/** Map a TanStack Query state onto the list view's three top-level states. */
-function toListStatus(isLoading: boolean, isError: boolean): RecipeListStatus {
-    if (isLoading) {
-        return 'loading';
-    }
-
-    if (isError) {
-        return 'error';
-    }
-
-    return 'ready';
 }
 
 /**
@@ -46,7 +34,7 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
     const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
     const query = useRecipes();
 
-    const status = toListStatus(query.isLoading, query.isError);
+    const status = toQueryStatus(query.isLoading, query.isError);
 
     // The raw loaded rows from the query cache (never copied into local state). Filtering runs on these
     // because the quick-filter facets read `dietaryFlags` + `cuisine`, which live on the DTO but not the card

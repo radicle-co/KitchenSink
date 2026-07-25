@@ -9,7 +9,7 @@
  * rows are derived from `data.pages`, and `hasNextPage`/`fetchNextPage` drive the load-more affordance.
  */
 import { CollectionList } from '@commise/features-recipes';
-import type { CollectionListStatus } from '@commise/features-recipes';
+import { toQueryStatus } from '@commise/features-core';
 import { useCollectionsInfinite } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
@@ -19,19 +19,6 @@ import type { FC } from 'react';
 export interface CollectionListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-}
-
-/** Map a TanStack Query state onto the list view's three top-level states. */
-function toListStatus(isLoading: boolean, isError: boolean): CollectionListStatus {
-    if (isLoading) {
-        return 'loading';
-    }
-
-    if (isError) {
-        return 'error';
-    }
-
-    return 'ready';
 }
 
 /**
@@ -44,7 +31,7 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
     const router = useRouter();
     const query = useCollectionsInfinite();
 
-    const status = toListStatus(query.isLoading, query.isError);
+    const status = toQueryStatus(query.isLoading, query.isError);
     // Derive the visible rows straight from the query cache (never copied into local state); each fetched page
     // appends to `data.pages`, so flatten them. The empty state is the view's own split on `collections.length`.
     const collections = query.data?.pages.flatMap((page) => page.data) ?? [];

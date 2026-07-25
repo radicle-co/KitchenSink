@@ -10,6 +10,7 @@ export * from './capabilities.js';
 export * from './contract.js';
 export * from './curateHomeWidgets.js';
 export * from './appShell.js';
+export * from './queryStatus.js';
 
 // === Home chrome ===
 

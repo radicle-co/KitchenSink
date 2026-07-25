@@ -29,8 +29,12 @@ import {
     formatMergeSummary,
     formatRelativeTimeAgo,
     formatServerBanner,
+    formatServerCardHeading,
     formatVersionAttribution,
+    formatVersionCardDeviceLine,
+    formatVersionCardSavedLine,
     formatVersionTimestamp,
+    formatYourCardHeading,
     isConflictBaseStale,
     sortVersionsDescending,
     toVersionPreviewIngredientLines,
@@ -148,6 +152,40 @@ describe('formatServerBanner (W7 Task 3 / X3)', () => {
         expect(formatServerBanner(server, new Date('2026-05-09T14:32:00.000Z'), conflict, 'en')).toBe(
             'Server version (v6): Saved 2 minutes ago',
         );
+    });
+});
+
+describe('two-column per-side summary cards (wireframe gap #2)', () => {
+    const server = makeVersionConflictSide({
+        versionNumber: 6,
+        deviceLabel: 'iPhone',
+        updatedAt: '2026-05-09T14:30:00.000Z',
+    });
+
+    it('formatServerCardHeading renders "Server version (v{n})"', () => {
+        expect(formatServerCardHeading(server, conflict)).toBe('Server version (v6)');
+    });
+
+    it('formatYourCardHeading renders "Your version (v{n})" when base is known', () => {
+        const base = makeVersionConflictSide({ versionNumber: 5 });
+
+        expect(formatYourCardHeading(base, conflict)).toBe('Your version (v5)');
+    });
+
+    it('formatYourCardHeading falls back to the version-less heading when base is undefined (evicted)', () => {
+        expect(formatYourCardHeading(undefined, conflict)).toBe('Your version');
+    });
+
+    it('formatVersionCardSavedLine renders an ABSOLUTE date, distinct from the banner’s relative time', () => {
+        expect(formatVersionCardSavedLine(server, 'en', conflict)).toContain('Saved: May 9, 2026');
+    });
+
+    it('formatVersionCardDeviceLine renders "Device: {device}" when a deviceLabel is present', () => {
+        expect(formatVersionCardDeviceLine(server, conflict)).toBe('Device: iPhone');
+    });
+
+    it('formatVersionCardDeviceLine returns undefined (never a fabricated line) when deviceLabel is absent', () => {
+        expect(formatVersionCardDeviceLine({ ...server, deviceLabel: undefined }, conflict)).toBeUndefined();
     });
 });
 

@@ -131,6 +131,13 @@ export interface RecipeConflictViewProps {
     /** Option C submit: invoked with the current per-field selections when the user saves a merge (FR-007c
      *  option c); the caller composes the merged draft (`composeConflictMerge`) and submits it. */
     readonly onMerge: (selections: RecipeMergeSelections) => void;
+    /** The header "Discard and close" exit (wireframe gap #1 — `conflict-resolution.md:34`'s
+     *  `[< Discard and close]`): abandons the local edit and leaves the conflict view WITHOUT resolving it —
+     *  no `onKeepServer`/`onOverwrite`/`onMerge` fires. Rendered in BOTH the default (options) view and the
+     *  merge panel, and — UNLIKE every other control on this view — is NEVER disabled by `isResolving`: it is
+     *  the escape hatch a hung `onOverwrite`/`onMerge` request must not be able to trap the user behind (see
+     *  `useRecipeEditor`'s `discardAndClose`). */
+    readonly onDiscardAndClose: () => void;
 }
 
 /**
@@ -351,6 +358,78 @@ export const formatServerBanner = (
         ? base
         : base + fillTemplate(messages.serverBannerDevice, { device: server.deviceLabel });
 };
+
+// ─── Two-column per-side summary cards (wireframe gap #2 — `conflict-resolution.md:46-50`) ──────────
+//
+// Below the prose banner above, the wireframe ALSO shows two dedicated cards — "SERVER VERSION (v6)" /
+// "YOUR VERSION (v5)", each with a "Saved:" and (when known) a "Device:" row. This is a SEPARATE rendering
+// of the same underlying data (versionNumber/updatedAt/deviceLabel), not a replacement for the banner: the
+// banner reads as a sentence with a RELATIVE time ("Saved 2 minutes ago"); the cards are a structured,
+// scannable ABSOLUTE-date summary, matching the wireframe's own two distinct blocks. "Your version"'s data
+// is `base` (the version the draft was edited from) — the wireframe's own `client_version`/`client_recipe`,
+// NOT a fabricated "current device" the hook has no way to know; `base` is ABSENT when evicted from version
+// history, in which case the card falls back to a version-less heading with no Saved/Device rows (mirroring
+// `mineBanner`'s own "local unsaved changes" framing for the same case).
+
+/**
+ * The SERVER card's heading — "Server version (v{n})" (wireframe gap #2). Pure.
+ *
+ * @param server - The 409's winning server side.
+ * @param messages - The localized conflict copy.
+ * @returns The formatted heading.
+ */
+export const formatServerCardHeading = (server: VersionConflictSide, messages: RecipeConflictMessages): string =>
+    fillTemplate(messages.serverCardHeading, { version: server.versionNumber });
+
+/**
+ * The YOUR-version card's heading — "Your version (v{n})" when `base` is known, or the version-less
+ * fallback when it was evicted from version history (wireframe gap #2). Pure.
+ *
+ * @param base - The 409's base side, or `undefined` when evicted.
+ * @param messages - The localized conflict copy.
+ * @returns The formatted heading.
+ */
+export const formatYourCardHeading = (
+    base: VersionConflictSide | undefined,
+    messages: RecipeConflictMessages,
+): string =>
+    base === undefined
+        ? messages.yourCardHeadingUnknown
+        : fillTemplate(messages.yourCardHeading, { version: base.versionNumber });
+
+/**
+ * A side's card "Saved: {date}" line — the ABSOLUTE localized date ({@link formatVersionTimestamp}),
+ * deliberately distinct from the prose banner's own RELATIVE "N minutes ago" ({@link formatRelativeTimeAgo})
+ * (wireframe gap #2). Pure.
+ *
+ * @param side - The card's own side (`server` or `base`).
+ * @param locale - The active BCP-47 locale.
+ * @param messages - The localized conflict copy.
+ * @returns The formatted "Saved: {date}" line.
+ */
+export const formatVersionCardSavedLine = (
+    side: VersionConflictSide,
+    locale: Locale,
+    messages: RecipeConflictMessages,
+): string => fillTemplate(messages.versionCardSavedLabel, { time: formatVersionTimestamp(side.updatedAt, locale) });
+
+/**
+ * A side's card "Device: {device}" line, or `undefined` when that side carries no `deviceLabel` — the caller
+ * renders NOTHING for an absent device (never a fabricated "Device: unknown"), mirroring
+ * {@link formatServerBanner}'s own optional-device-suffix pattern. `deviceLabel` is untrusted free text: the
+ * caller renders the returned string as TEXT, never `dangerouslySetInnerHTML`. Pure.
+ *
+ * @param side - The card's own side (`server` or `base`).
+ * @param messages - The localized conflict copy.
+ * @returns The formatted "Device: {device}" line, or `undefined`.
+ */
+export const formatVersionCardDeviceLine = (
+    side: VersionConflictSide,
+    messages: RecipeConflictMessages,
+): string | undefined =>
+    side.deviceLabel === undefined
+        ? undefined
+        : fillTemplate(messages.versionCardDeviceLabel, { device: side.deviceLabel });
 
 // ─── Changed-field labeling (W7 Task 1 → Task 3) ─────────────────────────────────────────────────────
 

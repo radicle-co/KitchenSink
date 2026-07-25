@@ -487,6 +487,33 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 
+    // "Discard and close" (wireframe gap #1 — MAJOR wireframe-parity fix) is the conflict view's header exit:
+    // unlike the three A/B/C options, it never resolves anything — it reuses the SAME `status: 'discarded'`
+    // terminal `keepServer` produces, so this screen's existing `discarded` → `onCancel` `useEffect` fires
+    // identically, with no separate wiring.
+    it('"Discard and close" exits the conflict view WITHOUT submitting any resolution, then navigates via onCancel', async () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft Recipe', currentVersion: 3 });
+        const theirs = makeRecipeDetail({ id: 'rec_1', title: 'Server Saved Recipe', currentVersion: 5 });
+        useRecipeMock.mockReturnValue(recipeResult({ data: loaded }));
+        const mutate = mutateWith([{ type: 'conflict', error: conflictError(5, 3, theirs) }]);
+        useUpdateRecipeMock.mockReturnValue(updateMutation({ mutate: mutate as never }));
+        const onSaved = vi.fn();
+        const onCancel = vi.fn();
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={onCancel} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        await screen.findByRole('heading', { name: 'This recipe changed while you were editing' });
+        mutate.mockClear(); // isolate the assertion below to what "Discard and close" itself does.
+
+        fireEvent.click(screen.getByRole('button', { name: 'Discard and close' }));
+
+        expect(screen.queryByText('This recipe changed while you were editing')).toBeNull();
+        // The mutate boundary was never touched by the discard itself — no resolution was submitted.
+        expect(mutate).not.toHaveBeenCalled();
+        expect(onSaved).not.toHaveBeenCalled();
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
     // Opus-review-class gap (W7 Task 2's `conflictDataUnavailable`, wired through the screen in Task 6): a 409
     // that IS a VersionConflictError but carries no `server` side (a malformed/un-enriched body) cannot be
     // 3-way-diffed or displayed — without this flag the user would tap Save, eat a 409, and see nothing.

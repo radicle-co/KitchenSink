@@ -600,7 +600,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         expect(result.current.state).toEqual({ status: 'discarded' });
     });
 
-    it('overwrite, keepServer, and merge are all no-ops outside conflict state', () => {
+    it('overwrite, keepServer, merge, and discardAndClose are all no-ops outside conflict state', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
@@ -610,6 +610,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         act(() => result.current.resolutions.overwrite());
         act(() => result.current.resolutions.keepServer());
         act(() => result.current.resolutions.merge({}));
+        act(() => result.current.discardAndClose());
 
         expect(mutation.mutate).not.toHaveBeenCalled();
         expect(result.current.state).toEqual({ status: 'editing' });
@@ -722,6 +723,84 @@ describe('useRecipeEditor — in-flight guard against double-submit on conflict 
         // user was already navigated away on a bogus "discarded" terminal, corrupting the machine's state.
         expect(mutation.mutate).toHaveBeenCalledTimes(2);
         expect(result.current.state.status).toBe('conflict');
+    });
+
+    it('discardAndClose exits to "discarded" WHILE a resolve is hung in flight — the escape hatch stays available even though the option cards are disabled by isResolving', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+            // No outcome queued for the resolve itself — it hangs, exactly like the double-submit guard's own
+            // in-flight tests above.
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
+
+        act(() => result.current.submit());
+        act(() => result.current.resolutions.overwrite());
+
+        // The resolve is now in flight — mirror `isPending: true` exactly as the other in-flight tests do.
+        useUpdateRecipeMock.mockReturnValue({ ...mutation, isPending: true });
+        rerender();
+        expect(result.current.state).toMatchObject({ status: 'conflict', isResolving: true });
+
+        // `discardAndClose` is NOT gated on `isPending` — unlike `resolutions.keepServer` (covered above),
+        // which declines here.
+        act(() => result.current.discardAndClose());
+
+        expect(result.current.state).toEqual({ status: 'discarded' });
+    });
+
+    it('the hung-request escape hatch (regression): a late onSuccess for the discarded resolve does NOT resurrect "saved" after discardAndClose already exited', () => {
+        const loaded = makeRecipeDetail({ id: 'rec_1', title: 'My Draft', currentVersion: 3 });
+        useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
+        const mutation = updateMutation([
+            {
+                type: 'conflict',
+                error: new VersionConflictError(5, 3, undefined, {
+                    server: makeSide({
+                        versionNumber: 5,
+                        snapshot: makeSnapshot({ version: 5, title: 'Server Title' }),
+                    }),
+                }),
+            },
+            // The resolve's own outcome is deliberately NOT queued — `mutate` is called but never settles
+            // synchronously, mirroring a real PATCH still awaiting its response. This test settles it MANUALLY,
+            // late, via the captured `onSuccess` callback, AFTER `discardAndClose` has already fired.
+        ]);
+        useUpdateRecipeMock.mockReturnValue(mutation);
+        const onSaved = vi.fn();
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
+
+        act(() => result.current.submit());
+        act(() => result.current.resolutions.overwrite());
+
+        useUpdateRecipeMock.mockReturnValue({ ...mutation, isPending: true });
+        rerender();
+
+        // The user bails via the escape hatch WHILE the overwrite is still hung.
+        act(() => result.current.discardAndClose());
+        expect(result.current.state).toEqual({ status: 'discarded' });
+
+        // The hung request FINALLY settles — successfully — well after the user already left. Invoke the
+        // SAME `onSuccess` callback `useUpdateRecipe.mutate` was given for that (second) call.
+        const [, resolveOptions] = mutation.mutate.mock.calls[1] as [MutateVars, MutateOptions];
+        const savedRecipe = makeRecipeDetail({ id: 'rec_1', currentVersion: 6 });
+        act(() => resolveOptions.onSuccess?.(savedRecipe));
+
+        // Neutralized: the machine stays on the discarded terminal the user actually saw, never flips to a
+        // bogus "Saved!" the user never asked for and cannot see (they already navigated away) — exactly the
+        // hung-request trap the escape hatch exists to prevent.
+        expect(result.current.state).toEqual({ status: 'discarded' });
+        expect(onSaved).not.toHaveBeenCalled();
     });
 
     it('exposes isResolving on the conflict state, true only while a resolve mutation is in flight', () => {

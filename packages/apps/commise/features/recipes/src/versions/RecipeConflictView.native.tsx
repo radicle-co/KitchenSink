@@ -31,6 +31,10 @@ import {
     fillTemplate,
     formatMergeSummary,
     formatServerBanner,
+    formatServerCardHeading,
+    formatVersionCardDeviceLine,
+    formatVersionCardSavedLine,
+    formatYourCardHeading,
     isConflictBaseStale,
     type MergeSide,
     type RecipeConflictViewProps,
@@ -58,6 +62,41 @@ const OptionCard: FC<{
         <Text style={styles.optionTitle}>{title}</Text>
         <Text style={styles.optionDescription}>{description}</Text>
     </Pressable>
+);
+
+/**
+ * The header "Discard and close" exit (wireframe gap #1 — `conflict-resolution.md:34`). Rendered identically
+ * in BOTH the default (options) view and the merge panel, and — UNLIKE every other control on this view —
+ * NEVER disabled: it is the escape hatch a hung `onOverwrite`/`onMerge` resolve must not be able to trap the
+ * user behind (`useRecipeEditor`'s `discardAndClose` stays callable regardless of `isResolving`).
+ */
+const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndClose: () => void }> = ({
+    label,
+    onDiscardAndClose,
+}) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onDiscardAndClose} style={styles.option}>
+        <Text style={styles.discardLabel}>
+            {'‹ '}
+            {label}
+        </Text>
+    </Pressable>
+);
+
+/**
+ * One two-column per-side summary card (wireframe gap #2 — `conflict-resolution.md:46-50`) — a heading plus
+ * an optional "Saved:" line and an optional "Device:" line, omitted (never fabricated) when the underlying
+ * side carries no such data. Rendered ONLY in the default (options) view.
+ */
+const VersionSideCard: FC<{
+    readonly heading: string;
+    readonly savedLine?: string;
+    readonly deviceLine?: string;
+}> = ({ heading, savedLine, deviceLine }) => (
+    <View style={styles.versionCard}>
+        <Text style={styles.versionCardHeading}>{heading}</Text>
+        {savedLine !== undefined && <Text style={styles.versionCardLine}>{savedLine}</Text>}
+        {deviceLine !== undefined && <Text style={styles.versionCardLine}>{deviceLine}</Text>}
+    </View>
 );
 
 /** One radio option in a merge row's chooser. */
@@ -118,6 +157,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     onKeepServer,
     onOverwrite,
     onMerge,
+    onDiscardAndClose,
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
@@ -161,6 +201,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
         return (
             <View accessibilityLabel={conflict.mergeHeading} style={styles.container}>
+                <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
                 <Text accessibilityRole="header" style={styles.heading}>
                     {conflict.mergeHeading}
                 </Text>
@@ -226,6 +267,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
     return (
         <View accessibilityLabel={conflict.heading} style={styles.container}>
+            <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
             <Text accessibilityRole="header" style={styles.heading}>
                 {conflict.heading}
             </Text>
@@ -235,6 +277,24 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             <View style={styles.banner}>
                 <Text style={styles.bannerLine}>{formatServerBanner(server, now, conflict, locale)}</Text>
                 <Text style={styles.bannerLine}>{conflict.mineBanner}</Text>
+            </View>
+
+            {/* Two-column per-side summary cards (wireframe gap #2) — server ALWAYS first (X7). */}
+            <View style={styles.versionCardRow}>
+                <VersionSideCard
+                    heading={formatServerCardHeading(server, conflict)}
+                    savedLine={formatVersionCardSavedLine(server, locale, conflict)}
+                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
+                />
+                <VersionSideCard
+                    heading={formatYourCardHeading(base, conflict)}
+                    {...(base === undefined
+                        ? {}
+                        : {
+                              savedLine: formatVersionCardSavedLine(base, locale, conflict),
+                              deviceLine: formatVersionCardDeviceLine(base, conflict),
+                          })}
+                />
             </View>
 
             {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
@@ -327,6 +387,25 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     bannerLine: { fontSize: 15, color: palette.charcoal },
+    discardLabel: { fontSize: 14, fontWeight: '600', color: palette.slate },
+    versionCardRow: { flexDirection: 'row', gap: 12 },
+    versionCard: {
+        flex: 1,
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        padding: 16,
+        gap: 4,
+    },
+    versionCardHeading: {
+        fontSize: 11,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        color: palette.charcoal,
+    },
+    versionCardLine: { fontSize: 14, color: palette.slate },
     staleWarning: {
         backgroundColor: 'rgba(230, 168, 60, 0.15)',
         borderRadius: 16,

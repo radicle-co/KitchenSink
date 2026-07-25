@@ -24,6 +24,12 @@
  * watches for that transition in its own `useEffect` and navigates to the SAME `detailRoute`, but WITHOUT any
  * "Saved!" success affordance (there is none to suppress today — the point is that a future one must key off
  * `status: 'saved'`, never fire for a discard).
+ *
+ * **"Discard and close" (wireframe gap #1) reuses this SAME wiring.** `editor.discardAndClose` (the header
+ * exit `RecipeConflictView` now renders) also lands on `status: 'discarded'` — it needs no separate `useEffect`
+ * branch here, since it is indistinguishable from `keepServer`'s own discard from this container's point of
+ * view (no write, navigate to the recipe, no "Saved!"). Unlike `keepServer`, it stays callable even while a
+ * resolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.
  */
 import {
     pendingIngredientIds,
@@ -143,6 +149,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 onKeepServer={editor.resolutions.keepServer}
                 onOverwrite={editor.resolutions.overwrite}
                 onMerge={editor.resolutions.merge}
+                onDiscardAndClose={editor.discardAndClose}
             />
         );
     }

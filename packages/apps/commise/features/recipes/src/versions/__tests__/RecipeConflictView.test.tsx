@@ -80,6 +80,7 @@ function renderConflict(overrides: Partial<RecipeConflictViewProps> = {}) {
         onKeepServer: noop,
         onOverwrite: noop,
         onMerge: noop,
+        onDiscardAndClose: noop,
         ...overrides,
     };
     render(<RecipeConflictView {...props} />);
@@ -110,6 +111,7 @@ function renderControlledConflict(
         onKeepServer: noop,
         onOverwrite: noop,
         onMerge: noop,
+        onDiscardAndClose: noop,
         ...overrides,
     };
     render(<ControlledConflict {...props} />);
@@ -175,12 +177,107 @@ describe('RecipeConflictView (web) — per-side banner (X3)', () => {
                     onKeepServer: noop,
                     onOverwrite: noop,
                     onMerge: noop,
+                    onDiscardAndClose: noop,
                 } satisfies RecipeConflictViewProps)}
             />,
         );
 
         expect(container.querySelector('img')).toBeNull();
         expect(container.textContent).toContain('<img src=x onerror=alert(1)>');
+    });
+});
+
+describe('RecipeConflictView (web) — "Discard and close" header exit (wireframe gap #1)', () => {
+    it('renders the control, addressable by role/name, in the default (options) view', () => {
+        freezeClock();
+        renderConflict();
+
+        expect(screen.getByRole('button', { name: 'Discard and close' })).toBeTruthy();
+    });
+
+    it('clicking it invokes onDiscardAndClose and fires none of the resolution callbacks', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        const onDiscardAndClose = vi.fn();
+        const onKeepServer = vi.fn();
+        const onOverwrite = vi.fn();
+        const onMerge = vi.fn();
+        renderConflict({ onDiscardAndClose, onKeepServer, onOverwrite, onMerge });
+
+        await user.click(screen.getByRole('button', { name: 'Discard and close' }));
+
+        expect(onDiscardAndClose).toHaveBeenCalledTimes(1);
+        expect(onKeepServer).not.toHaveBeenCalled();
+        expect(onOverwrite).not.toHaveBeenCalled();
+        expect(onMerge).not.toHaveBeenCalled();
+    });
+
+    it('stays enabled while isResolving — UNLIKE the three option cards, it is never disabled', () => {
+        freezeClock();
+        renderConflict({ isResolving: true });
+
+        const discard = screen.getByRole<HTMLButtonElement>('button', { name: 'Discard and close' });
+        expect(discard.disabled).toBe(false);
+    });
+
+    it('also renders in the merge panel (Option C), so it is reachable from every sub-view', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        const onDiscardAndClose = vi.fn();
+        renderConflict({ onDiscardAndClose });
+
+        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: 'Discard and close' }));
+        expect(onDiscardAndClose).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeConflictView (web) — two-column per-side summary cards (wireframe gap #2)', () => {
+    // A distinct `updatedAt`/`deviceLabel` on `base` (the fixture default otherwise matches `server`'s own
+    // "iPhone" / same timestamp) so the SERVER and YOUR-version cards' Saved/Device lines are individually
+    // addressable, not two identical strings.
+    const distinctBase = { ...base, deviceLabel: 'MacBook', updatedAt: '2026-05-08T10:00:00.000Z' };
+
+    it('renders the SERVER card with its heading, Saved, and Device lines', () => {
+        freezeClock();
+        renderConflict({ base: distinctBase });
+
+        expect(screen.getByText('Server version (v6)')).toBeTruthy();
+        expect(screen.getByText('Saved: May 9, 2026, 2:30 PM')).toBeTruthy();
+        expect(screen.getByText('Device: iPhone')).toBeTruthy();
+    });
+
+    it('renders the YOUR-version card from `base`, with its OWN heading, Saved, and Device lines', () => {
+        freezeClock();
+        renderConflict({ base: distinctBase });
+
+        expect(screen.getByText('Your version (v5)')).toBeTruthy();
+        expect(screen.getByText('Saved: May 8, 2026, 10:00 AM')).toBeTruthy();
+        expect(screen.getByText('Device: MacBook')).toBeTruthy();
+    });
+
+    it('renders the SERVER card BEFORE the YOUR-version card (X7 — server-first ordering)', () => {
+        freezeClock();
+        renderConflict();
+
+        const serverHeading = screen.getByText('Server version (v6)');
+        const yourHeading = screen.getByText('Your version (v5)');
+
+        // eslint-disable-next-line no-bitwise
+        expect(serverHeading.compareDocumentPosition(yourHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('falls back to a version-less YOUR-version heading, with no Saved/Device rows, when base is undefined (evicted)', () => {
+        freezeClock();
+        renderConflict({ base: undefined });
+
+        expect(screen.getByText('Your version')).toBeTruthy();
+        expect(screen.queryByText('Your version (v5)')).toBeNull();
+        // Only the SERVER card's Saved/Device lines are present — no fabricated ones for the your-version card.
+        expect(screen.getAllByText(/^Saved:/)).toHaveLength(1);
+        expect(screen.getAllByText(/^Device:/)).toHaveLength(1);
     });
 });
 
@@ -290,6 +387,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
                 onKeepServer={noop}
                 onOverwrite={noop}
                 onMerge={onMerge}
+                onDiscardAndClose={noop}
             />,
         );
         await user.click(screen.getByRole('button', { name: 'Merge manually' }));
@@ -306,6 +404,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
                 onKeepServer={noop}
                 onOverwrite={noop}
                 onMerge={onMerge}
+                onDiscardAndClose={noop}
             />,
         );
 
@@ -332,6 +431,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
                 onKeepServer={noop}
                 onOverwrite={noop}
                 onMerge={onMerge}
+                onDiscardAndClose={noop}
             />,
         );
 
@@ -355,6 +455,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
                 onKeepServer={noop}
                 onOverwrite={noop}
                 onMerge={onMerge}
+                onDiscardAndClose={noop}
             />,
         );
         await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' }));
@@ -749,6 +850,7 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
             onKeepServer: noop,
             onOverwrite,
             onMerge: noop,
+            onDiscardAndClose: noop,
         };
         const { rerender } = render(<RecipeConflictView {...firstProps} />);
 

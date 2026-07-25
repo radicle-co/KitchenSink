@@ -124,7 +124,7 @@ import {
 } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
     canAdvanceFromStep,
@@ -291,6 +291,21 @@ export interface UseRecipeEditorResult {
     /** The underlying recipe query's load state, for the container's own loading/error/not-found rendering. */
     readonly query: RecipeEditorQueryState;
     /**
+     * The "Discard and close" universal escape hatch (wireframe gap #1 — `conflict-resolution.md:34`'s
+     * `[< Discard and close]` header exit; a security-review follow-up to the double-submit fix). Abandons
+     * the in-progress conflict WITHOUT resolving it — DISTINCT from `resolutions.keepServer` (a specific
+     * "keep the server version" CHOICE, one of the three A/B/C resolutions): this is "abandon without
+     * resolving, let me review", so it lives OUTSIDE `resolutions` rather than as a fourth entry in it.
+     * Transitions to the SAME `status: 'discarded'` terminal `keepServer` produces (see that variant's own
+     * doc) — both platform containers already navigate to the recipe's detail view on that transition, so
+     * reusing it needs no new container wiring. UNLIKE every `resolutions.*` entry, this is NEVER gated on
+     * `updateRecipe.isPending`: a HUNG `overwrite`/`merge` request must never trap the user with no way out.
+     * See the module doc's "the universal escape hatch" note and this function's own implementation doc for
+     * how a late `onSuccess`/`onError` from the request it interrupted is neutralized. A no-op outside
+     * `status: 'conflict'` (nothing to discard).
+     */
+    readonly discardAndClose: () => void;
+    /**
      * The FR-007c conflict resolutions, plus the merge-selection setter the controlled conflict view binds
      * to. `keepServer`/`overwrite` are the ONLY resolutions Options A/B expose (W7 Task 6) — the pre-Task-2
      * names `keepMine`/`useTheirs` have been removed now that both platform containers are wired onto these.
@@ -335,6 +350,25 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // never be touched by the seed-once effect, `handleUpdateError`, or the `terminal`-latch resets below, so
     // a step change can never clobber the seed or trip/untrip a terminal outcome (see the module doc).
     const [step, setStep] = useState<RecipeWizardStep>(1);
+
+    // Concurrency epoch (security-review follow-up to the double-submit fix — see `discardAndClose` below,
+    // the "Discard and close" universal escape hatch). A REF, not state: it is read/compared exclusively
+    // inside `submitDraft`'s own `onSuccess`/`onError` closures, which the underlying mutation invokes at an
+    // ARBITRARY future time OUTSIDE React's render cycle — a genuinely external, non-declarative timing the
+    // coding standard's "refs near-forbidden" rule carves out an exception for ("permitted only to wrap a
+    // genuinely external ... system with no alternative"). Two declarative alternatives were considered and
+    // rejected:
+    //   1. A `setEpoch(current => ...)` FUNCTIONAL UPDATER that also calls `setConflict`/`setTerminal`/
+    //      `opts.onSaved` from inside it — React explicitly documents calling updater functions TWICE in
+    //      Strict Mode to catch impurity ("if your updater function is pure ... this should not affect the
+    //      behavior" — ours would NOT be pure, so a double-invoke would double-navigate/double-fire `onSaved`).
+    //   2. Deferring the apply to a `useEffect` keyed on a captured "outcome" + the current epoch (compared on
+    //      a LATER, fresh render) — this adds a render tick between the mutation settling and the state
+    //      transition applying, which every existing synchronous `act(() => result.current.submit())` test
+    //      for this hook depends on NOT existing (they assert `result.current.state` immediately).
+    // A plain ref has neither problem: bumping it is a synchronous, side-effect-free write, and reading it
+    // inside a callback is a synchronous comparison, not a second invocation of anything.
+    const epochRef = useRef(0);
 
     // Seed the draft from the loaded recipe once; the STATE guard (not a ref, per the coding standards' "refs
     // near-forbidden" rule) keeps a background refetch of the SAME recipe from overwriting in-progress edits —
@@ -405,16 +439,36 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // are the only callers that pass one.
     const submitDraft = (draft: RecipeFormValues, expectedVersion: number, status?: RecipeStatus): void => {
         const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft, status), expectedVersion };
+        // Captured NOW (this submission's own epoch) — compared against `epochRef.current` inside the
+        // callbacks below, whenever THEY eventually fire. `discardAndClose` bumps the ref if the user leaves
+        // before this settles; see the ref's own doc above for why a plain ref (not state) is what makes that
+        // comparison correct at callback-fire time rather than at closure-creation time.
+        const submissionEpoch = epochRef.current;
 
         updateRecipe.mutate(
             { id: recipeId, input },
             {
                 onSuccess: (recipe) => {
+                    // Neutralized: a `discardAndClose` already closed this conflict and bumped the epoch
+                    // while this resolve was in flight — a late success must not resurrect a "Saved!" the
+                    // user already left behind.
+                    if (epochRef.current !== submissionEpoch) {
+                        return;
+                    }
+
                     setConflict(null);
                     setTerminal('saved');
                     opts.onSaved(recipe);
                 },
-                onError: (err) => handleUpdateError(err, draft),
+                onError: (err) => {
+                    // Same neutralization for a late failure — it must not reopen `conflict` (or anything
+                    // else) after the user has already discarded and left.
+                    if (epochRef.current !== submissionEpoch) {
+                        return;
+                    }
+
+                    handleUpdateError(err, draft);
+                },
             },
         );
     };
@@ -497,6 +551,27 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         submitDraft(conflict.draft, conflict.server.versionNumber);
     };
 
+    // The "Discard and close" universal escape hatch (wireframe gap #1; security-review follow-up). UNLIKE
+    // `resolutions.keepServer` (which declines outright while a resolve is in flight — see that resolution's
+    // own comment), this stays available REGARDLESS of `updateRecipe.isPending`: a HUNG `overwrite`/`merge`
+    // request must never trap the user with no escape. Bumping `epochRef` FIRST neutralizes that in-flight
+    // resolve's own eventual `onSuccess`/`onError` (see the ref's own doc above) — whichever fires later reads
+    // a STALE `submissionEpoch` and no-ops, so it can never flip `terminal` to `'saved'` or reopen `conflict`
+    // after the user has already left. Reuses the SAME `'discarded'` terminal `resolutions.keepServer`
+    // produces — both are "no write, navigate to the recipe's detail view without a Saved! message" outcomes,
+    // and both platform containers already have a `status === 'discarded'` effect wired to that navigation;
+    // a distinct terminal would only duplicate that wiring for no behavioral difference. A no-op outside
+    // `status: 'conflict'` (nothing to discard), mirroring every `resolutions.*` entry's own guard.
+    const discardAndClose = (): void => {
+        if (conflict === null) {
+            return;
+        }
+
+        epochRef.current += 1;
+        setConflict(null);
+        setTerminal('discarded');
+    };
+
     const resolutions: UseRecipeEditorResult['resolutions'] = {
         overwrite: resubmitDraftAsIs,
         keepServer: (): void => {
@@ -567,6 +642,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         canAdvanceFrom,
         stepErrors,
         query: { isLoading: query.isLoading, isError: query.isError, error: query.error, refetch: query.refetch },
+        discardAndClose,
         resolutions,
     };
 }

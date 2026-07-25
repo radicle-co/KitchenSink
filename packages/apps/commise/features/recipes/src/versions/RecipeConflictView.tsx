@@ -42,6 +42,10 @@ import {
     fillTemplate,
     formatMergeSummary,
     formatServerBanner,
+    formatServerCardHeading,
+    formatVersionCardDeviceLine,
+    formatVersionCardSavedLine,
+    formatYourCardHeading,
     isConflictBaseStale,
     type MergeSide,
     type RecipeConflictViewProps,
@@ -87,6 +91,48 @@ const OptionCard: FC<{
 };
 
 /**
+ * The header "Discard and close" exit (wireframe gap #1 — `conflict-resolution.md:34`). Rendered identically
+ * in BOTH the default (options) view and the merge panel, and — UNLIKE every other control on this view —
+ * NEVER disabled: it is the escape hatch a hung `onOverwrite`/`onMerge` resolve must not be able to trap the
+ * user behind (`useRecipeEditor`'s `discardAndClose` stays callable regardless of `isResolving`). `aria-
+ * label` pins the accessible name to the label alone; the decorative leading glyph is `aria-hidden` (mirrors
+ * `OptionCard`'s own name-vs-visible-content split).
+ */
+const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndClose: () => void }> = ({
+    label,
+    onDiscardAndClose,
+}) => (
+    <button
+        type="button"
+        onClick={onDiscardAndClose}
+        aria-label={label}
+        className="self-start text-body-sm font-semibold text-slate transition hover:text-charcoal"
+    >
+        <span aria-hidden="true">{'‹ '}</span>
+        {label}
+    </button>
+);
+
+/**
+ * One two-column per-side summary card (wireframe gap #2 — `conflict-resolution.md:46-50`) — a heading plus
+ * an optional "Saved:" line and an optional "Device:" line, omitted (never fabricated) when the underlying
+ * side carries no such data. Rendered ONLY in the default (options) view — the merge panel does not repeat
+ * it (see `model.ts`'s own module note on why this is a SEPARATE rendering of the banner's data, not a
+ * replacement for it).
+ */
+const VersionSideCard: FC<{
+    readonly heading: string;
+    readonly savedLine?: string;
+    readonly deviceLine?: string;
+}> = ({ heading, savedLine, deviceLine }) => (
+    <div className="flex-1 rounded-2xl bg-card p-4 ring-1 ring-border">
+        <p className="text-caption font-semibold uppercase tracking-wide text-charcoal">{heading}</p>
+        {savedLine !== undefined && <p className="text-body-sm text-slate">{savedLine}</p>}
+        {deviceLine !== undefined && <p className="text-body-sm text-slate">{deviceLine}</p>}
+    </div>
+);
+
+/**
  * The stale-base warning + explicit confirm checkbox (W7 Task 5 / X6) — shared, unchanged markup between the
  * options view (gates Overwrite) and the merge panel (gates Save merged version), so the two can never drift
  * on wording or behavior. `role="alert"` (mirrors `RecipeDeleteDialog`'s own alert-role warning surfaces).
@@ -121,6 +167,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     onKeepServer,
     onOverwrite,
     onMerge,
+    onDiscardAndClose,
 }) => {
     const { conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
@@ -171,6 +218,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
         return (
             <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+                <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
                 <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.mergeHeading}</h2>
                 <p className="text-body-md text-slate">{conflict.mergeExplanation}</p>
                 {staleWarning}
@@ -244,6 +292,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
     return (
         <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+            <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
             <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.heading}</h2>
             <p className="text-body-md text-slate">{conflict.explanation}</p>
 
@@ -251,6 +300,24 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             <div className="flex flex-col gap-1 rounded-2xl bg-card p-4 ring-1 ring-border">
                 <p className="text-body-md text-charcoal">{formatServerBanner(server, now, conflict, locale)}</p>
                 <p className="text-body-md text-charcoal">{conflict.mineBanner}</p>
+            </div>
+
+            {/* Two-column per-side summary cards (wireframe gap #2) — server ALWAYS first (X7). */}
+            <div className="flex flex-col gap-4 sm:flex-row">
+                <VersionSideCard
+                    heading={formatServerCardHeading(server, conflict)}
+                    savedLine={formatVersionCardSavedLine(server, locale, conflict)}
+                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
+                />
+                <VersionSideCard
+                    heading={formatYourCardHeading(base, conflict)}
+                    {...(base === undefined
+                        ? {}
+                        : {
+                              savedLine: formatVersionCardSavedLine(base, locale, conflict),
+                              deviceLine: formatVersionCardDeviceLine(base, conflict),
+                          })}
+                />
             </div>
 
             {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}

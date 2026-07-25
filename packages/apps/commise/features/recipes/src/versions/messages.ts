@@ -54,6 +54,11 @@ export interface RecipeVersionListMessages {
 
 /** Shared copy for the concurrent-edit conflict resolution view (T070 / C-005 / W7). */
 export interface RecipeConflictMessages {
+    /** Accessible name + visible label of the header "Discard and close" exit (wireframe gap #1 —
+     *  `conflict-resolution.md:34`'s `[< Discard and close]`) — the universal escape hatch back to the
+     *  recipe WITHOUT resolving. Present in both the default (options) view and the merge panel, and NEVER
+     *  disabled — see `useRecipeEditor`'s `discardAndClose` for why it must survive even a hung resolve. */
+    readonly discardAndClose: string;
     /** Heading for the conflict panel. */
     readonly heading: string;
     /** Explanatory copy describing why the conflict is shown. */
@@ -70,6 +75,26 @@ export interface RecipeConflictMessages {
     /** The user's own banner line (W7 Task 3 / X3) — the in-progress draft was never persisted, so it carries
      *  no version number of its own; static copy, no template. */
     readonly mineBanner: string;
+    /** Heading for the two-column per-side SERVER summary card (wireframe gap #2 — `conflict-resolution.md:46-
+     *  50`'s "SERVER VERSION (v6)" box, contains `{version}`), rendered below the prose banner in the default
+     *  (options) view only — the merge panel does not repeat it. */
+    readonly serverCardHeading: string;
+    /** Heading for the two-column per-side YOUR-version summary card when `base` (the version the draft was
+     *  edited from — the wireframe's own `client_version`) is known (contains `{version}`). See
+     *  {@link serverCardHeading}. */
+    readonly yourCardHeading: string;
+    /** The same card's heading when `base` was evicted from version history (no version number to show) —
+     *  see {@link import('./model.js').isConflictBaseStale}. */
+    readonly yourCardHeadingUnknown: string;
+    /** A card's "Saved: {date}" line template (contains `{time}`, an ABSOLUTE localized date via
+     *  {@link import('./model.js').formatVersionTimestamp}) — deliberately distinct from the prose banner's
+     *  own RELATIVE "N minutes ago" ({@link import('./model.js').formatRelativeTimeAgo}); the wireframe itself
+     *  uses an absolute date for the card. */
+    readonly versionCardSavedLabel: string;
+    /** A card's "Device: {device}" line template (contains `{device}`); rendered ONLY when that side carries
+     *  a `deviceLabel` — mirrors {@link serverBannerDevice}'s own optional-suffix pattern. `deviceLabel` is
+     *  untrusted free text — always rendered as text, never `dangerouslySetInnerHTML`. */
+    readonly versionCardDeviceLabel: string;
     /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
      *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
@@ -301,11 +326,17 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             backToRecipe: 'Back to Recipe',
         },
         conflict: {
+            discardAndClose: 'Discard and close',
             heading: 'This recipe changed while you were editing',
             explanation: 'Someone saved a new version while you were making changes. Choose which version to keep.',
             serverBanner: 'Server version (v{version}): Saved {time}',
             serverBannerDevice: ' on {device}',
             mineBanner: 'Your version: local unsaved changes',
+            serverCardHeading: 'Server version (v{version})',
+            yourCardHeading: 'Your version (v{version})',
+            yourCardHeadingUnknown: 'Your version',
+            versionCardSavedLabel: 'Saved: {time}',
+            versionCardDeviceLabel: 'Device: {device}',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             changedFieldsHeading: 'Changed fields',
             wasValueLabel: 'Was: {value}',

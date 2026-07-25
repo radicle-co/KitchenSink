@@ -4,7 +4,8 @@ appId: io.commise.mobile
 # cards + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
 # "Merge field by field" flow this file used to drive). Mobile mirror of the web Playwright
 # `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same per-side banner copy, same
-# changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`.
+# changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`. Also asserts
+# the "Discard and close" header exit (wireframe gap #1) is visible.
 #
 # A real conflict needs the recipe to change on the SERVER between this session's load and its save, so this
 # flow is GUARDED on the conflict view appearing: in an ordinary single-writer run it is a safe no-op (the
@@ -92,6 +93,12 @@ appId: io.commise.mobile
       when:
           visible: 'This recipe changed while you were editing'
       commands:
+          # "Discard and close" (wireframe gap #1) — the header escape hatch, present on every sub-view of
+          # this screen (including the merge panel below) and NEVER disabled, even mid-resolve. Asserted for
+          # visibility only (not tapped) — tapping it here would exit before the rest of this flow's own
+          # merge-and-persist assertions run.
+          - assertVisible: 'Discard and close'
+
           # Per-side banner (X3): server names its winning version/save-time/device; mine has no version of
           # its own (never persisted) — the ONE piece of banner copy with no dynamic version/device content,
           # so it is the only banner line assertable without knowing the concurrent write's exact shape.

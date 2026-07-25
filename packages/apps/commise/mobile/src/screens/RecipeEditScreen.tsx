@@ -18,6 +18,12 @@
  * calls `onCancel` — the navigator (`RecipesScreen`) wires BOTH `onSaved` and `onCancel` to `nav.back()`,
  * which pops the pushed edit screen back to the detail screen already underneath it on the stack, so
  * `onCancel` lands on the SAME detail destination `onSaved` does, without implying a write happened.
+ *
+ * **"Discard and close" (wireframe gap #1) reuses this SAME wiring.** `editor.discardAndClose` (the header
+ * exit `RecipeConflictView` now renders) also lands on `status: 'discarded'` — it needs no separate `useEffect`
+ * branch here, since it is indistinguishable from `keepServer`'s own discard from this screen's point of view
+ * (no write, `onCancel` back to the detail screen). Unlike `keepServer`, it stays callable even while a
+ * resolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.
  */
 import { RecipeConflictView, recipeVersionMessages, useDiscardGuard } from '@commise/features-recipes';
 import { useRecipeEditor } from '@commise/features-recipes/hooks';
@@ -113,6 +119,7 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
                 onKeepServer={editor.resolutions.keepServer}
                 onOverwrite={editor.resolutions.overwrite}
                 onMerge={editor.resolutions.merge}
+                onDiscardAndClose={editor.discardAndClose}
             />
         );
     }

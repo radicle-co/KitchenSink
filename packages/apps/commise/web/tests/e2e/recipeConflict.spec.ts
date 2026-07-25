@@ -123,6 +123,29 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         expect(persisted?.servings).toBe(8);
     });
 
+    test('"Discard and close" exits the conflict view WITHOUT saving, back to the recipe (wireframe gap #1)', async ({
+        page,
+    }) => {
+        const store = await enterConflict(page, { serverChanges: { servings: 8 } });
+
+        // The other device's write already landed (v2, servings 8) — capturing it proves the discard writes
+        // NOTHING further, exactly like Option A, even though this is a DIFFERENT exit (the header control,
+        // not one of the three A/B/C resolutions).
+        expect(store.get('rec_conflict')?.currentVersion).toBe(2);
+
+        await page.getByRole('button', { name: 'Discard and close' }).click();
+
+        // Lands back on the recipe detail (reuses the SAME `status: 'discarded'` → detail-route wiring Option
+        // A uses) showing the SERVER's title — the local 'My Merged Title' edit was never submitted.
+        await expect(page.getByRole('heading', { name: 'Original Title' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'My Merged Title' })).toHaveCount(0);
+
+        const persisted = store.get('rec_conflict');
+        expect(persisted?.currentVersion).toBe(2);
+        expect(persisted?.title).toBe('Original Title');
+        expect(persisted?.servings).toBe(8);
+    });
+
     test('[B] Overwrite resubmits the draft as-is and lands on the recipe detail', async ({ page }) => {
         const store = await enterConflict(page, { serverChanges: { servings: 8 } });
 

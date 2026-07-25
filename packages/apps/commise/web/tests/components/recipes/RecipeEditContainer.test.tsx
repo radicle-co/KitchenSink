@@ -336,6 +336,34 @@ describe('RecipeEditContainer', () => {
         expect(screen.queryByText(/saved/i)).not.toBeInTheDocument();
     });
 
+    // "Discard and close" (wireframe gap #1 — MAJOR wireframe-parity fix) is the conflict view's header exit:
+    // unlike the three A/B/C options, it never resolves anything — it reuses the SAME `status: 'discarded'`
+    // terminal `keepServer` produces (see `useRecipeEditor`'s module doc), so this container's existing
+    // `discarded` → detail-route `useEffect` fires identically, with no separate wiring.
+    it('"Discard and close" exits the conflict view WITHOUT submitting any resolution, then navigates to the detail route', async () => {
+        const user = userEvent.setup();
+        const mine = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
+        const theirs = makeRecipeDetail({ title: 'Server Pasta', currentVersion: 4 });
+        const client = conflictClient(mine, theirs);
+        const updateSpy = vi.mocked(client.updateRecipe);
+
+        renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
+
+        await user.type(await screen.findByRole('textbox', { name: 'Title' }), ' Deluxe');
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+        await screen.findByText('This recipe changed while you were editing');
+        updateSpy.mockClear(); // isolate the assertion below to what "Discard and close" itself does.
+
+        await user.click(screen.getByRole('button', { name: 'Discard and close' }));
+
+        expect(screen.queryByText('This recipe changed while you were editing')).not.toBeInTheDocument();
+        // The mutate boundary was never touched by the discard itself — no resolution was submitted.
+        expect(updateSpy).not.toHaveBeenCalled();
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        expect(screen.queryByText(/saved/i)).not.toBeInTheDocument();
+    });
+
     // Opus-review-class gap (W7 Task 2's `conflictDataUnavailable`, wired through the container in Task 6): a
     // 409 that IS a VersionConflictError but carries no `server` side (a malformed/un-enriched body) cannot be
     // 3-way-diffed or displayed — without this flag the user would click Save, eat a 409, and see nothing.

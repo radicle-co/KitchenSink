@@ -12,15 +12,16 @@ import userEvent from '@testing-library/user-event';
 import type { FC, JSX } from 'react';
 
 import {
+    errorReporterToken,
     isPlaceholderHomeWidget,
     registerHomeWidget,
     resolveHomeWidgets,
     ROADMAP_WIDGET_IDS,
+    type ErrorReporter,
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { renderWithProviders } from '@commise/test-utils';
-import * as Sentry from '@sentry/nextjs';
 import { createContainer, type Container } from 'ditox';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
@@ -35,6 +36,9 @@ const { profileRef } = vi.hoisted(() => ({
     },
 }));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => profileRef.current }));
+
+// `homeContainer` binds `errorReporterToken` to a real Sentry-backed reporter; mocked (never loaded for real)
+// so importing it here doesn't require a live Sentry client under test.
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 const { HomeWidgetSurface } = await import('../HomeWidgetSurface');
@@ -134,21 +138,28 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(screen.queryByText('mystery')).toBeNull();
     });
 
-    it('reports a widget render failure to Sentry and shows a fallback, not a blank (B23)', () => {
+    it('reports a widget render failure to the injected error reporter and shows a fallback, not a blank (B23/DA9)', () => {
+        // The boundary's `onError` routes to the reporter resolved from the INJECTED `errorReporterToken` —
+        // never a hard-coded Sentry import — so this asserts against a fake bound onto the test's own container.
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const reportError: ErrorReporter = vi.fn();
 
         const Boom: FC = () => {
             throw new Error('widget boom');
         };
 
+        const container = containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID));
+        container.bindValue(errorReporterToken, reportError);
+
         renderSurface({
-            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            container,
             renderers: { [RECIPE_HOME_WIDGET_ID]: Boom },
         });
 
-        // The throw is caught → a localized fallback replaces the silent null, and the error is reported.
+        // The throw is caught → a localized fallback replaces the silent null, and the injected reporter was
+        // called with the error plus the widget's id as context.
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
-        expect(vi.mocked(Sentry.captureException)).toHaveBeenCalled();
+        expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
 
         consoleError.mockRestore();
     });

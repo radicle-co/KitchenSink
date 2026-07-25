@@ -71,8 +71,22 @@ export interface AppShellConfig {
     get(key: string): string | undefined;
 }
 
+/**
+ * Injected error-reporting seam (DA9). A widget boundary — or any other observability call site — reports a
+ * caught failure through this function, never by importing a platform SDK (`@sentry/nextjs`,
+ * `@sentry/react-native`, …) directly. That keeps the call site fake-able in tests and lets each platform bind
+ * its own real sink (both currently Sentry, but the seam does not assume that) without the consumer knowing.
+ *
+ * @param error - The caught value (React's `ErrorBoundary.onError` hands this as `unknown`).
+ * @param context - Optional structured context (e.g. `{ widget: descriptor.id }`) attached to the report.
+ */
+export type ErrorReporter = (error: unknown, context?: Record<string, unknown>) => void;
+
 /** Token for the ambient {@link AppShellLogger}. */
 export const loggerToken: Token<AppShellLogger> = token<AppShellLogger>('commise.appShell.logger');
+
+/** Token for the ambient {@link ErrorReporter}. */
+export const errorReporterToken: Token<ErrorReporter> = token<ErrorReporter>('commise.appShell.errorReporter');
 
 /** Token for the ambient {@link AppShellClock}. */
 export const clockToken: Token<AppShellClock> = token<AppShellClock>('commise.appShell.clock');
@@ -126,3 +140,14 @@ export const resolveHomeWidgets = (resolver: ContainerResolver): readonly HomeWi
 
     return resolver.resolve(homeWidgetToken);
 };
+
+/** The {@link ErrorReporter} used by {@link resolveErrorReporter} when no platform has bound one. */
+const NOOP_ERROR_REPORTER: ErrorReporter = () => undefined;
+
+/**
+ * Resolve the ambient {@link ErrorReporter} from a container/resolver, tolerating an appShell where no
+ * platform has bound a reporter yet (falls back to a no-op instead of throwing `ResolverError`) — mirrors
+ * {@link resolveHomeWidgets}'s tolerant-resolve shape.
+ */
+export const resolveErrorReporter = (resolver: ContainerResolver): ErrorReporter =>
+    resolver.get(errorReporterToken) ?? NOOP_ERROR_REPORTER;

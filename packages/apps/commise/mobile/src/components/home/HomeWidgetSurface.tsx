@@ -20,6 +20,7 @@
 import {
     curateHomeWidgets,
     isPlaceholderHomeWidget,
+    resolveErrorReporter,
     resolveHomeWidgets,
     type HomeNavItemId,
     type HomeWidgetCurationContext,
@@ -109,6 +110,10 @@ export function HomeWidgetSurface({
 
     const activeRenderers = renderers ?? defaultRenderers;
 
+    // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
+    // (never a hard-coded Sentry import), mirroring the web host so both platforms share ONE reporting seam.
+    const reportWidgetError = resolveErrorReporter(container);
+
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {
             liveCapabilities: [...LIVE_CAPABILITIES],
@@ -145,7 +150,11 @@ export function HomeWidgetSurface({
 
                         if (Bespoke !== undefined) {
                             return (
-                                <ErrorBoundary key={descriptor.id} fallback={null}>
+                                <ErrorBoundary
+                                    key={descriptor.id}
+                                    fallback={null}
+                                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                                >
                                     <Bespoke />
                                 </ErrorBoundary>
                             );
@@ -153,7 +162,11 @@ export function HomeWidgetSurface({
 
                         if (isPlaceholderHomeWidget(descriptor)) {
                             return (
-                                <ErrorBoundary key={descriptor.id} fallback={null}>
+                                <ErrorBoundary
+                                    key={descriptor.id}
+                                    fallback={null}
+                                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                                >
                                     <RoadmapWidgetSlot descriptor={descriptor} />
                                 </ErrorBoundary>
                             );

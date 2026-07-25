@@ -11,10 +11,12 @@ import { cleanup, fireEvent, screen } from '@testing-library/react';
 import type { FC, JSX } from 'react';
 
 import {
+    errorReporterToken,
     isPlaceholderHomeWidget,
     registerHomeWidget,
     resolveHomeWidgets,
     ROADMAP_WIDGET_IDS,
+    type ErrorReporter,
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
@@ -38,6 +40,11 @@ const { profileRef } = vi.hoisted(() => ({
     },
 }));
 vi.mock('../../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => profileRef.current }));
+
+// `homeContainer` binds `errorReporterToken` to a real Sentry-backed reporter; mocked (never loaded for real)
+// so importing it here doesn't drag in `@sentry/react-native`'s native module graph under jsdom, mirroring
+// how the web host's equivalent test mocks `@sentry/nextjs`.
+vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 
 // The Home surface reads the bottom safe-area inset for the tab bar; a zero-inset stub renders it faithfully.
 vi.mock('react-native-safe-area-context', () => ({
@@ -141,6 +148,33 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(errorSpy).not.toHaveBeenCalled();
 
         errorSpy.mockRestore();
+    });
+
+    it('reports a widget render failure to the injected error reporter and shows the fallback, not a crash (DA9)', () => {
+        // A widget throw must never crash the surface, AND must never be silent (B23/DA9) — the boundary's
+        // `onError` routes to the reporter resolved from the INJECTED `errorReporterToken`, not a hard-coded
+        // Sentry import, so this asserts against a fake bound onto the test's own container.
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const reportError: ErrorReporter = vi.fn();
+
+        const Boom: FC = () => {
+            throw new Error('widget boom');
+        };
+
+        const container = containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID));
+        container.bindValue(errorReporterToken, reportError);
+
+        renderSurface({
+            container,
+            renderers: { [RECIPE_HOME_WIDGET_ID]: Boom },
+        });
+
+        // The throw is caught → no crash, the fallback is null (no user-facing text lost) — and the injected
+        // reporter was called with the error plus the widget's id as context.
+        expect(screen.queryByText('fake-recipe-widget')).toBeNull();
+        expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
+
+        consoleError.mockRestore();
     });
 
     it('shows the subscription nudge at most once per session across repeated gated taps', async () => {

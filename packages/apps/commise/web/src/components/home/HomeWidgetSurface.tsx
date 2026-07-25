@@ -24,6 +24,7 @@
 import {
     curateHomeWidgets,
     isPlaceholderHomeWidget,
+    resolveErrorReporter,
     resolveHomeWidgets,
     type HomeWidgetCurationContext,
     type HomeWidgetId,
@@ -31,7 +32,6 @@ import {
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
-import * as Sentry from '@sentry/nextjs';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -70,16 +70,6 @@ const DEFAULT_RENDERERS: Readonly<Record<HomeWidgetId, ComponentType>> = {
 };
 
 /**
- * Report a Home-widget render failure to Sentry (B23). A widget's `ErrorBoundary` must never swallow the
- * throw silently — an unlogged blank widget is undebuggable.
- *
- * @sideEffect Captures the error in Sentry.
- */
-function captureWidgetError(error: unknown): void {
-    Sentry.captureException(error);
-}
-
-/**
  * The Home widget surface.
  *
  * @param props - Optional injectable `container` / `renderers` seams (tests only).
@@ -95,6 +85,10 @@ export function HomeWidgetSurface({
 
     // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
     const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
+
+    // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
+    // (never a hard-coded Sentry import), mirroring the mobile host so both platforms share ONE seam.
+    const reportWidgetError = resolveErrorReporter(container);
 
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {
@@ -126,14 +120,14 @@ export function HomeWidgetSurface({
                             const Bespoke = renderers[descriptor.id];
 
                             // A widget with a bespoke host slot (the live recipe widget, which needs its data
-                            // prop wired) renders through that slot. B23 — a render throw / chunk-load reject is
-                            // reported to Sentry (never swallowed) and shows a small localized fallback instead
-                            // of vanishing.
+                            // prop wired) renders through that slot. B23/DA9 — a render throw / chunk-load
+                            // reject is reported through the injected reporter (never swallowed) and shows a
+                            // small localized fallback instead of vanishing.
                             if (Bespoke !== undefined) {
                                 return (
                                     <ErrorBoundary
                                         key={descriptor.id}
-                                        onError={captureWidgetError}
+                                        onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
                                         fallback={<p className="text-body-sm text-slate">{home.surface.widgetError}</p>}
                                     >
                                         <Suspense fallback={null}>
@@ -145,10 +139,14 @@ export function HomeWidgetSurface({
 
                             // A roadmap placeholder renders through its own loader seam — no bespoke slot, no
                             // second id list in the host. Its fallback stays null (nothing user-facing to lose),
-                            // but a throw is still reported (B23), never silent.
+                            // but a throw is still reported (B23/DA9), never silent.
                             if (isPlaceholderHomeWidget(descriptor)) {
                                 return (
-                                    <ErrorBoundary key={descriptor.id} onError={captureWidgetError} fallback={null}>
+                                    <ErrorBoundary
+                                        key={descriptor.id}
+                                        onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                                        fallback={null}
+                                    >
                                         <Suspense fallback={null}>
                                             <RoadmapWidgetSlot descriptor={descriptor} />
                                         </Suspense>

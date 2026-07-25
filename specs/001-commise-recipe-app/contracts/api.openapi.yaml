@@ -862,6 +862,44 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
+    /v1/collections/{id}/pull-from-source/preview:
+        post:
+            tags: [Collections]
+            summary: Preview a pull from source collection
+            description: |
+                For a cloned collection (`sourceCollectionId` set), computes and returns
+                the three-way diff (`added` / `removed` / `unchanged`) a pull WOULD apply,
+                WITHOUT mutating anything — a distinct, read-only endpoint (not a `?dryRun`
+                flag on the commit) so a preview is structurally incapable of writing.
+                Echo the returned diff back as `previewedDiff` on
+                `POST /v1/collections/{id}/pull-from-source` to guard against drift
+                between the preview and the commit.
+            operationId: previewCollectionPullFromSource
+            parameters:
+                - $ref: '#/components/parameters/CollectionId'
+            responses:
+                '200':
+                    description: Preview computed
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PullDiff'
+                '400':
+                    description: Collection has no source to pull from
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                            example:
+                                code: COLLECTION_NOT_CLONED
+                                message: Collection has no source to pull from
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '403':
+                    $ref: '#/components/responses/Forbidden'
+                '404':
+                    $ref: '#/components/responses/NotFound'
+
     /v1/collections/{id}/pull-from-source:
         post:
             tags: [Collections]
@@ -872,9 +910,21 @@ paths:
                 collection. New membership rows are recorded with `addedVia=pull`.
                 Existing memberships are not modified; recipes removed from the
                 source are NOT removed here. Returns the resulting collection.
+
+                When the request body echoes `previewedDiff` (as returned by
+                `POST .../pull-from-source/preview`), the server re-derives the diff
+                live and rejects with 409 `PULL_DRIFT` if it no longer matches — so the
+                caller never silently gets a different set than they confirmed.
+                Omitting `previewedDiff` applies directly with no drift guard.
             operationId: pullCollectionFromSource
             parameters:
                 - $ref: '#/components/parameters/CollectionId'
+            requestBody:
+                required: false
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PullFromSourceRequest'
             responses:
                 '200':
                     description: Pull completed
@@ -897,6 +947,8 @@ paths:
                     $ref: '#/components/responses/Forbidden'
                 '404':
                     $ref: '#/components/responses/NotFound'
+                '409':
+                    $ref: '#/components/responses/PullDrift'
 
     /v1/search/recipes:
         get:
@@ -1135,6 +1187,12 @@ components:
                 application/json:
                     schema:
                         $ref: '#/components/schemas/VersionConflictErrorResponse'
+        PullDrift:
+            description: Pull drifted since preview
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/PullDriftErrorResponse'
 
     schemas:
         ErrorResponse:
@@ -1169,6 +1227,26 @@ components:
                         conflictingVersion:
                             type: integer
                             minimum: 1
+
+        PullDriftErrorResponse:
+            type: object
+            required: [code, message, details]
+            properties:
+                code:
+                    type: string
+                    example: PULL_DRIFT
+                message:
+                    type: string
+                    example: The source changed since you previewed this pull. Review the updated changes before applying.
+                details:
+                    type: object
+                    required: [collectionId, diff]
+                    properties:
+                        collectionId:
+                            type: string
+                            format: uuid
+                        diff:
+                            $ref: '#/components/schemas/PullDiff'
 
         PaginatedResponse:
             type: object
@@ -2149,6 +2227,48 @@ components:
                         type: string
                         format: uuid
                     description: Recipe IDs added to the collection by this pull
+
+        PullDiff:
+            type: object
+            required: [added, removed, unchanged]
+            description: |
+                The three-way diff of `source ∪ clone`, returned by
+                `POST /v1/collections/{id}/pull-from-source/preview` and echoed back
+                as `previewedDiff` on the commit as the drift baseline.
+            properties:
+                added:
+                    type: array
+                    items:
+                        type: string
+                        format: uuid
+                    description: Recipe IDs in the source but not the clone — the pull WILL add these.
+                removed:
+                    type: array
+                    items:
+                        type: string
+                        format: uuid
+                    description: |
+                        Recipe IDs in the clone but not the source — informational; a pull
+                        never removes them.
+                unchanged:
+                    type: array
+                    items:
+                        type: string
+                        format: uuid
+                    description: Recipe IDs in both — already present; the pull is a no-op for these.
+
+        PullFromSourceRequest:
+            type: object
+            description: |
+                Optional body for `POST /v1/collections/{id}/pull-from-source`. When
+                `previewedDiff` is provided, it must be the diff most recently returned
+                by `POST .../pull-from-source/preview`; if the live diff no longer
+                matches, the pull is rejected with 409 `PULL_DRIFT` instead of silently
+                applying a different set. Omitting it applies directly with no drift
+                guard.
+            properties:
+                previewedDiff:
+                    $ref: '#/components/schemas/PullDiff'
 
         ErasureRequest:
             type: object

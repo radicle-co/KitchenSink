@@ -1,15 +1,18 @@
 /**
  * Reusable in-process e2e bootstrap for `@kitchensink/recipe-service` (Phase-1 harness).
  *
- * Boots the REAL Nest app (`NestFactory.create(AppModule)`) against the Docker Postgres + LocalStack S3
- * harness (migrated + seeded by `tests/global-setup.ts`) on an ephemeral port, and hands back an HTTP
- * base URL plus a teardown. Phase-3 e2e specs import {@link bootRecipeApp} to drive real endpoints.
+ * Thin wrapper over the shared {@link bootServiceApp} template (`@kitchensink/service-test-harness`,
+ * promoted from identity in T6 / CP-9) that supplies the recipe `AppModule` loader and the env its
+ * `apiConfigSchema` + `DatabaseModule` require, against the Docker Postgres + LocalStack S3 harness
+ * (migrated + seeded ONCE per run by `tests/global-setup.ts` — DB-isolation strategy 2 of the contract
+ * documented on {@link bootServiceApp}). Phase-3 e2e specs import {@link bootRecipeApp} to drive real
+ * endpoints on the ephemeral-port app it hands back.
  *
  * The recipe `AppConfigModule` validates `process.env` against `apiConfigSchema` during
  * `NestFactory.create` (NestJS `ConfigModule.forRoot({ validate })`), and `DatabaseModule` opens its `pg`
  * pool from `DATABASE_URL` at init — so every required var MUST be present BEFORE `AppModule` is
- * imported. This module therefore sets safe defaults and imports `AppModule` DYNAMICALLY (not a
- * top-of-file static import).
+ * imported. `bootServiceApp` applies env FIRST and imports `AppModule` DYNAMICALLY for exactly this
+ * reason.
  *
  * Auth: `NODE_ENV` is forced to `development` (vitest defaults it to `test`, which the recipe
  * environment enum rejects, and which would also disable the dev-auth bypass). Passing
@@ -17,11 +20,7 @@
  * with NO Clerk token — the intended way to exercise authenticated endpoints in e2e without minting
  * real session tokens.
  */
-import 'reflect-metadata';
-
-import type { AddressInfo } from 'node:net';
-
-import type { INestApplication } from '@nestjs/common';
+import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { SEED_ERASURE_QUEUE_URL } from '../global-setup.js';
 
@@ -42,51 +41,7 @@ export interface BootRecipeAppOptions {
 }
 
 /** A booted recipe app: its HTTP base URL, the Nest handle, and a teardown that closes it. */
-export interface BootedRecipeApp {
-    /** e.g. `http://127.0.0.1:54321` — the ephemeral origin the app is listening on. */
-    readonly baseUrl: string;
-    /** The underlying Nest application (for DI access in advanced specs). */
-    readonly app: INestApplication;
-    /** Close the HTTP listener and the app. Always call in `afterAll`. */
-    readonly close: () => Promise<void>;
-}
-
-/** Set `key` only when it is not already present, so CI/env overrides always win. */
-function setDefault(key: string, value: string): void {
-    if (process.env[key] === undefined || process.env[key] === '') {
-        process.env[key] = value;
-    }
-}
-
-/**
- * Populate the environment the recipe `apiConfigSchema` + `DatabaseModule` require, without clobbering
- * anything the caller/CI already set. `NODE_ENV` and `DATABASE_URL` are forced (see module docstring).
- */
-function applyHarnessEnv(options: BootRecipeAppOptions): void {
-    // Forced: the recipe environment enum is development/staging/production (vitest sets 'test'), and
-    // 'development' also keeps the dev-auth bypass usable.
-    process.env['NODE_ENV'] = 'development';
-
-    if (DATABASE_URL !== undefined) {
-        process.env['DATABASE_URL'] = DATABASE_URL;
-    }
-
-    setDefault('CLERK_JWT_KEY', 'e2e-harness-placeholder-key');
-    setDefault('CLERK_AUTHORIZED_PARTIES', 'http://localhost:3000');
-    setDefault('S3_ENDPOINT', 'http://localhost:4566');
-    setDefault('S3_FORCE_PATH_STYLE', 'true');
-    setDefault('S3_BUCKET_PHOTOS', 'commise-photos');
-    setDefault('S3_BUCKET_VERSIONS', 'commise-versions');
-    setDefault('CLOUDFRONT_URL', 'http://localhost:4566/commise-photos');
-    setDefault('SQS_ENDPOINT', 'http://localhost:4566');
-    // The queue the global setup actually provisions — one definition, so the booted app and the specs
-    // draining the queue can never address different queues.
-    setDefault('ACCOUNT_ERASURE_QUEUE_URL', SEED_ERASURE_QUEUE_URL);
-
-    if (options.devAuthUserId !== undefined) {
-        process.env['RECIPE_DEV_AUTH_USER_ID'] = options.devAuthUserId;
-    }
-}
+export type BootedRecipeApp = BootedServiceApp;
 
 /**
  * Boot the recipe Nest app in-process on an ephemeral port and return an HTTP handle + teardown.
@@ -102,24 +57,34 @@ export async function bootRecipeApp(options: BootRecipeAppOptions = {}): Promise
         throw new Error('bootRecipeApp requires DATABASE_URL (or TEST_DATABASE_URL). Is the test harness up?');
     }
 
-    applyHarnessEnv(options);
-
-    // Dynamic import AFTER env is set — the config module validates env at module init.
-    const { NestFactory } = await import('@nestjs/core');
-    const { AppModule } = await import('../../src/app.module.js');
-
-    const app = await NestFactory.create(AppModule, { logger: false });
-    // Ephemeral port — no fixed-port collisions across parallel CI jobs.
-    await app.listen(0);
-
-    const address = app.getHttpServer().address() as AddressInfo;
-    const baseUrl = `http://127.0.0.1:${address.port}`;
-
-    return {
-        baseUrl,
-        app,
-        close: async (): Promise<void> => {
-            await app.close();
-        },
+    const forcedEnv: Record<string, string> = {
+        // The recipe environment enum is development/staging/production (vitest sets 'test'), and
+        // 'development' also keeps the dev-auth bypass usable.
+        NODE_ENV: 'development',
+        // Forced (not defaulted): re-homes a caller-supplied `TEST_DATABASE_URL` onto the `DATABASE_URL`
+        // key the app's config schema actually reads. `hasDatabaseUrl` above guarantees this is defined.
+        DATABASE_URL: DATABASE_URL as string,
     };
+
+    if (options.devAuthUserId !== undefined) {
+        forcedEnv['RECIPE_DEV_AUTH_USER_ID'] = options.devAuthUserId;
+    }
+
+    return bootServiceApp({
+        loadAppModule: () => import('../../src/app.module.js'),
+        forcedEnv,
+        envDefaults: {
+            CLERK_JWT_KEY: 'e2e-harness-placeholder-key',
+            CLERK_AUTHORIZED_PARTIES: 'http://localhost:3000',
+            S3_ENDPOINT: 'http://localhost:4566',
+            S3_FORCE_PATH_STYLE: 'true',
+            S3_BUCKET_PHOTOS: 'commise-photos',
+            S3_BUCKET_VERSIONS: 'commise-versions',
+            CLOUDFRONT_URL: 'http://localhost:4566/commise-photos',
+            SQS_ENDPOINT: 'http://localhost:4566',
+            // The queue the global setup actually provisions — one definition, so the booted app and the
+            // specs draining the queue can never address different queues.
+            ACCOUNT_ERASURE_QUEUE_URL: SEED_ERASURE_QUEUE_URL,
+        },
+    });
 }

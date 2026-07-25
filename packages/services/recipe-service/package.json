@@ -53,6 +53,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-service-client": "*",
+        "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@nestjs/cli": "^11.0.0",

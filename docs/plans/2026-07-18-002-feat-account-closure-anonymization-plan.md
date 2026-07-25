@@ -9,10 +9,11 @@ title: 'Account closure vs. erasure — the permanent-ULID identity anchor (Trac
 # Account closure vs. erasure — the permanent-ULID identity anchor
 
 > **Supersedes** the "cross-service anonymization coordinator" sketch. Two grounded investigations + **three
-> rounds of five-persona doc-review** shaped this. All owner questions are resolved (KTDs); the round-2/3
-> code-verified corrections are folded in (ratings-by-deletion, recovery handshake, deletion-worker
-> orchestration, U4a/U4b split); the load-bearing **Clerk `banUser` spike is done and passed** (KTD-1).
-> Sign-off-ready as **CR-002**, one PR on the `001-commise-recipe-app` worktree.
+> rounds of five-persona doc-review + a full plan-vs-worktree code reconciliation** shaped this. All owner
+> questions are resolved (KTDs); the round-2/3 code-verified corrections are folded in (ratings-by-deletion,
+> recovery handshake, deletion-worker orchestration, U4a/U4b split, the two-axis `visibility`+`status` privacy
+> scope); the load-bearing **Clerk `banUser` spike is done and passed** (KTD-1). Sign-off-ready as **CR-002**,
+> one PR on the `001-commise-recipe-app` worktree.
 
 ---
 
@@ -40,12 +41,12 @@ Two distinct, both-legitimate lifecycle events:
   **`unbanUser` + sign-in resolves the same ULID** → name + recipes come back. Recipes, collections, food
   references are untouched. We scrub aggressively anyway (good-GDPR-citizen).
 - **True erasure** (right to be forgotten) — irreversible, the ONLY path that **deletes** the Clerk identity.
-  Reduce the profile to `{ id }` only. Per the user's per-recipe election, their **private** recipes are
-  **removed** unless the user **elected to publish** specific ones (donate). **All the user's collections are
-  removed.** The user's **ratings on others' recipes are deleted** (per-user rating rows removed); the CR-001
+  Reduce the profile to `{ id }` only. Per the user's per-recipe election, their **owner-only** recipes
+  (private, or public-visibility **drafts** — a draft is owner-only regardless of visibility) are **removed**
+  unless the user **elected to publish** specific ones (donate). **All the user's collections are removed.** The user's **ratings on others' recipes are deleted** (per-user rating rows removed); the CR-001
   statement-level trigger then re-derives each affected recipe's average from the surviving rows, so the erased
-  user's stars **no longer count** — true anonymization, no per-user row survives. Already-public + donated recipes stay,
-  attributed to the **pseudonymized** ULID.
+  user's stars **no longer count** — true anonymization, no per-user row survives. **Truly-public**
+  (`visibility='public' AND status='published'`) + donated recipes stay, attributed to the **pseudonymized** ULID.
 
 **Pseudonymized, not anonymized (compliance note).** Retained public/donated recipes stay attributed to the
 stable ULID — that is **pseudonymized personal data** (GDPR Recital 26), still in scope, needing a stated
@@ -79,10 +80,12 @@ the Clerk `sub` (U1).
   tombstone binds). _(resolves OQ3)_
 - **KTD-4 — One PR, the `001-commise-recipe-app` worktree.** U1 ships here (food + recipe/identity deploy as
   separate CDK stacks, so one PR ≠ one deploy — see the U1 rollback-boundary note). _(resolves OQ4)_
-- **KTD-5 — Erasure content disposition.** **Removed:** every private recipe not elected for publish + **all**
-  the user's collections. **Anonymized:** the user's ratings on others' recipes (per-user rows deleted; the
-  CR-001 trigger re-derives the aggregate without them — no manual aggregate write). **Kept, pseudonymized:**
-  already-public recipes + donated recipes. _(resolves OQ5)_
+- **KTD-5 — Erasure content disposition.** **Removed:** every **owner-only** recipe (`visibility='private'`
+  OR `status='draft'` — a draft is owner-only regardless of visibility) not elected for publish + **all** the
+  user's collections. **Anonymized:** the user's ratings on others' recipes (per-user rows deleted; the CR-001
+  trigger re-derives the aggregate without them — no manual aggregate write). **Kept, pseudonymized:**
+  **truly-public** recipes (`visibility='public' AND status='published'`) + donated recipes (published as part
+  of erasure). _(resolves OQ5)_
 
 ---
 
@@ -93,7 +96,7 @@ the Clerk `sub` (U1).
 - **Policy / Specification module (new).** Two authoritative rules, each in one place: (A) _field-scrub_ —
   which profile fields survive per event; (B) _content-disposition_ — remove / anonymize / keep per owned
   data class (KTD-5). Consumed by U2 and U3a/b/c, not open-coded.
-- **Strategy (kept).** The private-recipe erasure **election** (`delete` | `publish` per recipe; default
+- **Strategy (kept).** The owner-only-recipe erasure **election** (`delete` | `publish` per recipe; default
   `delete`) is a per-request strategy persisted on `account_erasure_jobs` (durable row is source of truth; the
   sweeper reconstructs the message from it).
 - **Domain-event routing + minimal completion contract (NOT a full Saga).** Closure/erasure are events per
@@ -108,17 +111,17 @@ the Clerk `sub` (U1).
 
 ## Requirements
 
-| ID  | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Source                   |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| R1  | The identity profile row (ULID) MUST NOT be hard-deleted on closure OR erasure.                                                                                                                                                                                                                                                                                                                                                                                                                 | KTD; D2                  |
-| R2  | On **closure**, the platform **bans** (`banUser`) the Clerk identity — never deletes it — and the profile retains `{ id, name }`; email, sessions, avatar (col + S3) MUST be scrubbed. A later `unbanUser` + sign-in resolves the same ULID (recoverable).                                                                                                                                                                                                                                      | KTD-1                    |
-| R3  | On **erasure**, the platform **deletes** the Clerk identity; the profile retains `{ id }` only; name, email, avatar (col + S3), and any Clerk-`sub`-derived placeholder MUST be destroyed. No recovery.                                                                                                                                                                                                                                                                                         | KTD-1; GDPR Art. 17      |
-| R4  | On **erasure**: private recipes are **removed** unless **elected to publish** (donate); **all collections removed**; the user's **ratings on others' recipes are anonymized** by **deleting the per-user rating rows** and letting the CR-001 statement-level trigger re-derive the aggregate (NO manual aggregate write — the two columns are trigger-only); already-public + donated recipes kept, pseudonymized ULID. Applied **eventually** across identity + recipe (not atomic — see R7). | KTD-5                    |
-| R5  | Food MUST key `fetch_requesters` by the **app ULID** for user principals (from the token's `external_id`, verified present), retaining `svc_*` for service principals. No FK. Independent of the deletion flow.                                                                                                                                                                                                                                                                                 | KTD-4; FR-048            |
-| R6  | Closure vs. erasure MUST be explicit and non-conflatable. The user-facing erasure is confirmation-gated (Track A U7); closure is recoverable. A `user.deleted` webhook is **always** erasure (KTD-2).                                                                                                                                                                                                                                                                                           | KTD-1/2                  |
-| R7  | The **erasure completion contract**: both legs (identity scrub + recipe erasure) MUST be observable as jointly complete; a failed/lost leg MUST raise an "erasure incomplete" signal and be reconcilable — never a silent half-erased account.                                                                                                                                                                                                                                                  | Doc-review               |
-| R8  | Every lifecycle transition MUST leave an **append-only audit record** (`{userId, event, trigger_source, actor, occurred_at, election/confirmation evidence}`), independent of the mutable state column.                                                                                                                                                                                                                                                                                         | Doc-review               |
-| R9  | The two erasure entry points (user + webhook/admin) MUST NOT collide or drop the user's election: the election-bearing job MUST be the first writer, and a webhook echo MUST be a true no-op whenever a job for that owner **already exists in ANY state** (queued/running/terminal) — guarded by job existence/correlation key, NOT by "terminal" state (the async worker is still running when the echo arrives).                                                                             | Doc-review (adversarial) |
+| ID  | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Source                   |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| R1  | The identity profile row (ULID) MUST NOT be hard-deleted on closure OR erasure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | KTD; D2                  |
+| R2  | On **closure**, the platform **bans** (`banUser`) the Clerk identity — never deletes it — and the profile retains `{ id, name }`; email, sessions, avatar (col + S3) MUST be scrubbed. A later `unbanUser` + sign-in resolves the same ULID (recoverable).                                                                                                                                                                                                                                                                                                                                                                              | KTD-1                    |
+| R3  | On **erasure**, the platform **deletes** the Clerk identity; the profile retains `{ id }` only; name, email, avatar (col + S3), and any Clerk-`sub`-derived placeholder MUST be destroyed. No recovery.                                                                                                                                                                                                                                                                                                                                                                                                                                 | KTD-1; GDPR Art. 17      |
+| R4  | On **erasure**: **owner-only** recipes (`visibility='private'` OR `status='draft'`) are **removed** unless **elected to publish** (donate, which sets `visibility='public' AND status='published'`); **all collections removed**; the user's **ratings on others' recipes are anonymized** by **deleting the per-user rating rows** and letting the CR-001 statement-level trigger re-derive the aggregate (NO manual aggregate write — the two columns are trigger-only); **truly-public** (`public AND published`) + donated recipes kept, pseudonymized ULID. Applied **eventually** across identity + recipe (not atomic — see R7). | KTD-5                    |
+| R5  | Food MUST key `fetch_requesters` by the **app ULID** for user principals (from the token's `external_id`, verified present), retaining `svc_*` for service principals. No FK. Independent of the deletion flow.                                                                                                                                                                                                                                                                                                                                                                                                                         | KTD-4; FR-048            |
+| R6  | Closure vs. erasure MUST be explicit and non-conflatable. The user-facing erasure is confirmation-gated (Track A U7); closure is recoverable. A `user.deleted` webhook is **always** erasure (KTD-2).                                                                                                                                                                                                                                                                                                                                                                                                                                   | KTD-1/2                  |
+| R7  | The **erasure completion contract**: both legs (identity scrub + recipe erasure) MUST be observable as jointly complete; a failed/lost leg MUST raise an "erasure incomplete" signal and be reconcilable — never a silent half-erased account.                                                                                                                                                                                                                                                                                                                                                                                          | Doc-review               |
+| R8  | Every lifecycle transition MUST leave an **append-only audit record** (`{userId, event, trigger_source, actor, occurred_at, election/confirmation evidence}`), independent of the mutable state column.                                                                                                                                                                                                                                                                                                                                                                                                                                 | Doc-review               |
+| R9  | The two erasure entry points (user + webhook/admin) MUST NOT collide or drop the user's election: the election-bearing job MUST be the first writer, and a webhook echo MUST be a true no-op whenever a job for that owner **already exists in ANY state** (queued/running/terminal) — guarded by job existence/correlation key, NOT by "terminal" state (the async worker is still running when the echo arrives).                                                                                                                                                                                                                     | Doc-review (adversarial) |
 
 ---
 
@@ -142,7 +145,7 @@ flowchart TD
 
     Erase --> Route[recipe erasure FIRST\nPOST /v1/account/erasure + election]
     Route --> Scrub[then identity: scrub → {id} only\nClerk deleteUser]
-    Route --> Worker[account-erasure worker\nflip donated→public, remove still-private + ALL collections\ndelete ratings (aggregate re-derives); keep public+donated]
+    Route --> Worker[account-erasure worker\nflip donated→public+published, remove owner-only private/draft + ALL collections\ndelete ratings (aggregate re-derives); keep truly-public+donated]
     Erase -. completion contract .-> Recon[reconcile: erased identity\nwhose recipe leg never acked → alarm]
 ```
 
@@ -160,13 +163,20 @@ flowchart TD
 
 ### Erasure content disposition (Specification B) — U3a/b/c
 
-| Owned data                             | On erasure                                                                                                                               |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Private recipe, not elected to publish | **removed** (row + its per-recipe S3 keys)                                                                                               |
-| Private recipe, elected to publish     | flipped → public, kept, pseudonymized ULID                                                                                               |
-| Already-public recipe                  | kept, pseudonymized ULID                                                                                                                 |
-| Collections (public + private)         | **removed** (`source_collection_id` is `ON DELETE SET NULL` — clones survive)                                                            |
-| Ratings on **others'** recipes         | **anonymized** — delete the per-user rating rows; the CR-001 trigger re-derives the aggregate (no manual write; stars leave the average) |
+**Two orthogonal privacy axes (verified against `recipes.ts`).** A recipe is community-visible only when
+`visibility = 'public'` **AND** `status = 'published'`. `status` (`draft | published`, default `published`) is
+a **separate owner-only security boundary**: a `draft` is owner-only _regardless of_ `visibility` (a
+`public`-visibility draft is still owner-only). So "truly public" = `visibility='public' AND status='published'`
+— scoping by `visibility` alone would wrongly spare a public-visibility draft and leave it orphaned under an
+erased owner.
+
+| Owned data                                                                       | On erasure                                                                                                                               |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Recipe, **truly public** (`visibility='public' AND status='published'`)          | kept, pseudonymized ULID                                                                                                                 |
+| Recipe, **owner-only** (`visibility='private'` OR `status='draft'`), not donated | **removed** (row + its per-recipe S3 keys)                                                                                               |
+| Recipe, **elected to publish** (donate)                                          | flipped to `visibility='public' AND status='published'`, kept, pseudonymized ULID                                                        |
+| Collections (public + private)                                                   | **removed** (`source_collection_id` is `ON DELETE SET NULL` — clones survive)                                                            |
+| Ratings on **others'** recipes                                                   | **anonymized** — delete the per-user rating rows; the CR-001 trigger re-derives the aggregate (no manual write; stars leave the average) |
 
 ---
 
@@ -241,35 +251,46 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
 
 ### U3a. Erasure worker: scope the DELETE + S3 sweep + clone-detach to PRIVATE recipes (safety-critical)
 
-- **Goal:** Turn the unconditional owner-wide delete into a **`visibility = 'private'`-scoped** delete that
-  spares public recipes AND their media. Donated recipes are handled by U3b flipping them **public before**
-  this delete runs (so they fall out of the private scope naturally) — U3a therefore keys only on the existing
-  `visibility` column and needs no election data of its own.
+- **Goal:** Turn the unconditional owner-wide delete into an **owner-only-scoped** delete that spares
+  **truly-public** recipes (`visibility='public' AND status='published'`) AND their media. The removed set is
+  everything else the owner owns — `visibility='private'` **OR** `status='draft'` (a draft is owner-only
+  regardless of visibility; see Spec B). Donated recipes are handled by U3b flipping them to
+  public-and-published **before** this delete runs, so they fall out of the removed scope naturally — U3a keys
+  only on the existing `visibility` + `status` columns and needs no election data of its own.
 - **Requirements:** R4
 - **Dependencies:** U2 (erasure event); **U3b** (the donate-flip runs first, within the same erasure
-  transaction, so remaining `private` = to-be-removed); the shipped account-erasure worker (Track A)
+  transaction, so what remains owner-only = to-be-removed); the shipped account-erasure worker (Track A)
 - **Files:** `packages/services/recipe-workers/src/handlers/account-erasure-worker.ts`
   (`eraseRecipeRows`/`eraseRecipeObjects`); tests.
-- **Approach:** In one erasure transaction, ordered: (1) U3b flips elected recipes `private→public`; (2) U3a
-  computes the **removed-recipe id set** = the owner's still-`private` recipes, **inside the claiming
-  transaction** (the ids are unrecoverable after the delete — re-establishing the crash/replay convergence the
-  worker's prefix-driven design relied on); (3) **scope the `cloned_from_id` detach to exactly that id set**,
-  NOT `WHERE owner_id` — else it either NULLs clone pointers to surviving public recipes (provenance
-  corruption) or, left owner-wide, a deleted private recipe with an external clone hits the `NO ACTION` FK and
-  the whole transaction fails; (4) S3 sweep changes from whole-owner-prefix to **per-removed-recipe keys**
-  (`recipes/{owner}/{recipeId}/…`) so public/donated media survive.
+- **Approach:** In one erasure transaction, ordered: (1) U3b flips elected recipes to
+  `visibility='public', status='published'`; (2) U3a computes the **removed-recipe id set** = the owner's rows
+  that are **not** truly-public — `owner_id = ownerId AND NOT (visibility='public' AND status='published')` —
+  **inside the claiming transaction** (the ids are unrecoverable after the delete — re-establishing the
+  crash/replay convergence the worker's prefix-driven design relied on); (3) **scope the `cloned_from_id`
+  detach to exactly that id set**, NOT `WHERE owner_id` — else it either NULLs clone pointers to surviving
+  truly-public recipes (provenance corruption) or, left owner-wide, a deleted owner-only recipe with an
+  external clone hits the `NO ACTION` FK and the whole transaction fails. **Preserve the existing
+  `AND owner_id <> ownerId` guard** on the detach (the current worker already restricts to _other_ users'
+  clones — keep that, just narrow the `cloned_from_id IN (…)` set from all-owner-rows to the removed set);
+  (4) S3 sweep changes from whole-owner-prefix to **per-removed-recipe keys** (`recipes/{owner}/{recipeId}/…`)
+  so truly-public/donated media survive.
 - **Execution note:** Test-first; mutation-verify against the current mass-delete. Tests seed donated recipes
   via U3b's election, so U3a is NOT tested in isolation from U3b — they co-define the scoped delete.
-- **Test scenarios:** still-private rows + their photos gone; **public + donated (flipped) rows + photos
-  remain**; a surviving public recipe with an external clone keeps that clone's `cloned_from_id`; a deleted
-  private recipe with an external clone detaches cleanly (no FK failure); crash between row-delete and S3-sweep
-  still converges (id set captured in the claim).
-- **Verification:** only still-private content + media removed; provenance intact; replay-safe.
+- **Test scenarios:** owner-only rows (`private` **and** `public`-visibility-but-`draft`) + their photos gone;
+  **truly-public + donated (flipped) rows + photos remain**; a surviving truly-public recipe with an external
+  clone keeps that clone's `cloned_from_id`; a deleted owner-only recipe with an external clone detaches
+  cleanly (no FK failure) while a _third_ user's unrelated clone of a _surviving_ recipe is untouched
+  (`owner_id <> ownerId` + id-set scope both hold); crash between row-delete and S3-sweep still converges
+  (id set captured in the claim).
+- **Verification:** only owner-only content + media removed; truly-public survives; provenance intact;
+  replay-safe.
 
 ### U3b. Erasure election: `delete | publish` per recipe, persisted on the job row + the publish warning
 
-- **Goal:** Let the user elect which private recipes to donate; persist the election durably; flip donated
-  `private → public` (BEFORE U3a's private-delete); anonymize the user's ratings by deleting the rows.
+- **Goal:** Let the user elect which owner-only recipes to donate; persist the election durably; publish
+  donated recipes — set **`visibility='public'` AND `status='published'`** (a visibility-only flip would leave
+  a donated _draft_ still owner-only, i.e. not actually donated) — BEFORE U3a's owner-only delete; anonymize
+  the user's ratings by deleting the rows.
 - **Requirements:** R4
 - **Dependencies:** U2 (erasure event / election on the message). _(U3a depends on U3b, not the reverse — the
   flip must precede the delete.)_
@@ -283,7 +304,9 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
   election — today it returns `{ownerId, requestedAt}` only); `contracts/api.openapi.yaml`; the app's
   publish-election UI copy (a **permanence warning**: "donated recipes become public and are permanently
   unremovable by you once your account is erased"); tests.
-- **Approach:** Election = a Strategy persisted on the job row (source of truth). **Ratings are ANONYMIZED by
+- **Approach:** Election = a Strategy persisted on the job row (source of truth). **Publish = set BOTH
+  `visibility='public'` and `status='published'`** on the elected recipe (draft-or-private → community-visible;
+  the permanence warning applies). **Ratings are ANONYMIZED by
   deletion, not folded:** `DELETE FROM recipe_ratings WHERE user_id = ownerId` — the CR-001 statement-level
   `recipe_ratings_aggregate_refresh()` trigger re-derives each affected recipe's `average_rating`/
   `rating_count` from the surviving rows in one firing. The two aggregate columns are trigger-only; **any
@@ -294,10 +317,11 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
   after the user's rating rows are deleted **and** under a concurrent new rating on the same recipe (re-verify
   the CR-001 `FOR UPDATE` lock discipline holds — no lost update).
 - **Test scenarios:** election persisted + survives a sweeper re-drain (redelivery with no message election
-  still completes from the row); donated recipe flips public, readable by a non-owner; a rated-others'-recipe
-  ends with **zero** surviving rows for the erased user and a re-derived average that excludes their star;
-  concurrent (erase-delete vs. new rating on the same recipe) → no lost update; missing election rejected on
-  the user path.
+  still completes from the row); a donated **draft** (and a donated private) recipe ends
+  `visibility='public' AND status='published'`, readable by a non-owner (proving the visibility-only flip would
+  have failed); a rated-others'-recipe ends with **zero** surviving rows for the erased user and a re-derived
+  average that excludes their star; concurrent (erase-delete vs. new rating on the same recipe) → no lost
+  update; missing election rejected on the user path.
 - **Verification:** election durable; donated content survives; ratings deleted with the aggregate re-derived
   (no manual write); no per-user row survives.
 
@@ -416,6 +440,18 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
   rejects an untrusted/mismatched `external_id`, not just a missing one.
 - **U3a rebuilds the most safety-critical path** (scoped delete + scoped clone-detach + per-recipe S3 sweep +
   crash-convergence). Keep Track A's mutation-tested rigor; re-verify CR-001 invariants.
+- **Two privacy axes, not one (verified against `recipes.ts`).** `recipes` has both `visibility`
+  (`public|private`) AND `status` (`draft|published`) — a `draft` is owner-only _regardless of_ visibility. The
+  erasure "keep" set is `visibility='public' AND status='published'`; scoping by `visibility` alone would
+  orphan a public-visibility draft under an erased owner, and a donate-flip that sets only `visibility` would
+  leave a donated draft un-published (still owner-only). U3a/U3b key on **both** columns. (Worktree-review
+  finding — the axis the three doc-review rounds missed.)
+- **Implementation strengtheners (worktree-verified, fold into the units):** (a) the current worker's
+  clone-detach already restricts to `owner_id <> ownerId` (other users' clones) — U3a **narrows the id-set**,
+  it must **keep that guard**, not replace it; (b) `erasure.service` already has `hasCompletedJob` +
+  `findActiveJob` — R9's job-existence guard **extends existing machinery**, lowering U4b risk; (c) the
+  identity deletion SQS message is `{identityId, userId, enqueuedAt, failureReason}` today (`sqs.service.ts`) —
+  U2 must extend that DTO + `enqueueDeletion` to carry `{event, election}`.
 - **Legal.** Tombstone-retains-name + the deferred TTL, and the erasure retention basis, need documented
   lawful bases. This plan states the engineering shape, not legal advice.
 

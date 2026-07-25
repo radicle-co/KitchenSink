@@ -19,8 +19,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
-/** Local default base origin used when `NEXT_PUBLIC_API_URL` is unset (matches `npm run dev`). */
-const DEFAULT_API_URL = 'http://localhost:3000';
+import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
 /**
  * Provide the recipe query client + service client to the subtree.
@@ -40,7 +39,7 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
     const [client] = useState(
         () =>
             new RecipeServiceClient({
-                baseUrl: process.env['NEXT_PUBLIC_API_URL'] ?? DEFAULT_API_URL,
+                baseUrl: RECIPE_SERVICE_BASE_URL,
                 token: async ({ forceRefresh } = {}) => {
                     // `getToken` comes from Clerk's client `useAuth`, so it is only defined in the browser;
                     // during SSR / pre-hydration it can be undefined. Any request issued before it is ready

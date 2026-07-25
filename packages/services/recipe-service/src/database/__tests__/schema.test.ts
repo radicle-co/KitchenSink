@@ -63,6 +63,10 @@ function expectColumns(table: Table, expected: Record<string, { type: string; no
 
     for (const [name, spec] of Object.entries(expected)) {
         const col = byName.get(name);
+        // Existence IS the check here: the set-equality assertion above already guarantees every expected
+        // name is present, but this per-column lookup pinpoints exactly WHICH column is missing (with its
+        // own labeled failure message) instead of only a whole-set diff, before the two shape assertions
+        // below dereference `col` as a `PgColumn`.
         expect(col, `${getTableName(table)}.${name} exists`).toBeDefined();
         expect(sqlType(col as PgColumn), `${getTableName(table)}.${name} sql type`).toBe(spec.type.replace(/\s+/g, ''));
         expect((col as PgColumn).notNull, `${getTableName(table)}.${name} notNull`).toBe(spec.notNull);

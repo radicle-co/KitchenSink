@@ -27,7 +27,28 @@ describe('0005_identity_reset migration', () => {
 
     it('applies migration without error', async () => {
         const sql = readFileSync(MIGRATION_PATH, 'utf-8');
-        await expect(client.query(sql)).resolves.toBeDefined();
+        // Multi-statement text (no params) is sent over the simple query protocol, so pg resolves an
+        // array of one Result per statement — verify all 16 DDL statements in the file ran, in order.
+        await expect(client.query(sql)).resolves.toEqual(
+            [
+                'CREATE', // CREATE EXTENSION citext
+                'DROP', // DROP TABLE profiles
+                'DROP', // DROP TABLE accounts
+                'DROP', // DROP TABLE users
+                'DROP', // DROP TYPE user_status
+                'CREATE', // CREATE TYPE user_status
+                'CREATE', // CREATE TABLE users
+                'CREATE', // CREATE UNIQUE INDEX users_identity_id_unique
+                'CREATE', // CREATE UNIQUE INDEX users_email_unique
+                'CREATE', // CREATE INDEX users_email_idx
+                'CREATE', // CREATE INDEX users_identity_id_idx
+                'CREATE', // CREATE TABLE accounts
+                'CREATE', // CREATE INDEX accounts_user_id_idx
+                'CREATE', // CREATE UNIQUE INDEX accounts_user_id_unique
+                'CREATE', // CREATE TABLE profiles
+                'CREATE', // CREATE UNIQUE INDEX profiles_user_id_unique
+            ].map((command) => expect.objectContaining({ command })),
+        );
     });
 
     it('users table has expected columns', async () => {
@@ -125,6 +146,8 @@ describe('0005_identity_reset migration', () => {
     });
 
     it('can insert a user with identity_id and email', async () => {
+        // Single parameterized statement resolves to one Result (not an array — contrast with the
+        // multi-statement migration above); a successful INSERT affects exactly one row.
         await expect(
             client.query(`INSERT INTO users (id, identity_id, email, name) VALUES ($1, $2, $3, $4)`, [
                 '01ARYZ6S41TSV4RRFFQ69G5FAV',
@@ -132,7 +155,7 @@ describe('0005_identity_reset migration', () => {
                 'test@example.com',
                 'Test User',
             ]),
-        ).resolves.toBeDefined();
+        ).resolves.toMatchObject({ command: 'INSERT', rowCount: 1 });
     });
 
     it('enforces unique constraint on identity_id', async () => {

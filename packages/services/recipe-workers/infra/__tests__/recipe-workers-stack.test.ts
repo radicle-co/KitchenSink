@@ -100,7 +100,11 @@ describe('RecipeWorkersStack', () => {
         expect(names).toHaveLength(6);
 
         for (const name of names) {
-            expect(functions[name]?.Properties?.VpcConfig, `${name} must be VPC-attached`).toBeDefined();
+            // Both private subnets from the VPC lookup context — not just "some VpcConfig exists".
+            expect(functions[name]?.Properties?.VpcConfig?.SubnetIds, `${name} must be VPC-attached`).toEqual([
+                'subnet-private-1',
+                'subnet-private-2',
+            ]);
             expect(functions[name]?.Properties?.VpcConfig?.SecurityGroupIds).toEqual(['sg-12345678']);
         }
     });
@@ -283,7 +287,11 @@ describe('RecipeWorkersStack — account erasure', () => {
             JSON.stringify(mapping.Properties?.EventSourceArn).includes('AccountErasureQueue'),
         );
 
-        expect(erasureMapping).toBeDefined();
+        // Confirms the mapping's source is the actual erasure queue's Arn attribute (not merely that some
+        // mapping matching the substring filter exists).
+        expect(erasureMapping?.Properties?.EventSourceArn).toEqual({
+            'Fn::GetAtt': [expect.stringMatching(/^AccountErasureQueue/), 'Arn'],
+        });
         // batchSize 1 transfers from the archive worker and then some: one message is one LEGAL request,
         // so a DLQ message must map to exactly one owner's failed erasure. The worker also loops records
         // serially and throws on the first failure, so a batch would leave later records unattempted and
@@ -316,7 +324,11 @@ describe('RecipeWorkersStack — account erasure', () => {
         });
         const serialized = JSON.stringify(sweeperPolicy);
 
-        expect(sweeperPolicy).toBeDefined();
+        // Confirms the matched policy is actually the erasure sweeper's own role policy, not merely some
+        // policy that happens to satisfy the substring filters above.
+        expect(sweeperPolicy?.Properties?.PolicyName).toEqual(
+            expect.stringMatching(/^ErasureSweeperRoleDefaultPolicy/),
+        );
         expect(serialized).not.toContain('sqs:ReceiveMessage');
         expect(serialized).not.toContain('s3:DeleteObject');
     });
@@ -354,7 +366,11 @@ describe('RecipeWorkersStack — account erasure', () => {
             (alarm) => alarm.Properties?.AlarmName === 'kitchensink-recipe-account-erasure-dlq-sandbox',
         );
 
-        expect(dlqAlarm).toBeDefined();
+        // Ties the alarm to the actual erasure DLQ's QueueName dimension — not just any alarm with this
+        // name, but one that actually watches the right queue's metric.
+        expect(dlqAlarm?.Properties?.Dimensions).toEqual([
+            { Name: 'QueueName', Value: { 'Fn::GetAtt': [expect.stringMatching(/^AccountErasureDlq/), 'QueueName'] } },
+        ]);
         expect(dlqAlarm?.Properties?.MetricName).toBe('ApproximateNumberOfMessagesVisible');
         expect(dlqAlarm?.Properties?.Threshold).toBe(0);
         expect(dlqAlarm?.Properties?.ComparisonOperator).toBe('GreaterThanThreshold');
@@ -481,7 +497,12 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         });
         const serialized = JSON.stringify(sweeperPolicy);
 
-        expect(sweeperPolicy, 'a List+Delete-on-both-buckets, no-Put policy must exist').toBeDefined();
+        // Confirms the matched policy is actually the orphan sweeper's own role policy, not merely some
+        // policy that happens to satisfy the substring filters above.
+        expect(
+            sweeperPolicy?.Properties?.PolicyName,
+            'a List+Delete-on-both-buckets, no-Put policy must exist',
+        ).toEqual(expect.stringMatching(/^ErasureOrphanSweeperRoleDefaultPolicy/));
         // Both buckets are covered (media is the presigned-PUT resurrection fix).
         expect(serialized).toContain('commise-versions-sandbox');
         expect(serialized).toContain('commise-photos-sandbox');
@@ -496,7 +517,7 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
             (fn) => fn.Properties?.Handler === 'handlers/erasure-orphan-sweeper.handler',
         );
 
-        expect(orphanFn?.Properties?.VpcConfig).toBeDefined();
+        expect(orphanFn?.Properties?.VpcConfig?.SubnetIds).toEqual(['subnet-private-1', 'subnet-private-2']);
         expect(orphanFn?.Properties?.VpcConfig?.SecurityGroupIds).toEqual(['sg-12345678']);
     });
 
@@ -559,7 +580,9 @@ describe('RecipeWorkersStack — alarm notifications', () => {
 
     it('routes EVERY alarm to the SNS topic — no alarm may page nobody (the QE-001 defect)', () => {
         const topicLogicalId = Object.keys(template.findResources('AWS::SNS::Topic'))[0];
-        expect(topicLogicalId, 'the stack must own an alarm topic').toBeDefined();
+        // The logical ID CDK derives from the `RecipeWorkersAlarmTopic` construct ID (plus its hash
+        // suffix) — not just any truthy string.
+        expect(topicLogicalId, 'the stack must own an alarm topic').toMatch(/^RecipeWorkersAlarmTopic/);
 
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
         // All six alarms: archive backlog, archive age (new), archive DLQ, erasure age, erasure DLQ,
@@ -568,7 +591,10 @@ describe('RecipeWorkersStack — alarm notifications', () => {
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
-            expect(actions, `${name} must have an AlarmActions (it currently pages nobody)`).toBeDefined();
+            // Exactly one action, referencing the stack's own alarm topic — not just "some action array".
+            expect(actions, `${name} must have an AlarmActions (it currently pages nobody)`).toEqual([
+                { Ref: topicLogicalId },
+            ]);
             expect(
                 actions?.some((action) => action.Ref === topicLogicalId),
                 `${name} must page the SNS topic`,

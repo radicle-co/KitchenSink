@@ -22,7 +22,7 @@ import type { VersionArchiveReader } from '../version-archive.storage.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import type { Principal } from '../../auth/principal.js';
 import { makeVersionRow } from '../../__fixtures__/index.js';
-import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, type RecipeSnapshot } from '@kitchensink/recipe-core';
 import type { RecipeVersionRow } from '../../database/schema/index.js';
 
 const SNAPSHOT: RecipeSnapshot = {
@@ -306,7 +306,9 @@ describe('VersionsService.restore', () => {
             noArchive(),
         );
 
-        await expect(service.restore(PRINCIPAL, RECIPE_ID, 3)).rejects.toBeDefined();
+        await expect(service.restore(PRINCIPAL, RECIPE_ID, 3)).rejects.toMatchObject({
+            code: RecipeErrorCode.NOT_OWNER,
+        });
         expect(recipes.update).not.toHaveBeenCalled();
     });
 
@@ -319,7 +321,9 @@ describe('VersionsService.restore', () => {
             noArchive(),
         );
 
-        await expect(service.restore(PRINCIPAL, RECIPE_ID, 99)).rejects.toBeDefined();
+        await expect(service.restore(PRINCIPAL, RECIPE_ID, 99)).rejects.toMatchObject({
+            code: RecipeErrorCode.RECIPE_NOT_FOUND,
+        });
         expect(dal.createSnapshot).not.toHaveBeenCalled();
     });
 
@@ -416,7 +420,9 @@ describe('VersionsService.get', () => {
             noArchive(),
         );
 
-        await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
+        await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toMatchObject({
+            code: RecipeErrorCode.RECIPE_NOT_FOUND,
+        });
     });
 
     it('falls back to the S3 archive when the version is evicted past the DB window (W8-a.7)', async () => {
@@ -452,7 +458,9 @@ describe('VersionsService.get', () => {
             noArchive(vi.fn().mockResolvedValue(undefined)),
         );
 
-        await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toBeDefined();
+        await expect(service.get(OWNER, RECIPE_ID, 99)).rejects.toMatchObject({
+            code: RecipeErrorCode.RECIPE_NOT_FOUND,
+        });
     });
 
     it('surfaces a stored deviceLabel on the version projection (W8-a.6)', async () => {

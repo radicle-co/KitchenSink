@@ -285,7 +285,10 @@ describe('handler', () => {
         // T130 relocated the write here, so an archive means the same thing before and after the cutover.
         const body = JSON.parse(first.Body) as { recipeId: string; createdBy: string; snapshot: unknown };
         expect(body).toMatchObject({ recipeId: 'rec', createdBy: 'own' });
-        expect(body.snapshot).toBeDefined();
+        // The snapshot is read verbatim off `recipe_versions.snapshot` (loadVersionSnapshot) — assert the
+        // actual value from the mocked row, not merely that some snapshot field exists. This is the exact
+        // failure the previous stub had: an envelope with no snapshot that still reported success.
+        expect(body.snapshot).toEqual({ version: 3, title: 'Soup', description: '', steps: [], ingredients: [] });
 
         expect(putInput(s3Send.mock.calls[1][0]).Key).toBe('recipes/own/rec/versions/2.json');
     });

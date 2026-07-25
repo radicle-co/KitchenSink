@@ -77,6 +77,11 @@ describe('generateThumbnail', () => {
     it('rejects a buffer that is not a decodable image (lets the caller degrade, not persist garbage)', async () => {
         const notAnImage = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]);
 
-        await expect(generateThumbnail(notAnImage, OPTIONS)).rejects.toBeDefined();
+        // sharp/libvips rejects with its own decode-failure Error (no custom error class here — this is a
+        // thin wrapper over sharp, not a domain boundary); pin the actual message so a swallowed/changed
+        // failure mode is caught.
+        await expect(generateThumbnail(notAnImage, OPTIONS)).rejects.toThrow(
+            'Input buffer contains unsupported image format',
+        );
     });
 });

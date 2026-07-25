@@ -19,6 +19,7 @@ import {
 } from '@kitchensink/recipe-core';
 import {
     BadRequestException,
+    NotFoundException,
     PayloadTooLargeException,
     UnprocessableEntityException,
     UnsupportedMediaTypeException,
@@ -241,7 +242,18 @@ describe('PhotosService.confirm', () => {
         const storage = fakeStorage({ headSize: vi.fn().mockResolvedValue(MAX_UPLOAD_BYTES) });
         const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
-        await expect(service.confirm(OWNER, RECIPE_ID, keyFor())).resolves.toBeDefined();
+        // `create` resolves the fixed boundary-sized row regardless of input, so the response is exactly
+        // `resolvePhotoView(row, CONFIG.cloudfrontUrl)` — confirm the boundary size (5 MB) was accepted
+        // by pinning the whole shaped `RecipePhoto`, not just that a value came back.
+        await expect(service.confirm(OWNER, RECIPE_ID, keyFor())).resolves.toEqual({
+            id: row.id,
+            recipeId: row.recipeId,
+            key: row.s3Key,
+            url: `${CONFIG.cloudfrontUrl}/${row.s3Key}`,
+            contentType: row.contentType,
+            order: row.sortOrder + 1,
+            createdAt: row.createdAt.toISOString(),
+        });
         expect(create).toHaveBeenCalledOnce();
     });
 
@@ -277,7 +289,8 @@ describe('PhotosService.confirm', () => {
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, 'recipes/someone-else/r/photos/x'));
 
-        expect(error).toBeDefined();
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).message).toBe('The upload key is not scoped to this recipe.');
         expect(storage.readMagicBytes).not.toHaveBeenCalled();
         expect(create).not.toHaveBeenCalled();
     });
@@ -315,7 +328,9 @@ describe('PhotosService.delete', () => {
         const del = vi.fn().mockResolvedValue(false);
         const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, fakeRecipes());
 
-        await expect(service.delete(OWNER, RECIPE_ID, 'missing')).rejects.toBeDefined();
+        await expect(service.delete(OWNER, RECIPE_ID, 'missing')).rejects.toThrow(
+            new NotFoundException(`Photo missing not found on recipe ${RECIPE_ID}.`),
+        );
     });
 });
 
@@ -474,7 +489,17 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
         const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
         // The confirm still succeeds — a thumbnail is an optimisation, not a save-blocking requirement.
-        await expect(service.confirm(OWNER, RECIPE_ID, key)).resolves.toBeDefined();
+        // `create` resolves the fixed row regardless of input, so pin the whole shaped response (not just
+        // that it resolved) — the degrade path must still return a normal, fully-formed `RecipePhoto`.
+        await expect(service.confirm(OWNER, RECIPE_ID, key)).resolves.toEqual({
+            id: row.id,
+            recipeId: row.recipeId,
+            key: row.s3Key,
+            url: `${CONFIG.cloudfrontUrl}/${row.s3Key}`,
+            contentType: row.contentType,
+            order: row.sortOrder + 1,
+            createdAt: row.createdAt.toISOString(),
+        });
 
         // No rendition stored, and NO thumbnailKey persisted → the cover falls back to the original.
         expect(putObject).not.toHaveBeenCalled();
@@ -484,12 +509,23 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
 
     it('DEGRADES when storing the thumbnail fails, without failing the confirmed upload', async () => {
         const key = keyFor();
-        const create = vi.fn().mockResolvedValue(makeRecipePhotoRow({ s3Key: key, thumbnailKey: null }));
+        const row = makeRecipePhotoRow({ s3Key: key, thumbnailKey: null });
+        const create = vi.fn().mockResolvedValue(row);
         const putObject = vi.fn().mockRejectedValue(new Error('S3 5xx'));
         const storage = fakeStorage({ getObject: vi.fn().mockResolvedValue(PNG), putObject });
         const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
 
-        await expect(service.confirm(OWNER, RECIPE_ID, key)).resolves.toBeDefined();
+        // Same degrade contract as above (this time the S3 PUT for the rendition fails, not the decode) —
+        // the confirmed upload still returns the normal shaped response.
+        await expect(service.confirm(OWNER, RECIPE_ID, key)).resolves.toEqual({
+            id: row.id,
+            recipeId: row.recipeId,
+            key: row.s3Key,
+            url: `${CONFIG.cloudfrontUrl}/${row.s3Key}`,
+            contentType: row.contentType,
+            order: row.sortOrder + 1,
+            createdAt: row.createdAt.toISOString(),
+        });
 
         const createdInput = create.mock.calls[0]?.[0] as { thumbnailKey?: string };
         expect(createdInput.thumbnailKey).toBeUndefined();

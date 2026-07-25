@@ -166,7 +166,19 @@ describe('backlog metric (T138 wiring)', () => {
         const emf = log.mock.calls
             .map((call) => String(call[0]))
             .find((line) => line.includes('PendingArchiveBacklog'));
-        expect(emf).toBeDefined();
+        // The full EMF envelope (namespace/dimension/unit) — not just that SOME matching line exists —
+        // since the T138 alarm depends on all of these matching exactly, not only the metric name.
+        expect(JSON.parse(emf as string)).toMatchObject({
+            _aws: {
+                CloudWatchMetrics: [
+                    {
+                        Namespace: 'Commise/RecipeArchive',
+                        Dimensions: [['Stage']],
+                        Metrics: [{ Name: 'PendingArchiveBacklog', Unit: 'Count' }],
+                    },
+                ],
+            },
+        });
         expect(JSON.parse(emf as string)).toMatchObject({ PendingArchiveBacklog: 250 });
         log.mockRestore();
     });
@@ -223,7 +235,19 @@ describe('oldest-pending-age metric (T138 / FR-007b-i wiring)', () => {
         const emf = log.mock.calls
             .map((call) => String(call[0]))
             .find((line) => line.includes('OldestPendingArchiveAgeSeconds'));
-        expect(emf).toBeDefined();
+        // The full EMF envelope (namespace/dimension/unit) — not just that SOME matching line exists —
+        // since the FR-007b-i age alarm depends on all of these matching exactly, not only the value.
+        expect(JSON.parse(emf as string)).toMatchObject({
+            _aws: {
+                CloudWatchMetrics: [
+                    {
+                        Namespace: 'Commise/RecipeArchive',
+                        Dimensions: [['Stage']],
+                        Metrics: [{ Name: 'OldestPendingArchiveAgeSeconds', Unit: 'Seconds' }],
+                    },
+                ],
+            },
+        });
         expect(JSON.parse(emf as string)).toMatchObject({
             Stage: expect.any(String),
             OldestPendingArchiveAgeSeconds: 7200,

@@ -210,7 +210,11 @@ describe('Account-erasure queue wiring', () => {
         const sqsPolicy = policies.find((policy) => JSON.stringify(policy).includes('sqs:SendMessage'));
         const serialized = JSON.stringify(sqsPolicy);
 
-        expect(sqsPolicy).toBeDefined();
+        // The policy resource is the task role's single default policy (it also carries rds-db:connect and
+        // S3 grants), so assert the actual SQS statement grants exactly sqs:SendMessage — not just presence.
+        expect(sqsPolicy?.Properties?.PolicyDocument?.Statement).toContainEqual(
+            expect.objectContaining({ Action: 'sqs:SendMessage', Effect: 'Allow' }),
+        );
         expect(serialized).not.toContain('sqs:ReceiveMessage');
         expect(serialized).not.toContain('sqs:DeleteMessage');
     });

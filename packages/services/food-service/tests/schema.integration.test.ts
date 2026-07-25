@@ -149,7 +149,7 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
                     `INSERT INTO food_nutrients (id, food_id, nutrient_id, amount, source_id)
                      VALUES ('fn_ok', 'food_a', 'nut_protein', '2.8', 'src_a')`,
                 ),
-            ).resolves.toBeDefined();
+            ).resolves.toMatchObject({ command: 'INSERT', rowCount: 1 });
         });
 
         it('REJECTS a food_nutrients row whose source_id belongs to a DIFFERENT food', async () => {

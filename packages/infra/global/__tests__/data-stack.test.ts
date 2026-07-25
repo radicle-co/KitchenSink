@@ -130,7 +130,11 @@ const outputByExportSuffix = (template: Template, suffix: string): { Value: any;
 
 describe('DataStack cross-stack CfnOutput exports (consumer contract)', () => {
     it.each(CONSUMED_DATA_EXPORT_SUFFIXES)('produces the %s export consumers import', (suffix) => {
-        expect(outputByExportSuffix(dataTemplate('prod'), suffix)).toBeDefined();
+        // The stack id under test is `Data-prod` and exportName is `${this.stackName}:<suffix>` (no
+        // `stackName` override in DataStackProps), so the full export name is deterministic.
+        expect(outputByExportSuffix(dataTemplate('prod'), suffix)).toMatchObject({
+            Export: { Name: `Data-prod:${suffix}` },
+        });
     });
 
     // A recent bug came from a consumer mis-handling the suffix-LESS Clerk auth-secret ARN. These two
@@ -146,7 +150,14 @@ describe('DataStack cross-stack CfnOutput exports (consumer contract)', () => {
             const output = outputByExportSuffix(template, suffix);
             const refTarget = output.Value?.Ref;
 
-            expect(refTarget).toBeDefined();
+            // The Ref's logical id is CDK's own construct-id + 8-char hash convention, so it must be a
+            // Ref to THIS suffix's specific secret construct (`DatabaseCredentialsSecret` /
+            // `MigrationPlanSecret`), not merely "some" defined value.
+            const constructIdBySuffix: Record<string, string> = {
+                DatabaseSecretArn: 'DatabaseCredentialsSecret',
+                MigrationPlanSecretArn: 'MigrationPlanSecret',
+            };
+            expect(refTarget).toMatch(new RegExp(`^${constructIdBySuffix[suffix]}[0-9A-F]{8}$`));
             expect(output.Value['Fn::Join']).toBeUndefined();
             // The Ref must point at a Secret resource this stack owns (a real complete ARN with suffix).
             expect(Object.keys(template.findResources('AWS::SecretsManager::Secret'))).toContain(refTarget);
@@ -158,7 +169,14 @@ describe('DataStack cross-stack CfnOutput exports (consumer contract)', () => {
 
         // by-name (fromSecretNameV2) form: an Fn::Join, never a Ref to an owned Secret resource.
         expect(output.Value.Ref).toBeUndefined();
-        expect(output.Value['Fn::Join']).toBeDefined();
+        expect(output.Value['Fn::Join']).toEqual([
+            '',
+            [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/identity/keys',
+            ],
+        ]);
         // Ends at the plain secret NAME — no `-<6char>` Secrets Manager suffix appended.
         expect(JSON.stringify(output.Value)).toContain(':secret:kitchensink/sandbox/identity/keys');
         expect(JSON.stringify(output.Value)).not.toMatch(/kitchensink\/sandbox\/identity\/keys-[A-Za-z0-9]{6}/);
@@ -179,12 +197,17 @@ describe('Food DB IAM auth + role/database bootstrap (feature 003, ADR-0006)', (
             String(fn.Properties.Description ?? '').includes('Bootstrap food_app role'),
         ) as any;
 
-        expect(bootstrap).toBeDefined();
+        expect(bootstrap.Properties.Description).toBe('Bootstrap food_app role + base database (sandbox)');
         // Connects as master (reads the instance credentials secret) and targets the base food database.
         expect(bootstrap.Properties.Environment.Variables.FOOD_DATABASE_NAME).toBe('kitchensink_food');
-        expect(bootstrap.Properties.Environment.Variables.DB_SECRET_ARN).toBeDefined();
-        // Must be VPC-attached to reach the PRIVATE_ISOLATED RDS.
-        expect(bootstrap.Properties.VpcConfig).toBeDefined();
+        // The env var is wired to the master credentials secret this stack owns (a Ref, not a literal ARN).
+        expect(bootstrap.Properties.Environment.Variables.DB_SECRET_ARN).toEqual({
+            Ref: expect.stringMatching(/^DatabaseCredentialsSecret[0-9A-F]{8}$/),
+        });
+        // Must be VPC-attached to reach the PRIVATE_ISOLATED RDS: the shared lambda SG plus both
+        // private-app subnets (one per AZ).
+        expect(bootstrap.Properties.VpcConfig.SecurityGroupIds).toHaveLength(1);
+        expect(bootstrap.Properties.VpcConfig.SubnetIds).toHaveLength(2);
     });
 
     it('grants the bootstrap lambda read on the master credentials secret', () => {
@@ -216,7 +239,7 @@ describe('Food DB bootstrap on prod (safety of the merge-time change)', () => {
         const bootstrap = Object.values(fns).find((fn: any) =>
             String(fn.Properties.Description ?? '').includes('Bootstrap food_app role'),
         ) as any;
-        expect(bootstrap).toBeDefined();
+        expect(bootstrap.Properties.Description).toBe('Bootstrap food_app role + base database (prod)');
         // STAGE=prod is what makes the runtime bootstrap skip the CREATEDB grant (asserted in the
         // handler unit test); per-PR databases never exist on prod.
         expect(bootstrap.Properties.Environment.Variables.STAGE).toBe('prod');

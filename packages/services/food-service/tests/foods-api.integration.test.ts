@@ -341,7 +341,14 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             expect(res.status).toBe(200);
             const body = res.body as { status: string; food?: unknown };
             expect(body.status).toBe('RESOLVED');
-            expect(body.food).toBeDefined();
+            expect(body.food).toMatchObject({
+                id,
+                status: 'RESOLVED',
+                name: 'Broccoli, raw',
+                nutrients: [{ nutrient: 'Protein', amount: 2.8, unit: 'g', basis: 'per_100g', source: 'usda' }],
+                portions: [],
+                provenance: { name: 'usda' },
+            });
         });
 
         it('returns the status (no food) for a PENDING food and 404 for an unknown id', async () => {

@@ -174,7 +174,8 @@ describe('useRecipePhotoUploadQueue — retry', () => {
         });
         await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('failed'));
         const fileId = result.current.queue.items[0]?.fileId;
-        expect(fileId).toBeDefined();
+        // Single file enqueued into a fresh queue — the reducer's monotonic counter starts at 1.
+        expect(fileId).toBe(1);
 
         presign.mockClear();
         act(() => {

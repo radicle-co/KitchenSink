@@ -140,7 +140,10 @@ describe('erasure-sweeper handler — the re-drain path', () => {
         await handler();
 
         const claim = executedSql(db.execute).find((text) => text.includes('owner_id') && text.includes('SELECT'));
-        expect(claim).toBeDefined();
+        // Exactly one such claim statement — not zero (missing), not duplicated.
+        expect(
+            executedSql(db.execute).filter((text) => text.includes('owner_id') && text.includes('SELECT')),
+        ).toHaveLength(1);
         expect(claim).toContain('queued');
         expect(claim).toContain('running');
         expect(claim).toContain('interval');
@@ -185,7 +188,8 @@ describe('erasure-sweeper handler — the give-up path (who writes `failed`)', (
         // 202 and enqueues a retry (data-model.md). If nothing ever writes it, a permanently-broken
         // erasure is a 202 pointing at a job that will never finish, and the user cannot re-ask.
         const update = executedSql(db.execute).find((text) => text.includes('failed'));
-        expect(update).toBeDefined();
+        // Exactly one give-up UPDATE — not zero (missing), not duplicated.
+        expect(executedSql(db.execute).filter((text) => text.includes('failed'))).toHaveLength(1);
         expect(update).toContain('job-1');
         expect(sqsSend).not.toHaveBeenCalled();
     });
@@ -215,6 +219,9 @@ describe('erasure-sweeper handler — the give-up path (who writes `failed`)', (
 
         await handler();
 
+        // This test's whole point is WHETHER the give-up UPDATE fired at all (attempts exhausted AND past
+        // the age floor) — its exact SQL shape is pinned separately by the "guards the give-up UPDATE" and
+        // "records why it gave up" tests above, so existence here is the intended check.
         expect(executedSql(db.execute).find((text) => text.includes('failed'))).toBeDefined();
         expect(sqsSend).not.toHaveBeenCalled();
     });
@@ -308,7 +315,19 @@ describe('oldest-job-age metric (the erasure alarm signal)', () => {
         const emf = log.mock.calls
             .map((call) => String(call[0]))
             .find((line) => line.includes('OldestErasureJobAgeSeconds'));
-        expect(emf).toBeDefined();
+        // The full EMF envelope (namespace/dimension/unit) — not just that SOME matching line exists —
+        // since the erasure age alarm depends on all of these matching exactly, not only the value.
+        expect(JSON.parse(emf as string)).toMatchObject({
+            _aws: {
+                CloudWatchMetrics: [
+                    {
+                        Namespace: 'Commise/RecipeErasure',
+                        Dimensions: [['Stage']],
+                        Metrics: [{ Name: 'OldestErasureJobAgeSeconds', Unit: 'Seconds' }],
+                    },
+                ],
+            },
+        });
         expect(JSON.parse(emf as string)).toMatchObject({
             OldestErasureJobAgeSeconds: 7200,
             Stage: 'sandbox',
@@ -339,7 +358,11 @@ describe('oldest-job-age metric (the erasure alarm signal)', () => {
         await handler();
 
         const ageQuery = executedSql(db.execute).find((text) => text.includes('age_seconds'));
-        expect(ageQuery).toBeDefined();
+        // Exactly one age-metric query — not zero (missing), not duplicated. Excludes the claim query,
+        // which also selects `age_seconds` per row (line 128) but is distinguishable by its `LIMIT`.
+        expect(
+            executedSql(db.execute).filter((text) => text.includes('age_seconds') && !text.includes('LIMIT')),
+        ).toHaveLength(1);
         expect(ageQuery).not.toContain('interval');
         expect(ageQuery).not.toContain('LIMIT');
     });

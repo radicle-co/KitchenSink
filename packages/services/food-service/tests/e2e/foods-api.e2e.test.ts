@@ -306,7 +306,8 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             // status transitioned PENDING → RESOLVED and now carries the golden record.
             const status = await call('GET', `/v1/foods/${id}/status`, { token: userToken });
             expect((status.body as { status: string; food?: unknown }).status).toBe('RESOLVED');
-            expect((status.body as { food?: unknown }).food).toBeDefined();
+            // Same underlying record as the GET above — no mutation happened in between.
+            expect((status.body as { food?: unknown }).food).toEqual(food);
 
             // FoodFetchCompleted emitted for the RESOLVED disposition.
             const completed = eventsFor(id, 'FoodFetchCompleted');

@@ -142,8 +142,9 @@ describe('UsersService', () => {
             name: 'Test User',
         });
 
-        expect(result.id).toBeDefined();
-        expect(result.created).toBeDefined();
+        expect(result.id).toBe('01HZZZZZZZZZZZZZZZZZZZZZZU');
+        // createdAt === updatedAt on the returned row signals a first-time insert (see UsersService.upsertUser).
+        expect(result.created).toBe(true);
     });
 
     it('deleteUserMe enqueues SQS deletion with clerkUserId', async () => {

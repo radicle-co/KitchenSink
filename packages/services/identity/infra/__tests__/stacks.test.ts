@@ -153,7 +153,7 @@ describe('Alarms notify via SNS (A4)', () => {
         expect(ids.length).toBeGreaterThanOrEqual(3);
         for (const id of ids) {
             const actions = (alarms[id] as any).Properties?.AlarmActions;
-            expect(actions, `${id} has no AlarmActions`).toBeDefined();
+            expect(Array.isArray(actions), `${id} has no AlarmActions`).toBe(true);
             expect(actions.length).toBeGreaterThan(0);
         }
     });

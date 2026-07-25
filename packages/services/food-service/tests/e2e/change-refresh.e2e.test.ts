@@ -323,9 +323,28 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
         ]);
         const { id, status } = await addAndDrain('avocado');
         expect(status).toBe('UNRESOLVED');
-        expect(
-            (await call('GET', `/v1/foods/${id}/candidates`, { token: userToken }).then((r) => r.body)) as unknown,
-        ).toBeDefined();
+        const beforeExpire = (await call('GET', `/v1/foods/${id}/candidates`, { token: userToken })).body as {
+            id: string;
+            candidates: { source: string; externalKey: string; name: string; summary: string | null }[];
+        };
+        expect(beforeExpire.id).toBe(id);
+        expect(beforeExpire.candidates).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    source: 'usda',
+                    externalKey: 'ek-avo-raw',
+                    name: 'Avocado, raw',
+                    summary: null,
+                }),
+                expect.objectContaining({
+                    source: 'usda',
+                    externalKey: 'ek-avo-cal',
+                    name: 'Avocado, California',
+                    summary: null,
+                }),
+            ]),
+        );
+        expect(beforeExpire.candidates).toHaveLength(2);
 
         // Age the candidate set past the 30-day TTL.
         await pool.query(`UPDATE food_candidates SET created_at = now() - interval '40 days' WHERE food_id = $1`, [id]);

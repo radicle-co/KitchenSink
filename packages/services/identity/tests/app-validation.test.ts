@@ -44,7 +44,7 @@ describe('S-I1 — global DTO validation', () => {
         it('registers a ValidationPipe under the APP_PIPE token', () => {
             const binding = providers.find((p) => p.provide === APP_PIPE);
 
-            expect(binding).toBeDefined();
+            expect(binding).toMatchObject({ provide: APP_PIPE });
             expect(binding?.useValue).toBeInstanceOf(ValidationPipe);
         });
 

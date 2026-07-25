@@ -801,8 +801,14 @@ describe('RecipesService.update', () => {
         const error = await catchError(newService(dal).update(principal(), 'r-1', { expectedVersion: 3, title: 'x' }));
 
         if (isRecipeDomainError(error)) {
-            const details = error.details as { server: unknown; base?: unknown };
-            expect(details.server).toBeDefined();
+            const details = error.details as {
+                server: { versionNumber: number; snapshot: { title: string } };
+                base?: unknown;
+            };
+            // `server` is still assembled from the coherent `current` read even with no retained
+            // `baseVersion` row — it must reflect the CURRENT winning version (5), not be merely present.
+            expect(details.server.versionNumber).toBe(5);
+            expect(details.server.snapshot.title).toBe(current.recipe.title);
             expect(details.base).toBeUndefined();
         }
     });

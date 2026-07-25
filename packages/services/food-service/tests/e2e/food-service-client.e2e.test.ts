@@ -167,7 +167,8 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
 
         const status = await client.getStatus(add.id);
         expect(status.status).toBe('RESOLVED');
-        expect(status.food).toBeDefined();
+        expect(status.food?.id).toBe(add.id);
+        expect(status.food?.nutrients[0]?.nutrient).toBe('Protein');
     });
 
     it('search returns ranked local hits (typed, never a source call)', async () => {

@@ -14,6 +14,7 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 
 import { GlobalStack } from '../lib/platform/global-stack.js';
+import { SandboxSchedulerStack } from '../lib/platform/sandbox-scheduler-stack.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 const domainName = 'commise.app';
@@ -92,7 +93,7 @@ describe('GlobalStack sandbox-scheduler guard (ADR-0007 / no prod diff)', () => 
     it('creates the SandboxSchedulerStack (2 schedules) ONLY for the sandbox stage', () => {
         const sandbox = makeGlobal('sandbox');
 
-        expect(sandbox.sandboxScheduler).toBeDefined();
+        expect(sandbox.sandboxScheduler).toBeInstanceOf(SandboxSchedulerStack);
         Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 2);
     });
 

@@ -82,7 +82,8 @@ describe('CostGuardrailsStack (ADR-0008)', () => {
         const budget = Object.values(guardrailsTemplate().findResources('AWS::Budgets::Budget'))[0] as any;
         const notifications = budget.Properties.Budget ? budget.Properties.NotificationsWithSubscribers : undefined;
 
-        expect(notifications).toBeDefined();
+        // Exactly the two notifications wired in the stack (ACTUAL 80% + FORECASTED 100%) — no more, no fewer.
+        expect(notifications).toHaveLength(2);
 
         const shapes = (notifications as any[]).map((entry) => ({
             type: entry.Notification.NotificationType,

@@ -101,7 +101,17 @@ describe('AuthMiddleware', () => {
         await middleware.use(req, res, next);
 
         expect(verifySpy).toHaveBeenCalledExactlyOnceWith('good.session.token');
-        expect(req.principal).toBeDefined();
+        expect(req.principal).toEqual({
+            userId: claims.userId,
+            sub: claims.sub,
+            azp: claims.azp,
+            email: claims.email,
+            firstName: claims.firstName,
+            lastName: claims.lastName,
+            picture: claims.picture,
+            scopes: claims.scopes,
+            permissions: claims.permissions,
+        });
         // The owner key is the app-user ULID from `external_id` — NOT the Clerk sub.
         expect(req.principal?.userId).toBe('01HZY0OWNERULID0000000000');
         expect(req.principal?.userId).not.toBe(claims.sub);

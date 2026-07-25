@@ -54,6 +54,10 @@ describe('recipe seed data', () => {
 
         for (const recipeId of SEED_COLLECTION.recipeIds) {
             const recipe = byId.get(recipeId);
+            // Existence IS the check the test name promises ("references only real seed recipes"): a
+            // dangling membership id would make this a lookup miss. Asserted explicitly (rather than
+            // relying on the `ownerId` mismatch below) so a dangling reference fails with a clear
+            // "recipe should exist" message instead of an opaque `undefined !== ownerId` diff.
             expect(recipe).toBeDefined();
             expect(recipe?.ownerId).toBe(SEED_COLLECTION.ownerId);
         }

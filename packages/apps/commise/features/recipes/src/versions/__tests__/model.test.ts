@@ -561,7 +561,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
         // exactly what {@link RecipeIngredient.userCalories} is for — this test MUST fail in that case.
         const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: 0 })], preview, 'en');
 
-        expect(line).toBeDefined();
+        expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta', calories: '0 cal' });
         expect('calories' in (line as object)).toBe(true);
         expect(line?.calories).toBe('0 cal');
     });
@@ -569,7 +569,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
     it('omits the calorie chip entirely when the ingredient has no userCalories', () => {
         const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: undefined })], preview, 'en');
 
-        expect(line).toBeDefined();
+        expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta' });
         expect('calories' in (line as object)).toBe(false);
         expect(line?.calories).toBeUndefined();
     });

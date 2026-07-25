@@ -25,7 +25,7 @@ describe('LocaleProvider / useLocale / useMessages', () => {
     it('defaults to the default locale with no provider', () => {
         render(<ShowLocale />);
 
-        expect(screen.getByText('en')).toBeDefined();
+        expect(screen.getByText('en').textContent).toBe('en');
     });
 
     it('exposes the provided locale', () => {
@@ -35,7 +35,7 @@ describe('LocaleProvider / useLocale / useMessages', () => {
             </LocaleProvider>,
         );
 
-        expect(screen.getByText('es')).toBeDefined();
+        expect(screen.getByText('es').textContent).toBe('es');
     });
 
     it('useMessages resolves the active locale', () => {
@@ -45,7 +45,7 @@ describe('LocaleProvider / useLocale / useMessages', () => {
             </LocaleProvider>,
         );
 
-        expect(screen.getByText('Hola')).toBeDefined();
+        expect(screen.getByText('Hola').textContent).toBe('Hola');
     });
 
     it('useMessages falls back to en for an unshipped locale', () => {
@@ -55,6 +55,6 @@ describe('LocaleProvider / useLocale / useMessages', () => {
             </LocaleProvider>,
         );
 
-        expect(screen.getByText('Hello')).toBeDefined();
+        expect(screen.getByText('Hello').textContent).toBe('Hello');
     });
 });

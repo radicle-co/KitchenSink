@@ -20,10 +20,11 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
+import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
-import { isRecipeDomainError } from '../../recipes/recipe.error.js';
+import { isRecipeDomainError, RecipeDomainError } from '../../recipes/recipe.error.js';
 import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
 import { makeCollectionRow, makeMembershipRow } from '../__fixtures__/collections.fixtures.js';
 
@@ -246,7 +247,10 @@ describe('CollectionsService.pullFromSource', () => {
         wireFindById(dal);
         const service = makeService(dal);
 
-        await expect(service.pullFromSource('someone-else', CLONE_ID)).rejects.toBeDefined();
+        // Ownership gate: `requireOwned` throws NOT_OWNER (403) for a caller who isn't the clone's owner.
+        await expect(service.pullFromSource('someone-else', CLONE_ID)).rejects.toMatchObject({
+            code: RecipeErrorCode.NOT_OWNER,
+        });
         expect(dal.addRecipes).not.toHaveBeenCalled();
     });
 
@@ -270,7 +274,10 @@ describe('CollectionsService.pullFromSource', () => {
             (e: unknown) => e,
         );
 
-        expect(error).toBeDefined();
+        // The vanished source is treated as "nothing to pull from" — same COLLECTION_NOT_CLONED (400) as
+        // a clone that was never sourced, per `resolvePullContext`.
+        expect(error).toBeInstanceOf(RecipeDomainError);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.COLLECTION_NOT_CLONED);
         expect(dal.addRecipes).not.toHaveBeenCalled();
     });
 });
@@ -343,7 +350,10 @@ describe('CollectionsService.pullFromSource — drift guard (W8-a.8 / decision 7
         const service = makeService(dal);
 
         const stalePreview = { added: ['rec-a'], removed: [], unchanged: [] };
-        await expect(service.pullFromSource(CLONER, CLONE_ID, stalePreview)).rejects.toBeDefined();
+        // Source drift (gained rec-b) also 409s PULL_DRIFT, mirroring the caller-side-drift case above.
+        await expect(service.pullFromSource(CLONER, CLONE_ID, stalePreview)).rejects.toMatchObject({
+            code: RecipeErrorCode.PULL_DRIFT,
+        });
         expect(dal.addRecipes).not.toHaveBeenCalled();
         // A drift 409 must not advance the last-pulled stamp either.
         expect(dal.touchLastPulled).not.toHaveBeenCalled();

@@ -54,7 +54,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const candidate = await adapter.fetchByKey('171688');
         const protein = candidate.nutrients.find((n) => n.name === 'Protein');
 
-        expect(protein).toBeDefined();
+        expect(protein).toMatchObject({ code: null, name: 'Protein', unit: 'g' });
         expect(protein?.amount).toBe('2.82');
         expect(protein?.basis).toBe('per_100g');
     });
@@ -171,7 +171,7 @@ describe('UsdaSourceAdapter.fetchByKey — branded labelNutrients (per-serving p
         const candidate = await adapter.fetchByKey('555001');
         const protein = candidate.nutrients.find((nutrient) => nutrient.name === 'Protein');
 
-        expect(protein).toBeDefined();
+        expect(protein).toMatchObject({ code: null, name: 'Protein', unit: 'g' });
         expect(protein?.basis).toBe('per_serving');
         expect(protein?.amount).toBe('8');
     });

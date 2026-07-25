@@ -273,7 +273,8 @@ describe('eraseRecipeRows', () => {
         // it. Remove this statement and a user's ratings on others' recipes silently outlive their erasure.
         const del = control.statements().find((s) => /delete from recipe_ratings/i.test(s.text));
 
-        expect(del).toBeDefined();
+        // Exactly one such statement — not zero (missing), not duplicated.
+        expect(control.statements().filter((s) => /delete from recipe_ratings/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from recipe_ratings where user_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
     });
@@ -302,7 +303,8 @@ describe('eraseRecipeRows', () => {
 
         const detach = control.statements().find((s) => /cloned_from_id = null/i.test(s.text));
 
-        expect(detach).toBeDefined();
+        // Exactly one detach statement — not zero (missing), not duplicated.
+        expect(control.statements().filter((s) => /cloned_from_id = null/i.test(s.text))).toHaveLength(1);
         // Scoped to the erasing owner's recipes...
         expect(detach?.text).toMatch(/cloned_from_id in \(select id from recipes where owner_id = \$\d\)/i);
         // ...and explicitly NOT to the owner's own clones: those are deleted by the same statement that
@@ -319,7 +321,8 @@ describe('eraseRecipeRows', () => {
 
         const del = control.statements().find((s) => /delete from recipes/i.test(s.text));
 
-        expect(del).toBeDefined();
+        // Exactly one such statement — not zero (missing), not duplicated.
+        expect(control.statements().filter((s) => /delete from recipes/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from recipes where owner_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
         // THE assertion that stops the read-path habit leaking in here. The erasure worker is an explicit
@@ -336,7 +339,8 @@ describe('eraseRecipeRows', () => {
 
         const del = control.statements().find((s) => /delete from collections/i.test(s.text));
 
-        expect(del).toBeDefined();
+        // Exactly one such statement — not zero (missing), not duplicated.
+        expect(control.statements().filter((s) => /delete from collections/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from collections where owner_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
     });
@@ -350,7 +354,8 @@ describe('eraseRecipeRows', () => {
         // omit this and an erased user's display name survives right-to-erasure in the read model.
         const del = control.statements().find((s) => /delete from author_handles/i.test(s.text));
 
-        expect(del).toBeDefined();
+        // Exactly one such statement — not zero (missing), not duplicated.
+        expect(control.statements().filter((s) => /delete from author_handles/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from author_handles where user_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
     });

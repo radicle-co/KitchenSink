@@ -110,7 +110,7 @@ describe('GlobalStack scheduler guard (ADR-0007 / no prod diff)', () => {
     it('creates the SandboxSchedulerStack (with its two schedules) ONLY for the sandbox stage', () => {
         const sandbox = makeGlobal('sandbox');
 
-        expect(sandbox.sandboxScheduler).toBeDefined();
+        expect(sandbox.sandboxScheduler).toBeInstanceOf(SandboxSchedulerStack);
         Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 2);
     });
 

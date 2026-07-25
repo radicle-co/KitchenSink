@@ -34,8 +34,11 @@ import { logger } from '../common/logger.js';
  *   1. Claim the job (`queued`/`running` → `running`) BEFORE any destructive work, so an attempt that
  *      dies mid-erasure is still counted.
  *   2. Delete the DB rows in ONE transaction — the reachable copy of the personal data goes first.
- *   3. Sweep the owner's prefix in the media bucket, then the archive bucket.
- *   4. Only then mark the job `completed`.
+ *   3. Sweep the owner's prefix in the media bucket, then the archive bucket — ALL real data deletion,
+ *      across both systems the owner's PII lives in, completes before anything CDN-related runs.
+ *   4. Only THEN purge the CloudFront edge cache (best-effort hygiene, never a deletion step — see the
+ *      ordering note on the `cdn.invalidate` call in {@link processRecord}).
+ *   5. Only then mark the job `completed`.
  *
  * Crash between (2) and (3) and the objects are briefly orphaned, but nothing is lost and nothing is
  * falsely reported: the job is still `running`, SQS redelivers, and the sweep converges because it is
@@ -457,6 +460,7 @@ const processRecord = async (record: SQSRecord, buckets: ErasureBuckets, cdn: Cd
         await eraseRecipeRows(db, ownerId);
 
         const deletedMedia = await eraseRecipeObjects(s3, buckets.media, ownerId);
+        const deletedArchives = await eraseRecipeObjects(s3, buckets.archive, ownerId);
 
         // HAZ-051/067/039: purge the CloudFront edge cache for the owner's ENTIRE media prefix so a stale
         // edge object cannot keep serving an erased user's photos after the S3 origin copies are gone —
@@ -465,22 +469,32 @@ const processRecord = async (record: SQSRecord, buckets: ErasureBuckets, cdn: Cd
         // SAME prefix `eraseRecipeObjects` just swept, not one path per object (cheaper and no less
         // correct). The archive bucket is NOT invalidated — version snapshots are never served via CDN.
         //
-        // Issued on EVERY attempt, not gated on `deletedMedia > 0`: a retry (SQS redelivery after an
-        // earlier attempt died between the media sweep and this call) must still submit the invalidation
-        // even though the media sweep now finds nothing left to delete — the sweep is idempotent over an
-        // empty prefix, and a wildcard invalidation costs the same ONE path regardless of retry count, so
-        // gating it here would silently let a genuinely-failed-and-retried invalidation never get resent.
+        // Issued LAST, strictly AFTER both S3 sweeps — a CDN purge is a best-effort edge-cache hygiene
+        // step, not data deletion, and it must never GATE data deletion. The archive bucket holds full
+        // recipe-version snapshots (complete user PII) and has to be swept unconditionally. Putting the
+        // invalidation between the two sweeps — the prior, incorrect order — meant a misconfigured or
+        // cross-account distribution id (an `AccessDenied` that fails identically on every retry) would
+        // throw before the archive sweep ever ran, permanently orphaning that bucket's PII on every
+        // attempt up to the DLQ: a CDN misconfiguration turning into a GDPR-erasure failure. Ordering it
+        // last means a CDN failure leaves only the bounded, self-healing edge-cache residual (the object's
+        // TTL) — every real copy of the user's data is already gone by the time this call is reached.
         //
-        // A failure here throws — exactly like a failed `eraseRecipeObjects` call — and is caught below,
-        // recorded as a non-terminal error, and rethrown for SQS to redeliver. That is the actual,
-        // implemented mitigation: the job can never be marked `completed` while the CDN purge REQUEST has
-        // not been successfully submitted. It stops short of confirming the invalidation has PROPAGATED to
-        // every edge location (CreateInvalidation is asynchronous and can take minutes; polling it to
-        // completion inside a single Lambda invocation is not how any other step here works either) — see
-        // hazard-analysis.md's updated HAZ-051/067 mitigation text for the honest residual this leaves.
+        // Issued on EVERY attempt, not gated on `deletedMedia > 0`: a retry (SQS redelivery after an
+        // earlier attempt died before this call) must still submit the invalidation even though the media
+        // sweep now finds nothing left to delete — the sweep is idempotent over an empty prefix, and a
+        // wildcard invalidation costs the same ONE path regardless of retry count, so gating it here would
+        // silently let a genuinely-failed-and-retried invalidation never get resent.
+        //
+        // A failure here still throws — exactly like a failed `eraseRecipeObjects` call — and is caught
+        // below, recorded as a non-terminal error, and rethrown for SQS to redeliver. The job can never be
+        // marked `completed` while the CDN purge REQUEST has not been successfully submitted, but — unlike
+        // before this fix — that requirement no longer holds the ACTUAL data deletion hostage: both S3
+        // sweeps have already run by the time this can fail. This stops short of confirming the
+        // invalidation has PROPAGATED to every edge location (CreateInvalidation is asynchronous and can
+        // take minutes; polling it to completion inside a single Lambda invocation is not how any other
+        // step here works either) — see hazard-analysis.md's HAZ-051/067 mitigation text for the honest
+        // residual this leaves.
         await cdn.invalidate([cdnOwnerPrefixInvalidationPath(ownerId)]);
-
-        const deletedArchives = await eraseRecipeObjects(s3, buckets.archive, ownerId);
 
         if (job) {
             await markErasureJobCompleted(db, job.id);

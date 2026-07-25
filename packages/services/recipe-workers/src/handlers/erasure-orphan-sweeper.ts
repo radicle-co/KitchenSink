@@ -1,8 +1,10 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { cdnOwnerPrefixInvalidationPath } from '@kitchensink/recipe-core';
 import { sql } from 'drizzle-orm';
 
 import { requireEnv } from '../common/config.js';
+import { createCloudFrontInvalidation } from '../common/cdn-invalidation.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
 import { emitMetric } from '../common/metrics.js';
@@ -31,6 +33,19 @@ import { eraseRecipeObjects } from './account-erasure-worker.js';
  * before erasure can be redeemed AFTER the worker's synchronous media sweep, landing an object under an
  * erased owner's media prefix. (The prior assumption that "nothing writes fresh media for a completed
  * owner" was false — the presigned URL is exactly such a writer.) So this sweeper reconciles both.
+ *
+ * **CDN invalidation of reconciled media (Finding 2 / HAZ-051/067).** Deleting a media orphan from S3 is
+ * not enough on its own: recipe media is served UNSIGNED/public via CloudFront, so a late-redeemed
+ * presigned PUT that got cached at an edge location before this sweeper deleted its origin copy would
+ * otherwise keep being served from that edge until the object's TTL expires — the exact residual the main
+ * erasure worker's invalidation closes for the synchronous path (`account-erasure-worker.ts`). So whenever
+ * this sweeper actually deletes something from the MEDIA bucket for an owner, it also issues ONE CDN
+ * invalidation for that owner's whole media prefix via the same `CdnInvalidationPort` / owner-prefix
+ * helper (`cdnOwnerPrefixInvalidationPath`) the main worker uses — never for the archive bucket, which is
+ * never served via CDN, and never unconditionally (see the inline note on the call site for why this
+ * sweeper's repeated-tick shape makes the main worker's "always invalidate" posture the wrong default
+ * here). A CDN failure here is logged and swallowed, not rethrown: this is a scheduled reconciliation tick
+ * with no job row to keep non-terminal, so one owner's CDN hiccup must never abort another owner's sweep.
  *
  * **Why a bounded recent look-back, not "all completed owners".** A racing PUT can only land within one
  * archive-worker invocation of the erasure's sweep — the worker loads the row, checks erasure, and PUTs
@@ -135,17 +150,24 @@ export function emitOrphansDeletedMetric(stage: string, orphansDeleted: number):
 /**
  * Reconcile BOTH object buckets against recently-`completed` erasure owners, deleting any orphan a late
  * write left behind — a version-archive PUT in the archive bucket, or a photo-upload presigned PUT in the
- * media bucket.
+ * media bucket — and, for any media orphan actually deleted, invalidating that owner's CDN prefix.
  *
  * @throws {MissingConfigError} When `RECIPE_ARCHIVE_BUCKET` or `RECIPE_MEDIA_BUCKET` is unset —
  *   reconciling "no bucket" would report a clean tick while every orphan in it survived.
- * @sideEffect Reads `account_erasure_jobs`, lists+deletes S3 objects, emits one EMF line.
+ * @sideEffect Reads `account_erasure_jobs`, lists+deletes S3 objects, issues CloudFront invalidations for
+ *   reconciled media orphans (non-blocking on failure), emits one EMF line.
  */
 export const handler = async (): Promise<void> => {
     // Both buckets are required up front: an unset media bucket would silently leave every media orphan
     // in place while the tick reported clean — the exact false-erasure this sweeper exists to prevent.
-    const buckets = [requireEnv('RECIPE_ARCHIVE_BUCKET'), requireEnv('RECIPE_MEDIA_BUCKET')];
+    const archiveBucket = requireEnv('RECIPE_ARCHIVE_BUCKET');
+    const mediaBucket = requireEnv('RECIPE_MEDIA_BUCKET');
+    const buckets = [archiveBucket, mediaBucket];
     const db = getRecipeDb();
+    // Built per invocation, mirroring `account-erasure-worker.ts`'s handler (the same reasoning applies
+    // here — the distribution id is optional and stage-specific): see `common/cdn-invalidation.ts` for the
+    // unset-id no-op contract.
+    const cdn = createCloudFrontInvalidation({ distributionId: process.env['CLOUDFRONT_DISTRIBUTION_ID'] });
 
     const owners = await readRecentlyCompletedOwners(db);
 
@@ -162,7 +184,41 @@ export const handler = async (): Promise<void> => {
                 // than re-implementing it: it IS the same operation, keyed under the same `ownerMediaPrefix`
                 // (ARCH-BE-3) in both buckets, and it already surfaces per-key S3 delete failures instead of
                 // papering over them.
-                orphansDeleted += await eraseRecipeObjects(s3, bucket, ownerId);
+                const deleted = await eraseRecipeObjects(s3, bucket, ownerId);
+
+                orphansDeleted += deleted;
+
+                // HAZ-051/067 (Finding 2). A late-landing MEDIA orphan is exactly the resurrection this
+                // sweeper exists to close, and media is served UNSIGNED/public via CDN (photos.module.ts)
+                // — so deleting the S3 origin copy alone leaves a stale edge copy reachable until its TTL
+                // expires, the SAME residual the main erasure worker's invalidation closes for the
+                // synchronous path. Gated two ways, deliberately narrower than the main worker's call:
+                //   - Bucket: ONLY the media bucket — the archive bucket is never served via CDN, so
+                //     invalidating for an archive-only orphan would be a no-op purge of nothing.
+                //   - Count: ONLY when this sweep actually deleted something (`deleted > 0`), unlike the
+                //     main worker's unconditional per-attempt call. The main worker invalidates once per
+                //     erasure attempt; THIS sweeper re-lists the SAME completed owner's prefix on every
+                //     tick for up to `COMPLETED_LOOKBACK` (24h), so an unconditional invalidation would
+                //     fire one CloudFront request per owner per tick even when nothing was ever found —
+                //     the main worker's "always invalidate, retries are rare" reasoning does not carry
+                //     over to a sweep that repeats routinely.
+                if (bucket === mediaBucket && deleted > 0) {
+                    try {
+                        await cdn.invalidate([cdnOwnerPrefixInvalidationPath(ownerId)]);
+                    } catch (cdnError) {
+                        // Non-blocking — mirroring the S3-sweep catch this sits inside. A scheduled
+                        // reconciliation tick has no job row to keep non-terminal the way the erasure
+                        // worker does, so one owner's CDN failure must not strand another owner's — or
+                        // even this owner's own — reconciliation. The object is already gone from S3 by
+                        // this point; the residual left behind is only the bounded, TTL-limited stale edge
+                        // copy, never a repeat of the underlying data-erasure failure.
+                        logger.error('erasure-orphan-sweeper: could not invalidate CDN for a reconciled owner', {
+                            ownerId,
+                            bucket,
+                            error: cdnError instanceof Error ? cdnError.message : String(cdnError),
+                        });
+                    }
+                }
             } catch (error) {
                 logger.error('erasure-orphan-sweeper: could not reconcile a completed owner’s prefix', {
                     ownerId,

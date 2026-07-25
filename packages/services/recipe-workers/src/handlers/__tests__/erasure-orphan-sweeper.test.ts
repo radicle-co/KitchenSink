@@ -46,6 +46,21 @@ vi.mock('@aws-sdk/client-s3', () => ({
 const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
 
+// The module-level CDN adapter factory (HAZ-051/067, Finding 2) resolves to this shared mock, mirroring
+// how `account-erasure-worker.test.ts` mocks the same `common/cdn-invalidation.js` boundary — the
+// adapter's own real-vs-no-op branching is unit-tested in `common/__tests__/cdn-invalidation.test.ts`;
+// this suite only needs to pin how the SWEEPER calls the port it is handed.
+const { cdnInvalidate, createCloudFrontInvalidationMock } = vi.hoisted(() => ({
+    cdnInvalidate: vi.fn().mockResolvedValue(undefined),
+    createCloudFrontInvalidationMock: vi.fn(),
+}));
+
+vi.mock('../../common/cdn-invalidation.js', () => ({
+    createCloudFrontInvalidation: createCloudFrontInvalidationMock.mockImplementation(() => ({
+        invalidate: cdnInvalidate,
+    })),
+}));
+
 import { getRecipeDb as getRecipeDbMock } from '../../common/db.js';
 import { handler, readRecentlyCompletedOwners, SWEEP_BATCH_SIZE } from '../erasure-orphan-sweeper.js';
 
@@ -235,6 +250,80 @@ describe('erasure-orphan-sweeper handler — the reconciliation path (both bucke
         vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1']) as never);
 
         await expect(handler()).rejects.toThrow(/RECIPE_MEDIA_BUCKET/);
+    });
+});
+
+describe('CDN invalidation of orphaned media (Finding 2 / HAZ-051/067)', () => {
+    it('invalidates the owner’s CDN prefix after deleting a MEDIA orphan', async () => {
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1']) as never);
+        s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/`]));
+
+        await handler();
+
+        // The SAME owner-prefix helper the main erasure worker invalidates by
+        // (`cdnOwnerPrefixInvalidationPath`) — one wildcard path over the owner's whole media prefix.
+        expect(cdnInvalidate).toHaveBeenCalledTimes(1);
+        expect(cdnInvalidate).toHaveBeenCalledWith(['/recipes/own-1/*']);
+    });
+
+    it('does NOT invalidate CDN when only the ARCHIVE bucket had an orphan — archives are never served via CDN', async () => {
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1']) as never);
+        s3WithOrphansAt(new Set([`${ARCHIVE}|recipes/own-1/`]));
+
+        await handler();
+
+        expect(cdnInvalidate).not.toHaveBeenCalled();
+    });
+
+    it('does NOT invalidate CDN on a clean tick — nothing deleted in either bucket', async () => {
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1']) as never);
+        s3WithOrphansAt(new Set());
+
+        await handler();
+
+        expect(cdnInvalidate).not.toHaveBeenCalled();
+    });
+
+    it('invalidates each owner’s own prefix independently across a multi-owner batch', async () => {
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1', 'own-2']) as never);
+        s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/`, `${MEDIA}|recipes/own-2/`]));
+
+        await handler();
+
+        expect(cdnInvalidate).toHaveBeenCalledTimes(2);
+        expect(cdnInvalidate).toHaveBeenCalledWith(['/recipes/own-1/*']);
+        expect(cdnInvalidate).toHaveBeenCalledWith(['/recipes/own-2/*']);
+    });
+
+    it('builds the CDN port from CLOUDFRONT_DISTRIBUTION_ID — the same config the adapter itself gates on', async () => {
+        process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E1234567890';
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1']) as never);
+        s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/`]));
+
+        try {
+            await handler();
+
+            expect(createCloudFrontInvalidationMock).toHaveBeenCalledWith(
+                expect.objectContaining({ distributionId: 'E1234567890' }),
+            );
+        } finally {
+            delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
+        }
+    });
+
+    it('an invalidation failure is non-blocking — the tick still completes and the next owner is still swept', async () => {
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners(['own-1', 'own-2']) as never);
+        s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/`, `${MEDIA}|recipes/own-2/`]));
+        cdnInvalidate.mockRejectedValueOnce(new Error('CloudFront throttled'));
+
+        // Same non-blocking posture as an S3 sweep failure in this handler (see "keeps sweeping the
+        // remaining owners when one owner's sweep fails" above): a scheduled reconciliation tick has no
+        // job row to keep non-terminal, so one owner's CDN failure must not abort the whole tick.
+        await expect(handler()).resolves.toBeUndefined();
+
+        // own-1's invalidation rejected but own-2's media orphan was still swept and invalidated.
+        expect(cdnInvalidate).toHaveBeenCalledTimes(2);
+        expect(listCalls()).toContainEqual({ Bucket: MEDIA, Prefix: 'recipes/own-2/' });
     });
 });
 

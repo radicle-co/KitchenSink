@@ -715,7 +715,7 @@ describe('handler', () => {
     });
 
     describe('CDN invalidation (HAZ-051/067/039)', () => {
-        it('invalidates the owner’s wildcard media-prefix path, AFTER the media sweep and BEFORE the archive sweep', async () => {
+        it('invalidates the owner’s wildcard media-prefix path LAST — strictly after BOTH S3 sweeps', async () => {
             await runHandler(makeErasureEvent({ ownerId: OWNER }));
 
             expect(cdnInvalidate).toHaveBeenCalledTimes(1);
@@ -723,15 +723,19 @@ describe('handler', () => {
             // since a deleted owner's media space is invalidated wholesale rather than per key.
             expect(cdnInvalidate).toHaveBeenCalledWith([`/recipes/${OWNER}/*`]);
 
-            const mediaSweep = timeline.indexOf('s3');
+            const sweeps = timeline.filter((entry) => entry === 's3');
             const cdnIndex = timeline.indexOf('cdn');
-            const archiveSweep = timeline.indexOf('s3', cdnIndex + 1);
+            const lastSweepIndex = timeline.lastIndexOf('s3');
 
-            expect(mediaSweep).toBeGreaterThanOrEqual(0);
-            // Invalidating BEFORE the media objects are gone would leave a moment where a stale edge could
-            // re-cache an object that a concurrent read still finds live at origin; AFTER is correct.
-            expect(cdnIndex).toBeGreaterThan(mediaSweep);
-            expect(archiveSweep).toBeGreaterThan(cdnIndex);
+            // Both real-data sweeps — media AND archive — ran.
+            expect(sweeps).toHaveLength(2);
+            expect(cdnIndex).toBeGreaterThanOrEqual(0);
+            // Finding 1 (HAZ-051/067): the CDN purge is a best-effort edge-cache hygiene step and must
+            // NEVER gate real data deletion, so it is ordered strictly after BOTH S3 sweeps rather than
+            // between them. Invalidating before either sweep completed risked (a) a stale edge re-caching
+            // an object a concurrent read still finds live at origin, and (b), the bug this fixes, an
+            // invalidation failure stopping the archive sweep from ever running.
+            expect(cdnIndex).toBeGreaterThan(lastSweepIndex);
         });
 
         it('builds the CDN port from CLOUDFRONT_DISTRIBUTION_ID (the config the adapter itself gates on)', async () => {
@@ -744,7 +748,7 @@ describe('handler', () => {
             );
         });
 
-        it('records last_error and rethrows when CDN invalidation fails, leaving the job non-terminal', async () => {
+        it('a CDN invalidation failure does NOT prevent the archive sweep — real data deletion is never gated on the CDN purge (Finding 1)', async () => {
             cdnInvalidate.mockRejectedValueOnce(new Error('CloudFront throttled'));
 
             await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow('CloudFront throttled');
@@ -754,9 +758,15 @@ describe('handler', () => {
             // Same non-terminal posture as an S3 sweep failure: never mark `completed` while the CDN purge
             // request has not been successfully SUBMITTED — SQS redelivery retries the whole attempt.
             expect(control.statements().some((s) => /status = 'completed'/i.test(s.text))).toBe(false);
-            // The archive bucket must not have been swept — the failure stops the attempt before it, so a
-            // retry re-does (harmlessly, idempotently) only the media sweep + invalidation + archive sweep.
-            expect(timeline.filter((entry) => entry === 's3')).toHaveLength(1);
+            // THE invariant this fix restores: both S3 sweeps — media AND archive — already ran by the time
+            // the CDN call (issued LAST) can fail. A misconfigured/cross-account distribution id throws
+            // identically on every retry; if that failure gated the archive sweep (the prior, incorrect
+            // order), the archive bucket's PII — full recipe-version snapshots — would NEVER be swept, and
+            // would survive every erasure attempt up to the DLQ. Here it is already gone: only the
+            // (idempotent) invalidation attempt itself needs to be retried.
+            expect(timeline.filter((entry) => entry === 's3')).toHaveLength(2);
+            // The invalidation was actually attempted (and is what threw) — not skipped.
+            expect(cdnInvalidate).toHaveBeenCalledTimes(1);
         });
 
         it('is never invoked when the interlock refuses to erase (no job row for the owner)', async () => {

@@ -21,41 +21,10 @@
 import { describe, it, expect } from 'vitest';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
+import { makeFakeDrizzle, methodsOf } from '../../../__testing__/make-fake-drizzle.js';
 import { ErasureJobsDal } from '../erasure-jobs.dal.js';
 
-interface FakeDb {
-    readonly db: RecipeDrizzle;
-    readonly calls: Array<{ method: string; args: unknown[] }>;
-    readonly queue: (result: unknown) => void;
-}
-
-/** A chainable, awaitable fake: every method returns the same proxy; awaiting shifts the result queue. */
-function createFakeDb(): FakeDb {
-    const calls: Array<{ method: string; args: unknown[] }> = [];
-    const results: unknown[] = [];
-
-    const handler: ProxyHandler<() => void> = {
-        get(_target, prop) {
-            if (prop === 'then') {
-                return (resolve: (value: unknown) => void): void => {
-                    resolve(results.length > 0 ? results.shift() : undefined);
-                };
-            }
-
-            return (...args: unknown[]): unknown => {
-                calls.push({ method: String(prop), args });
-
-                return proxy;
-            };
-        },
-    };
-
-    const proxy = new Proxy((() => undefined) as () => void, handler);
-
-    return { db: proxy as unknown as RecipeDrizzle, calls, queue: (result) => results.push(result) };
-}
-
-const methodsOf = (fake: FakeDb): string[] => fake.calls.map((call) => call.method);
+const createFakeDb = (): ReturnType<typeof makeFakeDrizzle<RecipeDrizzle>> => makeFakeDrizzle<RecipeDrizzle>();
 
 const OWNER = 'owner-1';
 const JOB_ID = '00000000-0000-4000-8000-0000000000e1';
@@ -63,7 +32,7 @@ const JOB_ID = '00000000-0000-4000-8000-0000000000e1';
 describe('ErasureJobsDal.insertQueuedJob', () => {
     it('inserts a queued job for the owner and returns the new job id', async () => {
         const fake = createFakeDb();
-        fake.queue([{ id: JOB_ID }]);
+        fake.enqueue([{ id: JOB_ID }]);
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.insertQueuedJob(OWNER)).resolves.toBe(JOB_ID);
@@ -73,7 +42,7 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
 
     it('defers to the partial unique index via ON CONFLICT DO NOTHING (no read-then-write TOCTOU)', async () => {
         const fake = createFakeDb();
-        fake.queue([{ id: JOB_ID }]);
+        fake.enqueue([{ id: JOB_ID }]);
         const dal = new ErasureJobsDal(fake.db);
 
         await dal.insertQueuedJob(OWNER);
@@ -85,7 +54,7 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
 
     it('reports a lost insert race as undefined rather than throwing a unique violation', async () => {
         const fake = createFakeDb();
-        fake.queue([]); // ON CONFLICT DO NOTHING → zero rows returned.
+        fake.enqueue([]); // ON CONFLICT DO NOTHING → zero rows returned.
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.insertQueuedJob(OWNER)).resolves.toBeUndefined();
@@ -95,7 +64,7 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
 describe('ErasureJobsDal.findActiveJob', () => {
     it('returns the narrowed in-flight job', async () => {
         const fake = createFakeDb();
-        fake.queue([{ id: JOB_ID, status: 'running' }]);
+        fake.enqueue([{ id: JOB_ID, status: 'running' }]);
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.findActiveJob(OWNER)).resolves.toEqual({ id: JOB_ID, status: 'running' });
@@ -104,7 +73,7 @@ describe('ErasureJobsDal.findActiveJob', () => {
 
     it('returns undefined when the owner has no in-flight job', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.findActiveJob(OWNER)).resolves.toBeUndefined();
@@ -112,7 +81,7 @@ describe('ErasureJobsDal.findActiveJob', () => {
 
     it('refuses to pass off a terminal-status row as active (the query contract is broken → surface it)', async () => {
         const fake = createFakeDb();
-        fake.queue([{ id: JOB_ID, status: 'completed' }]);
+        fake.enqueue([{ id: JOB_ID, status: 'completed' }]);
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.findActiveJob(OWNER)).rejects.toThrow(/completed/);
@@ -122,7 +91,7 @@ describe('ErasureJobsDal.findActiveJob', () => {
 describe('ErasureJobsDal.hasCompletedJob', () => {
     it('is true when a completed job exists for the owner', async () => {
         const fake = createFakeDb();
-        fake.queue([{ id: JOB_ID }]);
+        fake.enqueue([{ id: JOB_ID }]);
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.hasCompletedJob(OWNER)).resolves.toBe(true);
@@ -131,7 +100,7 @@ describe('ErasureJobsDal.hasCompletedJob', () => {
 
     it('is false when the owner has never completed an erasure', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new ErasureJobsDal(fake.db);
 
         await expect(dal.hasCompletedJob(OWNER)).resolves.toBe(false);

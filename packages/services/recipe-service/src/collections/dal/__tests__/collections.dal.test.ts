@@ -10,53 +10,17 @@
 import { describe, it, expect } from 'vitest';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
+import { makeFakeDrizzle, methodsOf } from '../../../__testing__/make-fake-drizzle.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../../__fixtures__/collections.fixtures.js';
 import { CollectionsDal } from '../collections.dal.js';
 
-interface FakeDb {
-    readonly db: RecipeDrizzle;
-    readonly calls: Array<{ method: string; args: unknown[] }>;
-    readonly queue: (result: unknown) => void;
-}
-
-/** A chainable, awaitable fake: every method returns the same proxy; awaiting shifts the result queue. */
-function createFakeDb(): FakeDb {
-    const calls: Array<{ method: string; args: unknown[] }> = [];
-    const results: unknown[] = [];
-
-    const handler: ProxyHandler<() => void> = {
-        get(_target, prop) {
-            if (prop === 'then') {
-                return (resolve: (value: unknown) => void): void => {
-                    resolve(results.length > 0 ? results.shift() : undefined);
-                };
-            }
-
-            return (...args: unknown[]): unknown => {
-                calls.push({ method: String(prop), args });
-
-                return proxy;
-            };
-        },
-    };
-
-    const proxy = new Proxy((() => undefined) as () => void, handler);
-
-    return {
-        db: proxy as unknown as RecipeDrizzle,
-        calls,
-        queue: (result) => results.push(result),
-    };
-}
-
-/** Names of the builder methods invoked, in order — for asserting a chain's shape. */
-const methodsOf = (fake: FakeDb): string[] => fake.calls.map((call) => call.method);
+const createFakeDb = (): ReturnType<typeof makeFakeDrizzle<RecipeDrizzle>> => makeFakeDrizzle<RecipeDrizzle>();
 
 describe('CollectionsDal.create', () => {
     it('inserts the collection and returns the persisted row', async () => {
         const fake = createFakeDb();
         const row = makeCollectionRow();
-        fake.queue([row]);
+        fake.enqueue([row]);
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.create({ ownerId: 'owner-1', name: 'Weeknight Dinners', visibility: 'private' });
@@ -76,7 +40,7 @@ describe('CollectionsDal.findById', () => {
     it('returns the row when present', async () => {
         const fake = createFakeDb();
         const row = makeCollectionRow();
-        fake.queue([row]);
+        fake.enqueue([row]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.findById(row.id)).toBe(row);
@@ -85,7 +49,7 @@ describe('CollectionsDal.findById', () => {
 
     it('returns undefined when absent', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.findById('missing')).toBeUndefined();
@@ -96,8 +60,8 @@ describe('CollectionsDal.listByOwner', () => {
     it('returns the page rows plus the unpaged total', async () => {
         const fake = createFakeDb();
         const rows = [makeCollectionRow({ id: 'a' }), makeCollectionRow({ id: 'b' })];
-        fake.queue(rows);
-        fake.queue([{ value: 5 }]);
+        fake.enqueue(rows);
+        fake.enqueue([{ value: 5 }]);
         const dal = new CollectionsDal(fake.db);
 
         const page = await dal.listByOwner('owner-1', 2, 0);
@@ -121,7 +85,7 @@ describe('CollectionsDal.update', () => {
     it('always bumps updated_at and sets only the provided fields', async () => {
         const fake = createFakeDb();
         const updated = makeCollectionRow({ name: 'Renamed' });
-        fake.queue([updated]);
+        fake.enqueue([updated]);
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.update(updated.id, { name: 'Renamed' });
@@ -136,7 +100,7 @@ describe('CollectionsDal.update', () => {
 
     it('returns undefined when the id does not exist', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.update('missing', { visibility: 'public' })).toBeUndefined();
@@ -147,7 +111,7 @@ describe('CollectionsDal.touchLastPulled', () => {
     it('sets last_pulled_at and updated_at to the current time and returns the updated row', async () => {
         const fake = createFakeDb();
         const touched = makeCollectionRow({ lastPulledAt: new Date('2026-07-24T12:00:00.000Z') });
-        fake.queue([touched]);
+        fake.enqueue([touched]);
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.touchLastPulled(touched.id);
@@ -161,7 +125,7 @@ describe('CollectionsDal.touchLastPulled', () => {
 
     it('throws when the id does not exist (no row to update)', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new CollectionsDal(fake.db);
 
         await expect(dal.touchLastPulled('missing')).rejects.toThrow(
@@ -173,7 +137,7 @@ describe('CollectionsDal.touchLastPulled', () => {
 describe('CollectionsDal.deleteById', () => {
     it('returns true when a row was removed', async () => {
         const fake = createFakeDb();
-        fake.queue([{ id: 'c1' }]);
+        fake.enqueue([{ id: 'c1' }]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.deleteById('c1')).toBe(true);
@@ -182,7 +146,7 @@ describe('CollectionsDal.deleteById', () => {
 
     it('returns false when nothing matched', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.deleteById('missing')).toBe(false);
@@ -193,7 +157,7 @@ describe('CollectionsDal.findActiveRecipe', () => {
     it('joins on deleted_at IS NULL and returns the active recipe', async () => {
         const fake = createFakeDb();
         const recipe = makeRecipeRow();
-        fake.queue([recipe]);
+        fake.enqueue([recipe]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.findActiveRecipe(recipe.id)).toBe(recipe);
@@ -205,7 +169,7 @@ describe('CollectionsDal.addRecipe', () => {
     it('returns the newly inserted membership row (idempotent insert)', async () => {
         const fake = createFakeDb();
         const membership = makeMembershipRow();
-        fake.queue([membership]);
+        fake.enqueue([membership]);
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.addRecipe(membership.collectionId, membership.recipeId);
@@ -218,8 +182,8 @@ describe('CollectionsDal.addRecipe', () => {
     it('falls back to the existing row when the insert conflicted', async () => {
         const fake = createFakeDb();
         const existing = makeMembershipRow();
-        fake.queue([]); // insert ... returning -> nothing (conflict)
-        fake.queue([existing]); // findMembership -> the existing row
+        fake.enqueue([]); // insert ... returning -> nothing (conflict)
+        fake.enqueue([existing]); // findMembership -> the existing row
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.addRecipe(existing.collectionId, existing.recipeId);
@@ -246,7 +210,7 @@ describe('CollectionsDal.addRecipes (S-R1 — bulk membership seed)', () => {
             makeMembershipRow({ recipeId: 'r2', addedVia: 'clone_seed' }),
             makeMembershipRow({ recipeId: 'r3', addedVia: 'clone_seed' }),
         ];
-        fake.queue(rows);
+        fake.enqueue(rows);
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.addRecipes('c1', ['r1', 'r2', 'r3'], 'clone_seed');
@@ -279,7 +243,7 @@ describe('CollectionsDal.addRecipes (S-R1 — bulk membership seed)', () => {
         const fake = createFakeDb();
         const outerFake = createFakeDb();
         const rows = [makeMembershipRow({ recipeId: 'r1', addedVia: 'pull' })];
-        outerFake.queue(rows);
+        outerFake.enqueue(rows);
         // Construct the DAL over one (unused) db, but pass a DIFFERENT fake as the tx — proves the write
         // goes through the passed tx, not `this.db`, when one is supplied.
         const dal = new CollectionsDal(fake.db);
@@ -295,7 +259,7 @@ describe('CollectionsDal.addRecipes (S-R1 — bulk membership seed)', () => {
 describe('CollectionsDal.removeRecipe', () => {
     it('returns true when a membership was removed', async () => {
         const fake = createFakeDb();
-        fake.queue([{ recipeId: 'r1' }]);
+        fake.enqueue([{ recipeId: 'r1' }]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.removeRecipe('c1', 'r1')).toBe(true);
@@ -304,7 +268,7 @@ describe('CollectionsDal.removeRecipe', () => {
 
     it('returns false when the membership was already absent', async () => {
         const fake = createFakeDb();
-        fake.queue([]);
+        fake.enqueue([]);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.removeRecipe('c1', 'gone')).toBe(false);
@@ -315,7 +279,7 @@ describe('CollectionsDal.listRecipes', () => {
     it('inner-joins recipes (excluding tombstoned + non-viewable) and returns the rows', async () => {
         const fake = createFakeDb();
         const rows = [{ ...makeRecipeRow(), addedVia: 'manual' as const }];
-        fake.queue(rows);
+        fake.enqueue(rows);
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.listRecipes('c1', 'viewer-1')).toEqual(rows);
@@ -336,7 +300,7 @@ describe('CollectionsDal.listRecipes', () => {
             { ...makeRecipeRow({ id: 'r-clone' }), addedVia: 'clone_seed' as const },
             { ...makeRecipeRow({ id: 'r-pull' }), addedVia: 'pull' as const },
         ];
-        fake.queue(rows);
+        fake.enqueue(rows);
         const dal = new CollectionsDal(fake.db);
 
         const result = await dal.listRecipes('c1', 'viewer-1');

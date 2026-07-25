@@ -11,68 +11,12 @@ import { describe, it, expect } from 'vitest';
 
 import { RecipeIngredientsDal, type ResolvedIngredientLine } from '../recipe-ingredients.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/make-fake-drizzle.js';
 import { makeRecipeIngredientRow } from '../../../__fixtures__/index.js';
 
-interface RecordedCall {
-    method: string;
-    args: unknown[];
-}
+type FakeControl = FakeDrizzle<RecipeDrizzle>;
 
-interface FakeControl {
-    db: RecipeDrizzle;
-    calls: RecordedCall[];
-    enqueue: (...results: unknown[]) => void;
-}
-
-const CHAIN_METHODS = ['values', 'returning', 'from', 'where', 'orderBy'] as const;
-
-function createFakeDb(): FakeControl {
-    const calls: RecordedCall[] = [];
-    const results: unknown[] = [];
-
-    function makeChain(): Record<string, unknown> {
-        const chain: Record<string, unknown> = {};
-
-        for (const method of CHAIN_METHODS) {
-            chain[method] = (...args: unknown[]): unknown => {
-                calls.push({ method, args });
-
-                return chain;
-            };
-        }
-
-        chain['then'] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown): unknown =>
-            Promise.resolve(results.shift()).then(resolve, reject);
-
-        return chain;
-    }
-
-    const db: Record<string, unknown> = {
-        insert: (...args: unknown[]): unknown => {
-            calls.push({ method: 'insert', args });
-
-            return makeChain();
-        },
-        select: (...args: unknown[]): unknown => {
-            calls.push({ method: 'select', args });
-
-            return makeChain();
-        },
-        delete: (...args: unknown[]): unknown => {
-            calls.push({ method: 'delete', args });
-
-            return makeChain();
-        },
-    };
-
-    return {
-        db: db as unknown as RecipeDrizzle,
-        calls,
-        enqueue: (...r: unknown[]): void => {
-            results.push(...r);
-        },
-    };
-}
+const createFakeDb = (): FakeControl => makeFakeDrizzle<RecipeDrizzle>();
 
 const LINE: ResolvedIngredientLine = {
     ingredientId: '00000000-0000-4000-8000-0000000000ff',

@@ -23,82 +23,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { PendingArchivesDal } from '../pending-archives.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/make-fake-drizzle.js';
 
-interface RecordedCall {
-    method: string;
-    args: unknown[];
-}
+type FakeControl = FakeDrizzle<RecipeDrizzle>;
 
-interface FakeControl {
-    db: RecipeDrizzle;
-    calls: RecordedCall[];
-    enqueue: (...results: unknown[]) => void;
-}
-
-const CHAIN_METHODS = [
-    'values',
-    'returning',
-    'from',
-    'where',
-    'orderBy',
-    'limit',
-    'offset',
-    'set',
-    'onConflictDoNothing',
-] as const;
-
-function createFakeDb(): FakeControl {
-    const calls: RecordedCall[] = [];
-    const results: unknown[] = [];
-
-    function makeChain(): Record<string, unknown> {
-        const chain: Record<string, unknown> = {};
-
-        for (const method of CHAIN_METHODS) {
-            chain[method] = (...args: unknown[]): unknown => {
-                calls.push({ method, args });
-
-                return chain;
-            };
-        }
-
-        chain['then'] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown): unknown =>
-            Promise.resolve(results.shift()).then(resolve, reject);
-
-        return chain;
-    }
-
-    const db: Record<string, unknown> = {
-        insert: (...args: unknown[]): unknown => {
-            calls.push({ method: 'insert', args });
-
-            return makeChain();
-        },
-        select: (...args: unknown[]): unknown => {
-            calls.push({ method: 'select', args });
-
-            return makeChain();
-        },
-        update: (...args: unknown[]): unknown => {
-            calls.push({ method: 'update', args });
-
-            return makeChain();
-        },
-        delete: (...args: unknown[]): unknown => {
-            calls.push({ method: 'delete', args });
-
-            return makeChain();
-        },
-    };
-
-    return {
-        db: db as unknown as RecipeDrizzle,
-        calls,
-        enqueue: (...r: unknown[]): void => {
-            results.push(...r);
-        },
-    };
-}
+const createFakeDb = (): FakeControl => makeFakeDrizzle<RecipeDrizzle>();
 
 function payloadOf(control: FakeControl, method: 'values'): Record<string, unknown> {
     return control.calls.find((call) => call.method === method)?.args[0] as Record<string, unknown>;

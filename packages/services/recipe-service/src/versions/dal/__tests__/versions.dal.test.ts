@@ -12,76 +12,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { VersionsDal, VERSION_RETENTION_LIMIT } from '../versions.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/make-fake-drizzle.js';
 import { makeVersionRow } from '../../../__fixtures__/index.js';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
-/** A recorded builder invocation. */
-interface RecordedCall {
-    method: string;
-    args: unknown[];
-}
-
 /** A chainable, thenable query stub: builder methods return `this`; awaiting shifts one queued result. */
-interface FakeControl {
-    db: RecipeDrizzle;
-    calls: RecordedCall[];
-    enqueue: (...results: unknown[]) => void;
-}
+type FakeControl = FakeDrizzle<RecipeDrizzle>;
 
-const CHAIN_METHODS = ['values', 'returning', 'from', 'where', 'orderBy', 'limit', 'offset', 'set'] as const;
-
-function createFakeDb(): FakeControl {
-    const calls: RecordedCall[] = [];
-    const results: unknown[] = [];
-
-    function makeChain(): Record<string, unknown> {
-        const chain: Record<string, unknown> = {};
-
-        for (const method of CHAIN_METHODS) {
-            chain[method] = (...args: unknown[]): unknown => {
-                calls.push({ method, args });
-
-                return chain;
-            };
-        }
-
-        chain['then'] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown): unknown =>
-            Promise.resolve(results.shift()).then(resolve, reject);
-
-        return chain;
-    }
-
-    const db: Record<string, unknown> = {
-        insert: (...args: unknown[]): unknown => {
-            calls.push({ method: 'insert', args });
-
-            return makeChain();
-        },
-        select: (...args: unknown[]): unknown => {
-            calls.push({ method: 'select', args });
-
-            return makeChain();
-        },
-        update: (...args: unknown[]): unknown => {
-            calls.push({ method: 'update', args });
-
-            return makeChain();
-        },
-        delete: (...args: unknown[]): unknown => {
-            calls.push({ method: 'delete', args });
-
-            return makeChain();
-        },
-    };
-
-    return {
-        db: db as unknown as RecipeDrizzle,
-        calls,
-        enqueue: (...r: unknown[]): void => {
-            results.push(...r);
-        },
-    };
-}
+const createFakeDb = (): FakeControl => makeFakeDrizzle<RecipeDrizzle>();
 
 /** A minimal, schema-valid recipe snapshot. */
 const SNAPSHOT: RecipeSnapshot = {

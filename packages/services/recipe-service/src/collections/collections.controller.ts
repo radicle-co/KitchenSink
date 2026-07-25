@@ -9,7 +9,6 @@
  * the global `ApiExceptionFilter`.
  */
 import {
-    BadRequestException,
     Body,
     Controller,
     Delete,
@@ -23,6 +22,7 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import type { PaginatedResponse } from '@kitchensink/recipe-core';
+import { z } from 'zod';
 import type { ZodType } from 'zod';
 
 import type { AuthenticatedRequest, Principal } from '../auth/principal.js';
@@ -35,6 +35,7 @@ import {
     pullCommitSchema,
     updateCollectionSchema,
 } from './collections.schemas.js';
+import type { AddRecipeBody, CreateCollectionBody, PageQuery, UpdateCollectionBody } from './collections.schemas.js';
 import type { PullDiff } from './domain/pull-diff.js';
 import type {
     CollectionRecipeMembershipResponse,
@@ -43,16 +44,16 @@ import type {
     PullFromSourceResult,
 } from './collections.types.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 
-/** Validate `input` with `schema`, throwing a 400 `BadRequestException` on failure. */
-function parseOrThrow<T>(schema: ZodType<T>, input: unknown): T {
-    const result = schema.safeParse(input);
-
-    if (!result.success) {
-        throw new BadRequestException(result.error.issues.map((issue) => issue.message));
-    }
-
-    return result.data;
+/**
+ * `cloneCollectionSchema` / `pullCommitSchema` bodies are wholly-optional objects — an absent body
+ * arrives at the pipe as `undefined` (or `{}`, depending on whether a `Content-Type` header was sent);
+ * both mean "no overrides" (FR-011 / W8-a.8). `z.preprocess` folds `undefined` to `{}` BEFORE the schema
+ * (which requires an object) runs, so the pipe still applies at the framework seam for these two routes.
+ */
+function optionalBody<T>(schema: ZodType<T>): ZodType<T> {
+    return z.preprocess((value) => value ?? {}, schema);
 }
 
 @Controller('v1/collections')
@@ -62,23 +63,24 @@ export class CollectionsController {
     /** Create a collection owned by the caller. */
     @Post()
     @WriteRateLimit()
-    public async create(@Req() req: AuthenticatedRequest, @Body() body: unknown): Promise<CollectionResponse> {
+    public async create(
+        @Req() req: AuthenticatedRequest,
+        @Body(new ZodValidationPipe(createCollectionSchema)) body: CreateCollectionBody,
+    ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
-        const input = parseOrThrow(createCollectionSchema, body);
 
-        return this.collections.createCollection(owner.userId, input);
+        return this.collections.createCollection(owner.userId, body);
     }
 
     /** List the caller's own collections (paginated). */
     @Get()
     public async list(
         @Req() req: AuthenticatedRequest,
-        @Query() query: unknown,
+        @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery,
     ): Promise<PaginatedResponse<CollectionResponse>> {
         const owner = this.requirePrincipal(req);
-        const { page, pageSize } = parseOrThrow(pageQuerySchema, query);
 
-        return this.collections.listCollections(owner.userId, { page, pageSize });
+        return this.collections.listCollections(owner.userId, query);
     }
 
     /** Get one owned collection with its (non-tombstoned) recipes. */
@@ -98,12 +100,11 @@ export class CollectionsController {
     public async update(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body() body: unknown,
+        @Body(new ZodValidationPipe(updateCollectionSchema)) body: UpdateCollectionBody,
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
-        const patch = parseOrThrow(updateCollectionSchema, body);
 
-        return this.collections.updateCollection(owner.userId, id, patch);
+        return this.collections.updateCollection(owner.userId, id, body);
     }
 
     /** Delete an owned collection (no-cascade w.r.t. its recipes). */
@@ -122,12 +123,11 @@ export class CollectionsController {
     public async addRecipe(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body() body: unknown,
+        @Body(new ZodValidationPipe(addRecipeSchema)) body: AddRecipeBody,
     ): Promise<CollectionRecipeMembershipResponse> {
         const owner = this.requirePrincipal(req);
-        const { recipeId } = parseOrThrow(addRecipeSchema, body);
 
-        return this.collections.addRecipe(owner.userId, id, recipeId);
+        return this.collections.addRecipe(owner.userId, id, body.recipeId);
     }
 
     /**
@@ -142,13 +142,11 @@ export class CollectionsController {
     public async clone(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body() body: unknown,
+        @Body(new ZodValidationPipe(optionalBody(cloneCollectionSchema))) body: z.infer<typeof cloneCollectionSchema>,
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
-        // An absent body arrives as `{}` (or undefined) — both parse to "no overrides".
-        const overrides = parseOrThrow(cloneCollectionSchema, body ?? {});
 
-        return this.collections.cloneCollection(owner.userId, id, overrides);
+        return this.collections.cloneCollection(owner.userId, id, body);
     }
 
     /**
@@ -177,12 +175,11 @@ export class CollectionsController {
     public async pullFromSource(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body() body: unknown,
+        @Body(new ZodValidationPipe(optionalBody(pullCommitSchema))) body: z.infer<typeof pullCommitSchema>,
     ): Promise<PullFromSourceResult> {
         const owner = this.requirePrincipal(req);
-        const { previewedDiff } = parseOrThrow(pullCommitSchema, body ?? {});
 
-        return this.collections.pullFromSource(owner.userId, id, previewedDiff);
+        return this.collections.pullFromSource(owner.userId, id, body.previewedDiff);
     }
 
     /** Remove a recipe from an owned collection. */

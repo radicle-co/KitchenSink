@@ -1,11 +1,14 @@
 /**
  * T041-test — unit tests for {@link CollectionsController}: the pure request→service→response mapping
  * over a mocked {@link CollectionsService}. Pins that the OWNER always comes from `req.principal.userId`
- * (never the body), that malformed input is rejected with 400, that a missing principal is a 401, and
- * that pagination defaults are applied. End-to-end behaviour is covered by the integration/e2e tiers.
+ * (never the body) and that a missing principal is a 401. Body/query validation now runs at the
+ * `ZodValidationPipe` framework seam (S-R7) — BEFORE these handlers execute — so malformed-input
+ * rejection is no longer observable by calling a handler directly; that coverage lives in
+ * `common/pipes/__tests__/zod-validation.pipe.test.ts`. End-to-end behaviour is covered by the
+ * integration/e2e tiers.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 
 import type { AuthenticatedRequest, Principal } from '../../auth/principal.js';
 import { CollectionsController } from '../collections.controller.js';
@@ -45,20 +48,13 @@ describe('CollectionsController', () => {
     });
 
     describe('create', () => {
-        it('delegates with the principal userId and the validated body', async () => {
+        it('delegates with the principal userId and the parsed body', async () => {
             service.createCollection.mockResolvedValue({ id: 'c1' });
 
             const result = await controller.create(reqWith(PRINCIPAL), { name: 'Weeknight Dinners' });
 
             expect(service.createCollection).toHaveBeenCalledWith('owner-1', { name: 'Weeknight Dinners' });
             expect(result).toEqual({ id: 'c1' });
-        });
-
-        it('rejects a body with an empty name (400)', async () => {
-            await expect(controller.create(reqWith(PRINCIPAL), { name: '' })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
-            expect(service.createCollection).not.toHaveBeenCalled();
         });
 
         it('rejects a missing principal (401)', async () => {
@@ -69,26 +65,12 @@ describe('CollectionsController', () => {
     });
 
     describe('list', () => {
-        it('applies default pagination when the query is empty', async () => {
-            service.listCollections.mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 20, hasMore: false });
-
-            await controller.list(reqWith(PRINCIPAL), {});
-
-            expect(service.listCollections).toHaveBeenCalledWith('owner-1', { page: 1, pageSize: 20 });
-        });
-
-        it('coerces provided page/pageSize query strings', async () => {
+        it('delegates the already-parsed pagination query to the service', async () => {
             service.listCollections.mockResolvedValue({ data: [], total: 0, page: 2, pageSize: 5, hasMore: false });
 
-            await controller.list(reqWith(PRINCIPAL), { page: '2', pageSize: '5' });
+            await controller.list(reqWith(PRINCIPAL), { page: 2, pageSize: 5 });
 
             expect(service.listCollections).toHaveBeenCalledWith('owner-1', { page: 2, pageSize: 5 });
-        });
-
-        it('rejects a pageSize over the cap (400)', async () => {
-            await expect(controller.list(reqWith(PRINCIPAL), { pageSize: '500' })).rejects.toBeInstanceOf(
-                BadRequestException,
-            );
         });
     });
 
@@ -104,23 +86,12 @@ describe('CollectionsController', () => {
     });
 
     describe('update', () => {
-        it('delegates the validated patch', async () => {
+        it('delegates the parsed patch', async () => {
             service.updateCollection.mockResolvedValue({ id: 'c1', visibility: 'public' });
 
             await controller.update(reqWith(PRINCIPAL), 'c1', { visibility: 'public' });
 
             expect(service.updateCollection).toHaveBeenCalledWith('owner-1', 'c1', { visibility: 'public' });
-        });
-
-        it('rejects an empty patch (minProperties: 1 → 400)', async () => {
-            await expect(controller.update(reqWith(PRINCIPAL), 'c1', {})).rejects.toBeInstanceOf(BadRequestException);
-            expect(service.updateCollection).not.toHaveBeenCalled();
-        });
-
-        it('rejects an invalid visibility value (400)', async () => {
-            await expect(
-                controller.update(reqWith(PRINCIPAL), 'c1', { visibility: 'unlisted' }),
-            ).rejects.toBeInstanceOf(BadRequestException);
         });
     });
 
@@ -134,7 +105,7 @@ describe('CollectionsController', () => {
     });
 
     describe('addRecipe', () => {
-        it('delegates with the validated recipeId', async () => {
+        it('delegates with the parsed recipeId', async () => {
             service.addRecipe.mockResolvedValue({ collectionId: 'c1', recipeId: 'r1' });
 
             await controller.addRecipe(reqWith(PRINCIPAL), 'c1', {
@@ -142,13 +113,6 @@ describe('CollectionsController', () => {
             });
 
             expect(service.addRecipe).toHaveBeenCalledWith('owner-1', 'c1', '00000000-0000-4000-8000-000000000001');
-        });
-
-        it('rejects a non-uuid recipeId (400)', async () => {
-            await expect(
-                controller.addRecipe(reqWith(PRINCIPAL), 'c1', { recipeId: 'not-a-uuid' }),
-            ).rejects.toBeInstanceOf(BadRequestException);
-            expect(service.addRecipe).not.toHaveBeenCalled();
         });
     });
 

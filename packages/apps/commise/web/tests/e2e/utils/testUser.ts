@@ -16,17 +16,23 @@ function client() {
     return createClerkClient({ secretKey });
 }
 
-/** Idempotently ensure the sign-in test user exists with a known, verified email + password. */
-export async function ensureSignInTestUser(): Promise<void> {
+/**
+ * Idempotently ensure the sign-in test user exists with a known, verified email + password.
+ *
+ * @returns the Clerk user id — the caller ({@link globalSetup}) uses it to wait for the `external_id`
+ *   backfill (see {@link waitForTestUserExternalId}) before any owner-gated spec runs.
+ */
+export async function ensureSignInTestUser(): Promise<string> {
     const clerk = client();
     const existing = await clerk.users.getUserList({ emailAddress: [TEST_USER_EMAIL] });
+    const found = existing.data[0];
 
-    if (existing.totalCount > 0) {
-        return;
+    if (found !== undefined) {
+        return found.id;
     }
 
     // This Clerk instance requires first/last name + username on every user.
-    await clerk.users.createUser({
+    const created = await clerk.users.createUser({
         emailAddress: [TEST_USER_EMAIL],
         password: TEST_USER_PASSWORD,
         firstName: 'Commise',
@@ -34,6 +40,47 @@ export async function ensureSignInTestUser(): Promise<void> {
         username: 'commise_e2e_signin',
         skipPasswordChecks: true,
     });
+
+    return created.id;
+}
+
+/**
+ * Block until the Clerk user's `external_id` (the app-user ULID) has been backfilled by the async
+ * `user.created` webhook (identity-webhooks → `clerk.users.updateUser({ externalId })`). Teardown deletes the
+ * test user every run, so setup recreates a FRESH user and every run re-races this backfill; gating here makes
+ * `external_id` a deterministic precondition, so every per-test token carries it (it is a USER property — once
+ * set, all subsequently-minted tokens include it via the session-token customization).
+ *
+ * On timeout this throws LOUD, naming the webhook prerequisite — so a genuine sandbox webhook outage surfaces
+ * as a clear setup failure rather than a mystery flake, and is never masked.
+ *
+ * @sideEffect Polls the Clerk Backend API (`users.getUser`) and sleeps between attempts.
+ */
+export async function waitForTestUserExternalId(
+    userId: string,
+    { timeoutMs = 30_000, intervalMs = 1_000 }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+    const clerk = client();
+    // Date.now()/setTimeout are fine here — Node test setup, not the deterministic workflow sandbox.
+    const deadline = Date.now() + timeoutMs;
+
+    for (;;) {
+        const user = await clerk.users.getUser(userId);
+
+        if (typeof user.externalId === 'string' && user.externalId.length > 0) {
+            return;
+        }
+
+        if (Date.now() >= deadline) {
+            throw new Error(
+                `waitForTestUserExternalId: Clerk user ${userId} still has no externalId after ${timeoutMs}ms. ` +
+                    'The user.created webhook (identity-webhooks → clerk.users.updateUser) must backfill it; a ' +
+                    'persistent failure here is a sandbox webhook outage, not a test bug.',
+            );
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
 }
 
 /** Delete every Clerk user with this primary email — cleans up accounts a sign-up test created. */

@@ -38,6 +38,7 @@ import {
     VersionConflictError,
 } from '../errors.js';
 import {
+    invalidateCollections,
     recipeServiceKeys,
     useAddRecipeToCollection,
     useCloneCollection,
@@ -967,6 +968,24 @@ describe('useReorderRecipePhotos', () => {
 
         expect(result.current.error).toBe(error);
         expect(probes()).toEqual([]);
+    });
+});
+
+describe('invalidateCollections (DA10-b)', () => {
+    it('invalidates exactly the collections region, and no recipe region', () => {
+        const queryClient = makeTestQueryClient();
+        seedCacheProbes(queryClient);
+
+        invalidateCollections(queryClient);
+
+        expect(invalidatedProbes(queryClient)).toEqual(expectedProbes(ALL_COLLECTION_PROBES));
+    });
+
+    it('leaves an untouched cache alone when called on an empty client', () => {
+        const queryClient = makeTestQueryClient();
+
+        expect(() => invalidateCollections(queryClient)).not.toThrow();
+        expect(invalidatedProbes(queryClient)).toEqual([]);
     });
 });
 

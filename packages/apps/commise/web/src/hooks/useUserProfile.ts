@@ -14,7 +14,7 @@ import { useAuth } from '@clerk/nextjs';
 import type { UserProfile } from '@kitchensink/identity-service';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
-import { buildApiClient } from '@/lib/apiClient';
+import { createProfileServiceClient } from '@/lib/identityServiceClient';
 
 /** Stable cache key for the current viewer's profile (shared with any future profile consumers). */
 export const USER_PROFILE_QUERY_KEY = ['user', 'me'] as const;
@@ -35,7 +35,7 @@ export function useUserProfile(): UseQueryResult<UserProfile> {
         queryFn: async () => {
             const token = (await getToken()) ?? '';
 
-            return buildApiClient(token).get<UserProfile>('/v1/users/me');
+            return createProfileServiceClient(token).getMe();
         },
         enabled: Boolean(isSignedIn),
         staleTime: PROFILE_STALE_TIME_MS,

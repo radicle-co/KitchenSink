@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useClerk } from '@clerk/nextjs';
-import { buildApiClient } from '@/lib/apiClient';
+import { createProfileServiceClient } from '@/lib/identityServiceClient';
 
 interface AccountDeleteFormProps {
     accessToken: string;
@@ -26,8 +26,7 @@ export function AccountDeleteForm({ accessToken, userId: _userId }: AccountDelet
 
         startTransition(async () => {
             try {
-                const api = buildApiClient(accessToken);
-                await api.delete(`/v1/users/me`);
+                await createProfileServiceClient(accessToken).deleteMe();
 
                 await signOut({ redirectUrl: '/' });
             } catch (err) {

@@ -26,38 +26,23 @@ import '@formatjs/intl-locale/polyfill';
 import '@formatjs/intl-pluralrules/polyfill';
 import '@formatjs/intl-pluralrules/locale-data/en';
 
-import { ClerkProvider } from '@clerk/expo';
 import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
 import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import type { JSX } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { TamaguiProvider } from 'tamagui';
 import { AuthGate } from './src/components/AuthGate';
-import { LocaleProvider } from './src/i18n/LocaleProvider';
 import { initSentry } from './src/observability/sentry';
 import { installFocusManager, installOnlineManager } from './src/query/connectivity';
-import { RecipeServiceGate } from './src/providers/RecipeServiceGate';
+import { AppProviders } from './src/providers/AppProviders';
 import { AppRoot as RootNavigator } from './src/screens/AppRoot';
-import { tokenCache } from './src/storage/tokenCache';
-import tamaguiConfig from './tamagui.config';
 
 const sentryInitialized = initSentry();
-
-const queryClient = new QueryClient();
 
 // B21 — React Native has no window-focus or `navigator.onLine`, so without this TanStack's refetch-on-focus
 // and refetch-on-reconnect (and the offline mutation-pause) are dead. Wire the global managers ONCE at start.
 installOnlineManager();
 installFocusManager();
-
-const publishableKey = process.env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY;
-
-if (!publishableKey) {
-    throw new Error('Missing EXPO_PUBLIC_IDP_PUBLISHABLE_KEY environment variable');
-}
 
 function App(): JSX.Element {
     // Load the Playfair Display faces used by the Home greeting/display headings. Non-blocking on purpose: we
@@ -66,22 +51,12 @@ function App(): JSX.Element {
     useFonts({ PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold });
 
     return (
-        <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-            <LocaleProvider>
-                <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} telemetry={false}>
-                    <QueryClientProvider client={queryClient}>
-                        <RecipeServiceGate>
-                            <SafeAreaProvider>
-                                <StatusBar style="auto" />
-                                <AuthGate>
-                                    <RootNavigator />
-                                </AuthGate>
-                            </SafeAreaProvider>
-                        </RecipeServiceGate>
-                    </QueryClientProvider>
-                </ClerkProvider>
-            </LocaleProvider>
-        </TamaguiProvider>
+        <AppProviders>
+            <StatusBar style="auto" />
+            <AuthGate>
+                <RootNavigator />
+            </AuthGate>
+        </AppProviders>
     );
 }
 

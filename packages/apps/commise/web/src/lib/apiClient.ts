@@ -1,7 +1,6 @@
 import { withBasePath } from '@/lib/basePath';
+import { IDENTITY_SERVICE_BASE_URL } from '@/lib/identityServiceClient';
 import { navigateTo } from '@/lib/navigation';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
 interface RequestOptions extends RequestInit {
     accessToken?: string;
@@ -27,7 +26,7 @@ export class ApiError extends Error {
 export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { accessToken, headers, ...rest } = options;
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${IDENTITY_SERVICE_BASE_URL}${endpoint}`, {
         ...rest,
         headers: {
             'Content-Type': 'application/json',

@@ -488,34 +488,84 @@ const catalogIngredient: Ingredient = {
  * @sideEffect Reads the Clerk session token in the page context.
  */
 export async function readViewerAppId(page: Page): Promise<string> {
-    const jwt = await page.evaluate(async () => {
-        const clerk = (window as unknown as { Clerk?: { session?: { getToken(): Promise<string | null> } } }).Clerk;
+    // Re-read the token each poll with `skipCache` so a freshly-backfilled claim is observed (Clerk otherwise
+    // serves a cached token for ~60s). Polling mirrors the app's own tolerance of the first-token sync race
+    // (`RecipeServiceClient` retries `IDENTITY_SYNC_PENDING` with a force-refreshed token) — the harness must
+    // tolerate the SAME async `external_id` backfill instead of reading once and racing it.
+    const getToken = (): Promise<string | null> =>
+        page.evaluate(async () => {
+            const clerk = (
+                window as unknown as {
+                    Clerk?: { session?: { getToken(opts?: { skipCache?: boolean }): Promise<string | null> } };
+                }
+            ).Clerk;
 
-        return clerk?.session ? await clerk.session.getToken() : null;
-    });
+            return clerk?.session ? await clerk.session.getToken({ skipCache: true }) : null;
+        });
 
-    if (jwt === null) {
-        throw new Error('readViewerAppId: no live Clerk session — call after signInWithTicket().');
-    }
+    return pollForExternalId(getToken);
+}
 
-    const payload = jwt.split('.')[1];
+/**
+ * Decode a JWT's payload and return its `external_id` claim, or `undefined` when the token is malformed or the
+ * claim is absent/empty. Pure — never throws, never falls back to `sub`. The owner-key contract is
+ * external_id-only (see {@link readViewerAppId}); the fail-loud lives in {@link pollForExternalId}'s timeout.
+ */
+export function extractExternalIdFromJwt(token: string): string | undefined {
+    const payload = token.split('.')[1];
 
     if (payload === undefined) {
-        throw new Error('readViewerAppId: malformed Clerk session token (no JWT payload segment).');
+        return undefined;
     }
 
-    const claims = JSON.parse(Buffer.from(payload, 'base64').toString('utf8')) as Record<string, unknown>;
-    const externalId = claims['external_id'];
+    try {
+        const claims = JSON.parse(Buffer.from(payload, 'base64').toString('utf8')) as Record<string, unknown>;
+        const externalId = claims['external_id'];
 
-    if (typeof externalId !== 'string' || externalId.length === 0) {
-        throw new Error(
-            "readViewerAppId: the Clerk session token carries no 'external_id' claim. The session-token " +
-                'customization (feature-001 T000-prereq) must emit the app-user ULID on both Clerk instances; ' +
-                'without it, recipe ownership is broken app-wide (owner controls never render, service 401s).',
-        );
+        return typeof externalId === 'string' && externalId.length > 0 ? externalId : undefined;
+    } catch {
+        return undefined;
     }
+}
 
-    return externalId;
+/**
+ * Poll `getToken` until a returned token carries a non-empty `external_id` claim, then resolve it. Tolerates a
+ * `null` token (session still initializing) and a claim that has not yet been backfilled onto the Clerk user
+ * by the async `user.created` webhook. Throws a loud, diagnostic error ONLY after `timeoutMs` — never a silent
+ * fallback: a persistent absence here is a real regression (webhook down, or the session-token customization
+ * removed), exactly what this owner-gated suite exists to catch.
+ *
+ * @sideEffect Calls `getToken` repeatedly (a live network/token read) and sleeps between attempts.
+ */
+export async function pollForExternalId(
+    getToken: () => Promise<string | null>,
+    { timeoutMs = 10_000, intervalMs = 500 }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<string> {
+    // Date.now()/setTimeout are fine here — this is Playwright harness code, not the deterministic workflow sandbox.
+    const deadline = Date.now() + timeoutMs;
+
+    for (;;) {
+        const token = await getToken();
+
+        if (token !== null) {
+            const externalId = extractExternalIdFromJwt(token);
+
+            if (externalId !== undefined) {
+                return externalId;
+            }
+        }
+
+        if (Date.now() >= deadline) {
+            throw new Error(
+                "readViewerAppId: the Clerk session token carries no 'external_id' claim. The session-token " +
+                    'customization (feature-001 T000-prereq) must emit the app-user ULID on both Clerk instances, ' +
+                    `and the user.created webhook must backfill it; waited ${timeoutMs}ms. Without it, recipe ` +
+                    'ownership is broken app-wide (owner controls never render, service 401s).',
+            );
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
 }
 
 /**

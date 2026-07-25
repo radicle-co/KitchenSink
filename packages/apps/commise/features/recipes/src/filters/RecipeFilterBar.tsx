@@ -5,9 +5,9 @@
  * list of {@link FacetDescriptor}s (`kind: 'multiChip' | 'singleChip' | 'timeBucket'`) — dispatched through a
  * `kind → renderer` map, so a new facet is a descriptor entry, not a new JSX branch. It renders Dietary +
  * Tags (multi-select chips), Cuisine (single-select, since the search API filters by ONE cuisine), and the
- * Prep-time + Total-time bucket ladders (there is no cook-time filter, so none is offered). It fetches
- * nothing and owns no state: the container passes the latest `facets` + `filters` and receives every change
- * upward. A group with no buckets and no active selection is omitted (never offer an empty filter).
+ * Prep-time + Cook-time (REQ-030f) + Total-time bucket ladders. It fetches nothing and owns no state: the
+ * container passes the latest `facets` + `filters` and receives every change upward. A group with no
+ * buckets and no active selection is omitted (never offer an empty filter).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
@@ -41,7 +41,7 @@ interface FacetDescriptor {
     /** For `multiChip` — the multi-select dimension it toggles. */
     readonly dimension?: FacetDimension;
     /** For `timeBucket` — the single-value time bound it sets. */
-    readonly timeField?: 'maxPrepTime' | 'maxTotalTime';
+    readonly timeField?: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime';
 }
 
 /** The facets the bar offers, in display order. Adding a facet is a new entry here, never new JSX. */
@@ -50,8 +50,29 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
     { id: 'cuisine', kind: 'singleChip', labelKey: 'cuisineLabel' },
     { id: 'tags', kind: 'multiChip', dimension: 'tags', labelKey: 'tagsLabel' },
     { id: 'maxPrepTime', kind: 'timeBucket', timeField: 'maxPrepTime', labelKey: 'maxPrepTimeLabel' },
+    { id: 'maxCookTime', kind: 'timeBucket', timeField: 'maxCookTime', labelKey: 'maxCookTimeLabel' },
     { id: 'maxTotalTime', kind: 'timeBucket', timeField: 'maxTotalTime', labelKey: 'maxTotalTimeLabel' },
 ];
+
+/** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
+function timeSetterFor(
+    timeField: 'maxPrepTime' | 'maxCookTime' | 'maxTotalTime',
+    setters: {
+        onSetMaxPrepTime: (minutes: number | undefined) => void;
+        onSetMaxCookTime: (minutes: number | undefined) => void;
+        onSetMaxTotalTime: (minutes: number | undefined) => void;
+    },
+): (minutes: number | undefined) => void {
+    if (timeField === 'maxPrepTime') {
+        return setters.onSetMaxPrepTime;
+    }
+
+    if (timeField === 'maxCookTime') {
+        return setters.onSetMaxCookTime;
+    }
+
+    return setters.onSetMaxTotalTime;
+}
 
 export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     facets,
@@ -59,6 +80,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     onToggleFacet,
     onSetCuisine,
     onSetMaxPrepTime,
+    onSetMaxCookTime,
     onSetMaxTotalTime,
     onClearAll,
 }) => {
@@ -118,7 +140,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
             );
         },
         timeBucket: ({ timeField, labelKey }) => {
-            const set = timeField === 'maxPrepTime' ? onSetMaxPrepTime : onSetMaxTotalTime;
+            const set = timeSetterFor(timeField!, { onSetMaxPrepTime, onSetMaxCookTime, onSetMaxTotalTime });
 
             return group(
                 m[labelKey],

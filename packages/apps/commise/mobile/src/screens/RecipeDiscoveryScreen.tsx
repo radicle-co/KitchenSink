@@ -14,6 +14,7 @@ import {
     filtersToSearchParams,
     hasActiveFilters,
     setCuisine,
+    setMaxCookTime,
     setMaxPrepTime,
     setMaxTotalTime,
     toggleFacetValue,
@@ -86,6 +87,7 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
                     }
                     onSetCuisine={(cuisine) => setFilters((current) => setCuisine(current, cuisine))}
                     onSetMaxPrepTime={(minutes) => setFilters((current) => setMaxPrepTime(current, minutes))}
+                    onSetMaxCookTime={(minutes) => setFilters((current) => setMaxCookTime(current, minutes))}
                     onSetMaxTotalTime={(minutes) => setFilters((current) => setMaxTotalTime(current, minutes))}
                     onClearAll={() => setFilters(clearRecipeFilters())}
                 />

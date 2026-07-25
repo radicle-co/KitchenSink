@@ -76,6 +76,8 @@ export interface RecipeSearchFilters {
     readonly tags?: string[];
     /** Upper bound on `prep_time_minutes` (rows with unknown prep time are excluded). */
     readonly maxPrepTime?: number;
+    /** Upper bound on `cook_time_minutes` (rows with unknown cook time are excluded). */
+    readonly maxCookTime?: number;
     /** Upper bound on `total_time_minutes` (rows with unknown total time are excluded). */
     readonly maxTotalTime?: number;
     /** Require the recipe to contain ANY of these ingredient ids (via `recipe_ingredients`). */
@@ -450,6 +452,10 @@ export class SearchDal {
 
         if (filters.maxPrepTime !== undefined) {
             conditions.push(sql`prep_time_minutes <= ${filters.maxPrepTime}`);
+        }
+
+        if (filters.maxCookTime !== undefined) {
+            conditions.push(sql`cook_time_minutes <= ${filters.maxCookTime}`);
         }
 
         if (filters.maxTotalTime !== undefined) {

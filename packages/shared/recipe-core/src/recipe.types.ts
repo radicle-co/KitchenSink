@@ -1174,6 +1174,7 @@ export interface RecipeSearchParams {
     dietaryFlags?: string[];
     tags?: string[];
     maxPrepTime?: number;
+    maxCookTime?: number;
     maxTotalTime?: number;
     ingredientIds?: string[];
     page?: number;
@@ -1190,6 +1191,7 @@ export const recipeSearchParamsSchema = z.object({
     dietaryFlags: z.array(z.string().min(1)).optional(),
     tags: z.array(z.string().min(1)).optional(),
     maxPrepTime: nonNegativeIntSchema.optional(),
+    maxCookTime: nonNegativeIntSchema.optional(),
     maxTotalTime: nonNegativeIntSchema.optional(),
     ingredientIds: z.array(idSchema).optional(),
     page: positiveIntSchema.optional(),

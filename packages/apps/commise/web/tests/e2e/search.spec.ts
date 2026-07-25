@@ -118,6 +118,51 @@ test.describe('recipe search (T110)', () => {
         await expect(page).toHaveURL(/dietaryFlags=vegan/);
     });
 
+    test('narrows public recipes to a selected cook-time bound (REQ-030f)', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({
+                    id: 'rec_seared',
+                    ownerId: 'usr_other',
+                    title: 'Pan-Seared Scallops',
+                    prepTimeMinutes: 5,
+                    cookTimeMinutes: 10,
+                }),
+                makeRecipeDetail({
+                    id: 'rec_braised',
+                    ownerId: 'usr_other',
+                    title: 'Braised Short Ribs',
+                    prepTimeMinutes: 5,
+                    cookTimeMinutes: 90,
+                }),
+            ],
+        });
+
+        // BROWSE — both public recipes list before any filter is applied.
+        await page.goto(route('/discover'));
+        await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toBeVisible();
+
+        // FILTER — selecting the "Under 15 min" cook-time bucket narrows to the quick-cooking recipe. The
+        // 90-minute braise disappearing is the assertion that matters: it can only happen if
+        // `maxCookTime=15` actually reached the API.
+        const cookTimeGroup = page.getByRole('group', { name: 'Cook time' });
+        const under15 = cookTimeGroup.getByRole('button', { name: 'Under 15 min' });
+        await expect(under15).toHaveAttribute('aria-pressed', 'false');
+        await under15.click();
+
+        await expect(under15).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' })).toBeVisible();
+        await expect(page.getByText('1 recipe')).toBeVisible();
+
+        // The URL now carries the filter (shareable / reload-safe).
+        await expect(page).toHaveURL(/maxCookTime=15/);
+    });
+
     test('echoes the query in the results header and re-sorts on demand (W4/S3+S5)', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);

@@ -797,6 +797,7 @@ export class RecipeServiceClient {
             dietaryFlags: params.dietaryFlags,
             tags: params.tags,
             maxPrepTime: params.maxPrepTime,
+            maxCookTime: params.maxCookTime,
             maxTotalTime: params.maxTotalTime,
             ingredientIds: params.ingredientIds,
             page: params.page,

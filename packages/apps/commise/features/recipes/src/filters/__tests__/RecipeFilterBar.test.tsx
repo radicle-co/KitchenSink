@@ -26,6 +26,7 @@ function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
         onToggleFacet: noop,
         onSetCuisine: noop,
         onSetMaxPrepTime: noop,
+        onSetMaxCookTime: noop,
         onSetMaxTotalTime: noop,
         onClearAll: noop,
         ...overrides,
@@ -56,6 +57,7 @@ describe('RecipeFilterBar (web) — structure', () => {
         expect(screen.getByRole('group', { name: 'Dietary' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Tags' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Prep time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Cook time' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Total time' })).toBeTruthy();
     });
 
@@ -269,5 +271,52 @@ describe('RecipeFilterBar (web) — cuisine + prep facets (S2)', () => {
 
         await user.click(within(group).getByRole('button', { name: 'Under 15 min' }));
         expect(onSetMaxPrepTime).toHaveBeenCalledWith(undefined);
+    });
+});
+
+describe('RecipeFilterBar (web) — cook-time bound (REQ-030f)', () => {
+    it('renders the Cook time ladder even with no facets, because it is a bound not a value list', () => {
+        renderBar({ facets: {} });
+
+        const group = within(screen.getByRole('group', { name: 'Cook time' }));
+        expect(group.getByRole('button', { name: 'Under 15 min' })).toBeTruthy();
+        expect(group.getByRole('button', { name: 'Under 30 min' })).toBeTruthy();
+        expect(group.getByRole('button', { name: 'Under 60 min' })).toBeTruthy();
+    });
+
+    it('sets a cook-time bound from the Cook time ladder', async () => {
+        const user = userEvent.setup();
+        const onSetMaxCookTime = vi.fn();
+        renderBar({ onSetMaxCookTime });
+
+        const group = screen.getByRole('group', { name: 'Cook time' });
+        await user.click(within(group).getByRole('button', { name: 'Under 30 min' }));
+
+        expect(onSetMaxCookTime).toHaveBeenCalledWith(30);
+    });
+
+    it('presses only the active cook bound', () => {
+        renderBar({ filters: { maxCookTime: 30 } });
+
+        const group = within(screen.getByRole('group', { name: 'Cook time' }));
+        expect(group.getByRole('button', { name: 'Under 30 min' }).getAttribute('aria-pressed')).toBe('true');
+        expect(group.getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('clears a cook bound by pressing the active bucket again', async () => {
+        const user = userEvent.setup();
+        const onSetMaxCookTime = vi.fn();
+        renderBar({ filters: { maxCookTime: 30 }, onSetMaxCookTime });
+
+        const group = screen.getByRole('group', { name: 'Cook time' });
+        await user.click(within(group).getByRole('button', { name: 'Under 30 min' }));
+
+        expect(onSetMaxCookTime).toHaveBeenCalledWith(undefined);
+    });
+
+    it('counts an active cook bound in the clear-all summary', () => {
+        renderBar({ filters: { maxCookTime: 30 } });
+
+        expect(screen.getByRole('button', { name: 'Clear 1 filter' })).toBeTruthy();
     });
 });

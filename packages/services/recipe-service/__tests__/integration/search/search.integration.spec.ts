@@ -36,6 +36,8 @@ interface SeedRecipe {
     dietaryFlags: string[];
     tags: string[];
     prepTimeMinutes: number;
+    /** Defaults to `prepTimeMinutes` when omitted (existing corpus rows don't vary cook time). */
+    cookTimeMinutes?: number;
     totalTimeMinutes: number;
     ingredientNamesText: string;
     deleted?: boolean;
@@ -63,7 +65,7 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
                 recipe.dietaryFlags,
                 recipe.tags,
                 recipe.prepTimeMinutes,
-                recipe.prepTimeMinutes,
+                recipe.cookTimeMinutes ?? recipe.prepTimeMinutes,
                 recipe.totalTimeMinutes,
                 4,
                 recipe.ingredientNamesText,
@@ -216,6 +218,42 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
         const { results } = await dal.search(filters({ query: 'pasta', dietaryFlags: ['vegetarian'] }));
 
         expect(results.map((r) => r.recipe.title)).toEqual(['Weeknight Pasta']);
+    });
+
+    it('applies a max-cook-time filter (REQ-030f) — excludes a longer cook time, includes the exact bound', async () => {
+        const quickId = await seed({
+            ownerId: OWNER,
+            title: 'Quick Pasta Bowl',
+            description: 'A quick tomato pasta.',
+            visibility: 'public',
+            dietaryFlags: [],
+            tags: [],
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 30,
+            totalTimeMinutes: 35,
+            ingredientNamesText: 'pasta tomato',
+        });
+        const slowId = await seed({
+            ownerId: OWNER,
+            title: 'Slow Braised Pasta',
+            description: 'A long-simmered pasta.',
+            visibility: 'public',
+            dietaryFlags: [],
+            tags: [],
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 60,
+            totalTimeMinutes: 65,
+            ingredientNamesText: 'pasta beef',
+        });
+
+        // cookTime 60 is EXCLUDED at maxCookTime=30; cookTime 30 is INCLUDED (inclusive upper bound).
+        const bounded = await dal.search(filters({ query: 'pasta', maxCookTime: 30 }));
+        expect(bounded.results.map((r) => r.recipe.id)).toEqual([quickId]);
+        expect(bounded.results.map((r) => r.recipe.id)).not.toContain(slowId);
+
+        // Raising the bound to exactly the slow recipe's cook time includes it too.
+        const wide = await dal.search(filters({ query: 'pasta', maxCookTime: 60 }));
+        expect(wide.results.map((r) => r.recipe.id)).toEqual(expect.arrayContaining([quickId, slowId]));
     });
 
     it('paginates the ranked page while reporting the unpaged total', async () => {

@@ -543,6 +543,7 @@ describe('RecipeServiceClient — search & account', () => {
             dietaryFlags: ['vegan', 'gluten_free'],
             tags: ['dinner'],
             maxPrepTime: 30,
+            maxCookTime: 45,
             maxTotalTime: 60,
             ingredientIds: ['ing_1', 'ing_2'],
             page: 2,
@@ -554,7 +555,7 @@ describe('RecipeServiceClient — search & account', () => {
         expect(requestAt(fetchMock).url).toBe(
             `${BASE}/v1/search/recipes?query=chicken+pie&cuisine=british` +
                 `&dietaryFlags=vegan&dietaryFlags=gluten_free&tags=dinner` +
-                `&maxPrepTime=30&maxTotalTime=60&ingredientIds=ing_1&ingredientIds=ing_2` +
+                `&maxPrepTime=30&maxCookTime=45&maxTotalTime=60&ingredientIds=ing_1&ingredientIds=ing_2` +
                 `&page=2&pageSize=10&sortBy=relevance`,
         );
     });

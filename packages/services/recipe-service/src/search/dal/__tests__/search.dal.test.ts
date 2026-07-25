@@ -275,6 +275,7 @@ describe('SearchDal.search', () => {
                 dietaryFlags: ['vegan'],
                 tags: ['dinner'],
                 maxPrepTime: 15,
+                maxCookTime: 20,
                 maxTotalTime: 45,
                 ingredientIds: ['00000000-0000-4000-8000-0000000000aa'],
             }),
@@ -286,8 +287,19 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('dietary_flags @>');
         expect(pageSql).toContain('tags @>');
         expect(pageSql).toContain('prep_time_minutes <=');
+        expect(pageSql).toContain('cook_time_minutes <=');
         expect(pageSql).toContain('total_time_minutes <=');
         expect(pageSql).toContain('recipe_ingredients');
+    });
+
+    it('omits the cook-time predicate when maxCookTime is absent (REQ-030f)', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({ query: 'pasta' }));
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        expect(pageSql).not.toContain('cook_time_minutes <=');
     });
 
     it('aggregates facets via a rank-sampling CTE that unnests dietary_flags and tags', async () => {

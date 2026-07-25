@@ -51,6 +51,17 @@ describe('SearchService.searchRecipes', () => {
         );
     });
 
+    it('forwards maxCookTime alongside maxPrepTime/maxTotalTime (REQ-030f)', async () => {
+        const { dal, search } = fakeDal(dalResult());
+        const params: RecipeSearchParams = { maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 };
+
+        await new SearchService(dal).searchRecipes(OWNER, params);
+
+        expect(search).toHaveBeenCalledWith(
+            expect.objectContaining({ maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 }),
+        );
+    });
+
     it('honors explicit pagination + sort', async () => {
         const { dal, search } = fakeDal(dalResult());
         const params: RecipeSearchParams = { page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE };

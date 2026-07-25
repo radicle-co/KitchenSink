@@ -94,10 +94,10 @@ appId: io.commise.mobile
       timeout: 40000
 
 # --- FR-006 filter bar (facet-driven) ------------------------------------------------------------------
-# The filter bar renders under the search box on Discover. The Prep-time and Total-time bucket ladders are
-# always present (they are bounds, not facet value lists) — the first "Under 60 min" is the Prep ladder
-# (W4/S2 orders Dietary · Cuisine · Tags · Prep · Total). Clearing the term first returns to the full browse
-# set the filter then narrows.
+# The filter bar renders under the search box on Discover. The Prep-time, Cook-time (REQ-030f), and
+# Total-time bucket ladders are always present (they are bounds, not facet value lists) — the first
+# "Under 60 min" is the Prep ladder (W4/S2 orders Dietary · Cuisine · Tags · Prep · Cook · Total). Clearing
+# the term first returns to the full browse set the filter then narrows.
 - tapOn: 'Search public recipes'
 - eraseText
 - extendedWaitUntil:
@@ -117,6 +117,23 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 - tapOn: 'Under 60 min'
+
+# --- REQ-030f cook-time filter --------------------------------------------------------------------------
+# Herb Risotto's cook time is 25 min (seed.ts), so an "Under 15 min" COOK bound must exclude it — a filter
+# that dropped maxCookTime would keep rendering it and fail here. "Under 15 min" appears in the Prep, Cook,
+# and Total ladders (in that display order); `index: 1` disambiguates the Cook ladder's button from Prep's
+# identical label.
+- tapOn:
+      text: 'Under 15 min'
+      index: 1
+- assertNotVisible: 'Herb Risotto'
+# Pressing the SAME (now-active) cook bound again clears it, restoring Herb Risotto to the browse set.
+- tapOn:
+      text: 'Under 15 min'
+      index: 1
+- extendedWaitUntil:
+      visible: 'Herb Risotto'
+      timeout: 40000
 
 # --- Navigation: the third tab, and back to the first ---------------------------------------------------
 - tapOn: 'Collections'

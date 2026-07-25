@@ -65,6 +65,12 @@ export class SearchRecipesQueryDto implements RecipeSearchParams {
     @Type(() => Number)
     @IsInt()
     @Min(0)
+    maxCookTime?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @Min(0)
     maxTotalTime?: number;
 
     @IsOptional()

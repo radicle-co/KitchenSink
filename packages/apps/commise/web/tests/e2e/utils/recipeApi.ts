@@ -1380,6 +1380,8 @@ export async function mockRecipeApi(
             const tags = url.searchParams.getAll('tags');
             const maxTotalTimeRaw = url.searchParams.get('maxTotalTime');
             const maxTotalTime = maxTotalTimeRaw === null ? undefined : Number(maxTotalTimeRaw);
+            const maxCookTimeRaw = url.searchParams.get('maxCookTime');
+            const maxCookTime = maxCookTimeRaw === null ? undefined : Number(maxCookTimeRaw);
             // Scope to what the caller may see (public + their own) and drop tombstones, as the DAL does.
             const visible = [...store.values()].filter(
                 (recipe) =>
@@ -1402,8 +1404,10 @@ export async function mockRecipeApi(
                 const tagsOk = tags.length === 0 || tags.some((t) => recipe.tags.includes(t));
                 const timeOk =
                     maxTotalTime === undefined || Number.isNaN(maxTotalTime) || recipe.totalTimeMinutes <= maxTotalTime;
+                const cookTimeOk =
+                    maxCookTime === undefined || Number.isNaN(maxCookTime) || recipe.cookTimeMinutes <= maxCookTime;
 
-                return dietaryOk && tagsOk && timeOk;
+                return dietaryOk && tagsOk && timeOk && cookTimeOk;
             });
             const metadata = filtered.map(toRecipeMetadata);
             const response: RecipeSearchResponse = {

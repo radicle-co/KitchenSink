@@ -20,6 +20,7 @@ export {
     formatFacetChipName,
     hasActiveFilters,
     setCuisine,
+    setMaxCookTime,
     setMaxPrepTime,
     setMaxTotalTime,
     toggleFacetValue,

@@ -9,9 +9,9 @@
  * accepts these filters AND returns `facets`, and it facets exactly two dimensions — `dietaryFlags` and
  * `tags` — plus the caller-supplied `maxTotalTime` bound. `GET /v1/recipes` (the owner's library list) has
  * neither facets nor filter params, so the faceted bar belongs on the search-backed surface. The remaining
- * search params (`cuisine`, `maxPrepTime`, `ingredientIds`) are forwarded by the client but are not faceted
- * by the service, so nothing drives a chip for them yet — adding one is additive here and in the service's
- * facet CTE.
+ * search params (`cuisine`, `maxPrepTime`, `maxCookTime`, `ingredientIds`) are forwarded by the client but
+ * are not faceted by the service, so nothing drives a chip for them yet — adding one is additive here and in
+ * the service's facet CTE.
  *
  * Query-string (de)serialization goes through {@link URLSearchParams} rather than hand-rolled concatenation
  * (CLAUDE.md library-first): it percent-encodes values and round-trips repeated array params, which is the
@@ -42,6 +42,8 @@ export interface RecipeFilterState {
     readonly cuisine?: string;
     /** Max prep-time bound in minutes (S2), on the {@link TIME_BUCKETS_MINUTES} ladder. */
     readonly maxPrepTime?: number;
+    /** Max cook-time bound in minutes (REQ-030f), on the {@link TIME_BUCKETS_MINUTES} ladder. */
+    readonly maxCookTime?: number;
     /** Max total-time bound in minutes, on the {@link TIME_BUCKETS_MINUTES} ladder. */
     readonly maxTotalTime?: number;
 }
@@ -52,6 +54,7 @@ type FilterDraft = {
     tags?: readonly string[];
     cuisine?: string;
     maxPrepTime?: number;
+    maxCookTime?: number;
     maxTotalTime?: number;
 };
 
@@ -59,9 +62,8 @@ type FilterDraft = {
 export const EMPTY_RECIPE_FILTERS: RecipeFilterState = Object.freeze({});
 
 /**
- * The "under N minutes" bucket ladder the bar offers for BOTH prep and total time (minutes) — a bound, not a
- * facet value list. NOTE: the search API has NO cook-time filter (`maxPrepTime` + `maxTotalTime` only), so
- * the bar offers Prep and Total time, never a phantom "Cook time".
+ * The "under N minutes" bucket ladder the bar offers for prep, cook (REQ-030f), and total time (minutes) —
+ * a bound, not a facet value list.
  */
 export const TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
 
@@ -195,6 +197,24 @@ export function setMaxPrepTime(state: RecipeFilterState, minutes: number | undef
 }
 
 /**
+ * Set (or clear) the max-cook-time bound (REQ-030f). Clearing omits the key entirely. Pure.
+ *
+ * @param state - The current filter state.
+ * @param minutes - The bound in minutes, or `undefined` to clear it.
+ * @returns The next filter state.
+ */
+export function setMaxCookTime(state: RecipeFilterState, minutes: number | undefined): RecipeFilterState {
+    if (minutes === undefined) {
+        const draft: FilterDraft = { ...state };
+        delete draft.maxCookTime;
+
+        return draft;
+    }
+
+    return { ...state, maxCookTime: minutes };
+}
+
+/**
  * Set (or clear) the single cuisine filter (S2). Selecting the already-selected cuisine clears it (a toggle),
  * so the single-select group has an "off" state. Clearing omits the key entirely. Pure.
  *
@@ -226,6 +246,7 @@ export function countActiveFilters(state: RecipeFilterState): number {
         (state.tags?.length ?? 0) +
         (state.cuisine !== undefined ? 1 : 0) +
         (state.maxPrepTime !== undefined ? 1 : 0) +
+        (state.maxCookTime !== undefined ? 1 : 0) +
         (state.maxTotalTime !== undefined ? 1 : 0)
     );
 }
@@ -282,6 +303,10 @@ export function filtersToSearchParams(state: RecipeFilterState, query: string): 
         params.maxPrepTime = state.maxPrepTime;
     }
 
+    if (state.maxCookTime !== undefined) {
+        params.maxCookTime = state.maxCookTime;
+    }
+
     if (state.maxTotalTime !== undefined) {
         params.maxTotalTime = state.maxTotalTime;
     }
@@ -319,6 +344,10 @@ export function filtersToQueryString(state: RecipeFilterState, query: string): s
 
     if (state.maxPrepTime !== undefined) {
         params.append('maxPrepTime', String(state.maxPrepTime));
+    }
+
+    if (state.maxCookTime !== undefined) {
+        params.append('maxCookTime', String(state.maxCookTime));
     }
 
     if (state.maxTotalTime !== undefined) {
@@ -364,6 +393,12 @@ export function filtersFromQueryString(queryString: string): { filters: RecipeFi
 
     if (prep !== undefined) {
         filters.maxPrepTime = prep;
+    }
+
+    const cook = timeBucketFromParam(params.get('maxCookTime'));
+
+    if (cook !== undefined) {
+        filters.maxCookTime = cook;
     }
 
     const total = timeBucketFromParam(params.get('maxTotalTime'));
@@ -425,6 +460,8 @@ export interface RecipeFilterBarProps {
     readonly onSetCuisine: (cuisine: string | undefined) => void;
     /** Set the max-prep-time bound, or clear it with `undefined` (S2). */
     readonly onSetMaxPrepTime: (minutes: number | undefined) => void;
+    /** Set the max-cook-time bound, or clear it with `undefined` (REQ-030f). */
+    readonly onSetMaxCookTime: (minutes: number | undefined) => void;
     /** Set the max-total-time bound, or clear it with `undefined`. */
     readonly onSetMaxTotalTime: (minutes: number | undefined) => void;
     /** Clear every active filter. */

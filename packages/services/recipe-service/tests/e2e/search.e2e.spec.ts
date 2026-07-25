@@ -25,6 +25,8 @@ const VIEWER = '01JSEARCHE2E000VIEWER0000A';
 const OTHER_OWNER = '01JSEARCHE2E0000OWNER0000B';
 /** A token present in every seeded title but (deliberately) in no other recipe, so `query=` scopes to us. */
 const TOKEN = 'zzsearchfixture';
+/** A separate token for the REQ-030f cook-time rows, isolated from the `TOKEN` total-count assertions. */
+const COOK_TOKEN = 'zzcooktimefixture';
 
 interface SeededRecipe {
     readonly ownerId: string;
@@ -33,6 +35,11 @@ interface SeededRecipe {
     readonly totalTime: number;
     readonly calories: number | null;
     readonly title: string;
+}
+
+interface CookTimeSeededRecipe {
+    readonly title: string;
+    readonly cookTime: number;
 }
 
 interface SearchHit {
@@ -95,6 +102,22 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
                 [r.ownerId, r.title, r.status, r.cuisine, r.totalTime, r.calories],
             );
         }
+
+        // REQ-030f — two published public rows with distinct cook times, isolated by COOK_TOKEN.
+        const cookRows: CookTimeSeededRecipe[] = [
+            { title: `${COOK_TOKEN} quick sear`, cookTime: 30 },
+            { title: `${COOK_TOKEN} slow braise`, cookTime: 60 },
+        ];
+
+        for (const r of cookRows) {
+            await pool.query(
+                `INSERT INTO recipes
+                   (owner_id, title, visibility, status, cuisine, servings,
+                    prep_time_minutes, cook_time_minutes, total_time_minutes)
+                 VALUES ($1, $2, 'public', 'published', 'italian', 2, 5, $3, $3)`,
+                [OTHER_OWNER, r.title, r.cookTime],
+            );
+        }
     });
 
     afterAll(async () => {
@@ -137,5 +160,18 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
         // The 20-min italian carries its denormalized headline calories; the thai row seeded NULL → omitted.
         expect(body.results[0]!.recipe.leadCaloriesPerServing).toBe(300);
         expect(body.results[1]!.recipe.leadCaloriesPerServing).toBeUndefined();
+    });
+
+    it('filters by maxCookTime (REQ-030f): a 60-min cook time is excluded at max=30, a 30-min one is included', async () => {
+        const bounded = await search({ query: COOK_TOKEN, maxCookTime: '30' });
+
+        expect(bounded.total).toBe(1);
+        const boundedTitles = bounded.results.map((h) => h.recipe.title);
+        expect(boundedTitles).toContain(`${COOK_TOKEN} quick sear`);
+        expect(boundedTitles).not.toContain(`${COOK_TOKEN} slow braise`);
+
+        // Raising the bound to exactly the slow row's cook time includes both (inclusive upper bound).
+        const wide = await search({ query: COOK_TOKEN, maxCookTime: '60' });
+        expect(wide.total).toBe(2);
     });
 });

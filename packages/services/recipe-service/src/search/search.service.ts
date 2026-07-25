@@ -40,6 +40,7 @@ export class SearchService {
             dietaryFlags: params.dietaryFlags,
             tags: params.tags,
             maxPrepTime: params.maxPrepTime,
+            maxCookTime: params.maxCookTime,
             maxTotalTime: params.maxTotalTime,
             ingredientIds: params.ingredientIds,
             page,

@@ -20,6 +20,8 @@ export interface FilterMessages {
     readonly cuisineLabel: string;
     /** Group label for the max-prep-time bound (S2). */
     readonly maxPrepTimeLabel: string;
+    /** Group label for the max-cook-time bound (REQ-030f). */
+    readonly maxCookTimeLabel: string;
     /** Group label for the max-total-time bound. */
     readonly maxTotalTimeLabel: string;
     /** Time-bucket button template (contains `{minutes}`). */
@@ -41,6 +43,7 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         tagsLabel: 'Tags',
         cuisineLabel: 'Cuisine',
         maxPrepTimeLabel: 'Prep time',
+        maxCookTimeLabel: 'Cook time',
         maxTotalTimeLabel: 'Total time',
         timeBucket: 'Under {minutes} min',
         chipCountOne: '{count} recipe',

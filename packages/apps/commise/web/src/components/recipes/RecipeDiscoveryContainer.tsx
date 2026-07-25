@@ -20,6 +20,7 @@ import {
     filtersToSearchParams,
     hasActiveFilters,
     setCuisine,
+    setMaxCookTime,
     setMaxPrepTime,
     setMaxTotalTime,
     toggleFacetValue,
@@ -121,6 +122,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
                     }
                     onSetCuisine={(cuisine) => applyCriteria(setCuisine(filters, cuisine), query)}
                     onSetMaxPrepTime={(minutes) => applyCriteria(setMaxPrepTime(filters, minutes), query)}
+                    onSetMaxCookTime={(minutes) => applyCriteria(setMaxCookTime(filters, minutes), query)}
                     onSetMaxTotalTime={(minutes) => applyCriteria(setMaxTotalTime(filters, minutes), query)}
                     onClearAll={() => applyCriteria(clearRecipeFilters(), query)}
                 />

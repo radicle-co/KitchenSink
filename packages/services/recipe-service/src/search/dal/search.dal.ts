@@ -25,15 +25,21 @@ import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
+import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../common/pagination.js';
 import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipe-row-to-domain.js';
 import { resolveCdnUrl } from '../../photos/photo-view.js';
 
-/** Default page size when the caller does not specify one (mirrors the list endpoint's default). */
-export const DEFAULT_SEARCH_PAGE_SIZE = 20;
+/** Default page size when the caller does not specify one — the shared S-R8 default (20). */
+export const DEFAULT_SEARCH_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
-/** Hard ceiling on page size (mirrors the OpenAPI `pageSize` maximum for search). */
-export const MAX_SEARCH_PAGE_SIZE = 50;
+/** Hard ceiling on page size (mirrors the OpenAPI `pageSize` maximum for search) — the shared S-R8 ceiling (50). */
+export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE;
+
+// Re-exported so existing importers (this module's own `search()`, the query DTO, and this module's
+// tests) keep resolving `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps
+// themselves now live once, in `../../common/pagination.js`.
+export { clampPage, clampPageSize };
 
 /**
  * How many top-ranked matches the facet CTE samples before aggregating. Facet counts are computed over
@@ -220,24 +226,6 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
             ? { coverPhotoUrl: resolveCdnUrl(cloudfrontUrl, row.cover_photo_key) }
             : {}),
     };
-}
-
-/** Clamp a requested page size into `[1, MAX_SEARCH_PAGE_SIZE]`, defaulting when absent/invalid. Pure. */
-export function clampPageSize(pageSize: number | undefined): number {
-    if (pageSize === undefined || !Number.isFinite(pageSize)) {
-        return DEFAULT_SEARCH_PAGE_SIZE;
-    }
-
-    return Math.min(Math.max(Math.trunc(pageSize), 1), MAX_SEARCH_PAGE_SIZE);
-}
-
-/** Clamp a requested page number to a minimum of 1, defaulting when absent/invalid. Pure. */
-export function clampPage(page: number | undefined): number {
-    if (page === undefined || !Number.isFinite(page)) {
-        return 1;
-    }
-
-    return Math.max(Math.trunc(page), 1);
 }
 
 /** Build a `text[]` array literal from JS strings, each bound as its own param. Pure. */

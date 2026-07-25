@@ -10,6 +10,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { RecipeSearchParams } from '@kitchensink/recipe-core';
 
+import { toPageEnvelope } from '../common/pagination.js';
 import { SearchDal, DEFAULT_SEARCH_PAGE_SIZE } from './dal/search.dal.js';
 import type { RecipeSearchResponse } from './dto/search-response.dto.js';
 
@@ -49,10 +50,7 @@ export class SearchService {
         return {
             results,
             facets,
-            total,
-            page,
-            pageSize,
-            hasMore: page * pageSize < total,
+            ...toPageEnvelope({ total, page, pageSize, rowCount: results.length }),
         };
     }
 }

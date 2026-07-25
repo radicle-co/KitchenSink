@@ -484,8 +484,13 @@ describe('RecipesService.list', () => {
         expect(response.data).toHaveLength(1);
     });
 
-    it('reports hasMore=false on the last page', async () => {
-        const dal = fakeDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 2 }) });
+    it('reports hasMore=false on a SHORT final page (fewer rows than pageSize, nothing left)', async () => {
+        // S-R8 correctness fix: `total: 2` here was internally inconsistent with `rows: [aggregate()]`
+        // (1 row) under the OLD `page * pageSize < total` formula, which ignored the actual row count —
+        // it happened to pass regardless of whether the DAL truly returned every remaining row. The
+        // shared `toPageEnvelope` formula trusts the ACTUAL row count, so the fixture must be realistic:
+        // pageSize=2 but only 1 row exists in total, so the DAL genuinely returns a short (1-row) page.
+        const dal = fakeDal({ findAll: vi.fn().mockResolvedValue({ rows: [aggregate()], total: 1 }) });
 
         const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
 

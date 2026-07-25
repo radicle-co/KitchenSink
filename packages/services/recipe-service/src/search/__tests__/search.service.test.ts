@@ -75,11 +75,17 @@ describe('SearchService.searchRecipes', () => {
         expect(response.facets.dietaryFlags).toEqual([{ value: 'vegetarian', count: 1 }]);
     });
 
-    it('reports hasMore=false on the last page', async () => {
-        const { dal } = fakeDal(dalResult({ total: 15 }));
+    it('reports hasMore=false on a SHORT final page (fewer results than pageSize, nothing left)', async () => {
+        // S-R8 correctness fix: `total: 15` here was internally inconsistent with the fixture's 1-result
+        // default under the OLD `page * pageSize < total` formula, which ignored the actual result count
+        // — it happened to pass regardless of whether the DAL truly returned every remaining match. The
+        // shared `toPageEnvelope` formula trusts the ACTUAL result count, so the fixture must be
+        // realistic: pageSize=20 but only 1 result exists in total, so the DAL genuinely returns a short
+        // (1-result) page.
+        const { dal } = fakeDal(dalResult({ total: 1 }));
 
         const response = await new SearchService(dal).searchRecipes(OWNER, { page: 1, pageSize: 20 });
 
-        expect(response.hasMore).toBe(false); // 1*20 >= 15
+        expect(response.hasMore).toBe(false);
     });
 });

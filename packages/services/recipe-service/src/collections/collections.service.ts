@@ -13,6 +13,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { RecipeCollectionAddedVia, type PaginatedResponse } from '@kitchensink/recipe-core';
 
+import { toPageEnvelope } from '../common/pagination.js';
 import {
     COLLECTION_VISIBILITIES,
     type CollectionRow,
@@ -90,10 +91,7 @@ export class CollectionsService {
 
         return {
             data: rows.map((row) => toCollectionResponse(row)),
-            total,
-            page: page.page,
-            pageSize: page.pageSize,
-            hasMore: offset + rows.length < total,
+            ...toPageEnvelope({ total, page: page.page, pageSize: page.pageSize, rowCount: rows.length }),
         };
     }
 

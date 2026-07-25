@@ -25,6 +25,7 @@ import {
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
 
+import { toPageEnvelope } from '../common/pagination.js';
 import { VersionsService } from '../versions/versions.service.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolveCoverUrl, resolvePhotoView } from '../photos/photo-view.js';
@@ -603,10 +604,7 @@ export class RecipesService {
                         : {}),
                 }),
             ),
-            total,
-            page,
-            pageSize,
-            hasMore: page * pageSize < total,
+            ...toPageEnvelope({ total, page, pageSize, rowCount: rows.length }),
         };
     }
 

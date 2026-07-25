@@ -9,11 +9,13 @@ title: 'Account closure vs. erasure — the permanent-ULID identity anchor (Trac
 # Account closure vs. erasure — the permanent-ULID identity anchor
 
 > **Supersedes** the "cross-service anonymization coordinator" sketch. Two grounded investigations + **three
-> rounds of five-persona doc-review + a full plan-vs-worktree code reconciliation** shaped this. All owner
-> questions are resolved (KTDs); the round-2/3 code-verified corrections are folded in (ratings-by-deletion,
-> recovery handshake, deletion-worker orchestration, U4a/U4b split, the two-axis `visibility`+`status` privacy
-> scope); the load-bearing **Clerk `banUser` spike is done and passed** (KTD-1). Sign-off-ready as **CR-002**,
-> one PR on the `001-commise-recipe-app` worktree.
+> rounds of five-persona doc-review + a full plan-vs-worktree reconciliation + a GDPR erasure code-audit**
+> shaped this. All owner questions are resolved (KTDs); corrections are folded in (ratings-by-deletion,
+> **admin-mediated recovery**, deletion-worker orchestration, U4a/U4b split, the two-axis `visibility`+`status`
+> privacy scope, **lifecycle-aware provisioning (R10)**, the **food-erasure leg**, and **author-handle
+> scrub**). The GDPR audit confirmed this CR is the remediation for real shipped erasure gaps (see "Shipped-state
+> gaps this CR closes"). Ready for sign-off as **CR-002** once the audit-driven units are accepted; one PR on
+> the `001-commise-recipe-app` worktree.
 
 ---
 
@@ -37,8 +39,9 @@ Two distinct, both-legitimate lifecycle events:
 
 - **Account closure** — recoverable, soft. Triggered ONLY by the app's own "close account" action. The
   platform **bans** the Clerk identity (`banUser` — durable, reversible, **not** delete) and tombstones the
-  profile to `{ id, name }`, scrubbing email, avatar, sessions. Because the Clerk `sub` survives, a later
-  **`unbanUser` + sign-in resolves the same ULID** → name + recipes come back. Recipes, collections, food
+  profile to `{ id, name }`, scrubbing email, avatar, sessions. Because the Clerk `sub` survives, an
+  **admin-mediated `unbanUser` restores the same ULID** → name + recipes come back (recovery is
+  support-mediated, not self-service — see KTD-1). Recipes, collections, food
   references are untouched. We scrub aggressively anyway (good-GDPR-citizen).
 - **True erasure** (right to be forgotten) — irreversible, the ONLY path that **deletes** the Clerk identity.
   Reduce the profile to `{ id }` only. Per the user's per-recipe election, their **owner-only** recipes
@@ -66,8 +69,13 @@ the Clerk `sub` (U1).
   duration param) — a durable, admin-reversible hold that **preserves the user record and `sub`** and blocks
   sign-in; `lockUser` (auto-expiring account-lockout) is explicitly **rejected**. The Clerk mutation calls
   live in the **identity-webhooks deletion-worker Lambda**, which already holds the Clerk secret + an admin
-  client (`identityClient.ts` — already does `deleteUser`/`updateUser`) and is already the enqueue target of
-  `deleteUserMe` — so **no Clerk secret is added to the public-ALB service.** _(resolves OQ1)_
+  client (`identityClient.ts` — already does `deleteUser`/`updateUser`, though that `deleteUser` is **dead code
+  today**) and is already the enqueue target of `deleteUserMe` — so **no Clerk secret is added to the
+  public-ALB service.** **Recovery correction (GDPR code-audit):** the spike proved `banUser`/`unbanUser` exist
+  — it did NOT prove a self-service recovery primitive, and there is none (`@clerk/backend` v1.34.0 has no
+  server-side sign-in-attempt verification; a banned user can't sign in to be verified). **Recovery is
+  therefore admin/support-mediated `unbanUser`** (optionally re-admitting via `createSignInToken`), not a
+  self-service handshake. _(resolves OQ1)_
 - **KTD-2 — The `user.deleted` webhook = full erasure.** No in-app Clerk delete UI exists (verified — the app
   renders its own delete button → its own backend, never `<UserProfile>`), so `user.deleted` only arrives from
   our own erasure (idempotent confirmation), an admin dashboard deletion, or test. All → **erasure**; no
@@ -111,17 +119,19 @@ the Clerk `sub` (U1).
 
 ## Requirements
 
-| ID  | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Source                   |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| R1  | The identity profile row (ULID) MUST NOT be hard-deleted on closure OR erasure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | KTD; D2                  |
-| R2  | On **closure**, the platform **bans** (`banUser`) the Clerk identity — never deletes it — and the profile retains `{ id, name }`; email, sessions, avatar (col + S3) MUST be scrubbed. A later `unbanUser` + sign-in resolves the same ULID (recoverable).                                                                                                                                                                                                                                                                                                                                                                              | KTD-1                    |
-| R3  | On **erasure**, the platform **deletes** the Clerk identity; the profile retains `{ id }` only; name, email, avatar (col + S3), and any Clerk-`sub`-derived placeholder MUST be destroyed. No recovery.                                                                                                                                                                                                                                                                                                                                                                                                                                 | KTD-1; GDPR Art. 17      |
-| R4  | On **erasure**: **owner-only** recipes (`visibility='private'` OR `status='draft'`) are **removed** unless **elected to publish** (donate, which sets `visibility='public' AND status='published'`); **all collections removed**; the user's **ratings on others' recipes are anonymized** by **deleting the per-user rating rows** and letting the CR-001 statement-level trigger re-derive the aggregate (NO manual aggregate write — the two columns are trigger-only); **truly-public** (`public AND published`) + donated recipes kept, pseudonymized ULID. Applied **eventually** across identity + recipe (not atomic — see R7). | KTD-5                    |
-| R5  | Food MUST key `fetch_requesters` by the **app ULID** for user principals (from the token's `external_id`, verified present), retaining `svc_*` for service principals. No FK. Independent of the deletion flow.                                                                                                                                                                                                                                                                                                                                                                                                                         | KTD-4; FR-048            |
-| R6  | Closure vs. erasure MUST be explicit and non-conflatable. The user-facing erasure is confirmation-gated (Track A U7); closure is recoverable. A `user.deleted` webhook is **always** erasure (KTD-2).                                                                                                                                                                                                                                                                                                                                                                                                                                   | KTD-1/2                  |
-| R7  | The **erasure completion contract**: both legs (identity scrub + recipe erasure) MUST be observable as jointly complete; a failed/lost leg MUST raise an "erasure incomplete" signal and be reconcilable — never a silent half-erased account.                                                                                                                                                                                                                                                                                                                                                                                          | Doc-review               |
-| R8  | Every lifecycle transition MUST leave an **append-only audit record** (`{userId, event, trigger_source, actor, occurred_at, election/confirmation evidence}`), independent of the mutable state column.                                                                                                                                                                                                                                                                                                                                                                                                                                 | Doc-review               |
-| R9  | The two erasure entry points (user + webhook/admin) MUST NOT collide or drop the user's election: the election-bearing job MUST be the first writer, and a webhook echo MUST be a true no-op whenever a job for that owner **already exists in ANY state** (queued/running/terminal) — guarded by job existence/correlation key, NOT by "terminal" state (the async worker is still running when the echo arrives).                                                                                                                                                                                                                     | Doc-review (adversarial) |
+| ID  | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Source                    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| R1  | The identity profile row (ULID) MUST NOT be hard-deleted on closure OR erasure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | KTD; D2                   |
+| R2  | On **closure**, the platform **bans** (`banUser`) the Clerk identity — never deletes it — and the profile retains `{ id, name }`; email, sessions, avatar (col + S3) MUST be scrubbed. A later admin-mediated `unbanUser` restores the same ULID (recoverable via support, not self-service — Clerk has no server-side sign-in-attempt verification, see KTD-1).                                                                                                                                                                                                                                                                        | KTD-1                     |
+| R3  | On **erasure**, the platform **deletes** the Clerk identity; the profile retains `{ id }` only; name, email, avatar (col + S3), and any Clerk-`sub`-derived placeholder MUST be destroyed. No recovery.                                                                                                                                                                                                                                                                                                                                                                                                                                 | KTD-1; GDPR Art. 17       |
+| R4  | On **erasure**: **owner-only** recipes (`visibility='private'` OR `status='draft'`) are **removed** unless **elected to publish** (donate, which sets `visibility='public' AND status='published'`); **all collections removed**; the user's **ratings on others' recipes are anonymized** by **deleting the per-user rating rows** and letting the CR-001 statement-level trigger re-derive the aggregate (NO manual aggregate write — the two columns are trigger-only); **truly-public** (`public AND published`) + donated recipes kept, pseudonymized ULID. Applied **eventually** across identity + recipe (not atomic — see R7). | KTD-5                     |
+| R5  | Food MUST key `fetch_requesters` by the **app ULID** for user principals (from the token's `external_id`, verified present), retaining `svc_*` for service principals. No FK. Independent of the deletion flow.                                                                                                                                                                                                                                                                                                                                                                                                                         | KTD-4; FR-048             |
+| R6  | Closure vs. erasure MUST be explicit and non-conflatable. The user-facing erasure is confirmation-gated (Track A U7); closure is recoverable. A `user.deleted` webhook is **always** erasure (KTD-2).                                                                                                                                                                                                                                                                                                                                                                                                                                   | KTD-1/2                   |
+| R7  | The **erasure completion contract**: both legs (identity scrub + recipe erasure) MUST be observable as jointly complete; a failed/lost leg MUST raise an "erasure incomplete" signal and be reconcilable — never a silent half-erased account.                                                                                                                                                                                                                                                                                                                                                                                          | Doc-review                |
+| R8  | Every lifecycle transition MUST leave an **append-only audit record** (`{userId, event, trigger_source, actor, occurred_at, election/confirmation evidence}`), independent of the mutable state column.                                                                                                                                                                                                                                                                                                                                                                                                                                 | Doc-review                |
+| R9  | The two erasure entry points (user + webhook/admin) MUST NOT collide or drop the user's election: the election-bearing job MUST be the first writer, and a webhook echo MUST be a true no-op whenever a job for that owner **already exists in ANY state** (queued/running/terminal) — guarded by job existence/correlation key, NOT by "terminal" state (the async worker is still running when the echo arrives).                                                                                                                                                                                                                     | Doc-review (adversarial)  |
+| R10 | Provisioning MUST be **lifecycle-aware**: neither the auth read-through (`resolveOrCreateFromClaims` → `provisionCompleteUser`) nor the nightly reconciliation sweep may resurrect a `tombstoned`/`erased` user — the `upsertUser` conflict path MUST NOT clear `deletedAt`/lifecycle or restore name/avatar for such rows. (Today `provisioning.ts` sets `deletedAt: null` unconditionally, so a soft-deleted user is revived by any sign-in or the nightly cron — verified.)                                                                                                                                                          | Code audit (this session) |
+| R11 | On **erasure**, the user's food footprint MUST be erased: the food service's per-user `fetch_requesters` rows (keyed by the principal) MUST be deleted via `eraseUser`, invoked by the erasure orchestration. (Today `eraseUser` is shipped but DEAD CODE — no handler/subscription/caller — verified.)                                                                                                                                                                                                                                                                                                                                 | Code audit (this session) |
 
 ---
 
@@ -141,7 +151,7 @@ flowchart TD
     WH --> Erase
 
     Close --> Ban[deletion-worker Lambda:\nClerk banUser (durable) +\ntombstone {id,name}; scrub email/avatar/sessions]
-    Ban --> Recover[banned sign-in → 'account closed' →\nPOST /reactivate (server-verified) → unbanUser →\nsign in fresh, same sub → same ULID, recipes return]
+    Ban --> Recover[admin-mediated: support verifies →\nunbanUser (+ optional createSignInToken magic-link) →\nsame sub → same ULID, name + recipes return]
 
     Erase --> Route[recipe erasure FIRST\nPOST /v1/account/erasure + election]
     Route --> Scrub[then identity: scrub → {id} only\nClerk deleteUser]
@@ -191,7 +201,8 @@ erased owner.
   `.../db/migrations/` (migration + cutover); `.../auth/food-auth.guard.ts` + `authenticated-principal.ts`
   (surface `claims.userId` = the token's `external_id`, **already provided by the shared verifier**);
   `.../worker/provenance.ts` + `food-consumer.service.ts` (`isValidPrincipal` → valid-ULID-or-`svc_*`);
-  `.../foods/dao/fetch-requesters.dao.ts`, `user-erasure.service.ts`; tests.
+  `.../foods/dao/fetch-requesters.dao.ts`, `user-erasure.service.ts` (only to re-key what `eraseUser` deletes
+  by, `sub` → ULID — U1 does NOT invoke `eraseUser`; wiring the actual food-erasure leg is U4b/R11). Tests.
 - **Approach:** Discriminated value — user ULID or allowlisted `svc_*`. **Cutover ordering is load-bearing:**
   tightening `isValidPrincipal` while `sub`-keyed rows remain fails FR-048 for in-flight leased foods (zero
   valid requesters). Either purge/backfill as part of/just before the validator deploy (rows self-prune,
@@ -210,43 +221,53 @@ erased owner.
 - **Goal:** Replace "soft-delete + retain id/email/name" with the field-scrub Specification on a
   never-hard-deleted row; the **deletion-worker Lambda orchestrates** both events (it holds the Clerk secret):
   closure → field-scrub + `banUser`; erasure → **create the recipe erasure job first (U4a), then `deleteUser`**.
-  Build the **self-service reactivation** path. Add the audit trail.
-- **Requirements:** R1, R2, R3, R6, R8
+  Wire **admin-mediated reactivation** (`unbanUser`). Make provisioning **lifecycle-aware** so a tombstone is
+  not silently resurrected. Add the audit trail. **This BUILDS the deletion-worker's cross-service
+  orchestration from scratch** — today the worker only calls `purgePrivateDataByIdentityId` (identity DB) and
+  the shipped `identityClient.deleteUser` is dead code (no handler imports it).
+- **Requirements:** R1, R2, R3, R6, R8, R10
 - **Dependencies:** U4a (the service-principal recipe-erasure call the worker makes on the erasure path)
 - **Files:** `packages/services/identity/src/users/users.service.ts` (`deleteUserMe` → set lifecycle + enqueue
-  `{userId, event: closure|erasure, election}`; the service does NOT call Clerk — no secret on the public ALB) - the users DAL + the deletion-queue DTO/`enqueueDeletion` + `queue/sqs.service.ts` (**carry `event` +
-  `election` on the message** — today it is `{identityId, userId, enqueuedAt, failureReason}` only);
-  `packages/services/identity/src/database/schema/users.ts` (lifecycle — **prefer extending `status`
-  `active|suspended|tombstoned|erased`**; reconcile `deletedAt` + `users_email_unique WHERE deleted_at IS
-NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks/src/common/identityClient.ts`**
-  (add `banUser`/`unbanUser` — admin client + secret already here); `.../handlers/deletion-worker.ts`
-  (orchestrate per event: field-scrub → `banUser` for closure; recipe-job-then-`deleteUser` for erasure) +
-  `identityWebhook.ts` (`user.deleted` → erasure, KTD-2); the **reactivation endpoint + its detection at the
-  auth read-through** — `packages/services/identity/src/auth/middleware/auth.middleware.ts` /
-  `ClerkAuthService.resolveOrCreateFromClaims` recognizes a banned-`sub` sign-in attempt and surfaces the
-  distinguishable "account closed" state, and a new `POST /v1/account/reactivate` verifies the Clerk
-  sign-in-attempt server-side then calls `unbanUser` + clears the tombstone; tests + an identity integration
-  test.
+  `{userId, event: closure|erasure, election}`; the service does NOT call Clerk — no secret on the public ALB)
+    - the users DAL (`purgePrivateDataByIdentityId` → replace "retain id/email/name" with the ProfileScrubPolicy;
+      **email scrubbed, not retained**) + the deletion-queue DTO/`enqueueDeletion` + `queue/sqs.service.ts`
+      (**carry `event` + `election`** — today `{identityId, userId, enqueuedAt, failureReason}` only);
+      **`packages/services/identity/src/types/schema/users.ts`** (the real path — NOT `database/schema/`) for the
+      lifecycle state (**`status` is a `pgEnum('user_status', ['active','suspended'])`** — extend via
+      `ALTER TYPE … ADD VALUE 'tombstoned'/'erased'`, or switch to a text+CHECK column to mirror `recipes.status`;
+      note `users_email_unique` is a **plain full-unique** index on `email`, NOT partial — the ULID-keyed
+      placeholder still satisfies it) + a new `lifecycle_events` audit table;
+      **`packages/utils/identity/src/provisioning.ts`** (the `upsertUser` `onConflictDoUpdate` currently sets
+      `deletedAt: null` unconditionally — **make it lifecycle-aware: never revive a `tombstoned`/`erased` row**,
+      see R10) + **`packages/services/identity-webhooks/src/handlers/reconciliation.ts`** (skip
+      tombstoned/erased users so the nightly `provisionCompleteUser` sweep can't resurrect them);
+      **`packages/services/identity-webhooks/src/common/identityClient.ts`** (add `banUser`/`unbanUser` — admin
+      client + secret already here; `deleteUser` already exists, currently dead code); `.../handlers/deletion-worker.ts`
+      (orchestrate per event: field-scrub → `banUser` for closure; recipe-job-then-`deleteUser` for erasure) +
+      `identityWebhook.ts` (`user.deleted` → erasure, KTD-2); an **admin-scoped reactivation endpoint** (identity
+      already has an admin surface) that calls `unbanUser` + clears the tombstone; tests + an identity integration
+      test.
 - **Approach:** One authoritative `ProfileScrubPolicy` (Spec A). The row is UPDATEd, never DELETEd. **Closure
   = `banUser`** (durable, reversible; sub persists); **erasure = `deleteUser`**, and per the orchestration
   decision the worker calls the recipe erasure (U4a) **before** `deleteUser`, so the election-bearing job is
   the first writer (R9). `email` scrub → a **ULID**-keyed placeholder (never `sub`-keyed). Avatar destroy
   deletes the **S3 object**. Every transition writes a `lifecycle_events` row.
-  **Recovery (self-service handshake — owner decision):** a banned user cannot sign in, so recovery is NOT a
-  normal sign-in. The client's sign-in attempt returns Clerk's distinguishable _banned_ error → the app offers
-  "Reactivate" → `POST /v1/account/reactivate` presents the **Clerk sign-in-attempt identifier**, which the
-  backend **verifies server-side via the Clerk Backend API** (never trusting a client "I re-authed" claim)
-  before `unbanUser` + tombstone-clear. This proves ownership at a pre-session moment without a weaker
-  email/ticket flow. `erased` is not reactivatable.
+  **Recovery (admin/support-mediated — owner decision, corrected after the Clerk-SDK finding):** `banUser`
+  keeps the `sub` but blocks sign-in, and `@clerk/backend` v1.34.0 has **no server-side sign-in-attempt
+  verification** primitive — so self-service recovery is NOT buildable. Instead: a closed user contacts
+  support; an **admin-scoped** endpoint verifies identity out-of-band and calls `unbanUser` + clears the
+  tombstone (optionally minting a Clerk **`createSignInToken`** magic-link to re-admit). No new public pre-auth
+  surface; no retained email required. `erased` is not reactivatable.
 - **Execution note:** Test-first; assert the surviving field-set + the Clerk ban-vs-delete call + the
-  reactivation handshake per event.
+  lifecycle-aware provisioning (no revival) per event.
 - **Test scenarios:** closure → Clerk **banned** (not deleted), profile `{id, name}`, email ULID-placeholder,
-  avatar S3 deleted, `tombstoned`, audit row; **reactivation** → banned sign-in attempt → `/reactivate` with a
-  server-verified sign-in-attempt → `unbanUser` → same ULID, name restored; **a third party who knows only the
-  email/`sub` CANNOT reactivate** (the sign-in-attempt artifact can't be forged); erasure → recipe job created
-  first, then Clerk **deleted**, `{id}` only, name/avatar/placeholder destroyed, `erased`, audit row;
-  `user.deleted` webhook → erasure (KTD-2).
-- **Verification:** row never hard-deleted; ban-vs-delete matches the event; reactivation re-admits only the
+  avatar S3 deleted, `tombstoned`, audit row; **no-resurrection** → a `tombstoned`/`erased` user hit by
+  `provisionCompleteUser` (read-through OR the nightly reconciliation sweep) stays tombstoned/erased,
+  `deletedAt` NOT cleared, name/avatar NOT restored from Clerk (R10); **admin reactivation** → admin `unbanUser`
+  → same ULID, name restored, lifecycle `active`; erasure → recipe job created first, then Clerk **deleted**,
+  `{id}` only, name/avatar/placeholder destroyed, `erased`, audit row; `user.deleted` webhook → erasure (KTD-2).
+- **Verification:** row never hard-deleted; ban-vs-delete matches the event; a tombstone is never resurrected
+  by provisioning/reconciliation; admin reactivation re-admits only the
   genuine owner; recipe job precedes Clerk delete; audit append-only.
 
 ### U3a. Erasure worker: scope the DELETE + S3 sweep + clone-detach to PRIVATE recipes (safety-critical)
@@ -313,6 +334,14 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
   manual write is forbidden and would double-apply against the trigger.** Consequence (intended): the erased
   user's stars leave the public average. This leg largely already ships in the account-erasure worker; U3a's
   scoping does not touch it. The publish warning makes the R8 consent informed.
+  **Author-handle residue (code-audit finding).** Kept truly-public + donated recipes carry a denormalized
+  `recipes.author_handle` (a name-ish display handle, `schema/recipes.ts:130`), and the shipped worker deletes
+  the `author_handles` read-model wholesale (`DELETE FROM author_handles WHERE user_id`, worker:359). Left as-is,
+  a "kept, pseudonymized" recipe would either retain a real handle string (residual identity) or lose its
+  author mapping entirely. On erasure, **scrub `recipes.author_handle` on KEPT rows to a pseudonymized token**
+  (rendered from the ULID) and **scope the `author_handles` deletion to REMOVED recipes only** (or repoint the
+  surviving read-model rows to the pseudonym) — so no cleartext handle survives and kept recipes still render a
+  consistent (pseudonymous) author.
 - **Execution note:** Test-first; prove donated content readable by a non-owner; prove the aggregate is correct
   after the user's rating rows are deleted **and** under a concurrent new rating on the same recipe (re-verify
   the CR-001 `FOR UPDATE` lock discipline holds — no lost update).
@@ -376,21 +405,32 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
 ### U4b. Routing + orchestration ordering + completion contract
 
 - **Goal:** Make `closure | erasure` explicit and non-conflatable; wire the deletion-worker orchestration
-  (recipe-first, R9); make erasure completion observable (R7).
-- **Requirements:** R6, R7, R9
+  (recipe-first, R9) **fanning out to recipe AND food**; make erasure completion observable (R7).
+- **Requirements:** R6, R7, R9, R11
 - **Dependencies:** U2, U3a/b/c, U4a
 - **Files:** the app account screens (distinct "close account" → closure; "erase / forget me" → the
   confirmation-gated erasure with per-recipe donate election) — web + mobile; the deletion-worker
-  orchestration (recipe-job-then-Clerk-delete) + the `user.deleted` echo guard; a reconciliation query for R7;
-  tests incl. cross-platform UI.
+  orchestration (recipe-job → **food `eraseUser`** → Clerk-delete) + the `user.deleted` echo guard; **the
+  food-erasure leg** — the shipped `packages/services/food-service/src/foods/user-erasure.service.ts`
+  (`eraseUser`, currently DEAD CODE: no handler/subscription) must be invoked on erasure, either via a new
+  food deletion Lambda subscribed to the fan-out or an M2M call from the deletion-worker (+ its CDK/IAM — the
+  service explicitly deferred this wiring); **the R7 reconciliation job** — a NEW scheduled handler
+  `packages/services/identity-webhooks/src/handlers/erasure-reconciliation.ts` (distinct from the existing
+  provisioning `reconciliation.ts`) that scans identity `status='erased'` rows against recipe
+  `account_erasure_jobs` terminal state (correlation key = the owner ULID, across the two DBs) + food, and
+  emits the "erasure incomplete" metric/alarm; tests incl. cross-platform UI.
 - **Approach:** Domain-event routing, **server-orchestrated by the deletion-worker** (owner decision). The
-  worker creates the election-bearing recipe job (via U4a) **first**, then `deleteUser` — so the job always
-  exists before the `user.deleted` echo arrives. **R9 echo guard keys on job EXISTENCE for the owner in ANY
-  state (queued/running/terminal)** — the async worker is still running when the echo lands, so a
-  "terminal-only" check would miss the window; an existing job (any state) → the echo is a true no-op, no
-  second job. The webhook/admin erasure (no election) defaults to `delete`. **Completion contract (R7):**
-  idempotent + monitored both legs; DLQ-exhausted recipe erasure → "erasure incomplete"; a reconciliation
-  query surfaces `erased` identities whose recipe leg never acked. Food does nothing.
+  worker creates the election-bearing recipe job (via U4a) **first**, then invokes food `eraseUser` (removes
+  the user's `fetch_requesters` rows), then `deleteUser` — so the job always exists before the `user.deleted`
+  echo arrives. **R9 echo guard keys on job EXISTENCE for the owner in ANY state (queued/running/terminal)** —
+  the async worker is still running when the echo lands, so a "terminal-only" check would miss the window; an
+  existing job (any state) → the echo is a true no-op, no second job. The webhook/admin erasure (no election)
+  defaults to `delete`. **Completion contract (R7):** idempotent + monitored on ALL THREE legs (identity
+  scrub/ban-or-delete, recipe erasure, food `eraseUser`); DLQ-exhausted or missing leg → "erasure incomplete";
+  the reconciliation job surfaces `erased` identities whose recipe/food leg never acked. **Food is NOT a
+  no-op** — this replaces the earlier (wrong) "food does nothing": food holds per-user `fetch_requesters` (keyed
+  by the principal) that must be erased (R11); U1's `sub`→ULID rekey is a separate correctness fix, not the
+  erasure leg.
 - **Execution note:** UI feature-bearing — vitest component tests every state + Playwright (web) + Maestro
   (mobile) happy paths.
 - **Test scenarios:** closure and erasure presented as distinct, non-conflatable (erasure carries the phrase +
@@ -402,18 +442,46 @@ NULL`; a `lifecycle_events` audit table); **`packages/services/identity-webhooks
 
 ---
 
+## Shipped-state gaps this CR closes (GDPR code-audit, this session)
+
+The audit confirmed the **currently-shipped** "forget me" is broken at the seams; this CR is the remediation.
+Each gap is code-verified (file:line in the audit) and mapped to the unit that closes it:
+
+| Shipped gap (verified)                                                                                                                             | GDPR             | Closed by                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------- |
+| "Delete Account" never deletes the Clerk identity (`deleteUser` is dead code) → user can still sign in; PII persists in Clerk                      | Art. 17          | U2 (erasure → `deleteUser`)                                     |
+| Soft-delete auto-reverses — `provisioning.ts` sets `deletedAt: null`; nightly reconciliation (`cron(0 7 * * ? *)`) + any sign-in resurrect the row | Art. 17, 5(1)(e) | R10 + U2 (lifecycle-aware provisioning + reconciliation skip)   |
+| Cross-service disconnection — delete hits identity only; recipe corpus + S3 + food rows survive; UI claims "all your data"                         | Art. 17          | U2/U4b orchestration (identity + recipe + food fan-out)         |
+| Food `eraseUser` is dead code — `fetch_requesters` survive every erasure                                                                           | Art. 17          | R11 + U4b (wire the food-erasure leg + CDK)                     |
+| Email + name retained indefinitely, no TTL, self-contradicted basis                                                                                | Art. 5(1)(e)     | U2 (scrub email; KTD-3 TTL policy) — TTL _enforcement_ deferred |
+| No Art. 30 audit — only a mutable status that clears `last_error`                                                                                  | Art. 30, 5(2)    | R8 + U2 `lifecycle_events` + U4a `trigger_source`/`actor`       |
+| Admin/Clerk `user.deleted` purges identity DB only, no fan-out                                                                                     | Art. 17          | KTD-2 + U4b (webhook → full cross-service erasure)              |
+
+**NOT closed by this CR (open — flagged so they aren't lost):** ids in logs→Sentry surviving erasure (Art. 17
+copies), backup/snapshot residue (Art. 17), and **no data-subject access/export endpoint (Art. 15/20)**. All
+are follow-ups below. **Release note:** the identity service is a live deployed service, so the identity-side
+gaps (Clerk-not-deleted, resurrection, email/name retention) may be reachable in prod today — **confirm
+prod-exposure and prioritize accordingly**, independent of this CR's merge.
+
+---
+
 ## Scope Boundaries
 
 - **Deferred / no v1 referent:** "keep the real name on private-shared recipes" — per US2/FR-005 per-user
   private sharing is out of scope for v1, and no surface renders an author name. No name-snapshot seam (YAGNI).
 - **Explicitly rejected:** a full orchestration Saga — the lightweight completion contract (R7) covers the
-  two-leg erasure.
+  three-leg erasure.
 
 ### Deferred to Follow-Up Work
 
 - **The 12-month tombstone → auto-erasure sweep (KTD-3).** Deferred with **no in-CR control**; recorded as an
   owner-accepted, time-boxed risk with a hard due-by = the first closure's 12-month mark.
-- **Logs / backups / Sentry PII propagation.** Out of scope here, tracked separately.
+- **Logs / backups / Sentry PII propagation.** Out of scope here, tracked separately (ids like `sub`/ULID leak
+  into Sentry + CloudWatch and outlive the purged row; RDS backups retain 7 days — needs a scrub + a
+  restore-then-re-erase runbook).
+- **Data-subject ACCESS / portability (Art. 15/20).** No export-my-data endpoint exists across identity +
+  recipe + food. Out of scope for this closure/erasure CR, but a real GDPR obligation — track as a separate
+  feature (an authenticated export keyed on the ULID).
 
 ---
 

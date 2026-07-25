@@ -32,12 +32,19 @@ export function meetsIngredientSearchThreshold(trimmed: string): boolean {
     return trimmed.length >= MIN_INGREDIENT_QUERY_LENGTH;
 }
 
-/** REQ-057's three match-quality buckets, in descending rank order (0 = best). */
-const enum MatchRank {
-    PREFIX = 0,
-    SUBSTRING = 1,
-    FUZZY = 2,
-}
+/**
+ * REQ-057's three match-quality buckets, in descending rank order (0 = best). A plain `as const` object
+ * (not a `const enum`) — this codebase's discriminated-union idiom, and it avoids `const enum`'s
+ * isolatedModules fragility (a `const enum` cannot be used across a module boundary once each file is
+ * transpiled in isolation, which is exactly this monorepo's TS config).
+ */
+const MatchRank = {
+    PREFIX: 0,
+    SUBSTRING: 1,
+    FUZZY: 2,
+} as const;
+
+type MatchRank = (typeof MatchRank)[keyof typeof MatchRank];
 
 /** Classify one ingredient name's match quality against the (already lower-cased) query. Pure. */
 function matchRank(name: string, lowerQuery: string): MatchRank {
@@ -137,7 +144,13 @@ export interface MutationView {
  * instead of re-deriving the same implicit state machine from raw query/mutation flags. Kinds:
  *  - `idle` — no query typed yet, the query is below the {@link MIN_INGREDIENT_QUERY_LENGTH} search trigger
  *    (REQ-057), and nothing is being disambiguated.
- *  - `searching` — a query is in flight (no data yet).
+ *  - `searching` — a query is in flight (no data yet), OR `trimmed` has crossed the search threshold but
+ *    the debounced query gating the fetch (REQ-057, ~300ms behind keystrokes) hasn't caught up to it yet
+ *    — see {@link DeriveViewStateInput.debouncedTrimmed}. Without this second half, the instant `trimmed`
+ *    crosses the threshold the TanStack query is still `enabled: false` (its own `isLoading` is `false`,
+ *    NOT because the search returned zero results but because it hasn't started yet), and this function
+ *    would fall through to an empty `results` — flashing the "no matches, create one" affordance for the
+ *    whole debounce window before the search has even fired (a regression this state was added to close).
  *  - `results` — the search settled (`isSuccess`/`isError`), with zero or more catalog matches. A per-row
  *    terminal notice (see {@link isTerminalStatus}) is the LEAF's concern — each row's own
  *    `foodResolutionStatus` carries that, so a mixed result set (some matches terminal, some not) renders
@@ -173,6 +186,13 @@ export type IngredientResolverViewState =
 export interface DeriveViewStateInput {
     readonly disambiguating: Ingredient | null;
     readonly trimmed: string;
+    /**
+     * The debounced query (REQ-057, ~300ms behind `trimmed`) that actually gates the TanStack search
+     * fetch's `enabled`. Distinct from `trimmed` so this function can tell "waiting for the debounce to
+     * settle" (`trimmed !== debouncedTrimmed`) apart from "searched, zero results" (settled, and the
+     * search itself came back empty) — see the `searching` kind's doc on {@link IngredientResolverViewState}.
+     */
+    readonly debouncedTrimmed: string;
     readonly results: readonly Ingredient[];
     readonly searchIsLoading: boolean;
     readonly searchIsSuccess: boolean;
@@ -214,7 +234,11 @@ export function deriveViewState(input: DeriveViewStateInput): IngredientResolver
         return { kind: 'idle' };
     }
 
-    if (input.searchIsLoading) {
+    // REQ-057 debounce-flash fix: `trimmed` can cross the search threshold before `debouncedTrimmed` (and
+    // therefore the TanStack query's `enabled`) catches up to it — that "waiting to search" window is
+    // `searching` too, not a fall-through to empty `results` (see the kind's doc for the failure this
+    // closes).
+    if (input.searchIsLoading || input.trimmed !== input.debouncedTrimmed) {
         return { kind: 'searching' };
     }
 

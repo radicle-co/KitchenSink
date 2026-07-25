@@ -43,6 +43,8 @@ function makeDal(): DalMock {
         findById: vi.fn(),
         listByOwner: vi.fn(),
         countByOwner: vi.fn(),
+        // Not exercised by cloneCollection (only `createCollection` calls this).
+        createIfUnderCap: vi.fn(),
         update: vi.fn(),
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),

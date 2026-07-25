@@ -126,6 +126,50 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
         },
     );
 
+    // Final-review Finding 3 (TOCTOU): a bare "COUNT, then INSERT" (two round trips) lets two concurrent
+    // creates at count=49 both read 49, both pass, and both insert — landing the owner at 51. A
+    // `Promise.allSettled([createCollection(), createCollection()])` race was tried here first but proved
+    // UNRELIABLE as a regression test: against loopback Postgres the two calls' round trips are fast
+    // enough that they don't reliably interleave, so the assertion passed even against the OLD
+    // count-then-create code (verified: 5/5 local runs green pre-fix — a false negative). This test
+    // instead deterministically proves the actual mechanism `CollectionsDal.createIfUnderCap` relies on:
+    // TWO raw connections opened directly, so B's `pg_advisory_xact_lock` call is proven to BLOCK for as
+    // long as A holds the SAME (owner-keyed) lock, and only proceeds once A commits/releases it — the
+    // exact serialization the cap-race fix depends on, independent of network-timing luck.
+    it('the per-owner advisory lock genuinely serializes: a second transaction blocks until the first releases it', async () => {
+        const clientA = new pg.Client({ connectionString: DATABASE_URL });
+        const clientB = new pg.Client({ connectionString: DATABASE_URL });
+        await clientA.connect();
+        await clientB.connect();
+
+        try {
+            await clientA.query('BEGIN');
+            await clientA.query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', [OWNER]);
+
+            await clientB.query('BEGIN');
+            let bLockAcquired = false;
+            const bLockPromise = clientB
+                .query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', [OWNER])
+                .then(() => {
+                    bLockAcquired = true;
+                });
+
+            // Give B's lock request every chance to (wrongly) resolve while A still holds the lock.
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            expect(bLockAcquired).toBe(false);
+
+            // Releasing A's transaction-scoped lock is what should unblock B.
+            await clientA.query('COMMIT');
+            await bLockPromise;
+            expect(bLockAcquired).toBe(true);
+
+            await clientB.query('COMMIT');
+        } finally {
+            await clientA.end();
+            await clientB.end();
+        }
+    });
+
     it('adds and removes recipes (idempotent add), excluding tombstoned recipes from the listing', async () => {
         const collection = await service.createCollection(OWNER, { name: 'Mains' });
         const recipeId = await insertRecipe(db, OWNER, 'Soup');

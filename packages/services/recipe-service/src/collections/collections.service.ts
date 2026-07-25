@@ -24,7 +24,6 @@ import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
 import { recipeRowToDomain } from '../recipes/mappers/recipe-row-to-domain.js';
 import {
-    collectionLimitReachedError,
     collectionNotClonedError,
     collectionNotOwnedError,
     invalidVisibilityError,
@@ -78,26 +77,24 @@ export class CollectionsService {
     /**
      * Create a collection owned by `ownerId`. Visibility defaults to `private` (FR-010).
      *
-     * REQ-049b: an owner may hold at most {@link MAX_COLLECTIONS_PER_OWNER} collections. The COUNT is
-     * checked BEFORE the insert and the write is skipped entirely once at the cap, surfacing
-     * `COLLECTION_LIMIT_REACHED` (→ 409) rather than a silently-accepted 51st collection.
+     * REQ-049b: an owner may hold at most {@link MAX_COLLECTIONS_PER_OWNER} collections. Delegates to
+     * {@link CollectionsDal.createIfUnderCap}, which enforces the cap ATOMICALLY (COUNT + INSERT in one
+     * advisory-locked transaction) rather than as two separate round trips — see that method's doc for why
+     * a bare "COUNT here, then create" would leave a race two concurrent creates could both slip through.
      *
      * @throws `COLLECTION_LIMIT_REACHED` when the owner already holds {@link MAX_COLLECTIONS_PER_OWNER}
      *   collections.
      */
     public async createCollection(ownerId: string, input: CreateCollectionInput): Promise<CollectionResponse> {
-        const existingCount = await this.dal.countByOwner(ownerId);
-
-        if (existingCount >= MAX_COLLECTIONS_PER_OWNER) {
-            throw collectionLimitReachedError(ownerId, MAX_COLLECTIONS_PER_OWNER);
-        }
-
-        const row = await this.dal.create({
-            ownerId,
-            name: input.name,
-            description: input.description,
-            visibility: input.visibility ?? 'private',
-        });
+        const row = await this.dal.createIfUnderCap(
+            {
+                ownerId,
+                name: input.name,
+                description: input.description,
+                visibility: input.visibility ?? 'private',
+            },
+            MAX_COLLECTIONS_PER_OWNER,
+        );
 
         return toCollectionResponse(row);
     }

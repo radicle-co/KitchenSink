@@ -8,9 +8,11 @@
  * `__tests__/integration/collections/crud.integration.spec.ts`.
  */
 import { describe, it, expect } from 'vitest';
+import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
 import { makeFakeDrizzle, methodsOf } from '../../../__testing__/make-fake-drizzle.js';
+import { isRecipeDomainError } from '../../../recipes/recipe.error.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../../__fixtures__/collections.fixtures.js';
 import { CollectionsDal } from '../collections.dal.js';
 
@@ -106,6 +108,56 @@ describe('CollectionsDal.countByOwner (REQ-049b cap read)', () => {
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.countByOwner('owner-1')).toBe(50);
+    });
+});
+
+describe('CollectionsDal.createIfUnderCap (REQ-049b — atomic cap enforcement)', () => {
+    it('takes the advisory lock, counts, and inserts — all inside one transaction — when under the cap', async () => {
+        const fake = createFakeDb();
+        const row = makeCollectionRow();
+        // COUNT (7 existing) -> INSERT returning. `execute` (the advisory lock) does not consume the queue.
+        fake.enqueue([{ value: 7 }], [row]);
+        const dal = new CollectionsDal(fake.db);
+
+        const result = await dal.createIfUnderCap(
+            { ownerId: 'owner-1', name: 'Weeknight Dinners', visibility: 'private' },
+            50,
+        );
+
+        expect(result).toBe(row);
+        // The advisory lock (`execute`) runs BEFORE the COUNT, which runs BEFORE the INSERT — the exact
+        // ordering that closes the TOCTOU (see the method's own doc for why order matters here).
+        expect(methodsOf(fake)).toEqual(['execute', 'select', 'from', 'where', 'insert', 'values', 'returning']);
+        expect(fake.calls[5]?.args[0]).toMatchObject({ ownerId: 'owner-1', name: 'Weeknight Dinners' });
+    });
+
+    it('throws COLLECTION_LIMIT_REACHED (and does NOT insert) when the owner already holds the cap', async () => {
+        const fake = createFakeDb();
+        fake.enqueue([{ value: 50 }]);
+        const dal = new CollectionsDal(fake.db);
+
+        let caught: unknown;
+
+        try {
+            await dal.createIfUnderCap({ ownerId: 'owner-1', name: 'Fifty-first', visibility: 'private' }, 50);
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isRecipeDomainError(caught) && caught.code).toBe(RecipeErrorCode.COLLECTION_LIMIT_REACHED);
+        expect(fake.calls.some((call) => call.method === 'insert')).toBe(false);
+    });
+
+    it('also rejects when the count is already past the cap (defense in depth)', async () => {
+        const fake = createFakeDb();
+        fake.enqueue([{ value: 51 }]);
+        const dal = new CollectionsDal(fake.db);
+
+        await expect(
+            dal.createIfUnderCap({ ownerId: 'owner-1', name: 'Way over', visibility: 'private' }, 50),
+        ).rejects.toSatisfy(
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.COLLECTION_LIMIT_REACHED,
+        );
     });
 });
 

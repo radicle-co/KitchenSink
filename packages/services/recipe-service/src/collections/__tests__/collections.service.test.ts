@@ -11,7 +11,8 @@ import { NotFoundException } from '@nestjs/common';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { CollectionsDal } from '../dal/collections.dal.js';
-import { CollectionsService } from '../collections.service.js';
+import { CollectionsService, MAX_COLLECTIONS_PER_OWNER } from '../collections.service.js';
+import { collectionLimitReachedError } from '../collections.errors.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
@@ -25,9 +26,10 @@ function makeDal(): DalMock {
         create: vi.fn(),
         findById: vi.fn(),
         listByOwner: vi.fn(),
-        // Defaults to "no existing collections" so tests exercising createCollection's happy path do not
-        // need to stub the REQ-049b cap check explicitly.
-        countByOwner: vi.fn().mockResolvedValue(0),
+        countByOwner: vi.fn(),
+        // REQ-049b: `createCollection` delegates the cap check + insert to this ONE atomic DAL call (see
+        // `collections.dal.ts`'s `createIfUnderCap` — the real cap-race fix is unit-tested there, not here).
+        createIfUnderCap: vi.fn(),
         update: vi.fn(),
         deleteById: vi.fn(),
         findActiveRecipe: vi.fn(),
@@ -61,17 +63,20 @@ describe('CollectionsService.createCollection', () => {
     it('defaults visibility to private and maps the row to the wire shape', async () => {
         const dal = makeDal();
         const row = makeCollectionRow();
-        dal.create.mockResolvedValue(row);
+        dal.createIfUnderCap.mockResolvedValue(row);
         const service = makeService(dal);
 
         const result = await service.createCollection(OWNER, { name: 'Weeknight Dinners' });
 
-        expect(dal.create).toHaveBeenCalledWith({
-            ownerId: OWNER,
-            name: 'Weeknight Dinners',
-            description: undefined,
-            visibility: 'private',
-        });
+        expect(dal.createIfUnderCap).toHaveBeenCalledWith(
+            {
+                ownerId: OWNER,
+                name: 'Weeknight Dinners',
+                description: undefined,
+                visibility: 'private',
+            },
+            MAX_COLLECTIONS_PER_OWNER,
+        );
         expect(result).toEqual({
             id: row.id,
             ownerId: OWNER,
@@ -86,7 +91,7 @@ describe('CollectionsService.createCollection', () => {
 
     it('passes through an explicit public visibility and description', async () => {
         const dal = makeDal();
-        dal.create.mockResolvedValue(makeCollectionRow({ description: 'Fast meals', visibility: 'public' }));
+        dal.createIfUnderCap.mockResolvedValue(makeCollectionRow({ description: 'Fast meals', visibility: 'public' }));
         const service = makeService(dal);
 
         const result = await service.createCollection(OWNER, {
@@ -100,50 +105,45 @@ describe('CollectionsService.createCollection', () => {
     });
 });
 
-describe('CollectionsService.createCollection — 50-collection-per-owner cap (REQ-049b)', () => {
-    it('creates the 50th collection (count already at 49, still under the cap)', async () => {
+// REQ-049b: the 50-collection-per-owner cap itself — atomically enforced (COUNT + INSERT in one
+// advisory-locked transaction, closing a TOCTOU two concurrent creates could otherwise both slip through)
+// — is unit-tested against the real DAL logic in `dal/__tests__/collections.dal.test.ts`'s
+// `CollectionsDal.createIfUnderCap` suite, and proven under real concurrent Postgres transactions in
+// `__tests__/integration/collections/crud.integration.spec.ts`. Here, over a MOCKED DAL, the service is
+// pinned only on its own responsibility: delegating to `createIfUnderCap` with the right args and
+// propagating whatever it resolves/rejects with untouched.
+describe('CollectionsService.createCollection — delegates the 50-collection-per-owner cap (REQ-049b) to the DAL', () => {
+    it('creates the collection when createIfUnderCap resolves (under the cap)', async () => {
         const dal = makeDal();
-        dal.countByOwner.mockResolvedValue(49);
-        dal.create.mockResolvedValue(makeCollectionRow());
+        const row = makeCollectionRow();
+        dal.createIfUnderCap.mockResolvedValue(row);
         const service = makeService(dal);
 
-        await service.createCollection(OWNER, { name: 'Fiftieth' });
+        const result = await service.createCollection(OWNER, { name: 'Fiftieth' });
 
-        expect(dal.create).toHaveBeenCalledTimes(1);
+        expect(dal.createIfUnderCap).toHaveBeenCalledTimes(1);
+        expect(result.id).toBe(row.id);
     });
 
-    it('rejects the 51st collection with COLLECTION_LIMIT_REACHED, without writing anything', async () => {
+    it('propagates COLLECTION_LIMIT_REACHED when createIfUnderCap rejects (at the cap) — never masks it', async () => {
         const dal = makeDal();
-        dal.countByOwner.mockResolvedValue(50);
+        dal.createIfUnderCap.mockRejectedValue(collectionLimitReachedError(OWNER, MAX_COLLECTIONS_PER_OWNER));
         const service = makeService(dal);
 
         await expect(service.createCollection(OWNER, { name: 'Fifty-first' })).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.COLLECTION_LIMIT_REACHED,
         );
-        expect(dal.create).not.toHaveBeenCalled();
     });
 
-    it('also rejects when the count is already past the cap (defense in depth)', async () => {
+    it("passes the CALLING owner's id (not a hardcoded/other owner) and the cap constant to createIfUnderCap", async () => {
         const dal = makeDal();
-        dal.countByOwner.mockResolvedValue(51);
-        const service = makeService(dal);
-
-        await expect(service.createCollection(OWNER, { name: 'Way over' })).rejects.toSatisfy(
-            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.COLLECTION_LIMIT_REACHED,
-        );
-        expect(dal.create).not.toHaveBeenCalled();
-    });
-
-    it("counts the CALLING owner's collections, not a hardcoded/other owner", async () => {
-        const dal = makeDal();
-        dal.countByOwner.mockResolvedValue(0);
-        dal.create.mockResolvedValue(makeCollectionRow());
+        dal.createIfUnderCap.mockResolvedValue(makeCollectionRow());
         const service = makeService(dal);
 
         await service.createCollection(OWNER, { name: 'X' });
 
-        expect(dal.countByOwner).toHaveBeenCalledWith(OWNER);
-        expect(dal.countByOwner).toHaveBeenCalledTimes(1);
+        expect(dal.createIfUnderCap).toHaveBeenCalledWith(expect.objectContaining({ ownerId: OWNER }), 50);
+        expect(dal.createIfUnderCap).toHaveBeenCalledTimes(1);
     });
 });
 

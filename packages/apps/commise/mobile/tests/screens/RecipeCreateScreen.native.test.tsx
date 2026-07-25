@@ -6,9 +6,11 @@
  * the (mocked) ingredient search/create hooks.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { useCreateIngredient, useCreateRecipe, useSearchIngredients } from '@kitchensink/recipe-service-client/hooks';
+
+import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
 
 import { RecipeCreateScreen } from '../../src/screens/RecipeCreateScreen.js';
 import { makeIngredient, makeRecipeDetail } from '../__fixtures__/recipes.js';
@@ -100,9 +102,15 @@ describe('RecipeCreateScreen — happy path', () => {
         fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
 
         // Step 2: resolve an ingredient via the typeahead (appends a resolved line with quantity 1). The
-        // picker only surfaces search results once a query is typed (`deriveViewState` gates on a non-empty
-        // `trimmed`).
+        // picker only surfaces search results once a query is typed AND the REQ-057 debounce (~300ms,
+        // real even though the search hook itself is mocked — it lives in `useDebouncedValue`) settles
+        // (`deriveViewState` gates on a non-empty `trimmed` that has caught up to the debounced query).
+        vi.useFakeTimers();
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'olive' } });
+        act(() => {
+            vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+        vi.useRealTimers();
         fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
         fireEvent.click(screen.getByLabelText(/Next: Instructions/));
 

@@ -3,13 +3,17 @@
  *
  * Owns every SQL touch for `collections` + the `recipe_collections` junction over the global Drizzle
  * client. Ownership is enforced one layer up (the service), so the DAL is intentionally identity-blind:
- * it takes ids and returns rows. Two invariants live here:
+ * it takes ids and returns rows. Three invariants live here:
  *
  *  - **Membership excludes tombstoned recipes.** Every membership read (`listRecipes`, and the active
  *    lookup used before an add) `INNER JOIN`s `recipes` and filters `recipes.deleted_at IS NULL`, so a
  *    soft-deleted recipe (C-007) never appears in a collection even though its junction row survives.
  *  - **Add is idempotent + many-to-many.** `addRecipe` uses `ON CONFLICT DO NOTHING`; a recipe may
  *    belong to any number of collections, and re-adding it to one is a no-op that still returns the row.
+ *  - **The 50-collection-per-owner cap is enforced ATOMICALLY.** {@link CollectionsDal.createIfUnderCap}
+ *    runs the COUNT and the INSERT inside one transaction, serialized per-owner by a transaction-scoped
+ *    Postgres advisory lock (mirrors `PhotosDal.create`'s per-recipe photo cap) — a bare COUNT-then-INSERT
+ *    across two round trips would let two concurrent creates both slip past the cap.
  *
  * Collection delete is **no-cascade** with respect to recipes: dropping a `collections` row cascades
  * only to its `recipe_collections` junction rows (FK `ON DELETE CASCADE`), never to the `recipes`.
@@ -28,6 +32,7 @@ import {
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
 import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 import { withTransaction, type RecipeTx, type Writer } from '../../database/unit-of-work.js';
+import { collectionLimitReachedError } from '../collections.errors.js';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
 export interface CreateCollectionRow {
@@ -129,18 +134,45 @@ export class CollectionsDal {
     }
 
     /**
-     * COUNT of an owner's collections — the REQ-049b 50-collection-per-owner cap read. The service checks
-     * this BEFORE `create` and rejects with `COLLECTION_LIMIT_REACHED` at the cap; every `collections` row
-     * counts (there is no soft-delete on this table — `deleteById` is a hard `DELETE`, so a removed
-     * collection is already absent here without a `deleted_at` filter).
+     * COUNT of an owner's collections — the REQ-049b 50-collection-per-owner cap read. Exposed standalone
+     * for callers that just want the current count (e.g. `listByOwner`'s total); {@link createIfUnderCap}
+     * is the one that ATOMICALLY enforces the cap against a create.
      */
     public async countByOwner(ownerId: string): Promise<number> {
         return this.countCollections(ownerId);
     }
 
-    /** Shared COUNT query behind {@link listByOwner}'s total and {@link countByOwner} (same SQL, one place). */
-    private async countCollections(ownerId: string): Promise<number> {
-        const totals = await this.db
+    /**
+     * REQ-049b — enforce the caller-supplied collection-count cap (`MAX_COLLECTIONS_PER_OWNER`) and
+     * insert, within ONE Postgres transaction (mirrors `PhotosDal.create`'s identical per-recipe photo-cap
+     * pattern). A bare COUNT-then-INSERT across two separate statements/round-trips leaves a TOCTOU
+     * window: two concurrent creates for the same owner can both COUNT 49, both pass, and both INSERT, landing the
+     * owner at 51. `pg_advisory_xact_lock(hashtext(ownerId))` takes a transaction-scoped, per-owner lock
+     * BEFORE the COUNT: a second concurrent create for the SAME owner blocks here until the first commits
+     * or rolls back, so the COUNT this transaction reads is always current by the time it decides whether
+     * to insert. (An occasional cross-owner hash collision just serializes two unrelated creates — never a
+     * correctness issue, only rare, harmless contention.)
+     *
+     * @throws `COLLECTION_LIMIT_REACHED` when the owner already holds `cap` collections — no row is
+     *   written.
+     */
+    public async createIfUnderCap(input: CreateCollectionRow, cap: number): Promise<CollectionRow> {
+        return this.transaction(async (tx) => {
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.ownerId})::bigint)`);
+
+            const existingCount = await this.countCollections(input.ownerId, tx);
+
+            if (existingCount >= cap) {
+                throw collectionLimitReachedError(input.ownerId, cap);
+            }
+
+            return this.create(input, tx);
+        });
+    }
+
+    /** Shared COUNT query behind {@link listByOwner}'s total, {@link countByOwner}, and {@link createIfUnderCap}. */
+    private async countCollections(ownerId: string, reader: Pick<Writer, 'select'> = this.db): Promise<number> {
+        const totals = await reader
             .select({ value: count() })
             .from(collections)
             .where(eq(collections.ownerId, ownerId));

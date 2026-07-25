@@ -180,6 +180,7 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     const viewState = deriveViewState({
         disambiguating,
         trimmed,
+        debouncedTrimmed,
         results,
         searchIsLoading: search.isLoading,
         searchIsSuccess: search.isSuccess,

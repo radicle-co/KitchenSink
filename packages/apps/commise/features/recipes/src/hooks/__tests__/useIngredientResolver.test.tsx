@@ -124,8 +124,27 @@ describe('useIngredientResolver — idle -> searching -> results', () => {
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('oli'));
+        settleDebounce(); // let the debounced query catch up to 'oli' before results are expected
 
         expect(result.current.viewState).toEqual({ kind: 'results', results: [hit], isSuccess: true, isError: false });
+    });
+
+    // Regression (final-review Finding 1): before the debounced query catches up to `trimmed`, the view
+    // must be `searching` — never a fall-through to `results` — even though the (mocked) search hook
+    // already has settled data sitting there ready to return.
+    it('stays searching (never falls through to results) the instant the query crosses the threshold, before the debounce settles', () => {
+        const hit = makeIngredient({
+            id: 'ing_9',
+            name: 'Olive oil',
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+        });
+        useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [hit] });
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('oli'));
+        // No settleDebounce() here — asserting the state DURING the debounce window.
+
+        expect(result.current.viewState).toEqual({ kind: 'searching' });
     });
 
     it('trims whitespace-only queries back to idle', () => {
@@ -452,6 +471,7 @@ describe('useIngredientResolver — freeform fallback reachable from every non-i
         });
         expectFreeformReachable((result) => {
             act(() => result.current.setQuery('mystery'));
+            settleDebounce(); // let the debounced query catch up before the terminal state is expected
             expect(result.current.viewState).toMatchObject({ kind: 'terminal' });
         });
     });

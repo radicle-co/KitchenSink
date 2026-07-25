@@ -23,11 +23,18 @@ import {
     type DeriveViewStateInput,
 } from '../ingredientResolver.model.js';
 
-/** A complete `deriveViewState` input with every field at its "nothing happening" default, overridable. */
+/**
+ * A complete `deriveViewState` input with every field at its "nothing happening" default, overridable.
+ * `debouncedTrimmed` defaults to whatever `trimmed` resolves to (i.e. "the debounce has already
+ * settled") unless a test overrides it explicitly — so every pre-existing test that only cares about
+ * `trimmed` keeps its "settled" assumption, and only the debounce-pending tests below need to name
+ * `debouncedTrimmed` themselves.
+ */
 function baseInput(overrides: Partial<DeriveViewStateInput> = {}): DeriveViewStateInput {
     return {
         disambiguating: null,
         trimmed: '',
+        debouncedTrimmed: overrides.trimmed ?? '',
         results: [],
         searchIsLoading: false,
         searchIsSuccess: false,
@@ -171,6 +178,51 @@ describe('deriveViewState', () => {
 
     it('is searching while the search is in flight', () => {
         expect(deriveViewState(baseInput({ trimmed: 'oli', searchIsLoading: true }))).toEqual({ kind: 'searching' });
+    });
+
+    // Regression (final-review Finding 1): the debounce split the live gating query (`trimmed`) from the
+    // query that ENABLES the TanStack fetch (`debouncedTrimmed`). At the instant `trimmed` crosses the
+    // 2-char threshold, the debounced value hasn't caught up yet, so the search query is still
+    // `enabled: false` and `searchIsLoading` is `false` — NOT because the search returned zero results,
+    // but because it hasn't started. Before the fix, `deriveViewState` fell through to `results: []`,
+    // flashing the "no matches — create one" affordance for the whole debounce window.
+    it('is searching — never the empty results/create-freeform state — the instant trimmed crosses the threshold, before the debounced query catches up', () => {
+        expect(
+            deriveViewState(
+                baseInput({
+                    trimmed: 'ab',
+                    debouncedTrimmed: 'a', // still the PREVIOUS (sub-threshold) debounced value
+                    searchIsLoading: false,
+                    searchIsSuccess: false,
+                }),
+            ),
+        ).toEqual({ kind: 'searching' });
+    });
+
+    it('stays searching even when a stale debounced value happens to carry old (now-irrelevant) result data', () => {
+        // Guards against a "just check results.length" shortcut: even with leftover `results` from a
+        // PRIOR (now-stale) query, the debounce-pending window must still be `searching`, never `results`.
+        const stale = makeIngredient({ id: 'ing_stale', name: 'Stale' });
+
+        expect(
+            deriveViewState(
+                baseInput({
+                    trimmed: 'oli',
+                    debouncedTrimmed: 'ol',
+                    searchIsLoading: false,
+                    searchIsSuccess: true,
+                    results: [stale],
+                }),
+            ),
+        ).toEqual({ kind: 'searching' });
+    });
+
+    it('is results (empty) once the debounce has genuinely settled and the search itself came back empty', () => {
+        // `debouncedTrimmed` explicitly equals `trimmed` here (the debounce settled) — proves the fix does
+        // not mask the REAL empty state, only the transient pending-debounce window above.
+        expect(
+            deriveViewState(baseInput({ trimmed: 'zzz', debouncedTrimmed: 'zzz', searchIsSuccess: true, results: [] })),
+        ).toEqual({ kind: 'results', results: [], isSuccess: true, isError: false });
     });
 
     it('is idle below the 2-character trigger (REQ-057), even with a match already loaded', () => {

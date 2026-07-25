@@ -9,6 +9,8 @@
  * Upload flow, on a picked asset: read the asset's bytes as a Blob, then enqueue `{ blob, fileName,
  * contentType, fileSize, previewUri: asset.uri }` (the asset's own URI doubles as the grid thumbnail while
  * queued/uploading/failed — no extra copy needed on this platform, unlike the web leaf's `createObjectURL`).
+ * `fileSize` is read from the Blob (`blob.size`), NOT `asset.fileSize` — see `addPhoto`'s comment for why
+ * the picker's own metadata is not a trustworthy source for the REQ-011 size check.
  * The queue drives the presign → S3 PUT → confirm sequence per file; `confirm → invalidateRecipeProjections`
  * still runs exactly once per successful upload, from inside `useRecipePhotoUpload`. Removal of a CONFIRMED
  * photo delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in flight; the queue's own
@@ -110,7 +112,6 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
 
             const contentType = asset.mimeType ?? 'image/jpeg';
             const fileName = asset.fileName ?? 'photo.jpg';
-            const fileSize = asset.fileSize ?? 0;
 
             setPickErrorMessage(undefined);
 
@@ -124,7 +125,13 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
                 return;
             }
 
-            queue.enqueue([{ blob, fileName, contentType, fileSize, previewUri: asset.uri }]);
+            // Authoritative size: `expo-image-picker`'s `asset.fileSize` is often null/undefined on
+            // Android/web, and a `?? 0` default there would silently admit an oversized file past the
+            // REQ-011 client pre-check (`0 > MAX` is always false). `blob.size` is the exact byte length of
+            // what's actually about to be uploaded — always present, since a `Blob` requires it — and it's
+            // also the presign request's `fileSize`, so that request now describes the SAME bytes the S3
+            // PUT sends, rather than the picker's separate (and sometimes absent) size estimate.
+            queue.enqueue([{ blob, fileName, contentType, fileSize: blob.size, previewUri: asset.uri }]);
         } finally {
             setPicking(false);
         }

@@ -17,6 +17,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+import { MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import {
     useConfirmPhotoUpload,
@@ -152,7 +153,9 @@ describe('RecipePhotoUploader — upload orchestration', () => {
 
         expect(createMutateAsync).toHaveBeenCalledWith({
             id: 'rec_1',
-            request: { fileName: 'picked.jpg', contentType: 'image/jpeg', fileSize: 1234 },
+            // fileSize is the BLOB's size (5 bytes — `new Blob(['bytes'])`), not the picked asset's own
+            // `fileSize` metadata (1234) — see the RecipePhotoUploader parity regression tests below for why.
+            request: { fileName: 'picked.jpg', contentType: 'image/jpeg', fileSize: 5 },
         });
         expect(fetchMock).toHaveBeenNthCalledWith(1, 'file:///tmp/picked.jpg');
         expect(fetchMock).toHaveBeenNthCalledWith(
@@ -172,17 +175,21 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         expect(putOrder).toBeLessThan(confirmOrder);
     });
 
-    it('rejects an oversized picked asset client-side — never calls presign, shows the size error', async () => {
+    it('rejects an oversized picked asset client-side (by the BLOB’s real size) — never calls presign, shows the size error', async () => {
+        // The asset's own metadata size is well UNDER the cap here — the blob itself is what's oversized.
+        // Proves validation is driven by the authoritative blob, not by trusting `asset.fileSize`.
         launchImageLibraryAsyncMock.mockResolvedValue({
             canceled: false,
-            assets: [{ ...pickedAsset, fileSize: 5 * 1024 * 1024 + 1 }],
+            assets: [{ ...pickedAsset, fileSize: 100 }],
         } as never);
         const createMutateAsync = vi.fn();
         useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
         // The container reads the picked asset's bytes as a Blob BEFORE enqueueing — that read still
         // happens (validation is the queue's job, once the file is handed to it); only the S3 PUT it would
         // otherwise be followed by never fires.
-        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
+        fetchMock.mockResolvedValueOnce({
+            blob: async () => new Blob([new Uint8Array(MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1)], { type: 'image/jpeg' }),
+        });
 
         render(<RecipePhotoUploader recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
@@ -190,6 +197,30 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         expect(await screen.findByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeTruthy();
         expect(createMutateAsync).not.toHaveBeenCalled();
         // Only the local blob read happened — no second fetch (the S3 PUT) was ever made.
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Regression (final-review Finding 2): expo-image-picker's `fileSize` is often null/undefined on
+    // Android/web. The pre-fix code defaulted it with `?? 0`, so `validatePhotoFile` saw `0 > MAX` = false
+    // and silently ADMITTED an oversized file — defeating REQ-011's client pre-check exactly when it
+    // mattered most (the platform that can't report a size). Confirms the fix reads the size from the
+    // already-read blob instead.
+    it('rejects an oversized picked asset when the picker reports NO fileSize at all (asset.fileSize undefined) — parity regression', async () => {
+        launchImageLibraryAsyncMock.mockResolvedValue({
+            canceled: false,
+            assets: [{ ...pickedAsset, fileSize: undefined }],
+        } as never);
+        const createMutateAsync = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        fetchMock.mockResolvedValueOnce({
+            blob: async () => new Blob([new Uint8Array(MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1)], { type: 'image/jpeg' }),
+        });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
+
+        expect(await screen.findByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeTruthy();
+        expect(createMutateAsync).not.toHaveBeenCalled();
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
@@ -235,7 +266,9 @@ describe('RecipePhotoUploader — upload orchestration', () => {
             await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1));
             expect(createMutateAsync).toHaveBeenCalledWith({
                 id: 'rec_1',
-                request: { fileName: 'picked.jpg', contentType: mimeType, fileSize: 1234 },
+                // The blob's size (5 bytes), not the asset's own `fileSize` metadata — see the parity
+                // regression tests above.
+                request: { fileName: 'picked.jpg', contentType: mimeType, fileSize: 5 },
             });
         },
     );

@@ -5,7 +5,7 @@
  * upward. Covers the search-results, empty, select, and create-freeform paths.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import {
@@ -15,6 +15,8 @@ import {
     useResolveIngredient,
     useSearchIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
+
+import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
 
 import { IngredientPicker } from '../../src/components/IngredientPicker.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
@@ -82,9 +84,17 @@ function resolveMutation(
     >;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 
 beforeEach(() => {
+    // The picker's real `useIngredientResolver` debounces `trimmed` (REQ-057, ~300ms) BEFORE the search
+    // hook's `enabled` gate flips true — regardless of `useSearchIngredients` being mocked here, since the
+    // debounce itself lives in `useDebouncedValue`, a real (unmocked) hook. Fake timers + `settleDebounce`
+    // let each test cross that window deterministically instead of racing real `setTimeout`.
+    vi.useFakeTimers();
     useSearchIngredientsMock.mockReset();
     useAddIngredientByNameMock.mockReset();
     useCreateIngredientMock.mockReset();
@@ -97,6 +107,13 @@ beforeEach(() => {
     useResolveIngredientMock.mockReturnValue(resolveMutation());
 });
 
+/** Advance past the REQ-057 debounce window so `useDebouncedValue`'s pending `setState` settles. */
+function settleDebounce(): void {
+    act(() => {
+        vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS);
+    });
+}
+
 describe('IngredientPicker — search + select', () => {
     it('lists catalog matches and resolves the selected one, then clears the query', () => {
         useSearchIngredientsMock.mockReturnValue(
@@ -106,6 +123,7 @@ describe('IngredientPicker — search + select', () => {
 
         render(<IngredientPicker onResolve={onResolve} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'bas' } });
+        settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Basil' }));
 
         expect(onResolve).toHaveBeenCalledWith({
@@ -123,6 +141,7 @@ describe('IngredientPicker — empty state', () => {
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zzz' } });
+        settleDebounce();
 
         expect(screen.getByText('No matching ingredients. Create a new one below.')).toBeTruthy();
     });
@@ -252,6 +271,7 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
 
         render(<IngredientPicker onResolve={onResolve} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'quin' } });
+        settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Quinoa' }));
 
         expect(onResolve).not.toHaveBeenCalled();
@@ -284,6 +304,7 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
 
         render(<IngredientPicker onResolve={onResolve} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'quin' } });
+        settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Quinoa' }));
         fireEvent.click(screen.getByRole('button', { name: 'Quinoa, cooked' }));
 
@@ -305,6 +326,7 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'quin' } });
+        settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Quinoa' }));
 
         expect(screen.getByText('We couldn’t load options for that ingredient.')).toBeTruthy();
@@ -316,6 +338,7 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'quin' } });
+        settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Quinoa' }));
 
         expect(screen.getByText(/No options to choose from/)).toBeTruthy();

@@ -45,6 +45,40 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         expect(searchSpy).not.toHaveBeenCalled();
     });
 
+    // Regression (final-review Finding 1, mobile parity): mirrors the web proof above. The instant the
+    // input crosses the 2-char threshold, the debounced value hasn't caught up (search still
+    // `enabled: false`), so the leaf must not render its empty-state copy — that would invite a premature
+    // freeform-add tap before the real search has even fired. Mobile has no distinct "searching" copy
+    // (see `IngredientPicker.tsx`'s `showEmpty` — gated on `kind === 'results'`), so the observable proof
+    // here is that the empty text stays ABSENT during the debounce window and only appears once it
+    // genuinely settles empty.
+    it('does not show the empty state during the debounce-pending window — only once it genuinely settles empty', async () => {
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+
+        renderWithRecipeClient(<IngredientPicker onResolve={vi.fn()} />, client);
+
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zz' } });
+        // Flush React's state update WITHOUT advancing the debounce timer.
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(screen.queryByText('No matching ingredients. Create a new one below.')).toBeNull();
+        expect(searchSpy).not.toHaveBeenCalled();
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+        // The debounce timer firing only starts the fetch; let its resolved promise's microtasks (the
+        // mocked client call + TanStack's own success-handling) flush through before the render settles.
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(screen.getByText('No matching ingredients. Create a new one below.')).toBeTruthy();
+    });
+
     it('debounces rapid keystrokes into exactly ONE search call, on the settled (final) query', async () => {
         const client = createFakeRecipeServiceClient();
         const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);

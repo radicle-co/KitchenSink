@@ -406,6 +406,41 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         expect(searchSpy).not.toHaveBeenCalled();
     });
 
+    // Regression (final-review Finding 1): the debounce split the live gating query from the query that
+    // enables the search fetch. The instant the input crosses the 2-char threshold, the debounced value
+    // hasn't caught up, so the search is still `enabled: false` — that window must render the "Searching
+    // ingredients" status, never the "no matching ingredients" / create-freeform affordance (which would
+    // invite a premature freeform-add click before the real search has even fired).
+    it('shows the searching status — not the empty/create-freeform flash — the instant the query crosses the threshold, before the debounce settles', async () => {
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), { target: { value: 'zz' } });
+        // Flush React's state update WITHOUT advancing the debounce timer.
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(screen.getByRole('status', { name: 'Searching ingredients' })).toBeInTheDocument();
+        expect(screen.queryByText('No matching ingredients found.')).not.toBeInTheDocument();
+        expect(searchSpy).not.toHaveBeenCalled();
+
+        // Once the debounce settles with a genuinely empty result, the real empty state DOES show — the
+        // fix must not mask that, only the transient pending-debounce window above.
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+        // The debounce timer firing only starts the fetch; let its resolved promise's microtasks (the
+        // mocked client call + TanStack's own success-handling) flush through before the render settles.
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(screen.getByText('No matching ingredients found.')).toBeInTheDocument();
+    });
+
     it('debounces rapid keystrokes into exactly ONE search call, on the settled (final) query', async () => {
         const client = createFakeRecipeServiceClient();
         const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);

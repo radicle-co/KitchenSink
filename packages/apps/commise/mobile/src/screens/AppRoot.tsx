@@ -5,10 +5,21 @@
  * mirrors the style already used INSIDE {@link RecipesScreen} — the top-level destinations are a single piece
  * of local state, so this drops straight into a real stack navigator when one is introduced app-wide. It is
  * deliberately thin: each destination screen owns its own internal navigation.
+ *
+ * B18 — wrapped in a root `ErrorBoundary`: the app-level safety net. The per-widget Home boundaries
+ * (`HomeWidgetSurface`, DA9) already contain a crash inside ONE widget; this is the layer above them,
+ * catching a render crash ANYWHERE under the current destination screen so the app shows a localized,
+ * recoverable fallback instead of a white screen. Reports through the SAME `errorReporterToken` seam
+ * (resolved from `homeContainer`, the one bound instance on mobile — mirroring the web root boundary's reuse
+ * of its own `homeContainer`) rather than a second Sentry binding path.
  */
+import { resolveErrorReporter } from '@commise/features-core';
 import type { JSX } from 'react';
 import { useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
+import { RootErrorFallback } from '../components/RootErrorFallback.js';
+import { homeContainer } from '../components/home/homeContainer.js';
 import { HomeScreen } from './HomeScreen.js';
 import { ProfileScreen } from './profile.js';
 import { RecipesScreen } from './RecipesScreen.js';
@@ -16,24 +27,39 @@ import { RecipesScreen } from './RecipesScreen.js';
 /** The top-level destinations reachable from the post-login landing. */
 type RootDestination = 'home' | 'recipes' | 'profile';
 
+/** The DA9 reporter resolved once from the shared appShell container (bound to Sentry in production). */
+const reportRootError = resolveErrorReporter(homeContainer);
+
 /**
  * The app's post-login root: starts on Home and switches to the recipes or account/profile surface when the
- * corresponding Home chrome entry is activated.
+ * corresponding Home chrome entry is activated. Wrapped in the root `ErrorBoundary` (B18).
  *
- * @returns The current top-level destination.
+ * @returns The current top-level destination, or the recoverable crash fallback.
  */
 export function AppRoot(): JSX.Element {
     const [destination, setDestination] = useState<RootDestination>('home');
 
-    if (destination === 'recipes') {
-        return <RecipesScreen />;
-    }
+    let content: JSX.Element;
 
-    if (destination === 'profile') {
-        return <ProfileScreen />;
+    if (destination === 'recipes') {
+        content = <RecipesScreen />;
+    } else if (destination === 'profile') {
+        content = <ProfileScreen />;
+    } else {
+        content = (
+            <HomeScreen
+                onOpenRecipes={() => setDestination('recipes')}
+                onOpenProfile={() => setDestination('profile')}
+            />
+        );
     }
 
     return (
-        <HomeScreen onOpenRecipes={() => setDestination('recipes')} onOpenProfile={() => setDestination('profile')} />
+        <ErrorBoundary
+            FallbackComponent={RootErrorFallback}
+            onError={(error) => reportRootError(error, { boundary: 'root' })}
+        >
+            {content}
+        </ErrorBoundary>
     );
 }

@@ -9,6 +9,36 @@ import type { LocalizedMessages } from '@commise/i18n';
 
 /** The shape of the web app's own copy. */
 export interface WebMessages {
+    /**
+     * Copy for the shared App Router resilience boundaries (B18) — the `error.tsx` / `loading.tsx` /
+     * `not-found.tsx` files under `[locale]` and each data segment render this ONE localized set through
+     * `RouteErrorState` / `RouteLoadingState` / `RouteNotFoundState`, so a segment never invents its own copy.
+     */
+    readonly boundary: {
+        /** Copy for a route segment's `error.tsx` — a render throw Next caught, never silent (DA9-reported). */
+        readonly error: {
+            /** Heading of the error state. */
+            readonly title: string;
+            /** Supporting body copy. Deliberately generic — never echoes the raw error message to the viewer. */
+            readonly description: string;
+            /** Label of the retry action, wired to Next's `reset()`. */
+            readonly retry: string;
+        };
+        /** Copy for a route segment's `loading.tsx` (the Suspense fallback shown while it streams in). */
+        readonly loading: {
+            /** Accessible label of the loading status region. */
+            readonly label: string;
+        };
+        /** Copy for a route segment's `not-found.tsx`. */
+        readonly notFound: {
+            /** Heading of the not-found state. */
+            readonly title: string;
+            /** Supporting body copy. */
+            readonly description: string;
+            /** Label of the link back to the current locale's Home. */
+            readonly backHome: string;
+        };
+    };
     readonly home: {
         readonly title: string;
         readonly tagline: string;
@@ -231,6 +261,21 @@ export interface WebMessages {
 
 export const webMessages: LocalizedMessages<WebMessages> = {
     en: {
+        boundary: {
+            error: {
+                title: 'Something went wrong.',
+                description: 'We couldn’t load this page. Please try again.',
+                retry: 'Try again',
+            },
+            loading: {
+                label: 'Loading',
+            },
+            notFound: {
+                title: 'We couldn’t find that page.',
+                description: 'It may have been moved or no longer exists.',
+                backHome: 'Back to Home',
+            },
+        },
         home: {
             title: 'Commise',
             tagline: 'Your personal AI-powered recipe assistant.',

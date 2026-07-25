@@ -166,6 +166,10 @@ export interface MobileMessages {
     };
     readonly common: {
         readonly somethingWentWrong: string;
+        /** Body copy for the root-level crash fallback (B18) — the app-wide safety net around `AppRoot`. */
+        readonly rootErrorBody: string;
+        /** Label of the retry affordance on the root-level crash fallback. */
+        readonly retry: string;
     };
 }
 
@@ -277,6 +281,8 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         },
         common: {
             somethingWentWrong: 'Something went wrong',
+            rootErrorBody: 'We hit a snag loading this screen. Please try again.',
+            retry: 'Try again',
         },
     },
 };

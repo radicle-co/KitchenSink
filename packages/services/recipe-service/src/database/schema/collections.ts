@@ -18,18 +18,32 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import type { RecipeCollectionAddedVia, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { recipes } from './recipes.js';
 
-/** Collection visibility (FR-010) — private by default. */
-export const COLLECTION_VISIBILITIES = ['public', 'private'] as const;
-/** Provenance of how a recipe entered a collection (FR-011). */
-export const RECIPE_COLLECTION_ADDED_VIA = ['manual', 'clone_seed', 'pull'] as const;
+/**
+ * Collection visibility (FR-010) — private by default. Reuses the {@link RecipeVisibility} value set
+ * (recipe-core's `Collection.visibility` is itself typed `RecipeVisibility`, not a separate union — see
+ * its docstring), so the array is tied with `satisfies` (S-R5) to fail the build on drift. `CollectionVisibility`
+ * stays its own name (no collision with recipe-core) since every existing consumer imports it from this file.
+ */
+export const COLLECTION_VISIBILITIES = ['public', 'private'] as const satisfies readonly RecipeVisibility[];
+/**
+ * Provenance of how a recipe entered a collection (FR-011). Tied to recipe-core's authoritative
+ * {@link RecipeCollectionAddedVia} with `satisfies` (S-R5); the type below is RE-EXPORTED from
+ * recipe-core (not redeclared) to reconcile the same-named type.
+ */
+export const RECIPE_COLLECTION_ADDED_VIA = [
+    'manual',
+    'clone_seed',
+    'pull',
+] as const satisfies readonly RecipeCollectionAddedVia[];
 
-/** A collection visibility value. */
+/** A collection visibility value (identical domain to {@link RecipeVisibility}). */
 export type CollectionVisibility = (typeof COLLECTION_VISIBILITIES)[number];
-/** A recipe-collection membership provenance value. */
-export type RecipeCollectionAddedVia = (typeof RECIPE_COLLECTION_ADDED_VIA)[number];
+/** A recipe-collection membership provenance value — the single authoritative type, re-exported from recipe-core. */
+export type { RecipeCollectionAddedVia };
 
 // ── collections ───────────────────────────────────────────────────────────────────────────────────
 

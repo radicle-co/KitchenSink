@@ -1,6 +1,15 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import { getTableColumns, getTableName, type Table } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
+import {
+    RecipeVisibility as RecipeCoreVisibility,
+    RecipeSourceType as RecipeCoreSourceType,
+    RecipeDifficulty as RecipeCoreDifficulty,
+    RecipeStatus as RecipeCoreStatus,
+    FoodResolutionStatus as RecipeCoreFoodResolutionStatus,
+    RecipeCollectionAddedVia as RecipeCoreCollectionAddedVia,
+    RecipeVersionArchiveStatus as RecipeCoreVersionArchiveStatus,
+} from '@kitchensink/recipe-core';
 
 import * as schema from '../schema/index.js';
 import {
@@ -18,6 +27,8 @@ import {
     accountErasureJobs,
     RECIPE_VISIBILITIES,
     RECIPE_SOURCE_TYPES,
+    RECIPE_DIFFICULTIES,
+    RECIPE_STATUSES,
     FOOD_RESOLUTION_STATUSES,
     COLLECTION_VISIBILITIES,
     RECIPE_COLLECTION_ADDED_VIA,
@@ -31,6 +42,11 @@ import type {
     CollectionRow,
     AccountErasureJobRow,
 } from '../schema/index.js';
+
+/** Sorted-array set-equality: order-independent, so array authoring order never fails the assertion. */
+const expectSetEqual = (actual: readonly string[], expected: readonly string[]): void => {
+    expect([...actual].sort()).toEqual([...expected].sort());
+};
 
 /** Normalize a column's SQL type (drizzle renders `numeric(8, 2)` with a space; we compare loosely). */
 const sqlType = (c: PgColumn): string => c.getSQLType().replace(/\s+/g, '');
@@ -300,6 +316,38 @@ describe('recipe-service schema — controlled value sets (CHECK enums)', () => 
     });
     it('account erasure job status', () => {
         expect(ERASURE_JOB_STATUSES).toEqual(['queued', 'running', 'completed', 'failed']);
+    });
+});
+
+describe('recipe-service schema — value sets are tied to @kitchensink/recipe-core (S-R5)', () => {
+    // Runtime companion to the compile-time `satisfies readonly <RecipeCoreType>[]` tie on each schema
+    // array: even if the `satisfies` constraint were ever loosened or bypassed, a value-set divergence
+    // from recipe-core's authoritative enums is still caught HERE, at test time. Each pair below MUST
+    // set-equal recipe-core's own `Object.values(...)` — never a hand-copied literal — so a rename or
+    // addition in recipe-core (e.g. W8-a.3's `draft` status) fails this test the moment it's out of sync.
+    it('RECIPE_VISIBILITIES set-equals recipe-core RecipeVisibility', () => {
+        expectSetEqual(RECIPE_VISIBILITIES, Object.values(RecipeCoreVisibility));
+    });
+    it('RECIPE_SOURCE_TYPES set-equals recipe-core RecipeSourceType', () => {
+        expectSetEqual(RECIPE_SOURCE_TYPES, Object.values(RecipeCoreSourceType));
+    });
+    it('RECIPE_DIFFICULTIES set-equals recipe-core RecipeDifficulty', () => {
+        expectSetEqual(RECIPE_DIFFICULTIES, Object.values(RecipeCoreDifficulty));
+    });
+    it('RECIPE_STATUSES set-equals recipe-core RecipeStatus', () => {
+        expectSetEqual(RECIPE_STATUSES, Object.values(RecipeCoreStatus));
+    });
+    it('FOOD_RESOLUTION_STATUSES set-equals recipe-core FoodResolutionStatus', () => {
+        expectSetEqual(FOOD_RESOLUTION_STATUSES, Object.values(RecipeCoreFoodResolutionStatus));
+    });
+    it('COLLECTION_VISIBILITIES set-equals recipe-core RecipeVisibility (Collection.visibility reuses it)', () => {
+        expectSetEqual(COLLECTION_VISIBILITIES, Object.values(RecipeCoreVisibility));
+    });
+    it('RECIPE_COLLECTION_ADDED_VIA set-equals recipe-core RecipeCollectionAddedVia', () => {
+        expectSetEqual(RECIPE_COLLECTION_ADDED_VIA, Object.values(RecipeCoreCollectionAddedVia));
+    });
+    it('PENDING_ARCHIVE_STATUSES set-equals recipe-core RecipeVersionArchiveStatus', () => {
+        expectSetEqual(PENDING_ARCHIVE_STATUSES, Object.values(RecipeCoreVersionArchiveStatus));
     });
 });
 

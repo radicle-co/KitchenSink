@@ -19,13 +19,24 @@ import {
     uuid,
     varchar,
 } from 'drizzle-orm/pg-core';
+import type { RecipeVersionArchiveStatus } from '@kitchensink/recipe-core';
 
 import { recipes } from './recipes.js';
 
-/** Archive lifecycle status (FR-007b-i). */
-export const PENDING_ARCHIVE_STATUSES = ['pending', 'in_flight', 'failed', 'dlq'] as const;
+/**
+ * Archive lifecycle status (FR-007b-i). Identical domain to recipe-core's authoritative
+ * {@link RecipeVersionArchiveStatus}, so the array is tied with `satisfies` (S-R5) to fail the build on
+ * drift. `PendingArchiveStatus` stays its own name (no collision with recipe-core) since every existing
+ * consumer imports it from this file.
+ */
+export const PENDING_ARCHIVE_STATUSES = [
+    'pending',
+    'in_flight',
+    'failed',
+    'dlq',
+] as const satisfies readonly RecipeVersionArchiveStatus[];
 
-/** A pending-archive status value. */
+/** A pending-archive status value (identical domain to {@link RecipeVersionArchiveStatus}). */
 export type PendingArchiveStatus = (typeof PENDING_ARCHIVE_STATUSES)[number];
 
 // ── recipe_versions: snapshot history (last 10 in DB, all in S3) ──────────────────────────────────

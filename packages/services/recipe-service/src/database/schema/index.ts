@@ -14,6 +14,7 @@ export {
     RECIPE_VISIBILITIES,
     RECIPE_SOURCE_TYPES,
     RECIPE_DIFFICULTIES,
+    RECIPE_STATUSES,
 } from './recipes.js';
 export type {
     RecipeRow,
@@ -23,6 +24,7 @@ export type {
     RecipeVisibility,
     RecipeSourceType,
     RecipeDifficulty,
+    RecipeStatus,
 } from './recipes.js';
 
 // ── ingredients + recipe_ingredients (T012) ───────────────────────────────────────────────────────

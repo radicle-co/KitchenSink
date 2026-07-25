@@ -20,7 +20,7 @@ import {
     uniqueIndex,
     uuid,
 } from 'drizzle-orm/pg-core';
-import type { IngredientPortion } from '@kitchensink/recipe-core';
+import type { FoodResolutionStatus, IngredientPortion } from '@kitchensink/recipe-core';
 
 import { recipes, tsvector } from './recipes.js';
 
@@ -28,11 +28,20 @@ import { recipes, tsvector } from './recipes.js';
  * Async food-resolution status (`foodResolutionStatus` in @kitchensink/recipe-core), mirroring the
  * shipped food client's `FoodStatus` (UPPER_SNAKE, incl. terminal states). Set ONLY for
  * database-backed ingredients (food_id present); NULL for user-entered / freeform ingredients.
+ *
+ * Tied to recipe-core's authoritative {@link FoodResolutionStatus} with `satisfies` (S-R5); the type
+ * below is RE-EXPORTED from recipe-core (not redeclared) to reconcile the same-named type.
  */
-export const FOOD_RESOLUTION_STATUSES = ['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED'] as const;
+export const FOOD_RESOLUTION_STATUSES = [
+    'PENDING',
+    'UNRESOLVED',
+    'RESOLVED',
+    'NOT_FOUND',
+    'FAILED',
+] as const satisfies readonly FoodResolutionStatus[];
 
-/** A food-resolution status value. */
-export type FoodResolutionStatus = (typeof FOOD_RESOLUTION_STATUSES)[number];
+/** A food-resolution status value — the single authoritative type, re-exported from recipe-core. */
+export type { FoodResolutionStatus };
 
 // ── ingredients: food-service-backed + user-entered catalog ───────────────────────────────────────
 

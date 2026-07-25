@@ -24,6 +24,7 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /**
  * Postgres `tsvector` column type (drizzle-orm has no native `tsvector`). Nullable and
@@ -37,20 +38,32 @@ export const tsvector = customType<{ data: string; driverData: string }>({
 });
 
 // ── Controlled value sets (data-model uses TEXT + CHECK, not pgEnum) ──────────────────────────────
+//
+// `@kitchensink/recipe-core` is the AUTHORITATIVE source for each of these value sets (S-R5). Every
+// array below is tied to its recipe-core type with `as const satisfies readonly <Type>[]`: a rename or
+// addition in recipe-core that this file doesn't mirror FAILS THE BUILD here instead of silently
+// drifting (see W8-a.3, which added `draft` to the status domain — exactly the drift this guards
+// against). The types themselves are RE-EXPORTED from recipe-core below rather than redeclared, so
+// there is ONE authoritative `RecipeVisibility`/`RecipeSourceType`/`RecipeDifficulty`/`RecipeStatus`.
 
 /** Recipe visibility (C-004). */
-export const RECIPE_VISIBILITIES = ['public', 'private'] as const;
+export const RECIPE_VISIBILITIES = ['public', 'private'] as const satisfies readonly RecipeVisibility[];
 /** Recipe provenance / source classification (C-004). */
-export const RECIPE_SOURCE_TYPES = ['user_created', 'imported_public', 'imported_physical', 'imported_paid'] as const;
+export const RECIPE_SOURCE_TYPES = [
+    'user_created',
+    'imported_public',
+    'imported_physical',
+    'imported_paid',
+] as const satisfies readonly RecipeSourceType[];
 /** Author-stated difficulty (CR-001 / FR-001b). NULL ("not stated") is a first-class state, not in this set. */
-export const RECIPE_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
+export const RECIPE_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly RecipeDifficulty[];
+/** Publication status (W8-a.3) — backs {@link recipes_status_check} below. */
+export const RECIPE_STATUSES = ['draft', 'published'] as const satisfies readonly RecipeStatus[];
 
-/** A recipe visibility value. */
-export type RecipeVisibility = (typeof RECIPE_VISIBILITIES)[number];
-/** A recipe source-type value. */
-export type RecipeSourceType = (typeof RECIPE_SOURCE_TYPES)[number];
-/** A recipe difficulty value (the non-null states). */
-export type RecipeDifficulty = (typeof RECIPE_DIFFICULTIES)[number];
+// Single authoritative types — re-exported from recipe-core rather than redeclared, so a schema
+// consumer importing `RecipeVisibility`/`RecipeSourceType`/`RecipeDifficulty`/`RecipeStatus` FROM THIS
+// FILE gets the exact same type as one importing it from `@kitchensink/recipe-core` directly.
+export type { RecipeVisibility, RecipeSourceType, RecipeDifficulty, RecipeStatus };
 
 // ── recipes: the golden row ───────────────────────────────────────────────────────────────────────
 

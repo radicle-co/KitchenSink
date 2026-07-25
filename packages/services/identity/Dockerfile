@@ -26,6 +26,11 @@ COPY packages/shared/clerk-verify/dist ./packages/shared/clerk-verify/dist
 # manifest must be in the image or the bare-specifier import crash-loops at boot (KTD2a).
 COPY packages/shared/identity-db/prod.package.json ./packages/shared/identity-db/package.json
 COPY packages/shared/identity-db/dist ./packages/shared/identity-db/dist
+# Shared @kitchensink/identity-core — same pattern as identity-db/identity-utils/clerk-verify above. The
+# display-name derivation logic resolves via the root node_modules symlink, so its built dist + a
+# dist-pointing prod manifest must be in the image or the bare-specifier import crash-loops at boot.
+COPY packages/shared/identity-core/prod.package.json ./packages/shared/identity-core/package.json
+COPY packages/shared/identity-core/dist ./packages/shared/identity-core/dist
 
 EXPOSE 3000
 # Preload Sentry instrumentation before app modules (native ESM — a top-level import is not a

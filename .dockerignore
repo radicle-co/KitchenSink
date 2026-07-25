@@ -9,6 +9,14 @@
 # for fresh consumers; the image copies prod.package.json (which exports ./dist) over it instead.
 !packages/utils/identity/dist
 !packages/utils/identity/prod.package.json
+# Shared @kitchensink/identity-db (S-I7) and @kitchensink/identity-core: same pattern as identity-utils
+# above — both resolve via the root node_modules symlink, so their built dist + dist-pointing prod
+# manifest must be in the image or the bare-specifier import crash-loops at boot. identity-core is also
+# consumed by the recipe-service image below.
+!packages/shared/identity-db/dist
+!packages/shared/identity-db/prod.package.json
+!packages/shared/identity-core/dist
+!packages/shared/identity-core/prod.package.json
 # Food service image (mirrors the identity allowlist): the service dist + prod manifest, plus the two
 # shared @kitchensink runtime deps (clerk-verify, usda-client) whose root node_modules symlinks resolve
 # to these dist + dist-pointing prod.package.json paths.
@@ -21,7 +29,8 @@
 !packages/clients/usda/prod.package.json
 # Recipe service image (feature 001; mirrors the food allowlist): the service dist + prod manifest, plus
 # the three shared @kitchensink runtime deps (recipe-core, food-service-client, clerk-verify) whose root
-# node_modules symlinks resolve to these dist + dist-pointing prod.package.json paths.
+# node_modules symlinks resolve to these dist + dist-pointing prod.package.json paths. (identity-core,
+# also a recipe-service runtime dep, is already allowlisted above alongside identity-db.)
 !packages/services/recipe-service/node_modules
 !packages/services/recipe-service/dist
 !packages/services/recipe-service/prod.package.json

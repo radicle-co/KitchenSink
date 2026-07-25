@@ -19,6 +19,8 @@ COPY packages/clients/food-service/prod.package.json ./packages/clients/food-ser
 COPY packages/clients/food-service/dist ./packages/clients/food-service/dist
 COPY packages/shared/clerk-verify/prod.package.json ./packages/shared/clerk-verify/package.json
 COPY packages/shared/clerk-verify/dist ./packages/shared/clerk-verify/dist
+COPY packages/shared/identity-core/prod.package.json ./packages/shared/identity-core/package.json
+COPY packages/shared/identity-core/dist ./packages/shared/identity-core/dist
 
 EXPOSE 3000
 

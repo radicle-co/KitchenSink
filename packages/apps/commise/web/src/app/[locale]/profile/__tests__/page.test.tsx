@@ -14,7 +14,7 @@ vi.mock('@/components/auth/LogoutButton', () => ({
     LogoutButton: () => <button type="button">Log out</button>,
 }));
 
-import { ProfileContent } from '../page.js';
+import { ProfileContent } from '../ProfileContent.js';
 
 describe('ProfileContent — SSR identity fetch resilience', () => {
     beforeEach(() => {

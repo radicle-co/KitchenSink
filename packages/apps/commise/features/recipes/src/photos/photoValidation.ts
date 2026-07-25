@@ -7,8 +7,8 @@
  * bytes (REQ-013), since a client-only check is trivially spoofable and must never be trusted alone.
  *
  * Reuses the single recipe-core constants (`MAX_RECIPE_PHOTO_UPLOAD_BYTES`, `ALLOWED_RECIPE_PHOTO_MIME_TYPES`)
- * rather than re-declaring the 5 MB bound or the MIME list here — see those constants' own doc for the one
- * deliberate divergence from the server today (HEIC/HEIF, REQ-013 gap, tracked separately).
+ * rather than re-declaring the 5 MB bound or the MIME list here — the SAME allowlist the server's magic-byte
+ * revalidation (REQ-013) authoritatively re-checks, so client and server can never silently drift apart.
  */
 import { ALLOWED_RECIPE_PHOTO_MIME_TYPES, MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
 

@@ -209,7 +209,10 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
         expect(listed?.coverPhotoUrl).not.toBe(`${presigned.key}`); // not the full-size original key
     });
 
-    it('rejects a confirm whose uploaded object is not a supported image (422, no row)', async () => {
+    it('rejects a confirm whose uploaded object is not a supported image (422, no row) — REQ-013 spoofed Content-Type', async () => {
+        // The confirm body declares a spoofed `contentType: 'image/png'` (an allowlisted value) while the
+        // OBJECT ACTUALLY UPLOADED is non-image garbage — ATP-013-C. The server must reject by the
+        // object's real magic bytes, never by trusting this client-supplied header.
         const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -229,6 +232,42 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo upload lifecycle (integration)', 
             body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),
         });
         expect(confirmRes.status).toBe(422);
+
+        const listRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos`);
+        const list = (await listRes.json()) as PhotoBody[];
+        expect(list.some((entry) => entry.key === presigned.key)).toBe(false); // no row persisted
+    });
+
+    it('confirm persists the DETECTED content type, not a spoofed declared one (REQ-013)', async () => {
+        // Presign + confirm both declare `image/jpeg`, but the object actually PUT to S3 is a real PNG —
+        // proving the server's magic-byte detection (not the client-supplied Content-Type, on EITHER
+        // request) is authoritative even on the accept path, not only the reject path covered above.
+        const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                fileName: 'dish.jpg',
+                contentType: 'image/jpeg',
+                fileSize: REAL_PNG_BYTES.byteLength,
+            }),
+        });
+        const presigned = (await presignRes.json()) as UploadUrlBody;
+
+        const putRes = await fetch(presigned.uploadUrl, {
+            method: 'PUT',
+            headers: { 'content-type': 'image/jpeg' },
+            body: REAL_PNG_BYTES,
+        });
+        expect(putRes.ok).toBe(true);
+
+        const confirmRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/confirm`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ key: presigned.key, contentType: 'image/jpeg' }),
+        });
+        expect(confirmRes.status).toBe(201);
+        const photo = (await confirmRes.json()) as PhotoBody;
+        expect(photo.contentType).toBe('image/png'); // the SNIFFED type wins, never the spoofed 'image/jpeg'
     });
 
     it('rejects an unsupported upload content type at presign time (415)', async () => {

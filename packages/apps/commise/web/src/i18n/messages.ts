@@ -391,7 +391,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 addLabel: 'Add photo',
                 uploadError: 'We couldn’t upload that photo. Please try again.',
                 tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
-                unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.',
+                unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
             },
         },
         collections: {

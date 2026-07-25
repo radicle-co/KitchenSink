@@ -624,27 +624,26 @@ export const MAX_RECIPE_PHOTOS = 10;
 export const MAX_RECIPE_PHOTO_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 /**
- * The canonical recipe-photo MIME allowlist per REQ-012/REQ-013.
+ * The canonical recipe-photo MIME allowlist per REQ-012/REQ-013 — the SINGLE source of truth shared by
+ * the CLIENT'S pre-transmission guard (`@commise/features-recipes`'s `validatePhotoFile`, REQ-012) and the
+ * SERVER'S magic-byte revalidation allowlist (`recipe-service/src/photos/photos.service.ts`'s
+ * `ALLOWED_UPLOAD_CONTENT_TYPES`, REQ-013) — both re-export/consume this constant so the two can never
+ * silently drift apart again.
  *
- * Consumed today by the CLIENT'S pre-transmission guard only (`@commise/features-recipes`'s
- * `validatePhotoFile`, REQ-012). It is deliberately NOT (yet) consumed by the server: the server's own
- * magic-byte allowlist (`recipe-service/src/photos/photos.service.ts`'s `ALLOWED_UPLOAD_CONTENT_TYPES`)
- * currently accepts only `image/jpeg` / `image/png` / `image/webp` and explicitly rejects HEIC/HEIF (not
- * yet a served-as-is CloudFront format, and the thumbnail pipeline has not been verified against it) — a
- * pre-existing REQ-013 conformance gap tracked separately (see the v-model traceability matrix), not
- * addressed by this constant. The two allowlists are intentionally kept as separate values so widening
- * this one for REQ-012 never silently widens what the server actually accepts; unify them only once
- * REQ-013 is remediated to genuinely accept the same five types server-side.
+ * HEIC/HEIF are deliberately EXCLUDED, even though the original spec draft (REQ-012/REQ-013 as first
+ * written) named all five types: the server's photo pipeline cannot actually deliver them end to end.
+ * `file-type` DOES recognize HEIC/HEIF magic bytes, but the recipe-service's installed `sharp` build's
+ * `heif` codec decodes AVIF only — it has no HEVC/H.265 decoder (that codec is patent-encumbered and not
+ * bundled in prebuilt `sharp`/libvips binaries) — so a real iPhone HEIC upload would pass magic-byte
+ * detection and then fail cover-thumbnail generation. Rather than let the client accept a format the
+ * server would only ever accept-but-never-thumbnail (a real client/server divergence), HEIC/HEIF support
+ * is deferred; see `specs/001-commise-recipe-app/v-model/waivers.md` WAV-001. Widen this list (and the
+ * matching `image-content-type` detector) only once the pipeline is verified to genuinely decode + rewrite
+ * HEIC/HEIF end to end.
  */
-export const ALLOWED_RECIPE_PHOTO_MIME_TYPES = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/heic',
-    'image/heif',
-] as const;
+export const ALLOWED_RECIPE_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
-/** One of the five {@link ALLOWED_RECIPE_PHOTO_MIME_TYPES} the client's pre-transmission guard accepts. */
+/** One of the {@link ALLOWED_RECIPE_PHOTO_MIME_TYPES} the client's pre-transmission guard accepts. */
 export type AllowedRecipePhotoMimeType = (typeof ALLOWED_RECIPE_PHOTO_MIME_TYPES)[number];
 
 /**

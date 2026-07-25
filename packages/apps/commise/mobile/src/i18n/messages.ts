@@ -254,7 +254,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             uploadError: 'We couldn’t add your photo. Please try again.',
             removeError: 'We couldn’t remove this photo. Please try again.',
             tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
-            unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.',
+            unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
         },
         ingredientPicker: {
             heading: 'Add an ingredient',

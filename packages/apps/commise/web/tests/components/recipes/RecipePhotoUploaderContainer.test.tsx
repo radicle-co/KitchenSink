@@ -152,12 +152,12 @@ describe('RecipePhotoUploaderContainer', () => {
         await user.upload(await screen.findByLabelText('Add photo'), wrongType);
 
         expect(
-            await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.'),
+            await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.'),
         ).toBeInTheDocument();
         expect(presign).not.toHaveBeenCalled();
     });
 
-    it.each(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])(
+    it.each(['image/jpeg', 'image/png', 'image/webp'])(
         'accepts an allowlisted type (%s) at ≤5 MB and calls presign',
         async (contentType) => {
             const user = userEvent.setup();

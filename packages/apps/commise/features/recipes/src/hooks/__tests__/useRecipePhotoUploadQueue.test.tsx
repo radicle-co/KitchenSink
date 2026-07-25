@@ -263,7 +263,7 @@ describe('useRecipePhotoUploadQueue — client-side pre-validation (REQ-011/REQ-
         expect(presign).not.toHaveBeenCalled();
     });
 
-    it.each([['image/jpeg'], ['image/png'], ['image/webp'], ['image/heic'], ['image/heif']] as const)(
+    it.each([['image/jpeg'], ['image/png'], ['image/webp']] as const)(
         'admits each allowlisted type (%s) as queued/uploading, driving upload',
         (contentType) => {
             const presign = vi.fn(() => new Promise(() => undefined));

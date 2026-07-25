@@ -355,7 +355,7 @@ strict Given/When/Then format.
 
 **Linked Requirement:** REQ-012
 **Description:** Validates client-side acceptance of allowlisted MIME types only.
-**Validation Condition:** Files are selected with MIME types `image/jpeg`, `image/png`, `image/webp`, `image/heic`, and `image/heif`.
+**Validation Condition:** Files are selected with MIME types `image/jpeg`, `image/png`, and `image/webp`. (HEIC/HEIF are deliberately NOT allowlisted — deferred, WAV-001 in waivers.md: the recipe-service's `sharp` build cannot decode/thumbnail them, so a client-accepted HEIC would always fail server-side.)
 **Expected Result:** Client accepts each allowlisted type and permits transmission.
 
 - **User Scenario: SCN-012-A1**
@@ -387,7 +387,7 @@ strict Given/When/Then format.
 **Expected Result:** Server accepts files and persists photo references for valid detected types.
 
 - **User Scenario: SCN-013-A1**
-    - **Given** an authenticated user uploads files whose magic bytes identify `image/jpeg`, `image/png`, `image/webp`, `image/heic`, or `image/heif`
+    - **Given** an authenticated user uploads files whose magic bytes identify `image/jpeg`, `image/png`, or `image/webp`
     - **When** the server performs magic-byte inspection
     - **Then** the server accepts those files and records photo references on the recipe
 

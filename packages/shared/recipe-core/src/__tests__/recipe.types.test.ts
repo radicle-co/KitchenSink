@@ -139,13 +139,11 @@ describe('recipe photo upload constants (REQ-009/REQ-011/REQ-012/REQ-013)', () =
         expect(MAX_RECIPE_PHOTO_UPLOAD_BYTES).toBe(5 * 1024 * 1024);
     });
 
-    it('the MIME allowlist is exactly the five REQ-012/REQ-013 types, in spec order', () => {
-        expect(ALLOWED_RECIPE_PHOTO_MIME_TYPES).toEqual([
-            'image/jpeg',
-            'image/png',
-            'image/webp',
-            'image/heic',
-            'image/heif',
-        ]);
+    it('the MIME allowlist is exactly the three REQ-012/REQ-013 types the server can actually serve + thumbnail, in spec order', () => {
+        // HEIC/HEIF are deliberately NOT in this list: the installed `sharp` build's `heif` codec decodes
+        // AVIF only (no HEVC/H.265 decoder), so a real iPhone HEIC upload would pass magic-byte detection
+        // but fail thumbnail generation — see this constant's own doc and specs/001-commise-recipe-app's
+        // waivers.md WAV-001.
+        expect(ALLOWED_RECIPE_PHOTO_MIME_TYPES).toEqual(['image/jpeg', 'image/png', 'image/webp']);
     });
 });

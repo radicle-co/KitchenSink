@@ -205,14 +205,12 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: 'Add photo' }));
 
-        expect(
-            await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.'),
-        ).toBeTruthy();
+        expect(await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeTruthy();
         expect(createMutateAsync).not.toHaveBeenCalled();
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it.each(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])(
+    it.each(['image/jpeg', 'image/png', 'image/webp'])(
         'accepts an allowlisted type (%s) at ≤5 MB and calls presign',
         async (mimeType) => {
             launchImageLibraryAsyncMock.mockResolvedValue({

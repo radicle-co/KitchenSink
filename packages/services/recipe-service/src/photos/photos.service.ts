@@ -33,6 +33,7 @@ import {
 } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
 import {
+    ALLOWED_RECIPE_PHOTO_MIME_TYPES,
     cdnPathForKey,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
     recipePhotoKeyPrefix,
@@ -76,8 +77,13 @@ export type { CdnInvalidationPort };
  */
 export const MAX_UPLOAD_BYTES = MAX_RECIPE_PHOTO_UPLOAD_BYTES;
 
-/** The only accepted upload content types (also the only signatures `detectImageContentType` accepts). */
-export const ALLOWED_UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+/**
+ * The only accepted upload content types (also the only signatures `detectImageContentType` accepts).
+ * Re-exports the single recipe-core allowlist (`ALLOWED_RECIPE_PHOTO_MIME_TYPES`) — also the client's
+ * pre-transmission MIME guard (REQ-012) — under this module's existing local name so callers/tests are
+ * unaffected; see that constant's own doc for why HEIC/HEIF are deliberately excluded from BOTH sides.
+ */
+export const ALLOWED_UPLOAD_CONTENT_TYPES = ALLOWED_RECIPE_PHOTO_MIME_TYPES;
 
 /** How many leading bytes to read from S3 for magic-byte sniffing (enough for the WebP `RIFF….WEBP`). */
 // file-type parses structure beyond the bare magic signature (e.g. PNG's IHDR chunk), so give it a

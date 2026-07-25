@@ -116,9 +116,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
             buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
         });
 
-        await expect(
-            page.getByText('That file type isn’t supported. Use a JPEG, PNG, WebP, HEIC, or HEIF photo.'),
-        ).toBeVisible();
+        await expect(page.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeVisible();
         await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
     });

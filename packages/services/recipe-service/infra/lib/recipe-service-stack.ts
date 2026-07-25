@@ -149,6 +149,13 @@ export interface RecipeServiceStackProps extends StackProps {
     readonly vpcId: string;
     /** CloudFront/CDN origin for serving photos. No CDN exists yet, so a placeholder is passed in. */
     readonly cloudfrontUrl: string;
+    /**
+     * CloudFront distribution id, for invalidations on photo delete + GDPR erasure (HAZ-051/067/039).
+     * OPTIONAL — no `Distribution` construct exists in this repo's CDK (see `cloudfrontUrl` above); a
+     * stage without one yet passes nothing through, and the service degrades to a logged no-op rather
+     * than failing to boot. Matches `foodServiceUrl`'s optional-passthrough shape below.
+     */
+    readonly cloudfrontDistributionId?: string;
     /** Optional food service origin (ingredient nutrition resolution; optional — degrades if absent). */
     readonly foodServiceUrl?: string;
 }
@@ -280,6 +287,10 @@ export class RecipeServiceStack extends Stack {
             recipeDbEnvironment['FOOD_SERVICE_URL'] = props.foodServiceUrl;
         }
 
+        if (props.cloudfrontDistributionId !== undefined) {
+            recipeDbEnvironment['CLOUDFRONT_DISTRIBUTION_ID'] = props.cloudfrontDistributionId;
+        }
+
         // Stage-gated azp enforcement (ADR-0001), mirroring identity + food.
         if (baseStage === 'prod') {
             recipeDbEnvironment['CLERK_AUTHORIZED_PARTIES'] = ssm.StringParameter.valueForStringParameter(
@@ -326,6 +337,19 @@ export class RecipeServiceStack extends Stack {
                 ],
             }),
         );
+
+        // HAZ-051/067/039: least-privilege grant for photo-delete's CDN-invalidation call, scoped to the
+        // ONE configured distribution — never a wildcard resource. No-op (no grant added) when
+        // `cloudfrontDistributionId` is unset, matching the service's own CDN adapter degrading to a no-op
+        // in that case (`photos/cdn-invalidation.ts`) — there is nothing to scope a grant to.
+        if (props.cloudfrontDistributionId !== undefined) {
+            apiTaskRole.addToPolicy(
+                new iam.PolicyStatement({
+                    actions: ['cloudfront:CreateInvalidation'],
+                    resources: [`arn:aws:cloudfront::${this.account}:distribution/${props.cloudfrontDistributionId}`],
+                }),
+            );
+        }
 
         const apiTaskDefinition = new ecs.FargateTaskDefinition(this, 'RecipeApiTaskDefinition', {
             cpu: 512,

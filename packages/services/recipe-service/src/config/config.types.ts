@@ -274,6 +274,15 @@ export const storageConfigSchema = z.object({
     /** CloudFront distribution URL for serving photos. */
     CLOUDFRONT_URL: z.string().url(),
 
+    /**
+     * CloudFront distribution id, for issuing invalidations on photo delete + GDPR erasure
+     * (HAZ-051/067/039). OPTIONAL: no `Distribution` construct exists in this repo's CDK (the
+     * distribution is provisioned outside it), so a stage without one yet — or local/dev — simply omits
+     * this. When unset, invalidation degrades to a logged no-op rather than failing to boot or failing a
+     * delete request; see `photos/cdn-invalidation.ts`.
+     */
+    CLOUDFRONT_DISTRIBUTION_ID: z.string().min(1).optional(),
+
     /** Presigned URL expiry in seconds. Defaults to 900 (15 min). */
     PRESIGNED_URL_EXPIRY_SECONDS: z.coerce.number().int().positive().default(900),
 
@@ -298,6 +307,10 @@ export const storageConfigMeta: Record<keyof StorageConfig, ConfigFieldMeta> = {
     S3_BUCKET_PHOTOS: { secret: false, description: 'Photo storage bucket' },
     S3_BUCKET_VERSIONS: { secret: false, description: 'Version archive bucket' },
     CLOUDFRONT_URL: { secret: false, description: 'CloudFront distribution URL' },
+    CLOUDFRONT_DISTRIBUTION_ID: {
+        secret: false,
+        description: 'CloudFront distribution id for invalidations (HAZ-051/067/039); optional',
+    },
     PRESIGNED_URL_EXPIRY_SECONDS: { secret: false, description: 'Presigned URL TTL' },
     THUMBNAIL_MAX_PX: { secret: false, description: 'Cover-thumbnail longest-edge bound (px)' },
     THUMBNAIL_QUALITY: { secret: false, description: 'Cover-thumbnail JPEG quality (1–100)' },

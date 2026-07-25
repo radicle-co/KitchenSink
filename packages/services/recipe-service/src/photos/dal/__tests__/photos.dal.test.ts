@@ -124,20 +124,25 @@ describe('PhotosDal.findById', () => {
 });
 
 describe('PhotosDal.delete', () => {
-    it('returns true when a row was removed', async () => {
+    // Returns the FULL removed row (not a bare boolean): the caller needs `s3Key`/`thumbnailKey` to know
+    // which CloudFront paths to invalidate (HAZ-051/067/039) — reading them back via a SEPARATE query after
+    // the row is already gone would be a race (and a needless extra round trip) when `.returning()` already
+    // hands back everything the DELETE just removed.
+    it('returns the removed row when one was removed', async () => {
         const control = createFakeDb();
         const dal = new PhotosDal(control.db);
-        control.enqueue([{ id: 'p-1' }]);
+        const removed = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID });
+        control.enqueue([removed]);
 
-        expect(await dal.delete(RECIPE_ID, 'p-1')).toBe(true);
+        expect(await dal.delete(RECIPE_ID, 'p-1')).toEqual(removed);
     });
 
-    it('returns false when nothing matched', async () => {
+    it('returns undefined when nothing matched', async () => {
         const control = createFakeDb();
         const dal = new PhotosDal(control.db);
         control.enqueue([]);
 
-        expect(await dal.delete(RECIPE_ID, 'missing')).toBe(false);
+        expect(await dal.delete(RECIPE_ID, 'missing')).toBeUndefined();
     });
 });
 

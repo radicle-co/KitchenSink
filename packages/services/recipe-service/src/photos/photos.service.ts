@@ -33,10 +33,12 @@ import {
 } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
 import {
+    cdnPathForKey,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
     recipePhotoKeyPrefix,
     recipePhotoOriginalKey,
     recipePhotoThumbnailKey,
+    type CdnInvalidationPort,
     type RecipePhoto,
 } from '@kitchensink/recipe-core';
 
@@ -53,8 +55,18 @@ export const PHOTOS_DAL = 'PHOTOS_DAL';
 /** DI token for the S3 storage port (presigner + object reads) — adapted from the real `S3Client`. */
 export const PHOTOS_STORAGE = 'PHOTOS_STORAGE';
 
+/**
+ * DI token for the CDN-invalidation port (HAZ-051/067/039) — adapted from the real
+ * `@aws-sdk/client-cloudfront` `CloudFrontClient`, or a no-op when no distribution is configured. See
+ * {@link CdnInvalidationPort}.
+ */
+export const PHOTOS_CDN = 'PHOTOS_CDN';
+
 /** DI token for the photos runtime config (CloudFront base URL for response shaping). */
 export const PHOTOS_CONFIG = 'PHOTOS_CONFIG';
+
+/** Re-exported so callers can type their {@link PHOTOS_CDN} provider without reaching into recipe-core. */
+export type { CdnInvalidationPort };
 
 /**
  * The hard upload size limit: 5 MB, enforced at presign (bound) and at confirm (HEAD, authoritative).
@@ -126,6 +138,8 @@ export interface PhotoStoragePort {
     getObject(s3Key: string): Promise<Uint8Array>;
     /** Write an object (the generated thumbnail rendition). */
     putObject(input: PutObjectInput): Promise<void>;
+    /** Delete an object (a photo's original or thumbnail, on photo delete — HAZ-051/067/039). */
+    deleteObject(s3Key: string): Promise<void>;
 }
 
 /** The client's `upload-url` request: the file it intends to upload (for the allowlist + size pre-check). */
@@ -190,6 +204,7 @@ export class PhotosService {
         @Inject(PHOTOS_STORAGE) private readonly storage: PhotoStoragePort,
         @Inject(PHOTOS_CONFIG) private readonly config: PhotosConfig,
         private readonly recipes: RecipesService,
+        @Inject(PHOTOS_CDN) private readonly cdn: CdnInvalidationPort,
     ) {}
 
     /**
@@ -355,6 +370,12 @@ export class PhotosService {
     /**
      * Delete a recipe's photo. Owner-only.
      *
+     * The DB row (the source of truth for what the API lists) is removed first — that alone is the
+     * request's success criterion. Removing the underlying S3 object(s) and purging their CloudFront edge
+     * cache (HAZ-051/067/039 — photos are served UNSIGNED/public via CDN, so a cached edge copy keeps
+     * serving a "deleted" photo until TTL expiry otherwise) is best-effort cleanup layered on top: see
+     * {@link invalidateDeletedPhoto} for exactly how a partial failure there is handled and why.
+     *
      * @throws `NotFoundException` when no such photo exists on the recipe.
      */
     public async delete(ownerId: string, recipeId: string, photoId: string): Promise<void> {
@@ -364,6 +385,52 @@ export class PhotosService {
 
         if (!removed) {
             throw new NotFoundException(`Photo ${photoId} not found on recipe ${recipeId}.`);
+        }
+
+        await this.invalidateDeletedPhoto(removed);
+    }
+
+    /**
+     * Remove a just-deleted photo's stored object(s) from S3 and purge their CloudFront edge paths
+     * (HAZ-051/067/039).
+     *
+     * Deliberately best-effort with respect to the HTTP response: the DB row is ALREADY gone by the time
+     * this runs, so the user-visible delete has already succeeded — there is no sane way to "roll back" a
+     * DB delete just because a subsequent S3/CDN call had a transient failure, and failing the response
+     * here would misreport a delete that did, in fact, happen. But the two steps are NOT independent
+     * best-effort: invalidating a CDN cache for an object that is STILL present at the S3 origin would be
+     * actively counterproductive (CloudFront would simply re-cache it on the next edge fetch), so a failed
+     * S3 delete short-circuits BEFORE any invalidation is attempted. Both failures are logged at `error`
+     * (not `warn`) — unlike the thumbnail-generation degrade elsewhere in this file, a failure here is a
+     * genuine privacy-residual event (HAZ-039's "Serious/Improbable/Tolerable" is only tolerable because
+     * this path is expected to succeed almost always), not a routine best-effort optimisation.
+     *
+     * @sideEffect Deletes the photo's S3 object(s) and, on success, issues a CloudFront invalidation.
+     */
+    private async invalidateDeletedPhoto(row: RecipePhotoRow): Promise<void> {
+        const keys = row.thumbnailKey !== null ? [row.s3Key, row.thumbnailKey] : [row.s3Key];
+
+        try {
+            await Promise.all(keys.map((key) => this.storage.deleteObject(key)));
+        } catch (error) {
+            this.logger.error(
+                `Failed to delete S3 object(s) for photo ${row.id} (recipe ${row.recipeId}); object(s) may be ` +
+                    `orphaned in the bucket. Skipping CDN invalidation — the origin object is still live, so ` +
+                    `purging the edge cache now would only cause CloudFront to re-fetch and re-cache it. ` +
+                    `${error instanceof Error ? error.message : String(error)}`,
+            );
+
+            return;
+        }
+
+        try {
+            await this.cdn.invalidate(keys.map(cdnPathForKey));
+        } catch (error) {
+            this.logger.error(
+                `CDN invalidation failed for photo ${row.id} (recipe ${row.recipeId}); the S3 origin object ` +
+                    `is deleted, but a CloudFront edge cache may keep serving it until TTL expiry (HAZ-039 ` +
+                    `residual). ${error instanceof Error ? error.message : String(error)}`,
+            );
         }
     }
 

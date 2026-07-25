@@ -25,7 +25,13 @@ import {
     UnsupportedMediaTypeException,
 } from '@nestjs/common';
 
-import { MAX_UPLOAD_BYTES, PhotosService, type PhotoStoragePort, type PhotosConfig } from '../photos.service.js';
+import {
+    MAX_UPLOAD_BYTES,
+    PhotosService,
+    type CdnInvalidationPort,
+    type PhotoStoragePort,
+    type PhotosConfig,
+} from '../photos.service.js';
 import type { PhotosDal } from '../dal/photos.dal.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import { isRecipeDomainError, notOwner, recipeNotFound } from '../../recipes/recipe.error.js';
@@ -86,8 +92,17 @@ function fakeStorage(overrides: Partial<PhotoStoragePort> = {}): PhotoStoragePor
         // non-decodable bytes (or a rejection) to exercise the degrade-to-no-thumbnail path.
         getObject: vi.fn().mockResolvedValue(PNG),
         putObject: vi.fn().mockResolvedValue(undefined),
+        deleteObject: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     } as unknown as PhotoStoragePort;
+}
+
+/** A fake {@link CdnInvalidationPort} whose `invalidate` resolves cleanly by default. */
+function fakeCdn(overrides: Partial<CdnInvalidationPort> = {}): CdnInvalidationPort {
+    return {
+        invalidate: vi.fn().mockResolvedValue(undefined),
+        ...overrides,
+    } as unknown as CdnInvalidationPort;
 }
 
 /** A valid `upload-url` request body for a small image of the given content type. */
@@ -120,7 +135,7 @@ describe('PhotosService.createUploadUrl', () => {
 
     beforeEach(() => {
         storage = fakeStorage();
-        service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes());
+        service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes(), fakeCdn());
     });
 
     it.each(['image/jpeg', 'image/png', 'image/webp'])('presigns a PUT for the allowlisted type %s', async (type) => {
@@ -185,7 +200,7 @@ describe('PhotosService.confirm', () => {
             readMagicBytes: vi.fn().mockResolvedValue(bytes),
             headSize: vi.fn().mockResolvedValue(2048),
         });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const response = await service.confirm(OWNER, RECIPE_ID, keyFor());
 
@@ -203,7 +218,7 @@ describe('PhotosService.confirm', () => {
     it('rejects an object whose magic bytes are not a supported image (no insert)', async () => {
         const create = vi.fn();
         const storage = fakeStorage({ readMagicBytes: vi.fn().mockResolvedValue(GARBAGE) });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -214,7 +229,7 @@ describe('PhotosService.confirm', () => {
     it('rejects HEIC/HEIF by magic bytes even though the wrapper resembles an image (no insert)', async () => {
         const create = vi.fn();
         const storage = fakeStorage({ readMagicBytes: vi.fn().mockResolvedValue(HEIC) });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -228,7 +243,7 @@ describe('PhotosService.confirm', () => {
             readMagicBytes: vi.fn().mockResolvedValue(JPEG),
             headSize: vi.fn().mockResolvedValue(MAX_UPLOAD_BYTES + 1),
         });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -240,7 +255,7 @@ describe('PhotosService.confirm', () => {
         const row = makeRecipePhotoRow({ recipeId: RECIPE_ID, sizeBytes: MAX_UPLOAD_BYTES });
         const create = vi.fn().mockResolvedValue(row);
         const storage = fakeStorage({ headSize: vi.fn().mockResolvedValue(MAX_UPLOAD_BYTES) });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         // `create` resolves the fixed boundary-sized row regardless of input, so the response is exactly
         // `resolvePhotoView(row, CONFIG.cloudfrontUrl)` — confirm the boundary size (5 MB) was accepted
@@ -271,7 +286,7 @@ describe('PhotosService.confirm', () => {
         const row = makeRecipePhotoRow({ recipeId: craftedRecipeId, s3Key: craftedKey });
         const create = vi.fn().mockResolvedValue(row);
         // getById resolves to OWNER, so the OWNER caller passes the owner check for this (crafted) recipeId.
-        const service = new PhotosService(fakeDal({ create }), fakeStorage(), CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), fakeStorage(), CONFIG, fakeRecipes(), fakeCdn());
 
         await service.confirm(OWNER, craftedRecipeId, craftedKey);
 
@@ -285,7 +300,7 @@ describe('PhotosService.confirm', () => {
     it('rejects a key that is not scoped to the owner+recipe prefix (no reads, no insert)', async () => {
         const create = vi.fn();
         const storage = fakeStorage();
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, 'recipes/someone-else/r/photos/x'));
 
@@ -303,7 +318,7 @@ describe('PhotosService.list', () => {
             makeRecipePhotoRow({ id: 'p-2', recipeId: RECIPE_ID, sortOrder: 1 }),
         ];
         const dal = fakeDal({ findByRecipe: vi.fn().mockResolvedValue(rows) });
-        const service = new PhotosService(dal, fakeStorage(), CONFIG, fakeRecipes());
+        const service = new PhotosService(dal, fakeStorage(), CONFIG, fakeRecipes(), fakeCdn());
 
         const response = await service.list(OWNER, RECIPE_ID);
 
@@ -315,22 +330,93 @@ describe('PhotosService.list', () => {
     });
 });
 
-describe('PhotosService.delete', () => {
+describe('PhotosService.delete (HAZ-051/067/039 — S3 delete + CDN invalidation)', () => {
     it('delegates to the DAL and resolves when a row was removed', async () => {
-        const del = vi.fn().mockResolvedValue(true);
-        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, fakeRecipes());
+        const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID });
+        const del = vi.fn().mockResolvedValue(row);
+        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, fakeRecipes(), fakeCdn());
 
         await expect(service.delete(OWNER, RECIPE_ID, 'p-1')).resolves.toBeUndefined();
         expect(del).toHaveBeenCalledWith(RECIPE_ID, 'p-1');
     });
 
-    it('throws NotFound when nothing matched', async () => {
-        const del = vi.fn().mockResolvedValue(false);
-        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, fakeRecipes());
+    it('throws NotFound when nothing matched, and never touches S3 or the CDN', async () => {
+        const del = vi.fn().mockResolvedValue(undefined);
+        const storage = fakeStorage();
+        const cdn = fakeCdn();
+        const service = new PhotosService(fakeDal({ delete: del }), storage, CONFIG, fakeRecipes(), cdn);
 
         await expect(service.delete(OWNER, RECIPE_ID, 'missing')).rejects.toThrow(
             new NotFoundException(`Photo missing not found on recipe ${RECIPE_ID}.`),
         );
+        expect(storage.deleteObject).not.toHaveBeenCalled();
+        expect(cdn.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('deletes the S3 original and invalidates its CDN path when the photo has no thumbnail', async () => {
+        const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID, s3Key: keyFor('orig'), thumbnailKey: null });
+        const del = vi.fn().mockResolvedValue(row);
+        const storage = fakeStorage();
+        const cdn = fakeCdn();
+        const service = new PhotosService(fakeDal({ delete: del }), storage, CONFIG, fakeRecipes(), cdn);
+
+        await service.delete(OWNER, RECIPE_ID, 'p-1');
+
+        expect(storage.deleteObject).toHaveBeenCalledTimes(1);
+        expect(storage.deleteObject).toHaveBeenCalledWith(row.s3Key);
+        expect(cdn.invalidate).toHaveBeenCalledTimes(1);
+        expect(cdn.invalidate).toHaveBeenCalledWith([`/${row.s3Key}`]);
+    });
+
+    it('deletes BOTH the original and the thumbnail rendition, and invalidates BOTH CDN paths', async () => {
+        const s3Key = keyFor('orig');
+        const thumbnailKey = recipePhotoThumbnailKey(s3Key);
+        const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID, s3Key, thumbnailKey });
+        const del = vi.fn().mockResolvedValue(row);
+        const storage = fakeStorage();
+        const cdn = fakeCdn();
+        const service = new PhotosService(fakeDal({ delete: del }), storage, CONFIG, fakeRecipes(), cdn);
+
+        await service.delete(OWNER, RECIPE_ID, 'p-1');
+
+        // Both stored objects removed from S3...
+        expect(storage.deleteObject).toHaveBeenCalledTimes(2);
+        expect(storage.deleteObject).toHaveBeenCalledWith(s3Key);
+        expect(storage.deleteObject).toHaveBeenCalledWith(thumbnailKey);
+        // ...and BOTH their CDN edge paths purged in the SAME invalidation request (not two separate
+        // requests — CloudFront bills/rate-limits per invalidation call, not per path).
+        expect(cdn.invalidate).toHaveBeenCalledTimes(1);
+        expect(cdn.invalidate).toHaveBeenCalledWith(expect.arrayContaining([`/${s3Key}`, `/${thumbnailKey}`]));
+        expect((cdn.invalidate as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toHaveLength(2);
+    });
+
+    it('does NOT invalidate the CDN when the S3 delete fails — the origin object is still live', async () => {
+        const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID, s3Key: keyFor('orig'), thumbnailKey: null });
+        const del = vi.fn().mockResolvedValue(row);
+        const storage = fakeStorage({ deleteObject: vi.fn().mockRejectedValue(new Error('S3 5xx')) });
+        const cdn = fakeCdn();
+        const service = new PhotosService(fakeDal({ delete: del }), storage, CONFIG, fakeRecipes(), cdn);
+
+        // The DB row is already gone (the user-visible delete succeeded) and the failure is a residual-
+        // cleanup concern, not a request failure — invalidating a CDN cache for an object that is STILL
+        // present at origin would be worse than a no-op (CloudFront would just re-cache it on the next
+        // fetch), so a failed S3 delete must short-circuit before invalidation is even attempted.
+        await expect(service.delete(OWNER, RECIPE_ID, 'p-1')).resolves.toBeUndefined();
+        expect(cdn.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('does not fail the request when CDN invalidation fails after a successful S3 delete', async () => {
+        const row = makeRecipePhotoRow({ id: 'p-1', recipeId: RECIPE_ID, s3Key: keyFor('orig'), thumbnailKey: null });
+        const del = vi.fn().mockResolvedValue(row);
+        const storage = fakeStorage();
+        const cdn = fakeCdn({ invalidate: vi.fn().mockRejectedValue(new Error('CloudFront throttled')) });
+        const service = new PhotosService(fakeDal({ delete: del }), storage, CONFIG, fakeRecipes(), cdn);
+
+        // The origin object is genuinely gone; only the CDN edge cache may still serve it until TTL expiry
+        // (the accepted HAZ-039 residual) — that must not surface as a failed delete request to the caller.
+        await expect(service.delete(OWNER, RECIPE_ID, 'p-1')).resolves.toBeUndefined();
+        expect(storage.deleteObject).toHaveBeenCalledTimes(1);
+        expect(cdn.invalidate).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -338,7 +424,7 @@ describe('PhotosService.reorder', () => {
     it('delegates the ordered ids to the DAL and shapes the reordered rows', async () => {
         const rows = [makeRecipePhotoRow({ id: 'p-2', sortOrder: 0 }), makeRecipePhotoRow({ id: 'p-1', sortOrder: 1 })];
         const reorder = vi.fn().mockResolvedValue(rows);
-        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, fakeRecipes(), fakeCdn());
 
         const response = await service.reorder(OWNER, RECIPE_ID, ['p-2', 'p-1']);
 
@@ -351,7 +437,7 @@ describe('PhotosService.reorder', () => {
     // atomically in-tx); the service must surface that as a 400, not pass null through to row shaping.
     it('rejects a non-permutation reorder (DAL null) with 400 BadRequest', async () => {
         const reorder = vi.fn().mockResolvedValue(null);
-        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, fakeRecipes(), fakeCdn());
 
         await expect(service.reorder(OWNER, RECIPE_ID, ['p-1'])).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -368,7 +454,7 @@ describe('PhotosService recipe-ownership authorization', () => {
 
     it('createUploadUrl rejects a non-owner before presigning', async () => {
         const storage = fakeStorage();
-        const service = new PhotosService(fakeDal(), storage, CONFIG, publicOwnedByOwner());
+        const service = new PhotosService(fakeDal(), storage, CONFIG, publicOwnedByOwner(), fakeCdn());
 
         const error = await catchError(service.createUploadUrl(OTHER, RECIPE_ID, uploadRequest('image/jpeg')));
 
@@ -379,7 +465,7 @@ describe('PhotosService recipe-ownership authorization', () => {
     it('confirm rejects a non-owner before reading the object or inserting', async () => {
         const create = vi.fn();
         const storage = fakeStorage();
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, publicOwnedByOwner());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, publicOwnedByOwner(), fakeCdn());
 
         await catchError(service.confirm(OTHER, RECIPE_ID, `recipes/${OTHER}/${RECIPE_ID}/photos/x`));
 
@@ -389,7 +475,13 @@ describe('PhotosService recipe-ownership authorization', () => {
 
     it('delete rejects a non-owner without touching the DAL', async () => {
         const del = vi.fn();
-        const service = new PhotosService(fakeDal({ delete: del }), fakeStorage(), CONFIG, publicOwnedByOwner());
+        const service = new PhotosService(
+            fakeDal({ delete: del }),
+            fakeStorage(),
+            CONFIG,
+            publicOwnedByOwner(),
+            fakeCdn(),
+        );
 
         await catchError(service.delete(OTHER, RECIPE_ID, 'p-1'));
 
@@ -398,7 +490,7 @@ describe('PhotosService recipe-ownership authorization', () => {
 
     it('reorder rejects a non-owner without touching the DAL', async () => {
         const reorder = vi.fn();
-        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, publicOwnedByOwner());
+        const service = new PhotosService(fakeDal({ reorder }), fakeStorage(), CONFIG, publicOwnedByOwner(), fakeCdn());
 
         await catchError(service.reorder(OTHER, RECIPE_ID, ['p-1']));
 
@@ -406,7 +498,7 @@ describe('PhotosService recipe-ownership authorization', () => {
     });
 
     it('propagates NOT_OWNER when the recipe is private and owned by someone else', async () => {
-        const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, privateOtherOwner());
+        const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, privateOtherOwner(), fakeCdn());
 
         const error = await catchError(service.list(OTHER, RECIPE_ID));
 
@@ -414,7 +506,7 @@ describe('PhotosService recipe-ownership authorization', () => {
     });
 
     it('propagates RECIPE_NOT_FOUND for a missing recipe', async () => {
-        const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, missingRecipe());
+        const service = new PhotosService(fakeDal(), fakeStorage(), CONFIG, missingRecipe(), fakeCdn());
 
         const error = await catchError(service.list(OWNER, RECIPE_ID));
 
@@ -424,7 +516,7 @@ describe('PhotosService recipe-ownership authorization', () => {
     it('allows listing a PUBLIC recipe owned by someone else (read is owner-or-public)', async () => {
         const rows = [makeRecipePhotoRow({ recipeId: RECIPE_ID })];
         const dal = fakeDal({ findByRecipe: vi.fn().mockResolvedValue(rows) });
-        const service = new PhotosService(dal, fakeStorage(), CONFIG, publicOwnedByOwner());
+        const service = new PhotosService(dal, fakeStorage(), CONFIG, publicOwnedByOwner(), fakeCdn());
 
         await expect(service.list(OTHER, RECIPE_ID)).resolves.toHaveLength(1);
     });
@@ -433,7 +525,7 @@ describe('PhotosService recipe-ownership authorization', () => {
 describe('PhotosService.confirm S3 error handling', () => {
     it('translates a thrown readMagicBytes (missing object) into 422, not a 500', async () => {
         const storage = fakeStorage({ readMagicBytes: vi.fn().mockRejectedValue(new Error('NoSuchKey')) });
-        const service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -442,7 +534,7 @@ describe('PhotosService.confirm S3 error handling', () => {
 
     it('translates a thrown headSize into 422, not a 500', async () => {
         const storage = fakeStorage({ headSize: vi.fn().mockRejectedValue(new Error('NotFound')) });
-        const service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal(), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         const error = await catchError(service.confirm(OWNER, RECIPE_ID, keyFor()));
 
@@ -460,7 +552,7 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
         // A real decodable JPEG for the ORIGINAL read, so sharp produces a genuine rendition.
         const getObject = vi.fn().mockResolvedValue(PNG);
         const storage = fakeStorage({ getObject, putObject });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         await service.confirm(OWNER, RECIPE_ID, key);
 
@@ -486,7 +578,7 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
         // The object passed magic-byte validation but is not a decodable image → sharp throws.
         const getObject = vi.fn().mockResolvedValue(GARBAGE);
         const storage = fakeStorage({ getObject, putObject });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         // The confirm still succeeds — a thumbnail is an optimisation, not a save-blocking requirement.
         // `create` resolves the fixed row regardless of input, so pin the whole shaped response (not just
@@ -513,7 +605,7 @@ describe('PhotosService.confirm cover-thumbnail rendition (FOLLOW-UP-CR-001-A)',
         const create = vi.fn().mockResolvedValue(row);
         const putObject = vi.fn().mockRejectedValue(new Error('S3 5xx'));
         const storage = fakeStorage({ getObject: vi.fn().mockResolvedValue(PNG), putObject });
-        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes());
+        const service = new PhotosService(fakeDal({ create }), storage, CONFIG, fakeRecipes(), fakeCdn());
 
         // Same degrade contract as above (this time the S3 PUT for the rendition fails, not the decode) —
         // the confirmed upload still returns the normal shaped response.

@@ -49,6 +49,22 @@ vi.mock('@aws-sdk/client-s3', () => ({
 const { getRecipeDb } = vi.hoisted(() => ({ getRecipeDb: vi.fn() }));
 vi.mock('../../common/db.js', () => ({ getRecipeDb }));
 
+// The module-level CDN adapter factory (HAZ-051/067/039) resolves to this shared mock, so the erasure
+// worker's invalidation call is observable/controllable exactly like `s3Send` above. Mocked at the
+// `common/cdn-invalidation.js` boundary (not `@aws-sdk/client-cloudfront`) — the ADAPTER's own real-vs-
+// no-op branching is unit-tested in `common/__tests__/cdn-invalidation.test.ts`; this suite only needs to
+// pin how the WORKER calls the port it is handed.
+const { cdnInvalidate, createCloudFrontInvalidationMock } = vi.hoisted(() => ({
+    cdnInvalidate: vi.fn().mockResolvedValue(undefined),
+    createCloudFrontInvalidationMock: vi.fn(),
+}));
+
+vi.mock('../../common/cdn-invalidation.js', () => ({
+    createCloudFrontInvalidation: createCloudFrontInvalidationMock.mockImplementation(() => ({
+        invalidate: cdnInvalidate,
+    })),
+}));
+
 import { getRecipeDb as getRecipeDbMock } from '../../common/db.js';
 import {
     claimErasureJob,
@@ -658,6 +674,7 @@ describe('handler', () => {
     beforeEach(() => {
         process.env['RECIPE_MEDIA_BUCKET'] = 'media-bucket';
         process.env['RECIPE_ARCHIVE_BUCKET'] = 'archive-bucket';
+        delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
         control = createFakeDb();
         vi.mocked(getRecipeDbMock).mockReturnValue(control.db as never);
         // Every claim resolves to an active job unless a test says otherwise.
@@ -667,11 +684,17 @@ describe('handler', () => {
 
             return Promise.resolve({ IsTruncated: false });
         });
+        cdnInvalidate.mockImplementation(() => {
+            timeline.push('cdn');
+
+            return Promise.resolve(undefined);
+        });
     });
 
     afterEach(() => {
         delete process.env['RECIPE_MEDIA_BUCKET'];
         delete process.env['RECIPE_ARCHIVE_BUCKET'];
+        delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
     });
 
     it('sweeps the owner prefix in BOTH the media and the version-archive bucket', async () => {
@@ -689,6 +712,70 @@ describe('handler', () => {
         for (const input of listed) {
             expect(input.Prefix).toBe(`recipes/${OWNER}/`);
         }
+    });
+
+    describe('CDN invalidation (HAZ-051/067/039)', () => {
+        it('invalidates the owner’s wildcard media-prefix path, AFTER the media sweep and BEFORE the archive sweep', async () => {
+            await runHandler(makeErasureEvent({ ownerId: OWNER }));
+
+            expect(cdnInvalidate).toHaveBeenCalledTimes(1);
+            // The SAME prefix the media bucket sweep lists+deletes — one wildcard path, not one per object,
+            // since a deleted owner's media space is invalidated wholesale rather than per key.
+            expect(cdnInvalidate).toHaveBeenCalledWith([`/recipes/${OWNER}/*`]);
+
+            const mediaSweep = timeline.indexOf('s3');
+            const cdnIndex = timeline.indexOf('cdn');
+            const archiveSweep = timeline.indexOf('s3', cdnIndex + 1);
+
+            expect(mediaSweep).toBeGreaterThanOrEqual(0);
+            // Invalidating BEFORE the media objects are gone would leave a moment where a stale edge could
+            // re-cache an object that a concurrent read still finds live at origin; AFTER is correct.
+            expect(cdnIndex).toBeGreaterThan(mediaSweep);
+            expect(archiveSweep).toBeGreaterThan(cdnIndex);
+        });
+
+        it('builds the CDN port from CLOUDFRONT_DISTRIBUTION_ID (the config the adapter itself gates on)', async () => {
+            process.env['CLOUDFRONT_DISTRIBUTION_ID'] = 'E1234567890';
+
+            await runHandler(makeErasureEvent({ ownerId: OWNER }));
+
+            expect(createCloudFrontInvalidationMock).toHaveBeenCalledWith(
+                expect.objectContaining({ distributionId: 'E1234567890' }),
+            );
+        });
+
+        it('records last_error and rethrows when CDN invalidation fails, leaving the job non-terminal', async () => {
+            cdnInvalidate.mockRejectedValueOnce(new Error('CloudFront throttled'));
+
+            await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow('CloudFront throttled');
+
+            const annotation = control.statements().find((s) => /last_error/i.test(s.text));
+            expect(annotation?.params[0]).toContain('CloudFront throttled');
+            // Same non-terminal posture as an S3 sweep failure: never mark `completed` while the CDN purge
+            // request has not been successfully SUBMITTED — SQS redelivery retries the whole attempt.
+            expect(control.statements().some((s) => /status = 'completed'/i.test(s.text))).toBe(false);
+            // The archive bucket must not have been swept — the failure stops the attempt before it, so a
+            // retry re-does (harmlessly, idempotently) only the media sweep + invalidation + archive sweep.
+            expect(timeline.filter((entry) => entry === 's3')).toHaveLength(1);
+        });
+
+        it('is never invoked when the interlock refuses to erase (no job row for the owner)', async () => {
+            const misrouted = createFakeDb();
+            misrouted.enqueue({ rows: [] });
+            misrouted.enqueue({ rows: [] });
+            vi.mocked(getRecipeDbMock).mockReturnValue(misrouted.db as never);
+
+            await runHandler(makeErasureEvent({ ownerId: OWNER }));
+
+            expect(cdnInvalidate).not.toHaveBeenCalled();
+        });
+
+        it('is never invoked when RECIPE_MEDIA_BUCKET is unset (fails fast before any destructive work)', async () => {
+            delete process.env['RECIPE_MEDIA_BUCKET'];
+
+            await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow(/RECIPE_MEDIA_BUCKET/);
+            expect(cdnInvalidate).not.toHaveBeenCalled();
+        });
     });
 
     it('erases the database rows BEFORE sweeping S3', async () => {
@@ -722,6 +809,9 @@ describe('handler', () => {
         // still sitting in the buckets — and a crash there would leave a permanent false `completed`.
         expect(sweeps).toHaveLength(2);
         expect(timeline.lastIndexOf('s3')).toBeLessThan(completed);
+        // The CDN purge request must also have been submitted before the row claims success — the same
+        // "never complete before every step ran" rule the S3 sweeps already get (HAZ-051/067/039).
+        expect(timeline.lastIndexOf('cdn')).toBeLessThan(completed);
     });
 
     it('claims the job before doing any destructive work', async () => {

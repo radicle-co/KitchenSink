@@ -109,16 +109,21 @@ export class PhotosDal {
      * Hard-delete a photo (the table has no soft-delete column — a removed photo is gone), scoped to its
      * recipe so a mismatched `recipeId` never deletes another recipe's photo.
      *
-     * @returns `true` when a row was removed, `false` when none matched.
+     * Returns the FULL removed row (not a bare boolean): the caller needs its `s3Key`/`thumbnailKey` to
+     * delete the underlying S3 object(s) and invalidate their CloudFront paths (HAZ-051/067/039), and
+     * `.returning()` already hands back everything the DELETE just removed — a follow-up SELECT for the
+     * same row would be both a race (nothing to select once the row is gone) and a wasted round trip.
+     *
+     * @returns The removed row, or `undefined` when none matched.
      * @sideEffect Deletes at most one `recipe_photos` row.
      */
-    public async delete(recipeId: string, id: string): Promise<boolean> {
-        const removed = await this.db
+    public async delete(recipeId: string, id: string): Promise<RecipePhotoRow | undefined> {
+        const [removed] = await this.db
             .delete(recipePhotos)
             .where(and(eq(recipePhotos.id, id), eq(recipePhotos.recipeId, recipeId)))
-            .returning({ id: recipePhotos.id });
+            .returning();
 
-        return removed.length > 0;
+        return removed;
     }
 
     /**

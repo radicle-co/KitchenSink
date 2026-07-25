@@ -2,11 +2,17 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ownerMediaPrefix, type AccountErasureMessage } from '@kitchensink/recipe-core';
+import {
+    cdnOwnerPrefixInvalidationPath,
+    ownerMediaPrefix,
+    type AccountErasureMessage,
+    type CdnInvalidationPort,
+} from '@kitchensink/recipe-core';
 import { sql } from 'drizzle-orm';
 import { isValid as isValidUlid } from 'ulidx';
 
 import { requireEnv } from '../common/config.js';
+import { createCloudFrontInvalidation } from '../common/cdn-invalidation.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
 
@@ -422,7 +428,7 @@ interface ErasureBuckets {
     readonly archive: string;
 }
 
-const processRecord = async (record: SQSRecord, buckets: ErasureBuckets): Promise<void> => {
+const processRecord = async (record: SQSRecord, buckets: ErasureBuckets, cdn: CdnInvalidationPort): Promise<void> => {
     const { ownerId } = parseErasureMessage(record);
     const db = getRecipeDb();
 
@@ -451,6 +457,29 @@ const processRecord = async (record: SQSRecord, buckets: ErasureBuckets): Promis
         await eraseRecipeRows(db, ownerId);
 
         const deletedMedia = await eraseRecipeObjects(s3, buckets.media, ownerId);
+
+        // HAZ-051/067/039: purge the CloudFront edge cache for the owner's ENTIRE media prefix so a stale
+        // edge object cannot keep serving an erased user's photos after the S3 origin copies are gone —
+        // photos are served UNSIGNED/public via CDN (photos.module.ts), so without this the erased user's
+        // media stays reachable until the cached object's TTL expires. A single wildcard path over the
+        // SAME prefix `eraseRecipeObjects` just swept, not one path per object (cheaper and no less
+        // correct). The archive bucket is NOT invalidated — version snapshots are never served via CDN.
+        //
+        // Issued on EVERY attempt, not gated on `deletedMedia > 0`: a retry (SQS redelivery after an
+        // earlier attempt died between the media sweep and this call) must still submit the invalidation
+        // even though the media sweep now finds nothing left to delete — the sweep is idempotent over an
+        // empty prefix, and a wildcard invalidation costs the same ONE path regardless of retry count, so
+        // gating it here would silently let a genuinely-failed-and-retried invalidation never get resent.
+        //
+        // A failure here throws — exactly like a failed `eraseRecipeObjects` call — and is caught below,
+        // recorded as a non-terminal error, and rethrown for SQS to redeliver. That is the actual,
+        // implemented mitigation: the job can never be marked `completed` while the CDN purge REQUEST has
+        // not been successfully submitted. It stops short of confirming the invalidation has PROPAGATED to
+        // every edge location (CreateInvalidation is asynchronous and can take minutes; polling it to
+        // completion inside a single Lambda invocation is not how any other step here works either) — see
+        // hazard-analysis.md's updated HAZ-051/067 mitigation text for the honest residual this leaves.
+        await cdn.invalidate([cdnOwnerPrefixInvalidationPath(ownerId)]);
+
         const deletedArchives = await eraseRecipeObjects(s3, buckets.archive, ownerId);
 
         if (job) {
@@ -489,10 +518,15 @@ export const handler: SQSHandler = async (event) => {
         media: requireEnv('RECIPE_MEDIA_BUCKET'),
         archive: requireEnv('RECIPE_ARCHIVE_BUCKET'),
     };
+    // Built per invocation (not module-level like `s3`, which needs no dynamic config): the distribution
+    // id is genuinely optional and stage-specific, and reading it lazily here — rather than once at
+    // module import — keeps the env read ordinary and testable instead of tangled in ESM import-hoisting
+    // timing. See `common/cdn-invalidation.ts` for the unset-id no-op contract.
+    const cdn = createCloudFrontInvalidation({ distributionId: process.env['CLOUDFRONT_DISTRIBUTION_ID'] });
 
     logger.info('account-erasure-worker invoked', { recordCount: event.Records.length });
 
     for (const record of event.Records) {
-        await processRecord(record, buckets);
+        await processRecord(record, buckets, cdn);
     }
 };

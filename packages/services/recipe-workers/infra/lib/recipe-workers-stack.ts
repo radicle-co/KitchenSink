@@ -111,6 +111,12 @@ export interface RecipeWorkersStackProps extends StackProps {
     readonly mediaBucketName: string;
     /** ARN of the global handle-sync SNS topic (W8-a.2) this deployment subscribes its OWN queue to. */
     readonly handleSyncTopicArn: string;
+    /**
+     * CloudFront distribution id, so the account-erasure worker can invalidate an erased owner's media
+     * prefix (HAZ-051/067/039). OPTIONAL — no `Distribution` construct exists in this repo's CDK; when
+     * absent the worker's CDN adapter degrades to a logged no-op rather than failing erasure.
+     */
+    readonly cloudfrontDistributionId?: string;
 }
 
 /**
@@ -266,6 +272,19 @@ export class RecipeWorkersStack extends Stack {
         mediaBucket.grantDelete(erasureRole);
         this.erasureQueue.grantConsumeMessages(erasureRole);
 
+        // HAZ-051/067/039: least-privilege grant for the CDN-invalidation call, scoped to the ONE
+        // configured distribution — never a wildcard resource. No-op (no grant added) when
+        // `cloudfrontDistributionId` is unset, matching the worker's own CDN adapter degrading to a no-op
+        // in that case; there is nothing to scope a grant to.
+        if (props.cloudfrontDistributionId !== undefined) {
+            erasureRole.addToPolicy(
+                new iam.PolicyStatement({
+                    actions: ['cloudfront:CreateInvalidation'],
+                    resources: [`arn:aws:cloudfront::${this.account}:distribution/${props.cloudfrontDistributionId}`],
+                }),
+            );
+        }
+
         // erasure sweeper: reads `account_erasure_jobs`, re-sends stale jobs, and writes the `failed`
         // give-up transition. Sends to SQS but must NOT consume (ARCH-IT-7) and touches no bucket — the
         // give-up is a row update, and the destructive work stays the worker's alone.
@@ -356,6 +375,20 @@ export class RecipeWorkersStack extends Stack {
             targets: [new events_targets.LambdaFunction(sweeperFn)],
         });
 
+        // HAZ-051/067/039: CLOUDFRONT_DISTRIBUTION_ID is OPTIONAL passthrough (mirrors recipe-service's
+        // own optional `cloudfrontDistributionId` prop) — omitted entirely rather than set to an empty
+        // string when absent, so the worker's CDN adapter sees an actually-unset value and degrades to
+        // its documented no-op instead of being handed a blank id to (mis)interpret.
+        const erasureEnvironment: Record<string, string> = {
+            ...commonDbEnv,
+            RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
+            RECIPE_MEDIA_BUCKET: props.mediaBucketName,
+        };
+
+        if (props.cloudfrontDistributionId !== undefined) {
+            erasureEnvironment['CLOUDFRONT_DISTRIBUTION_ID'] = props.cloudfrontDistributionId;
+        }
+
         const erasureFn = new lambda.Function(this, 'AccountErasureWorkerFunction', {
             runtime,
             architecture,
@@ -371,11 +404,7 @@ export class RecipeWorkersStack extends Stack {
             // mid-erasure redelivery in production.
             timeout: ERASURE_WORKER_TIMEOUT,
             memorySize: 512,
-            environment: {
-                ...commonDbEnv,
-                RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
-                RECIPE_MEDIA_BUCKET: props.mediaBucketName,
-            },
+            environment: erasureEnvironment,
             logGroup,
         });
 

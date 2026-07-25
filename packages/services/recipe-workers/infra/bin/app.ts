@@ -53,6 +53,9 @@ new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
     mediaBucketName: requireEnv('RECIPE_MEDIA_BUCKET'),
     // The global handle-sync SNS topic ARN (W8-a.2), exported by DataStack; wired in by CI like the buckets.
     handleSyncTopicArn: requireEnv('HANDLE_SYNC_TOPIC_ARN'),
+    // Optional (HAZ-051/067/039): no distribution is provisioned by this repo's CDK yet, so this is
+    // simply unset until one exists — the erasure worker degrades to a logged CDN-invalidation no-op.
+    cloudfrontDistributionId: process.env['RECIPE_CLOUDFRONT_DISTRIBUTION_ID'],
 });
 
 app.synth();

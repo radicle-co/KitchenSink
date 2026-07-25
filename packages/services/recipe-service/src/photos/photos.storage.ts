@@ -7,7 +7,13 @@
  *
  * @sideEffect Every method issues an S3 request (presign is offline; reads/HEAD hit S3).
  */
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+    DeleteObjectCommand,
+    GetObjectCommand,
+    HeadObjectCommand,
+    PutObjectCommand,
+    S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import type { PhotoStoragePort, PresignedUpload, PresignUploadInput, PutObjectInput } from './photos.service.js';
@@ -99,6 +105,10 @@ export function createS3PhotoStorage(config: S3PhotoStorageConfig): PhotoStorage
                     ContentType: input.contentType,
                 }),
             );
+        },
+
+        async deleteObject(s3Key: string): Promise<void> {
+            await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: s3Key }));
         },
     };
 }

@@ -7,11 +7,13 @@ excluded from the vitest suite by the `.load.js` suffix / this `tests/load/` dir
 
 They target the performance requirements of Feature 001:
 
-| Script                       | Requirement | Assertion (via `options.thresholds`)                                     |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------ |
-| `sc009-read-write.load.js`   | SC-009      | `http_req_duration` p95 ≤ 500ms on recipe list / get / create            |
-| `search-latency.load.js`     | SC-009      | search `http_req_duration` p95 < 2s                                      |
-| `save-under-archive.load.js` | FR-007b-i   | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued |
+| Script                         | Requirement     | Assertion (via `options.thresholds`)                                     |
+| ------------------------------ | --------------- | ------------------------------------------------------------------------ |
+| `sc009-read-write.load.js`     | SC-009          | `http_req_duration` p95 ≤ 500ms on recipe list / get / create            |
+| `search-latency.load.js`       | SC-009          | search `http_req_duration` p95 < 2s                                      |
+| `save-under-archive.load.js`   | FR-007b-i       | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued |
+| `pull-from-source.load.js`     | W8-a.8 / FR-011 | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)  |
+| `version-archive-read.load.js` | W8-a.7          | version GET served via the S3 archive fallback p95 < 1s                  |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
 
@@ -42,16 +44,18 @@ per-user-tracking follow-up in the service's throttle notes.)
 
 ## Configuration (environment variables)
 
-| Variable                 | Default                 | Meaning                                         |
-| ------------------------ | ----------------------- | ----------------------------------------------- |
-| `RECIPE_API_BASE_URL`    | `http://localhost:3000` | Base URL of the service under test              |
-| `RECIPE_LOAD_TEST_TOKEN` | _(empty)_               | Bearer session token                            |
-| `RECIPE_LOAD_PEAK_VUS`   | `50`                    | Peak concurrent VUs (see the SC-009 note below) |
-| `RECIPE_LOAD_RAMP_UP`    | `30s`                   | Ramp-up duration                                |
-| `RECIPE_LOAD_HOLD`       | `1m`                    | Hold-at-peak duration                           |
-| `RECIPE_LOAD_RAMP_DOWN`  | `15s`                   | Ramp-down duration                              |
-| `RECIPE_SAVE_P95_MS`     | `500`                   | p95 budget (ms) for read/write/save             |
-| `RECIPE_SEARCH_P95_MS`   | `2000`                  | p95 budget (ms) for search                      |
+| Variable                             | Default                 | Meaning                                                  |
+| ------------------------------------ | ----------------------- | -------------------------------------------------------- |
+| `RECIPE_API_BASE_URL`                | `http://localhost:3000` | Base URL of the service under test                       |
+| `RECIPE_LOAD_TEST_TOKEN`             | _(empty)_               | Bearer session token                                     |
+| `RECIPE_LOAD_PEAK_VUS`               | `50`                    | Peak concurrent VUs (see the SC-009 note below)          |
+| `RECIPE_LOAD_RAMP_UP`                | `30s`                   | Ramp-up duration                                         |
+| `RECIPE_LOAD_HOLD`                   | `1m`                    | Hold-at-peak duration                                    |
+| `RECIPE_LOAD_RAMP_DOWN`              | `15s`                   | Ramp-down duration                                       |
+| `RECIPE_SAVE_P95_MS`                 | `500`                   | p95 budget (ms) for read/write/save                      |
+| `RECIPE_SEARCH_P95_MS`               | `2000`                  | p95 budget (ms) for search                               |
+| `RECIPE_VERSION_ARCHIVE_READ_P95_MS` | `1000`                  | p95 budget (ms) for the S3 version-archive fallback read |
+| `RECIPE_ARCHIVE_FIXTURE_RECIPE_ID`   | _(fixed id, see below)_ | recipe id `version-archive-read.load.js` reads           |
 
 ## Running
 
@@ -63,6 +67,13 @@ export RECIPE_LOAD_TEST_TOKEN='<clerk session token>'
 k6 run tests/load/sc009-read-write.load.js
 k6 run tests/load/search-latency.load.js
 k6 run tests/load/save-under-archive.load.js
+k6 run tests/load/pull-from-source.load.js
+
+# version-archive-read.load.js needs its fixture seeded FIRST (direct Postgres + S3 access k6 itself
+# cannot do — see the script's own docstring). Idempotent; safe to re-run.
+DATABASE_URL=postgres://... S3_ENDPOINT=... S3_BUCKET_VERSIONS=commise-versions \
+    npx tsx tests/load/prepare-version-archive-fixture.ts
+k6 run tests/load/version-archive-read.load.js
 
 # Machine-readable summary (used by the CI job's artifact upload)
 k6 run --summary-export=k6-summary.json tests/load/sc009-read-write.load.js
@@ -80,6 +91,11 @@ thresholds are identical regardless of the peak, so the pass/fail bar does not c
 
 ## CI
 
-The `load-test` job in `.github/workflows/_ci.yml` installs k6 and runs these scripts against a booted
-service. It is gated (off by default via the `run_load_test` workflow input) so the heavy load run
-never fires on ordinary PR / push pipelines — a caller opts in by passing `run_load_test: true`.
+The `load-test` job in `.github/workflows/_ci.yml` installs k6 and runs `sc009-read-write.load.js`,
+`search-latency.load.js`, and `save-under-archive.load.js` against a booted service. It is gated (off by
+default via the `run_load_test` workflow input) so the heavy load run never fires on ordinary PR / push
+pipelines — a caller opts in by passing `run_load_test: true`.
+
+`pull-from-source.load.js` and `version-archive-read.load.js` are NOT yet wired into that job (a
+follow-up — `version-archive-read.load.js` additionally needs the `prepare-version-archive-fixture.ts`
+step added before the `k6 run` step, mirroring the existing `prepare-db.mjs` step).

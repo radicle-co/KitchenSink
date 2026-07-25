@@ -16,6 +16,12 @@ export const TOKEN = __ENV['RECIPE_LOAD_TEST_TOKEN'] || '';
 export const SC009_P95_MS = Number(__ENV['RECIPE_SAVE_P95_MS'] || 500);
 // Search must return in < 2s.
 export const SEARCH_P95_MS = Number(__ENV['RECIPE_SEARCH_P95_MS'] || 2000);
+// W8-a.7 — the S3 version-archive fallback GET. Slower than a plain DB row read (SC009_P95_MS's 500ms)
+// because it costs a network round trip to S3 plus a JSON parse instead of a single indexed Postgres
+// lookup, but it is a single-object GetObject (not a query), so it stays well under search's 2s budget
+// (a full-text query). 1s gives headroom above the DB baseline while still catching a genuinely slow
+// archive read (e.g. S3 throttling, a cold connection).
+export const VERSION_ARCHIVE_READ_P95_MS = Number(__ENV['RECIPE_VERSION_ARCHIVE_READ_P95_MS'] || 1000);
 
 // --- Load shape ---------------------------------------------------------------------------------
 // SC-009's headline target is p95 <= 500ms at 10k concurrent. A single k6 runner cannot honestly
@@ -64,6 +70,12 @@ export function uuidv4() {
 // reference ids that actually exist.
 export const SEED_INGREDIENT_FLOUR = '00000000-0000-4000-8000-0000000000aa';
 export const SEED_INGREDIENT_SUGAR = '00000000-0000-4000-8000-0000000000bb';
+
+// The fixture recipe `tests/load/prepare-version-archive-fixture.ts` seeds (must match its
+// ARCHIVE_FIXTURE_RECIPE_ID): version 1 exists ONLY in the S3 archive (its `recipe_versions` row is
+// deliberately absent), so a GET of it always exercises the W8-a.7 transparent S3 fallback.
+export const ARCHIVE_FIXTURE_RECIPE_ID =
+    __ENV['RECIPE_ARCHIVE_FIXTURE_RECIPE_ID'] || '00000000-0000-4000-8000-0000000000f1';
 
 // A valid CreateRecipeRequest body (matches specs/001-commise-recipe-app/contracts/api.openapi.yaml).
 export function makeRecipePayload(label) {

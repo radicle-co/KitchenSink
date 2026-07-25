@@ -43,7 +43,9 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await page.goto(route('/recipes'));
         const card = page.getByRole('article', { name: 'E2E Weeknight Draft' });
         await expect(card).toBeVisible();
-        await expect(card.getByText('Draft')).toBeVisible();
+        // `exact` so the status badge is matched, not the recipe title "E2E Weeknight Draft"
+        // (which also contains "Draft" and would make this a strict-mode 2-element violation).
+        await expect(card.getByText('Draft', { exact: true })).toBeVisible();
     });
 
     test('Publish is blocked while a non-current step is invalid; the rail flags it and nothing is submitted', async ({

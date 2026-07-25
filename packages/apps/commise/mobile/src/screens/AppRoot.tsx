@@ -12,6 +12,12 @@
  * recoverable fallback instead of a white screen. Reports through the SAME `errorReporterToken` seam
  * (resolved from `homeContainer`, the one bound instance on mobile — mirroring the web root boundary's reuse
  * of its own `homeContainer`) rather than a second Sentry binding path.
+ *
+ * B13 — this app deliberately does NOT depend on `@react-navigation/*`: with exactly three flat
+ * destinations and no deep-linking/history requirements, a `useState` switch is the simplest correct
+ * design (KISS) and the unused react-navigation packages (+ their `react-native-screens` peer) were
+ * removed from `package.json` as dead weight. Adopting react-navigation for richer stack/tab navigation
+ * is a legitimate future need but is a separate, feature-sized task — not a drop-in here.
  */
 import { resolveErrorReporter } from '@commise/features-core';
 import type { JSX } from 'react';

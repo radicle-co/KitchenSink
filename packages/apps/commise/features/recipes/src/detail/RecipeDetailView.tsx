@@ -9,7 +9,7 @@
  * title, seafoam/coral tag pills, a four-up stats strip, checklist ingredients, numbered seafoam step
  * markers, and a nutrition grid — all via `@commise/ui` design tokens exposed as Tailwind v4 utilities.
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
@@ -31,6 +31,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
     onFilterByTag,
 }) => {
     const { list, detail } = useMessages(recipeMessages);
+    const locale = useLocale();
     // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
     const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
 
@@ -96,7 +97,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                 </h2>
                 <ul className="flex flex-col divide-y divide-border rounded-2xl bg-card p-2 shadow-sm">
                     {recipe.ingredients.map((ingredient) => {
-                        const label = formatQuantity(ingredient.quantity, ingredient.unit);
+                        const label = formatQuantity(ingredient.quantity, locale, ingredient.unit);
                         const checked = checkedIngredients?.has(ingredient.ingredientId) ?? false;
 
                         return (

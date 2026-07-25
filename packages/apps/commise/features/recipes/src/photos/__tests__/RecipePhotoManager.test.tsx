@@ -56,6 +56,15 @@ describe('RecipePhotoManager (web) — populated', () => {
         expect(screen.getByRole('button', { name: 'Remove photo 3' })).toBeTruthy();
     });
 
+    it('renders confirmed-photo images lazy-loaded with an explicit dimension ratio (B7)', () => {
+        renderManager({ photos: threePhotos });
+
+        const img = screen.getByRole<HTMLImageElement>('img', { name: 'Recipe photo 1' });
+        expect(img.getAttribute('loading')).toBe('lazy');
+        expect(img.getAttribute('decoding')).toBe('async');
+        expect(img.className).toContain('aspect-square');
+    });
+
     it('reports the photo id to remove upward', () => {
         const onRemovePhoto = vi.fn();
         renderManager({ photos: threePhotos, onRemovePhoto });
@@ -107,6 +116,18 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         renderManager({ photos: threePhotos });
 
         expect(screen.getByRole('list').className).toContain('grid-cols-3');
+    });
+
+    it('renders a queue-preview image lazy-loaded (B7)', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading', previewUri: 'blob:a.png' }),
+            ],
+        });
+
+        const img = screen.getByRole<HTMLImageElement>('img', { name: 'Photo a.png' });
+        expect(img.getAttribute('loading')).toBe('lazy');
+        expect(img.getAttribute('decoding')).toBe('async');
     });
 
     it('renders a status badge for a queued file', () => {

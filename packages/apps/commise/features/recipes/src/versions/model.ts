@@ -898,7 +898,7 @@ export const toVersionPreviewIngredientLines = (
 
         return {
             key: ingredient.id,
-            text: `${formatQuantity(ingredient.quantity, ingredient.unit)} ${name}`,
+            text: `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`,
             ...(ingredient.userCalories !== undefined
                 ? {
                       calories: fillTemplate(messages.caloriesLabel, {

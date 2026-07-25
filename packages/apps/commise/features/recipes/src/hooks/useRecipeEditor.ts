@@ -114,6 +114,7 @@
  * DRY liability, not a DRY win, so it (and its dedicated test) were removed rather than force-fed an
  * artificial caller.
  */
+import type { Locale } from '@commise/i18n';
 import {
     RecipeStatus,
     type RecipeDetail,
@@ -211,6 +212,9 @@ type TerminalOutcome = 'none' | 'saved' | 'discarded';
 export interface UseRecipeEditorOptions {
     /** Called with the freshly-persisted recipe immediately after a successful save. */
     readonly onSaved: (recipe: RecipeDetail) => void;
+    /** The active BCP-47 locale, threaded into `computeConflictDiff` (W7 Task 1) for locale-correct
+     *  ingredient-quantity formatting in the precomputed conflict diff. */
+    readonly locale: Locale;
 }
 
 /** The load-state surface passed through from the hook's internal `useRecipe` query, for the container's own loading/not-found/error affordance. */
@@ -302,7 +306,8 @@ export interface UseRecipeEditorResult {
  * The shared recipe-edit lifecycle statechart.
  *
  * @param recipeId - The id of the recipe being edited.
- * @param opts - `onSaved`, invoked with the persisted recipe on every successful save.
+ * @param opts - `onSaved` (invoked with the persisted recipe on every successful save) and `locale` (threaded
+ *   into `computeConflictDiff` for locale-correct ingredient-quantity formatting).
  * @returns The edit state, the controlled draft, and the submit/resolution actions.
  */
 export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions): UseRecipeEditorResult {
@@ -350,7 +355,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
         const { server, base } = err;
         const mineSnapshot = draftToSnapshot(draft, base?.versionNumber ?? server.versionNumber);
-        const diff = computeConflictDiff(base?.snapshot, mineSnapshot, server.snapshot);
+        const diff = computeConflictDiff(base?.snapshot, mineSnapshot, server.snapshot, opts.locale);
 
         if (diff.isEmpty) {
             // Phantom zero-diff fast path (W7 Task 2): mine and theirs already agree on every field, so there

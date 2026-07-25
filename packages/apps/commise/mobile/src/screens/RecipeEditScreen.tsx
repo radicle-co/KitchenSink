@@ -21,7 +21,7 @@
  */
 import { RecipeConflictView, recipeVersionMessages, useDiscardGuard } from '@commise/features-recipes';
 import { useRecipeEditor } from '@commise/features-recipes/hooks';
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -49,7 +49,8 @@ export interface RecipeEditScreenProps {
 export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
     const { conflict } = useMessages(recipeVersionMessages);
-    const editor = useRecipeEditor(recipeId, { onSaved: (recipe) => onSaved(recipe.id) });
+    const locale = useLocale();
+    const editor = useRecipeEditor(recipeId, { onSaved: (recipe) => onSaved(recipe.id), locale });
 
     // The discard guard's "unsaved edits" baseline: captured once the recipe has seeded (past `'loading'`),
     // re-captured on every successful save (`'saved'`) — see `useDiscardGuard`'s module doc. Declared before

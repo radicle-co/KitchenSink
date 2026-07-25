@@ -161,7 +161,7 @@ beforeEach(() => {
 describe('useRecipeEditor — seed-once (no clobber on background refetch)', () => {
     it('is "loading" until the recipe seeds, then seeds values once', () => {
         useRecipeMock.mockReturnValue(recipeQuery({ data: undefined, isLoading: true }));
-        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         expect(result.current.state).toEqual({ status: 'loading' });
 
@@ -176,7 +176,7 @@ describe('useRecipeEditor — seed-once (no clobber on background refetch)', () 
     it('does NOT clobber an in-progress edit when the SAME recipe re-renders with fresh (background-refetched) data', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
-        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, title: 'My Unsaved Edit' }));
         expect(result.current.values.title).toBe('My Unsaved Edit');
@@ -192,7 +192,7 @@ describe('useRecipeEditor — seed-once (no clobber on background refetch)', () 
     it('DOES reseed when the id changes (a real navigation to a different recipe)', () => {
         const first = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: first }));
-        const { result, rerender } = renderHook(({ id }) => useRecipeEditor(id, { onSaved: vi.fn() }), {
+        const { result, rerender } = renderHook(({ id }) => useRecipeEditor(id, { onSaved: vi.fn(), locale: 'en' }), {
             initialProps: { id: 'rec_1' },
         });
 
@@ -212,7 +212,7 @@ describe('useRecipeEditor — validation blocks submit', () => {
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, title: '' }));
         act(() => result.current.submit());
@@ -231,7 +231,7 @@ describe('useRecipeEditor — submit success', () => {
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -254,7 +254,7 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state).toEqual({ status: 'saved' });
@@ -270,7 +270,7 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state).toEqual({ status: 'saved' });
@@ -302,7 +302,7 @@ describe('useRecipeEditor — the "saved" latch resets on resumed editing', () =
             },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state).toEqual({ status: 'saved' });
@@ -341,7 +341,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -369,7 +369,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             { type: 'conflict', error: new VersionConflictError(5, 3, undefined, { server, base }) },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -399,7 +399,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             { type: 'conflict', error: new VersionConflictError(25, 3, undefined, { server }) },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -429,7 +429,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -446,7 +446,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation([{ type: 'conflict', error: new Error('network down') }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -469,7 +469,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             { type: 'conflict', error: new VersionConflictError(undefined, 3, 'Recipe version conflict') },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -502,7 +502,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -530,7 +530,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.submit());
         act(() => result.current.resolutions.overwrite());
@@ -560,7 +560,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             { type: 'conflict', error: new VersionConflictError(7, 5, undefined, { server: secondServer }) },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state).toMatchObject({ status: 'conflict', server: firstServer });
@@ -588,7 +588,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
             },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state.status).toBe('conflict');
@@ -605,7 +605,7 @@ describe('useRecipeEditor — 409 -> conflict (the handled-409 invariant)', () =
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.resolutions.overwrite());
         act(() => result.current.resolutions.keepServer());
@@ -635,7 +635,7 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.submit());
         // Pull servings from theirs, keep title on mine (the default, an absent key).
@@ -695,7 +695,7 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.submit());
         act(() => result.current.resolutions.merge({ 'steps[1]': 'theirs', 'ingredients:ing_2': 'theirs' }));
@@ -714,7 +714,7 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         // Outside conflict: a no-op, state stays 'editing'.
         act(() => result.current.resolutions.setMergeSelections({ title: 'theirs' }));
@@ -727,7 +727,7 @@ describe('useRecipeEditor — setField patches a single field', () => {
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', servings: 4, currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setField('servings', 6));
 
@@ -740,7 +740,7 @@ describe('useRecipeEditor — query passthrough', () => {
     it('exposes the underlying recipe query state for the container’s own loading/error affordance', () => {
         useRecipeMock.mockReturnValue(recipeQuery({ data: undefined, isError: true, error: new Error('boom') }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         expect(result.current.query.isError).toBe(true);
         expect(result.current.query.error).toBeInstanceOf(Error);
@@ -754,7 +754,7 @@ describe('useRecipeEditor — wizard step state (w3, orthogonal to EditorState)'
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         expect(result.current.step).toBe(1);
         // Orthogonal: the step dimension never appears on `state`.
@@ -765,7 +765,7 @@ describe('useRecipeEditor — wizard step state (w3, orthogonal to EditorState)'
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.goToStep(3));
         expect(result.current.step).toBe(3);
@@ -778,7 +778,7 @@ describe('useRecipeEditor — wizard step state (w3, orthogonal to EditorState)'
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.goNext());
         expect(result.current.step).toBe(2);
@@ -788,7 +788,7 @@ describe('useRecipeEditor — wizard step state (w3, orthogonal to EditorState)'
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setField('title', ''));
         act(() => result.current.goNext());
@@ -800,7 +800,7 @@ describe('useRecipeEditor — wizard step state (w3, orthogonal to EditorState)'
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.goToStep(2));
         act(() => result.current.goPrev());
@@ -814,7 +814,7 @@ describe('useRecipeEditor — wizard step state (w3, orthogonal to EditorState)'
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.goToStep(4));
         act(() => result.current.goNext());
@@ -827,7 +827,7 @@ describe('useRecipeEditor — canAdvanceFrom / stepErrors (w3, filters the ONE v
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setField('title', ''));
         expect(result.current.canAdvanceFrom(1)).toBe(false);
@@ -840,7 +840,7 @@ describe('useRecipeEditor — canAdvanceFrom / stepErrors (w3, filters the ONE v
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, title: '', ingredients: [] }));
 
@@ -852,7 +852,7 @@ describe('useRecipeEditor — canAdvanceFrom / stepErrors (w3, filters the ONE v
         const loaded = makeRecipeDetail({ id: 'rec_1', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, title: '', ingredients: [], steps: [] }));
 
@@ -867,7 +867,7 @@ describe('useRecipeEditor — publish (w3: whole-form validate, then submit with
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, ingredients: [] }));
         act(() => result.current.publish());
@@ -883,7 +883,7 @@ describe('useRecipeEditor — publish (w3: whole-form validate, then submit with
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.publish());
 
@@ -900,7 +900,7 @@ describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingre
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const mutation = updateMutation();
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setField('title', ''));
         act(() => result.current.saveDraft());
@@ -916,7 +916,7 @@ describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingre
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, ingredients: [], steps: [] }));
         act(() => result.current.saveDraft());
@@ -939,7 +939,7 @@ describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingre
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
         const onSaved = vi.fn();
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.saveDraft());
 
@@ -956,7 +956,7 @@ describe('useRecipeEditor — saveDraft (w3: relaxed floor — title only, ingre
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
 
@@ -970,7 +970,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         const loaded = makeRecipeDetail({ id: 'rec_1', title: 'Weeknight Pasta', currentVersion: 3 });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         useUpdateRecipeMock.mockReturnValue(updateMutation());
-        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result, rerender } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.setValues({ ...result.current.values, title: 'My Unsaved Edit' }));
         act(() => result.current.goToStep(2));
@@ -999,7 +999,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
             },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.goToStep(3));
         act(() => result.current.submit());
@@ -1029,7 +1029,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
             { type: 'success', recipe: saved },
         ]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.goToStep(2));
         act(() => result.current.submit());
@@ -1046,7 +1046,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state).toEqual({ status: 'saved' });
@@ -1064,7 +1064,7 @@ describe('useRecipeEditor — the four invariants re-proven WITH the step dimens
         const saved = makeRecipeDetail({ id: 'rec_1', currentVersion: 4 });
         const mutation = updateMutation([{ type: 'success', recipe: saved }]);
         useUpdateRecipeMock.mockReturnValue(mutation);
-        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn() }));
+        const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved: vi.fn(), locale: 'en' }));
 
         act(() => result.current.submit());
         expect(result.current.state).toEqual({ status: 'saved' });

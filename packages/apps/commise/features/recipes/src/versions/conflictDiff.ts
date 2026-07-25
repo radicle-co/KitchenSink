@@ -40,6 +40,7 @@
  *
  * Pure: never mutates `base`, `mine`, `theirs`, or their nested `steps`/`ingredients`.
  */
+import type { Locale } from '@commise/i18n';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
 import { formatQuantity } from '../detail/model.js';
@@ -121,7 +122,7 @@ const formatStep = (step: RecipeStep | undefined): string => {
 
 /** Format an ingredient line for display: "{quantity}{unit} {name}", with any `displayText` override appended
  *  in parens. `undefined` (no ingredient with this identity on this side) formats as the empty string. Pure. */
-const formatIngredient = (ingredient: RecipeIngredient | undefined): string => {
+const formatIngredient = (ingredient: RecipeIngredient | undefined, locale: Locale): string => {
     if (ingredient === undefined) {
         return '';
     }
@@ -131,7 +132,7 @@ const formatIngredient = (ingredient: RecipeIngredient | undefined): string => {
             ? `${ingredient.ingredientName} (${ingredient.displayText})`
             : ingredient.ingredientName;
 
-    return `${formatQuantity(ingredient.quantity, ingredient.unit)} ${name}`;
+    return `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`;
 };
 
 /**
@@ -360,6 +361,7 @@ const ingredientRows = (
     base: readonly RecipeIngredient[],
     mine: readonly RecipeIngredient[],
     theirs: readonly RecipeIngredient[],
+    locale: Locale,
 ): ConflictFieldRow[] => {
     const baseByIdentity = byIdentity(base);
     const mineByIdentity = byIdentity(mine);
@@ -383,9 +385,9 @@ const ingredientRows = (
             key: `ingredients:${identity}`,
             fieldKind: 'ingredient',
             marker,
-            ...(baseIngredient === undefined ? {} : { base: formatIngredient(baseIngredient) }),
-            mine: formatIngredient(mineIngredient),
-            theirs: formatIngredient(theirsIngredient),
+            ...(baseIngredient === undefined ? {} : { base: formatIngredient(baseIngredient, locale) }),
+            mine: formatIngredient(mineIngredient, locale),
+            theirs: formatIngredient(theirsIngredient, locale),
             mineChanged,
             theirsChanged,
         });
@@ -401,6 +403,7 @@ const ingredientRows = (
 const ingredientRowsFallback = (
     mine: readonly RecipeIngredient[],
     theirs: readonly RecipeIngredient[],
+    locale: Locale,
 ): ConflictFieldRow[] => {
     const mineByIdentity = byIdentity(mine);
     const theirsByIdentity = byIdentity(theirs);
@@ -418,8 +421,8 @@ const ingredientRowsFallback = (
             key: `ingredients:${identity}`,
             fieldKind: 'ingredient',
             marker: 'conflict',
-            mine: formatIngredient(mineIngredient),
-            theirs: formatIngredient(theirsIngredient),
+            mine: formatIngredient(mineIngredient, locale),
+            theirs: formatIngredient(theirsIngredient, locale),
             mineChanged: true,
             theirsChanged: true,
         });
@@ -439,12 +442,14 @@ const isDefinedRow = (row: ConflictFieldRow | undefined): row is ConflictFieldRo
  *   evicted from version history (triggers the 2-way fallback — see module docs).
  * @param mine - The current user's (in-progress or resubmitted) snapshot.
  * @param theirs - The latest saved snapshot the user's edit collided with.
+ * @param locale - The active BCP-47 locale, for locale-correct ingredient-quantity formatting.
  * @returns The changed-only rows, whether any is a genuine conflict, and whether there is nothing to merge.
  */
 export const computeConflictDiff = (
     base: RecipeSnapshot | undefined,
     mine: RecipeSnapshot,
     theirs: RecipeSnapshot,
+    locale: Locale,
 ): ConflictDiff => {
     const rows: ConflictFieldRow[] =
         base === undefined
@@ -453,14 +458,14 @@ export const computeConflictDiff = (
                       isDefinedRow,
                   ),
                   ...stepRowsFallback(mine.steps, theirs.steps),
-                  ...ingredientRowsFallback(mine.ingredients, theirs.ingredients),
+                  ...ingredientRowsFallback(mine.ingredients, theirs.ingredients, locale),
               ]
             : [
                   ...SCALAR_FIELD_KINDS.map((fieldKind) => scalarRow(fieldKind, base, mine, theirs)).filter(
                       isDefinedRow,
                   ),
                   ...stepRows(base.steps, mine.steps, theirs.steps),
-                  ...ingredientRows(base.ingredients, mine.ingredients, theirs.ingredients),
+                  ...ingredientRows(base.ingredients, mine.ingredients, theirs.ingredients, locale),
               ];
 
     return {

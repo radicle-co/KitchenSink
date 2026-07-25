@@ -51,7 +51,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot();
         const theirs = makeSnapshot();
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff).toEqual({ rows: [], hasConflict: false, isEmpty: true });
     });
@@ -61,7 +61,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ title: 'Weeknight Pasta, Revised' });
         const theirs = makeSnapshot({ title: 'Weeknight Pasta' });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -84,7 +84,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ servings: 4 });
         const theirs = makeSnapshot({ servings: 6 });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -106,7 +106,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ title: 'Weeknight Pasta, Mine' });
         const theirs = makeSnapshot({ title: 'Weeknight Pasta, Theirs' });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -128,7 +128,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ title: 'Weeknight Pasta, Revised' });
         const theirs = makeSnapshot({ title: 'Weeknight Pasta, Revised' });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         // A naive "both changed = conflict" implementation would report `conflict` and hasConflict:true here.
         expect(diff.rows).toEqual([
@@ -151,7 +151,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ description: 'New description', cookTimeMinutes: 25 });
         const theirs = makeSnapshot();
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows.map((row) => row.key)).toEqual(['description', 'cookTimeMinutes']);
         expect(diff.rows.every((row) => row.marker === 'changed')).toBe(true);
@@ -169,7 +169,7 @@ describe('computeConflictDiff', () => {
         });
         const theirs = makeSnapshot({ steps });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -193,7 +193,7 @@ describe('computeConflictDiff', () => {
         });
         const theirs = makeSnapshot({ ingredients });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -219,7 +219,7 @@ describe('computeConflictDiff', () => {
         });
         const theirs = makeSnapshot({ steps: [makeStep({ id: 'step_1', instruction: 'Preheat the oven.' })] });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -243,7 +243,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ steps: [steps[0]!] });
         const theirs = makeSnapshot({ steps });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -276,7 +276,7 @@ describe('computeConflictDiff', () => {
             ],
         });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -300,7 +300,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ ingredients });
         const theirs = makeSnapshot({ ingredients: [ingredients[0]!] });
 
-        const diff = computeConflictDiff(base, mine, theirs);
+        const diff = computeConflictDiff(base, mine, theirs, 'en');
 
         expect(diff.rows).toEqual([
             {
@@ -321,7 +321,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ title: 'Mine Title', servings: 4 });
             const theirs = makeSnapshot({ title: 'Theirs Title', servings: 4 });
 
-            const diff = computeConflictDiff(undefined, mine, theirs);
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
 
             expect(diff.rows).toEqual([
                 {
@@ -342,7 +342,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ title: 'Same Title' });
             const theirs = makeSnapshot({ title: 'Same Title' });
 
-            const diff = computeConflictDiff(undefined, mine, theirs);
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
 
             expect(diff.rows).toEqual([]);
             expect(diff.isEmpty).toBe(true);
@@ -352,7 +352,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ steps: [makeStep({ instruction: 'Mine instruction.' })] });
             const theirs = makeSnapshot({ steps: [makeStep({ instruction: 'Theirs instruction.' })] });
 
-            const diff = computeConflictDiff(undefined, mine, theirs);
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
 
             expect(diff.rows).toEqual([
                 {
@@ -371,7 +371,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 2 })] });
             const theirs = makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 5 })] });
 
-            const diff = computeConflictDiff(undefined, mine, theirs);
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
 
             expect(diff.rows).toEqual([
                 {

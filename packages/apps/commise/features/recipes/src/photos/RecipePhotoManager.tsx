@@ -8,6 +8,10 @@
  * and renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe
  * is at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the
  * `useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).
+ *
+ * B7: every grid image is `loading="lazy"` plus `decoding="async"`, with an explicit `aspect-square` ratio
+ * class, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once
+ * (mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -56,6 +60,8 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 <img
                                     src={photo.url}
                                     alt={fillTemplate(m.photoAlt, { index: index + 1 })}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="aspect-square w-full object-cover"
                                 />
                                 <button
@@ -88,6 +94,8 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     <img
                                         src={item.previewUri}
                                         alt={fillTemplate(m.queuePhotoAlt, { fileName: item.fileName })}
+                                        loading="lazy"
+                                        decoding="async"
                                         className="absolute inset-0 h-full w-full object-cover"
                                     />
                                 ) : null}

@@ -71,7 +71,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     const { recipes } = useMessages(webMessages);
     const { conflict } = useMessages(recipeVersionMessages);
     const detailRoute = `/${locale}/recipes/${recipeId}` as Route;
-    const editor = useRecipeEditor(recipeId, { onSaved: () => router.push(detailRoute) });
+    const editor = useRecipeEditor(recipeId, { onSaved: () => router.push(detailRoute), locale });
 
     // `editor.setValues` takes the next full value (no functional-updater form, unlike `useState`'s setter), so
     // this callback must close over `editor.values` and is only as stable as the draft itself — it still avoids

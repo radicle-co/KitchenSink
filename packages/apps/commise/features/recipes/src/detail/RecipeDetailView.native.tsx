@@ -6,7 +6,7 @@
  * title, seafoam/coral tag pills, a stats strip, checklist ingredients, numbered seafoam step markers, and
  * a nutrition grid. Mirrors the web `RecipeDetailView`.
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
@@ -34,6 +34,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
     onFilterByTag,
 }) => {
     const { list, detail } = useMessages(recipeMessages);
+    const locale = useLocale();
     // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
     const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
 
@@ -89,7 +90,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
             </Text>
             <View style={styles.card}>
                 {recipe.ingredients.map((ingredient) => {
-                    const qty = formatQuantity(ingredient.quantity, ingredient.unit);
+                    const qty = formatQuantity(ingredient.quantity, locale, ingredient.unit);
                     const checked = checkedIngredients?.has(ingredient.ingredientId) ?? false;
 
                     return (

@@ -151,3 +151,17 @@ describe('no principal on the request', () => {
         expect(dal.findActiveJob).not.toHaveBeenCalled();
     });
 });
+
+describe('DAL failure fails closed', () => {
+    it('propagates a findActiveJob rejection instead of allowing the mutation through', async () => {
+        // Regression guard: if a future edit wraps the DAL call in try/catch and returns `true` on
+        // error, this test starts failing — a DB outage must reject the mutation, never silently
+        // admit it. (Reasoning check: were the guard changed to catch-and-allow, this `rejects`
+        // assertion would instead see a resolved `true` and fail.)
+        const dalError = new Error('connection reset');
+        dal.findActiveJob.mockRejectedValue(dalError);
+        const ctx = contextFor('POST', { userId: OWNER });
+
+        await expect(guard.canActivate(ctx)).rejects.toBe(dalError);
+    });
+});

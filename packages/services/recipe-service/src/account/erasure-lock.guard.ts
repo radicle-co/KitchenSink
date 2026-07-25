@@ -78,6 +78,10 @@ export class ErasureLockGuard implements CanActivate {
     public async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
+        // GET/HEAD are exempt because no read handler mutates owner-scoped, erasable data; the sole
+        // GET-write — ingredients status refresh (`GET /v1/ingredients/{id}/status` → `refreshStatus`) —
+        // touches only the global dedup catalog, out of erasure scope. A future GET that writes
+        // owner-owned data MUST NOT rely on this exemption.
         if (!MUTATING_METHODS.has(request.method)) {
             return true;
         }

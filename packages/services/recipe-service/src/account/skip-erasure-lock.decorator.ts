@@ -15,5 +15,11 @@ import { SetMetadata } from '@nestjs/common';
 /** Reflector metadata key {@link ErasureLockGuard} reads via `getAllAndOverride`. */
 export const SKIP_ERASURE_LOCK = 'skipErasureLock';
 
-/** Route/class decorator: exempts the handler (or every handler in a controller) from the write-lock. */
+/**
+ * Route/class decorator: exempts the handler (or every handler in a controller) from the write-lock.
+ *
+ * MUST be applied at METHOD level only — never at class level. `ErasureLockGuard` reads this metadata via
+ * `getAllAndOverride([handler, class])`, so a class-level application would silently exempt EVERY route in
+ * that controller from the erasure lock, not just the one intended route.
+ */
 export const SkipErasureLock = (): MethodDecorator & ClassDecorator => SetMetadata(SKIP_ERASURE_LOCK, true);

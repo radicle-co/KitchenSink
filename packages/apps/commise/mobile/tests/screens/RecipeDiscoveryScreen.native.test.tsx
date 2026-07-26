@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { RECENT_SEARCHES_STORAGE_KEY } from '@commise/features-recipes';
 import {
     useCloneRecipe,
     useInfiniteSearchRecipes,
@@ -20,6 +21,19 @@ import {
 
 import { RecipeDiscoveryScreen } from '../../src/screens/RecipeDiscoveryScreen.js';
 import { makeRecipeSearchResult, makeSearchResponse } from '../__fixtures__/recipes.js';
+
+// An in-memory `AsyncStorage` double: the real native module has no runtime under jsdom, and the point here
+// is the screen's recent-search WIRING, not the native KV store's own behaviour.
+const { asyncStorageMock } = vi.hoisted(() => ({ asyncStorageMock: { store: new Map<string, string>() } }));
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+    default: {
+        getItem: async (key: string) => asyncStorageMock.store.get(key) ?? null,
+        setItem: async (key: string, value: string) => {
+            asyncStorageMock.store.set(key, value);
+        },
+    },
+}));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useInfiniteSearchRecipes: vi.fn(),
@@ -66,6 +80,7 @@ function cloneMutation(overrides: Partial<ReturnType<typeof useCloneRecipe>> = {
 afterEach(cleanup);
 
 beforeEach(() => {
+    asyncStorageMock.store.clear();
     useSearchRecipesMock.mockReset();
     useCloneRecipeMock.mockReset();
     useCloneRecipeMock.mockReturnValue(cloneMutation());
@@ -170,6 +185,82 @@ describe('RecipeDiscoveryScreen — debounced search (U7)', () => {
         // After the debounce window, the settled value feeds the search.
         await vi.waitFor(() =>
             expect(useSearchRecipesMock).toHaveBeenCalledWith(expect.objectContaining({ query: 'ramen' })),
+        );
+    });
+});
+
+/**
+ * Recent searches, end-to-end through the screen's `AsyncStorage` adapter (mocked with an in-memory store —
+ * the real native module has no runtime here). The pure list rules live in `recentSearches.test.ts` and the
+ * panel's visibility rules in `RecipeDiscoveryList.native.test.tsx`; this block covers the wiring: only a
+ * search that RAN is recorded, a persisted history is offered on focus, choosing one re-runs it, and
+ * clear-all empties both the panel and storage.
+ */
+describe('RecipeDiscoveryScreen — recent searches (U7)', () => {
+    /** Focus the keyword field via the bubbling `focusin` React delegates `onFocus` to. */
+    function focusSearch(): void {
+        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+    }
+
+    it('records a search that actually ran and offers it once the field goes blank again', async () => {
+        useSearchRecipesMock.mockReturnValue(searchResult());
+
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} />);
+
+        const box = screen.getByLabelText('Search public recipes');
+        fireEvent.change(box, { target: { value: 'ramen' } });
+        await vi.waitFor(() =>
+            expect(useSearchRecipesMock).toHaveBeenCalledWith(expect.objectContaining({ query: 'ramen' })),
+        );
+
+        // Back to the idle state (field cleared, still focused) — where the history is the useful thing.
+        focusSearch();
+        fireEvent.change(box, { target: { value: '' } });
+
+        expect(await screen.findByRole('button', { name: 'Search for “ramen”' })).toBeTruthy();
+        await vi.waitFor(() =>
+            expect(asyncStorageMock.store.get(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify(['ramen'])),
+        );
+    });
+
+    it('offers a history persisted by an earlier session (the reload case)', async () => {
+        asyncStorageMock.store.set(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'lamb tagine']));
+        useSearchRecipesMock.mockReturnValue(searchResult());
+
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} />);
+        focusSearch();
+
+        expect(await screen.findByRole('button', { name: 'Search for “risotto”' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Search for “lamb tagine”' })).toBeTruthy();
+    });
+
+    it('runs the chosen recent search', async () => {
+        asyncStorageMock.store.set(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto']));
+        useSearchRecipesMock.mockReturnValue(searchResult());
+
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} />);
+        focusSearch();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Search for “risotto”' }));
+
+        expect((screen.getByLabelText('Search public recipes') as HTMLInputElement).value).toBe('risotto');
+        await vi.waitFor(() =>
+            expect(useSearchRecipesMock).toHaveBeenCalledWith(expect.objectContaining({ query: 'risotto' })),
+        );
+    });
+
+    it('clears the whole history, panel and storage alike', async () => {
+        asyncStorageMock.store.set(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'ramen']));
+        useSearchRecipesMock.mockReturnValue(searchResult());
+
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} />);
+        focusSearch();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Clear recent searches' }));
+
+        expect(screen.queryByRole('button', { name: /^Search for/ })).toBeNull();
+        await vi.waitFor(() =>
+            expect(asyncStorageMock.store.get(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify([])),
         );
     });
 });

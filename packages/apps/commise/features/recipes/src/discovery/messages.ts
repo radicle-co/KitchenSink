@@ -85,6 +85,14 @@ export interface DiscoveryMessages {
     readonly railError: string;
     /** Visible label of the "back to browse" action shown after a rail's see-all. */
     readonly backToBrowse: string;
+    /** Accessible name + visible title of the recent-searches panel (U7). */
+    readonly recentSearchesLabel: string;
+    /** Accessible-name template for one recent search (contains `{query}`, so each button is unique) — U7. */
+    readonly recentSearchLabel: string;
+    /** Visible label of the clear-recent-searches action. */
+    readonly clearRecentSearches: string;
+    /** Accessible name of the clear-recent-searches action (the visible label alone is ambiguous). */
+    readonly clearRecentSearchesLabel: string;
 }
 
 export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
@@ -126,5 +134,9 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         railEmpty: 'Nothing here yet.',
         railError: 'Couldn’t load this row.',
         backToBrowse: 'Back to browse',
+        recentSearchesLabel: 'Recent searches',
+        recentSearchLabel: 'Search for “{query}”',
+        clearRecentSearches: 'Clear',
+        clearRecentSearchesLabel: 'Clear recent searches',
     },
 };

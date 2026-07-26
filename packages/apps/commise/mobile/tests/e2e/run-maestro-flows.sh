@@ -35,7 +35,7 @@ export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
 #     assumes, and it must not be stranded after the delete flow's mutations.
 #   - `recipes/delete` last (its own "run me last" note).
-FLOWS="auth/welcome-flow auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
+FLOWS="auth/welcome-flow auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-recent-searches recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
 
 RC=0
 for f in $FLOWS; do

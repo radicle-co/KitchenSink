@@ -8,6 +8,10 @@
  * A URL filter (`tags=quick`) is the lever used to put the container into RESULT-LIST mode for the tests
  * that exercise the flat list — with neither a query nor a filter the container is in BROWSE mode by design.
  *
+ * The final block covers the U7 recent-search memory through the REAL `localStorage` adapter: only a search
+ * that actually ran is recorded, a persisted history survives a fresh mount, choosing one runs it, and
+ * clear-all empties both the panel and storage.
+ *
  * Wiring seam: `renderWithRecipeClient` mounts the container through the REAL `useInfiniteSearchRecipes` /
  * `useCloneRecipe` hooks over a network-guarded fake `RecipeServiceClient`, stubbed per test with
  * `vi.spyOn(client, 'searchRecipes' | 'cloneRecipe')`. The Next router mocks and the `replaceState` spy
@@ -15,6 +19,7 @@
  */
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { RECENT_SEARCHES_STORAGE_KEY } from '@commise/features-recipes';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -290,5 +295,102 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         // The full result list now runs with the rail's sort (most-cloned) and no rail page cap.
         await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledWith({ sortBy: 'most-cloned', page: 1 }));
         expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * Recent searches, end-to-end through the REAL `localStorage` adapter (jsdom provides it) — the integration
+ * these tests exist for is "does the container record the right thing, in the right place, and offer it
+ * back", not the pure list rules (covered in `recentSearches.test.ts`) or the panel's visibility rules
+ * (covered in `RecipeDiscoveryList.test.tsx`).
+ */
+describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
+    afterEach(() => window.localStorage.clear());
+
+    /** The search field, as the user reaches it. */
+    function searchBox(): HTMLInputElement {
+        return screen.getByRole<HTMLInputElement>('searchbox', { name: 'Search public recipes' });
+    }
+
+    it('records a search that actually ran, and offers it once the field goes blank again', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.type(searchBox(), 'pasta');
+        await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledWith(expect.objectContaining({ query: 'pasta' })));
+
+        // Clearing the field (focus stays in it) returns the surface to its idle state — where the history is
+        // the useful thing to show.
+        await user.clear(searchBox());
+
+        expect(await screen.findByRole('button', { name: 'Search for “pasta”' })).toBeInTheDocument();
+        await vi.waitFor(() =>
+            expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify(['pasta'])),
+        );
+    });
+
+    it('records NOTHING for a whitespace-only query', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.type(searchBox(), '   ');
+        await vi.waitFor(() => expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).not.toBeNull());
+
+        expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify([]));
+        expect(screen.queryByRole('button', { name: /^Search for/ })).not.toBeInTheDocument();
+    });
+
+    it('offers a history persisted by an earlier session (the reload case)', async () => {
+        window.localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'lamb tagine']));
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.click(searchBox());
+
+        expect(await screen.findByRole('button', { name: 'Search for “risotto”' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Search for “lamb tagine”' })).toBeInTheDocument();
+    });
+
+    it('runs the chosen recent search (field + fetch + shareable URL)', async () => {
+        window.localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto']));
+        const user = userEvent.setup();
+        const replaceState = vi.spyOn(window.history, 'replaceState');
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.click(searchBox());
+        await user.click(await screen.findByRole('button', { name: 'Search for “risotto”' }));
+
+        expect(searchBox().value).toBe('risotto');
+        expect(replaceState).toHaveBeenLastCalledWith(null, '', '/en/discover?query=risotto');
+        await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledWith(expect.objectContaining({ query: 'risotto' })));
+    });
+
+    it('clears the whole history, panel and storage alike', async () => {
+        window.localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'pasta']));
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.click(searchBox());
+        await user.click(await screen.findByRole('button', { name: 'Clear recent searches' }));
+
+        expect(screen.queryByRole('button', { name: /^Search for/ })).not.toBeInTheDocument();
+        await vi.waitFor(() =>
+            expect(window.localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify([])),
+        );
     });
 });

@@ -129,6 +129,30 @@ export interface WebMessages {
         };
     };
     /**
+     * Copy for the branded auth-entry / welcome screen (U8) — the hero the signed-out landing (`/welcome`)
+     * shows before the sign-in / sign-up flows. All strings localized (repo mandate).
+     */
+    readonly welcome: {
+        /** Accessible name of the welcome hero region. */
+        readonly regionLabel: string;
+        /** Alt text of the brand logo. */
+        readonly logoAlt: string;
+        /** The brand wordmark (Playfair display). */
+        readonly title: string;
+        /** The brand tagline beneath the wordmark. */
+        readonly tagline: string;
+        /** The three feature pills naming what the app does. */
+        readonly features: {
+            readonly saveRecipes: string;
+            readonly planMeals: string;
+            readonly shopSmarter: string;
+        };
+        /** Label of the primary gradient CTA that leads into sign-up. */
+        readonly getStarted: string;
+        /** Label of the secondary link that leads into sign-in (for returning users). */
+        readonly signIn: string;
+    };
+    /**
      * Web-only recipe copy — the fetch-state affordances the detail route owns (the shared list/detail
      * building blocks localize their own content via `@commise/features-recipes`).
      */
@@ -347,6 +371,19 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 upgrade: 'See plans',
                 dismiss: 'Maybe later',
             },
+        },
+        welcome: {
+            regionLabel: 'Welcome to Commise',
+            logoAlt: 'Commise',
+            title: 'Commise',
+            tagline: 'Cook with confidence. Plan with ease.',
+            features: {
+                saveRecipes: 'Save recipes',
+                planMeals: 'Plan meals',
+                shopSmarter: 'Shop smarter',
+            },
+            getStarted: 'Get started',
+            signIn: 'Already have an account? Sign in',
         },
         recipes: {
             detail: {

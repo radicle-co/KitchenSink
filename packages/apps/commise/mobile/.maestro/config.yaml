@@ -24,5 +24,6 @@
 # story. Adding a flow under `recipes/` needs no change here; adding one under a NEW subfolder does.
 flows:
     - '*'
+    - 'auth/welcome-flow.yaml'
     - 'auth/login-flow.yaml'
     - 'recipes/*'

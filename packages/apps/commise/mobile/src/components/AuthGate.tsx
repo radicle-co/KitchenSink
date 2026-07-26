@@ -4,16 +4,19 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { LoginScreen } from '../screens/login';
 import { SignUpScreen } from '../screens/signup';
+import { WelcomeScreen } from '../screens/welcome';
 
 interface AuthGateProps {
     children: ReactNode;
 }
 
-type Screen = 'login' | 'signup';
+// U8: the signed-out flow opens on the branded WELCOME hero, which then leads into the sign-up ("Get
+// started") or sign-in form; login/signup still toggle between each other.
+type Screen = 'welcome' | 'login' | 'signup';
 
 export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const { state } = useAuth();
-    const [screen, setScreen] = useState<Screen>('login');
+    const [screen, setScreen] = useState<Screen>('welcome');
 
     switch (state.status) {
         case 'loading':
@@ -27,7 +30,11 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
                 return <SignUpScreen onBack={() => setScreen('login')} />;
             }
 
-            return <LoginScreen onSignUp={() => setScreen('signup')} />;
+            if (screen === 'login') {
+                return <LoginScreen onSignUp={() => setScreen('signup')} />;
+            }
+
+            return <WelcomeScreen onGetStarted={() => setScreen('signup')} onSignIn={() => setScreen('login')} />;
         case 'blocked':
             return (
                 <View style={styles.center}>

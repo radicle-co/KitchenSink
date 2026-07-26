@@ -1,9 +1,8 @@
 /**
- * Vitest stub for `expo-blur`. The real `BlurView` bridges to a native blur view with no jsdom/
- * react-native-web implementation, so the native component tests alias the import here. The stub renders
- * a react-native-web `View` (→ a DOM node) forwarding children, and marks itself via `dataSet` so a test
- * can assert the blur path was taken (`[data-commise-stub="blur-view"]`) vs. the solid fallback — with no
- * production test id. Mirrors the `BlurViewProps` the leaves rely on.
+ * @module tests/stubs/expoBlur — jsdom stand-in for `expo-blur`, aliased in by `vitest.native.config.ts`.
+ * The real `BlurView` bridges to a native blur view absent under jsdom; the GlassCard native leaf renders
+ * through it. The stub renders a react-native-web `View`, marks the blur path via `dataSet`, and forwards
+ * children so tests can distinguish the frosted path from the solid fallback. Real blur is emulator-only.
  */
 import type { FC, ReactNode } from 'react';
 import { View, type ViewProps } from 'react-native';

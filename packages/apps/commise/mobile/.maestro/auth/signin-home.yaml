@@ -18,18 +18,27 @@ appId: io.commise.mobile
 ---
 - launchApp
 
-# Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
-#
-# The U2 rebuild puts the login form on the design-system `Input`, which renders a VISIBLE LABEL as a
-# separate element from the text field (associated for assistive tech). So the fields are now tapped by their
-# on-field PLACEHOLDER (unique to the input, unlike the label text which would tap the label node): the email
-# placeholder 'you@example.com', the password placeholder 'Your password', and the verification-code
-# placeholder '123456'. The 'Sign in' / 'Verify' button labels and the 'Verification code' visibility gate
-# are unchanged. Placeholders come from mobile i18n `auth.emailPlaceholder` / `passwordPlaceholder` /
-# `codePlaceholder`.
+# U8: a signed-out app now opens on the branded WELCOME hero (not the bare login form). Cross into the
+# sign-in form via its returning-user control FIRST — guarded on the welcome tagline (unique to the hero),
+# so a live persisted session (neither welcome nor login present) falls straight through to Home.
 - runFlow:
       when:
-          visible: 'Sign in'
+          visible: 'Cook with confidence. Plan with ease.'
+      commands:
+          - tapOn: 'Already have an account? Sign in'
+
+# Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
+# The guard keys on the email PLACEHOLDER 'you@example.com' — present only on the login form (the welcome
+# hero's "…Sign in" control would false-match a plain 'Sign in' guard).
+#
+# The U2 rebuild puts the login form on the design-system `Input`, which renders a VISIBLE LABEL as a
+# separate element from the text field (associated for assistive tech). So the fields are tapped by their
+# on-field PLACEHOLDER (unique to the input): the email placeholder 'you@example.com', the password
+# placeholder 'Your password', and the verification-code placeholder '123456'. Placeholders come from mobile
+# i18n `auth.emailPlaceholder` / `passwordPlaceholder` / `codePlaceholder`.
+- runFlow:
+      when:
+          visible: 'you@example.com'
       commands:
           - tapOn: 'you@example.com'
           - inputText: 'commise-e2e-signin+clerk_test@example.com'

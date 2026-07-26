@@ -104,6 +104,47 @@ describe('Button (web)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
+    it('renders a real spinner when busy, swapping the icon slot in place (no layout shift)', () => {
+        const { container, rerender } = render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Create recipe
+            </Button>,
+        );
+        // Idle: the caller's icon is shown, no spinner.
+        expect(container.querySelector('.marker-icon')).not.toBeNull();
+        expect(container.querySelector('.animate-spin')).toBeNull();
+
+        rerender(
+            <Button icon={markerIcon} onPress={vi.fn()} busy>
+                Create recipe
+            </Button>,
+        );
+        // Busy: a real animated spinner takes the icon's place (icon gone → the slot is reused, not added,
+        // so the label does not reflow) and the visible label is unchanged.
+        expect(container.querySelector('.animate-spin')).not.toBeNull();
+        expect(container.querySelector('.marker-icon')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create recipe' })).toBeTruthy();
+    });
+
+    it('gets a 44px min touch height at base that is reset for the mouse at md: (desktop height unchanged)', () => {
+        const { container } = render(<Button icon={markerIcon}>Save</Button>);
+        const className = container.querySelector('button')?.className ?? '';
+        // Touch widths (base) get the comfortable 44px min target…
+        expect(className).toContain('min-h-11');
+        // …but desktop (md:+) resets the floor so the mouse density (py-2.5) is preserved exactly.
+        expect(className).toContain('md:min-h-0');
+    });
+
+    it('adopts the PressScale primitive so it scales on press (motion-safe)', () => {
+        const { container } = render(<Button icon={markerIcon}>Save</Button>);
+        // The button is wrapped by PressScale — the OUTERMOST element is an ancestor span carrying the
+        // motion-safe press-scale utility (suppressed under reduce-motion), and the <button> lives inside.
+        const wrapper = container.firstElementChild;
+        expect(wrapper?.tagName).toBe('SPAN');
+        expect(wrapper?.className).toContain('motion-safe:active:scale-[0.98]');
+        expect(wrapper?.querySelector('button')).not.toBeNull();
+    });
+
     it('applies a distinct visible surface per variant (none is naked text)', () => {
         const { rerender, container } = render(
             <Button icon={markerIcon} variant="primary">

@@ -3,14 +3,23 @@
  *
  * Mirrors the web leaf's contract and visual language with a RN `StyleSheet`: an icon + label pill with a
  * real surface for every tier (filled primary, bordered secondary, bordered error-toned destructive). The
- * `Pressable` is a single accessibility element — `accessibilityRole="button"` + a label-derived
- * `accessibilityLabel` — and the caller's icon is wrapped so it is hidden from assistive tech, so the label
- * alone is the accessible name (keeping RN/Maestro name selection stable).
+ * accessible button is the {@link PressScale} `Pressable` this leaf composes — one accessibility element
+ * (`accessibilityRole="button"` + a label-derived name) that also gives the pill its motion-safe
+ * press-scale. The caller's icon is wrapped so it is hidden from assistive tech, so the label alone is the
+ * accessible name (keeping RN/Maestro name selection stable).
+ *
+ * Two touch/loading behaviours mirror the web leaf in the native idiom:
+ *  - **Touch target** — the pill carries `minHeight: 44` (comfortable touch) with vertical padding from
+ *    `nativeTokens`, so short labels still hit a 44pt target.
+ *  - **Busy** — the `busy` prop swaps the icon slot for a real `ActivityIndicator` in place (no layout
+ *    shift) and disables the control (so an in-flight action cannot be double-fired).
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { nativeTokens } from '../tokens/native.js';
 import { palette, semantic } from '../tokens/colors.js';
+import { PressScale } from '../pressScale/index.js';
 import type { ButtonProps, ButtonVariant } from './props.js';
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
@@ -33,24 +42,20 @@ export const Button: FC<ButtonProps> = ({
     const inactive = disabled || busy;
 
     return (
-        <Pressable
+        <PressScale
+            onPress={onPress}
+            disabled={inactive}
+            busy={busy}
             accessibilityRole="button"
             accessibilityLabel={resolveAccessibilityLabel(accessibilityLabel, children)}
-            accessibilityState={{ disabled: inactive, busy }}
-            disabled={inactive}
-            onPress={onPress}
-            style={({ pressed }) => [
-                styles.base,
-                variantStyle[variant],
-                pressed && !inactive ? styles.pressed : null,
-                inactive ? styles.inactive : null,
-            ]}
         >
-            <View style={styles.icon} aria-hidden>
-                {icon}
+            <View style={[styles.base, variantStyle[variant], inactive ? styles.inactive : null]}>
+                <View style={styles.icon} aria-hidden>
+                    {busy ? <ActivityIndicator color={labelColor[variant]} /> : icon}
+                </View>
+                <Text style={[styles.label, { color: labelColor[variant] }]}>{children}</Text>
             </View>
-            <Text style={[styles.label, labelStyle[variant]]}>{children}</Text>
-        </Pressable>
+        </PressScale>
     );
 };
 
@@ -59,14 +64,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        borderRadius: 999,
-        paddingVertical: 12,
-        paddingHorizontal: 20,
+        // Comfortable 44pt touch target with tokenized vertical padding.
+        minHeight: 44,
+        gap: nativeTokens.spacing[2],
+        borderRadius: nativeTokens.radius.full,
+        paddingVertical: nativeTokens.spacing[3],
+        paddingHorizontal: nativeTokens.spacing[5],
     },
     icon: { flexShrink: 0 },
-    label: { fontWeight: '600', fontSize: 14 },
-    pressed: { opacity: 0.9 },
+    label: { fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
     inactive: { opacity: 0.6 },
 });
 
@@ -77,9 +83,9 @@ const variantStyle: Record<ButtonVariant, object> = {
     destructive: { backgroundColor: palette.white, borderWidth: 1, borderColor: palette.error },
 };
 
-/** Per-tier label colour, paired with {@link variantStyle}. */
-const labelStyle: Record<ButtonVariant, object> = {
-    primary: { color: palette.white },
-    secondary: { color: palette.charcoal },
-    destructive: { color: palette.error },
+/** Per-tier foreground colour — paints the label AND the busy spinner so the two always agree. */
+const labelColor: Record<ButtonVariant, string> = {
+    primary: palette.white,
+    secondary: palette.charcoal,
+    destructive: palette.error,
 };

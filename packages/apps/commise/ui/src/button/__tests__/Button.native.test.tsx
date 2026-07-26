@@ -92,4 +92,62 @@ describe('Button (native)', () => {
             unmount();
         }
     });
+
+    it('gives the pill a 44px minimum touch height', () => {
+        render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Save changes
+            </Button>,
+        );
+
+        // The comfortable-touch floor from nativeTokens/target size — asserted on the resolved computed
+        // style (react-native-web compiles StyleSheet metrics to atomic CSS classes, not inline styles).
+        const button = screen.getByRole('button', { name: 'Save changes' });
+        const surface = withMinHeight(button, '44px');
+        expect(surface).not.toBeNull();
+    });
+
+    it('shows a real spinner and hides the icon when busy (no layout shift), still labelled', () => {
+        const { rerender } = render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Create recipe
+            </Button>,
+        );
+        // Idle: caller's icon shown, no progress indicator. (The spinner lives in the decorative,
+        // aria-hidden icon slot — busy is announced via accessibilityState.busy — so query with hidden.)
+        expect(screen.getByText('ICON_MARKER')).toBeTruthy();
+        expect(screen.queryByRole('progressbar', { hidden: true })).toBeNull();
+
+        rerender(
+            <Button icon={markerIcon} onPress={vi.fn()} busy>
+                Create recipe
+            </Button>,
+        );
+        // Busy: the ActivityIndicator takes the icon's slot (icon gone → no reflow), label unchanged.
+        expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
+        expect(screen.queryByText('ICON_MARKER')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create recipe' })).toBeTruthy();
+    });
+
+    it('adopts PressScale so the pill carries a press-scale transform (resting = neutral)', () => {
+        render(
+            <Button icon={markerIcon} onPress={vi.fn()}>
+                Save changes
+            </Button>,
+        );
+
+        // The accessible button IS the PressScale Pressable — its transform pipeline is wired and neutral
+        // at rest (the pressed/reduce-motion outputs are proven in pressedScale.test.ts).
+        expect(screen.getByRole('button', { name: 'Save changes' }).style.transform).toBe('scale(1)');
+    });
 });
+
+/**
+ * Find the descendant of `root` whose RESOLVED (react-native-web class-compiled) style has the given
+ * `min-height`. RNW emits atomic CSS classes rather than inline styles, so `getComputedStyle` is the
+ * honest way to read a StyleSheet metric back out of the DOM.
+ */
+function withMinHeight(root: HTMLElement, minHeight: string): HTMLElement | null {
+    const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+    return candidates.find((el) => getComputedStyle(el).minHeight === minHeight) ?? null;
+}

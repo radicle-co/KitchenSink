@@ -7,16 +7,21 @@
 # (copy + gate), not the irreversible mutation. The confirm→sign-out happy path is covered by the web
 # Playwright spec (against a mocked erasure endpoint) and by the component/native tests.
 #
-# Reaches the account surface via the Home "Profile" destination (the avatar/Profile tab), which renders the
-# ProfileScreen with the shared AccountDangerZone at its foot.
+# Reaches the account hub via the Home "Profile" destination (the avatar/Profile tab → ProfileScreen), then
+# its "Account settings" entry — the U2 rebuild moved the shared AccountDangerZone off the profile-editing
+# surface into the AccountSettings hub (single home for account-level + destructive actions).
 
 appId: io.commise.mobile
 ---
 # Sign in (idempotent) and land on the Home widget surface.
 - runFlow: auth/signin-home.yaml
 
-# Cross into the account/profile surface.
+# Cross into the profile surface, then into the account hub that owns the danger zone.
 - tapOn: 'Profile'
+- scrollUntilVisible:
+      element: 'Account settings'
+      direction: DOWN
+- tapOn: 'Account settings'
 
 # The danger zone presents BOTH actions, distinctly.
 - assertVisible: 'Close account'

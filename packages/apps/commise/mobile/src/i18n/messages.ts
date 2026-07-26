@@ -63,12 +63,93 @@ export interface MobileMessages {
             readonly dismiss: string;
         };
     };
+    /** Copy for the sign-in / sign-up surface (U2). All auth copy is localized (repo mandate). */
+    readonly auth: {
+        /** Brand wordmark shown atop the sign-in / sign-up screens. */
+        readonly brand: string;
+        /** Sub-heading on the sign-up screen. */
+        readonly createHeading: string;
+        /** Visible label for the email field (also its accessible name). */
+        readonly emailLabel: string;
+        /** Placeholder shown in the empty email field. */
+        readonly emailPlaceholder: string;
+        /** Visible label for the password field. */
+        readonly passwordLabel: string;
+        /** Placeholder shown in the empty password field. */
+        readonly passwordPlaceholder: string;
+        /** Visible label for the email verification-code field. */
+        readonly codeLabel: string;
+        /** Placeholder shown in the empty verification-code field. */
+        readonly codePlaceholder: string;
+        /** Prompt shown above the verification-code field. */
+        readonly codePrompt: string;
+        /** Primary sign-in submit label. */
+        readonly signInAction: string;
+        /** Primary verification submit label. */
+        readonly verifyAction: string;
+        /** Primary create-account submit label. */
+        readonly createAccountAction: string;
+        /** Prompt beside the link that toggles from sign-in to sign-up. */
+        readonly noAccountPrompt: string;
+        /** Label of the link that toggles from sign-in to sign-up. */
+        readonly signUpLink: string;
+        /** Prompt beside the link that toggles from sign-up to sign-in. */
+        readonly haveAccountPrompt: string;
+        /** Label of the link that toggles from sign-up to sign-in. */
+        readonly signInLink: string;
+        /** Localized fallback when a sign-in fails without a Clerk-supplied message. */
+        readonly signInFailed: string;
+        /** Localized fallback when a sign-up fails without a Clerk-supplied message. */
+        readonly signUpFailed: string;
+        /** Localized fallback when a code verification fails without a Clerk-supplied message. */
+        readonly verifyFailed: string;
+        /** Localized fallback when sending a verification code fails without a Clerk-supplied message. */
+        readonly sendCodeFailed: string;
+        /** Shown when the sign-in needs a factor this custom form does not implement. */
+        readonly additionalVerification: string;
+    };
     readonly profile: {
+        /** Field label for the display-name input (also its accessible name). */
         readonly displayName: string;
-        readonly avatarUrl: string;
+        /** Placeholder shown in the empty display-name field. */
+        readonly displayNamePlaceholder: string;
+        /** Section label above the avatar picker. */
+        readonly avatarLabel: string;
+        /** Accessible name of the avatar image preview. */
+        readonly avatarImageLabel: string;
+        /** Label of the control that opens the image picker to change the avatar. */
+        readonly avatarChangeAction: string;
+        /** Alert shown when picking or uploading a new avatar fails. */
+        readonly avatarUploadError: string;
+        /** Alert shown when the picked avatar exceeds the 5 MB limit, before upload. */
+        readonly avatarTooLargeError: string;
+        /** Alert shown when the picked avatar's type is outside the JPEG/PNG/WebP allowlist. */
+        readonly avatarUnsupportedTypeError: string;
+        /** Primary save action. */
         readonly save: string;
+        /** Busy label shown while the profile save is in flight. */
         readonly saving: string;
+        /** Accessible label for the profile-loading spinner. */
+        readonly loading: string;
+        /** Message shown when the profile fails to load. */
         readonly loadError: string;
+    };
+    /** Copy for the account hub (security + sign-out + danger zone entry) — U2. */
+    readonly account: {
+        /** Screen heading. */
+        readonly heading: string;
+        /** Fallback shown when the signed-in viewer has no primary email yet. */
+        readonly signedInFallback: string;
+        /** Heading of the security section. */
+        readonly securityHeading: string;
+        /** Body copy of the security section. */
+        readonly securityBody: string;
+        /** Label of the sign-out action. */
+        readonly signOutAction: string;
+        /** Label of the back affordance returning to the profile surface. */
+        readonly backAction: string;
+        /** Label of the profile-surface entry point into this account hub. */
+        readonly settingsAction: string;
     };
     readonly suspension: {
         readonly title: string;
@@ -223,12 +304,51 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
                 dismiss: 'Maybe later',
             },
         },
+        auth: {
+            brand: 'Commise',
+            createHeading: 'Create your account',
+            emailLabel: 'Email',
+            emailPlaceholder: 'you@example.com',
+            passwordLabel: 'Password',
+            passwordPlaceholder: 'Your password',
+            codeLabel: 'Verification code',
+            codePlaceholder: '123456',
+            codePrompt: 'Enter the verification code sent to your email.',
+            signInAction: 'Sign in',
+            verifyAction: 'Verify',
+            createAccountAction: 'Create account',
+            noAccountPrompt: 'Don’t have an account?',
+            signUpLink: 'Sign up',
+            haveAccountPrompt: 'Already have an account?',
+            signInLink: 'Sign in',
+            signInFailed: 'We couldn’t sign you in. Please try again.',
+            signUpFailed: 'We couldn’t create your account. Please try again.',
+            verifyFailed: 'We couldn’t verify that code. Please try again.',
+            sendCodeFailed: 'We couldn’t send a verification code. Please try again.',
+            additionalVerification: 'Additional verification is required to finish signing in.',
+        },
         profile: {
             displayName: 'Display name',
-            avatarUrl: 'Avatar URL',
+            displayNamePlaceholder: 'Your name',
+            avatarLabel: 'Profile photo',
+            avatarImageLabel: 'Your profile photo',
+            avatarChangeAction: 'Change photo',
+            avatarUploadError: 'We couldn’t update your photo. Please try again.',
+            avatarTooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
+            avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
             save: 'Save',
             saving: 'Saving…',
+            loading: 'Loading your profile…',
             loadError: 'Failed to load profile.',
+        },
+        account: {
+            heading: 'Account',
+            signedInFallback: 'Signed in',
+            securityHeading: 'Security',
+            securityBody: 'Manage your password, MFA, and linked social accounts from the IdP-hosted user profile.',
+            signOutAction: 'Sign out',
+            backAction: 'Back',
+            settingsAction: 'Account settings',
         },
         suspension: {
             title: 'Account Suspended',

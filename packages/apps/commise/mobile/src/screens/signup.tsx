@@ -1,14 +1,32 @@
+/**
+ * @module screens/signup — the mobile sign-up surface (U2 rebuild).
+ *
+ * The sibling of {@link import('./login.js').LoginScreen}: a custom Clerk sign-up form on the design system
+ * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
+ * associated field labels, and a `SafeAreaView` + `KeyboardAvoidingView` shell. It runs `signUp.create` →
+ * `signUp.password` → `setActive` on completion; anything short of `complete` surfaces the localized
+ * additional-verification notice (the branded welcome/entry screen is U8, out of scope here).
+ */
 import { useClerk, useSignUp } from '@clerk/expo';
+import { Button } from '@commise/ui/button';
+import { Input } from '@commise/ui/input';
+import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { useMessages } from '@commise/i18n/react';
+import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator } from 'react-native';
-import { Button, Input, SizableText, YStack } from 'tamagui';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { mobileMessages } from '../i18n/messages.js';
 
 export interface SignUpScreenProps {
     onBack: () => void;
 }
 
 export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
+    const { auth: t } = useMessages(mobileMessages);
     const { setActive } = useClerk();
     const { signUp } = useSignUp();
     const [email, setEmail] = useState('');
@@ -31,7 +49,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                 setError(
                     typeof createResult.error === 'string'
                         ? createResult.error
-                        : (createResult.error.message ?? 'Sign-up failed'),
+                        : (createResult.error.message ?? t.signUpFailed),
                 );
 
                 return;
@@ -41,7 +59,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
 
             if (pwResult.error) {
                 setError(
-                    typeof pwResult.error === 'string' ? pwResult.error : (pwResult.error.message ?? 'Sign-up failed'),
+                    typeof pwResult.error === 'string' ? pwResult.error : (pwResult.error.message ?? t.signUpFailed),
                 );
 
                 return;
@@ -50,98 +68,106 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             if (signUp.status === 'complete' && signUp.createdSessionId) {
                 await setActive({ session: signUp.createdSessionId });
             } else {
-                setError('Additional verification required');
+                setError(t.additionalVerification);
             }
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'Sign-up failed');
+            setError(e instanceof Error && e.message ? e.message : t.signUpFailed);
         } finally {
             setBusy(false);
         }
     }
 
     return (
-        <YStack flex={1} justifyContent="center" backgroundColor="$background" padding="$5" gap="$4">
-            <SizableText
-                fontFamily="$heading"
-                fontSize={36}
-                fontWeight="700"
-                color="$color"
-                textAlign="center"
-                marginBottom="$3"
-            >
-                Commise
-            </SizableText>
+        <SafeAreaView style={styles.safe}>
+            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+                    <Text style={styles.brand}>{t.brand}</Text>
+                    <Text style={styles.heading}>{t.createHeading}</Text>
 
-            <SizableText color="$color" fontSize={16} textAlign="center" opacity={0.7} marginBottom="$2">
-                Create your account
-            </SizableText>
+                    <View style={styles.fields}>
+                        <Input
+                            label={t.emailLabel}
+                            placeholder={t.emailPlaceholder}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoComplete="email"
+                            textContentType="emailAddress"
+                            returnKeyType="next"
+                        />
+                        <Input
+                            label={t.passwordLabel}
+                            placeholder={t.passwordPlaceholder}
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry
+                            autoComplete="new-password"
+                            textContentType="newPassword"
+                            returnKeyType="go"
+                            onSubmitEditing={() => void handleSignUp()}
+                        />
+                    </View>
 
-            <YStack gap="$3">
-                <Input
-                    placeholder="Email"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    value={email}
-                    onChangeText={setEmail}
-                    borderColor="$borderColor"
-                    borderWidth={1}
-                    borderRadius="$2"
-                    padding="$3"
-                    fontSize={16}
-                    backgroundColor="white"
-                    color="$color"
-                />
-                <Input
-                    placeholder="Password"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                    borderColor="$borderColor"
-                    borderWidth={1}
-                    borderRadius="$2"
-                    padding="$3"
-                    fontSize={16}
-                    backgroundColor="white"
-                    color="$color"
-                />
-            </YStack>
+                    {error ? (
+                        <Text role="alert" style={styles.error}>
+                            {error}
+                        </Text>
+                    ) : null}
 
-            {error ? (
-                <SizableText color="$destructive" fontSize={14} textAlign="center">
-                    {error}
-                </SizableText>
-            ) : null}
+                    <Button
+                        icon={<Feather name="user-plus" size={16} color={palette.white} />}
+                        busy={busy}
+                        disabled={!signUp}
+                        onPress={() => void handleSignUp()}
+                    >
+                        {t.createAccountAction}
+                    </Button>
 
-            {busy ? (
-                <ActivityIndicator color="#5BA8A0" />
-            ) : (
-                <Button
-                    onPress={handleSignUp}
-                    disabled={!signUp || busy}
-                    backgroundColor="$primary"
-                    color="white"
-                    borderRadius="$5"
-                    padding="$3"
-                    fontSize={16}
-                    fontWeight="600"
-                    pressStyle={{ backgroundColor: '#3D8B85' }}
-                >
-                    Create account
-                </Button>
-            )}
-
-            <Button
-                onPress={onBack}
-                backgroundColor="transparent"
-                color="rgba(0,0,0,0.5)"
-                fontSize={14}
-                pressStyle={{ opacity: 0.8 }}
-            >
-                Already have an account?{' '}
-                <SizableText color="rgba(0,0,0,0.7)" fontSize={14} fontWeight="600">
-                    Sign in
-                </SizableText>
-            </Button>
-        </YStack>
+                    <View style={styles.toggle}>
+                        <Text style={styles.togglePrompt}>{t.haveAccountPrompt}</Text>
+                        <Button
+                            variant="secondary"
+                            icon={<Feather name="log-in" size={16} color={palette.charcoal} />}
+                            onPress={onBack}
+                        >
+                            {t.signInLink}
+                        </Button>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    safe: { flex: 1, backgroundColor: palette.sand },
+    flex: { flex: 1 },
+    container: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        gap: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[5],
+        paddingVertical: nativeTokens.spacing[6],
+    },
+    brand: {
+        fontSize: nativeTokens.fontSize.displayLg,
+        fontWeight: '700',
+        color: palette.charcoal,
+        textAlign: 'center',
+    },
+    heading: {
+        fontSize: nativeTokens.fontSize.bodyMd,
+        color: palette.slate,
+        textAlign: 'center',
+        marginBottom: nativeTokens.spacing[2],
+    },
+    fields: { gap: nativeTokens.spacing[3] },
+    error: {
+        fontSize: nativeTokens.fontSize.bodySm,
+        color: palette.error,
+        textAlign: 'center',
+    },
+    toggle: { alignItems: 'center', gap: nativeTokens.spacing[2] },
+    togglePrompt: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+});

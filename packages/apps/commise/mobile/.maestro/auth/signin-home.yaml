@@ -19,13 +19,21 @@ appId: io.commise.mobile
 - launchApp
 
 # Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
+#
+# The U2 rebuild puts the login form on the design-system `Input`, which renders a VISIBLE LABEL as a
+# separate element from the text field (associated for assistive tech). So the fields are now tapped by their
+# on-field PLACEHOLDER (unique to the input, unlike the label text which would tap the label node): the email
+# placeholder 'you@example.com', the password placeholder 'Your password', and the verification-code
+# placeholder '123456'. The 'Sign in' / 'Verify' button labels and the 'Verification code' visibility gate
+# are unchanged. Placeholders come from mobile i18n `auth.emailPlaceholder` / `passwordPlaceholder` /
+# `codePlaceholder`.
 - runFlow:
       when:
           visible: 'Sign in'
       commands:
-          - tapOn: 'Email'
+          - tapOn: 'you@example.com'
           - inputText: 'commise-e2e-signin+clerk_test@example.com'
-          - tapOn: 'Password'
+          - tapOn: 'Your password'
           - inputText: 'Commise-e2e-Test-9j2xQ!'
           - tapOn: 'Sign in'
           # New-device verification: this Clerk instance requires an email code after the password factor
@@ -34,7 +42,7 @@ appId: io.commise.mobile
           - extendedWaitUntil:
                 visible: 'Verification code'
                 timeout: 15000
-          - tapOn: 'Verification code'
+          - tapOn: '123456'
           - inputText: '424242'
           - tapOn: 'Verify'
 

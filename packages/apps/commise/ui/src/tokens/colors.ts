@@ -1,3 +1,5 @@
+import { borderSubtle } from './scale.js';
+
 export const palette = {
     seafoam: '#3D8B85',
     'seafoam-light': '#5BA8A0',
@@ -25,7 +27,7 @@ export const semantic = {
     muted: palette.pearl,
     accent: palette.sky,
     destructive: palette.error,
-    border: 'rgba(178, 190, 195, 0.3)',
+    border: borderSubtle,
     ring: palette['seafoam-light'],
 } as const;
 

@@ -24,6 +24,14 @@ import { signInWithTicket } from './utils/auth';
  * SERVER-side on the facet params (`dietaryFlags`/`tags`/`maxTotalTime`), so a UI that dropped a filter param
  * would keep rendering the non-matching recipe and fail. The bar's chips carry `facets` counts and their
  * `aria-pressed` state, queried by accessible name only.
+ *
+ * **The "BROWSE" precondition, post-U7.** With neither a query nor a filter active, discovery no longer shows
+ * a flat result list: it shows the CURATED RAILS default (Trending / New / Quick — three sorts of the same
+ * public corpus, so one recipe legitimately appears in several rails at once, and there is no single result
+ * count). Each browse step therefore asserts that the rails surface rendered and that each seeded recipe is
+ * ON it (`.first()` — the name is deliberately not unique across rails), and leaves the strict, falsifiable
+ * assertions to the post-filter half: the non-match reaching `toHaveCount(0)` across the WHOLE page and the
+ * result count reading "1 recipe" can only happen if the criterion actually reached the API.
  */
 test.describe('recipe search (T110)', () => {
     test('narrows public recipes to the typed term', async ({ page }) => {
@@ -37,13 +45,13 @@ test.describe('recipe search (T110)', () => {
             ],
         });
 
-        // BROWSE — an untyped search is "no filter", so discovery lists every public recipe. This is the
-        // "before" that gives the narrowing below its meaning.
+        // BROWSE — an untyped search is "no criteria", so discovery shows the curated rails over every public
+        // recipe. This is the "before" that gives the narrowing below its meaning (see the file doc).
         await page.goto(route('/discover'));
         await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Seafood Paella' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toBeVisible();
-        await expect(page.getByText('2 recipes')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Seafood Paella' }).first()).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Weeknight Pasta' }).first()).toBeVisible();
 
         // SEARCH — typing a term narrows the result set to the match. The non-match disappearing is the
         // assertion that matters: it can only happen if `query=paella` actually reached the API.
@@ -62,7 +70,7 @@ test.describe('recipe search (T110)', () => {
         });
 
         await page.goto(route('/discover'));
-        await expect(page.getByRole('article', { name: 'Seafood Paella' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Seafood Paella' }).first()).toBeVisible();
 
         // A search with no hits is a NO-MATCH, not an error and not the browse-empty state — the no-match
         // guidance shows and the failure copy does NOT. (Asserted by copy rather than by `role=alert`, which
@@ -98,10 +106,11 @@ test.describe('recipe search (T110)', () => {
             ],
         });
 
-        // BROWSE — both public recipes list, and the dietary facet chip carries its server count.
+        // BROWSE — both public recipes are on the curated surface, and the dietary facet chip (which lives in
+        // the persistent filter bar, above the browse/results split) carries its server count.
         await page.goto(route('/discover'));
-        await expect(page.getByRole('article', { name: 'Gourmet Garden Salad' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Mediterranean Grilled Lamb' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Gourmet Garden Salad' }).first()).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Mediterranean Grilled Lamb' }).first()).toBeVisible();
 
         // FILTER — selecting the vegan chip narrows the set to vegan recipes. The non-vegan lamb disappearing
         // is the assertion that matters: it can only happen if `dietaryFlags=vegan` actually reached the API.
@@ -141,10 +150,10 @@ test.describe('recipe search (T110)', () => {
             ],
         });
 
-        // BROWSE — both public recipes list before any filter is applied.
+        // BROWSE — both public recipes are on the curated surface before any filter is applied.
         await page.goto(route('/discover'));
-        await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' }).first()).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Braised Short Ribs' }).first()).toBeVisible();
 
         // FILTER — selecting the "Under 15 min" cook-time bucket narrows to the quick-cooking recipe. The
         // 90-minute braise disappearing is the assertion that matters: it can only happen if
@@ -185,10 +194,10 @@ test.describe('recipe search (T110)', () => {
             ],
         });
 
-        // BROWSE — both public recipes list before any filter is applied.
+        // BROWSE — both public recipes are on the curated surface before any filter is applied.
         await page.goto(route('/discover'));
-        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' }).first()).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' }).first()).toBeVisible();
 
         // FILTER — typing an ingredient name surfaces the catalog match; picking it narrows the set. The
         // non-matching salad disappearing is the assertion that matters: it can only happen if
@@ -207,10 +216,11 @@ test.describe('recipe search (T110)', () => {
         await expect(chip).toBeVisible();
         await expect(page).toHaveURL(/ingredientId=ing_salt/);
 
-        // Removing the chip restores the full browse set.
+        // Removing the chip clears the last criterion, so the surface returns to the curated browse default
+        // (rails over the full public set), not a flat list — hence `.first()` again.
         await chip.click();
-        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' }).first()).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' }).first()).toBeVisible();
         await expect(chip).toHaveCount(0);
     });
 

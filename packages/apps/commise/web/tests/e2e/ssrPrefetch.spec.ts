@@ -76,7 +76,13 @@ test.describe('SSR prefetch degradation (B19)', () => {
 
         expect(response?.status()).toBe(200);
         await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
-        await expect(page.getByRole('article', { name: 'SSR Prefetch Recipe' })).toBeVisible();
+        // With no query, U7's discovery default is the CURATED RAILS surface (Trending / New / Quick), not a
+        // flat relevance stream — so the seeded recipe legitimately renders once per rail (three sorts of the
+        // same public corpus; a recipe can be the newest AND the quickest). This spec's claim is only that the
+        // client refetch rendered the seeded data at all, so it asserts on the first card rather than
+        // pretending the name is unique on the page.
+        await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'SSR Prefetch Recipe' }).first()).toBeVisible();
     });
 
     test('collections list renders via client fetch after its SSR prefetch fails, without a server error', async ({

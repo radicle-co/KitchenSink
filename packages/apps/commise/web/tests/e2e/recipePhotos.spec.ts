@@ -31,8 +31,12 @@ const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
  * immediately on screen as it was on the old single-scroll form.
  *
  * Two further specs cover client-side pre-validation (REQ-011 size, REQ-012 MIME allowlist): an oversized
- * file and a disallowed MIME type are both rejected LOCALLY, before any presign call — the busy affordance
- * never appears and the grid stays on its empty state, proving the mocked API was never reached.
+ * file and a disallowed MIME type are both rejected LOCALLY, before any presign call. The rejected file is
+ * ADMITTED STRAIGHT INTO the grid's `failed` state rather than vanishing — a deliberate design decision
+ * documented in `useRecipePhotoUploadQueue` (validation is admission control: the item never transitions
+ * through `queued`/`uploading`, so its bytes are never transmitted, while REQ-014 still gets to name WHICH
+ * file failed and WHY). "The API was never reached" is therefore asserted by what did NOT happen — no
+ * upload-in-flight affordance and no confirmed photo — not by the grid staying on its empty state.
  */
 test.describe('recipe photo upload (CP-6/P3)', () => {
     test('pick a photo → busy affordance → uploaded photo appears', async ({ page }) => {
@@ -93,9 +97,15 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
             buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
         });
 
+        // REQ-014 — the rejection names WHICH file (its own failed cell + `fileName`-scoped controls) and WHY.
+        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
         await expect(page.getByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeVisible();
+        await expect(photosRegion.getByRole('button', { name: 'Remove huge.png' })).toBeVisible();
+
+        // …and nothing was transmitted: no upload ever went in flight, and no photo was ever confirmed (the
+        // confirmed grid cells are the ones with an indexed "Recipe photo N" image).
         await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
-        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+        await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);
     });
 
     test('a disallowed file type is rejected client-side, before any upload starts', async ({ page }) => {
@@ -116,9 +126,12 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
             buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
         });
 
+        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
         await expect(page.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeVisible();
+        await expect(photosRegion.getByRole('button', { name: 'Remove clip.gif' })).toBeVisible();
+
         await expect(page.getByRole('status', { name: 'Uploading photo' })).toHaveCount(0);
-        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+        await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);
     });
 });
 

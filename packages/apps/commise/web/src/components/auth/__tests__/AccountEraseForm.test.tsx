@@ -13,6 +13,9 @@ import userEvent from '@testing-library/user-event';
 const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
 vi.mock('@clerk/nextjs', () => ({ useClerk: () => ({ signOut }) }));
 
+const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
+vi.mock('@/lib/navigation', () => ({ navigateTo }));
+
 const recipesState = vi.hoisted(() => ({
     current: { recipes: [] as unknown[], isLoading: false, isError: false },
 }));
@@ -35,6 +38,7 @@ const makeRecipe = (
 
 beforeEach(() => {
     signOut.mockReset().mockResolvedValue(undefined);
+    navigateTo.mockReset();
     erasureMutate.mockReset();
     recipesState.current = { recipes: [], isLoading: false, isError: false };
     erasureState.current = { isPending: false, isError: false };
@@ -112,7 +116,12 @@ describe('AccountEraseForm (web) — confirm', () => {
             confirmationPhrase: 'ERASE MY DATA',
             publishRecipeIds: ['priv'],
         });
-        await vi.waitFor(() => expect(signOut).toHaveBeenCalledWith({ redirectUrl: '/' }));
+        // Sign out FIRST (awaited, so the session cookies are gone), THEN leave with a FULL-DOCUMENT
+        // navigation: a client-side router push would re-render the authenticated shell from a payload
+        // resolved for a session — and an account — that no longer exists.
+        await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(navigateTo).toHaveBeenCalledWith('/'));
+        expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(navigateTo.mock.invocationCallOrder[0] ?? 0);
     });
 
     it('does not submit while the phrase gate is unsatisfied', async () => {

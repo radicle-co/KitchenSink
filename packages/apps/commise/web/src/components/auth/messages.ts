@@ -20,6 +20,11 @@ export interface AccountPageMessages {
     readonly editHeading: string;
     /** Heading of the destructive danger-zone section. */
     readonly dangerHeading: string;
+    /**
+     * Status shown in place of the edit form when the identity service is briefly unreachable — the page
+     * degrades (heading + danger zone still usable) instead of throwing the route into its error boundary.
+     */
+    readonly loadError: string;
 }
 
 /** Copy for the {@link import('./AccountEditForm.js').AccountEditForm} profile-edit control. */
@@ -107,6 +112,7 @@ export const authMessages: LocalizedMessages<AuthMessages> = {
             title: 'Account Settings',
             editHeading: 'Edit Profile',
             dangerHeading: 'Danger Zone',
+            loadError: 'We couldn’t load your profile right now. Please try again shortly.',
         },
         edit: {
             formLabel: 'Account edit form',

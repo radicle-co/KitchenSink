@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 
-import { isRoute, pathnameOf, route } from './utils/basePath';
+import { hasDoublePrefix, isRoute, pathnameOf, route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
@@ -17,6 +17,10 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
     test('presents closure as recoverable and drives the phrase-gated erasure with a donate election', async ({
         page,
     }) => {
+        // Long by nature: a Clerk sign-in, the two-dialog danger-zone flow, and a post-sign-out landing on a
+        // route Next dev may still have to compile — all in one user story that cannot be split.
+        test.slow();
+
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
@@ -75,13 +79,24 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
         await expect(confirm).toBeEnabled();
         await confirm.click();
 
-        // The typed phrase + donate election reached the erasure endpoint, and the viewer was signed out.
+        // The typed phrase + donate election reached the erasure endpoint…
         await expect
             .poll(() => erasureBody)
             .toEqual({
                 confirmationPhrase: 'ERASE MY DATA',
                 publishRecipeIds: ['rec_priv'],
             });
-        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
+
+        // …and the viewer was signed out to the app's PUBLIC FRONT DOOR: `signOut({ redirectUrl: '/' })` lands
+        // on the locale root, which bounces a signed-out caller to the U8 branded welcome/auth-entry hero
+        // (`[locale]/page.tsx`). NOT /sign-in: the account they would sign into no longer exists, so inviting
+        // them straight back into a sign-in form would be the wrong destination. The pathname check also guards
+        // the double-prefix class (a redirect target manually prefixed AND run through the prefix-aware router).
+        // Generous timeouts: this is the first hit on /welcome in a run, so it absorbs Next dev's on-demand
+        // compilation of that route (same reason `utils/auth.ts` and the sign-in specs wait long here).
+        await expect.poll(() => isRoute(pathnameOf(page), '/welcome'), { timeout: 20_000 }).toBe(true);
+        await expect(page.getByRole('heading', { name: 'Commise' })).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByRole('link', { name: 'Get started' })).toBeVisible();
+        expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
     });
 });

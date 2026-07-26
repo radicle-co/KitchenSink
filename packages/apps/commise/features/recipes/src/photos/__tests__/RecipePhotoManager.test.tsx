@@ -94,9 +94,20 @@ describe('RecipePhotoManager (web) — populated', () => {
 });
 
 describe('RecipePhotoManager (web) — upload + error states', () => {
-    it('shows a busy status while an upload is in flight', () => {
+    it('shows a busy status while an upload is in flight, with its label as VISIBLE text', () => {
         renderManager({ uploading: true });
-        expect(screen.getByRole('status', { name: 'Uploading photo' })).toBeTruthy();
+
+        // The live region must carry its label as CONTENT, not only as `aria-label`: an empty `role="status"`
+        // paragraph is a zero-height node — invisible to a sighted viewer and silent to a screen reader (a
+        // live region announces content CHANGES, and there is no content to change). Same doctrine as the
+        // mobile `LoadingState`: the label doubles as the visible caption.
+        const status = screen.getByRole('status', { name: 'Uploading photo' });
+        expect(status.textContent).toBe('Uploading photo');
+    });
+
+    it('renders no busy status when nothing is uploading', () => {
+        renderManager({ uploading: false });
+        expect(screen.queryByRole('status', { name: 'Uploading photo' })).toBeNull();
     });
 
     it('shows an alert when an error message is present', () => {

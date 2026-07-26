@@ -53,8 +53,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
         <section aria-label={m.heading} className="flex flex-col gap-3">
             <h3 className="font-display text-heading-md font-semibold text-charcoal">{m.heading}</h3>
 
+            {/* The upload-in-flight affordance carries its label as CONTENT, not only as `aria-label`: an empty
+                `role="status"` paragraph is a zero-height node — nothing for a sighted viewer to see, and
+                nothing for a screen reader to announce (a live region announces content CHANGES). Same
+                doctrine as the mobile `LoadingState`: the contextual label doubles as the visible caption. */}
             {uploading === true ? (
-                <p role="status" aria-label={m.uploadingLabel} className="text-body-sm text-slate" />
+                <p role="status" aria-label={m.uploadingLabel} className="text-body-sm text-slate">
+                    {m.uploadingLabel}
+                </p>
             ) : null}
             {errorMessage !== undefined ? (
                 <p role="alert" className="text-body-sm text-error">

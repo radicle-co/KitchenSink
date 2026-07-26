@@ -920,9 +920,10 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         # T081/SC-009 performance gate. Gated behind `run_load_test` (default false) so the heavy k6 run
-        # never fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`. Boots
-        # the recipe-service against a Postgres service and runs the tests/load k6 scripts; a threshold
-        # breach exits k6 non-zero and fails the job.
+        # never fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`
+        # (`heavy-e2e.yml` — nightly schedule, manual dispatch, or the `heavy-e2e` PR label). Boots the
+        # recipe-service against a Postgres + LocalStack service pair and runs ALL SIX tests/load k6
+        # scripts; a threshold breach exits k6 non-zero and fails the job.
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
@@ -938,6 +939,26 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
+            # Three of the six scripts need REAL AWS-side state that a placeholder endpoint cannot provide:
+            # `service-erasure` enqueues to SQS on its accept path (a dead endpoint would 500 the 202),
+            # `version-archive-read` reads a snapshot the fixture PUTs to S3, and `save-under-archive`
+            # measures save latency *while the archive is queued*. LocalStack Community covers S3 + SQS.
+            localstack:
+                image: localstack/localstack:4.4.0
+                env:
+                    SERVICES: s3,sqs
+                    # Path-style SQS URLs (http://localhost:4566/000000000000/<name>) so the queue the
+                    # bootstrap step creates is addressable at the exact ACCOUNT_ERASURE_QUEUE_URL the
+                    # service is booted with. The default `standard` strategy would hand back a
+                    # sqs.<region>.localhost.localstack.cloud host instead.
+                    SQS_ENDPOINT_STRATEGY: path
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -978,10 +999,57 @@ jobs:
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
               run: node packages/services/recipe-service/tests/load/prepare-db.mjs
+            # The S3 buckets + the account-erasure SQS queue the booted service and the fixture step address.
+            # LocalStack starts with an EMPTY account, so without this the erasure accept path's SendMessage
+            # fails (NonExistentQueue → 500, not the asserted 202) and the archive PUT fails (NoSuchBucket).
+            - name: Bootstrap LocalStack (S3 buckets + account-erasure queue)
+              env:
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_DEFAULT_REGION: us-east-1
+              run: |
+                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-photos
+                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-versions
+                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name erasure
+                  # Fail loudly HERE (with the actual URL in the log) rather than as an opaque k6 threshold
+                  # breach if the queue is not addressable where the service is pointed. Asserted on the PATH
+                  # only, deliberately: the SQS client overrides the host via SQS_ENDPOINT and uses just the
+                  # queue URL's account/name path, so the host LocalStack echoes back is immaterial.
+                  QUEUE_URL=$(aws --endpoint-url=http://localhost:4566 sqs get-queue-url \
+                      --queue-name erasure --query QueueUrl --output text)
+                  echo "erasure queue: ${QUEUE_URL}"
+                  case "${QUEUE_URL}" in
+                      */000000000000/erasure) ;;
+                      *) echo "queue path does not match ACCOUNT_ERASURE_QUEUE_URL's /000000000000/erasure"; exit 1 ;;
+                  esac
+            # W8-a.7 fixture for `version-archive-read.load.js`: a public recipe whose version 1 exists ONLY
+            # in the S3 archive (its recipe_versions row is deliberately absent), so every GET is forced down
+            # the transparent S3-fallback branch the script measures. k6 cannot seed Postgres or S3 itself.
+            # Idempotent (fixed ids, ON CONFLICT DO NOTHING); needs the migrated DB + the versions bucket.
+            - name: Seed the version-archive fixture
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
+                  S3_ENDPOINT: http://localhost:4566
+                  S3_FORCE_PATH_STYLE: 'true'
+                  S3_BUCKET_VERSIONS: commise-versions
+              run: npx tsx packages/services/recipe-service/tests/load/prepare-version-archive-fixture.ts
+            # CR-002 / U4a: mint the EdDSA service-erasure token pool + a THROWAWAY keypair. k6's goja runtime
+            # cannot sign Ed25519, so the tokens are minted here and loaded by the script via `open()`.
+            #
+            # ORDERING IS LOAD-BEARING: this step generates a fresh keypair and writes the SPKI public key the
+            # service must be booted trusting, so it MUST precede the boot step. The minted tokens are
+            # single-target and short-lived (120s — the verifier's contract max, deliberately not extendable),
+            # which is why the erasure script runs FIRST among the k6 scripts, on a shortened shape (see the
+            # k6 step). Owners are synthetic, ULID-shaped and non-existent, so every erase is a harmless
+            # no-op that touches no real data.
+            - name: Mint the service-erasure token pool
+              run: npx tsx packages/services/recipe-service/tests/load/prepare-erasure-tokens.ts
             # Boot the image with the dev-auth bypass (RECIPE_DEV_AUTH_USER_ID) so the load needs no live
             # Clerk token, and with the per-user rate limits raised — the whole load is ONE dev user, so the
-            # default RATE_LIMIT_* (120/30/60) would 429 under concurrency and fail the status checks. The
-            # SC-009 scenario exercises only reads + writes, so S3/SQS point at unused placeholders.
+            # default RATE_LIMIT_* (120/30/60) would 429 under concurrency and fail the status checks. S3/SQS
+            # now point at the LocalStack service container (real buckets + a real queue), and
+            # RECIPE_SERVICE_PRINCIPAL_JWT_KEY carries the public half of the keypair minted above so the
+            # ServiceErasureGuard trusts the load's tokens (and still fails closed on the expired one).
             - name: Boot recipe-service (Docker, dev-bypass)
               run: |
                   docker run -d --name recipe-load --network host \
@@ -990,11 +1058,13 @@ jobs:
                       -e PORT=3000 \
                       -e CLERK_JWT_KEY=load-test-placeholder-key \
                       -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
+                      -e AWS_REGION=us-east-1 \
                       -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
                       -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
                       -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
                       -e SQS_ENDPOINT=http://localhost:4566 \
                       -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
+                      -e RECIPE_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/recipe-service/tests/load/erasure-public-key.pem)" \
                       -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
                       -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
                       -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
@@ -1004,6 +1074,20 @@ jobs:
                       sleep 2
                   done
                   curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-load; exit 1; }
+            # The erasure scenario runs FIRST and on a SHORTENED shape (15s ramp + 25s hold + 10s down = 50s
+            # against the tokens' 120s TTL, ~25s of which the boot above already consumed). The thresholds are
+            # unchanged by the shape — per tests/load/README.md the peak/duration are env-driven precisely so
+            # a CI smoke shape and a distributed full-scale run share one pass/fail bar — so this trades only
+            # sample count, never strictness, and it removes the token-expiry flake class entirely. Running it
+            # last on the default 105s shape would expire the pool mid-run and fail on 401s.
+            - name: Run k6 service-erasure load script (CR-002 / U4a)
+              working-directory: packages/services/recipe-service
+              env:
+                  RECIPE_API_BASE_URL: http://localhost:3000
+                  RECIPE_LOAD_RAMP_UP: 15s
+                  RECIPE_LOAD_HOLD: 25s
+                  RECIPE_LOAD_RAMP_DOWN: 10s
+              run: k6 run --summary-export=k6-erasure-summary.json tests/load/service-erasure.load.js
             - name: Run k6 load scripts
               working-directory: packages/services/recipe-service
               env:
@@ -1012,6 +1096,8 @@ jobs:
                   k6 run --summary-export=k6-sc009-summary.json tests/load/sc009-read-write.load.js
                   k6 run --summary-export=k6-search-summary.json tests/load/search-latency.load.js
                   k6 run --summary-export=k6-save-summary.json tests/load/save-under-archive.load.js
+                  k6 run --summary-export=k6-pull-summary.json tests/load/pull-from-source.load.js
+                  k6 run --summary-export=k6-version-archive-summary.json tests/load/version-archive-read.load.js
             - name: Upload k6 summaries
               if: always()
               uses: actions/upload-artifact@v4
@@ -1020,3 +1106,132 @@ jobs:
                   path: packages/services/recipe-service/k6-*-summary.json
                   retention-days: 7
                   if-no-files-found: warn
+            # A k6 threshold breach reports only latency/status aggregates; the service-side exception that
+            # caused a 500 (a missing queue, an S3 error, a rejected token) is only in the container log.
+            - name: Recipe-service logs on failure
+              if: failure()
+              run: docker logs recipe-load 2>&1 | tail -150 || true
+
+    load-test-food:
+        name: Load test (food — k6)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # CR-002 / U4b performance gate for food's internal service-principal erasure route — the food mirror
+        # of the recipe `load-test` job, gated behind the SAME `run_load_test` input so both heavy k6 runs
+        # fire together (nightly / manual / `heavy-e2e` PR label) and never on an ordinary PR push.
+        #
+        # SIMPLER than the recipe job by design: food's erase is a SYNCHRONOUS indexed DELETE on
+        # `fetch_requesters` with no SQS hand-off and no S3, so this needs only a migrated Postgres — no
+        # LocalStack (see packages/services/food-service/tests/load/README.md).
+        if: ${{ inputs.run_load_test }}
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: food_load
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install k6
+              run: |
+                  sudo gpg -k
+                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+                      | sudo tee /etc/apt/sources.list.d/k6.list
+                  sudo apt-get update
+                  sudo apt-get install -y k6
+            # Build the service AND its shared deps (turbo `^build`) so the Dockerfile can COPY their dist +
+            # prod.package.json, then build the PROVEN image — a plain `node dist/src/main.js` boot cannot
+            # resolve the workspace `@kitchensink/*` bare specifiers outside the image. Mirrors the recipe job.
+            - name: Build food-service (+ shared deps)
+              run: npx turbo run build --filter=@kitchensink/food-service
+            # Rewrite the food package.json exports/main to ./dist — the image COPYs prod.package.json over
+            # the committed package.json (which exports ./src). Mirrors sandbox-deploy.yml's food image build.
+            - name: Prepare food-service prod manifest
+              run: npm run docker:prepare --workspace=packages/services/food-service
+            - name: Build food-service image
+              run: docker build -f packages/services/food-service/Dockerfile -t food-load:ci .
+            # Apply the hand-authored, ordered food schema DDL (src/db/migrations/*.sql — the same source of
+            # truth tests/support/db.ts applies) to the throwaway DB. The erasure route DELETEs from
+            # `fetch_requesters`, so without the schema every request 500s instead of returning 200.
+            - name: Apply food schema migrations
+              env:
+                  PGHOST: localhost
+                  PGPORT: '5432'
+                  PGUSER: postgres
+                  PGPASSWORD: postgres
+                  PGDATABASE: food_load
+              run: |
+                  psql -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+                  for f in packages/services/food-service/src/db/migrations/*.sql; do
+                      echo "applying $f"
+                      psql -v ON_ERROR_STOP=1 -f "$f"
+                  done
+            # Mint the EdDSA token pool + a throwaway keypair BEFORE the boot, which must trust the public
+            # half. Same ordering constraint (and same 120s contract-max TTL) as the recipe job.
+            - name: Mint the food service-erasure token pool
+              run: npx tsx packages/services/food-service/tests/load/prepare-erasure-tokens.ts
+            # PORT=3000 (not food's 3002 default) so the script's FOOD_API_BASE_URL default host:port applies.
+            # USDA_API_KEY is schema-required but never called on the erasure path, so a dummy satisfies boot.
+            # No CLERK_JWT_KEY: the internal erasure route is guarded by FoodServiceErasureGuard (EdDSA), not
+            # Clerk, and leaving the Clerk key unset keeps every *user* route failing closed at 401.
+            - name: Boot food-service (Docker)
+              run: |
+                  docker run -d --name food-load --network host \
+                      -e NODE_ENV=development \
+                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_load \
+                      -e PORT=3000 \
+                      -e STAGE=load \
+                      -e USDA_API_KEY=load-test-dummy-key \
+                      -e FOOD_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/food-service/tests/load/erasure-public-key.pem)" \
+                      food-load:ci
+                  for i in $(seq 1 40); do
+                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
+                      sleep 2
+                  done
+                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs food-load; exit 1; }
+            # Shortened shape for the same reason as the recipe erasure run: the minted tokens live 120s (the
+            # verifier's contract max), so a 50s run started right after boot never races the TTL. Thresholds
+            # are shape-independent (see tests/load/README.md), so strictness is unchanged.
+            - name: Run k6 food service-erasure load script (CR-002 / U4b)
+              working-directory: packages/services/food-service
+              env:
+                  FOOD_API_BASE_URL: http://localhost:3000
+                  FOOD_LOAD_RAMP_UP: 15s
+                  FOOD_LOAD_HOLD: 25s
+                  FOOD_LOAD_RAMP_DOWN: 10s
+              run: k6 run --summary-export=k6-erasure-summary.json tests/load/service-erasure.load.js
+            - name: Upload k6 summaries
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: food-k6-summaries-${{ inputs.stage }}
+                  path: packages/services/food-service/k6-*-summary.json
+                  retention-days: 7
+                  if-no-files-found: warn
+            - name: Food-service logs on failure
+              if: failure()
+              run: docker logs food-load 2>&1 | tail -150 || true

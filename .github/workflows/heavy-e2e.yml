@@ -1,0 +1,80 @@
+name: Heavy E2E (Maestro + k6)
+
+# THE CALLER THAT WAS MISSING. `_ci.yml` has carried the mobile-Maestro (`run_mobile_maestro`) and k6
+# load-test (`run_load_test`) jobs behind opt-in inputs that default to FALSE, and its only two callers —
+# ci-pr.yml (stage=sandbox) and ci-main.yml (stage=prod) — pass neither. So both tiers were unreachable:
+# fully authored jobs that no event could ever start. This workflow is that opt-in caller.
+#
+# WHY a separate caller rather than flipping the defaults in ci-pr/ci-main: cost + duration. The Maestro job
+# boots an Android emulator and Gradle-builds a release APK, and the two k6 jobs build/boot two service images
+# and drive minutes of sustained load — together tens of runner-minutes. Putting that on every PR push and
+# every main push contradicts the repo's cost posture (see ADR-0007/ADR-0008 and the `run_*` inputs' own
+# docstrings, which exist precisely so the heavy runs stay opt-in). So they run on a schedule, on demand, or
+# on an explicitly labelled PR — and they are BLOCKING when they run (no continue-on-error): a red load
+# threshold or a broken on-device flow is a real defect, and the repo has no non-blocking-job convention.
+#
+# Three ways in:
+#   1. NIGHTLY (schedule) — the routine regression signal.
+#   2. MANUAL (workflow_dispatch) — with per-tier toggles, for iterating on one tier.
+#   3. LABELLED PR — add the `heavy-e2e` label to a pull request. This is the ONLY path that works before
+#      this file reaches the default branch: `schedule` and `workflow_dispatch` are resolved from the DEFAULT
+#      BRANCH only, so neither can fire for this workflow until it is merged to `main`. `pull_request`
+#      resolves the workflow (and `_ci.yml`) from the PR head, so a same-repo PR runs the version on its own
+#      branch. Re-labelling (remove + re-add) re-triggers a run.
+on:
+    schedule:
+        # 07:00 UTC = 03:00 ET — off-peak, and outside the 09:00 ET sandbox wake window (ADR-0007). These
+        # jobs are entirely self-contained on the runner (their own Postgres/LocalStack service containers and
+        # locally built service images), so the nightly sandbox shutdown does not affect them; the only
+        # external dependencies are AWS Secrets Manager (for the Clerk keys) and the Clerk dev instance.
+        - cron: '0 7 * * *'
+    workflow_dispatch:
+        inputs:
+            run_load_test:
+                description: Run the recipe + food k6 load-test jobs
+                type: boolean
+                default: true
+            run_mobile_maestro:
+                description: Run the mobile Maestro job (Android emulator + release APK)
+                type: boolean
+                default: true
+    pull_request:
+        branches: [main]
+        # `labeled` is what makes the opt-in usable: adding `heavy-e2e` to an open PR starts a run without a
+        # new push. `opened`/`synchronize`/`reopened` keep an already-labelled PR covered on every push.
+        types: [opened, synchronize, reopened, labeled]
+
+permissions:
+    contents: read
+
+concurrency:
+    # Per-ref, cancel-in-progress: a new push to a labelled PR supersedes its in-flight heavy run rather than
+    # queueing a second emulator + load run. Nightly/dispatch runs on different refs never collide.
+    group: heavy-e2e-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    heavy:
+        name: Heavy tiers (sandbox)
+        # Label gate. On a pull_request event the job runs ONLY when the PR carries `heavy-e2e`; otherwise it
+        # is skipped (a neutral, non-red status), so this workflow adds no cost to ordinary PRs. Schedule and
+        # dispatch runs are always allowed through.
+        if: >-
+            github.event_name != 'pull_request' ||
+            contains(github.event.pull_request.labels.*.name, 'heavy-e2e')
+        uses: ./.github/workflows/_ci.yml
+        with:
+            # SANDBOX, never prod. The Maestro job does a REAL Clerk sign-in from the emulator, and Clerk
+            # production instances (pk_live) are domain-locked — the same constraint that pins the web
+            # Playwright job to the sandbox dev instance (see `e2e-web`'s comment in _ci.yml). The k6 jobs
+            # need no Clerk at all (dev-auth bypass / EdDSA service tokens), so sandbox is safe for both.
+            stage: sandbox
+            # `github.event.inputs.*` (a string, empty on non-dispatch events) rather than the `inputs`
+            # context, so the expression is well-defined for `schedule` and `pull_request` too. The
+            # short-circuit makes both tiers ON for schedule/PR runs and per-toggle for a manual dispatch.
+            run_load_test: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_load_test == 'true' }}
+            run_mobile_maestro: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_mobile_maestro == 'true' }}
+        # Same as ci-pr.yml / ci-main.yml: the composite load-secrets action needs AWS_ACCESS_KEY_ID /
+        # AWS_SECRET_ACCESS_KEY to read kitchensink/sandbox/identity/keys. Fork PRs get no secrets, so
+        # load-secrets' `continue-on-error` skips the Clerk-dependent steps rather than failing.
+        secrets: inherit

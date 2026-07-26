@@ -77,6 +77,72 @@ export const formatRecipeCount = (count: number, labels: RecipeCountLabels, loca
  */
 export const formatDurationMinutes = (minutes: number, template: string): string => fillTemplate(template, { minutes });
 
+// ─── Quick-filter chips (L4) ─────────────────────────────────────────────────────────────────────────
+//
+// The list's quick-filter chips are CLIENT-SIDE predicates over the already-loaded page: `GET /v1/recipes`
+// (the owner library list) takes no filter params — only `/search` does (see `filters/model.ts`'s module
+// doc) — so a chip narrows the rows the container already has, it never issues a new request. Dietary-flag
+// and cuisine chips match by literal string equality against real recipe data (the container derives
+// `available` from what is actually present). The "Quick (<30m)" chip is different in kind: it has no
+// backing data VALUE to match against — it is a fixed bucket over `totalTimeMinutes` — so it is modelled as
+// one reserved sentinel token, {@link QUICK_TIME_FACET}, that both `available`/`active` arrays can carry
+// alongside the real facet values, with {@link matchesListFacet} and {@link filterChipLabel} giving that one
+// token special-cased matching/label behavior while every other facet stays a plain passthrough.
+
+/**
+ * The reserved sentinel facet token for the "Quick (<30m)" time-bucket chip. Carried in the same
+ * `available`/`active` string arrays as real dietary-flag/cuisine facet values, but never itself a value
+ * that appears in recipe data — {@link matchesListFacet} special-cases it to a total-time comparison instead
+ * of a literal string match, so a recipe whose cuisine or dietary flag happens to equal this string can never
+ * be mistaken for a "quick" match.
+ */
+export const QUICK_TIME_FACET = 'quick' as const;
+
+/** The total-time bound (minutes, exclusive) the "Quick (<30m)" chip filters to — the wireframe's "<30m". */
+export const QUICK_TIME_THRESHOLD_MINUTES = 30;
+
+/**
+ * Whether a recipe qualifies for the "Quick (<30m)" chip. Pure.
+ *
+ * @param totalTimeMinutes - The recipe's total time in minutes.
+ * @returns `true` when strictly under {@link QUICK_TIME_THRESHOLD_MINUTES}.
+ */
+export const isQuickRecipe = (totalTimeMinutes: number): boolean => totalTimeMinutes < QUICK_TIME_THRESHOLD_MINUTES;
+
+/** The subset of a recipe DTO the list's quick-filter chips read — dietary flags, cuisine, and total time. */
+export interface RecipeFacetSource {
+    readonly dietaryFlags: readonly string[];
+    readonly cuisine?: string;
+    readonly totalTimeMinutes: number;
+}
+
+/**
+ * Whether a recipe satisfies one active quick-filter chip. The {@link QUICK_TIME_FACET} sentinel compares
+ * total time via {@link isQuickRecipe}; every other facet value matches literally against the recipe's
+ * dietary flags or cuisine (the existing L4 chip mechanism). A caller narrowing by several active chips
+ * calls this once per chip and requires every one to match (`Array.prototype.every`). Pure.
+ *
+ * @param recipe - The recipe's facet-relevant fields.
+ * @param facet - One active facet value (a real dietary-flag/cuisine string, or {@link QUICK_TIME_FACET}).
+ * @returns Whether the recipe satisfies that facet.
+ */
+export const matchesListFacet = (recipe: RecipeFacetSource, facet: string): boolean =>
+    facet === QUICK_TIME_FACET
+        ? isQuickRecipe(recipe.totalTimeMinutes)
+        : recipe.dietaryFlags.includes(facet) || recipe.cuisine === facet;
+
+/**
+ * The visible label for a quick-filter chip. Dietary-flag and cuisine facets ARE their own label (real,
+ * user-authored data — never translated). The {@link QUICK_TIME_FACET} sentinel is not user data, so it maps
+ * to the caller's localized copy instead of leaking the internal token. Pure.
+ *
+ * @param facet - The facet value the chip represents.
+ * @param quickLabel - The localized "Quick (<30m)" copy, rendered when `facet` is {@link QUICK_TIME_FACET}.
+ * @returns The chip's visible label.
+ */
+export const filterChipLabel = (facet: string, quickLabel: string): string =>
+    facet === QUICK_TIME_FACET ? quickLabel : facet;
+
 /** Props for a single recipe row in the list. */
 export interface RecipeListCardProps {
     readonly recipe: RecipeListItem;

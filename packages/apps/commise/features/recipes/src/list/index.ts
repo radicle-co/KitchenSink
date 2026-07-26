@@ -6,9 +6,20 @@
 export { RecipeList } from './RecipeList.js';
 export { RecipeListCard } from './RecipeListCard.js';
 
-export { fillTemplate, formatDurationMinutes, formatRecipeCount, toRecipeListItem } from './model.js';
+export {
+    QUICK_TIME_FACET,
+    QUICK_TIME_THRESHOLD_MINUTES,
+    fillTemplate,
+    filterChipLabel,
+    formatDurationMinutes,
+    formatRecipeCount,
+    isQuickRecipe,
+    matchesListFacet,
+    toRecipeListItem,
+} from './model.js';
 export type {
     RecipeCountLabels,
+    RecipeFacetSource,
     RecipeListCardProps,
     RecipeListItem,
     RecipeListStatus,

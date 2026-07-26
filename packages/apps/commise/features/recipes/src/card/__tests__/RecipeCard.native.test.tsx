@@ -3,7 +3,7 @@
  * Mirrors the web leaf's coverage — every field and every ABSENT state — but queries the RN accessibility
  * tree (role/label/text), never styles. A broken label, a fabricated rating, or a defaulted difficulty fails.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
@@ -147,5 +147,43 @@ describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
         expect(screen.getByText('Draft')).toBeTruthy();
         expect(screen.queryByText('Public')).toBeNull();
         expect(screen.queryByText('Private')).toBeNull();
+    });
+});
+
+describe('RecipeCard (native) — relative timestamp (CR-002 / recipe-list wireframe)', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-07-24T12:00:00.000Z'));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('renders "Edited {relative}" when the recipe was revised after it was created', () => {
+        renderCard(
+            <RecipeCard
+                recipe={model({
+                    createdAt: '2026-06-01T12:00:00.000Z',
+                    updatedAt: '2026-07-22T12:00:00.000Z',
+                })}
+            />,
+        );
+
+        expect(screen.getByText('Edited 2d ago')).toBeTruthy();
+    });
+
+    it('renders "Created {relative}" (never "Edited") when the recipe has never been revised', () => {
+        renderCard(
+            <RecipeCard
+                recipe={model({
+                    createdAt: '2026-07-17T12:00:00.000Z',
+                    updatedAt: '2026-07-17T12:00:00.000Z',
+                })}
+            />,
+        );
+
+        expect(screen.getByText('Created 1w ago')).toBeTruthy();
+        expect(screen.queryByText(/^Edited/)).toBeNull();
     });
 });

@@ -185,4 +185,43 @@ describe('RecipeListContainer', () => {
         await user.click(within(chips).getByRole('button', { name: 'All' }));
         expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
     });
+
+    it('surfaces a "Quick (<30m)" chip that filters to recipes under the 30-minute threshold (L4/#4)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([
+                makeRecipe({ id: 'rec_1', title: 'Overnight Oats', totalTimeMinutes: 5 }),
+                makeRecipe({ id: 'rec_2', title: "Grandma's Pasta", totalTimeMinutes: 45 }),
+            ]),
+        );
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await screen.findByRole('button', { name: 'Overnight Oats' });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        const quickChip = within(chips).getByRole('button', { name: 'Quick (<30m)' });
+        expect(screen.queryByRole('button', { name: 'quick' })).not.toBeInTheDocument();
+
+        await user.click(quickChip);
+
+        expect(screen.getByRole('button', { name: 'Overnight Oats' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: "Grandma's Pasta" })).not.toBeInTheDocument();
+    });
+
+    it('omits the "Quick (<30m)" chip when no loaded recipe qualifies (other facets still render)', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(
+            makeRecipesPage([
+                makeRecipe({ id: 'rec_1', title: "Grandma's Pasta", totalTimeMinutes: 45, cuisine: 'Italian' }),
+            ]),
+        );
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+        await screen.findByRole('button', { name: "Grandma's Pasta" });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        expect(within(chips).getByRole('button', { name: 'Italian' })).toBeInTheDocument();
+        expect(within(chips).queryByRole('button', { name: 'Quick (<30m)' })).not.toBeInTheDocument();
+    });
 });

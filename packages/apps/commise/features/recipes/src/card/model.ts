@@ -41,6 +41,13 @@ export interface RecipeCardModel {
     readonly coverPhotoUrl?: string;
     /** ISO 8601 timestamp of the recipe's last update (drives the widget/list recency sort). */
     readonly updatedAt: string;
+    /**
+     * ISO 8601 timestamp of the recipe's creation — carried alongside {@link updatedAt} SOLELY so the card's
+     * relative-timestamp footer (CR-002 / recipe-list wireframe) can tell "Created" from "Edited": when the
+     * two are equal the recipe has never been revised since it was authored, so the card reads "Created
+     * {relative}"; otherwise it reads "Edited {relative(updatedAt)}". Never rendered on its own.
+     */
+    readonly createdAt: string;
     /** Author-stated cuisine (CR-002). ABSENT → the card renders no cuisine chip. */
     readonly cuisine?: string;
     /** Lead calories per serving (W8-a.1). ABSENT → the card renders no calorie line. */
@@ -77,6 +84,7 @@ export const toRecipeCardModel = (recipe: Recipe): RecipeCardModel => ({
     ratingCount: recipe.ratingCount,
     usesPremiumCapability: recipe.usesPremiumCapability,
     ...(recipe.coverPhotoUrl !== undefined ? { coverPhotoUrl: recipe.coverPhotoUrl } : {}),
+    createdAt: recipe.createdAt,
     updatedAt: recipe.updatedAt,
     ...(recipe.cuisine !== undefined ? { cuisine: recipe.cuisine } : {}),
     ...(recipe.leadCaloriesPerServing !== undefined ? { leadCaloriesPerServing: recipe.leadCaloriesPerServing } : {}),
@@ -170,4 +178,50 @@ export const formatRatingCount = (count: number, labels: RatingCountLabels, loca
     const template = new Intl.PluralRules(locale).select(count) === 'one' ? labels.one : labels.other;
 
     return template.replace('{count}', String(count));
+};
+
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE;
+const SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR;
+const SECONDS_PER_WEEK = 7 * SECONDS_PER_DAY;
+
+/**
+ * Format an ISO 8601 instant as the card footer's compact, localized "N ago" relative timestamp (CR-002 /
+ * recipe-list wireframe: "Edited 2d ago", "Created 1w ago") via {@link Intl.RelativeTimeFormat}'s `narrow`
+ * style — library-first, never hand-rolled pluralization — which is what renders the wireframe's abbreviated
+ * `"2d ago"` / `"1w ago"` copy (the `long` style would read "2 days ago"). Distinct from
+ * `versions/model.ts`'s `formatRelativeTimeAgo`: that helper renders a verbose day-capped sentence for the
+ * version-conflict banner ("2 days ago"), a different UI surface with different presentation needs, so this
+ * is its own compact, week-capable bucketing rather than a forced shared abstraction.
+ *
+ * Buckets to the largest whole unit that has elapsed at least once — minutes, then hours, then days, then
+ * weeks — each floored so a partial unit never rounds up. An instant less than a minute old (including a
+ * "future" instant, e.g. clock skew between the client and server) renders the localized `justNowLabel`
+ * rather than a misleading "0m ago" or a negative duration. Pure — the caller supplies `now`.
+ *
+ * @param isoDateTime - The past instant to render, in ISO 8601.
+ * @param now - The current instant, in ISO 8601 (the caller's own clock read is the side effect).
+ * @param locale - The active BCP-47 locale.
+ * @param justNowLabel - The localized term for a sub-minute-old (or future) instant.
+ * @returns The compact localized relative-time string, e.g. `"2d ago"` / `"1w ago"`, or `justNowLabel`.
+ */
+export const formatRelativeTime = (isoDateTime: string, now: string, locale: Locale, justNowLabel: string): string => {
+    const elapsedSeconds = Math.floor((new Date(now).getTime() - new Date(isoDateTime).getTime()) / 1000);
+
+    if (elapsedSeconds < SECONDS_PER_MINUTE) {
+        return justNowLabel;
+    }
+
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'always', style: 'narrow' });
+
+    const [amount, unit]: [number, Intl.RelativeTimeFormatUnit] =
+        elapsedSeconds < SECONDS_PER_HOUR
+            ? [Math.floor(elapsedSeconds / SECONDS_PER_MINUTE), 'minute']
+            : elapsedSeconds < SECONDS_PER_DAY
+              ? [Math.floor(elapsedSeconds / SECONDS_PER_HOUR), 'hour']
+              : elapsedSeconds < SECONDS_PER_WEEK
+                ? [Math.floor(elapsedSeconds / SECONDS_PER_DAY), 'day']
+                : [Math.floor(elapsedSeconds / SECONDS_PER_WEEK), 'week'];
+
+    return rtf.format(-amount, unit);
 };

@@ -11,7 +11,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, Vie
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
-import { formatRecipeCount, type RecipeListViewProps } from './model.js';
+import { filterChipLabel, formatRecipeCount, type RecipeListViewProps } from './model.js';
 
 export const RecipeList: FC<RecipeListViewProps> = ({
     status,
@@ -157,7 +157,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                                 onPress={() => filters.onToggle(value)}
                                 style={[styles.chip, active && styles.chipActive]}
                             >
-                                <Text style={active ? styles.chipLabelActive : styles.chipLabel}>{value}</Text>
+                                <Text style={active ? styles.chipLabelActive : styles.chipLabel}>
+                                    {filterChipLabel(value, list.filterQuick)}
+                                </Text>
                             </Pressable>
                         );
                     })}

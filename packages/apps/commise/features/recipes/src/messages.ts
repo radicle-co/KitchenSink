@@ -46,6 +46,8 @@ export interface RecipeListMessages {
     readonly filtersLabel: string;
     /** Label of the leading "All" chip that clears every active quick-filter (L4). */
     readonly filterAll: string;
+    /** Visible label of the "Quick (<30m)" time-bucket quick-filter chip (recipe-list wireframe). */
+    readonly filterQuick: string;
     /** Label of the create-recipe call to action (the pinned FAB). */
     readonly createCta: string;
     /** Label of the empty-state create call to action (the sole create control when the list is empty). */
@@ -160,6 +162,12 @@ export interface RecipeCardMessages {
     readonly visibilityPrivate: string;
     /** Badge shown on the owner's own draft — REPLACES the visibility badge (never "Public" on a draft). */
     readonly draftBadge: string;
+    /** Relative-timestamp template for a revised recipe (contains `{time}`), e.g. "Edited 2d ago" (CR-002). */
+    readonly editedRelative: string;
+    /** Relative-timestamp template for a never-revised recipe (contains `{time}`), e.g. "Created 1w ago". */
+    readonly createdRelative: string;
+    /** Localized term rendered in place of `{time}` for a sub-minute-old (or future) instant. */
+    readonly justNow: string;
 }
 
 /** The shape of the recipe feature's shared copy. */
@@ -201,6 +209,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             tabsLabel: 'Recipe source',
             filtersLabel: 'Quick filters',
             filterAll: 'All',
+            filterQuick: 'Quick (<30m)',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
         },
@@ -255,6 +264,9 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             draftBadge: 'Draft',
+            editedRelative: 'Edited {time}',
+            createdRelative: 'Created {time}',
+            justNow: 'just now',
         },
     },
 };

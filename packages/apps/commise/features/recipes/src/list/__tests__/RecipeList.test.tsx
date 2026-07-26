@@ -226,6 +226,24 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
 
         expect(onToggle).toHaveBeenCalledWith('Vegetarian');
     });
+
+    it('renders the QUICK_TIME_FACET sentinel as the localized "Quick (<30m)" label, not the raw token', async () => {
+        const user = userEvent.setup();
+        const onToggle = vi.fn();
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['quick', 'Italian'], active: [], onToggle, onClear: noop },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        expect(within(chips).queryByRole('button', { name: 'quick' })).toBeNull();
+
+        await user.click(within(chips).getByRole('button', { name: 'Quick (<30m)' }));
+
+        // Toggling still reports the underlying sentinel token upward, not the display label.
+        expect(onToggle).toHaveBeenCalledWith('quick');
+    });
 });
 
 describe('RecipeList (web) — loading state', () => {

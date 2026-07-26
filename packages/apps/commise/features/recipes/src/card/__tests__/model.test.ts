@@ -15,6 +15,7 @@ import {
     difficultyTone,
     formatAverageRating,
     formatRatingCount,
+    formatRelativeTime,
     toRecipeCardModel,
     toStarFills,
 } from '../model.js';
@@ -30,6 +31,7 @@ describe('toRecipeCardModel', () => {
             averageRating: 3.8,
             ratingCount: 9,
             coverPhotoUrl: 'https://cdn.commise.app/r/42.jpg',
+            createdAt: '2026-04-28T12:00:00.000Z',
             updatedAt: '2026-05-01T12:00:00.000Z',
         });
 
@@ -43,6 +45,7 @@ describe('toRecipeCardModel', () => {
             ratingCount: 9,
             usesPremiumCapability: true,
             coverPhotoUrl: 'https://cdn.commise.app/r/42.jpg',
+            createdAt: '2026-04-28T12:00:00.000Z',
             updatedAt: '2026-05-01T12:00:00.000Z',
             // Merged-card fields (CR-002); the fixture leaves cuisine/calories absent so they are omitted.
             tags: [],
@@ -152,5 +155,63 @@ describe('formatRatingCount', () => {
 
     it('selects the plural template for many ratings (en)', () => {
         expect(formatRatingCount(12, labels, 'en')).toBe('12 ratings');
+    });
+});
+
+describe('formatRelativeTime', () => {
+    const JUST_NOW = 'just now';
+
+    it('renders the localized "just now" term for a sub-minute-old instant', () => {
+        expect(formatRelativeTime('2026-07-24T11:59:30.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            JUST_NOW,
+        );
+    });
+
+    it('renders "just now" for an exact-instant match (no elapsed time)', () => {
+        expect(formatRelativeTime('2026-07-24T12:00:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            JUST_NOW,
+        );
+    });
+
+    it('renders "just now" rather than a negative duration under clock skew (instant is in the future)', () => {
+        expect(formatRelativeTime('2026-07-24T12:05:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            JUST_NOW,
+        );
+    });
+
+    it('buckets to whole elapsed minutes, floored', () => {
+        expect(formatRelativeTime('2026-07-24T11:55:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '5m ago',
+        );
+        expect(formatRelativeTime('2026-07-24T11:01:30.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '58m ago',
+        );
+    });
+
+    it('buckets to whole elapsed hours once at least one hour has elapsed', () => {
+        expect(formatRelativeTime('2026-07-24T09:00:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '3h ago',
+        );
+    });
+
+    it('buckets to whole elapsed days once at least one day has elapsed (the wireframe\'s "2d ago")', () => {
+        expect(formatRelativeTime('2026-07-22T12:00:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '2d ago',
+        );
+    });
+
+    it('buckets to whole elapsed weeks once at least one week has elapsed (the wireframe\'s "1w ago")', () => {
+        expect(formatRelativeTime('2026-07-17T12:00:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '1w ago',
+        );
+        expect(formatRelativeTime('2026-07-10T12:00:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '2w ago',
+        );
+    });
+
+    it('stays at the day bucket right up to (but not past) a full elapsed week', () => {
+        expect(formatRelativeTime('2026-07-17T13:00:00.000Z', '2026-07-24T12:00:00.000Z', 'en', JUST_NOW)).toBe(
+            '6d ago',
+        );
     });
 });

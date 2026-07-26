@@ -5,7 +5,14 @@
  * and forwards selection / create / retry intents upward. It performs no rendering of its own — the view
  * lives in `@commise/features-recipes`, shared with web.
  */
-import { RecipeList, toRecipeListItem, type RecipeListStatus } from '@commise/features-recipes';
+import {
+    QUICK_TIME_FACET,
+    RecipeList,
+    isQuickRecipe,
+    matchesListFacet,
+    toRecipeListItem,
+    type RecipeListStatus,
+} from '@commise/features-recipes';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useMemo, useState } from 'react';
@@ -38,9 +45,12 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
     const rawRecipes = useMemo(() => (query.data ? query.data.data : []), [query.data]);
 
     // Quick-filter facets (L4): the sorted union of the library's REAL dimensions — dietary flags + cuisine
-    // (parity with the web container). Favorites / AI-Generated from the mockup are omitted (no backing data).
+    // (parity with the web container) — PLUS the fixed "Quick (<30m)" time-bucket chip (#4) when at least one
+    // loaded recipe qualifies (`QUICK_TIME_FACET` leads the list — a fixed dimension, not data-driven).
+    // Favorites / AI-Generated from the mockup are omitted (no backing data).
     const availableFacets = useMemo(() => {
         const facets = new Set<string>();
+        let hasQuickRecipe = false;
 
         for (const recipe of rawRecipes) {
             recipe.dietaryFlags.forEach((flag) => facets.add(flag));
@@ -48,12 +58,19 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             if (recipe.cuisine !== undefined) {
                 facets.add(recipe.cuisine);
             }
+
+            if (isQuickRecipe(recipe.totalTimeMinutes)) {
+                hasQuickRecipe = true;
+            }
         }
 
-        return [...facets].sort((a, b) => a.localeCompare(b));
+        const sorted = [...facets].sort((a, b) => a.localeCompare(b));
+
+        return hasQuickRecipe ? [QUICK_TIME_FACET, ...sorted] : sorted;
     }, [rawRecipes]);
 
-    // Filter by the title term AND every active facet chip (a row must satisfy ALL — dietary flag OR cuisine).
+    // Filter by the title term AND every active facet chip (a row must satisfy ALL — dietary flag, cuisine,
+    // or the Quick bucket).
     const recipes = useMemo(() => {
         const term = searchValue.trim().toLowerCase();
 
@@ -61,7 +78,7 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             .filter(
                 (recipe) =>
                     (term.length === 0 || recipe.title.toLowerCase().includes(term)) &&
-                    activeFacets.every((facet) => recipe.dietaryFlags.includes(facet) || recipe.cuisine === facet),
+                    activeFacets.every((facet) => matchesListFacet(recipe, facet)),
             )
             .map(toRecipeListItem);
     }, [rawRecipes, searchValue, activeFacets]);

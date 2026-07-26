@@ -24,6 +24,7 @@ import {
     formatAverageRating,
     formatCalories,
     formatRatingCount,
+    formatRelativeTime,
     toStarFills,
     type DifficultyTone,
     type RecipeCardModel,
@@ -133,11 +134,25 @@ const CardMeta: FC = () => {
     );
 };
 
-/** The status badges: version (past v1) + a Draft badge OR the visibility badge (never both). */
+/**
+ * The status badges: version (past v1) + a Draft badge OR the visibility badge (never both) + the relative
+ * timestamp (CR-002 / recipe-list wireframe: "v12 · Public · Edited 2d ago"). "Edited" reads `updatedAt`
+ * when the recipe has been revised since it was created; a never-revised recipe (`updatedAt === createdAt`)
+ * reads "Created {relative(createdAt)}" instead, so a fresh, never-edited recipe never claims an edit that
+ * never happened.
+ */
 const CardBadges: FC = () => {
     const { card } = useMessages(recipeMessages);
+    const locale = useLocale();
     const recipe = useCardModel();
     const isDraft = recipe.status === RecipeStatus.DRAFT;
+    // Reading the clock is THIS component's own side effect (mirrors `RecipeConflictView`'s split of "the
+    // caller reads `new Date()`, the pure formatter only maps an instant to a string") — `formatRelativeTime`
+    // stays pure and testable without freezing time.
+    const now = new Date().toISOString();
+    const wasEdited = recipe.updatedAt !== recipe.createdAt;
+    const relativeTime = formatRelativeTime(wasEdited ? recipe.updatedAt : recipe.createdAt, now, locale, card.justNow);
+    const timestampLabel = (wasEdited ? card.editedRelative : card.createdRelative).replace('{time}', relativeTime);
 
     return (
         <View style={styles.badges}>
@@ -156,6 +171,7 @@ const CardBadges: FC = () => {
                     {recipe.visibility === RecipeVisibility.PUBLIC ? card.visibilityPublic : card.visibilityPrivate}
                 </Text>
             )}
+            <Text style={styles.timestamp}>{timestampLabel}</Text>
         </View>
     );
 };
@@ -341,4 +357,5 @@ const styles = StyleSheet.create({
     starFilled: { color: palette.warning, fontSize: 16 },
     starEmpty: { color: palette.mist, fontSize: 16 },
     unrated: { fontSize: 13, color: palette.slate },
+    timestamp: { fontSize: 11, color: palette.slate },
 });

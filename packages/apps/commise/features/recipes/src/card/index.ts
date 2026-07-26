@@ -11,6 +11,7 @@ export {
     difficultyTone,
     formatAverageRating,
     formatRatingCount,
+    formatRelativeTime,
     toRecipeCardModel,
     toStarFills,
 } from './model.js';

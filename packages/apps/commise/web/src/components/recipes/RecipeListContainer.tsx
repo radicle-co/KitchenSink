@@ -7,7 +7,13 @@
  * client-side by title), and wires navigation + retry. It holds no server data of its own — TanStack
  * Query is the source of truth for the remote list; the visible rows are derived from it.
  */
-import { RecipeList, toRecipeListItem } from '@commise/features-recipes';
+import {
+    QUICK_TIME_FACET,
+    RecipeList,
+    isQuickRecipe,
+    matchesListFacet,
+    toRecipeListItem,
+} from '@commise/features-recipes';
 import type { RecipeListItem } from '@commise/features-recipes';
 import { toQueryStatus } from '@commise/features-core';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
@@ -42,11 +48,15 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
     const rawRecipes = useMemo(() => query.data?.data ?? [], [query.data]);
 
     // Quick-filter facets (L4): the sorted union of the library's REAL filter dimensions — dietary flags +
-    // cuisine (the same dimensions `/discover` facets on). The mockup's Favorites / AI-Generated chips are
-    // deliberately omitted: the product has no favorites feature and no AI-generated source, so they would be
-    // dead controls. Derived from the FULL set so a chip never vanishes when its own filter empties the rows.
+    // cuisine (the same dimensions `/discover` facets on) — PLUS the fixed "Quick (<30m)" time-bucket chip
+    // (#4) when at least one loaded recipe qualifies (`QUICK_TIME_FACET` leads the list since it is a fixed
+    // dimension, not data-driven, so its position never shuffles as data-driven facets come and go). The
+    // mockup's Favorites / AI-Generated chips are deliberately omitted: the product has no favorites feature
+    // and no AI-generated source, so they would be dead controls. Derived from the FULL set so a chip never
+    // vanishes when its own filter empties the rows.
     const availableFacets = useMemo(() => {
         const facets = new Set<string>();
+        let hasQuickRecipe = false;
 
         for (const recipe of rawRecipes) {
             recipe.dietaryFlags.forEach((flag) => facets.add(flag));
@@ -54,13 +64,19 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
             if (recipe.cuisine !== undefined) {
                 facets.add(recipe.cuisine);
             }
+
+            if (isQuickRecipe(recipe.totalTimeMinutes)) {
+                hasQuickRecipe = true;
+            }
         }
 
-        return [...facets].sort((a, b) => a.localeCompare(b));
+        const sorted = [...facets].sort((a, b) => a.localeCompare(b));
+
+        return hasQuickRecipe ? [QUICK_TIME_FACET, ...sorted] : sorted;
     }, [rawRecipes]);
 
     // Narrow by the search term (client-side — `useRecipes` has no server query param) AND by every active
-    // facet chip (a row must satisfy ALL selected facets, matching a dietary flag OR the cuisine).
+    // facet chip (a row must satisfy ALL selected facets — a dietary flag, the cuisine, or the Quick bucket).
     const recipes = useMemo<readonly RecipeListItem[]>(() => {
         const term = searchValue.trim().toLowerCase();
 
@@ -68,7 +84,7 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
             .filter(
                 (recipe) =>
                     (term.length === 0 || recipe.title.toLowerCase().includes(term)) &&
-                    activeFacets.every((facet) => recipe.dietaryFlags.includes(facet) || recipe.cuisine === facet),
+                    activeFacets.every((facet) => matchesListFacet(recipe, facet)),
             )
             .map(toRecipeListItem);
     }, [rawRecipes, searchValue, activeFacets]);

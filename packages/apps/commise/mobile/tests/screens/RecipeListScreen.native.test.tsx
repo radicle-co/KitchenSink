@@ -8,7 +8,7 @@
  * (+ selection), and client-side search filtering.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 
@@ -167,5 +167,45 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
 
         expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Sunday Roast' })).toBeNull();
+    });
+
+    it('surfaces a "Quick (<30m)" chip that filters to recipes under the 30-minute threshold (#4)', () => {
+        useRecipesMock.mockReturnValue(
+            listResult({
+                data: makeRecipePage([
+                    makeRecipe({ id: 'rec_1', title: 'Overnight Oats', totalTimeMinutes: 5 }),
+                    makeRecipe({ id: 'rec_2', title: "Grandma's Pasta", totalTimeMinutes: 45 }),
+                ]),
+            }),
+        );
+
+        render(<RecipeListScreen onSelectRecipe={noop} />);
+
+        expect(screen.queryByText('quick')).toBeNull();
+        fireEvent.click(screen.getByText('Quick (<30m)'));
+
+        expect(screen.getByRole('button', { name: 'Overnight Oats' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: "Grandma's Pasta" })).toBeNull();
+    });
+
+    it('omits the "Quick (<30m)" chip when no loaded recipe qualifies (other facets still render)', () => {
+        useRecipesMock.mockReturnValue(
+            listResult({
+                data: makeRecipePage([
+                    makeRecipe({
+                        id: 'rec_1',
+                        title: "Grandma's Pasta",
+                        totalTimeMinutes: 45,
+                        cuisine: 'Italian',
+                    }),
+                ]),
+            }),
+        );
+
+        render(<RecipeListScreen onSelectRecipe={noop} />);
+
+        const chips = screen.getByLabelText('Quick filters');
+        expect(within(chips).getByText('Italian')).toBeTruthy();
+        expect(within(chips).queryByText('Quick (<30m)')).toBeNull();
     });
 });

@@ -10,7 +10,7 @@ import type { FC, ReactElement } from 'react';
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.js';
-import { formatRecipeCount, type RecipeListViewProps } from './model.js';
+import { filterChipLabel, formatRecipeCount, type RecipeListViewProps } from './model.js';
 
 /** The loading placeholder — a busy status region with inert skeleton rows (hidden from assistive tech). */
 const LoadingBody: FC<{ label: string }> = ({ label }) => (
@@ -162,7 +162,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                                     active ? 'bg-seafoam text-white' : 'bg-pearl text-slate hover:bg-mist/40'
                                 }`}
                             >
-                                {value}
+                                {filterChipLabel(value, list.filterQuick)}
                             </button>
                         );
                     })}

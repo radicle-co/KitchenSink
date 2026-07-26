@@ -6,6 +6,7 @@ import {
     EnvironmentSchema,
     WebhookEnvironmentSchema,
     getConfig,
+    getErasureFanoutConfig,
     getWebhookConfig,
     isConfigError,
     resetConfigCacheForTests,
@@ -265,5 +266,60 @@ describe('getConfig / getWebhookConfig (memoized cold-start accessors)', () => {
         vi.stubEnv('DELETION_QUEUE_URL', 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue');
 
         expect(getWebhookConfig().IDP_WEBHOOK_SECRET).toBe('whsec_test_123');
+    });
+});
+
+describe('getErasureFanoutConfig (CR-002 / U4b — fail-closed fan-out gate)', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('returns the signing key + recipe/food base URLs when all three are set', () => {
+        vi.stubEnv('SERVICE_ERASURE_SIGNING_KEY', 'PRIVATE-PEM');
+        vi.stubEnv('RECIPE_SERVICE_BASE_URL', 'https://recipe.example.test');
+        vi.stubEnv('FOOD_SERVICE_BASE_URL', 'https://food.example.test');
+
+        expect(getErasureFanoutConfig()).toEqual({
+            signingKeyPem: 'PRIVATE-PEM',
+            recipeBaseUrl: 'https://recipe.example.test',
+            foodBaseUrl: 'https://food.example.test',
+        });
+    });
+
+    it.each([
+        ['SERVICE_ERASURE_SIGNING_KEY'],
+        ['RECIPE_SERVICE_BASE_URL'],
+        ['FOOD_SERVICE_BASE_URL'],
+    ])('throws a ConfigError naming %s when it is missing (never silently skips a leg)', (missing) => {
+        const all = {
+            SERVICE_ERASURE_SIGNING_KEY: 'PRIVATE-PEM',
+            RECIPE_SERVICE_BASE_URL: 'https://recipe.example.test',
+            FOOD_SERVICE_BASE_URL: 'https://food.example.test',
+        } as Record<string, string>;
+
+        for (const [key, value] of Object.entries(all)) {
+            if (key !== missing) {
+                vi.stubEnv(key, value);
+            }
+        }
+
+        let caught: unknown;
+
+        try {
+            getErasureFanoutConfig();
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(isConfigError(caught)).toBe(true);
+        expect((caught as ConfigError).message).toContain(missing);
+    });
+
+    it('treats an EMPTY value as missing (fails closed, not a blank-signing-key erase)', () => {
+        vi.stubEnv('SERVICE_ERASURE_SIGNING_KEY', '');
+        vi.stubEnv('RECIPE_SERVICE_BASE_URL', 'https://recipe.example.test');
+        vi.stubEnv('FOOD_SERVICE_BASE_URL', 'https://food.example.test');
+
+        expect(() => getErasureFanoutConfig()).toThrow(ConfigError);
     });
 });

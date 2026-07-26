@@ -18,6 +18,12 @@ const entryPoints = [
     'src/handlers/identityWebhook.ts',
     'src/handlers/deletion-worker.ts',
     'src/handlers/reconciliation.ts',
+    // The 12-month tombstone → erasure sweep (CR-002 KTD-3). Its WebhooksStack Lambda references
+    // `handlers/tombstone-sweep.handler`, so it MUST bundle here or the asset is missing at runtime.
+    'src/handlers/tombstone-sweep.ts',
+    // The erasure completion-contract reconciliation (CR-002 R7 / U4b). Same — the ErasureReconciliation
+    // Lambda references `handlers/erasure-reconciliation.handler`.
+    'src/handlers/erasure-reconciliation.ts',
     'src/handlers/log-forwarder.ts',
     'src/handlers/migrate.ts',
 ];

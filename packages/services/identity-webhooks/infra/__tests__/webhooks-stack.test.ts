@@ -132,6 +132,48 @@ describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolid
         });
     });
 
+    it('provisions the erasure-reconciliation Lambda on its own daily schedule, distinct from provisioning reconciliation (CR-002 R7)', () => {
+        template.hasResourceProperties('AWS::Lambda::Function', {
+            Handler: 'handlers/erasure-reconciliation.handler',
+        });
+
+        const [erasureReconLogicalId] = Object.entries(
+            template.findResources('AWS::Lambda::Function', {
+                Properties: { Handler: 'handlers/erasure-reconciliation.handler' },
+            }),
+        )[0]!;
+
+        // 05:00 UTC — distinct from provisioning reconciliation (07:00) and the tombstone-sweep (03:00).
+        template.hasResourceProperties('AWS::Events::Rule', {
+            ScheduleExpression: 'cron(0 5 * * ? *)',
+            Targets: [{ Arn: { 'Fn::GetAtt': [erasureReconLogicalId, 'Arn'] } }],
+        });
+    });
+
+    it('alarms when an erasure is left incomplete (R7 detective control)', () => {
+        template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            AlarmName: 'kitchensink-erasure-incomplete-test',
+            Namespace: 'KitchenSink/IdentityWebhooks',
+            MetricName: 'ErasureIncomplete',
+            ComparisonOperator: 'GreaterThanThreshold',
+            Threshold: 0,
+        });
+    });
+
+    it('injects the erasure fan-out config (signing key + recipe/food origins) into the deletion-worker', () => {
+        const [deletionWorker] = Object.values(
+            template.findResources('AWS::Lambda::Function', {
+                Properties: { Handler: 'handlers/deletion-worker.handler' },
+            }),
+        );
+        const envVars = (deletionWorker as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+            .Properties.Environment.Variables;
+
+        expect(envVars).toHaveProperty('SERVICE_ERASURE_SIGNING_KEY');
+        expect(envVars).toHaveProperty('RECIPE_SERVICE_BASE_URL');
+        expect(envVars).toHaveProperty('FOOD_SERVICE_BASE_URL');
+    });
+
     it('grants the webhook role GetSecretValue on the auth secret WITH the -?????? wildcard (regression)', () => {
         // Same bug class as the identity service stack: the auth secret is imported from the data stack's
         // suffix-LESS `SecretArn` export, so the grant must append the `-??????` wildcard to match the

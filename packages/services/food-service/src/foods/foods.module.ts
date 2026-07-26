@@ -18,6 +18,8 @@ import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 import { FoodAuthGuard } from '../auth/food-auth.guard.js';
+import { FoodServiceErasureAuthService } from '../auth/food-service-erasure-auth.service.js';
+import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter, sourceCapsFromEnv } from '../sources/rolling-window-limiter.js';
 import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
@@ -30,12 +32,13 @@ import { FoodSearchDao } from './dao/food-search.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
 import { FoodsController } from './foods.controller.js';
 import { FoodsService } from './foods.service.js';
+import { ServiceErasureController } from './service-erasure.controller.js';
 import { GoldenRecordMergeEngine } from './merge/merge-engine.js';
 import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
 import { UserErasureService } from './user-erasure.service.js';
 
 @Module({
-    controllers: [FoodsController, FoodsAdminController],
+    controllers: [FoodsController, FoodsAdminController, ServiceErasureController],
     providers: [
         FoodsService,
         EnqueueEmitter,
@@ -43,6 +46,11 @@ import { UserErasureService } from './user-erasure.service.js';
         AdminMetricsService,
         UserErasureService,
         FoodAuthGuard,
+        // CR-002 / U4b / R11 — the internal service-principal erasure route's verifier + guard. The guard
+        // is applied via @UseGuards on ServiceErasureController (NOT the FoodAuthGuard middleware below),
+        // so the machine-auth path is structurally distinct from the Clerk user path.
+        FoodServiceErasureAuthService,
+        FoodServiceErasureGuard,
         {
             provide: AdminMetricsDao,
             inject: [DrizzleProvider],

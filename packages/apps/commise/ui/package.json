@@ -19,6 +19,11 @@
             "default": "./dist/index.js"
         },
         "./theme.css": "./dist/theme.css",
+        "./scale": {
+            "types": "./dist/tokens/scale.d.ts",
+            "import": "./dist/tokens/scale.js",
+            "default": "./dist/tokens/scale.js"
+        },
         "./tokens/*": {
             "types": "./dist/tokens/*.d.ts",
             "import": "./dist/tokens/*.js",

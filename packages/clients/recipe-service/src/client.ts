@@ -63,6 +63,7 @@ import type {
     ErasureRequest,
     ErasureRequestAcceptedResponse,
     IngredientCandidate,
+    IngredientSuggestions,
     ListCollectionsParams,
     ListRecipesParams,
     PhotoConfirmRequest,
@@ -405,6 +406,56 @@ export class RecipeServiceClient {
         const res = await this.send('GET', '/v1/ingredients/search', undefined, { q: query, limit });
 
         return this.expect(res, 200, z.array(ingredientSchema));
+    }
+
+    /**
+     * `GET /v1/ingredients/suggest` — the BLENDED ingredient typeahead (search Stage 2): the recipe-service
+     * `ingredients` catalog **plus** the food-service golden catalog, deduped on the opaque food id and
+     * sectioned by provenance (all `local` suggestions precede all `catalog` ones).
+     *
+     * Distinct from {@link searchIngredients}, which stays local-only: `/search` returns `Ingredient[]` whose
+     * ids are usable as recipe-line / search-filter values, whereas a `catalog` suggestion has no ingredient
+     * id yet and must be admitted with {@link addIngredientByFood} when the user picks it.
+     *
+     * The response's `catalogAvailability` reports whether the food catalog contributed: the endpoint degrades
+     * to local-only rather than failing when the food service is slow or down, so treat `'unavailable'` as
+     * "fewer suggestions, tell the user" — never as an error.
+     *
+     * @param query - The name query.
+     * @param limit - Max results PER SECTION (1–50; server default 10).
+     * @returns The blended suggestions plus the catalog's availability.
+     * @throws {BadRequestError} on a blank query; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async suggestIngredients(query: string, limit?: number): Promise<IngredientSuggestions> {
+        const res = await this.send('GET', '/v1/ingredients/suggest', undefined, { q: query, limit });
+
+        return this.expectUnvalidated<IngredientSuggestions>(res, 200);
+    }
+
+    /**
+     * `POST /v1/ingredients/by-food` — admit a `catalog` suggestion as a food-backed ingredient (`200`).
+     *
+     * The Stage-2 pick path. The server reads the food's golden record, creates (or dedup-returns) the
+     * `ingredients` row with the food service's OWN display name, and writes the per-100g nutrition +
+     * household portions through before responding — so the ingredient this resolves with already carries
+     * nutrition. That is why it is `200`, not `by-name`'s `202`: there is nothing to poll for a seeded,
+     * already-`RESOLVED` food. `foodResolutionStatus` on the body remains authoritative, so the rare
+     * still-resolving food routes through the same poll/disambiguate machinery as `by-name`.
+     *
+     * The body carries ONLY `foodId` by design — the display name is never client-supplied, because
+     * `ingredients` is an ownerless catalog shared by every user.
+     *
+     * @param foodId - The opaque food id from a `catalog` suggestion.
+     * @returns The food-backed ingredient, with its golden-record nutrition.
+     * @throws {BadRequestError} when the food cannot back an ingredient (unknown, terminal, still resolving,
+     *   or nameless) or `foodId` is blank/oversized; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async addIngredientByFood(foodId: string): Promise<Ingredient> {
+        const res = await this.send('POST', '/v1/ingredients/by-food', { foodId });
+
+        return this.expect(res, 200, ingredientSchema);
     }
 
     /**

@@ -191,6 +191,72 @@ describe('RecipeServiceClient — ingredients', () => {
         expect(requestAt(fetchMock).url).toBe(`${BASE}/v1/ingredients/search?q=tom`);
     });
 
+    it('suggestIngredients GETs /v1/ingredients/suggest with q + limit and returns the blended envelope (200)', async () => {
+        const envelope = {
+            suggestions: [
+                { provenance: 'local', ingredient: makeIngredient({ id: 'ing_a' }) },
+                { provenance: 'catalog', foodId: '01J0FOOD', name: 'Chicken breast, raw', score: 0.9 },
+            ],
+            catalogAvailability: 'ok',
+        };
+        const fetchMock = stubFetch(200, envelope);
+
+        const result = await makeClient(fetchMock).suggestIngredients('chick', 5);
+
+        expect(result).toEqual(envelope);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        // Mutation guard: the BLENDED read must hit `/suggest`. Falling back to `/search` would silently
+        // un-blend the picker (and return an array where the caller expects an envelope).
+        expect(req.url).toBe(`${BASE}/v1/ingredients/suggest?q=chick&limit=5`);
+    });
+
+    it('suggestIngredients omits the limit query param when limit is not supplied', async () => {
+        const fetchMock = stubFetch(200, { suggestions: [], catalogAvailability: 'ok' });
+
+        await makeClient(fetchMock).suggestIngredients('chick');
+
+        expect(requestAt(fetchMock).url).toBe(`${BASE}/v1/ingredients/suggest?q=chick`);
+    });
+
+    it('suggestIngredients surfaces a degraded catalog as a SUCCESS, not an error (F2)', async () => {
+        const fetchMock = stubFetch(200, { suggestions: [], catalogAvailability: 'unavailable' });
+
+        const result = await makeClient(fetchMock).suggestIngredients('chick');
+
+        expect(result.catalogAvailability).toBe('unavailable');
+    });
+
+    it('addIngredientByFood POSTs /v1/ingredients/by-food with { foodId } and returns the ingredient (200)', async () => {
+        const admitted = makeIngredient({
+            id: 'ing_admitted',
+            name: 'Chicken breast, raw',
+            foodId: '01J0FOOD',
+            foodResolutionStatus: 'RESOLVED',
+            caloriesPer100g: 165,
+        });
+        const fetchMock = stubFetch(200, admitted);
+
+        const result = await makeClient(fetchMock).addIngredientByFood('01J0FOOD');
+
+        expect(result).toEqual(admitted);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        // Mutation guard: the catalog pick must hit `/by-food`, NOT `/by-name` (which would re-enter the
+        // async name fan-out and can split UNRESOLVED) nor the freeform `/v1/ingredients` create.
+        expect(req.url).toBe(`${BASE}/v1/ingredients/by-food`);
+        // And the body carries ONLY the opaque food id — never a client-chosen display name.
+        expect(jsonBody(fetchMock)).toEqual({ foodId: '01J0FOOD' });
+    });
+
+    it('addIngredientByFood treats a 202 (by-name poll status) as an error, not success', async () => {
+        // Guards the deliberate 200 contract: this route completes the work synchronously (row + nutrition
+        // backfill), so it is NOT the 202 "go poll" contract `by-name` has.
+        const fetchMock = stubFetch(202, makeIngredient({ id: 'ing_admitted' }));
+
+        await expect(makeClient(fetchMock).addIngredientByFood('01J0FOOD')).rejects.toThrow();
+    });
+
     it('createIngredient POSTs /v1/ingredients with { name } and returns the ingredient (201)', async () => {
         const created = makeIngredient({ id: 'ing_new', name: 'Sumac', isUserEntered: true });
         const fetchMock = stubFetch(201, created);

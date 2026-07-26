@@ -46,6 +46,7 @@ export {
 } from './errors.js';
 
 export type {
+    AddIngredientByFoodRequest,
     CloneCollectionRequest,
     Collection,
     CollectionMemberRecipe,
@@ -56,6 +57,10 @@ export type {
     ErasureRequest,
     ErasureRequestAcceptedResponse,
     IngredientCandidate,
+    IngredientCatalogAvailability,
+    IngredientSuggestion,
+    IngredientSuggestionProvenance,
+    IngredientSuggestions,
     ListCollectionsParams,
     ListRecipesParams,
     PhotoConfirmRequest,

@@ -264,6 +264,28 @@ export function useSearchIngredients(query: string, limit?: number, options: Que
     });
 }
 
+/**
+ * `GET /v1/ingredients/suggest` — the BLENDED ingredient typeahead (search Stage 2): the local `ingredients`
+ * catalog plus the food-service golden catalog, deduped and sectioned by provenance. This is the ingredient
+ * PICKER's read; {@link useSearchIngredients} stays the local-only read the recipe-search filter needs.
+ *
+ * Disabled for an empty query. The endpoint degrades to local-only rather than failing when the food catalog
+ * is slow/down, so `isError` here means recipe-service itself failed — a degraded catalog arrives as a
+ * successful result whose `catalogAvailability` is `'unavailable'`.
+ *
+ * @param query - The (already debounced) name query.
+ * @param limit - Max results per section.
+ * @param options - Enable gate.
+ */
+export function useSuggestIngredients(query: string, limit?: number, options: QueryEnableOptions = {}) {
+    const client = useRecipeServiceClient();
+
+    return useQuery({
+        ...ingredientQueries(client).suggest(query, limit),
+        enabled: (options.enabled ?? true) && query.length > 0,
+    });
+}
+
 /** Options for {@link useIngredientStatus}. */
 export interface IngredientStatusOptions extends QueryEnableOptions {
     /** Poll cadence (ms) while the food is `PENDING`. Defaults to {@link DEFAULT_INGREDIENT_POLL_INTERVAL_MS}. */
@@ -648,6 +670,30 @@ export function useAddIngredientByName() {
 
     return useMutation({
         mutationFn: (name: string) => client.addIngredientByName(name),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientSearches });
+        },
+    });
+}
+
+/**
+ * `POST /v1/ingredients/by-food` — admit a `catalog` typeahead suggestion as a food-backed ingredient
+ * (search Stage 2's pick path).
+ *
+ * The server creates the row AND backfills its golden-record nutrition in one round-trip, so the ingredient
+ * this resolves with is immediately usable on a recipe line — no poll. On success it stales every cached
+ * ingredient typeahead (`ingredientSearches`, the shared prefix over `/search` AND `/suggest`): the food now
+ * HAS a catalog row, so the very suggestion just picked must move from the `catalog` section to the familiar
+ * `local` one. Without this, re-typing the same query would re-offer it as a catalog hit and cost another
+ * pointless admit round-trip. It does NOT touch the recipe projections — a shared-catalog row changes no
+ * recipe/list/search row until a recipe is saved.
+ */
+export function useAddIngredientByFood() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (foodId: string) => client.addIngredientByFood(foodId),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.ingredientSearches });
         },

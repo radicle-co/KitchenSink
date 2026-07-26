@@ -12,6 +12,7 @@
  */
 import type {
     Collection as CoreCollection,
+    Ingredient,
     Recipe,
     RecipeFacetCount,
     RecipeSearchResult,
@@ -51,6 +52,66 @@ export interface IngredientCandidate {
     readonly name: string;
     /** One-line disambiguation hint, when present. */
     readonly summary: string | null;
+}
+
+/**
+ * Where a blended typeahead suggestion came from (`GET /v1/ingredients/suggest`, search Stage 2).
+ *
+ *  - `local` — a real `ingredients` catalog row. Pickable as-is: its `id` is a valid recipe-line
+ *    `ingredientId`, and it carries whatever nutrition the row already has.
+ *  - `catalog` — a food-service golden record with **no `ingredients` row yet**. It has NO ingredient id and
+ *    NO nutrition; picking it must first ADMIT it via `addIngredientByFood`.
+ */
+export type IngredientSuggestionProvenance = 'local' | 'catalog';
+
+/**
+ * One blended ingredient-typeahead suggestion (response item of `suggestIngredients` —
+ * `GET /v1/ingredients/suggest`). A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two
+ * kinds are structurally different and only one of them is pickable without a round-trip: collapsing them
+ * would force a fabricated ingredient id onto a catalog hit, which ends as a foreign-key violation or a
+ * nutrition-less recipe line. Narrow on `provenance` before using a suggestion.
+ */
+export type IngredientSuggestion =
+    | {
+          readonly provenance: 'local';
+          /** The catalog row, with any nutrition it already carries. */
+          readonly ingredient: Ingredient;
+      }
+    | {
+          readonly provenance: 'catalog';
+          /** The opaque food-service id to pass to `addIngredientByFood`. Never a source-native key. */
+          readonly foodId: string;
+          /** The golden display name. */
+          readonly name: string;
+          /** Relevance score from the food catalog (higher is better). */
+          readonly score: number;
+      };
+
+/**
+ * Whether the food catalog contributed to a blend (F2). Three states, not a boolean, because a consumer
+ * renders each differently: `unavailable` is a transient degradation worth telling the user about, whereas
+ * `disabled` is an operator switching the blend off and must NEVER surface as an error.
+ */
+export type IngredientCatalogAvailability = 'ok' | 'unavailable' | 'disabled';
+
+/**
+ * Response envelope of `suggestIngredients` (`GET /v1/ingredients/suggest`).
+ *
+ * Sectioned, not interleaved: every `local` suggestion precedes every `catalog` one, and that order is
+ * stable. Consumers should render them as two labeled sections — the fast familiar list never reorders when
+ * the catalog section appears or vanishes, which removes the layout-shift class of typeahead jank.
+ */
+export interface IngredientSuggestions {
+    /** The blended, deduped suggestions — local section first. */
+    readonly suggestions: readonly IngredientSuggestion[];
+    /** Whether the food catalog contributed; drives the picker's degraded-catalog notice. */
+    readonly catalogAvailability: IngredientCatalogAvailability;
+}
+
+/** Request body for `addIngredientByFood` (`POST /v1/ingredients/by-food`). */
+export interface AddIngredientByFoodRequest {
+    /** The opaque food-service id taken from a `catalog` suggestion. */
+    readonly foodId: string;
 }
 
 /** Request body for `createPhotoUploadUrl` (`POST /v1/recipes/{id}/photos/upload-url`). */

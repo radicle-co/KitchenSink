@@ -1,10 +1,23 @@
+import { borderSubtle, fontFamily } from '@commise/ui/scale';
 import { palette } from '@commise/ui/tokens/colors';
 import { createTamagui, createTokens, createFont } from 'tamagui';
 
-// Colour hex values have ONE authoritative source: the @commise/ui palette (shared with the web
-// design tokens + Clerk theme). Tamagui keeps its camelCase token keys — required by the theme
-// references below and by `$token` accessors in components — but the values are derived, never
-// re-declared, so web and mobile cannot drift on a colour.
+import {
+    bodyFontSize,
+    bodyLineHeight,
+    displayFontSize,
+    displayLineHeight,
+    fontWeightRamp,
+    radiusScale,
+    sizeScale,
+    spaceScale,
+} from './src/theme/scaleTokens.js';
+
+// Values have ONE authoritative source: the @commise/ui design scale (shared with the web design tokens).
+// Colours derive from the `palette`; the space/size/radius ramps and BOTH font ramps derive from
+// `@commise/ui/scale` via `./src/theme/scaleTokens` — Tamagui keeps its positional numeric keys (required
+// by `$token`/`$size` accessors and the theme references below), but the numbers are derived, never
+// re-declared, so web and mobile cannot drift. The drift guard is `tests/theme/scaleTokens.test.ts`.
 const tokens = createTokens({
     color: {
         seafoam: palette.seafoam,
@@ -23,42 +36,9 @@ const tokens = createTokens({
         error: palette.error,
         premium: palette.premium,
     },
-    space: {
-        0: 0,
-        1: 4,
-        2: 8,
-        3: 12,
-        4: 16,
-        5: 24,
-        6: 32,
-        7: 48,
-        8: 64,
-        9: 96,
-        // Tamagui requires a `true` key equal to the default step (used by `$true` and unsuffixed sizing);
-        // `16` is the base scale value (step 4).
-        true: 16,
-    },
-    size: {
-        0: 0,
-        1: 4,
-        2: 8,
-        3: 12,
-        4: 16,
-        5: 24,
-        6: 32,
-        7: 48,
-        8: 64,
-        9: 96,
-        true: 16,
-    },
-    radius: {
-        0: 0,
-        1: 6,
-        2: 12,
-        3: 20,
-        4: 28,
-        5: 9999,
-    },
+    space: { ...spaceScale },
+    size: { ...sizeScale },
+    radius: { ...radiusScale },
     zIndex: {
         0: 0,
         1: 100,
@@ -67,35 +47,10 @@ const tokens = createTokens({
 });
 
 const bodyFont = createFont({
-    family: 'Inter, system-ui, sans-serif',
-    size: {
-        1: 14,
-        2: 16,
-        3: 18,
-        4: 18,
-        5: 20,
-        6: 24,
-        7: 28,
-        8: 36,
-        9: 48,
-    },
-    lineHeight: {
-        1: 21,
-        2: 24,
-        3: 27,
-        4: 21.6,
-        5: 24,
-        6: 28.8,
-        7: 33.6,
-        8: 43.2,
-        9: 57.6,
-    },
-    weight: {
-        1: '400',
-        2: '500',
-        3: '600',
-        4: '700',
-    },
+    family: fontFamily.body,
+    size: { ...bodyFontSize },
+    lineHeight: { ...bodyLineHeight },
+    weight: { ...fontWeightRamp },
     letterSpacing: {
         1: 0,
         2: 0,
@@ -116,35 +71,10 @@ const bodyFont = createFont({
 });
 
 const displayFont = createFont({
-    family: '"Playfair Display", Georgia, serif',
-    size: {
-        1: 16,
-        2: 20,
-        3: 24,
-        4: 28,
-        5: 36,
-        6: 48,
-        7: 28,
-        8: 36,
-        9: 48,
-    },
-    lineHeight: {
-        1: 19.2,
-        2: 24,
-        3: 28.8,
-        4: 33.6,
-        5: 43.2,
-        6: 57.6,
-        7: 33.6,
-        8: 43.2,
-        9: 57.6,
-    },
-    weight: {
-        1: '400',
-        2: '500',
-        3: '600',
-        4: '700',
-    },
+    family: fontFamily.display,
+    size: { ...displayFontSize },
+    lineHeight: { ...displayLineHeight },
+    weight: { ...fontWeightRamp },
     letterSpacing: {
         1: 0,
         2: 0,
@@ -180,7 +110,7 @@ const config = createTamagui({
             muted: tokens.color.pearl,
             accent: tokens.color.sky,
             destructive: tokens.color.error,
-            borderColor: 'rgba(178, 190, 195, 0.3)',
+            borderColor: borderSubtle,
             focusRing: tokens.color.seafoamLight,
         },
     },

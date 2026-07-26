@@ -4,14 +4,18 @@
  * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — the same P9
  * descriptor-driven contract (facets are DATA dispatched through a `kind → renderer` map), rendered with RN
  * primitives. Dietary + Tags are multi-select chips, Cuisine is single-select (the search API filters by ONE
- * cuisine), and Prep-time + Cook-time (REQ-030f) + Total-time are bucket ladders. Each chip is a
- * `Pressable` exposing its selected state as both the native `selected` trait and `aria-pressed` (what
- * react-native-web surfaces to the DOM for the tests), so on-device readers and the harness agree.
+ * cuisine), Prep-time + Cook-time (REQ-030f) + Total-time are bucket ladders, and Ingredients (FR-006 gap #3)
+ * is a typeahead `TextInput` + result list + removable chips — the container owns its live query/view state
+ * (`useIngredientFilterSearch`) and passes it down as `ingredientSearch`, so this leaf stays presentational
+ * like every other facet. Each chip is a `Pressable` exposing its selected state as both the native
+ * `selected` trait and `aria-pressed` (what react-native-web surfaces to the DOM for the tests), so on-device
+ * readers and the harness agree.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import type { FC, ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { filterMessages, type FilterMessages } from './messages.js';
@@ -27,7 +31,7 @@ import {
 } from './model.js';
 
 /** The kinds of facet the render map knows how to draw. */
-type FacetKind = 'multiChip' | 'singleChip' | 'timeBucket';
+type FacetKind = 'multiChip' | 'singleChip' | 'timeBucket' | 'ingredientTypeahead';
 
 /** One facet, expressed as DATA (P9). The render map dispatches on {@link kind}. */
 interface FacetDescriptor {
@@ -45,6 +49,7 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
     { id: 'maxPrepTime', kind: 'timeBucket', timeField: 'maxPrepTime', labelKey: 'maxPrepTimeLabel' },
     { id: 'maxCookTime', kind: 'timeBucket', timeField: 'maxCookTime', labelKey: 'maxCookTimeLabel' },
     { id: 'maxTotalTime', kind: 'timeBucket', timeField: 'maxTotalTime', labelKey: 'maxTotalTimeLabel' },
+    { id: 'ingredients', kind: 'ingredientTypeahead', labelKey: 'ingredientsLabel' },
 ];
 
 /** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
@@ -75,6 +80,9 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     onSetMaxPrepTime,
     onSetMaxCookTime,
     onSetMaxTotalTime,
+    ingredientSearch,
+    onAddIngredientFilter,
+    onRemoveIngredientFilter,
     onClearAll,
 }) => {
     const m = useMessages(filterMessages);
@@ -157,6 +165,70 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                 }),
             );
         },
+        ingredientTypeahead: ({ labelKey }) => {
+            const selected = filters.ingredients ?? [];
+            const selectedIds = new Set(selected.map((entry) => entry.id));
+            const { viewState } = ingredientSearch;
+            const visibleResults: readonly Ingredient[] =
+                viewState.kind === 'results'
+                    ? viewState.results.filter((ingredient) => !selectedIds.has(ingredient.id))
+                    : [];
+
+            return group(m[labelKey], [
+                <View key="typeahead" style={styles.ingredientTypeahead}>
+                    <TextInput
+                        accessibilityLabel={m.ingredientSearchLabel}
+                        placeholder={m.ingredientSearchPlaceholder}
+                        value={ingredientSearch.query}
+                        onChangeText={ingredientSearch.onQueryChange}
+                        style={styles.ingredientInput}
+                    />
+
+                    {viewState.kind === 'searching' && <View role="status" aria-label={m.ingredientSearching} />}
+
+                    {viewState.kind === 'results' && viewState.isError && (
+                        <View role="alert">
+                            <Text>{m.ingredientSearchError}</Text>
+                        </View>
+                    )}
+
+                    {viewState.kind === 'results' && !viewState.isError && visibleResults.length === 0 && (
+                        <Text style={styles.groupLabel}>{m.ingredientNoMatches}</Text>
+                    )}
+
+                    {visibleResults.length > 0 && (
+                        <View role="list">
+                            {visibleResults.map((ingredient) => (
+                                <Pressable
+                                    key={ingredient.id}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={ingredient.name}
+                                    onPress={() => onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })}
+                                >
+                                    <Text>{ingredient.name}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+                    )}
+
+                    {selected.length > 0 && (
+                        <View style={styles.chipRow}>
+                            {selected.map((entry) => (
+                                <Pressable
+                                    key={entry.id}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
+                                    onPress={() => onRemoveIngredientFilter(entry.id)}
+                                    style={[styles.chip, styles.chipSelected]}
+                                >
+                                    <Text style={styles.chipTextSelected}>{entry.name}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+                    )}
+                </View>,
+            ]);
+        },
     };
 
     return (
@@ -207,4 +279,14 @@ const styles = StyleSheet.create({
     chipTextSelected: { fontSize: 14, fontWeight: '500', color: palette.white },
     clear: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
     clearText: { fontSize: 14, fontWeight: '600', color: palette.seafoam },
+    ingredientTypeahead: { gap: 8, flexBasis: '100%' },
+    ingredientInput: {
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 190, 195, 0.3)',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        fontSize: 14,
+        color: palette.charcoal,
+    },
 });

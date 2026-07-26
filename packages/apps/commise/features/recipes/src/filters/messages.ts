@@ -26,6 +26,20 @@ export interface FilterMessages {
     readonly maxTotalTimeLabel: string;
     /** Time-bucket button template (contains `{minutes}`). */
     readonly timeBucket: string;
+    /** Group label for the ingredient typeahead filter (FR-006 gap #3). */
+    readonly ingredientsLabel: string;
+    /** Accessible name for the ingredient search box. */
+    readonly ingredientSearchLabel: string;
+    /** Placeholder text for the ingredient search box. */
+    readonly ingredientSearchPlaceholder: string;
+    /** Loading status announced while an ingredient search is in flight. */
+    readonly ingredientSearching: string;
+    /** Shown when an ingredient search settles with zero matches. */
+    readonly ingredientNoMatches: string;
+    /** Shown when an ingredient search fails. */
+    readonly ingredientSearchError: string;
+    /** Accessible-name template for a chip that removes a selected ingredient (contains `{name}`). */
+    readonly removeIngredientFilter: string;
     /** Singular chip-count template, folded into a chip's accessible name (contains `{count}`). */
     readonly chipCountOne: string;
     /** Plural chip-count template, folded into a chip's accessible name (contains `{count}`). */
@@ -50,5 +64,12 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         chipCountOther: '{count} recipes',
         clearOne: 'Clear {count} filter',
         clearOther: 'Clear {count} filters',
+        ingredientsLabel: 'Ingredients',
+        ingredientSearchLabel: 'Search ingredients',
+        ingredientSearchPlaceholder: 'e.g. chicken',
+        ingredientSearching: 'Searching ingredients…',
+        ingredientNoMatches: 'No matching ingredients',
+        ingredientSearchError: 'We couldn’t search ingredients. Try again.',
+        removeIngredientFilter: 'Remove {name}',
     },
 };

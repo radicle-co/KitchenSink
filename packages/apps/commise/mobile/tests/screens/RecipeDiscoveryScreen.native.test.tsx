@@ -7,7 +7,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useCloneRecipe,
+    useInfiniteSearchRecipes,
+    useSearchIngredients,
+} from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeDiscoveryScreen } from '../../src/screens/RecipeDiscoveryScreen.js';
 import { makeRecipeSearchResult, makeSearchResponse } from '../__fixtures__/recipes.js';
@@ -15,10 +19,14 @@ import { makeRecipeSearchResult, makeSearchResponse } from '../__fixtures__/reci
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useInfiniteSearchRecipes: vi.fn(),
     useCloneRecipe: vi.fn(),
+    // The screen's filter bar composes `useIngredientFilterSearch` (FR-006 gap #3), which calls this —
+    // idle/disabled by default (no test here types an ingredient query), mirroring the empty-typeahead state.
+    useSearchIngredients: vi.fn(),
 }));
 
 const useSearchRecipesMock = vi.mocked(useInfiniteSearchRecipes);
 const useCloneRecipeMock = vi.mocked(useCloneRecipe);
+const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
 
 /**
  * Build a paginated-search hook double from a flat `data` response — the screen reads `data.pages`,
@@ -53,6 +61,13 @@ beforeEach(() => {
     useSearchRecipesMock.mockReset();
     useCloneRecipeMock.mockReset();
     useCloneRecipeMock.mockReturnValue(cloneMutation());
+    useSearchIngredientsMock.mockReset();
+    useSearchIngredientsMock.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        isSuccess: false,
+        data: undefined,
+    } as unknown as ReturnType<typeof useSearchIngredients>);
 });
 
 describe('RecipeDiscoveryScreen — loading and error', () => {

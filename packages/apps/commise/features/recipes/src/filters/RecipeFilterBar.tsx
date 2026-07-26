@@ -2,14 +2,19 @@
  * @module @commise/features-recipes — web recipe filter bar (FR-006 / W4 S2).
  *
  * Controlled, presentational, facet-driven filter bar built per W9-f **P9**: the facets are DATA — an ordered
- * list of {@link FacetDescriptor}s (`kind: 'multiChip' | 'singleChip' | 'timeBucket'`) — dispatched through a
- * `kind → renderer` map, so a new facet is a descriptor entry, not a new JSX branch. It renders Dietary +
- * Tags (multi-select chips), Cuisine (single-select, since the search API filters by ONE cuisine), and the
- * Prep-time + Cook-time (REQ-030f) + Total-time bucket ladders. It fetches nothing and owns no state: the
- * container passes the latest `facets` + `filters` and receives every change upward. A group with no
- * buckets and no active selection is omitted (never offer an empty filter).
+ * list of {@link FacetDescriptor}s (`kind: 'multiChip' | 'singleChip' | 'timeBucket' | 'ingredientTypeahead'`)
+ * — dispatched through a `kind → renderer` map, so a new facet is a descriptor entry, not a new JSX branch.
+ * It renders Dietary + Tags (multi-select chips), Cuisine (single-select, since the search API filters by
+ * ONE cuisine), the Prep-time + Cook-time (REQ-030f) + Total-time bucket ladders, and the Ingredients
+ * typeahead (FR-006 gap #3). It fetches nothing and owns no state — not even for the ingredient typeahead:
+ * the container owns `useIngredientFilterSearch` (`hooks/useIngredientFilterSearch.ts`) and passes its live
+ * query + view state down as `ingredientSearch`, exactly like `facets`/`filters` are passed down, so this
+ * component stays a pure `props -> JSX` renderer end to end. A group with no buckets/results and no active
+ * selection is omitted (never offer an empty filter) — except the ingredient search box itself, which is
+ * always offered (there is no facet count to gate it on).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import type { FC, ReactElement } from 'react';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
@@ -31,7 +36,7 @@ const CHIP_SELECTED = 'border-seafoam bg-seafoam text-white';
 const CHIP_UNSELECTED = 'border-border bg-card text-charcoal hover:border-seafoam-light';
 
 /** The kinds of facet the render map knows how to draw. */
-type FacetKind = 'multiChip' | 'singleChip' | 'timeBucket';
+type FacetKind = 'multiChip' | 'singleChip' | 'timeBucket' | 'ingredientTypeahead';
 
 /** One facet, expressed as DATA (P9). The render map dispatches on {@link kind}. */
 interface FacetDescriptor {
@@ -52,6 +57,7 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
     { id: 'maxPrepTime', kind: 'timeBucket', timeField: 'maxPrepTime', labelKey: 'maxPrepTimeLabel' },
     { id: 'maxCookTime', kind: 'timeBucket', timeField: 'maxCookTime', labelKey: 'maxCookTimeLabel' },
     { id: 'maxTotalTime', kind: 'timeBucket', timeField: 'maxTotalTime', labelKey: 'maxTotalTimeLabel' },
+    { id: 'ingredients', kind: 'ingredientTypeahead', labelKey: 'ingredientsLabel' },
 ];
 
 /** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
@@ -82,6 +88,9 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     onSetMaxPrepTime,
     onSetMaxCookTime,
     onSetMaxTotalTime,
+    ingredientSearch,
+    onAddIngredientFilter,
+    onRemoveIngredientFilter,
     onClearAll,
 }) => {
     const m = useMessages(filterMessages);
@@ -160,6 +169,76 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                     );
                 }),
             );
+        },
+        ingredientTypeahead: ({ labelKey }) => {
+            const selected = filters.ingredients ?? [];
+            const selectedIds = new Set(selected.map((entry) => entry.id));
+            const { viewState } = ingredientSearch;
+            const visibleResults: readonly Ingredient[] =
+                viewState.kind === 'results'
+                    ? viewState.results.filter((ingredient) => !selectedIds.has(ingredient.id))
+                    : [];
+
+            return group(m[labelKey], [
+                <div key="typeahead" className="flex flex-col gap-2">
+                    <input
+                        type="search"
+                        aria-label={m.ingredientSearchLabel}
+                        placeholder={m.ingredientSearchPlaceholder}
+                        value={ingredientSearch.query}
+                        onChange={(event) => ingredientSearch.onQueryChange(event.target.value)}
+                        className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
+                    />
+
+                    {viewState.kind === 'searching' && (
+                        <p role="status" aria-label={m.ingredientSearching} className="text-body-sm text-slate" />
+                    )}
+
+                    {viewState.kind === 'results' && viewState.isError && (
+                        <p role="alert" className="text-body-sm text-error">
+                            {m.ingredientSearchError}
+                        </p>
+                    )}
+
+                    {viewState.kind === 'results' && !viewState.isError && visibleResults.length === 0 && (
+                        <p className="text-body-sm text-slate">{m.ingredientNoMatches}</p>
+                    )}
+
+                    {visibleResults.length > 0 && (
+                        <ul className="flex flex-col">
+                            {visibleResults.map((ingredient) => (
+                                <li key={ingredient.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })
+                                        }
+                                        className="w-full rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
+                                    >
+                                        {ingredient.name}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {selected.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {selected.map((entry) => (
+                                <button
+                                    key={entry.id}
+                                    type="button"
+                                    aria-label={fillTemplate(m.removeIngredientFilter, { name: entry.name })}
+                                    onClick={() => onRemoveIngredientFilter(entry.id)}
+                                    className={`${CHIP_BASE} ${CHIP_SELECTED}`}
+                                >
+                                    <span aria-hidden="true">{entry.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>,
+            ]);
         },
     };
 

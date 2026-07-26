@@ -14,11 +14,13 @@
 import { RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
 import type { FacetDimension, RecipeDiscoveryStatus } from '@commise/features-recipes';
 import {
+    addIngredientFilter,
     clearRecipeFilters,
     filtersFromQueryString,
     filtersToQueryString,
     filtersToSearchParams,
     hasActiveFilters,
+    removeIngredientFilter,
     setCuisine,
     setMaxCookTime,
     setMaxPrepTime,
@@ -26,6 +28,7 @@ import {
     toggleFacetValue,
     type RecipeFilterState,
 } from '@commise/features-recipes';
+import { useIngredientFilterSearch } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
@@ -73,6 +76,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
 
     const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, query), sortBy });
     const clone = useCloneRecipe();
+    const ingredientSearch = useIngredientFilterSearch();
 
     const status = toDiscoveryStatus(search.isLoading, search.isError);
     const cloningId = clone.isPending ? clone.variables : null;
@@ -124,6 +128,15 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
                     onSetMaxPrepTime={(minutes) => applyCriteria(setMaxPrepTime(filters, minutes), query)}
                     onSetMaxCookTime={(minutes) => applyCriteria(setMaxCookTime(filters, minutes), query)}
                     onSetMaxTotalTime={(minutes) => applyCriteria(setMaxTotalTime(filters, minutes), query)}
+                    ingredientSearch={{
+                        query: ingredientSearch.query,
+                        onQueryChange: ingredientSearch.setQuery,
+                        viewState: ingredientSearch.viewState,
+                    }}
+                    onAddIngredientFilter={(ingredient) =>
+                        applyCriteria(addIngredientFilter(filters, ingredient), query)
+                    }
+                    onRemoveIngredientFilter={(id) => applyCriteria(removeIngredientFilter(filters, id), query)}
                     onClearAll={() => applyCriteria(clearRecipeFilters(), query)}
                 />
             }

@@ -11,17 +11,21 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { RecipeFacetCount } from '@kitchensink/recipe-core';
+import { makeIngredient } from '@kitchensink/recipe-core/testing';
 
 import {
     EMPTY_RECIPE_FILTERS,
     TOTAL_TIME_BUCKETS_MINUTES,
+    addIngredientFilter,
     buildFacetChips,
     clearRecipeFilters,
     countActiveFilters,
+    deriveIngredientFilterSearchViewState,
     filtersFromQueryString,
     filtersToQueryString,
     filtersToSearchParams,
     hasActiveFilters,
+    removeIngredientFilter,
     setCuisine,
     setMaxCookTime,
     setMaxPrepTime,
@@ -168,6 +172,76 @@ describe('setCuisine (S2)', () => {
     });
 });
 
+describe('addIngredientFilter / removeIngredientFilter (FR-006 gap #3)', () => {
+    it('adds an ingredient filter', () => {
+        const state = addIngredientFilter(EMPTY_RECIPE_FILTERS, { id: 'ing_1', name: 'Chicken' });
+
+        expect(state.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
+    });
+
+    it('appends a second ingredient alongside the first', () => {
+        const state = addIngredientFilter(
+            { ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
+            { id: 'ing_2', name: 'Garlic' },
+        );
+
+        expect(state.ingredients).toEqual([
+            { id: 'ing_1', name: 'Chicken' },
+            { id: 'ing_2', name: 'Garlic' },
+        ]);
+    });
+
+    it('is idempotent — re-adding an already-selected id is a no-op (matched by id, not name)', () => {
+        const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
+        const next = addIngredientFilter(state, { id: 'ing_1', name: 'Chicken breast' });
+
+        expect(next).toBe(state);
+        expect(next.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
+    });
+
+    it('does not mutate the input state', () => {
+        const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
+        addIngredientFilter(state, { id: 'ing_2', name: 'Garlic' });
+
+        expect(state.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
+    });
+
+    it('removes a selected ingredient by id', () => {
+        const state: RecipeFilterState = {
+            ingredients: [
+                { id: 'ing_1', name: 'Chicken' },
+                { id: 'ing_2', name: 'Garlic' },
+            ],
+        };
+
+        expect(removeIngredientFilter(state, 'ing_1').ingredients).toEqual([{ id: 'ing_2', name: 'Garlic' }]);
+    });
+
+    it('omits the ingredients key entirely once the last one is removed', () => {
+        const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
+
+        expect('ingredients' in removeIngredientFilter(state, 'ing_1')).toBe(false);
+    });
+
+    it('is a no-op when the id is not selected', () => {
+        const state: RecipeFilterState = { ingredients: [{ id: 'ing_1', name: 'Chicken' }] };
+
+        expect(removeIngredientFilter(state, 'ing_missing')).toBe(state);
+    });
+
+    it('does not mutate the input state', () => {
+        const state: RecipeFilterState = {
+            ingredients: [
+                { id: 'ing_1', name: 'Chicken' },
+                { id: 'ing_2', name: 'Garlic' },
+            ],
+        };
+        removeIngredientFilter(state, 'ing_1');
+
+        expect(state.ingredients).toHaveLength(2);
+    });
+});
+
 describe('countActiveFilters / hasActiveFilters', () => {
     it('counts nothing for the empty state', () => {
         expect(countActiveFilters(EMPTY_RECIPE_FILTERS)).toBe(0);
@@ -178,6 +252,18 @@ describe('countActiveFilters / hasActiveFilters', () => {
         const state: RecipeFilterState = { dietaryFlags: ['vegan', 'keto'], tags: ['quick'], maxTotalTime: 30 };
 
         expect(countActiveFilters(state)).toBe(4);
+        expect(hasActiveFilters(state)).toBe(true);
+    });
+
+    it('counts each selected ingredient as one (FR-006 gap #3)', () => {
+        const state: RecipeFilterState = {
+            ingredients: [
+                { id: 'ing_1', name: 'Chicken' },
+                { id: 'ing_2', name: 'Garlic' },
+            ],
+        };
+
+        expect(countActiveFilters(state)).toBe(2);
         expect(hasActiveFilters(state)).toBe(true);
     });
 
@@ -232,6 +318,21 @@ describe('filtersToSearchParams', () => {
 
     it('forwards a cook-time bound (REQ-030f)', () => {
         expect(filtersToSearchParams({ maxCookTime: 20 }, '')).toEqual({ maxCookTime: 20 });
+    });
+
+    it('forwards ingredient ids only — never the display names (FR-006 gap #3)', () => {
+        const state: RecipeFilterState = {
+            ingredients: [
+                { id: 'ing_1', name: 'Chicken' },
+                { id: 'ing_2', name: 'Garlic' },
+            ],
+        };
+
+        expect(filtersToSearchParams(state, '')).toEqual({ ingredientIds: ['ing_1', 'ing_2'] });
+    });
+
+    it('omits ingredientIds when no ingredient is selected', () => {
+        expect(filtersToSearchParams(EMPTY_RECIPE_FILTERS, '')).not.toHaveProperty('ingredientIds');
     });
 });
 
@@ -293,5 +394,140 @@ describe('filtersToQueryString / filtersFromQueryString', () => {
 
     it('drops blank array entries from a hand-edited URL', () => {
         expect(filtersFromQueryString('tags=&tags=quick').filters.tags).toEqual(['quick']);
+    });
+
+    it('round-trips ingredient filters — id AND display name (FR-006 gap #3)', () => {
+        const state: RecipeFilterState = {
+            ingredients: [
+                { id: 'ing_1', name: 'Chicken' },
+                { id: 'ing_2', name: 'Garlic' },
+            ],
+        };
+        const parsed = filtersFromQueryString(filtersToQueryString(state, 'stir fry'));
+
+        expect(parsed).toEqual({ filters: state, query: 'stir fry' });
+    });
+
+    it('emits paired repeated params for ingredients (the id/name are positionally paired)', () => {
+        const qs = filtersToQueryString({ ingredients: [{ id: 'ing_1', name: 'Chicken' }] }, '');
+
+        expect(qs).toBe('ingredientId=ing_1&ingredientName=Chicken');
+    });
+
+    it('percent-encodes ingredient names', () => {
+        const qs = filtersToQueryString({ ingredients: [{ id: 'ing_1', name: 'Salt & pepper' }] }, '');
+
+        expect(qs).toBe('ingredientId=ing_1&ingredientName=Salt+%26+pepper');
+        expect(filtersFromQueryString(qs).filters.ingredients).toEqual([{ id: 'ing_1', name: 'Salt & pepper' }]);
+    });
+
+    it('omits the ingredients key when none is selected, so the empty state stays canonical', () => {
+        expect('ingredients' in filtersFromQueryString('').filters).toBe(false);
+    });
+
+    it('drops an ingredientId with no paired ingredientName from a hand-edited URL', () => {
+        expect(filtersFromQueryString('ingredientId=ing_1').filters).toEqual(EMPTY_RECIPE_FILTERS);
+    });
+
+    it('drops a blank ingredientId/ingredientName pair from a hand-edited URL', () => {
+        const parsed = filtersFromQueryString('ingredientId=&ingredientName=&ingredientId=ing_2&ingredientName=Garlic');
+
+        expect(parsed.filters.ingredients).toEqual([{ id: 'ing_2', name: 'Garlic' }]);
+    });
+
+    it('dedupes a repeated ingredientId from a hand-edited URL, keeping the first occurrence', () => {
+        const parsed = filtersFromQueryString(
+            'ingredientId=ing_1&ingredientName=Chicken&ingredientId=ing_1&ingredientName=Chicken+thigh',
+        );
+
+        expect(parsed.filters.ingredients).toEqual([{ id: 'ing_1', name: 'Chicken' }]);
+    });
+});
+
+describe('deriveIngredientFilterSearchViewState (FR-006 gap #3)', () => {
+    const chicken = makeIngredient({ id: 'ing_1', name: 'Chicken' });
+
+    it('is idle below the search threshold', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'c',
+                debouncedTrimmed: 'c',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'idle' });
+    });
+
+    it('is idle for a blank query', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: '',
+                debouncedTrimmed: '',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'idle' });
+    });
+
+    it('is searching while the fetch is in flight', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'chic',
+                debouncedTrimmed: 'chic',
+                results: [],
+                isLoading: true,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'searching' });
+    });
+
+    it('is searching while the debounced query has not caught up to the typed query yet', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'chic',
+                debouncedTrimmed: 'ch',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'searching' });
+    });
+
+    it('reports settled results', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'chic',
+                debouncedTrimmed: 'chic',
+                results: [chicken],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'results', results: [chicken], isError: false });
+    });
+
+    it('reports an empty settled result set (no matches)', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'zzz',
+                debouncedTrimmed: 'zzz',
+                results: [],
+                isLoading: false,
+                isError: false,
+            }),
+        ).toEqual({ kind: 'results', results: [], isError: false });
+    });
+
+    it('reports a settled search error', () => {
+        expect(
+            deriveIngredientFilterSearchViewState({
+                trimmed: 'chic',
+                debouncedTrimmed: 'chic',
+                results: [],
+                isLoading: false,
+                isError: true,
+            }),
+        ).toEqual({ kind: 'results', results: [], isError: true });
     });
 });

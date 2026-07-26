@@ -163,6 +163,57 @@ test.describe('recipe search (T110)', () => {
         await expect(page).toHaveURL(/maxCookTime=15/);
     });
 
+    test('narrows public recipes to a selected ingredient (FR-006 gap #3)', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id `ing_salt`
+                // ("Salt") the mocked `/v1/ingredients/search` always returns, regardless of the typed query.
+                // The title deliberately avoids the substring "Salt" so it cannot collide with the ingredient
+                // result button's accessible name below.
+                makeRecipeDetail({ id: 'rec_soup', ownerId: 'usr_other', title: 'Weeknight Ramen Bowl' }),
+                makeRecipeDetail({
+                    id: 'rec_salad',
+                    ownerId: 'usr_other',
+                    title: 'Tropical Fruit Salad',
+                    ingredients: [
+                        { ingredientId: 'ing_mango', name: 'Mango', quantity: 1, unit: 'each', isUserEntered: false },
+                    ],
+                }),
+            ],
+        });
+
+        // BROWSE — both public recipes list before any filter is applied.
+        await page.goto(route('/discover'));
+        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toBeVisible();
+
+        // FILTER — typing an ingredient name surfaces the catalog match; picking it narrows the set. The
+        // non-matching salad disappearing is the assertion that matters: it can only happen if
+        // `ingredientIds=ing_salt` actually reached the API.
+        await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
+        const saltResult = page.getByRole('button', { name: 'Salt' });
+        await expect(saltResult).toBeVisible();
+        await saltResult.click();
+
+        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
+        await expect(page.getByText('1 recipe')).toBeVisible();
+
+        // The picked ingredient renders as a removable chip, and the URL now carries it (shareable / reload-safe).
+        const chip = page.getByRole('button', { name: 'Remove Salt' });
+        await expect(chip).toBeVisible();
+        await expect(page).toHaveURL(/ingredientId=ing_salt/);
+
+        // Removing the chip restores the full browse set.
+        await chip.click();
+        await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
+        await expect(chip).toHaveCount(0);
+    });
+
     test('echoes the query in the results header and re-sorts on demand (W4/S3+S5)', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);

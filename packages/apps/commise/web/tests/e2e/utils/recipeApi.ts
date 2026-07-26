@@ -1443,6 +1443,10 @@ export async function mockRecipeApi(
             const maxTotalTime = maxTotalTimeRaw === null ? undefined : Number(maxTotalTimeRaw);
             const maxCookTimeRaw = url.searchParams.get('maxCookTime');
             const maxCookTime = maxCookTimeRaw === null ? undefined : Number(maxCookTimeRaw);
+            // FR-006 gap #3 — the ingredient filter. Read server-side off the STORED `RecipeDetail.ingredients`
+            // (present on `store`, stripped by `toRecipeMetadata` below) — the real search DAL's
+            // `EXISTS … recipe_ingredients` clause matches the same way, on the recipe's actual ingredient rows.
+            const ingredientIds = url.searchParams.getAll('ingredientIds');
             // Scope to what the caller may see (public + their own) and drop tombstones, as the DAL does.
             const visible = [...store.values()].filter(
                 (recipe) =>
@@ -1467,8 +1471,11 @@ export async function mockRecipeApi(
                     maxTotalTime === undefined || Number.isNaN(maxTotalTime) || recipe.totalTimeMinutes <= maxTotalTime;
                 const cookTimeOk =
                     maxCookTime === undefined || Number.isNaN(maxCookTime) || recipe.cookTimeMinutes <= maxCookTime;
+                const ingredientOk =
+                    ingredientIds.length === 0 ||
+                    recipe.ingredients.some((ingredient) => ingredientIds.includes(ingredient.ingredientId));
 
-                return dietaryOk && tagsOk && timeOk && cookTimeOk;
+                return dietaryOk && tagsOk && timeOk && cookTimeOk && ingredientOk;
             });
             const metadata = filtered.map(toRecipeMetadata);
             const response: RecipeSearchResponse = {

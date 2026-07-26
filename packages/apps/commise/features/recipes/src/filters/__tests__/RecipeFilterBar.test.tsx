@@ -13,11 +13,17 @@ import userEvent from '@testing-library/user-event';
 
 import { RecipeFilterBar } from '../RecipeFilterBar.js';
 import { EMPTY_RECIPE_FILTERS } from '../model.js';
-import type { RecipeFilterBarProps } from '../model.js';
+import type { RecipeFilterBarProps, RecipeIngredientSearchState } from '../model.js';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
+
+const idleIngredientSearch: RecipeIngredientSearchState = {
+    query: '',
+    onQueryChange: noop,
+    viewState: { kind: 'idle' },
+};
 
 function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
     const props: RecipeFilterBarProps = {
@@ -28,6 +34,9 @@ function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
         onSetMaxPrepTime: noop,
         onSetMaxCookTime: noop,
         onSetMaxTotalTime: noop,
+        ingredientSearch: idleIngredientSearch,
+        onAddIngredientFilter: noop,
+        onRemoveIngredientFilter: noop,
         onClearAll: noop,
         ...overrides,
     };
@@ -59,6 +68,7 @@ describe('RecipeFilterBar (web) — structure', () => {
         expect(screen.getByRole('group', { name: 'Prep time' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Cook time' })).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Total time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Ingredients' })).toBeTruthy();
     });
 
     it('renders the time ladders even with no facets, because they are bounds not value lists', () => {
@@ -318,5 +328,147 @@ describe('RecipeFilterBar (web) — cook-time bound (REQ-030f)', () => {
         renderBar({ filters: { maxCookTime: 30 } });
 
         expect(screen.getByRole('button', { name: 'Clear 1 filter' })).toBeTruthy();
+    });
+});
+
+describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)', () => {
+    it('renders the search box with an accessible name and placeholder', () => {
+        renderBar();
+
+        const input = screen.getByLabelText('Search ingredients');
+        expect(input).toBeTruthy();
+        expect(input.getAttribute('placeholder')).toBe('e.g. chicken');
+    });
+
+    it('renders no results list while idle', () => {
+        renderBar();
+
+        expect(screen.queryByRole('list')).toBeNull();
+    });
+
+    it('shows a loading state while searching', () => {
+        renderBar({
+            ingredientSearch: { query: 'chi', onQueryChange: noop, viewState: { kind: 'searching' } },
+        });
+
+        expect(screen.getByRole('status')).toBeTruthy();
+    });
+
+    it('shows a no-matches message for an empty settled result set', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'zzz',
+                onQueryChange: noop,
+                viewState: { kind: 'results', results: [], isError: false },
+            },
+        });
+
+        expect(screen.getByText('No matching ingredients')).toBeTruthy();
+    });
+
+    it('shows an error message when the search failed', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: { kind: 'results', results: [], isError: true },
+            },
+        });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+    });
+
+    it('lists matching ingredients as buttons and reports a pick', async () => {
+        const user = userEvent.setup();
+        const onAddIngredientFilter = vi.fn();
+        renderBar({
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+            onAddIngredientFilter,
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Chicken' }));
+
+        expect(onAddIngredientFilter).toHaveBeenCalledWith({ id: 'ing_1', name: 'Chicken' });
+    });
+
+    it('excludes an already-selected ingredient from the suggestion list', () => {
+        renderBar({
+            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+        });
+
+        expect(screen.queryByRole('button', { name: 'Chicken' })).toBeNull();
+    });
+
+    it('updates the search box via onQueryChange', async () => {
+        const user = userEvent.setup();
+        const onQueryChange = vi.fn();
+        renderBar({ ingredientSearch: { ...idleIngredientSearch, onQueryChange } });
+
+        await user.type(screen.getByLabelText('Search ingredients'), 'c');
+
+        expect(onQueryChange).toHaveBeenCalledWith('c');
+    });
+
+    it('renders selected ingredients as removable chips', () => {
+        renderBar({
+            filters: {
+                ...EMPTY_RECIPE_FILTERS,
+                ingredients: [
+                    { id: 'ing_1', name: 'Chicken' },
+                    { id: 'ing_2', name: 'Garlic' },
+                ],
+            },
+        });
+
+        expect(screen.getByRole('button', { name: 'Remove Chicken' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove Garlic' })).toBeTruthy();
+    });
+
+    it('removes an ingredient chip by id when pressed', async () => {
+        const user = userEvent.setup();
+        const onRemoveIngredientFilter = vi.fn();
+        renderBar({
+            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
+            onRemoveIngredientFilter,
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Remove Chicken' }));
+
+        expect(onRemoveIngredientFilter).toHaveBeenCalledWith('ing_1');
+    });
+
+    it('counts each selected ingredient in the clear-all summary', () => {
+        renderBar({
+            filters: {
+                ...EMPTY_RECIPE_FILTERS,
+                ingredients: [
+                    { id: 'ing_1', name: 'Chicken' },
+                    { id: 'ing_2', name: 'Garlic' },
+                ],
+            },
+        });
+
+        expect(screen.getByRole('button', { name: 'Clear 2 filters' })).toBeTruthy();
     });
 });

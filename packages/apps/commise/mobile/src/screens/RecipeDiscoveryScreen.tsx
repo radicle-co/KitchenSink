@@ -10,9 +10,11 @@
 import {
     RecipeDiscoveryList,
     RecipeFilterBar,
+    addIngredientFilter,
     clearRecipeFilters,
     filtersToSearchParams,
     hasActiveFilters,
+    removeIngredientFilter,
     setCuisine,
     setMaxCookTime,
     setMaxPrepTime,
@@ -23,6 +25,7 @@ import {
     type RecipeDiscoveryStatus,
     type RecipeFilterState,
 } from '@commise/features-recipes';
+import { useIngredientFilterSearch } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useInfiniteSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
@@ -53,6 +56,7 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
 
     const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, searchValue), sortBy });
     const clone = useCloneRecipe();
+    const ingredientSearch = useIngredientFilterSearch();
 
     const status: RecipeDiscoveryStatus = search.isError ? 'error' : search.isLoading ? 'loading' : 'ready';
     const cloningId = clone.isPending ? (clone.variables ?? null) : null;
@@ -89,6 +93,15 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
                     onSetMaxPrepTime={(minutes) => setFilters((current) => setMaxPrepTime(current, minutes))}
                     onSetMaxCookTime={(minutes) => setFilters((current) => setMaxCookTime(current, minutes))}
                     onSetMaxTotalTime={(minutes) => setFilters((current) => setMaxTotalTime(current, minutes))}
+                    ingredientSearch={{
+                        query: ingredientSearch.query,
+                        onQueryChange: ingredientSearch.setQuery,
+                        viewState: ingredientSearch.viewState,
+                    }}
+                    onAddIngredientFilter={(ingredient) =>
+                        setFilters((current) => addIngredientFilter(current, ingredient))
+                    }
+                    onRemoveIngredientFilter={(id) => setFilters((current) => removeIngredientFilter(current, id))}
                     onClearAll={() => setFilters(clearRecipeFilters())}
                 />
             }

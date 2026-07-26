@@ -8,6 +8,9 @@ appId: io.commise.mobile
 #   - "My recipes"  -> CLIENT-side filter over the loaded page (RecipeListScreen's `useMemo`), instant.
 #   - "Discover"    -> SERVER-side search (`useSearchRecipes`, a `query` param per keystroke), needs a wait.
 #
+# Also covers the FR-006 gap #3 ingredient filter (typeahead pick -> chip -> removable), read-only via the
+# seeded catalog ingredient "Flour" (no seed or flow-created recipe is ever attached to it).
+#
 # Read-only: it types and clears text but mutates nothing, so it is order-independent. It anchors on
 # "Asparagus with Green Sauce" and "Herb Risotto" — the two seed rows no other flow renames or deletes.
 - runFlow: ../auth/signin.yaml
@@ -131,6 +134,29 @@ appId: io.commise.mobile
 - tapOn:
       text: 'Under 15 min'
       index: 1
+- extendedWaitUntil:
+      visible: 'Herb Risotto'
+      timeout: 40000
+
+# --- FR-006 gap #3: ingredient filter typeahead -------------------------------------------------------
+# "Flour" is a seeded CATALOG ingredient (recipe-service `SEED_INGREDIENTS`) that NO seed recipe, and no
+# recipe any other flow in this suite creates, is ever attached to — `create.yaml` deliberately types a name
+# OUTSIDE the seeded catalog so its freeform ingredient never collides with it. So filtering by "Flour" is a
+# real, suite-safe assertion: it can only clear the currently-visible public feed (Herb Risotto included) if
+# `ingredientIds=<flour-id>` actually reached the API — a UI that dropped the filter would keep rendering it.
+- tapOn: 'Search ingredients'
+- inputText: 'Flour'
+- extendedWaitUntil:
+      visible: 'Flour'
+      timeout: 40000
+- tapOn: 'Flour'
+- extendedWaitUntil:
+      visible: 'No matching recipes'
+      timeout: 40000
+- assertVisible: 'Remove Flour'
+
+# Removing the chip clears the filter and restores the browse set.
+- tapOn: 'Remove Flour'
 - extendedWaitUntil:
       visible: 'Herb Risotto'
       timeout: 40000

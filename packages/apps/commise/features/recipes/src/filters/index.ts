@@ -11,14 +11,17 @@ export {
     EMPTY_RECIPE_FILTERS,
     TIME_BUCKETS_MINUTES,
     TOTAL_TIME_BUCKETS_MINUTES,
+    addIngredientFilter,
     buildFacetChips,
     clearRecipeFilters,
     countActiveFilters,
+    deriveIngredientFilterSearchViewState,
     filtersFromQueryString,
     filtersToQueryString,
     filtersToSearchParams,
     formatFacetChipName,
     hasActiveFilters,
+    removeIngredientFilter,
     setCuisine,
     setMaxCookTime,
     setMaxPrepTime,
@@ -26,11 +29,15 @@ export {
     toggleFacetValue,
 } from './model.js';
 export type {
+    DeriveIngredientFilterSearchViewStateInput,
     FacetDimension,
+    IngredientFilterSearchViewState,
     RecipeFacetChip,
     RecipeFacets,
     RecipeFilterBarProps,
     RecipeFilterState,
+    RecipeIngredientFilter,
+    RecipeIngredientSearchState,
 } from './model.js';
 
 export { filterMessages } from './messages.js';

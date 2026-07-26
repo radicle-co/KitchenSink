@@ -127,9 +127,7 @@ describe('sentry-scrubbers', () => {
 
         it('pseudonymizes an embedded Clerk sub in free text', () => {
             const sub = 'user_2abcDEFghiJKLmnopqrstuvwx'; // realistic Clerk sub length (24 chars after prefix)
-            expect(scrubText(`provisioning failed for ${sub}`)).toBe(
-                `provisioning failed for ${pseudonymizeId(sub)}`,
-            );
+            expect(scrubText(`provisioning failed for ${sub}`)).toBe(`provisioning failed for ${pseudonymizeId(sub)}`);
         });
     });
 

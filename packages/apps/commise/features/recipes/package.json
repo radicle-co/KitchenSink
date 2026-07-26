@@ -47,7 +47,7 @@
         }
     },
     "devDependencies": {
-        "@expo/vector-icons": "^14.1.0",
+        "@expo/vector-icons": "^15.0.2",
         "@shopify/flash-list": "~2.3.2",
         "expo-image": "~57.0.1",
         "@kitchensink/eslint": "*",

@@ -30,7 +30,7 @@ import { BASE_URL, rampStages, PEAK_VUS } from './lib/common.js';
 // Env-tunable; tighter than recipe's since there is no SQS enqueue.
 const ERASURE_P95_MS = Number(__ENV['FOOD_ERASURE_P95_MS'] || 500);
 // Where prepare-erasure-tokens.ts wrote the pool (relative to the run cwd = the package dir).
-const TOKENS_FILE = __ENV['FOOD_ERASURE_TOKENS_FILE'] || 'tests/load/erasure-tokens.json';
+const TOKENS_FILE = __ENV['FOOD_ERASURE_TOKENS_FILE'] || './erasure-tokens.json';
 
 // Parse the pre-minted pool ONCE in the init context; SharedArray keeps a single copy across all VUs.
 const tokens = JSON.parse(open(TOKENS_FILE));

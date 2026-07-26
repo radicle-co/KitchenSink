@@ -30,7 +30,7 @@ import { BASE_URL, rampStages, PEAK_VUS } from './lib/common.js';
 // p95 budget (ms) for the erasure accept path — a durable job write + one SQS enqueue. Env-tunable.
 const ERASURE_P95_MS = Number(__ENV['RECIPE_ERASURE_P95_MS'] || 500);
 // Where prepare-erasure-tokens.mjs wrote the pool (relative to the run cwd = the package dir).
-const TOKENS_FILE = __ENV['RECIPE_ERASURE_TOKENS_FILE'] || 'tests/load/erasure-tokens.json';
+const TOKENS_FILE = __ENV['RECIPE_ERASURE_TOKENS_FILE'] || './erasure-tokens.json';
 
 // Parse the pre-minted pool ONCE in the init context; SharedArray keeps a single copy across all VUs.
 const tokens = JSON.parse(open(TOKENS_FILE));

@@ -66,6 +66,12 @@ appId: io.commise.mobile
       visible: 'Discover recipes'
       timeout: 40000
 
+# With no query/filter, discovery shows the curated browse rails (U7), not a bare stream — the rail headings
+# render regardless of what the feed contains, so this is seed-drift-immune.
+- assertVisible: 'Trending'
+- assertVisible: 'New'
+- assertVisible: 'Quick'
+
 # A query the server cannot match must yield discovery's empty state. This is the strongest assertion
 # available here that the query REACHES the service: if `query` were dropped from the request the endpoint
 # would return the full public feed and this would fail. It is also immune to seed drift (it does not care
@@ -96,44 +102,47 @@ appId: io.commise.mobile
       visible: 'Herb Risotto'
       timeout: 40000
 
-# --- FR-006 filter bar (facet-driven) ------------------------------------------------------------------
-# The filter bar renders under the search box on Discover. The Prep-time, Cook-time (REQ-030f), and
-# Total-time bucket ladders are always present (they are bounds, not facet value lists) — the first
-# "Under 60 min" is the Prep ladder (W4/S2 orders Dietary · Cuisine · Tags · Prep · Cook · Total). Clearing
-# the term first returns to the full browse set the filter then narrows.
+# --- FR-006 filter bar (now a "Filters" bottom sheet, U7) ----------------------------------------------
+# The ~7 facet groups moved behind a "Filters" button + bottom sheet. Clear the term first (back to browse),
+# then open the sheet: the Prep-time, Cook-time (REQ-030f), and Total-time bucket ladders are always present
+# inside it (bounds, not facet value lists) — the first "Under 60 min" is the Prep ladder (W4/S2 orders
+# Dietary · Cuisine · Tags · Prep · Cook · Total). Applying a bound leaves browse for the result list.
 - tapOn: 'Search public recipes'
 - eraseText
+- tapOn: 'Filters'
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
 # Herb Risotto is 35 min total (and ≤ 60 prep), so selecting a 60-minute bound must keep it — a filter that
-# wrongly dropped a matching recipe fails here. The card may sit below the fold under the tall covers, so
-# scroll to it rather than asserting blind. Scroll back up to the chip to clear the bound (the round trip
-# proves it toggles).
+# wrongly dropped a matching recipe fails here. Close the sheet, then scroll the result grid to the card.
 - tapOn: 'Under 60 min'
+- tapOn: 'Done'
 - scrollUntilVisible:
       element: 'Herb Risotto'
       direction: DOWN
       timeout: 20000
-- scrollUntilVisible:
-      element: 'Under 60 min'
-      direction: UP
-      timeout: 20000
+# Reopen the sheet and press the SAME (now-active) bound again to clear it (the round trip proves it toggles).
+- tapOn: 'Filters'
 - tapOn: 'Under 60 min'
+- tapOn: 'Done'
 
 # --- REQ-030f cook-time filter --------------------------------------------------------------------------
 # Herb Risotto's cook time is 25 min (seed.ts), so an "Under 15 min" COOK bound must exclude it — a filter
 # that dropped maxCookTime would keep rendering it and fail here. "Under 15 min" appears in the Prep, Cook,
 # and Total ladders (in that display order); `index: 1` disambiguates the Cook ladder's button from Prep's
 # identical label.
+- tapOn: 'Filters'
 - tapOn:
       text: 'Under 15 min'
       index: 1
+- tapOn: 'Done'
 - assertNotVisible: 'Herb Risotto'
 # Pressing the SAME (now-active) cook bound again clears it, restoring Herb Risotto to the browse set.
+- tapOn: 'Filters'
 - tapOn:
       text: 'Under 15 min'
       index: 1
+- tapOn: 'Done'
 - extendedWaitUntil:
       visible: 'Herb Risotto'
       timeout: 40000
@@ -144,19 +153,24 @@ appId: io.commise.mobile
 # OUTSIDE the seeded catalog so its freeform ingredient never collides with it. So filtering by "Flour" is a
 # real, suite-safe assertion: it can only clear the currently-visible public feed (Herb Risotto included) if
 # `ingredientIds=<flour-id>` actually reached the API — a UI that dropped the filter would keep rendering it.
+# The ingredient typeahead lives inside the "Filters" sheet.
+- tapOn: 'Filters'
 - tapOn: 'Search ingredients'
 - inputText: 'Flour'
 - extendedWaitUntil:
       visible: 'Flour'
       timeout: 40000
 - tapOn: 'Flour'
+- tapOn: 'Done'
 - extendedWaitUntil:
       visible: 'No matching recipes'
       timeout: 40000
-- assertVisible: 'Remove Flour'
 
-# Removing the chip clears the filter and restores the browse set.
+# Reopen the sheet, confirm the chip, and remove it — clearing the filter restores the browse set.
+- tapOn: 'Filters'
+- assertVisible: 'Remove Flour'
 - tapOn: 'Remove Flour'
+- tapOn: 'Done'
 - extendedWaitUntil:
       visible: 'Herb Risotto'
       timeout: 40000

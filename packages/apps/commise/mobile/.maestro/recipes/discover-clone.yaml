@@ -16,6 +16,10 @@ appId: io.commise.mobile
 # RecipeDiscoveryScreen chrome.
 - assertVisible: 'Discover recipes'
 - assertVisible: 'Search public recipes'
+# With no query the surface shows the curated browse rails (U7); type the recipe's name to switch to the
+# deterministic 2-col result list before reaching for the row.
+- tapOn: 'Search public recipes'
+- inputText: 'Risotto'
 
 # Open + clone the seeded PRO-owned public recipe. The seed is guaranteed present (the CI loop reseeds before
 # every flow), so scroll to it rather than a `when: visible` guard that would silently SKIP when the row is

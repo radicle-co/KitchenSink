@@ -11,6 +11,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { WelcomeScreen } from '../../src/screens/welcome.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
+import { DISPLAY_FONT_BOLD } from '../../src/theme/fonts.js';
 import { gradient, toNativeGradient } from '@commise/ui';
 
 const { welcome } = mobileMessages.en;
@@ -35,6 +36,18 @@ describe('WelcomeScreen (mobile)', () => {
         for (const label of [welcome.features.saveRecipes, welcome.features.planMeals, welcome.features.shopSmarter]) {
             expect(screen.getByText(label)).toBeTruthy();
         }
+    });
+
+    // U8: the wordmark must resolve to a REGISTERED Playfair face. React Native renders a CSS font stack as
+    // the system font — silently, with no error — so this reads the family react-native-web actually applied
+    // (its class-compiled rule; `getComputedStyle` does not resolve it) and rejects any comma-bearing stack.
+    it('paints the wordmark in the registered bold Playfair face, never a CSS font stack', () => {
+        render(<WelcomeScreen onGetStarted={vi.fn()} onSignIn={vi.fn()} />);
+
+        const applied = appliedFontFamily(screen.getByText(welcome.title));
+
+        expect(applied).toBe(DISPLAY_FONT_BOLD);
+        expect(applied).not.toContain(',');
     });
 
     it('paints the "Get started" CTA with the brand gradient (converges with the web CTA)', () => {
@@ -62,3 +75,35 @@ describe('WelcomeScreen (mobile)', () => {
         expect(onSignIn).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * Read back the `font-family` react-native-web ACTUALLY applied to `element`.
+ *
+ * RNW compiles a `StyleSheet` `fontFamily` into an atomic `r-fontFamily-*` class whose rule it injects into
+ * the document; jsdom's `getComputedStyle` does not resolve that rule (it reports the RNW default text
+ * stack), so the honest read is the injected declaration itself. Returns `undefined` when the element
+ * carries no compiled family — which is itself a failure for a leaf that is supposed to set one.
+ */
+function appliedFontFamily(element: Element): string | undefined {
+    const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
+
+    if (className === undefined) {
+        return undefined;
+    }
+
+    const sheets = document.styleSheets;
+
+    for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+        const rules = sheets[sheetIndex]?.cssRules;
+
+        for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+            const rule = rules?.[ruleIndex];
+
+            if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                return rule.style.getPropertyValue('font-family');
+            }
+        }
+    }
+
+    return undefined;
+}

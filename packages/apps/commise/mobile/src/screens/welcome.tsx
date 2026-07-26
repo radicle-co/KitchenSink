@@ -18,6 +18,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { mobileMessages } from '../i18n/messages.js';
+import { DISPLAY_FONT_BOLD } from '../theme/fonts.js';
 
 export interface WelcomeScreenProps {
     /** Enter the sign-up flow (the primary "Get started" CTA). */
@@ -93,8 +94,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     logoText: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.white },
+    // The wordmark rides the REGISTERED bold Playfair face: React Native resolves `fontFamily` to one
+    // registered face name, so a CSS stack would silently render the system font instead of the brand type.
     title: {
-        fontFamily: nativeTokens.fontFamily.display,
+        fontFamily: DISPLAY_FONT_BOLD,
         fontSize: nativeTokens.fontSize.displayXl,
         fontWeight: '700',
         color: palette.charcoal,

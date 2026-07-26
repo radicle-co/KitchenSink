@@ -97,9 +97,12 @@ describe('type agreement', () => {
         }
     });
 
-    it('font families are identical strings across web, native, and scale', () => {
-        expect(nativeTokens.fontFamily).toEqual(scale.fontFamily);
+    // The font FAMILY stacks are a web-only projection: they agree with the scale, and native deliberately
+    // carries registered face names instead (a stack is a silent no-op in React Native — see
+    // `nativeFontFace.test.ts`, which owns that contract).
+    it('font families: web stacks ↔ scale stacks (native carries faces, not stacks)', () => {
         expect(fonts).toEqual(scale.fontFamily);
+        expect(nativeTokens.fontFace.display).toEqual(scale.displayFontFace);
     });
 });
 

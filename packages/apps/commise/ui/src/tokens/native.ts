@@ -6,8 +6,8 @@
  */
 import {
     borderSubtle,
+    displayFontFace,
     elevation,
-    fontFamily,
     fontSize,
     fontWeight,
     lineHeightRatio,
@@ -49,12 +49,17 @@ const nativeElevation = {
 /**
  * The React Native projection of the design scale. `spacing`/`radius`/`fontSize` are pixel numbers,
  * `lineHeight` are unitless ratios, `fontWeight` are numeric weights, `elevation` are RN shadow objects,
- * and `fontFamily`/`borderSubtle` are the shared strings.
+ * and `borderSubtle` is the shared string.
+ *
+ * Type is projected as `fontFace` — the REGISTERED face names — and NOT as the web `fontFamily` stacks:
+ * React Native resolves `fontFamily` to one registered face, so handing it a stack silently renders the
+ * system font. Withholding the stack here is what makes that bug unrepresentable on native (guarded by
+ * `__tests__/nativeFontFace.test.ts`).
  */
 export const nativeTokens = {
     spacing,
     radius,
-    fontFamily,
+    fontFace: { display: displayFontFace },
     fontWeight,
     lineHeight: lineHeightRatio,
     fontSize,

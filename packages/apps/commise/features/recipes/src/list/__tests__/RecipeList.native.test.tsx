@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { nativeTokens } from '@commise/ui/native';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -66,9 +67,18 @@ describe('RecipeList (native) — chrome', () => {
 });
 
 describe('RecipeList (native) — U8 brand title band', () => {
-    // The heading's Playfair `display` family (U8) is a react-native-web class-compiled `fontFamily` that
-    // jsdom's getComputedStyle does not surface reliably; the family is covered by the single-source scale
-    // tests and its on-device rendering by Maestro. Here we assert the gradient band via the stub marker.
+    // The heading must resolve to a REGISTERED Playfair face: React Native renders a CSS font stack as the
+    // system font, silently and without error. `getComputedStyle` does not resolve react-native-web's
+    // class-compiled family, so this reads the injected declaration and rejects any comma-bearing stack.
+    it('paints the heading in the registered bold Playfair face, never a CSS font stack', () => {
+        renderList({ status: 'loading' });
+
+        const applied = appliedFontFamily(screen.getByRole('heading', { name: 'Recipes' }));
+
+        expect(applied).toBe(nativeTokens.fontFace.display.bold);
+        expect(applied).not.toContain(',');
+    });
+
     it('sits the heading in a brand gradient title band', () => {
         const { container } = render(
             <RecipeList
@@ -288,3 +298,35 @@ describe('RecipeList (native) — populated state', () => {
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
 });
+
+/**
+ * Read back the `font-family` react-native-web ACTUALLY applied to `element`.
+ *
+ * RNW compiles a `StyleSheet` `fontFamily` into an atomic `r-fontFamily-*` class whose rule it injects into
+ * the document; jsdom's `getComputedStyle` does not resolve that rule (it reports the RNW default text
+ * stack), so the honest read is the injected declaration itself. Returns `undefined` when the element
+ * carries no compiled family — which is itself a failure for a leaf that is supposed to set one.
+ */
+function appliedFontFamily(element: Element): string | undefined {
+    const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
+
+    if (className === undefined) {
+        return undefined;
+    }
+
+    const sheets = document.styleSheets;
+
+    for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+        const rules = sheets[sheetIndex]?.cssRules;
+
+        for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+            const rule = rules?.[ruleIndex];
+
+            if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                return rule.style.getPropertyValue('font-family');
+            }
+        }
+    }
+
+    return undefined;
+}

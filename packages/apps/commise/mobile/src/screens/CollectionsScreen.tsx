@@ -35,6 +35,8 @@ export function CollectionsScreen({ onSelect, onCreate }: CollectionsScreenProps
             onSelect={onSelect}
             onCreate={onCreate}
             onRetry={() => void query.refetch()}
+            // Pull-to-refresh (U4/L8): the spinner tracks the in-flight refetch; pulling re-runs the query.
+            refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
             loadMore={{
                 hasMore: query.hasNextPage,
                 loading: query.isFetchingNextPage,

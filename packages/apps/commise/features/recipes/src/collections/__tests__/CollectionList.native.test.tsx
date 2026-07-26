@@ -62,6 +62,27 @@ describe('CollectionList (native) — loading state', () => {
         expect(screen.getByLabelText('Loading collections')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Weeknight Dinners' })).toBeNull();
     });
+
+    it('renders inert skeleton cards (not a blank view) while loading (U4)', () => {
+        renderList({ status: 'loading' });
+
+        const region = screen.getByLabelText('Loading collections');
+        expect(region.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
+    });
+});
+
+describe('CollectionList (native) — pull-to-refresh (U4/L8)', () => {
+    it('still renders the populated rows when a refresh control is wired (RefreshControl is inert in jsdom)', () => {
+        // The pull gesture + spinner are a device/Maestro concern; this guards that wiring the control through
+        // the virtualized list does not break the body.
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            refresh: { refreshing: true, onRefresh: noop },
+        });
+
+        expect(screen.getByRole('button', { name: 'Weeknight Dinners' })).toBeTruthy();
+    });
 });
 
 describe('CollectionList (native) — error state', () => {

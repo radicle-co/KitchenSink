@@ -134,6 +134,8 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
             onSelectRecipe={onSelectRecipe}
             onClone={(id) => clone.mutate(id)}
             onRetry={() => void search.refetch()}
+            // Pull-to-refresh (U4/L8): the spinner tracks the in-flight refetch; pulling re-runs the search.
+            refresh={{ refreshing: search.isRefetching, onRefresh: () => void search.refetch() }}
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
             sort={{ active: sortBy, onChange: setSortBy }}

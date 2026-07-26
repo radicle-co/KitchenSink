@@ -73,6 +73,10 @@ export default defineConfig({
             // module, absent under jsdom — stub it to react-native-web's Image (same approach as
             // features-recipes' own native config).
             'expo-image': path.resolve(import.meta.dirname, 'tests/stubs/expoImage.tsx'),
+            // `@shopify/flash-list` is a native (Fabric) recycler with no jsdom runtime — the mobile screens
+            // that compose the virtualized recipe/collection/discovery lists render through this stub (same
+            // approach as `expo-image`; virtualization is a device/Maestro concern).
+            '@shopify/flash-list': path.resolve(import.meta.dirname, 'tests/stubs/flashList.tsx'),
         },
     },
 });

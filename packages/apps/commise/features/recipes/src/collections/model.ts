@@ -9,6 +9,8 @@ import type { Locale } from '@commise/i18n';
 import type { Collection, Recipe, RecipeCollectionAddedVia, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
 
+import type { RecipeListRefreshControl } from '../list/model.js';
+
 /**
  * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
  * lightweight one-line-per-recipe chooser (title + an add control) — deliberately NOT the full mockup
@@ -75,6 +77,12 @@ export interface CollectionListViewProps {
      * `useCollectionsInfinite`); the composing container (Task 12) wires it off `useCollectionsInfinite`.
      */
     readonly loadMore?: CollectionListLoadMore;
+    /**
+     * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Reuses
+     * the {@link import('../list/model.js').RecipeListRefreshControl} shape (one pull-to-refresh contract
+     * across every list). The composing container wires it to the query's `isRefetching` + `refetch`.
+     */
+    readonly refresh?: RecipeListRefreshControl;
 }
 
 /**

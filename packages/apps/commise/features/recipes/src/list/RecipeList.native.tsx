@@ -3,15 +3,28 @@
  *
  * The React Native leaf of {@link import('./RecipeList.js').RecipeList} — same controlled, presentational
  * contract and the same four states (loading, error, empty, populated), rendered with RN primitives.
+ *
+ * U4: the populated rows are virtualized with FlashList v2 (cell recycling; v2 auto-measures, so NO
+ * `estimatedItemSize`) instead of a `ScrollView + .map`, the blank loading view became inert card skeletons,
+ * pull-to-refresh is wired through the recycler, and the styles derive from the shared design scale
+ * (`nativeTokens`) with 44pt touch targets on the source tabs.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
 import { filterChipLabel, formatRecipeCount, type RecipeListViewProps } from './model.js';
+
+/** The inter-card gap, hoisted so the FlashList separator and the header spacer share one value. */
+const CARD_GAP = nativeTokens.spacing[3];
+
+/** How many inert skeleton cards the blank loading state renders. */
+const SKELETON_COUNT = 3;
 
 export const RecipeList: FC<RecipeListViewProps> = ({
     status,
@@ -32,7 +45,16 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     let body: ReactElement;
 
     if (status === 'loading') {
-        body = <View accessibilityLabel={list.loadingLabel} />;
+        // Skeleton cards (NOT a blank view — the previous bug): inert, motion-free placeholders shaped like a
+        // recipe card, so the surface has structure while the first page loads. Motion-free ⇒ no reduce-motion
+        // gate is needed (there is no non-essential animation to suppress). Mirrors the discovery skeletons.
+        body = (
+            <View accessibilityLabel={list.loadingLabel} style={styles.cards}>
+                {Array.from({ length: SKELETON_COUNT }, (_value, index) => (
+                    <View key={index} aria-hidden style={styles.skeletonCard} />
+                ))}
+            </View>
+        );
     } else if (status === 'error') {
         body = (
             <View accessibilityRole="alert">
@@ -67,25 +89,28 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     } else {
         const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
-        // ScrollView, not View: the full-bleed 4:3 cover cards mean only ~1 card fits the viewport, so without
-        // scrolling every recipe past the first is unreachable. The header + search stay pinned above it.
+        // FlashList (U4), not ScrollView + .map: the full-bleed 4:3 cover cards mean only ~1 card fits the
+        // viewport, so the list must both scroll AND recycle cells as it grows. v2 auto-measures — no
+        // `estimatedItemSize`. The count is the list header; a spacer separator keeps the inter-card rhythm
+        // (FlashList lays out cells itself, so gap goes through a separator, not `contentContainerStyle`).
+        // The header + search stay pinned above. Pull-to-refresh (L8) binds to the query refetch; absent on
+        // web (no gesture).
         body = (
-            <ScrollView
+            <FlashList
+                data={recipes}
+                keyExtractor={(recipe) => recipe.id}
+                renderItem={({ item }) => <RecipeListCard recipe={item} onSelect={onSelectRecipe} />}
+                ListHeaderComponent={<Text style={styles.count}>{count}</Text>}
+                ItemSeparatorComponent={CardSeparator}
                 style={styles.cardsScroll}
                 contentContainerStyle={styles.cards}
                 keyboardShouldPersistTaps="handled"
-                // Pull-to-refresh (L8): bound to the query refetch by the container; absent on web (no gesture).
                 refreshControl={
                     refresh !== undefined ? (
                         <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
                     ) : undefined
                 }
-            >
-                <Text style={styles.count}>{count}</Text>
-                {recipes.map((recipe) => (
-                    <RecipeListCard key={recipe.id} recipe={recipe} onSelect={onSelectRecipe} />
-                ))}
-            </ScrollView>
+            />
         );
     }
 
@@ -182,35 +207,41 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     );
 };
 
+/** The inter-card spacer for the virtualized list (FlashList lays cells out itself, so gap is a separator). */
+const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
+
 const styles = StyleSheet.create({
-    container: { flex: 1, gap: 16, paddingHorizontal: 16, paddingTop: 8 },
+    container: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2] },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    heading: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
     createButton: {
         backgroundColor: palette.seafoam,
-        borderRadius: 999,
+        borderRadius: nativeTokens.radius.full,
         paddingVertical: 10,
         paddingHorizontal: 18,
+        minHeight: 44,
+        justifyContent: 'center',
     },
-    createLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    emptyBody: { gap: 12, alignItems: 'flex-start' },
-    tabs: { flexDirection: 'row', gap: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(178, 190, 195, 0.3)' },
-    tab: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    createLabel: { color: palette.white, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
+    emptyBody: { gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
+    // The mine/community source tabs are a 44pt touch target (RC-3); the underline sits at the row's foot.
+    tabs: { flexDirection: 'row', gap: nativeTokens.spacing[2], borderBottomWidth: 1, borderBottomColor: nativeTokens.borderSubtle },
+    tab: { paddingHorizontal: nativeTokens.spacing[4], minHeight: 44, justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
     tabSelected: { borderBottomColor: palette.seafoam },
-    tabLabel: { fontSize: 14, fontWeight: '600', color: palette.slate },
+    tabLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.slate },
     tabLabelSelected: { color: palette.seafoam },
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: palette.pearl },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
+    chip: { borderRadius: nativeTokens.radius.full, paddingHorizontal: nativeTokens.spacing[3], paddingVertical: 6, backgroundColor: palette.pearl },
     chipActive: { backgroundColor: palette.seafoam },
-    chipLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
-    chipLabelActive: { fontSize: 14, fontWeight: '500', color: palette.white },
+    chipLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
+    chipLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
     fab: {
         position: 'absolute',
-        right: 16,
-        bottom: 24,
+        right: nativeTokens.spacing[4],
+        bottom: nativeTokens.spacing[5],
         width: 56,
         height: 56,
-        borderRadius: 999,
+        borderRadius: nativeTokens.radius.full,
         backgroundColor: palette.seafoam,
         alignItems: 'center',
         justifyContent: 'center',
@@ -220,18 +251,21 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         elevation: 4,
     },
-    fabLabel: { color: palette.white, fontSize: 28, fontWeight: '700', lineHeight: 32 },
+    fabLabel: { color: palette.white, fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', lineHeight: 32 },
     search: {
         backgroundColor: palette.white,
-        borderRadius: 999,
+        borderRadius: nativeTokens.radius.full,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        fontSize: 16,
+        borderColor: nativeTokens.borderSubtle,
+        paddingVertical: nativeTokens.spacing[3],
+        paddingHorizontal: nativeTokens.spacing[4],
+        fontSize: nativeTokens.fontSize.bodyMd,
         color: palette.charcoal,
     },
-    count: { fontSize: 13, fontWeight: '500', color: palette.slate },
+    count: { fontSize: 13, fontWeight: '500', color: palette.slate, marginBottom: CARD_GAP },
     cardsScroll: { flex: 1 },
-    cards: { gap: 12, paddingBottom: 24 },
+    cards: { paddingBottom: nativeTokens.spacing[5] },
+    cardSeparator: { height: CARD_GAP },
+    // Inert loading placeholder shaped like a recipe card (cover + body height); borderSubtle fill, no motion.
+    skeletonCard: { height: 300, borderRadius: nativeTokens.radius.lg, backgroundColor: nativeTokens.borderSubtle, marginBottom: CARD_GAP },
 });

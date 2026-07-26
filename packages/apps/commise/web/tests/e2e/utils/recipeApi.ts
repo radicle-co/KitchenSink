@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import {
+    FoodResolutionStatus,
     usesPremiumCapability,
     type Ingredient,
     type PaginatedResponse,
@@ -471,6 +472,25 @@ const catalogIngredient: Ingredient = {
 };
 
 /**
+ * Search Stage 2 — the food-catalog side of the blended typeahead: a golden record with NO `ingredients` row
+ * yet. Picking it must go through `POST /v1/ingredients/by-food` (which the router below admits as
+ * {@link admittedCatalogIngredient}), never straight onto a recipe line — it has no ingredient id.
+ */
+const catalogSuggestionFoodId = 'food_black_pepper';
+const catalogSuggestionName = 'Pepper, black, ground';
+
+/** The `ingredients` row `POST /v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
+const admittedCatalogIngredient: Ingredient = {
+    id: 'ing_black_pepper',
+    name: catalogSuggestionName,
+    foodId: catalogSuggestionFoodId,
+    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+    isUserEntered: false,
+    caloriesPer100g: 251,
+    createdAt: ISO,
+};
+
+/**
  * Read the authenticated viewer's app-user id from the live Clerk session token's `external_id` claim — the
  * SAME claim the recipe UI (and the recipe service, fail-closed) uses as the owner key for owner-only actions
  * (delete/edit/visibility). The mock seeds recipe `ownerId` with this so those controls render for the test
@@ -764,8 +784,48 @@ export async function mockRecipeApi(
         }
 
         // Ingredient typeahead + freeform create.
+        //
+        // TWO typeahead routes since search Stage 2, deliberately distinct:
+        //  - `/search` — LOCAL only, an `Ingredient[]`. The recipe-SEARCH ingredient filter's read, whose
+        //    result ids become `ingredientIds` filter values.
+        //  - `/suggest` — the BLENDED envelope the ingredient PICKER reads: the caller's own rows plus
+        //    food-catalog golden records that have no `ingredients` row yet, sectioned by provenance.
+        // Matched BEFORE the bare `/v1/ingredients` create route so the longer paths win.
         if (path.endsWith('/v1/ingredients/search')) {
             return route.fulfill({ json: [catalogIngredient] });
+        }
+
+        if (path.endsWith('/v1/ingredients/suggest')) {
+            return route.fulfill({
+                json: {
+                    suggestions: [
+                        { provenance: 'local', ingredient: catalogIngredient },
+                        {
+                            provenance: 'catalog',
+                            foodId: catalogSuggestionFoodId,
+                            name: catalogSuggestionName,
+                            score: 0.88,
+                        },
+                    ],
+                    catalogAvailability: 'ok',
+                },
+            });
+        }
+
+        // Search Stage 2's pick path: admit a catalog suggestion as a food-backed row that ALREADY carries
+        // nutrition (the server does the golden-record read + backfill before responding — hence 200, not the
+        // 202 `by-name` returns). An unknown food id is a 400, mirroring `UNKNOWN_INGREDIENT`.
+        if (path.endsWith('/v1/ingredients/by-food') && method === 'POST') {
+            const { foodId } = body() as { foodId?: string };
+
+            if (foodId !== catalogSuggestionFoodId) {
+                return route.fulfill({
+                    status: 400,
+                    json: { code: 'UNKNOWN_INGREDIENT', message: `Food '${foodId ?? ''}' cannot back an ingredient.` },
+                });
+            }
+
+            return route.fulfill({ json: admittedCatalogIngredient });
         }
 
         if (path.endsWith('/v1/ingredients') && method === 'POST') {

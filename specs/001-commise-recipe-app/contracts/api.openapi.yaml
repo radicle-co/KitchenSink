@@ -311,12 +311,15 @@ paths:
     /v1/ingredients/search:
         get:
             tags: [Ingredients]
-            summary: Search ingredients by name (autocomplete, fuzzy)
+            summary: Search the LOCAL ingredient catalog by name (autocomplete, fuzzy)
             description: |
-                Thin proxy over the source-agnostic food service (003) via its typed client
-                (`@kitchensink/food-service-client` → `foodClient.search(query)`). Returns known
-                foods for typeahead; foods are referenced by the food service's internal id and
-                nutrition resolves asynchronously (see the `Ingredient.foodResolutionStatus` field).
+                A ranked fuzzy (`pg_trgm`) + full-text search over the shared recipe-service `ingredients`
+                catalog ONLY. Every element is a real catalog row, so its `id` is usable directly as a
+                recipe line's `ingredientId` AND as a recipe-search `ingredientIds` filter value — which is
+                why this route stays local-only and is NOT blended.
+
+                For the ingredient PICKER's typeahead use `GET /v1/ingredients/suggest`, which blends this
+                catalog with the food service's golden catalog (search Stage 2).
             operationId: searchIngredients
             parameters:
                 - name: q
@@ -343,6 +346,71 @@ paths:
                                 type: array
                                 items:
                                     $ref: '#/components/schemas/Ingredient'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+
+    /v1/ingredients/suggest:
+        get:
+            tags: [Ingredients]
+            summary: Blended ingredient typeahead — local catalog + food catalog (search Stage 2)
+            description: |
+                The ingredient PICKER's read. Returns a blended, deduped, provenance-SECTIONED suggestion
+                set: the shared recipe-service `ingredients` catalog (rows already used in a recipe) PLUS
+                the food service's golden catalog (003) — including the lab-analyzed USDA records seeded by
+                the bulk importer, which are invisible to `GET /v1/ingredients/search` until somebody
+                add-by-names them.
+
+                **Shape.** `suggestions` is a DISCRIMINATED UNION on `provenance`, not a widened
+                `Ingredient`, because the two kinds are not interchangeable:
+                  * `local` — a real `ingredients` row (`ingredient`), pickable as-is.
+                  * `catalog` — a food-service golden record with **no `ingredients` row yet**: it has NO
+                    ingredient id and NO nutrition, and picking it MUST first admit it via
+                    `POST /v1/ingredients/by-food`.
+
+                **Ordering.** Every `local` suggestion precedes every `catalog` one, and the sections are
+                never interleaved, so a client can render two stable labeled lists without the fast local
+                list reordering when the catalog section appears or vanishes.
+
+                **Dedup.** A food that already has an `ingredients` row appears EXACTLY ONCE, as `local`
+                (deduped on the opaque `food_id`).
+
+                **Availability (F2).** This route adds a cross-service call to a per-keystroke path, so it
+                is bounded by a short timeout and DEGRADES rather than fails: a slow or unavailable food
+                service still returns `200` with the local section and `catalogAvailability: 'unavailable'`.
+                Treat that as "fewer suggestions, tell the user" — never as an error. `'disabled'` means an
+                operator switched the blend off and MUST NOT be surfaced as an incident.
+
+                `limit` bounds each SECTION independently (not the total), because the sections render as
+                separate lists — a full local section must not squeeze the catalog section out.
+            operationId: suggestIngredients
+            parameters:
+                - name: q
+                  in: query
+                  required: true
+                  description: Ingredient name query
+                  schema:
+                      type: string
+                      minLength: 1
+                - name: limit
+                  in: query
+                  required: false
+                  description: Max suggestions PER SECTION
+                  schema:
+                      type: integer
+                      minimum: 1
+                      maximum: 50
+                      default: 10
+            responses:
+                '200':
+                    description: |
+                        The blended suggestions plus whether the food catalog contributed. Returned even when
+                        the food catalog is unavailable (see `catalogAvailability`).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/IngredientSuggestions'
+                '400':
+                    $ref: '#/components/responses/BadRequest'
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
@@ -401,6 +469,55 @@ paths:
                     description: |
                         The food-backed ingredient was created/deduped; nutrition resolution proceeds
                         asynchronously (poll its status). Its `foodResolutionStatus` is non-terminal.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Ingredient'
+                '400':
+                    $ref: '#/components/responses/BadRequest'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+                '423':
+                    $ref: '#/components/responses/ErasureLocked'
+
+    /v1/ingredients/by-food:
+        post:
+            tags: [Ingredients]
+            summary: Admit a food-catalog suggestion as a food-backed ingredient (search Stage 2 pick)
+            description: |
+                The pick path for a `catalog` suggestion from `GET /v1/ingredients/suggest`. The server reads
+                the food's golden record, creates (or dedup-returns, on the opaque `food_id`) the
+                `ingredients` row, and writes its per-100g nutrition + household portions through BEFORE
+                responding — so the returned ingredient already carries nutrition.
+
+                Returns **`200 OK`, not `202`** — the deliberate contrast with `POST /v1/ingredients/by-name`.
+                `by-name` is `202` because resolving an unknown food is genuinely asynchronous. Here the food
+                is an already-`RESOLVED` golden record, so there is nothing to wait for and telling the caller
+                to poll would be a lie. In the anomalous case where the food is unexpectedly still
+                `PENDING`/`UNRESOLVED` and a row already exists, that status comes back in the body and the
+                caller uses the SAME poll/disambiguate machinery — `foodResolutionStatus` stays authoritative.
+
+                The body carries ONLY `foodId`. The display name is read from the food service and is NEVER
+                client-supplied: `ingredients` is an ownerless catalog shared by every user (data-model R5), so
+                a caller-chosen label would mislabel a real food's nutrition for everyone. A `name` field in
+                the body is stripped by the validation whitelist.
+
+                A food that cannot back an ingredient — unknown or terminal to the food service, still
+                mid-resolution, or resolved but nameless — is a `400` (`UNKNOWN_INGREDIENT`), and NOTHING is
+                written. The caller's remedy is a different action (`by-name`, or the freeform create), not a
+                retry.
+            operationId: addIngredientByFood
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AddIngredientByFoodRequest'
+            responses:
+                '200':
+                    description: |
+                        The food-backed ingredient, `RESOLVED` and carrying its golden-record per-100g
+                        nutrition + portions (created, or deduped on its `food_id`).
                     content:
                         application/json:
                             schema:
@@ -2020,6 +2137,85 @@ components:
                     type: string
                     minLength: 1
                     maxLength: 120
+
+        AddIngredientByFoodRequest:
+            type: object
+            required: [foodId]
+            description: |
+                Body of `POST /v1/ingredients/by-food`. Deliberately carries ONLY the opaque food id — there is
+                no `name` field, and one sent anyway is stripped by the validation whitelist (see that route's
+                description for why a client must never label a row in the shared, ownerless catalog).
+            properties:
+                foodId:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                    description: |
+                        The opaque food-service internal id taken from a `catalog` suggestion. Never a
+                        source-native key (no USDA `fdcId` crosses this boundary — FR-IDN-2).
+
+        IngredientSuggestion:
+            oneOf:
+                - $ref: '#/components/schemas/LocalIngredientSuggestion'
+                - $ref: '#/components/schemas/CatalogIngredientSuggestion'
+            discriminator:
+                propertyName: provenance
+                mapping:
+                    local: '#/components/schemas/LocalIngredientSuggestion'
+                    catalog: '#/components/schemas/CatalogIngredientSuggestion'
+
+        LocalIngredientSuggestion:
+            type: object
+            required: [provenance, ingredient]
+            description: A real `ingredients` catalog row — pickable as-is, with whatever nutrition it carries.
+            properties:
+                provenance:
+                    type: string
+                    enum: [local]
+                ingredient:
+                    $ref: '#/components/schemas/Ingredient'
+
+        CatalogIngredientSuggestion:
+            type: object
+            required: [provenance, foodId, name, score]
+            description: |
+                A food-service golden record with NO `ingredients` row yet. It has no ingredient id and no
+                nutrition — admit it with `POST /v1/ingredients/by-food` before putting it on a recipe line.
+            properties:
+                provenance:
+                    type: string
+                    enum: [catalog]
+                foodId:
+                    type: string
+                    description: The opaque food-service id to pass to `POST /v1/ingredients/by-food`.
+                name:
+                    type: string
+                    description: The golden display name (never null/blank — unnameable hits are dropped).
+                score:
+                    type: number
+                    description: The food catalog's relevance score (higher is better).
+
+        IngredientCatalogAvailability:
+            type: string
+            enum: [ok, unavailable, disabled]
+            description: |
+                Whether the food catalog contributed to a blend (F2). Three states, not a boolean, because a
+                client renders each differently: `unavailable` is a transient degradation worth disclosing,
+                whereas `disabled` is an operator switching the blend off and MUST NOT read as an error.
+
+        IngredientSuggestions:
+            type: object
+            required: [suggestions, catalogAvailability]
+            description: |
+                Response envelope of `GET /v1/ingredients/suggest`. `suggestions` is SECTIONED — every `local`
+                entry precedes every `catalog` one, and the sections are never interleaved.
+            properties:
+                suggestions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/IngredientSuggestion'
+                catalogAvailability:
+                    $ref: '#/components/schemas/IngredientCatalogAvailability'
 
         RecipeSearchParams:
             type: object

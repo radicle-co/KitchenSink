@@ -77,10 +77,23 @@ export const recipeServiceKeys = {
     /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
     recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
     recipeSearch: (params: RecipeSearchParams = {}) => ['recipe-service', 'search', 'recipes', params] as const,
-    /** Prefix over every `ingredientSearch(query, limit)` — "every cached ingredient search, whatever the terms". */
+    /**
+     * Prefix over every `ingredientSearch(query, limit)` AND every `ingredientSuggest(query, limit)` —
+     * "every cached ingredient typeahead, whatever the terms or blend". Deliberately the shared parent of
+     * both: an ingredient write (add-by-name, add-by-food, resolve) changes the catalog BOTH reads project,
+     * so one invalidation must stale both or the blended picker would keep rendering a pre-write section.
+     */
     ingredientSearches: ['recipe-service', 'search', 'ingredients'] as const,
     ingredientSearch: (query: string, limit?: number) =>
         ['recipe-service', 'search', 'ingredients', query, limit ?? null] as const,
+    /**
+     * One blended typeahead read (`GET /v1/ingredients/suggest`). Keyed under a `suggest` segment of the
+     * SAME `ingredientSearches` prefix so it shares that invalidation region while never colliding with a
+     * local-only `/search` entry for the same terms — the two return different shapes, so one cache key
+     * serving both would be a type error waiting to happen.
+     */
+    ingredientSuggest: (query: string, limit?: number) =>
+        ['recipe-service', 'search', 'ingredients', 'suggest', query, limit ?? null] as const,
     /** One ingredient's async-resolution poll (`GET /v1/ingredients/{id}/status`). */
     ingredientStatus: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'status'] as const,
     /** One ingredient's disambiguation candidate set (`GET /v1/ingredients/{id}/candidates`). */
@@ -231,11 +244,26 @@ export function collectionQueries(client: RecipeServiceClient) {
  */
 export function ingredientQueries(client: RecipeServiceClient) {
     return {
-        /** `GET /v1/ingredients/search` — ingredient typeahead. */
+        /** `GET /v1/ingredients/search` — LOCAL-only ingredient typeahead (the recipe-search filter's read). */
         search: (query: string, limit?: number) =>
             queryOptions({
                 queryKey: recipeServiceKeys.ingredientSearch(query, limit),
                 queryFn: () => client.searchIngredients(query, limit),
+                staleTime: INGREDIENT_SEARCH_STALE_TIME_MS,
+            }),
+        /**
+         * `GET /v1/ingredients/suggest` — the BLENDED typeahead (search Stage 2), the picker's read.
+         *
+         * Same short `staleTime` as the local search: a keystroke-driven typeahead over a catalog that
+         * changes as users add ingredients. Deliberately NO `retry` override — the endpoint already degrades
+         * to local-only when the food catalog is unavailable (it answers `200` with
+         * `catalogAvailability: 'unavailable'` rather than failing), so a retry policy here would only cover
+         * recipe-service itself, which the library default already handles.
+         */
+        suggest: (query: string, limit?: number) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.ingredientSuggest(query, limit),
+                queryFn: () => client.suggestIngredients(query, limit),
                 staleTime: INGREDIENT_SEARCH_STALE_TIME_MS,
             }),
         /**

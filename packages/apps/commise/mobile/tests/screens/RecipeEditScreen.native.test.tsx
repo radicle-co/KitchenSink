@@ -20,7 +20,8 @@ import {
     useDeleteRecipePhoto,
     useRecipe,
     useRecipePhotos,
-    useSearchIngredients,
+    useAddIngredientByFood,
+    useSuggestIngredients,
     useUpdateRecipe,
 } from '@kitchensink/recipe-service-client/hooks';
 
@@ -49,7 +50,8 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipe: vi.fn(),
     useUpdateRecipe: vi.fn(),
-    useSearchIngredients: vi.fn(),
+    useSuggestIngredients: vi.fn(),
+    useAddIngredientByFood: vi.fn(),
     useCreateIngredient: vi.fn(),
     // The ingredient picker + editor also read the async-resolution hooks; inert idle defaults keep them in
     // the search branch (this screen never drives an UNRESOLVED disambiguation or a poll-after-add).
@@ -73,7 +75,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 
 const useRecipeMock = vi.mocked(useRecipe);
 const useUpdateRecipeMock = vi.mocked(useUpdateRecipe);
-const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
+const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
+const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useRecipePhotosMock = vi.mocked(useRecipePhotos);
 const useCreatePhotoUploadUrlMock = vi.mocked(useCreatePhotoUploadUrl);
@@ -192,12 +195,24 @@ afterEach(cleanup);
 beforeEach(() => {
     useRecipeMock.mockReset();
     useUpdateRecipeMock.mockReset();
-    useSearchIngredientsMock.mockReset();
+    useSuggestIngredientsMock.mockReset();
+    useAddIngredientByFoodMock.mockReset();
     useCreateIngredientMock.mockReset();
     useUpdateRecipeMock.mockReturnValue(updateMutation());
-    useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, data: [] } as unknown as ReturnType<
-        typeof useSearchIngredients
-    >);
+    // Search Stage 2: the picker reads the BLENDED envelope, not a bare array. These screen suites do not
+    // exercise the typeahead, so an empty, healthy-catalog envelope plus an inert admit mutation is enough.
+    useSuggestIngredientsMock.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        data: { suggestions: [], catalogAvailability: 'ok' },
+    } as unknown as ReturnType<typeof useSuggestIngredients>);
+    useAddIngredientByFoodMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+    } as unknown as ReturnType<typeof useAddIngredientByFood>);
     useCreateIngredientMock.mockReturnValue({ mutate: vi.fn(), isPending: false } as unknown as ReturnType<
         typeof useCreateIngredient
     >);

@@ -11,7 +11,11 @@
  */
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
-import type { IngredientCandidate } from '@kitchensink/recipe-service-client';
+import type {
+    IngredientCandidate,
+    IngredientCatalogAvailability,
+    IngredientSuggestion,
+} from '@kitchensink/recipe-service-client';
 
 import type { RecipeFormIngredient } from '../form/model.js';
 
@@ -78,11 +82,60 @@ function matchRank(name: string, lowerQuery: string): MatchRank {
 export function rankIngredientResults(results: readonly Ingredient[], query: string): Ingredient[] {
     const lowerQuery = query.toLowerCase();
 
-    return [...results].sort((a, b) => {
-        const rankDiff = matchRank(a.name, lowerQuery) - matchRank(b.name, lowerQuery);
+    return [...results].sort((a, b) => byMatchQuality(a.name, b.name, lowerQuery));
+}
 
-        return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
-    });
+/** Compare two display names by REQ-057 match quality against an already-lower-cased query. Pure. */
+function byMatchQuality(aName: string, bName: string, lowerQuery: string): number {
+    const rankDiff = matchRank(aName, lowerQuery) - matchRank(bName, lowerQuery);
+
+    return rankDiff !== 0 ? rankDiff : aName.localeCompare(bName);
+}
+
+/** The display name of a blended suggestion, whichever provenance it has. Pure. */
+export function suggestionName(suggestion: IngredientSuggestion): string {
+    return suggestion.provenance === 'local' ? suggestion.ingredient.name : suggestion.name;
+}
+
+/**
+ * A stable, collision-free React key for a blended suggestion. Pure.
+ *
+ * Prefixed by provenance because the two id spaces are unrelated — an `ingredients` UUID and an opaque food
+ * id could in principle coincide, and an unprefixed key would then make React reuse one row's DOM/state for
+ * the other.
+ *
+ * @param suggestion - The suggestion to key.
+ * @returns A key unique within one blended result set.
+ */
+export function suggestionKey(suggestion: IngredientSuggestion): string {
+    return suggestion.provenance === 'local' ? `local:${suggestion.ingredient.id}` : `catalog:${suggestion.foodId}`;
+}
+
+/**
+ * Re-rank a blended suggestion list by REQ-057 match quality **WITHIN each provenance section**, preserving
+ * the section order the server chose (all `local` before all `catalog`). Returns a NEW array; pure.
+ *
+ * Ranking per section rather than across the whole list is the point: the server already sections these, and
+ * the picker renders them as two labeled lists. A global sort would interleave them and re-create exactly the
+ * reorder/layout-shift jank the sectioned design exists to prevent. Within a section, prefix > substring >
+ * fuzzy (with alphabetical ties) is applied to BOTH — the catalog's own relevance score is not a match-quality
+ * signal, and un-reranked catalog scores are what produce the classic "almonds" → "almond milk" first result.
+ *
+ * @param suggestions - The blended suggestions as the server returned them.
+ * @param query - The raw search-box query they were matched against.
+ * @returns A new array, each section internally re-ordered per REQ-057.
+ */
+export function rankIngredientSuggestions(
+    suggestions: readonly IngredientSuggestion[],
+    query: string,
+): IngredientSuggestion[] {
+    const lowerQuery = query.toLowerCase();
+    const rankSection = (provenance: IngredientSuggestion['provenance']): IngredientSuggestion[] =>
+        suggestions
+            .filter((suggestion) => suggestion.provenance === provenance)
+            .sort((a, b) => byMatchQuality(suggestionName(a), suggestionName(b), lowerQuery));
+
+    return [...rankSection('local'), ...rankSection('catalog')];
 }
 
 /** Whether a food resolution is terminal — no nutrition will ever arrive (FR-007). */
@@ -151,14 +204,19 @@ export interface MutationView {
  *    NOT because the search returned zero results but because it hasn't started yet), and this function
  *    would fall through to an empty `results` — flashing the "no matches, create one" affordance for the
  *    whole debounce window before the search has even fired (a regression this state was added to close).
- *  - `results` — the search settled (`isSuccess`/`isError`), with zero or more catalog matches. A per-row
- *    terminal notice (see {@link isTerminalStatus}) is the LEAF's concern — each row's own
+ *  - `results` — the search settled (`isSuccess`/`isError`), with zero or more BLENDED suggestions (search
+ *    Stage 2): the user's own `ingredients` rows and food-catalog hits, sectioned by provenance. A per-row
+ *    terminal notice (see {@link isTerminalStatus}) is the LEAF's concern — each local row's own
  *    `foodResolutionStatus` carries that, so a mixed result set (some matches terminal, some not) renders
- *    correctly without a separate top-level state for it.
- *  - `terminal` — the search settled on EXACTLY ONE match and it is a dead end (`NOT_FOUND`/`FAILED`): the
- *    catalog has nothing more to offer for this query. Surfaced as its own explicit, unit-testable state
- *    (the extraction makes it first-class instead of an implicit per-row conditional) — the freeform
- *    fallback stays reachable exactly as it does from every other non-idle kind (FR-007, no dead ends).
+ *    correctly without a separate top-level state for it. `catalogAvailability` rides along so a leaf can
+ *    tell the user the food catalog is degraded (F2) instead of silently showing a shorter list.
+ *  - `terminal` — the search settled on EXACTLY ONE suggestion, it is one of the user's own rows, and it is a
+ *    dead end (`NOT_FOUND`/`FAILED`): nothing on offer for this query. Surfaced as its own explicit,
+ *    unit-testable state (the extraction makes it first-class instead of an implicit per-row conditional) —
+ *    the freeform fallback stays reachable exactly as it does from every other non-idle kind (FR-007, no dead
+ *    ends). A lone CATALOG hit can never be terminal: a catalog suggestion is a `RESOLVED` golden record by
+ *    construction, so collapsing to this state for one would tell the user "no nutrition match" about the
+ *    very row that has nutrition.
  *  - `disambiguating` — a match needs a candidate pick; `candidates` reflects the current fetch's state.
  *  - `resolving` — a candidate pick is in flight; the last-known `candidates` are carried forward (not
  *    discarded) so a leaf can render them disabled instead of the panel collapsing mid-request.
@@ -168,7 +226,10 @@ export type IngredientResolverViewState =
     | { readonly kind: 'searching' }
     | {
           readonly kind: 'results';
-          readonly results: readonly Ingredient[];
+          /** The blended suggestions, sectioned: every `local` precedes every `catalog`. */
+          readonly suggestions: readonly IngredientSuggestion[];
+          /** Whether the food catalog contributed (F2) — `unavailable` warrants a non-blocking notice. */
+          readonly catalogAvailability: IngredientCatalogAvailability;
           readonly isSuccess: boolean;
           readonly isError: boolean;
       }
@@ -193,7 +254,10 @@ export interface DeriveViewStateInput {
      * search itself came back empty) — see the `searching` kind's doc on {@link IngredientResolverViewState}.
      */
     readonly debouncedTrimmed: string;
-    readonly results: readonly Ingredient[];
+    /** The blended suggestions (already section-ranked by {@link rankIngredientSuggestions}). */
+    readonly suggestions: readonly IngredientSuggestion[];
+    /** Whether the food catalog contributed to this blend (F2). */
+    readonly catalogAvailability: IngredientCatalogAvailability;
     readonly searchIsLoading: boolean;
     readonly searchIsSuccess: boolean;
     readonly searchIsError: boolean;
@@ -242,11 +306,18 @@ export function deriveViewState(input: DeriveViewStateInput): IngredientResolver
         return { kind: 'searching' };
     }
 
-    const single = input.results.length === 1 ? input.results[0] : undefined;
+    const single = input.suggestions.length === 1 ? input.suggestions[0] : undefined;
 
-    if (single !== undefined && isTerminalStatus(single.foodResolutionStatus)) {
-        return { kind: 'terminal', ingredient: single, status: single.foodResolutionStatus };
+    // A lone dead-end row of the user's OWN. A lone catalog hit is never terminal (see the kind's doc).
+    if (single?.provenance === 'local' && isTerminalStatus(single.ingredient.foodResolutionStatus)) {
+        return { kind: 'terminal', ingredient: single.ingredient, status: single.ingredient.foodResolutionStatus };
     }
 
-    return { kind: 'results', results: input.results, isSuccess: input.searchIsSuccess, isError: input.searchIsError };
+    return {
+        kind: 'results',
+        suggestions: input.suggestions,
+        catalogAvailability: input.catalogAvailability,
+        isSuccess: input.searchIsSuccess,
+        isError: input.searchIsError,
+    };
 }

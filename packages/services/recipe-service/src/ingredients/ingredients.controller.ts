@@ -58,6 +58,8 @@ import type { CandidateView } from '@kitchensink/food-service-client';
 
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { IngredientsService } from './ingredients.service.js';
+import type { IngredientSuggestions } from './ingredient-suggestion.js';
+import { AddIngredientByFoodDto } from './dto/add-ingredient-by-food.dto.js';
 import { CreateIngredientDto } from './dto/create-ingredient.dto.js';
 import { ResolveIngredientDto } from './dto/resolve-ingredient.dto.js';
 import { SearchRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
@@ -110,6 +112,48 @@ export class IngredientsController {
     }
 
     /**
+     * `GET /v1/ingredients/suggest` — the Stage-2 BLENDED typeahead: the shared `ingredients` catalog **plus**
+     * the food-service golden catalog, deduped on `food_id` and sectioned by provenance.
+     *
+     * **Why this is a separate route from `/search`, not a flag on it.** They are different reads with
+     * different consumers and different correctness rules — the same knowledge is not being duplicated:
+     *  - `/search` returns `Ingredient[]`, every element a real catalog row whose `id` is a valid
+     *    `recipe_ingredients.ingredient_id`. Its other consumer is the recipe-SEARCH ingredient filter, where
+     *    a result id becomes an `ingredientIds` filter value — a not-yet-admitted food would be meaningless
+     *    there (nothing could match it), so blending into `/search` would be wrong, not merely shape-breaking.
+     *  - `/suggest` returns a DISCRIMINATED UNION, because a catalog hit has no ingredient id and no nutrition
+     *    and must be admitted (`POST by-food`) before it can go on a recipe line.
+     * A query param that switches the RESPONSE TYPE would put two contracts on one route and leave every
+     * client narrowing by hand; a separate route keeps each contract single-shaped, and leaves `/search`'s
+     * existing wire contract (and its clients) untouched.
+     *
+     * F2: never fails because of the food service — a slow/unavailable catalog yields the local section plus
+     * `catalogAvailability: 'unavailable'`. The response's `catalogAvailability` is how the picker tells the
+     * user the catalog is degraded instead of silently showing fewer results.
+     *
+     * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param q - The name query (required, non-blank).
+     * @param limit - Optional max hits PER SECTION (1–50, default 10).
+     * @returns The blended suggestions plus whether the food catalog contributed.
+     * @throws {BadRequestException} (→ 400) when `q` is missing/blank or `limit` is non-numeric.
+     */
+    @Get('suggest')
+    @SearchRateLimit()
+    public async suggest(
+        @OwnerId() _ownerId: string,
+        @Query('q') q?: string,
+        @Query('limit') limit?: string,
+    ): Promise<IngredientSuggestions> {
+        const query = (q ?? '').trim();
+
+        if (query.length === 0) {
+            throw new BadRequestException('q is required');
+        }
+
+        return this.ingredients.suggest(query, parseLimit(limit));
+    }
+
+    /**
      * `POST /v1/ingredients` — create a freeform (user-entered) ingredient.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
@@ -145,6 +189,34 @@ export class IngredientsController {
     @WriteRateLimit()
     public async addByName(@OwnerId() _ownerId: string, @Body() body: CreateIngredientDto): Promise<Ingredient> {
         return this.ingredients.addByName(body.name);
+    }
+
+    /**
+     * `POST /v1/ingredients/by-food` — Stage 2 pick: admit a `catalog` suggestion from
+     * {@link IngredientsController.suggest} as a food-backed ingredient, WITH its nutrition already backfilled.
+     *
+     * Returns **`200 OK`, not `202`** — the deliberate contrast with `by-name`. `by-name` is `202` because the
+     * meaningful work (resolving an unknown food) is genuinely asynchronous and incomplete when it returns.
+     * Here the food is an already-`RESOLVED` golden record, so the row is created AND its per-100g nutrition +
+     * portions are written before the response: there is nothing to wait for, and telling the caller to poll
+     * would be a lie. In the anomalous case where the food is unexpectedly still `PENDING`/`UNRESOLVED` and a
+     * row already exists, that status comes back in the body and the caller uses the SAME poll/disambiguate
+     * machinery — `foodResolutionStatus` is authoritative, exactly as it is for `by-name`.
+     *
+     * A mutation (food-service read + DB write) → the write rate limit.
+     *
+     * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param body - `{ foodId }` (non-blank, ≤64 chars), validated by {@link AddIngredientByFoodDto}. Any
+     *   caller-supplied `name` is stripped by the whitelist — the display name comes from the food service.
+     * @returns The food-backed ingredient with its golden-record nutrition.
+     * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient (unknown,
+     *   terminal, mid-resolution, or nameless) and no row exists to advance.
+     */
+    @Post('by-food')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async addByFood(@OwnerId() _ownerId: string, @Body() body: AddIngredientByFoodDto): Promise<Ingredient> {
+        return this.ingredients.addByFoodId(body.foodId);
     }
 
     /**

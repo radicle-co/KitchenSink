@@ -20,6 +20,7 @@ import { FoodServiceClient, NotFoundError } from '@kitchensink/food-service-clie
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
+import type { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import {
     makeCandidateView,
@@ -40,6 +41,11 @@ function makeFoodClientStub(): FoodServiceClient {
         getCandidates: vi.fn(),
         resolve: vi.fn(),
     } as unknown as FoodServiceClient;
+}
+
+/** A no-op catalog gateway — the disambiguation path never blends (see `blended-suggest.integration.spec.ts`). */
+function makeCatalogStub(): FoodCatalogGateway {
+    return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }
 
 describe.skipIf(!hasDatabaseUrl)(
@@ -65,7 +71,7 @@ describe.skipIf(!hasDatabaseUrl)(
         beforeEach(async () => {
             await pool.query('DELETE FROM ingredients WHERE food_id = $1', [FOOD_ID]);
             food = makeFoodClientStub();
-            service = new IngredientsService(dal, food);
+            service = new IngredientsService(dal, food, makeCatalogStub());
         });
 
         /** Seed a food-backed catalog row in the given non-terminal status and return its 001 id. */

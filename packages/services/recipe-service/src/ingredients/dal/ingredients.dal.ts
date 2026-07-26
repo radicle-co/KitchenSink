@@ -223,6 +223,33 @@ export class IngredientsDal {
     }
 
     /**
+     * Batch variant of {@link IngredientsDal.findByFoodId}: which of these foods ALREADY have a catalog row.
+     *
+     * The Stage-2 blended typeahead's dedup key. Deliberately a batch read rather than N single lookups: the
+     * blend runs on a per-keystroke path, so the crosswalk must cost ONE indexed `food_id IN (…)` query, not
+     * one round-trip per catalog hit. Returns only the rows that exist, in no guaranteed order (the caller
+     * orders them by catalog relevance).
+     *
+     * @param foodIds - The opaque food-service ids to look up (deduplicated by the caller if desired).
+     * @returns The matching food-backed ingredients (with any nutrition they already carry).
+     * @sideEffect Reads `ingredients`.
+     */
+    public async findByFoodIds(foodIds: readonly string[]): Promise<Ingredient[]> {
+        if (foodIds.length === 0) {
+            return [];
+        }
+
+        const result = await this.db.execute<RawIngredientRow>(
+            sql`SELECT ${RETURNING} FROM ingredients WHERE food_id IN (${sql.join(
+                foodIds.map((foodId) => sql`${foodId}`),
+                sql`, `,
+            )})`,
+        );
+
+        return result.rows.map(rowToIngredient);
+    }
+
+    /**
      * Look up an existing freeform ingredient by case-insensitive name (freeform dedup key).
      *
      * @param name - The display name to match.

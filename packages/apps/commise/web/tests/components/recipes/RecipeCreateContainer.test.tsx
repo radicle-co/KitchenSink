@@ -93,9 +93,21 @@ describe('RecipeCreateContainer', () => {
     it('maps a valid form (filled across steps) to the wire input and navigates to the new recipe on success', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([
-            makeIngredient({ id: 'ing_9', name: 'Olive oil', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
-        ]);
+        // Search Stage 2: the picker reads the BLENDED envelope. This container only exercises picking one
+        // of the caller's OWN ingredients, so the fixture is a `local` suggestion.
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
+            suggestions: [
+                {
+                    provenance: 'local',
+                    ingredient: makeIngredient({
+                        id: 'ing_9',
+                        name: 'Olive oil',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    }),
+                },
+            ],
+            catalogAvailability: 'ok',
+        });
         vi.spyOn(client, 'createRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_created' }));
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
@@ -151,7 +163,7 @@ describe('RecipeCreateContainer', () => {
     it('poll-after-add: a line added PENDING is polled and its badge resolves to RESOLVED', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
         // addByName returns a PENDING food-backed ingredient (the line is added still resolving).
         vi.spyOn(client, 'addIngredientByName').mockResolvedValue(
             makeIngredient({ id: 'ing_food', name: 'Quinoa', foodResolutionStatus: FoodResolutionStatus.PENDING }),
@@ -180,9 +192,21 @@ describe('RecipeCreateContainer', () => {
     it('surfaces an error when creating the recipe fails', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([
-            makeIngredient({ id: 'ing_9', name: 'Olive oil', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
-        ]);
+        // Search Stage 2: the picker reads the BLENDED envelope. This container only exercises picking one
+        // of the caller's OWN ingredients, so the fixture is a `local` suggestion.
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
+            suggestions: [
+                {
+                    provenance: 'local',
+                    ingredient: makeIngredient({
+                        id: 'ing_9',
+                        name: 'Olive oil',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    }),
+                },
+            ],
+            catalogAvailability: 'ok',
+        });
         vi.spyOn(client, 'createRecipe').mockRejectedValue(new Error('boom'));
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);

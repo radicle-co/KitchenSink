@@ -36,6 +36,7 @@ import {
     useRecipes,
     useSearchIngredients,
     useSearchRecipes,
+    useSuggestIngredients,
     useInfiniteSearchRecipes,
 } from '../hooks.js';
 import {
@@ -671,6 +672,117 @@ describe('useInfiniteSearchRecipes', () => {
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
         expect(result.current.hasNextPage).toBe(false);
+    });
+});
+
+describe('useSuggestIngredients (search Stage 2 — the blended picker read)', () => {
+    /** The blended envelope the endpoint returns. */
+    const envelope = {
+        suggestions: [
+            { provenance: 'local' as const, ingredient: makeIngredient({ id: 'ing_a' }) },
+            { provenance: 'catalog' as const, foodId: '01J0FOOD', name: 'Chicken breast, raw', score: 0.9 },
+        ],
+        catalogAvailability: 'ok' as const,
+    };
+
+    it('caches the envelope under the literal blended-suggest key, including the limit', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
+
+        const { result, queryClient } = renderRecipeHook(() => useSuggestIngredients('chick', 5), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(cachedQueryKeys(queryClient)).toEqual([
+            ['recipe-service', 'search', 'ingredients', 'suggest', 'chick', 5],
+        ]);
+    });
+
+    it('caches an unlimited suggest under a null limit segment', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
+
+        const { result, queryClient } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(cachedQueryKeys(queryClient)).toEqual([
+            ['recipe-service', 'search', 'ingredients', 'suggest', 'chick', null],
+        ]);
+    });
+
+    it('forwards BOTH the query and the limit to suggestIngredients, in order', async () => {
+        const client = makeGuardedClient();
+        const suggestIngredients = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients('basil', 7), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(suggestIngredients).toHaveBeenCalledWith('basil', 7);
+    });
+
+    it('does NOT call the local-only searchIngredients (mutation guard: the picker must stay blended)', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(envelope);
+        const searchIngredients = vi.spyOn(client, 'searchIngredients');
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(searchIngredients).not.toHaveBeenCalled();
+    });
+
+    it('stays idle and issues no request for an empty query', () => {
+        const client = makeGuardedClient();
+        const suggestIngredients = vi.spyOn(client, 'suggestIngredients');
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients(''), { client });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(suggestIngredients).not.toHaveBeenCalled();
+    });
+
+    it('stays idle and issues no request when explicitly disabled, even with a non-empty query', () => {
+        const client = makeGuardedClient();
+        const suggestIngredients = vi.spyOn(client, 'suggestIngredients');
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients('chick', 5, { enabled: false }), { client });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(suggestIngredients).not.toHaveBeenCalled();
+    });
+
+    it('F2 — a degraded catalog resolves as SUCCESS carrying `unavailable`, never as isError', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
+            suggestions: [{ provenance: 'local', ingredient: makeIngredient({ id: 'ing_a' }) }],
+            catalogAvailability: 'unavailable',
+        });
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.isError).toBe(false);
+        expect(result.current.data?.catalogAvailability).toBe('unavailable');
+        expect(result.current.data?.suggestions).toHaveLength(1);
+    });
+
+    it('returns an empty envelope as success (empty typeahead state)', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients('zzz'), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.data?.suggestions).toEqual([]);
+    });
+
+    it('propagates a recipe-service rejection as an error', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'suggestIngredients').mockRejectedValue(new UnauthorizedError('nope'));
+
+        const { result } = renderRecipeHook(() => useSuggestIngredients('chick'), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(result.current.error).toBeInstanceOf(UnauthorizedError);
     });
 });
 

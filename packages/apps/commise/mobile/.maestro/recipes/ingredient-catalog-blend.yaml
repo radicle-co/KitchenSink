@@ -1,0 +1,96 @@
+appId: io.commise.mobile
+---
+# Search Stage 2 — the blended ingredient typeahead on mobile. Assumes an authenticated session (the auth
+# login flow runs first in CI ordering) and the app pointed at the runner's recipe-service
+# (EXPO_PUBLIC_API_URL), exactly like `create.yaml`.
+#
+# WHAT THIS FLOW ASSERTS, AND WHY IT IS THE F2 PATH RATHER THAN THE CATALOG PICK.
+# The Maestro job is deliberately self-contained: it boots recipe-service + Postgres on the runner and
+# NOTHING ELSE (see the `mobile-maestro` job in `.github/workflows/_ci.yml`). The food service (003) is not
+# there — so `GET /v1/ingredients/suggest` genuinely degrades, every time, deterministically. That makes the
+# F2 contract the one Stage-2 behaviour this environment can prove for real, and it is also the
+# higher-risk half: a bug here does not lose a section, it breaks the typeahead outright and blocks recipe
+# creation. Asserting the catalog-pick happy path here would instead require a food service the job does not
+# run, so it would be a flow that cannot pass; that path is covered by the 13 mobile component tests
+# (`tests/components/IngredientPicker.native.test.tsx`) and end-to-end on web by
+# `web/tests/e2e/ingredientCatalogPick.spec.ts`, where the API is intercepted.
+- runFlow: ../auth/signin.yaml
+
+# Recipe list surface, then into the create wizard.
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Blended Typeahead'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). The picker sits at the TOP of this step's body.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+
+# A PREFIX of a name that IS in the recipe-service seeded catalog (Flour/Sugar/Butter — see
+# `SEED_INGREDIENTS` in `recipe-service/src/database/seed.ts`), so the recipe-local section has something real
+# to render. Deliberately 'Flou', not the full 'Flour': the search field's own value is matchable text, so a
+# query equal to the row's name would make the `tapOn: 'Flour'` below ambiguous between the two.
+- inputText: 'Flou'
+
+# F2 — the local ("Your ingredients") section renders even though the food catalog could not be reached. This
+# is the falsifiable core of the flow: a typeahead that hard-failed on the absent cross-service dependency
+# would show neither this heading nor the row below it.
+- extendedWaitUntil:
+      visible:
+          text: 'Your ingredients'
+      timeout: 30000
+
+# The degradation is DISCLOSED, not silently swallowed — the user is told why the list is shorter.
+- scrollUntilVisible:
+      element: 'Showing your ingredients only — the food catalog is unavailable right now.'
+      direction: DOWN
+      timeout: 20000
+
+# And the local row stays fully pickable, which is the entire promise of F2: a down food service costs the
+# catalog section, never the ability to add an ingredient. Scrolling to the resolved line's name field both
+# waits for the resolution and is the checkpoint — an unresolved form cannot Publish.
+- tapOn: 'Flour'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+
+# Finish the recipe to prove the picked line carries a real catalog id (Publish validation rejects a line
+# whose `ingredientId` does not resolve).
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Whisk and rest.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Blended Typeahead.*'
+      timeout: 40000

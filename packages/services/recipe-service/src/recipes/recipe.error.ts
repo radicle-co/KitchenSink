@@ -48,6 +48,27 @@ export function ingredientNotFound(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.RECIPE_NOT_FOUND, `Ingredient '${id}' not found`);
 }
 
+/**
+ * `UNKNOWN_INGREDIENT` (→ 400) — Stage 2: the picked food-catalog hit cannot back an ingredient row.
+ *
+ * Raised by `POST /v1/ingredients/by-food` when the referenced food has no usable golden record: it is
+ * unknown/terminal to the food service, still mid-resolution (`PENDING`/`UNRESOLVED`), or resolved but
+ * nameless. A single code covers all three deliberately — from the caller's side they are one fact ("this
+ * food id is not admissible as an ingredient right now"), and collapsing them avoids confirming whether a
+ * given opaque food id exists in the food catalog.
+ *
+ * A 400 rather than a 404 because the honest failure is the REQUEST (a stale or hand-crafted `foodId`), not a
+ * missing recipe-service resource — and the caller's remedy is a different action (`by-name` or freeform),
+ * not a retry. `details.foodId` carries the id back for diagnosis.
+ */
+export function foodNotAdmissible(foodId: string, reason: string): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.UNKNOWN_INGREDIENT,
+        `Food '${foodId}' cannot back an ingredient: ${reason}.`,
+        { foodId },
+    );
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);

@@ -4,8 +4,14 @@
  * `@kitchensink/food-service-client`, NEVER USDA directly).
  *
  * Async food resolution is first-class (data-model R5 / FR-007):
- *   - **search / typeahead** — {@link IngredientsService.search} does local fuzzy + FTS catalog search;
- *     {@link IngredientsService.suggestFoods} proxies `foodClient.search` for known-food typeahead.
+ *   - **search** — {@link IngredientsService.search} does local fuzzy + FTS catalog search over `ingredients`
+ *     ONLY. It backs the recipe-SEARCH ingredient filter, whose result ids are filter values, so it must never
+ *     return anything that lacks an `ingredients` row.
+ *   - **suggest / typeahead (Stage 2)** — {@link IngredientsService.suggest} BLENDS that local search with the
+ *     food-service golden catalog through the short-timeout, no-throw {@link FoodCatalogGateway}, deduped on
+ *     `food_id` and sectioned by provenance. This is the picker's read.
+ *   - **addByFoodId (Stage 2 pick)** — {@link IngredientsService.addByFoodId} admits a catalog suggestion as a
+ *     food-backed row AND backfills its golden-record nutrition in one round-trip (F1).
  *   - **addByName** — `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
  *     food-backed catalog row (deduped on the opaque `food_id`) and return it immediately with its
  *     non-terminal status, so the picker can render a "nutrition pending" state.
@@ -23,10 +29,13 @@ import { Injectable } from '@nestjs/common';
 import { FoodResolutionStatus, normalizeUnit } from '@kitchensink/recipe-core';
 import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
 import { FoodServiceClient, isNotFoundError } from '@kitchensink/food-service-client';
-import type { CandidateView, FoodStatus, FoodView, SearchResultView } from '@kitchensink/food-service-client';
+import type { CandidateView, FoodStatus, FoodView, StatusResult } from '@kitchensink/food-service-client';
 
-import { IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
-import { ingredientNotFound } from '../recipes/recipe.error.js';
+import { clampLimit, IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
+import { FoodCatalogGateway } from './food-catalog.gateway.js';
+import { blendIngredientSuggestions } from './ingredient-suggestion.js';
+import type { IngredientSuggestions } from './ingredient-suggestion.js';
+import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
 
 /**
  * The food client's `FoodStatus` and recipe-core's `FoodResolutionStatus` are the SAME UPPER_SNAKE
@@ -120,6 +129,7 @@ export class IngredientsService {
     public constructor(
         private readonly dal: IngredientsDal,
         private readonly foodClient: FoodServiceClient,
+        private readonly catalog: FoodCatalogGateway,
     ) {}
 
     /**
@@ -136,17 +146,164 @@ export class IngredientsService {
     }
 
     /**
-     * Known-food typeahead: proxies `foodClient.search` (local `/v1/foods/search`, never a source) so the
-     * picker can suggest foods that are not yet in the 001 catalog before an {@link addByName}.
+     * Stage 2 — the BLENDED typeahead behind `GET /v1/ingredients/suggest`: the recipe-local `ingredients`
+     * catalog **plus** the food-service golden catalog, deduped on `food_id` and sectioned by provenance.
      *
-     * @param query - The raw user query (trimmed here).
-     * @returns The ranked food-service search hits (empty on no local match).
-     * @sideEffect Performs an authenticated food-service HTTP request.
+     * Before Stage 2 the typeahead saw only `ingredients` rows — foods that had already been *used* in a
+     * recipe — so the ~8k lab-analyzed golden records Stage 1 seeded into food-service were invisible until
+     * somebody add-by-named them. This is the read that makes them findable.
+     *
+     * **Availability discipline (F2).** The blend puts a cross-service round-trip on a per-keystroke path, so:
+     *  - both reads are issued CONCURRENTLY — total latency is `max(local, catalog)`, not their sum;
+     *  - the catalog read goes through {@link FoodCatalogGateway}, which is short-timeout and TOTAL (it
+     *    degrades instead of throwing), so a slow/down food service costs the typeahead a bounded wait and
+     *    yields `catalogAvailability: 'unavailable'` — the local section still renders, every time. The extra
+     *    `catch` here is belt-and-braces: the gateway's no-throw guarantee is a contract, not a hope.
+     *  - a LOCAL database failure is deliberately NOT swallowed. The recipe-local section is the floor of this
+     *    feature; if it cannot be read, that is a real 500, not a degradation to hide.
+     *
+     * **Dedup.** Catalog hits the local search did not already return are crosswalked in ONE batch read
+     * ({@link IngredientsDal.findByFoodIds}); a hit that turns out to have an `ingredients` row is PROMOTED
+     * into the familiar section rather than shown as a catalog hit (it is pickable with no round-trip). The
+     * dedup is therefore exact, not dependent on whether the local `limit` window happened to include the row.
+     *
+     * @param query - The raw user query (trimmed here). Blank yields an empty envelope.
+     * @param limit - Optional max hits PER SECTION (clamped to `[1, 50]`, default 10).
+     * @returns The sectioned, deduped suggestions plus whether the food catalog contributed.
+     * @sideEffect Reads `ingredients` (twice at most) and performs one short-timeout food-service request.
      */
-    public async suggestFoods(query: string): Promise<readonly SearchResultView[]> {
-        const result = await this.foodClient.search(query.trim());
+    public async suggest(query: string, limit?: number): Promise<IngredientSuggestions> {
+        const trimmed = query.trim();
+        const perSection = clampLimit(limit);
 
-        return result.results;
+        const [local, catalog] = await Promise.all([
+            this.dal.search(trimmed, perSection),
+            // The gateway is total by contract; this guard exists so a future regression there degrades the
+            // typeahead rather than 500-ing a keystroke.
+            this.catalog
+                .search(trimmed, perSection)
+                .catch(() => ({ hits: [] as const, availability: 'unavailable' as const })),
+        ]);
+
+        const knownFoodIds = new Set(
+            local.flatMap((ingredient) => (ingredient.foodId === undefined ? [] : [ingredient.foodId])),
+        );
+        const uncrosswalked = catalog.hits.map((hit) => hit.foodId).filter((foodId) => !knownFoodIds.has(foodId));
+        const promoted = uncrosswalked.length > 0 ? await this.dal.findByFoodIds(uncrosswalked) : [];
+
+        return {
+            suggestions: blendIngredientSuggestions({
+                local,
+                promoted,
+                catalogHits: catalog.hits,
+                limit: perSection,
+            }),
+            catalogAvailability: catalog.availability,
+        };
+    }
+
+    /**
+     * Stage 2 pick path (F1) — admit a food-catalog suggestion into the shared `ingredients` catalog as a
+     * food-backed row that ALREADY carries its golden-record nutrition.
+     *
+     * **Why this is not just `createFoodBacked`.** A catalog suggestion comes from `/v1/foods/search`, whose
+     * `SearchResultView` carries **no nutrition**, and `createFoodBacked` writes only `name`/`food_id`/`status`
+     * — nutrition reaches an `ingredients` row ONLY through `updateResolution`. Creating the row and stopping
+     * there would ship an ingredient with NULL calories that nothing ever backfills (the status poll stops on a
+     * `RESOLVED` row). So the pick does exactly ONE food-service read and writes the nutrition through.
+     *
+     * **Read-then-create, not create-then-read** (same single round-trip, strictly safer): the read is what
+     * supplies the display name, and the name MUST come from food-service. Accepting a caller-supplied name
+     * would let any authenticated client attach an arbitrary label to a real food in a catalog that is
+     * ownerless and shared by every user (data-model R5) — mislabeled nutrition for everyone. The read also
+     * validates the id before anything is written, so a stale or hand-crafted `foodId` cannot create a row.
+     *
+     * Poll-free in TIMING (a Stage-1 seeded food is already `RESOLVED`, so the read returns immediately) but it
+     * IS one cross-service round-trip — not "already has nutrition, no call".
+     *
+     * @param foodId - The opaque food-service id from a `catalog` suggestion (trimmed here).
+     * @returns The food-backed ingredient, `RESOLVED` and carrying its per-100g nutrition + portions.
+     * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient — unknown,
+     *   terminal, still mid-resolution, or nameless — and no row already exists to advance.
+     * @sideEffect One food-service read, then inserts/updates `ingredients`.
+     */
+    public async addByFoodId(foodId: string): Promise<Ingredient> {
+        const id = foodId.trim();
+        const existing = await this.dal.findByFoodId(id);
+
+        // Already settled AND already nourished: nothing to admit and nothing to backfill — no round-trip.
+        if (
+            existing !== undefined &&
+            existing.foodResolutionStatus === FoodResolutionStatus.RESOLVED &&
+            existing.caloriesPer100g !== undefined
+        ) {
+            return existing;
+        }
+
+        const status = await this.readFoodStatus(id, existing);
+        const resolved = status.status === 'RESOLVED' ? status.food : undefined;
+        const name = resolved?.name?.trim();
+
+        if (resolved === undefined || name === undefined || name.length === 0) {
+            // Nothing admissible. An existing row still advances to the status we just observed, so the picker
+            // can poll/disambiguate/fall back exactly as it does elsewhere; a brand-new pick is rejected
+            // rather than half-admitted as a nameless, nutrition-less row.
+            if (existing !== undefined) {
+                const advanced = await this.dal.updateResolution(existing.id, {
+                    foodResolutionStatus: toResolutionStatus(status.status),
+                });
+
+                return advanced ?? existing;
+            }
+
+            throw foodNotAdmissible(
+                id,
+                resolved === undefined ? `status is ${status.status}, not RESOLVED` : 'the golden record has no name',
+            );
+        }
+
+        const row =
+            existing ??
+            (await this.dal.createFoodBacked({
+                name,
+                foodId: id,
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            }));
+        const backfilled = await this.dal.updateResolution(row.id, {
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            nutrition: extractNutrition(resolved),
+            portions: extractPortions(resolved),
+        });
+
+        return backfilled ?? row;
+    }
+
+    /**
+     * Read a food's status for the pick path, translating a food-service `404` (unknown row, or a terminal
+     * `NOT_FOUND`/`FAILED`) into the terminal status the caller then records or rejects on.
+     *
+     * @param id - The opaque food id.
+     * @param existing - The pre-existing ingredient row, when there is one (drives the reject-vs-advance choice).
+     * @returns The observed status result.
+     * @throws {RecipeError} `UNKNOWN_INGREDIENT` when the food is unknown/terminal and no row exists to advance.
+     * @sideEffect Performs one authenticated food-service HTTP request.
+     */
+    private async readFoodStatus(id: string, existing: Ingredient | undefined): Promise<StatusResult> {
+        try {
+            return await this.foodClient.getStatus(id);
+        } catch (error) {
+            if (!isNotFoundError(error)) {
+                throw error;
+            }
+
+            const terminal = error.foodStatus ?? 'NOT_FOUND';
+
+            if (existing === undefined) {
+                throw foodNotAdmissible(id, `the food service reports ${terminal}`);
+            }
+
+            return { id, status: terminal };
+        }
     }
 
     /**

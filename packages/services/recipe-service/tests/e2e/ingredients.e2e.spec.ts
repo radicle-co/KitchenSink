@@ -110,6 +110,80 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         expect(res.status).toBe(400);
     });
 
+    // ── Search Stage 2 — the blended typeahead + the catalog pick ─────────────────────────────────────
+    //
+    // These are the STRONGEST available F2 proof, and they get it for free from the harness: the food service
+    // (003) genuinely is not running here, so `GET /v1/ingredients/suggest` is exercised against a real
+    // assembled app with a real, actually-absent cross-service dependency — not a stub pretending to be one.
+
+    it('GET /suggest still returns 200 with the LOCAL section when the food service is ABSENT (F2)', async () => {
+        await createFreeform();
+
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            suggestions: { provenance: string; ingredient?: { id: string; name: string } }[];
+            catalogAvailability: string;
+        };
+        // The catalog could not contribute — reported honestly, NOT as a failure…
+        expect(body.catalogAvailability).toBe('unavailable');
+        // …and the recipe-local section rendered in full anyway. This is the whole point of F2: a down food
+        // service costs the caller the catalog section, never the typeahead.
+        expect(body.suggestions.length).toBeGreaterThan(0);
+        expect(body.suggestions.every((suggestion) => suggestion.provenance === 'local')).toBe(true);
+        expect(body.suggestions.some((suggestion) => suggestion.ingredient?.name === FREEFORM_NAME)).toBe(true);
+    });
+
+    it('GET /suggest degrades within a BOUNDED time (the short typeahead timeout, not the 8s default)', async () => {
+        const startedAt = Date.now();
+
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
+
+        expect(res.status).toBe(200);
+        // Generous upper bound — the assertion is that a bound EXISTS on a per-keystroke path, not a
+        // millisecond budget that would flake on CI. The default 8s food-client timeout would exceed this.
+        expect(Date.now() - startedAt).toBeLessThan(5_000);
+    });
+
+    it('GET /suggest with a blank q is a 400 (route mounted, query validated)', async () => {
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=%20%20`);
+
+        expect(res.status).toBe(400);
+    });
+
+    it('GET /suggest with a non-numeric limit is a 400', async () => {
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=spice&limit=abc`);
+
+        expect(res.status).toBe(400);
+    });
+
+    it('POST /by-food with a blank foodId is a 400 (route is mounted; validated BEFORE any food call)', async () => {
+        // Mirrors the `/by-name` proof: a mounted route validates to 400 (a MISSING route would 404), and
+        // validation short-circuits before the un-stubbed food client is touched. The admitted-with-nutrition
+        // happy path (F1) is proven at the unit + integration tiers, where the food client is stubbable.
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/by-food`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ foodId: '   ' }),
+        });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('POST /by-food STRIPS a caller-supplied name (the shared catalog is never client-labelled)', async () => {
+        // The whitelist must drop `name` before the service sees the body. Proven negatively at the assembled
+        // boundary: with only a blank `foodId`, the request is a 400 regardless of what else was sent — a DTO
+        // that accepted `name` as an alternative label would not fail closed like this.
+        const res = await fetch(`${booted.baseUrl}/v1/ingredients/by-food`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ foodId: '   ', name: 'Definitely not chicken' }),
+        });
+
+        expect(res.status).toBe(400);
+    });
+
     it('GET /{id}/status for a non-existent ingredient is a 404', async () => {
         const res = await fetch(`${booted.baseUrl}/v1/ingredients/${MISSING_ID}/status`);
 

@@ -220,6 +220,32 @@ describe('ingredientQueries (P5 repository read seam)', () => {
         expect(searchIngredients).toHaveBeenCalledExactlyOnceWith('tom', 5);
     });
 
+    it('keys and calls suggestIngredients for suggest(query, limit), in order', async () => {
+        const suggestIngredients = vi.fn().mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
+        const client = makeFakeClient({ suggestIngredients });
+        const options = ingredientQueries(client).suggest('chick', 5);
+
+        expect(options.queryKey).toEqual(recipeServiceKeys.ingredientSuggest('chick', 5));
+        expect(options.staleTime).toBeTypeOf('number'); // a DECISION, not the library default
+        await options.queryFn?.({} as never);
+        expect(suggestIngredients).toHaveBeenCalledExactlyOnceWith('chick', 5);
+    });
+
+    it('gives search and suggest DISTINCT keys for the same terms (they return different shapes)', () => {
+        const client = makeFakeClient({ searchIngredients: vi.fn(), suggestIngredients: vi.fn() });
+        const factories = ingredientQueries(client);
+
+        expect(factories.suggest('chick', 5).queryKey).not.toEqual(factories.search('chick', 5).queryKey);
+    });
+
+    it('nests the suggest key under the shared ingredientSearches invalidation prefix', () => {
+        // One ingredient write must stale BOTH typeahead reads; that only holds if `suggest` lives under the
+        // same prefix `useAddIngredientByName`/`useAddIngredientByFood`/`useResolveIngredient` invalidate.
+        const prefix = recipeServiceKeys.ingredientSearches;
+
+        expect(recipeServiceKeys.ingredientSuggest('chick', 5).slice(0, prefix.length)).toEqual([...prefix]);
+    });
+
     it('preserves the self-limiting refetchInterval on status(id) — polls ONLY while PENDING', () => {
         const getIngredientStatus = vi.fn().mockResolvedValue({ id: 'ing_1' });
         const client = makeFakeClient({ getIngredientStatus });

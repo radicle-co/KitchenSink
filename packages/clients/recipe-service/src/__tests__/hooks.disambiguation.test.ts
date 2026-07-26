@@ -25,6 +25,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { NotFoundError, UnauthorizedError } from '../errors.js';
 import {
     recipeServiceKeys,
+    useAddIngredientByFood,
     useAddIngredientByName,
     useIngredientCandidates,
     useIngredientStatus,
@@ -175,6 +176,84 @@ describe('useAddIngredientByName (the async-resolution vertical entry point)', (
         });
 
         expect(queryClient.getQueryState(recipeServiceKeys.ingredientSearch('quin', 5))?.isInvalidated).toBe(false);
+    });
+});
+
+describe('useAddIngredientByFood (search Stage 2 — the catalog pick)', () => {
+    const FOOD_ID = '01J0FOOD';
+
+    it('admits the food through the client and returns an ingredient that ALREADY carries nutrition', async () => {
+        const client = makeGuardedClient();
+        const admitted = makeIngredient({
+            id: ID,
+            foodId: FOOD_ID,
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            caloriesPer100g: 165,
+        });
+        const byFood = vi.spyOn(client, 'addIngredientByFood').mockResolvedValue(admitted);
+        const byName = vi.spyOn(client, 'addIngredientByName');
+
+        const { result } = renderRecipeHook(() => useAddIngredientByFood(), { client });
+
+        await act(async () => {
+            await result.current.mutateAsync(FOOD_ID);
+        });
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        // Mutation guard: the pick must go through the by-FOOD route. Falling back to by-name would
+        // re-enter the async name fan-out (which can split UNRESOLVED) and lose the deterministic pick.
+        expect(byFood).toHaveBeenCalledWith(FOOD_ID);
+        expect(byName).not.toHaveBeenCalled();
+        expect(result.current.data?.caloriesPer100g).toBe(165);
+    });
+
+    it('stales BOTH typeahead reads on success — the picked food moves from catalog to local', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'addIngredientByFood').mockResolvedValue(
+            makeIngredient({ id: ID, foodId: FOOD_ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
+        );
+        const queryClient = makeTestQueryClient();
+
+        // Both cached typeahead reads render the pre-pick world: the blended one still lists this food as a
+        // `catalog` hit, and the local one does not list it at all. Both must go stale.
+        queryClient.setQueryData(recipeServiceKeys.ingredientSuggest('chick', 5), {
+            suggestions: [{ provenance: 'catalog', foodId: FOOD_ID, name: 'Chicken breast, raw', score: 0.9 }],
+            catalogAvailability: 'ok',
+        });
+        queryClient.setQueryData(recipeServiceKeys.ingredientSearch('chick', 5), []);
+        // Scope guards: a catalog admit changes no recipe projection and no other ingredient's status.
+        queryClient.setQueryData(recipeServiceKeys.recipeList({}), { data: [], page: 1, pageSize: 20, total: 0 });
+        queryClient.setQueryData(recipeServiceKeys.ingredientStatus(ID), makeIngredient({ id: ID }));
+
+        const { result } = renderRecipeHook(() => useAddIngredientByFood(), { client, queryClient });
+
+        await act(async () => {
+            await result.current.mutateAsync(FOOD_ID);
+        });
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSuggest('chick', 5))?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSearch('chick', 5))?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(recipeServiceKeys.recipeList({}))?.isInvalidated).toBe(false);
+        expect(queryClient.getQueryState(recipeServiceKeys.ingredientStatus(ID))?.isInvalidated).toBe(false);
+    });
+
+    it('surfaces a rejection as the typed error and invalidates nothing', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'addIngredientByFood').mockRejectedValue(new UnauthorizedError('Unauthorized'));
+        const queryClient = makeTestQueryClient();
+        queryClient.setQueryData(recipeServiceKeys.ingredientSuggest('chick', 5), {
+            suggestions: [],
+            catalogAvailability: 'ok',
+        });
+
+        const { result } = renderRecipeHook(() => useAddIngredientByFood(), { client, queryClient });
+
+        await act(async () => {
+            await expect(result.current.mutateAsync(FOOD_ID)).rejects.toBeInstanceOf(UnauthorizedError);
+        });
+
+        expect(queryClient.getQueryState(recipeServiceKeys.ingredientSuggest('chick', 5))?.isInvalidated).toBe(false);
     });
 });
 

@@ -9,12 +9,23 @@
  * hook's actions to DOM events — see the hook's module doc for the full state machine, the async-resolution
  * vertical (data-model R5 / FR-007), and the drift-unification decisions made when it was extracted from
  * this leaf and its mobile sibling.
+ *
+ * **Search Stage 2 — the blended, sectioned result list.** The results are now a discriminated
+ * `local | catalog` union: the caller's own previously-used ingredients and food-catalog golden records (the
+ * USDA-seeded catalog, previously invisible to this typeahead). They render as TWO labeled sections — "Your
+ * ingredients" then "Food catalog" — never interleaved, per the command-palette pattern: the fast familiar
+ * list keeps a stable position whether or not the catalog section is present, which removes the layout-shift
+ * class of typeahead jank. Catalog rows carry a provenance badge and cost one admit round-trip on pick (which
+ * is why they disable while `addByFoodStatus.isPending`). When the food catalog is unreachable, a quiet
+ * `role="status"` notice says so and the local section still renders in full (F2) — nothing failed for the
+ * user, so it is deliberately not an `alert`.
  */
 import { fillTemplate, recipeFormMessages, resolutionStatusLabel } from '@commise/features-recipes';
 import type { RecipeFormIngredient } from '@commise/features-recipes';
-import { isTerminalStatus, useIngredientResolver } from '@commise/features-recipes/hooks';
+import { isTerminalStatus, suggestionKey, useIngredientResolver } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { Ingredient } from '@kitchensink/recipe-core';
+import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import type { FC, JSX } from 'react';
 
 import { webMessages } from '@/i18n/messages';
@@ -42,8 +53,10 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
         trimmed,
         viewState,
         addByNameStatus,
+        addByFoodStatus,
         createStatus,
         resolveError,
+        selectSuggestion,
         selectMatch,
         findNutrition,
         pickCandidate,
@@ -51,12 +64,12 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
         cancelDisambiguation,
     } = useIngredientResolver(onSelect);
 
-    /** One search-result row: the clickable match, its status badge, and a terminal notice when applicable. */
-    const resultRow = (ingredient: Ingredient, terminal: boolean): JSX.Element => (
+    /** One row of the caller's OWN ingredients: the clickable match, its status badge, and a terminal notice. */
+    const ownRow = (ingredient: Ingredient, terminal: boolean, onPick: () => void): JSX.Element => (
         <li key={ingredient.id} className="flex items-center gap-2">
             <button
                 type="button"
-                onClick={() => selectMatch(ingredient)}
+                onClick={onPick}
                 className="flex-1 rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
             >
                 {ingredient.name}
@@ -74,6 +87,78 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
         </li>
     );
 
+    /**
+     * One food-CATALOG row (search Stage 2). Badged so its provenance is unmistakable — it is a golden record
+     * from the food catalog, not yet one of the caller's own ingredients — and disabled while an admit is in
+     * flight, since picking it costs one round-trip before the line can resolve.
+     */
+    const catalogRow = (suggestion: Extract<IngredientSuggestion, { provenance: 'catalog' }>): JSX.Element => (
+        <li key={suggestionKey(suggestion)} className="flex items-center gap-2">
+            <button
+                type="button"
+                onClick={() => selectSuggestion(suggestion)}
+                disabled={addByFoodStatus.isPending}
+                aria-busy={addByFoodStatus.isPending}
+                className="flex-1 rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl disabled:opacity-60"
+            >
+                {suggestion.name}
+            </button>
+            <span className="shrink-0 rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-seafoam">
+                {picker.catalogBadge}
+            </span>
+        </li>
+    );
+
+    /**
+     * The blended result list, rendered as TWO labeled sections (the command-palette pattern): the caller's
+     * familiar ingredients first, then the food catalog. The sections are never interleaved, so the fast local
+     * list does not reorder or shift when the catalog section appears, disappears, or degrades.
+     */
+    const suggestionSections = (suggestions: readonly IngredientSuggestion[]): JSX.Element | null => {
+        const own = suggestions.filter(
+            (suggestion): suggestion is Extract<IngredientSuggestion, { provenance: 'local' }> =>
+                suggestion.provenance === 'local',
+        );
+        const fromCatalog = suggestions.filter(
+            (suggestion): suggestion is Extract<IngredientSuggestion, { provenance: 'catalog' }> =>
+                suggestion.provenance === 'catalog',
+        );
+
+        if (own.length === 0 && fromCatalog.length === 0) {
+            return null;
+        }
+
+        return (
+            <>
+                {own.length > 0 && (
+                    <section aria-label={picker.ownSectionTitle} className="flex flex-col">
+                        <h4 className="px-2 py-1 text-caption font-semibold uppercase tracking-wide text-slate">
+                            {picker.ownSectionTitle}
+                        </h4>
+                        <ul className="flex flex-col">
+                            {own.map((suggestion) =>
+                                ownRow(
+                                    suggestion.ingredient,
+                                    isTerminalStatus(suggestion.ingredient.foodResolutionStatus),
+                                    () => selectSuggestion(suggestion),
+                                ),
+                            )}
+                        </ul>
+                    </section>
+                )}
+
+                {fromCatalog.length > 0 && (
+                    <section aria-label={picker.catalogSectionTitle} className="flex flex-col">
+                        <h4 className="px-2 py-1 text-caption font-semibold uppercase tracking-wide text-slate">
+                            {picker.catalogSectionTitle}
+                        </h4>
+                        <ul className="flex flex-col">{fromCatalog.map(catalogRow)}</ul>
+                    </section>
+                )}
+            </>
+        );
+    };
+
     /** The primary (addByName) + fallback (freeform) action row shared by every non-disambiguating kind. */
     const actionRow = (
         <>
@@ -82,6 +167,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             )}
             {createStatus.isPending && (
                 <p role="status" aria-label={picker.creating} className="px-2 py-1 text-body-sm text-slate" />
+            )}
+            {addByFoodStatus.isPending && (
+                <p role="status" aria-label={picker.addingFromCatalog} className="px-2 py-1 text-body-sm text-slate" />
             )}
 
             <div className="flex flex-wrap items-center gap-2">
@@ -115,6 +203,11 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             {createStatus.isError && (
                 <p role="alert" className="px-2 py-1 text-body-sm text-error">
                     {picker.createError}
+                </p>
+            )}
+            {addByFoodStatus.isError && (
+                <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                    {picker.catalogAddError}
                 </p>
             )}
         </>
@@ -230,7 +323,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
 
             {viewState.kind === 'terminal' && (
                 <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
-                    <ul className="flex flex-col">{resultRow(viewState.ingredient, true)}</ul>
+                    <ul className="flex flex-col">
+                        {ownRow(viewState.ingredient, true, () => selectMatch(viewState.ingredient))}
+                    </ul>
                     {actionRow}
                 </div>
             )}
@@ -243,16 +338,19 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                         </p>
                     )}
 
-                    {viewState.isSuccess && viewState.results.length === 0 && (
+                    {viewState.isSuccess && viewState.suggestions.length === 0 && (
                         <p className="px-2 py-1 text-body-sm text-slate">{picker.noMatches}</p>
                     )}
 
-                    {viewState.results.length > 0 && (
-                        <ul className="flex flex-col">
-                            {viewState.results.map((ingredient) =>
-                                resultRow(ingredient, isTerminalStatus(ingredient.foodResolutionStatus)),
-                            )}
-                        </ul>
+                    {suggestionSections(viewState.suggestions)}
+
+                    {/* F2: the food catalog degraded, so only the caller's own ingredients rendered. A quiet
+                        `role="status"` notice, NOT an `alert` — nothing failed from the user's point of view
+                        and the local section is fully usable. */}
+                    {viewState.catalogAvailability === 'unavailable' && (
+                        <p role="status" className="px-2 py-1 text-body-sm text-slate">
+                            {picker.catalogUnavailable}
+                        </p>
                     )}
 
                     {actionRow}

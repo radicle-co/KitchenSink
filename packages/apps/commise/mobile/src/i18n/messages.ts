@@ -260,6 +260,18 @@ export interface MobileMessages {
         readonly searchUsdaSoon: string;
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
+        /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
+        readonly ownSectionTitle: string;
+        /** Heading of the food-catalog (USDA-seeded golden records) section of the blended typeahead. */
+        readonly catalogSectionTitle: string;
+        /** Provenance badge on a food-catalog row (it is not yet one of the caller's ingredients). */
+        readonly catalogBadge: string;
+        /** Non-blocking notice shown when the food catalog is unreachable and only local matches rendered (F2). */
+        readonly catalogUnavailable: string;
+        /** Busy label shown while a picked food-catalog row is being added. */
+        readonly addingFromCatalog: string;
+        /** Message shown when adding a picked food-catalog row fails. */
+        readonly catalogAddError: string;
         /** Primary "find nutrition" action for a typed name (addByName, the async-resolution entry point; contains `{query}`). */
         readonly addByName: string;
         /** Busy label shown while a food is being added by name (food-resolution in flight). */
@@ -463,6 +475,12 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             searchUsdaFor: 'Search USDA for “{query}”',
             searchUsdaSoon: 'Soon',
             empty: 'No matching ingredients. Create a new one below.',
+            ownSectionTitle: 'Your ingredients',
+            catalogSectionTitle: 'Food catalog',
+            catalogBadge: 'USDA',
+            catalogUnavailable: 'Showing your ingredients only — the food catalog is unavailable right now.',
+            addingFromCatalog: 'Adding from the food catalog…',
+            catalogAddError: 'We couldn’t add that food. Try again, or create a custom one below.',
             addByName: 'Find nutrition for “{query}”',
             addingByName: 'Finding nutrition…',
             addByNameError: 'We couldn’t add that ingredient. Create a custom one below instead.',

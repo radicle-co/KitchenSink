@@ -17,26 +17,31 @@
  */
 import { act, renderHook } from '@testing-library/react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
+import type { IngredientCatalogAvailability, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-    useSearchIngredientsMock,
+    useSuggestIngredientsMock,
     useAddIngredientByNameMock,
+    useAddIngredientByFoodMock,
     useCreateIngredientMock,
     useIngredientCandidatesMock,
     useResolveIngredientMock,
 } = vi.hoisted(() => ({
-    useSearchIngredientsMock: vi.fn(),
+    useSuggestIngredientsMock: vi.fn(),
     useAddIngredientByNameMock: vi.fn(),
+    useAddIngredientByFoodMock: vi.fn(),
     useCreateIngredientMock: vi.fn(),
     useIngredientCandidatesMock: vi.fn(),
     useResolveIngredientMock: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useSearchIngredients: useSearchIngredientsMock,
+    useSuggestIngredients: useSuggestIngredientsMock,
     useAddIngredientByName: useAddIngredientByNameMock,
+    useAddIngredientByFood: useAddIngredientByFoodMock,
     useCreateIngredient: useCreateIngredientMock,
     useIngredientCandidates: useIngredientCandidatesMock,
     useResolveIngredient: useResolveIngredientMock,
@@ -48,6 +53,29 @@ import { useIngredientResolver } from '../useIngredientResolver.js';
 /** A default (idle) search-query result: not fetching, no data. */
 function idleSearch(): Record<string, unknown> {
     return { isLoading: false, isError: false, isSuccess: false, data: undefined };
+}
+
+/** Wrap one of the user's own catalog rows as a `local` blended suggestion (search Stage 2). */
+function localSuggestion(ingredient: Ingredient): IngredientSuggestion {
+    return { provenance: 'local', ingredient };
+}
+
+/** A food-catalog (not-yet-admitted) blended suggestion. */
+function catalogSuggestion(foodId: string, name: string, score = 0.9): IngredientSuggestion {
+    return { provenance: 'catalog', foodId, name, score };
+}
+
+/** A settled `useSuggestIngredients` result carrying the given blended suggestions. */
+function settledSuggest(
+    suggestions: readonly IngredientSuggestion[],
+    catalogAvailability: IngredientCatalogAvailability = 'ok',
+): Record<string, unknown> {
+    return {
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        data: { suggestions, catalogAvailability },
+    };
 }
 
 /** A default (idle) candidates-query result. */
@@ -72,9 +100,10 @@ function mutation(result: unknown | null, extra: Record<string, unknown> = {}): 
 
 beforeEach(() => {
     vi.useFakeTimers();
-    useSearchIngredientsMock.mockReturnValue(idleSearch());
+    useSuggestIngredientsMock.mockReturnValue(idleSearch());
     useIngredientCandidatesMock.mockReturnValue(idleCandidates());
     useAddIngredientByNameMock.mockReturnValue(mutation(null));
+    useAddIngredientByFoodMock.mockReturnValue(mutation(null));
     useCreateIngredientMock.mockReturnValue(mutation(null));
     useResolveIngredientMock.mockReturnValue(mutation(null));
 });
@@ -100,7 +129,7 @@ describe('useIngredientResolver — idle -> searching -> results', () => {
     });
 
     it('moves to searching once a query is set and the search is in flight', () => {
-        useSearchIngredientsMock.mockReturnValue({
+        useSuggestIngredientsMock.mockReturnValue({
             isLoading: true,
             isError: false,
             isSuccess: false,
@@ -120,13 +149,19 @@ describe('useIngredientResolver — idle -> searching -> results', () => {
             name: 'Olive oil',
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
         });
-        useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [hit] });
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([localSuggestion(hit)]));
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('oli'));
         settleDebounce(); // let the debounced query catch up to 'oli' before results are expected
 
-        expect(result.current.viewState).toEqual({ kind: 'results', results: [hit], isSuccess: true, isError: false });
+        expect(result.current.viewState).toEqual({
+            kind: 'results',
+            suggestions: [localSuggestion(hit)],
+            catalogAvailability: 'ok',
+            isSuccess: true,
+            isError: false,
+        });
     });
 
     // Regression (final-review Finding 1): before the debounced query catches up to `trimmed`, the view
@@ -138,7 +173,7 @@ describe('useIngredientResolver — idle -> searching -> results', () => {
             name: 'Olive oil',
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
         });
-        useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [hit] });
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([localSuggestion(hit)]));
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('oli'));
@@ -331,7 +366,7 @@ describe('useIngredientResolver — enabled gating on the candidates fetch', () 
         settleDebounce(); // let the debounced query catch up to 'quin' before it's asserted below
         act(() => result.current.selectMatch(ingredient));
 
-        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('quin', undefined, { enabled: false });
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('quin', undefined, { enabled: false });
     });
 });
 
@@ -343,7 +378,7 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
         settleDebounce();
 
         expect(result.current.viewState).toEqual({ kind: 'idle' });
-        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('s', undefined, { enabled: false });
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('s', undefined, { enabled: false });
     });
 
     it('does not enable search before the debounce window elapses', () => {
@@ -354,7 +389,7 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
             vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS - 1);
         });
 
-        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('', undefined, { enabled: false });
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('', undefined, { enabled: false });
     });
 
     it('enables search with the settled query once the debounce elapses', () => {
@@ -363,7 +398,7 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
         act(() => result.current.setQuery('sp'));
         settleDebounce();
 
-        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('sp', undefined, { enabled: true });
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('sp', undefined, { enabled: true });
     });
 
     it('collapses rapid keystrokes into a single settled (debounced) query — never an intermediate one', () => {
@@ -384,24 +419,21 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
         act(() => result.current.setQuery('spin'));
 
         // Neither 's', 'sp', nor 'spi' ever reached the search hook as the enabled query.
-        expect(useSearchIngredientsMock).not.toHaveBeenCalledWith('s', undefined, { enabled: true });
-        expect(useSearchIngredientsMock).not.toHaveBeenCalledWith('sp', undefined, { enabled: true });
-        expect(useSearchIngredientsMock).not.toHaveBeenCalledWith('spi', undefined, { enabled: true });
+        expect(useSuggestIngredientsMock).not.toHaveBeenCalledWith('s', undefined, { enabled: true });
+        expect(useSuggestIngredientsMock).not.toHaveBeenCalledWith('sp', undefined, { enabled: true });
+        expect(useSuggestIngredientsMock).not.toHaveBeenCalledWith('spi', undefined, { enabled: true });
 
         settleDebounce();
 
-        expect(useSearchIngredientsMock).toHaveBeenLastCalledWith('spin', undefined, { enabled: true });
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('spin', undefined, { enabled: true });
     });
 
     it('re-ranks the mocked search results by match quality (prefix > substring > fuzzy)', () => {
         const prefix = makeIngredient({ id: 'ing_1', name: 'Spinach' });
         const substring = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
-        useSearchIngredientsMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            isSuccess: true,
-            data: [substring, prefix],
-        });
+        useSuggestIngredientsMock.mockReturnValue(
+            settledSuggest([localSuggestion(substring), localSuggestion(prefix)]),
+        );
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('spin'));
@@ -409,8 +441,142 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
 
         expect(result.current.viewState).toMatchObject({
             kind: 'results',
-            results: [prefix, substring],
+            suggestions: [localSuggestion(prefix), localSuggestion(substring)],
         });
+    });
+
+    it('re-ranks WITHIN each provenance section and never interleaves them (search Stage 2)', () => {
+        const fuzzyLocal = makeIngredient({ id: 'ing_z', name: 'Zucchini' });
+        const prefixCatalog = catalogSuggestion('food_1', 'Spinach, raw');
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([prefixCatalog, localSuggestion(fuzzyLocal)]));
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('spin'));
+        settleDebounce();
+
+        // The catalog hit is the far better match, yet the user's own row still leads — the sections hold.
+        expect(result.current.viewState).toMatchObject({
+            kind: 'results',
+            suggestions: [localSuggestion(fuzzyLocal), prefixCatalog],
+        });
+    });
+});
+
+describe('useIngredientResolver — selectSuggestion (search Stage 2: the blended pick)', () => {
+    const CATALOG_HIT = catalogSuggestion('food_1', 'Chicken breast, raw');
+
+    it('resolves a LOCAL suggestion straight through, with no admit round-trip', () => {
+        const onResolved = vi.fn();
+        const mine = makeIngredient({
+            id: 'ing_1',
+            name: 'My chicken',
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+        });
+        const byFood = mutation(null);
+        useAddIngredientByFoodMock.mockReturnValue(byFood);
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => result.current.selectSuggestion(localSuggestion(mine)));
+
+        expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing_1', name: 'My chicken' }));
+        expect(byFood['mutate']).not.toHaveBeenCalled();
+    });
+
+    it('opens disambiguation for an UNRESOLVED local suggestion instead of resolving the line', () => {
+        const onResolved = vi.fn();
+        const unresolved = makeIngredient({ id: 'ing_u', foodResolutionStatus: FoodResolutionStatus.UNRESOLVED });
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => result.current.selectSuggestion(localSuggestion(unresolved)));
+
+        expect(result.current.viewState).toMatchObject({ kind: 'disambiguating' });
+        expect(onResolved).not.toHaveBeenCalled();
+    });
+
+    it('ADMITS a catalog suggestion by food id, then resolves the line from the SERVER response', () => {
+        const onResolved = vi.fn();
+        // The admitted row: it has an ingredient id and nutrition, neither of which the suggestion carried.
+        const admitted = makeIngredient({
+            id: 'ing_admitted',
+            name: 'Chicken breast, raw',
+            foodId: 'food_1',
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            caloriesPer100g: 165,
+        });
+        const byFood = mutation(admitted);
+        useAddIngredientByFoodMock.mockReturnValue(byFood);
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => result.current.selectSuggestion(CATALOG_HIT));
+
+        // The opaque food id — never the suggestion's name — is what the admit is keyed on.
+        expect(byFood['mutate']).toHaveBeenCalledWith('food_1', expect.anything());
+        // And the line carries the admitted row's id + nutrition, NOT a fabricated id off the suggestion.
+        expect(onResolved).toHaveBeenCalledWith(
+            expect.objectContaining({ ingredientId: 'ing_admitted', caloriesPer100g: 165 }),
+        );
+    });
+
+    it('does NOT resolve a line while the catalog admit is still in flight', () => {
+        const onResolved = vi.fn();
+        useAddIngredientByFoodMock.mockReturnValue(mutation(null)); // never calls onSuccess
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => result.current.selectSuggestion(CATALOG_HIT));
+
+        expect(onResolved).not.toHaveBeenCalled();
+    });
+
+    it('routes an admitted-but-still-UNRESOLVED food into disambiguation rather than a nutrition-less line', () => {
+        const onResolved = vi.fn();
+        const admitted = makeIngredient({
+            id: 'ing_admitted',
+            foodId: 'food_1',
+            foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
+        });
+        useAddIngredientByFoodMock.mockReturnValue(mutation(admitted));
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => result.current.selectSuggestion(CATALOG_HIT));
+
+        expect(result.current.viewState).toMatchObject({ kind: 'disambiguating' });
+        expect(onResolved).not.toHaveBeenCalled();
+    });
+
+    it('exposes the admit mutation’s own pending/error flags, separate from addByName’s', () => {
+        useAddIngredientByFoodMock.mockReturnValue(mutation(null, { isPending: true, isError: true }));
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        expect(result.current.addByFoodStatus).toEqual({ isPending: true, isError: true });
+        // Mutation guard: the pick's busy/failed state must not light up the unrelated by-name action.
+        expect(result.current.addByNameStatus).toEqual({ isPending: false, isError: false });
+    });
+
+    it('keeps the freeform fallback reachable after a FAILED catalog admit (FR-007, no dead ends)', () => {
+        const onResolved = vi.fn();
+        const freeform = makeIngredient({ id: 'ing_free', name: 'chicken', isUserEntered: true });
+        useAddIngredientByFoodMock.mockReturnValue(mutation(null, { isError: true }));
+        useCreateIngredientMock.mockReturnValue(mutation(freeform));
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => result.current.setQuery('chicken'));
+        act(() => result.current.selectSuggestion(CATALOG_HIT));
+        expect(onResolved).not.toHaveBeenCalled();
+
+        act(() => result.current.addFreeform());
+
+        expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing_free' }));
+    });
+
+    it('resets the admit mutation when a line resolves, so a stale error cannot flash on the next pick', () => {
+        const admitted = makeIngredient({ id: 'ing_admitted', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const byFood = mutation(admitted);
+        useAddIngredientByFoodMock.mockReturnValue(byFood);
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.selectSuggestion(CATALOG_HIT));
+
+        expect(byFood['reset']).toHaveBeenCalled();
     });
 });
 
@@ -433,22 +599,19 @@ describe('useIngredientResolver — freeform fallback reachable from every non-i
     }
 
     it('from results (populated)', () => {
-        useSearchIngredientsMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            isSuccess: true,
-            data: [makeIngredient({ foodResolutionStatus: FoodResolutionStatus.RESOLVED })],
-        });
+        useSuggestIngredientsMock.mockReturnValue(
+            settledSuggest([localSuggestion(makeIngredient({ foodResolutionStatus: FoodResolutionStatus.RESOLVED }))]),
+        );
         expectFreeformReachable((result) => act(() => result.current.setQuery('tomato')));
     });
 
     it('from results (empty)', () => {
-        useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, isSuccess: true, data: [] });
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([]));
         expectFreeformReachable((result) => act(() => result.current.setQuery('zzz')));
     });
 
     it('from results (search error)', () => {
-        useSearchIngredientsMock.mockReturnValue({
+        useSuggestIngredientsMock.mockReturnValue({
             isLoading: false,
             isError: true,
             isSuccess: false,
@@ -463,12 +626,7 @@ describe('useIngredientResolver — freeform fallback reachable from every non-i
             name: 'Mystery spice',
             foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
         });
-        useSearchIngredientsMock.mockReturnValue({
-            isLoading: false,
-            isError: false,
-            isSuccess: true,
-            data: [notFound],
-        });
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([localSuggestion(notFound)]));
         expectFreeformReachable((result) => {
             act(() => result.current.setQuery('mystery'));
             settleDebounce(); // let the debounced query catch up before the terminal state is expected

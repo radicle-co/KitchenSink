@@ -144,6 +144,34 @@ describe('IngredientPicker — USDA badge (C5)', () => {
     });
 });
 
+describe('IngredientPicker — search field controls (U6 styling)', () => {
+    it('shows a clear (×) control only when the query is non-empty, and clears the query when pressed', () => {
+        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        // No query yet → no clear control.
+        expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull();
+
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'bas' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+
+        expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('');
+    });
+
+    it('renders a styled — but inert (not a button) — "Search USDA for …" seam once a query is typed (U6)', () => {
+        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'kimchi' } });
+        settleDebounce();
+
+        // The seam is visible with the query interpolated…
+        expect(screen.getByText('Search USDA for “kimchi”')).toBeTruthy();
+        // …but it is a placeholder for a future CR — NOT a pressable/button (nothing wired behind it yet).
+        expect(screen.queryByRole('button', { name: 'Search USDA for “kimchi”' })).toBeNull();
+    });
+});
+
 describe('IngredientPicker — empty state', () => {
     it('shows the empty message when a non-empty query returns no matches', () => {
         useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));

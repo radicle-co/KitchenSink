@@ -93,6 +93,18 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
         // Also sidesteps prefers-reduced-motion entirely: there is no motion to reduce.
         expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0);
     });
+
+    it('presents the placeholder on a frosted-glass card (U8 shared GlassCard surface)', () => {
+        renderIn(<Component />);
+
+        // The GlassCard primitive is the labelled region's nearest ancestor <div>: it carries the translucent
+        // surface + backdrop blur inline (the mockup's `--glass-surface-medium` + `--glass-blur-light`). A
+        // regression that dropped the primitive back to hand-rolled utility classes fails these assertions.
+        const card = screen.getByRole('region', { name: title }).parentElement as HTMLElement;
+
+        expect(card.style.backgroundColor).toBe('rgba(255, 255, 255, 0.85)');
+        expect(card.style.backdropFilter).toContain('blur(16px)');
+    });
 });
 
 describe('roadmap skeletons — no fake data (the CR-001 red line)', () => {

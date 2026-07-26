@@ -27,9 +27,9 @@
  * "in progress"; nothing is in progress. Its absence keeps the semantics honest and, as a bonus, leaves
  * nothing for `prefers-reduced-motion` to have to suppress.
  */
-import { useId, type JSX, type ReactNode } from 'react';
-
 import { useMessages } from '@commise/i18n/react';
+import { GlassCard } from '@commise/ui/surface';
+import { useId, type JSX, type ReactNode } from 'react';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -52,23 +52,29 @@ export function PlaceholderWidgetCard({ title, children }: PlaceholderWidgetCard
     const { home } = useMessages(webMessages);
     const headingId = useId();
 
+    // U8 — the frosted-glass treatment is the shared `GlassCard` primitive (single-sourced with native), so
+    // the translucent-over-blur surface can never drift from the design system. The box (radius/border/pad/
+    // shadow) stays on the card via `className`; the deliberate `<section aria-labelledby>` semantics — the
+    // labelled roadmap region every placeholder relies on — live INSIDE it, unchanged.
     return (
-        <section
-            aria-labelledby={headingId}
-            className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-white/20 bg-gradient-to-br from-white/70 to-white/50 p-5 shadow-[var(--shadow-md)] backdrop-blur-[16px]"
+        <GlassCard
+            tier="card"
+            className="rounded-[var(--radius-lg)] border border-white/20 p-5 shadow-[var(--shadow-md)]"
         >
-            <div className="flex items-center justify-between gap-3">
-                <h3 id={headingId} className="font-semibold tracking-tight text-charcoal">
-                    {title}
-                </h3>
-                {/* Not `bg-pearl`: that shade is reserved for skeleton SHAPES, which are aria-hidden. The
-                    badge is real content and must stay exposed, so it is visually distinct from the shapes. */}
-                <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium text-slate">
-                    {home.roadmap.comingSoon}
-                </span>
-            </div>
+            <section aria-labelledby={headingId} className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-3">
+                    <h3 id={headingId} className="font-semibold tracking-tight text-charcoal">
+                        {title}
+                    </h3>
+                    {/* Not `bg-pearl`: that shade is reserved for skeleton SHAPES, which are aria-hidden. The
+                        badge is real content and must stay exposed, so it is visually distinct from the shapes. */}
+                    <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium text-slate">
+                        {home.roadmap.comingSoon}
+                    </span>
+                </div>
 
-            {children}
-        </section>
+                {children}
+            </section>
+        </GlassCard>
     );
 }

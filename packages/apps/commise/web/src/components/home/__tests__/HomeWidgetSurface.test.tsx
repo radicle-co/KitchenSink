@@ -101,6 +101,34 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
     });
 
+    it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+
+        renderWithProviders(
+            <HomeWidgetSurface
+                container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
+                renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
+            />,
+        );
+
+        // Walk up from the greeting to the nearest ancestor painting a linear-gradient background: it must be
+        // the hero beach-glow ramp (135deg sand → cool tints), NOT the seafoam→ocean-dark brand/CTA gradient.
+        // A regression that dropped the hero wrapper (or swapped it for `gradient="brand"`) fails here.
+        const greeting = screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' });
+
+        let hero: HTMLElement | null = greeting.parentElement;
+
+        while (hero !== null && !hero.style.backgroundImage.includes('linear-gradient')) {
+            hero = hero.parentElement;
+        }
+
+        expect(hero).not.toBeNull();
+        expect(hero?.style.backgroundImage).toContain('135deg');
+        expect(hero?.style.backgroundImage).toContain('#FAF6F0');
+        expect(hero?.style.backgroundImage).toContain('#E8F4F8');
+    });
+
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {
         renderSurface({
             container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),

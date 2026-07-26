@@ -31,6 +31,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { GradientSurface } from '@commise/ui/surface';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
@@ -112,7 +113,20 @@ export function HomeWidgetSurface({
                  * E2E (the greeting text is clock- and locale-dependent).
                  */}
                 <h1 className="sr-only">{home.welcome}</h1>
-                <HomeGreeting />
+
+                {/*
+                 * U8 — the greeting sits on the brand beach-glow gradient hero (the shared `GradientSurface`
+                 * `hero`, single-sourced with native so the two platforms cannot drift). The enter motion is
+                 * gated on `motion-safe:` only, so reduce-motion viewers get the static hero with no animation.
+                 * The surface owns no accessible label: the greeting `<h2>` already names the region, so a
+                 * second label here would only add landmark noise.
+                 */}
+                <GradientSurface
+                    gradient="hero"
+                    className="overflow-hidden rounded-[var(--radius-lg)] p-6 shadow-sm motion-safe:animate-home-hero-enter"
+                >
+                    <HomeGreeting />
+                </GradientSurface>
 
                 <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
                     <section role="region" aria-label={home.surface.regionLabel} className="flex flex-col gap-6">

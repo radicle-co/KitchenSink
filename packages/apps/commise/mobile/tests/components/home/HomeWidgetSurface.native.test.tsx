@@ -108,6 +108,28 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(screen.getByLabelText('Main')).toBeTruthy();
     });
 
+    it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+
+        renderWithProviders(
+            <HomeWidgetSurface
+                onSeeAllRecipes={noop}
+                onOpenAccount={noop}
+                container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
+                renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
+            />,
+        );
+
+        // The greeting is wrapped by the shared `GradientSurface` — under jsdom that is the `expo-linear-
+        // gradient` stub, marked `data-commise-stub="linear-gradient"`. Its projected `data-colors` must be
+        // the hero beach-glow ramp (terminal cool tint `#E8F4F8`), NOT the seafoam→ocean-dark brand gradient.
+        const hero = screen.getByText('Good afternoon, Chef!').closest('[data-commise-stub="linear-gradient"]');
+
+        expect(hero).not.toBeNull();
+        expect(hero?.getAttribute('data-colors')).toContain('#E8F4F8');
+    });
+
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {
         renderSurface({
             container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),

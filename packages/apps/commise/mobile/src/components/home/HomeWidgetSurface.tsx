@@ -29,6 +29,8 @@ import {
 import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { GradientSurface } from '@commise/ui/surface';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
 import type { Container } from 'ditox';
 import { useMemo, type ComponentType, type JSX } from 'react';
@@ -143,7 +145,17 @@ export function HomeWidgetSurface({
                     style={styles.region}
                     contentContainerStyle={styles.regionContent}
                 >
-                    <HomeGreeting />
+                    {/*
+                     * U8 — the greeting sits on the brand beach-glow gradient hero (the shared
+                     * `GradientSurface` `hero`, single-sourced with web so the two platforms cannot drift).
+                     * `overflow: 'hidden'` clips the gradient to the rounded corners. No enter motion here:
+                     * it is a non-essential flourish, and adding an `Animated` mount effect would push an
+                     * impure, reduce-motion-gated, unmount-cancelling side effect into this render surface —
+                     * not worth the risk for a device-only nicety (web carries the CSS-gated enter instead).
+                     */}
+                    <GradientSurface gradient="hero" style={styles.hero}>
+                        <HomeGreeting />
+                    </GradientSurface>
 
                     {curated.map((descriptor) => {
                         const Bespoke = activeRenderers[descriptor.id];
@@ -196,4 +208,5 @@ const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.sand },
     region: { flex: 1 },
     regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 16 },
+    hero: { borderRadius: nativeTokens.radius.lg, overflow: 'hidden', paddingVertical: nativeTokens.spacing[2] },
 });

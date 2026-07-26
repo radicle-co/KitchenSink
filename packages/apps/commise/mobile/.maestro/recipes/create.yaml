@@ -8,9 +8,9 @@ appId: io.commise.mobile
 # create path.
 #
 # w3 replaced the old single tall Basics form with `Wizard.Step`s that each fill the viewport as their own
-# "screen"; `Wizard.TopBar` (Save Draft / Preview / Cancel / Publish) is a STICKY header rendered OUTSIDE the
-# scrolling step body, so — unlike the old flow's foot-of-form submit — Publish never needs scrolling into
-# view; only the FOOTER `Next: …` nav (inside each step's own scroll) does. servings/prep/cook keep their
+# "screen". U6 then moved the chrome to ONE contextual footer primary: `Next: …` on steps 1-3 and `Publish`
+# on step 4 (Save Draft / Cancel now live in the header "More actions" overflow; Preview is a header icon).
+# So this flow walks the FOOTER `Next: …` nav to step 4, then taps the footer `Publish`. servings/prep/cook keep their
 # valid defaults (1 / 0 / 0 — see `defaultRecipeFormValues` + `validateRecipeForm`), so this flow deliberately
 # does NOT touch them, exactly as before.
 - runFlow: ../auth/signin.yaml
@@ -94,8 +94,8 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Next: Photos'
 
-# Step 4 of 4 (Photos). A fresh create has no recipe id yet, so this step is a "save first" notice, not the
-# photo manager. Publish is the sticky top-bar action, present on every step — no scroll needed to reach it.
+# Step 4 of 4 (Photos). A fresh create has no recipe id yet, so this step is a guidance notice, not the photo
+# manager — no longer a dead-end (U6): Publish is the step-4 footer primary, so the flow publishes from here.
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 

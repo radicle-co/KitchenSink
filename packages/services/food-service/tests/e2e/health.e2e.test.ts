@@ -2,12 +2,10 @@ import 'reflect-metadata';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import pg from 'pg';
+import { resetSchema } from '../support/db.js';
 
 /**
  * Foundation E2E for the food service (T-064). Proves the LocalStack + Docker-Postgres harness
@@ -32,7 +30,6 @@ import pg from 'pg';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/db/migrations');
 
 /**
  * Reset to a blank schema and apply the ordered migration SQL. The SQL is not idempotent (bare
@@ -41,10 +38,7 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/d
  * @sideEffect Drops and recreates `public`, then runs the migration against `pool`.
  */
 async function applyMigration(pool: pg.Pool): Promise<void> {
-    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
-        await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
-    }
+    await resetSchema(pool);
 }
 
 describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)', () => {

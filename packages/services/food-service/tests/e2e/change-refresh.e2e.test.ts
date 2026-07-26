@@ -16,10 +16,7 @@
  */
 import 'reflect-metadata';
 
-import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -42,11 +39,11 @@ import { RollingWindowLimiter } from '../../src/sources/rolling-window-limiter.j
 import { ChangeRefreshConsumer } from '../../src/worker/change-refresh/change-refresh.consumer.js';
 import { FoodConsumerService } from '../../src/worker/food-consumer.service.js';
 import type { WorkerLogger } from '../../src/worker/worker-logger.js';
+import { resetSchema } from '../support/db.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
 import { stub } from '../support/stub-source-adapter.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/db/migrations');
 
 const APP_AZP = 'https://app.example.com';
 const keypair = generateClerkKeypair();
@@ -143,10 +140,7 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
 
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
-        await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
-            await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
-        }
+        await resetSchema(pool);
 
         process.env['DATABASE_URL'] = DATABASE_URL;
         process.env['USDA_API_KEY'] = 'e2e-stub-key';
